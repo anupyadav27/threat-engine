@@ -9,9 +9,9 @@ Single call to engine-encryption/api/v1/encryption/ui-data.
 
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
-from ._shared import fetch_many, fetch_all_check_findings, safe_get, mock_fallback, is_empty_or_health
+from ._shared import fetch_many, fetch_all_check_findings, safe_get, is_empty_or_health
 from ._transforms import apply_global_filters
 from ._page_context import encryption_page_context, encryption_filter_schema
 
@@ -20,6 +20,7 @@ router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
 @router.get("/encryption")
 async def view_encryption(
+    request: Request,
     tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
@@ -28,12 +29,15 @@ async def view_encryption(
 ):
     """Single endpoint returning everything the encryption security page needs."""
 
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
     results = await fetch_many([
         ("encryption", "/api/v1/encryption/ui-data", {
             "tenant_id": tenant_id,
             "scan_id": scan_id,
         }),
-    ])
+    ], auth_headers=fwd_headers)
 
     enc_data = results[0]
     if not isinstance(enc_data, dict):
@@ -50,7 +54,7 @@ async def view_encryption(
         check_raw = await fetch_all_check_findings({
             "tenant_id": tenant_id,
             "domain": "data_protection_and_privacy",
-        })
+        }, auth_headers=fwd_headers)
         if check_raw:
             # Filter to encryption-specific findings by rule_id keywords
             _enc_keywords = ("encrypt", "kms", "tls", "ssl", "cert", "key", "secret", "vault")
@@ -63,10 +67,6 @@ async def view_encryption(
                 "resources": enc_findings,
                 "summary": {},
             }
-        else:
-            m = mock_fallback("encryption")
-            if m is not None:
-                return m
 
     summary = safe_get(enc_data, "summary", {})
 

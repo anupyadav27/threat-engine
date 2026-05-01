@@ -1,0 +1,30 @@
+version: '1.0'
+provider: alicloud
+service: cen
+discovery:
+- discovery_id: alicloud.cen.describe_cen_attached_child_instances
+  calls:
+  - action: DescribeCenAttachedChildInstances
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ChildInstances.ChildInstance }}'
+    item:
+      CenId: '{{ item.CenId }}'
+      AttachedChildInstanceId: '{{ item.AttachedChildInstanceId }}'
+      AttachedChildInstanceType: '{{ item.AttachedChildInstanceType }}'
+      AttachedChildInstanceRegionId: '{{ item.AttachedChildInstanceRegionId }}'
+      Status: '{{ item.Status }}'
+- discovery_id: alicloud.cen.network.eni_security_groups.list
+  calls:
+  - action: DescribeCenInterRegionBandwidthLimits
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      security_groups: '{{ item.security_groups }}'
+      NetworkInterfaceId: '{{ item.NetworkInterfaceId }}'
+      PrivateIpAddress: '{{ item.PrivateIpAddress }}'

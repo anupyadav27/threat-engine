@@ -1,0 +1,124 @@
+version: '1.0'
+provider: azure
+service: authorization
+checks:
+# ═══════════════════════════════════════════
+# Role Assignments — azure.authorization.roleassignments.list
+# Fields: id, name, type, scope, role_definition_id, principal_id, can_delegate
+# ═══════════════════════════════════════════
+- rule_id: azure.authorization.role_assignment.scope_not_root
+  for_each: azure.authorization.roleassignments.list
+  conditions:
+    var: item.scope
+    op: not_equals
+    value: /
+
+- rule_id: azure.authorization.role_assignment.can_delegate_disabled
+  for_each: azure.authorization.roleassignments.list
+  conditions:
+    var: item.can_delegate
+    op: equals
+    value: 'false'
+
+- rule_id: azure.authorization.role_assignment.principal_id_present
+  for_each: azure.authorization.roleassignments.list
+  conditions:
+    var: item.principal_id
+    op: not_empty
+
+- rule_id: azure.authorization.role_assignment.role_definition_id_present
+  for_each: azure.authorization.roleassignments.list
+  conditions:
+    var: item.role_definition_id
+    op: not_empty
+
+- rule_id: azure.authorization.role_assignment.scope_not_subscription_wide
+  for_each: azure.authorization.roleassignments.list
+  conditions:
+    var: item.scope
+    op: not_equals
+    value: /subscriptions/
+
+# ═══════════════════════════════════════════
+# Role Definitions — azure.authorization.roledefinitions.list (dependent on scope)
+# Fields: id, name, type, role_name, description, role_type, permissions, assignable_scopes
+# ═══════════════════════════════════════════
+- rule_id: azure.authorization.role_definition.no_wildcard_actions
+  for_each: azure.authorization.roledefinitions.list
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+
+- rule_id: azure.authorization.role_definition.type_custom_reviewed
+  for_each: azure.authorization.roledefinitions.list
+  conditions:
+    var: item.role_type
+    op: not_equals
+    value: CustomRole
+
+- rule_id: azure.authorization.role_definition.description_present
+  for_each: azure.authorization.roledefinitions.list
+  conditions:
+    var: item.description
+    op: not_empty
+
+- rule_id: azure.authorization.role_definition.assignable_scopes_not_root
+  for_each: azure.authorization.roledefinitions.list
+  conditions:
+    var: item.assignable_scopes
+    op: not_contains
+    value: /
+
+- rule_id: azure.authorization.role_definition.no_wildcard_data_actions
+  for_each: azure.authorization.roledefinitions.list
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*/write'
+
+# ═══════════════════════════════════════════
+# Permissions — azure.authorization.permissions.list_for_resource_group
+# Fields: actions, not_actions, data_actions, not_data_actions
+# ═══════════════════════════════════════════
+- rule_id: azure.authorization.permissions.no_wildcard_actions
+  for_each: azure.authorization.permissions.list_for_resource_group
+  conditions:
+    var: item.actions
+    op: not_contains
+    value: '*'
+
+- rule_id: azure.authorization.permissions.not_actions_configured
+  for_each: azure.authorization.permissions.list_for_resource_group
+  conditions:
+    var: item.not_actions
+    op: not_empty
+
+- rule_id: azure.authorization.permissions.data_actions_scoped
+  for_each: azure.authorization.permissions.list_for_resource_group
+  conditions:
+    var: item.data_actions
+    op: not_empty
+
+- rule_id: azure.authorization.permissions.no_wildcard_data_actions
+  for_each: azure.authorization.permissions.list_for_resource_group
+  conditions:
+    var: item.data_actions
+    op: not_contains
+    value: '*'
+
+# ═══════════════════════════════════════════
+# Provider Operations — azure.authorization.providermetadata.list
+# Fields: id, name, type, display_name, resource_types, operations
+# ═══════════════════════════════════════════
+- rule_id: azure.authorization.provider.operations_documented
+  for_each: azure.authorization.providermetadata.list
+  conditions:
+    var: item.operations
+    op: not_empty
+
+- rule_id: azure.authorization.provider.resource_types_defined
+  for_each: azure.authorization.providermetadata.list
+  conditions:
+    var: item.resource_types
+    op: not_empty

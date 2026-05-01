@@ -1,0 +1,50 @@
+version: '1.0'
+provider: oci
+service: container_instances
+checks:
+- rule_id: oci.container_instances.container_instance.container_instance_env_no_plaintext_secrets
+  for_each: oci.container_instances.list_container_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.container_configuration.container_details[].environment_variables[].value
+      op: not_contains
+      value: password
+    - var: item.container_configuration.container_details[].environment_variables[].value
+      op: not_contains
+      value: secret
+    - var: item.container_configuration.container_details[].environment_variables[].value
+      op: not_contains
+      value: key
+    - var: item.container_configuration.container_details[].environment_variables[].value
+      op: not_contains
+      value: token
+- rule_id: oci.container_instances.container_instance.container_instance_no_privileged_containers
+  for_each: oci.container_instances.list_work_request_logs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.container_instance.container_config.containers[].security_context.privileged
+      op: is_false
+      value: null
+- rule_id: oci.container_instances.container_instance.container_instance_read_only_root_filesystem
+  for_each: oci.container_instances.list_work_request_logs
+  severity: CRITICAL
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.container_instances.container_instance.task_definitions_logging_block_mode
+  for_each: oci.container_instances.list_work_request_logs
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.container_instances.container_instance.task_definitions_logging_enabled
+  for_each: oci.container_instances.list_work_request_logs
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: exists
+    value: null

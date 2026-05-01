@@ -1,0 +1,131 @@
+# ==========================================================
+# Discovery YAML — transfer (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 12 | ops: 5 independent, 1 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: transfer
+
+services:
+  client: transfer
+  module: "boto3.client('transfer')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  []
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.transfer.list_connectors  ──
+  - discovery_id: aws.transfer.list_connectors
+    calls:
+      - action: list_connectors
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        As2Config.MdnSigningAlgorithm: '{{ item.As2Config.MdnSigningAlgorithm }}'
+        As2Config.SigningAlgorithm: '{{ item.As2Config.SigningAlgorithm }}'
+        Tags: '{{ item.Tags }}'
+        item: '{{ item }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.transfer.list_agreements  ──
+  - discovery_id: aws.transfer.list_agreements
+    calls:
+      - action: list_agreements
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Description: '{{ item.Description }}'
+        Tags: '{{ item.Tags }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.transfer.list_certificates  ──
+  - discovery_id: aws.transfer.list_certificates
+    calls:
+      - action: list_certificates
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Description: '{{ item.Description }}'
+        Tags: '{{ item.Tags }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.transfer.list_profiles  ──
+  - discovery_id: aws.transfer.list_profiles
+    calls:
+      - action: list_profiles
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Tags: '{{ item.Tags }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.transfer.list_workflows  ──
+  - discovery_id: aws.transfer.list_workflows
+    calls:
+      - action: list_workflows
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Description: '{{ item.Description }}'
+        Tags: '{{ item.Tags }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.transfer.describe_server [dependent] ──
+  - discovery_id: aws.transfer.describe_server
+    for_each: aws.transfer.list_servers
+    calls:
+      - action: describe_server
+        params:
+          ServerId: "{{ item.ServerId }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        As2ServiceManagedEgressIpAddresses: '{{ item.As2ServiceManagedEgressIpAddresses }}'
+        Certificate: '{{ item.Certificate }}'
+        Domain: '{{ item.Domain }}'
+        EndpointDetails: '{{ item.EndpointDetails }}'
+        EndpointType: '{{ item.EndpointType }}'
+        HostKeyFingerprint: '{{ item.HostKeyFingerprint }}'
+        IdentityProviderDetails: '{{ item.IdentityProviderDetails }}'
+        IdentityProviderType: '{{ item.IdentityProviderType }}'
+        IpAddressType: '{{ item.IpAddressType }}'
+        LoggingRole: '{{ item.LoggingRole }}'
+        PostAuthenticationLoginBanner: '{{ item.PostAuthenticationLoginBanner }}'
+        PreAuthenticationLoginBanner: '{{ item.PreAuthenticationLoginBanner }}'
+        ProtocolDetails: '{{ item.ProtocolDetails }}'
+        Protocols: '{{ item.Protocols }}'
+        S3StorageOptions: '{{ item.S3StorageOptions }}'
+        SecurityPolicyName: '{{ item.SecurityPolicyName }}'
+        Server: '{{ item.Server }}'
+        ServerId: '{{ item.ServerId }}'
+        State: '{{ item.State }}'
+        StructuredLogDestinations: '{{ item.StructuredLogDestinations }}'
+        Tags: '{{ item.Tags }}'
+        UserCount: '{{ item.UserCount }}'
+        WorkflowDetails: '{{ item.WorkflowDetails }}'
+

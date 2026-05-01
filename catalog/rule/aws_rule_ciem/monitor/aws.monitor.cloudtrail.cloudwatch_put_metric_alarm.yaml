@@ -1,0 +1,79 @@
+rule_id: aws.monitor.cloudtrail.cloudwatch_put_metric_alarm
+service: monitor
+provider: aws
+check_type: log
+severity: low
+title: 'CloudWatch: Cloudwatch Put Metric Alarm'
+description: CloudWatch metric alarm created or updated.
+rationale: Cloud account enumeration identifies IAM users, service principals, and roles that can be targeted for credential attacks or privilege escalation.
+threat_category: persistence
+mitre_tactics:
+- persistence
+mitre_techniques:
+- T1087.004
+risk_score: 20
+resource: cloudwatch_alarm
+source: default
+is_active: true
+domain: logging_monitoring_and_alerting
+action_category: create
+log_source_type: 
+posture_category: iam_posture
+threat_tags:
+- T1087.004
+- T1087
+- persistence
+- backdoor
+- audit_log
+- monitoring
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: audit_log
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.1
+  - 1.4
+  - 1.16
+  cis_azure_v2:
+  - 1.1
+  - 2.1
+  - 2.9
+  nist_800_53_r5:
+  - AC-2
+  - AC-6
+  - IA-2
+  - SC-7
+  pci_dss_v4:
+  - 7.1
+  - 8.2
+  - 10.2
+  iso_27001_2022:
+  - A.8.2
+  - A.9.2
+  - A.5.18
+remediation: |
+  1. Apply IAM permission restrictions on ListUsers/ListRoles/ListServicePrincipals.
+  2. Alert on unexpected enumeration API call patterns.
+  3. Use AWS Organizations SCPs / Azure Policy to limit who can enumerate identities.
+references:
+- https://attack.mitre.org/techniques/T1087/004/
+- https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_examples_iam_limited-identities.html
+check_config:
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: monitoring
+    - field: operation
+      op: equals
+      value: PutMetricAlarm
+version: '1.0'

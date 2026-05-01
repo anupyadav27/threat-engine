@@ -1,0 +1,37 @@
+version: '1.0'
+provider: azure
+service: rbac
+discovery:
+- discovery_id: azure.authorization.roleassignments.list
+  calls:
+  - action: roleassignments.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      scope: '{{ item.scope }}'
+      role_definition_id: '{{ item.role_definition_id }}'
+      principal_id: '{{ item.principal_id }}'
+      can_delegate: '{{ item.can_delegate }}'
+- discovery_id: azure.authorization.roledefinitions.list
+  calls:
+  - action: roledefinitions.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      role_name: '{{ item.role_name }}'
+      description: '{{ item.description }}'
+      role_type: '{{ item.role_type }}'
+      permissions: '{{ item.permissions }}'
+      assignable_scopes: '{{ item.assignable_scopes }}'

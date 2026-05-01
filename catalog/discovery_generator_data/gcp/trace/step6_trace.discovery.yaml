@@ -1,0 +1,54 @@
+version: '1.0'
+provider: gcp
+service: trace
+discovery:
+- discovery_id: gcp.trace.list_trace_sinks
+  calls:
+  - action: list_trace_sinks
+    params: {}
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      name: '{{ item.name }}'
+      outputConfig: '{{ item.outputConfig }}'
+      writerIdentity: '{{ item.writerIdentity }}'
+- discovery_id: gcp.trace.get_trace_sink
+  calls:
+  - action: get_trace_sink
+    params: {}
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      name: '{{ item.name }}'
+      outputConfig: '{{ item.outputConfig }}'
+      writerIdentity: '{{ item.writerIdentity }}'
+- discovery_id: gcp.cloudtrace.projects.traces.list
+  calls:
+  - action: projects.traces.list
+    params: {}
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.traces }}'
+    item: null
+    spans: '{{ item.spans }}'
+    traceId: '{{ item.traceId }}'
+    projectId: '{{ item.projectId }}'
+- discovery_id: gcp.trace.list_traces
+  calls:
+  - action: projects.traceSinks.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      name: '{{ item.name }}'
+      outputConfig: '{{ item.outputConfig }}'
+      writerIdentity: '{{ item.writerIdentity }}'

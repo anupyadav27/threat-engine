@@ -295,7 +295,8 @@ class IBMDiscoveryScanner(DiscoveryScanner):
         self,
         service: str,
         region: str,
-        config: Dict[str, Any]
+        config: Dict[str, Any],
+        skip_dependents: bool = False,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """Execute IBM Cloud service discovery via registered handler."""
         handler = IBM_SERVICE_HANDLERS.get(service)

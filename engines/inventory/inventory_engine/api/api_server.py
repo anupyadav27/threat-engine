@@ -51,6 +51,13 @@ from ..api.rules_router import router as rules_router
 
 logger = setup_logger(__name__, engine_name="engine-inventory")
 
+# ── Auth imports (engine_auth is COPY shared/auth/ ./engine_auth/ in Dockerfile) ──
+try:
+    from engine_auth.fastapi.middleware import AuthMiddleware as _AuthMiddleware
+    _AUTH_AVAILABLE = True
+except ImportError:
+    _AUTH_AVAILABLE = False
+
 app = FastAPI(
     title="Inventory Engine API",
     description="Cloud Resource Inventory — Discovery, Graph, Attack Paths",
@@ -68,6 +75,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# AuthMiddleware validates access_token / X-Auth-Context for every non-health path
+if _AUTH_AVAILABLE:
+    app.add_middleware(_AuthMiddleware)
 
 # ── Startup ───────────────────────────────────────────────────────────────────
 @app.on_event("startup")

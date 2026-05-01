@@ -1,0 +1,520 @@
+# Discovery YAML — datafactory (Azure)
+# Generated: 2026-04-15T10:39:30Z
+# Source: step1b_operation_registry.json (qualified ops + dependency chains)
+# Actions use {category}.{method} format for SDK method resolution
+version: '1.0'
+provider: azure
+service: datafactory
+services:
+  client: datafactory
+  module: azure.mgmt.datafactory
+discovery:
+  # ── factories.list [root] ──
+  - discovery_id: azure.datafactory.factories.list
+    calls:
+      - action: factories.list
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        display: '{{ item.display }}'
+        origin: '{{ item.origin }}'
+        service_specification: '{{ item.service_specification }}'
+  # ── factories.list_by_resource_group [root] ──
+  - discovery_id: azure.datafactory.factories.list_by_resource_group
+    calls:
+      - action: factories.list_by_resource_group
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        public_network_access: '{{ item.public_network_access }}'
+        type: '{{ item.type }}'
+        location: '{{ item.location }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        encryption: '{{ item.encryption }}'
+        tags: '{{ item.tags }}'
+        create_time: '{{ item.create_time }}'
+        e_tag: '{{ item.e_tag }}'
+        global_parameters: '{{ item.global_parameters }}'
+        purview_configuration: '{{ item.purview_configuration }}'
+        repo_configuration: '{{ item.repo_configuration }}'
+        version: '{{ item.version }}'
+  # ════════════════════════════════════════
+  # Dependent operations (for_each + params)
+  # ════════════════════════════════════════
+  # ── changedatacapture.list_by_factory [dependent] ──
+  - discovery_id: azure.datafactory.changedatacapture.list_by_factory
+    for_each: azure.datafactory.factories.list
+    calls:
+      - action: changedatacapture.list_by_factory
+        save_as: response
+        on_error: continue
+        params:
+          factory_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        etag: '{{ item.etag }}'
+  # ── credential.list_by_factory [dependent] ──
+  - discovery_id: azure.datafactory.credential.list_by_factory
+    for_each: azure.datafactory.factories.list
+    calls:
+      - action: credential.list_by_factory
+        save_as: response
+        on_error: continue
+        params:
+          factory_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        etag: '{{ item.etag }}'
+  # ── dataflows.list_by_factory [dependent] ──
+  - discovery_id: azure.datafactory.dataflows.list_by_factory
+    for_each: azure.datafactory.factories.list
+    calls:
+      - action: dataflows.list_by_factory
+        save_as: response
+        on_error: continue
+        params:
+          factory_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        etag: '{{ item.etag }}'
+  # ── datasets.list_by_factory [dependent] ──
+  - discovery_id: azure.datafactory.datasets.list_by_factory
+    for_each: azure.datafactory.factories.list
+    calls:
+      - action: datasets.list_by_factory
+        save_as: response
+        on_error: continue
+        params:
+          factory_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        etag: '{{ item.etag }}'
+  # ── exposurecontrol.get_feature_value [dependent] ──
+  - discovery_id: azure.datafactory.exposurecontrol.get_feature_value
+    for_each: azure.datafactory.factories.list
+    calls:
+      - action: exposurecontrol.get_feature_value
+        save_as: response
+        on_error: continue
+        params:
+          location_id: '{{ item.id }}'
+    emit:
+      as: item
+      item:
+        identity: '{{ response.identity }}'
+        type: '{{ response.type }}'
+        properties: '{{ response.properties }}'
+        location: '{{ response.location }}'
+        sku: '{{ response.sku }}'
+        name: '{{ response.name }}'
+        provisioning_state: '{{ response.provisioning_state }}'
+        zones: '{{ response.zones }}'
+        kind: '{{ response.kind }}'
+        id: '{{ response.id }}'
+        tags: '{{ response.tags }}'
+  # ── exposurecontrol.get_feature_value_by_factory [dependent] ──
+  - discovery_id: azure.datafactory.exposurecontrol.get_feature_value_by_factory
+    for_each: azure.datafactory.factories.list
+    calls:
+      - action: exposurecontrol.get_feature_value_by_factory
+        save_as: response
+        on_error: continue
+        params:
+          factory_name: '{{ item.name }}'
+    emit:
+      as: item
+      item:
+        identity: '{{ response.identity }}'
+        type: '{{ response.type }}'
+        properties: '{{ response.properties }}'
+        location: '{{ response.location }}'
+        sku: '{{ response.sku }}'
+        name: '{{ response.name }}'
+        provisioning_state: '{{ response.provisioning_state }}'
+        zones: '{{ response.zones }}'
+        kind: '{{ response.kind }}'
+        id: '{{ response.id }}'
+        tags: '{{ response.tags }}'
+  # ── factories.get_data_plane_access [dependent] ──
+  - discovery_id: azure.datafactory.factories.get_data_plane_access
+    for_each: azure.datafactory.factories.list
+    calls:
+      - action: factories.get_data_plane_access
+        save_as: response
+        on_error: continue
+        params:
+          factory_name: '{{ item.name }}'
+    emit:
+      as: item
+      item:
+        identity: '{{ response.identity }}'
+        type: '{{ response.type }}'
+        properties: '{{ response.properties }}'
+        location: '{{ response.location }}'
+        sku: '{{ response.sku }}'
+        name: '{{ response.name }}'
+        provisioning_state: '{{ response.provisioning_state }}'
+        zones: '{{ response.zones }}'
+        kind: '{{ response.kind }}'
+        id: '{{ response.id }}'
+        tags: '{{ response.tags }}'
+  # ── factories.get_git_hub_access_token [dependent] ──
+  - discovery_id: azure.datafactory.factories.get_git_hub_access_token
+    for_each: azure.datafactory.factories.list
+    calls:
+      - action: factories.get_git_hub_access_token
+        save_as: response
+        on_error: continue
+        params:
+          factory_name: '{{ item.name }}'
+    emit:
+      as: item
+      item:
+        identity: '{{ response.identity }}'
+        type: '{{ response.type }}'
+        properties: '{{ response.properties }}'
+        location: '{{ response.location }}'
+        sku: '{{ response.sku }}'
+        name: '{{ response.name }}'
+        provisioning_state: '{{ response.provisioning_state }}'
+        zones: '{{ response.zones }}'
+        kind: '{{ response.kind }}'
+        id: '{{ response.id }}'
+        tags: '{{ response.tags }}'
+  # ── globalparameters.list_by_factory [dependent] ──
+  - discovery_id: azure.datafactory.globalparameters.list_by_factory
+    for_each: azure.datafactory.factories.list
+    calls:
+      - action: globalparameters.list_by_factory
+        save_as: response
+        on_error: continue
+        params:
+          factory_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        etag: '{{ item.etag }}'
+  # ── integrationruntimenodes.get_ip_address [dependent] ──
+  - discovery_id: azure.datafactory.integrationruntimenodes.get_ip_address
+    for_each: azure.datafactory.factories.list
+    calls:
+      - action: integrationruntimenodes.get_ip_address
+        save_as: response
+        on_error: continue
+        params:
+          factory_name: '{{ item.name }}'
+    emit:
+      as: item
+      item:
+        identity: '{{ response.identity }}'
+        type: '{{ response.type }}'
+        properties: '{{ response.properties }}'
+        location: '{{ response.location }}'
+        sku: '{{ response.sku }}'
+        name: '{{ response.name }}'
+        provisioning_state: '{{ response.provisioning_state }}'
+        zones: '{{ response.zones }}'
+        kind: '{{ response.kind }}'
+        id: '{{ response.id }}'
+        tags: '{{ response.tags }}'
+  # ── integrationruntimes.get_connection_info [dependent] ──
+  - discovery_id: azure.datafactory.integrationruntimes.get_connection_info
+    for_each: azure.datafactory.factories.list
+    calls:
+      - action: integrationruntimes.get_connection_info
+        save_as: response
+        on_error: continue
+        params:
+          factory_name: '{{ item.name }}'
+    emit:
+      as: item
+      item:
+        identity: '{{ response.identity }}'
+        type: '{{ response.type }}'
+        properties: '{{ response.properties }}'
+        location: '{{ response.location }}'
+        sku: '{{ response.sku }}'
+        name: '{{ response.name }}'
+        provisioning_state: '{{ response.provisioning_state }}'
+        zones: '{{ response.zones }}'
+        kind: '{{ response.kind }}'
+        id: '{{ response.id }}'
+        tags: '{{ response.tags }}'
+  # ── integrationruntimes.get_monitoring_data [dependent] ──
+  - discovery_id: azure.datafactory.integrationruntimes.get_monitoring_data
+    for_each: azure.datafactory.factories.list
+    calls:
+      - action: integrationruntimes.get_monitoring_data
+        save_as: response
+        on_error: continue
+        params:
+          factory_name: '{{ item.name }}'
+    emit:
+      as: item
+      item:
+        identity: '{{ response.identity }}'
+        type: '{{ response.type }}'
+        properties: '{{ response.properties }}'
+        location: '{{ response.location }}'
+        sku: '{{ response.sku }}'
+        name: '{{ response.name }}'
+        provisioning_state: '{{ response.provisioning_state }}'
+        zones: '{{ response.zones }}'
+        kind: '{{ response.kind }}'
+        id: '{{ response.id }}'
+        tags: '{{ response.tags }}'
+  # ── integrationruntimes.get_status [dependent] ──
+  - discovery_id: azure.datafactory.integrationruntimes.get_status
+    for_each: azure.datafactory.factories.list
+    calls:
+      - action: integrationruntimes.get_status
+        save_as: response
+        on_error: continue
+        params:
+          factory_name: '{{ item.name }}'
+    emit:
+      as: item
+      item:
+        identity: '{{ response.identity }}'
+        type: '{{ response.type }}'
+        properties: '{{ response.properties }}'
+        location: '{{ response.location }}'
+        sku: '{{ response.sku }}'
+        name: '{{ response.name }}'
+        provisioning_state: '{{ response.provisioning_state }}'
+        zones: '{{ response.zones }}'
+        kind: '{{ response.kind }}'
+        id: '{{ response.id }}'
+        tags: '{{ response.tags }}'
+  # ── integrationruntimes.list_auth_keys [dependent] ──
+  - discovery_id: azure.datafactory.integrationruntimes.list_auth_keys
+    for_each: azure.datafactory.factories.list
+    calls:
+      - action: integrationruntimes.list_auth_keys
+        save_as: response
+        on_error: continue
+        params:
+          factory_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        location: '{{ item.location }}'
+        sku: '{{ item.sku }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        zones: '{{ item.zones }}'
+        kind: '{{ item.kind }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+  # ── integrationruntimes.list_by_factory [dependent] ──
+  - discovery_id: azure.datafactory.integrationruntimes.list_by_factory
+    for_each: azure.datafactory.factories.list
+    calls:
+      - action: integrationruntimes.list_by_factory
+        save_as: response
+        on_error: continue
+        params:
+          factory_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        etag: '{{ item.etag }}'
+  # ── integrationruntimes.list_outbound_network_dependencies_endpoints [dependent] ──
+  - discovery_id: azure.datafactory.integrationruntimes.list_outbound_network_dependencies_endpoints
+    for_each: azure.datafactory.factories.list
+    calls:
+      - action: integrationruntimes.list_outbound_network_dependencies_endpoints
+        save_as: response
+        on_error: continue
+        params:
+          factory_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        category: '{{ item.category }}'
+        endpoints: '{{ item.endpoints }}'
+  # ── linkedservices.list_by_factory [dependent] ──
+  - discovery_id: azure.datafactory.linkedservices.list_by_factory
+    for_each: azure.datafactory.factories.list
+    calls:
+      - action: linkedservices.list_by_factory
+        save_as: response
+        on_error: continue
+        params:
+          factory_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        etag: '{{ item.etag }}'
+  # ── managedprivateendpoints.list_by_factory [dependent] ──
+  - discovery_id: azure.datafactory.managedprivateendpoints.list_by_factory
+    for_each: azure.datafactory.factories.list
+    calls:
+      - action: managedprivateendpoints.list_by_factory
+        save_as: response
+        on_error: continue
+        params:
+          factory_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        etag: '{{ item.etag }}'
+  # ── managedvirtualnetworks.list_by_factory [dependent] ──
+  - discovery_id: azure.datafactory.managedvirtualnetworks.list_by_factory
+    for_each: azure.datafactory.factories.list
+    calls:
+      - action: managedvirtualnetworks.list_by_factory
+        save_as: response
+        on_error: continue
+        params:
+          factory_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        etag: '{{ item.etag }}'
+  # ── pipelines.list_by_factory [dependent] ──
+  - discovery_id: azure.datafactory.pipelines.list_by_factory
+    for_each: azure.datafactory.factories.list
+    calls:
+      - action: pipelines.list_by_factory
+        save_as: response
+        on_error: continue
+        params:
+          factory_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        etag: '{{ item.etag }}'
+  # ── privateendpointconnections.list_by_factory [dependent] ──
+  - discovery_id: azure.datafactory.privateendpointconnections.list_by_factory
+    for_each: azure.datafactory.factories.list
+    calls:
+      - action: privateendpointconnections.list_by_factory
+        save_as: response
+        on_error: continue
+        params:
+          factory_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        etag: '{{ item.etag }}'
+  # ── triggers.get_event_subscription_status [dependent] ──
+  - discovery_id: azure.datafactory.triggers.get_event_subscription_status
+    for_each: azure.datafactory.factories.list
+    calls:
+      - action: triggers.get_event_subscription_status
+        save_as: response
+        on_error: continue
+        params:
+          factory_name: '{{ item.name }}'
+    emit:
+      as: item
+      item:
+        identity: '{{ response.identity }}'
+        type: '{{ response.type }}'
+        properties: '{{ response.properties }}'
+        location: '{{ response.location }}'
+        sku: '{{ response.sku }}'
+        name: '{{ response.name }}'
+        provisioning_state: '{{ response.provisioning_state }}'
+        zones: '{{ response.zones }}'
+        kind: '{{ response.kind }}'
+        id: '{{ response.id }}'
+        tags: '{{ response.tags }}'
+  # ── triggers.list_by_factory [dependent] ──
+  - discovery_id: azure.datafactory.triggers.list_by_factory
+    for_each: azure.datafactory.factories.list
+    calls:
+      - action: triggers.list_by_factory
+        save_as: response
+        on_error: continue
+        params:
+          factory_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        etag: '{{ item.etag }}'

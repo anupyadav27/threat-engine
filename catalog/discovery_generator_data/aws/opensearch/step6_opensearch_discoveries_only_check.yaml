@@ -1,0 +1,69 @@
+# discoveries_only_check: 2 kept / 31 removed from 33 total
+# generated_from: step6_opensearch.discovery.yaml
+# purpose: only discoveries needed by opensearch.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: opensearch
+services:
+  client: opensearch
+  module: boto3.client
+discovery:
+- discovery_id: aws.opensearch.list_domain_names
+  calls:
+  - action: list_domain_names
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.DomainNames }}'
+    item:
+      DomainName: '{{ item.DomainName }}'
+      EngineType: '{{ item.EngineType }}'
+- discovery_id: aws.opensearch.describe_domain
+  for_each: aws.opensearch.list_domain_names
+  calls:
+  - action: describe_domain
+    params:
+      DomainName: '{{ item.DomainName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      AIMLOptions: '{{ response.DomainStatus.AIMLOptions }}'
+      ARN: '{{ response.DomainStatus.ARN }}'
+      AccessPolicies: '{{ response.DomainStatus.AccessPolicies }}'
+      AdvancedOptions: '{{ response.DomainStatus.AdvancedOptions }}'
+      AdvancedSecurityOptions: '{{ response.DomainStatus.AdvancedSecurityOptions }}'
+      AutoTuneOptions: '{{ response.DomainStatus.AutoTuneOptions }}'
+      ChangeProgressDetails: '{{ response.DomainStatus.ChangeProgressDetails }}'
+      ClusterConfig: '{{ response.DomainStatus.ClusterConfig }}'
+      CognitoOptions: '{{ response.DomainStatus.CognitoOptions }}'
+      Created: '{{ response.DomainStatus.Created }}'
+      Deleted: '{{ response.DomainStatus.Deleted }}'
+      DomainEndpointOptions: '{{ response.DomainStatus.DomainEndpointOptions }}'
+      EndpointOptions: '{{ response.DomainStatus.DomainEndpointOptions }}'
+      DomainEndpointV2HostedZoneId: '{{ response.DomainStatus.DomainEndpointV2HostedZoneId
+        }}'
+      DomainId: '{{ response.DomainStatus.DomainId }}'
+      DomainName: '{{ response.DomainStatus.DomainName }}'
+      DomainProcessingStatus: '{{ response.DomainStatus.DomainProcessingStatus }}'
+      EBSOptions: '{{ response.DomainStatus.EBSOptions }}'
+      EncryptionAtRestOptions: '{{ response.DomainStatus.EncryptionAtRestOptions }}'
+      Endpoint: '{{ response.DomainStatus.Endpoint }}'
+      EndpointV2: '{{ response.DomainStatus.EndpointV2 }}'
+      Endpoints: '{{ response.DomainStatus.Endpoints }}'
+      EngineVersion: '{{ response.DomainStatus.EngineVersion }}'
+      IPAddressType: '{{ response.DomainStatus.IPAddressType }}'
+      IdentityCenterOptions: '{{ response.DomainStatus.IdentityCenterOptions }}'
+      LogPublishingOptions: '{{ response.DomainStatus.LogPublishingOptions }}'
+      ModifyingProperties: '{{ response.DomainStatus.ModifyingProperties }}'
+      NodeToNodeEncryptionOptions: '{{ response.DomainStatus.NodeToNodeEncryptionOptions
+        }}'
+      OffPeakWindowOptions: '{{ response.DomainStatus.OffPeakWindowOptions }}'
+      Processing: '{{ response.DomainStatus.Processing }}'
+      ServiceSoftwareOptions: '{{ response.DomainStatus.ServiceSoftwareOptions }}'
+      SnapshotOptions: '{{ response.DomainStatus.SnapshotOptions }}'
+      SoftwareUpdateOptions: '{{ response.DomainStatus.SoftwareUpdateOptions }}'
+      UpgradeProcessing: '{{ response.DomainStatus.UpgradeProcessing }}'
+      VPCOptions: '{{ response.DomainStatus.VPCOptions }}'

@@ -1,0 +1,432 @@
+# SQL_SERVER — CIEM Detection Rules
+# Real-time authentication & access event analysis
+# Log source: SQL Server Audit, Error Log
+
+tech_type: sql_server
+category: database
+log_source: SQL Server Audit, Error Log
+
+rules:
+
+  - rule_id: tciem.sql_server.remote_access_server_configuration_option_is_set
+    title: "Ensure 'Remote Access' Server Configuration Option is set to '0'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.6'
+    cis_section: '2'
+    log_source: "SQL Server Audit, Error Log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      For AWS RDS Instances, please refer to the documentation for using Parameter
+      Groups here: Working with parameter groups Otherwise, run the following T-SQL
+      command: EXECUTE sp_configure 'show advanced options', 1; RECONFIGURE; EXECUTE
+      sp_configure 'remote access', 0; RECONFIGURE; GO EXECUTE sp_configure 'show
+      advanced options', 0; RECONFIGURE; Restart the Database Engine. Default Value:
+      By default, this option is enabled (1). References: 1.
+      https://learn.microsoft.com/en-us/sql/database-engine/configure-
+      windows/configure-the-remote-access-server-configuration-option
+
+  - rule_id: tciem.sql_server.trustworthy_database_property_is_set_to_off
+    title: "Ensure 'Trustworthy' Database Property is set to 'Off'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.9'
+    cis_section: '2'
+    log_source: "SQL Server Audit, Error Log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following T-SQL statement against the databases (replace
+      <database_name> below) returned by the Audit Procedure: ALTER DATABASE
+      [<database_name>] SET TRUSTWORTHY OFF; Default Value: By default, this
+      database property is OFF (is_trustworthy_on = 0), except for the msdb database
+      in which it is required to be ON. References: 1.
+      https://learn.microsoft.com/en-us/sql/relational-
+      databases/security/trustworthy- database-property
+
+  - rule_id: tciem.sql_server.sa_login_account_is_set_to_disabled
+    title: "Ensure the 'sa' Login Account is set to 'Disabled'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.13'
+    cis_section: '2'
+    log_source: "SQL Server Audit, Error Log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following T-SQL query: USE [master] GO DECLARE @tsql nvarchar(max)
+      SET @tsql = 'ALTER LOGIN ' + SUSER_NAME(0x01) + ' DISABLE' EXEC (@tsql) GO
+      Default Value: By default, the sa login account is disabled at install time
+      when Windows Authentication Mode is selected. If mixed mode (SQL Server and
+      Windows Authentication) is selected at install, the default for the sa login
+      is enabled. References: 1. https://learn.microsoft.com/en-us/sql/relational-
+      databases/system-catalog- views/sys-server-principals-transact-sql 2.
+      https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-login-transact-
+      sql 3. https://learn.microsoft.com/en-us/sql/relational-
+      databases/security/choose-an- authentication-mode Additional Information: In
+      the case of AWS RDS the default name for this account is rdsa instead of sa.
+
+  - rule_id: tciem.sql_server.sa_login_account_has_been_renamed
+    title: "Ensure the 'sa' Login Account has been renamed"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.14'
+    cis_section: '2'
+    log_source: "SQL Server Audit, Error Log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Replace the <different_user> value within the below syntax and execute to
+      rename the sa login. ALTER LOGIN sa WITH NAME = <different_user>; Default
+      Value: By default, the sa login name is 'sa'. References: 1.
+      https://learn.microsoft.com/en-us/sql/relational-databases/security/choose-an-
+      authentication-mode Additional Information: In the case of AWS RDS the default
+      name for this account is rdsa instead of sa.
+
+  - rule_id: tciem.sql_server.no_login_exists_with_the_name_sa
+    title: "Ensure no login exists with the name 'sa'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.16'
+    cis_section: '2'
+    log_source: "SQL Server Audit, Error Log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the appropriate ALTER statement below based on the principal_id
+      returned for the login named sa. Replace the <different_name> value within the
+      below syntax and execute to rename the sa login. USE [master] GO -- If
+      principal_id = 1 or the login owns database objects, rename the sa login ALTER
+      LOGIN [sa] WITH NAME = <different_name>; GO Default Value: The login with
+      principal_id = 1 is named sa by default.
+
+  - rule_id: tciem.sql_server.orphaned_users_are_dropped_from_sql_server
+    title: "Ensure 'Orphaned Users' are Dropped From SQL Server Databases"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.3'
+    cis_section: '3'
+    log_source: "SQL Server Audit, Error Log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      If the orphaned user cannot or should not be matched to an existing or new
+      login using the Microsoft documented process referenced below, run the
+      following T-SQL query in the appropriate database to remove an orphan user:
+      USE <database_name>; GO DROP USER <username>; References: 1.
+      https://learn.microsoft.com/en-us/sql/sql-server/failover-
+      clusters/troubleshoot- orphaned-users-sql-server
+
+  - rule_id: tciem.sql_server.only_the_default_permissions_specified_by
+    title: "Ensure only the default permissions specified by Microsoft are granted to the public server role"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.8'
+    cis_section: '3'
+    log_source: "SQL Server Audit, Error Log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      1. Add the extraneous permissions found in the Audit query results to the
+      specific logins to user-defined server roles which require the access. 2.
+      Revoke the <permission_name> from the public role as shown below USE [master]
+      GO REVOKE <permission_name> FROM public; GO Default Value: By default, the
+      public server role is granted VIEW ANY DATABASE permission and the CONNECT
+      permission on the default endpoints (TSQL Local Machine, TSQL Named Pipes,
+      TSQL Default TCP, TSQL Default VIA). The VIEW ANY DATABASE permission allows
+      all logins to see database metadata, unless explicitly denied. References: 1.
+      https://learn.microsoft.com/en-us/sql/relational-
+      databases/security/authentication- access/server-level-roles 2.
+      https://learn.microsoft.com/en-us/sql/relational-
+      databases/security/authentication- access/server-level-roles#permissions-of-
+      fixed-server-roles
+
+  - rule_id: tciem.sql_server.windows_builtin_groups_are_not_sql_logins
+    title: "Ensure Windows BUILTIN groups are not SQL Logins"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.9'
+    cis_section: '3'
+    log_source: "SQL Server Audit, Error Log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      1. For each BUILTIN login, if needed create a more restrictive AD group
+      containing only the required user accounts. 2. Add the AD group or individual
+      Windows accounts as a SQL Server login and grant it the permissions required.
+      3. Drop the BUILTIN login using the syntax below after replacing <name> in
+      [BUILTIN\ <name> ]. USE [master] GO DROP LOGIN [BUILTIN\<name>] GO Default
+      Value: By default, no BUILTIN groups are added as SQL logins. Additional
+      Information: In AWS RDS instances [BUILTIN]\Administrators can't be dropped.
+      Dropping [Builtin]\Administrators is blocked in AWS RDS by the server-level
+      trigger rds_drop_login_trigger.
+
+  - rule_id: tciem.sql_server.windows_local_groups_are_not_sql_logins
+    title: "Ensure Windows local groups are not SQL Logins"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.10'
+    cis_section: '3'
+    log_source: "SQL Server Audit, Error Log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      1. For each LocalGroupName login, if needed create an equivalent AD group
+      containing only the required user accounts. 2. Add the AD group or individual
+      Windows accounts as a SQL Server login and grant it the permissions required.
+      3. Drop the LocalGroupName login using the syntax below after replacing <name>
+      . USE [master] GO DROP LOGIN [<name>] GO Default Value: By default, no local
+      groups are added as SQL logins.
+
+  - rule_id: tciem.sql_server.public_role_in_the_msdb_database_is_not_granted
+    title: "Ensure the public role in the msdb database is not granted access to SQL Agent proxies"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.11'
+    cis_section: '3'
+    log_source: "SQL Server Audit, Error Log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      1. Ensure the required security principals are explicitly granted access to
+      the proxy (use sp_grant_login_to_proxy). 2. Revoke access to the <proxyname>
+      from the public role. USE [msdb] GO EXEC dbo.sp_revoke_login_from_proxy @name
+      = N'public', @proxy_name = N'<proxyname>'; GO Default Value: By default, the
+      msdb public database role does not have access to any proxy. References: 1.
+      https://learn.microsoft.com/en-US/sql/ssms/agent/create-a-sql-server-agent-
+      proxy
+
+  - rule_id: tciem.sql_server.check_expiration_option_is_set_to_on_for_all_sql
+    title: "Ensure 'CHECK_EXPIRATION' Option is set to 'ON' for All SQL Authenticated Logins Within the Sysadmin Role"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2'
+    cis_section: '4'
+    log_source: "SQL Server Audit, Error Log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      For each <login_name> found by the Audit Procedure, execute the following
+      T-SQL statement: ALTER LOGIN [<login_name>] WITH CHECK_EXPIRATION = ON;
+      Default Value: CHECK_EXPIRATION is ON by default when using SSMS to create a
+      SQL authenticated login. CHECK_EXPIRATION is OFF by default when using T-SQL
+      CREATE LOGIN syntax without specifying the CHECK_EXPIRATION option.
+      References: 1. https://learn.microsoft.com/en-us/sql/relational-
+      databases/security/password- policy Additional Information: The rdsa account
+      created by AWS RDS cannot be altered. It has the Sysadmin role but its
+      password cannot be changed to allow it to expire.
+
+  - rule_id: tciem.sql_server.check_policy_option_is_set_to_on_for_all_sql
+    title: "Ensure 'CHECK_POLICY' Option is set to 'ON' for All SQL Authenticated Logins"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3'
+    cis_section: '4'
+    log_source: "SQL Server Audit, Error Log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      For each <login_name> found by the Audit Procedure, execute the following
+      T-SQL statement: ALTER LOGIN [<login_name>] WITH CHECK_POLICY = ON; Note: In
+      the case of AWS RDS do not perform this remediation for the Master account.
+      Default Value: CHECK_POLICY is ON References: 1.
+      https://learn.microsoft.com/en-us/sql/relational-databases/security/password-
+      policy
+
+  - rule_id: tciem.sql_server.default_trace_enabled_server_configuration_option
+    title: "Ensure 'Default Trace Enabled' Server Configuration Option is set to '1'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '5.2'
+    cis_section: '5'
+    log_source: "SQL Server Audit, Error Log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Run the following T-SQL command: EXECUTE sp_configure 'show advanced options',
+      1; RECONFIGURE; EXECUTE sp_configure 'default trace enabled', 1; RECONFIGURE;
+      GO EXECUTE sp_configure 'show advanced options', 0; RECONFIGURE; Default
+      Value: 1 (on) References: 1. https://learn.microsoft.com/en-us/sql/database-
+      engine/configure-windows/default- trace-enabled-server-configuration-option
+
+  - rule_id: tciem.sql_server.login_auditing_is_set_to_failed_logins
+    title: "Ensure 'Login Auditing' is set to 'failed logins'"
+    severity: high
+    mitre_technique: T1110
+    mitre_tactic: credential_access
+    cis_control: '5.3'
+    cis_section: '5'
+    log_source: "SQL Server Audit, Error Log"
+    detection:
+      event_type: authentication_failure
+      threshold: 5
+      window_seconds: 300
+      group_by: [source_ip, username]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform either the GUI or T-SQL method shown: GUI Method 1. Open SQL Server
+      Management Studio . 2. Right click the target instance and select Properties
+      and navigate to the Security tab. 3. Select the option Failed logins only
+      under the Login Auditing section and click OK . 4. Restart the SQL Server
+      instance. T-SQL Method 1. Run: EXEC xp_instance_regwrite
+      N'HKEY_LOCAL_MACHINE', N'Software\Microsoft\MSSQLServer\MSSQLServer',
+      N'AuditLevel', REG_DWORD, 2 2. Restart the SQL Server instance. Default Value:
+      By default, only failed login attempts are captured. References: 1.
+      https://learn.microsoft.com/en-us/sql/database-engine/configure-
+      windows/server- properties-security-page
+
+  - rule_id: tciem.sql_server.sql_server_audit_is_set_to_capture_both_failed
+    title: "Ensure 'SQL Server Audit' is set to capture both 'failed' and 'successful logins'"
+    severity: high
+    mitre_technique: T1110
+    mitre_tactic: credential_access
+    cis_control: '5.4'
+    cis_section: '5'
+    log_source: "SQL Server Audit, Error Log"
+    detection:
+      event_type: authentication_failure
+      threshold: 5
+      window_seconds: 300
+      group_by: [source_ip, username]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      For AWS RDS Instances, please refer to the documentation for configuring SQL
+      Server Audit here: SQL Server Audit Perform either the GUI or T-SQL method
+      shown: GUI Method 1. Expand the SQL Server in Object Explorer . 2. Expand the
+      Security Folder 3. Right-click on the Audits folder and choose New Audit... 4.
+      Specify a name for the Server Audit . 5. Specify the audit destination details
+      and then click OK to save the Server Audit . 6. Right-click on Server Audit
+      Specifications and choose New Server Audit Specification... 7. Name the Server
+      Audit Specification 8. Select the just created Server Audit in the Audit drop-
+      down selection. 9. Click the drop-down under Audit Action Type and select
+      AUDIT_CHANGE_GROUP. 10. Click the new drop-down Audit Action Type and select
+      FAILED_LOGIN_GROUP. 11. Click the new drop-down under Audit Action Type and
+      select SUCCESSFUL_LOGIN_GROUP. 12. Click the new drop-down under Audit Action
+      Type and select DATABASE_ROLE_MEMBER_CHANGE_GROUP. 13. Click the new drop-down
+      under Audit Action Type and select SERVER_ROLE_MEMBER_CHANGE_GROUP. 14. Click
+      the new drop-down under Audit Action Type and select SERVER_OPERATION_GROUP.
+      15. Click the new drop-down under Audit Action Type and select
+      SUCCESSFUL_DATABASE_AUTHENTICATION_GROUP. 16. Click the new drop-down under
+      Audit Action Type and select FAILED_DATABASE_AUTHENTICATION_GROUP. 17. Click
+      OK to save the Server Audit Specification . 18. Right-click on the new Server
+      Audit Specification and select Enable Server Audit Specification . 19. Right-
+      click on the new Server Audit and select Enable Server Audit . T-SQL Method
+      Execute code similar to: CREATE SERVER AUDIT TrackLogins TO APPLICATION_LOG;
+      GO CREATE SERVER AUDIT SPECIFICATION TrackAllLogins FOR SERVER AUDIT
+      TrackLogins ADD (FAILED_LOGIN_GROUP), ADD (SUCCESSFUL_LOGIN_GROUP), ADD
+      (AUDIT_CHANGE_GROUP), ADD (DATABASE_ROLE_MEMBER_CHANGE_GROUP), ADD
+      (SERVER_ROLE_MEMBER_CHANGE_GROUP), ADD (SERVER_OPERATION_GROUP), ADD
+      (SUCCESSFUL_DATABASE_AUTHENTICATION_GROUP), ADD
+      (FAILED_DATABASE_AUTHENTICATION_GROUP) WITH (STATE = ON); GO ALTER SERVER
+      AUDIT TrackLogins WITH (STATE = ON); GO Note: If the write destination for the
+      Audit object is to be the security event log, see the Books Online topic Write
+      SQL Server Audit Events to the Security Log and follow the appropriate steps.
+      Default Value: By default, there are no audit object tracking login events.
+      References: 1. https://learn.microsoft.com/en-us/sql/relational-
+      databases/security/auditing/create-a-server-audit-and-server-audit-
+      specification Additional Information: If you want to filter out 'VIEW SERVER
+      STATE' events from the audit (because it can create extra rows in the log, and
+      you may or may not be interested in that specific event), create your server
+      audit with a filter, to exclude that specific event: CREATE SERVER AUDIT
+      TrackLogins TO APPLICATION_LOG WHERE ([audit_id]<>(1414746966)) ;
+
+  - rule_id: tciem.sql_server.clr_assembly_permission_set_is_set_to_safe_access
+    title: "Ensure 'CLR Assembly Permission Set' is set to 'SAFE_ACCESS' for All CLR Assemblies"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '6.2'
+    cis_section: '6'
+    log_source: "SQL Server Audit, Error Log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      USE <database_name>; GO ALTER ASSEMBLY <assembly_name> WITH PERMISSION_SET =
+      SAFE; Default Value: SAFE permission is set by default. References: 1.
+      https://learn.microsoft.com/en-us/sql/relational-databases/clr-
+      integration/security/clr-integration-code-access-security 2.
+      https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-
+      views/sys-assemblies-transact-sql 3. https://learn.microsoft.com/en-
+      us/sql/t-sql/statements/alter-assembly-transact-sql 4.
+      https://learn.microsoft.com/en-us/sql/relational-databases/clr-
+      integration/security/clr-integration-code-access-security#recommended-
+      permission-settings Additional Information: Per Microsoft documentation, 'SQL
+      Server contains CLR assemblies that the database engine uses to provide
+      certain functionality. The Microsoft.SQLServer.Types assembly that is included
+      with SQL Server installation appears in the metadata as an UNSAFE assembly.
+      This is by design. These assemblies are considered trusted & secure by
+      default.'
+

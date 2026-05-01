@@ -1,0 +1,62 @@
+rule_id: ibm.kms.activity.key_protect_key_accessed
+service: kms
+provider: ibm
+check_type: log
+severity: high
+title: 'IBM Key Protect: Key Material Accessed'
+description: An IBM Key Protect key was used to wrap or unwrap data. Unexpected decrypt operations may indicate unauthorized data access.
+threat_category: credential_access
+mitre_tactics:
+- credential_access
+mitre_techniques:
+- T1552
+risk_score: 72
+resource: ibm_kms_key
+domain: identity_and_access_management
+action_category: read
+log_source_type: 
+posture_category: iam_posture
+threat_tags:
+- T1552
+- credential_access
+- secret_exposure
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: read
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: true
+  modules:
+  - secrets_management
+  categories:
+  - secrets_exposure
+  - credential_theft
+  priority: high
+  impact:
+    pci: PCI DSS Requirement 3.4 — Sensitive authentication data must be protected
+    gdpr: GDPR Article 32 — Appropriate technical measures to protect personal data
+    hipaa: §164.312(e)(2)(ii) — Encryption of ePHI in transit and at rest
+  sensitive_data_context: |
+  Unauthorized credential access on kms resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks: {}
+remediation: Review and investigate this activity in the IBM Cloud Console and take corrective action.
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_activity
+    - field: operation
+      op: in
+      value:
+      - kms.secrets.unwrap
+      - kms.secrets.rewrap

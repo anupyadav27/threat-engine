@@ -1,0 +1,136 @@
+# Discovery YAML — privatedns (Azure)
+# Generated: 2026-04-15T10:39:31Z
+# Source: step1b_operation_registry.json (qualified ops + dependency chains)
+# Actions use {category}.{method} format for SDK method resolution
+version: '1.0'
+provider: azure
+service: privatedns
+services:
+  client: privatedns
+  module: azure.mgmt.privatedns
+discovery:
+  # ── privatezones.list [root] ──
+  - discovery_id: azure.privatedns.privatezones.list
+    calls:
+      - action: privatezones.list
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        location: '{{ item.location }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+        etag: '{{ item.etag }}'
+        registration_enabled: '{{ item.registration_enabled }}'
+        resolution_policy: '{{ item.resolution_policy }}'
+        virtual_network: '{{ item.virtual_network }}'
+        virtual_network_link_state: '{{ item.virtual_network_link_state }}'
+  # ── privatezones.list_by_resource_group [root] ──
+  - discovery_id: azure.privatedns.privatezones.list_by_resource_group
+    calls:
+      - action: privatezones.list_by_resource_group
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        location: '{{ item.location }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+        etag: '{{ item.etag }}'
+        internal_id: '{{ item.internal_id }}'
+        max_number_of_record_sets: '{{ item.max_number_of_record_sets }}'
+        max_number_of_virtual_network_links: '{{ item.max_number_of_virtual_network_links }}'
+        max_number_of_virtual_network_links_with_registration: '{{ item.max_number_of_virtual_network_links_with_registration }}'
+        number_of_record_sets: '{{ item.number_of_record_sets }}'
+        number_of_virtual_network_links: '{{ item.number_of_virtual_network_links }}'
+        number_of_virtual_network_links_with_registration: '{{ item.number_of_virtual_network_links_with_registration }}'
+  # ════════════════════════════════════════
+  # Dependent operations (for_each + params)
+  # ════════════════════════════════════════
+  # ── recordsets.list [dependent] ──
+  - discovery_id: azure.privatedns.recordsets.list
+    for_each: azure.privatedns.privatezones.list
+    calls:
+      - action: recordsets.list
+        save_as: response
+        on_error: continue
+        params:
+          private_zone_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        location: '{{ item.location }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+        etag: '{{ item.etag }}'
+        registration_enabled: '{{ item.registration_enabled }}'
+        resolution_policy: '{{ item.resolution_policy }}'
+        virtual_network: '{{ item.virtual_network }}'
+        virtual_network_link_state: '{{ item.virtual_network_link_state }}'
+  # ── recordsets.list_by_type [dependent] ──
+  - discovery_id: azure.privatedns.recordsets.list_by_type
+    for_each: azure.privatedns.privatezones.list
+    calls:
+      - action: recordsets.list_by_type
+        save_as: response
+        on_error: continue
+        params:
+          private_zone_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        a_records: '{{ item.a_records }}'
+        aaaa_records: '{{ item.aaaa_records }}'
+        cname_record: '{{ item.cname_record }}'
+        etag: '{{ item.etag }}'
+        fqdn: '{{ item.fqdn }}'
+        is_auto_registered: '{{ item.is_auto_registered }}'
+        metadata: '{{ item.metadata }}'
+        mx_records: '{{ item.mx_records }}'
+        ptr_records: '{{ item.ptr_records }}'
+        soa_record: '{{ item.soa_record }}'
+        srv_records: '{{ item.srv_records }}'
+        ttl: '{{ item.ttl }}'
+        txt_records: '{{ item.txt_records }}'
+  # ── virtualnetworklinks.list [dependent] ──
+  - discovery_id: azure.privatedns.virtualnetworklinks.list
+    for_each: azure.privatedns.privatezones.list
+    calls:
+      - action: virtualnetworklinks.list
+        save_as: response
+        on_error: continue
+        params:
+          private_zone_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        location: '{{ item.location }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+        etag: '{{ item.etag }}'
+        registration_enabled: '{{ item.registration_enabled }}'
+        resolution_policy: '{{ item.resolution_policy }}'
+        virtual_network: '{{ item.virtual_network }}'
+        virtual_network_link_state: '{{ item.virtual_network_link_state }}'

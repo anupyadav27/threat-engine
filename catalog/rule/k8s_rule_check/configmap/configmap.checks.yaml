@@ -1,0 +1,47 @@
+version: '1.0'
+provider: k8s
+service: configmap
+checks:
+- rule_id: k8s.configmap.baseline.policies_applied
+  for_each: k8s.configmap.list_configmaps
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations."security.kubernetes.io/baseline-policies-applied"
+    op: exists
+    value: null
+- rule_id: k8s.configmap.configmap.baseline_policies_enforced
+  for_each: k8s.configmap.list_configmaps
+  severity: LOW
+  conditions:
+    all:
+    - var: item.metadata.annotations."security.alpha.kubernetes.io/sysctls"
+      op: exists
+      value: null
+    - var: item.metadata.annotations."security.alpha.kubernetes.io/unsafe-sysctls"
+      op: exists
+      value: null
+- rule_id: k8s.configmap.configmap.management_tool_integration_configured
+  for_each: k8s.configmap.list
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations
+    op: exists
+    value: null
+- rule_id: k8s.configmap.management.tool_integration
+  for_each: k8s.configmap.list
+  severity: LOW
+  conditions:
+    any:
+    - var: item.metadata.annotations['kustomize.toolkit.fluxcd.io/name']
+      op: exists
+      value: null
+    - var: item.metadata.annotations['helm.toolkit.fluxcd.io/name']
+      op: exists
+      value: null
+    - var: item.metadata.labels['app.kubernetes.io/managed-by']
+      op: in
+      value:
+      - helm
+      - kustomize
+      - flux
+      - argocd

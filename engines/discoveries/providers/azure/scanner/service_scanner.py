@@ -72,6 +72,454 @@ _RESOURCE_TYPE_MAP: Dict[str, str] = {
 }
 
 
+# ─── Service Handler Registry ──────────────────────────────────────────────────
+#
+# Each handler: fn(factory, subscription_id, region) -> List[Dict]
+# Handlers call Azure SDK directly — no DB config parsing needed.
+# Add new services by defining a handler and decorating with @azure_handler.
+#
+AZURE_SERVICE_HANDLERS: Dict[str, Any] = {}
+
+
+def azure_handler(service_name: str):
+    """Decorator to register an Azure service discovery handler."""
+    def decorator(fn):
+        AZURE_SERVICE_HANDLERS[service_name] = fn
+        return fn
+    return decorator
+
+
+def _enrich_azure_item(item: Dict, service: str, subscription_id: str,
+                       discovery_id: Optional[str] = None) -> Dict:
+    """Inject standard resource identifier fields from Azure SDK as_dict() output."""
+    resource_uid = item.get("id", "")
+    raw_type = item.get("type", "")
+    resource_type = _RESOURCE_TYPE_MAP.get(raw_type) or raw_type or service
+    item["resource_uid"] = resource_uid
+    item["resource_id"] = resource_uid
+    item["resource_type"] = resource_type
+    item["resource_name"] = item.get("name", "")
+    item["account_id"] = subscription_id
+    if discovery_id:
+        item["_discovery_id"] = discovery_id
+    item["_raw_response"] = {k: v for k, v in item.items()
+                             if not k.startswith("_") and k not in
+                             ("resource_uid", "resource_id", "resource_type",
+                              "resource_name", "account_id")}
+    return item
+
+
+# ─── Service Handlers ──────────────────────────────────────────────────────────
+
+@azure_handler("compute")
+def _scan_compute(factory, subscription_id: str, region: str) -> List[Dict]:
+    client = factory.get_client("compute")
+    region_norm = region.lower().replace(" ", "")
+    resources = []
+    for item in azure_list_all(client.virtual_machines.list_all):
+        if _normalize_location(item.get("location", "")) == region_norm:
+            resources.append(_enrich_azure_item(item, "compute", subscription_id,
+                                                discovery_id="azure.compute.virtualmachines.list"))
+    logger.info("  compute/%s: %d VMs found", region, len(resources))
+    return resources
+
+
+@azure_handler("storage")
+def _scan_storage(factory, subscription_id: str, region: str) -> List[Dict]:
+    client = factory.get_client("storage")
+    region_norm = region.lower().replace(" ", "")
+    resources = []
+    for item in azure_list_all(client.storage_accounts.list):
+        if _normalize_location(item.get("location", "")) != region_norm:
+            continue
+        # Fetch full storage account properties (encryption, blob access, etc.)
+        # storage_accounts.list() returns only basic metadata; get_properties() returns full config.
+        try:
+            vault_id = item.get("id", "")
+            id_parts = vault_id.split("/")
+            rg_index = next((i for i, p in enumerate(id_parts) if p.lower() == "resourcegroups"), None)
+            if rg_index is not None and rg_index + 1 < len(id_parts):
+                rg_name = id_parts[rg_index + 1]
+                account_name = item.get("name", "")
+                full_account = client.storage_accounts.get_properties(rg_name, account_name)
+                if hasattr(full_account, "as_dict"):
+                    item = full_account.as_dict()
+        except Exception as _e:
+            logger.debug("storage get_properties(%s) failed, using list data: %s", item.get("name"), _e)
+        resources.append(_enrich_azure_item(item, "storage", subscription_id,
+                                            discovery_id="azure.storage.storageaccounts.list"))
+    logger.info("  storage/%s: %d accounts found", region, len(resources))
+    return resources
+
+
+@azure_handler("network")
+def _scan_network(factory, subscription_id: str, region: str) -> List[Dict]:
+    client = factory.get_client("network")
+    region_norm = region.lower().replace(" ", "")
+    resources = []
+    for method, label, disc_id in [
+        (client.virtual_networks.list_all,        "vnets", "azure.network.virtualnetworks.list_all"),
+        (client.network_security_groups.list_all,  "nsgs",  "azure.network.networksecuritygroups.list_all"),
+        (client.public_ip_addresses.list_all,      "pips",  "azure.network.publicipaddresses.list_all"),
+        (client.load_balancers.list_all,           "lbs",   "azure.network.loadbalancers.list_all"),
+    ]:
+        try:
+            for item in azure_list_all(method):
+                if _normalize_location(item.get("location", "")) == region_norm:
+                    resources.append(_enrich_azure_item(item, "network", subscription_id,
+                                                        discovery_id=disc_id))
+        except Exception as exc:
+            logger.warning("  network/%s %s failed: %s", region, label, exc)
+    logger.info("  network/%s: %d resources found", region, len(resources))
+    return resources
+
+
+@azure_handler("keyvault")
+def _scan_keyvault(factory, subscription_id: str, region: str) -> List[Dict]:
+    client = factory.get_client("keyvault")
+    region_norm = region.lower().replace(" ", "")
+    resources = []
+    for item in azure_list_all(client.vaults.list):
+        if _normalize_location(item.get("location", "")) != region_norm:
+            continue
+        # Fetch full vault properties (SKU, enableSoftDelete, accessPolicies, etc.)
+        # The list operation only returns basic metadata; get() returns full properties.
+        try:
+            vault_id = item.get("id", "")
+            # Parse resource group from ID:
+            # /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.KeyVault/vaults/{name}
+            id_parts = vault_id.split("/")
+            rg_index = next((i for i, p in enumerate(id_parts) if p.lower() == "resourcegroups"), None)
+            if rg_index is not None and rg_index + 1 < len(id_parts):
+                rg_name = id_parts[rg_index + 1]
+                vault_name = item.get("name", "")
+                full_vault = client.vaults.get(rg_name, vault_name)
+                if hasattr(full_vault, "as_dict"):
+                    item = full_vault.as_dict()
+        except Exception as _e:
+            logger.debug("keyvault get(%s) failed, using list data: %s", item.get("name"), _e)
+        resources.append(_enrich_azure_item(item, "keyvault", subscription_id,
+                                            discovery_id="azure.keyvault.vaults.list_by_subscription"))
+    logger.info("  keyvault/%s: %d vaults found", region, len(resources))
+    return resources
+
+
+@azure_handler("sql")
+def _scan_sql(factory, subscription_id: str, region: str) -> List[Dict]:
+    client = factory.get_client("sql")
+    region_norm = region.lower().replace(" ", "")
+    resources = []
+    for server in azure_list_all(client.servers.list):
+        if _normalize_location(server.get("location", "")) == region_norm:
+            resources.append(_enrich_azure_item(server, "sql", subscription_id,
+                                                discovery_id="azure.sql.servers.list"))
+    logger.info("  sql/%s: %d servers found", region, len(resources))
+    return resources
+
+
+@azure_handler("authorization")
+def _scan_authorization(factory, subscription_id: str, region: str) -> List[Dict]:
+    # Role assignments/definitions are global — only scan once (eastus equivalent)
+    if region not in ("eastus", "global"):
+        return []
+    client = factory.get_client("authorization")
+    resources = []
+    for item in azure_list_all(client.role_assignments.list_for_subscription):
+        resources.append(_enrich_azure_item(item, "authorization", subscription_id,
+                                            discovery_id="azure.authorization.roleassignments.list_for_subscription"))
+    logger.info("  authorization: %d role assignments found", len(resources))
+    return resources
+
+
+@azure_handler("security")
+def _scan_security(factory, subscription_id: str, region: str) -> List[Dict]:
+    if region not in ("eastus", "global"):
+        return []
+    client = factory.get_client("security")
+    resources = []
+    for method, label, disc_id in [
+        (lambda: client.security_contacts.list(), "contacts", "azure.security.root.list"),
+        (lambda: client.pricings.list(), "pricings", "azure.security.tasks.list"),
+    ]:
+        try:
+            for item in azure_list_all(method):
+                resources.append(_enrich_azure_item(item, "security", subscription_id,
+                                                    discovery_id=disc_id))
+        except Exception as exc:
+            logger.warning("  security %s failed: %s", label, exc)
+    logger.info("  security: %d resources found", len(resources))
+    return resources
+
+
+@azure_handler("monitor")
+def _scan_monitor(factory, subscription_id: str, region: str) -> List[Dict]:
+    if region not in ("eastus", "global"):
+        return []
+    client = factory.get_client("monitor")
+    resources = []
+    try:
+        for item in azure_list_all(client.activity_log_alerts.list_by_subscription_id):
+            resources.append(_enrich_azure_item(item, "monitor", subscription_id,
+                                                discovery_id="azure.monitor.activitylogalerts.list_by_resource_group"))
+    except Exception as exc:
+        logger.warning("  monitor activity_log_alerts failed: %s", exc)
+    logger.info("  monitor: %d resources found", len(resources))
+    return resources
+
+
+@azure_handler("resource")
+def _scan_resource(factory, subscription_id: str, region: str) -> List[Dict]:
+    if region not in ("eastus", "global"):
+        return []
+    client = factory.get_client("resource")
+    resources = []
+    for item in azure_list_all(client.resource_groups.list):
+        resources.append(_enrich_azure_item(item, "resource", subscription_id,
+                                            discovery_id="azure.resources.resources.resources_list"))
+    logger.info("  resource: %d resource groups found", len(resources))
+    return resources
+
+
+@azure_handler("containerservice")
+def _scan_containerservice(factory, subscription_id: str, region: str) -> List[Dict]:
+    client = factory.get_client("containerservice")
+    region_norm = region.lower().replace(" ", "")
+    resources = []
+    for item in azure_list_all(client.managed_clusters.list):
+        if _normalize_location(item.get("location", "")) == region_norm:
+            resources.append(_enrich_azure_item(item, "containerservice", subscription_id,
+                                                discovery_id="azure.containerservice.managedclusters.list"))
+    logger.info("  containerservice/%s: %d AKS clusters found", region, len(resources))
+    return resources
+
+
+@azure_handler("web")
+def _scan_web(factory, subscription_id: str, region: str) -> List[Dict]:
+    client = factory.get_client("web")
+    region_norm = region.lower().replace(" ", "")
+    resources = []
+    for item in azure_list_all(client.web_apps.list):
+        if _normalize_location(item.get("location", "")) != region_norm:
+            continue
+        # Fetch full web app config (site_config, virtualNetworkSubnetId, etc.)
+        # web_apps.list() returns only basic metadata; web_apps.get(rg, name) returns full config.
+        try:
+            app_id = item.get("id", "")
+            id_parts = app_id.split("/")
+            rg_index = next((i for i, p in enumerate(id_parts) if p.lower() == "resourcegroups"), None)
+            if rg_index is not None and rg_index + 1 < len(id_parts):
+                rg_name = id_parts[rg_index + 1]
+                app_name = item.get("name", "")
+                full_app = client.web_apps.get(rg_name, app_name)
+                if hasattr(full_app, "as_dict"):
+                    item = full_app.as_dict()
+        except Exception as _e:
+            logger.debug("web_apps.get(%s) failed, using list data: %s", item.get("name"), _e)
+        resources.append(_enrich_azure_item(item, "web", subscription_id,
+                                            discovery_id="azure.web.webapps.list"))
+    logger.info("  web/%s: %d app services found", region, len(resources))
+    return resources
+
+
+@azure_handler("cosmosdb")
+def _scan_cosmosdb(factory, subscription_id: str, region: str) -> List[Dict]:
+    client = factory.get_client("cosmosdb")
+    region_norm = region.lower().replace(" ", "")
+    resources = []
+    for item in azure_list_all(client.database_accounts.list):
+        if _normalize_location(item.get("location", "")) == region_norm:
+            resources.append(_enrich_azure_item(item, "cosmosdb", subscription_id,
+                                                discovery_id="azure.cosmosdb.databaseaccounts.list"))
+    logger.info("  cosmosdb/%s: %d accounts found", region, len(resources))
+    return resources
+
+
+@azure_handler("dns")
+def _scan_dns(factory, subscription_id: str, region: str) -> List[Dict]:
+    if region not in ("eastus", "global"):
+        return []
+    client = factory.get_client("dns")
+    resources = []
+    for item in azure_list_all(client.zones.list):
+        resources.append(_enrich_azure_item(item, "dns", subscription_id,
+                                            discovery_id="azure.dns.zones.list"))
+    logger.info("  dns: %d zones found", len(resources))
+    return resources
+
+
+@azure_handler("disk")
+def _scan_disk(factory, subscription_id: str, region: str) -> List[Dict]:
+    """Discover Azure managed disks."""
+    client = factory.get_client("compute")
+    region_norm = region.lower().replace(" ", "")
+    resources = []
+    for item in azure_list_all(client.disks.list):
+        if _normalize_location(item.get("location", "")) == region_norm:
+            resources.append(_enrich_azure_item(item, "disk", subscription_id,
+                                                discovery_id="azure.compute.disks.list"))
+    logger.info("  disk/%s: %d managed disks found", region, len(resources))
+    return resources
+
+
+@azure_handler("securitycenter")
+def _scan_securitycenter(factory, subscription_id: str, region: str) -> List[Dict]:
+    """Discover Azure Security Center / Defender for Cloud settings."""
+    if region not in ("eastus", "global"):
+        return []
+    client = factory.get_client("security")
+    resources = []
+    for method, label in [
+        (lambda: client.pricings.list(), "pricings"),
+        (lambda: client.security_contacts.list(), "contacts"),
+        (lambda: client.settings.list(), "settings"),
+    ]:
+        try:
+            for item in azure_list_all(method):
+                resources.append(_enrich_azure_item(item, "securitycenter", subscription_id,
+                                                    discovery_id="azure.securitycenter.list"))
+        except Exception as exc:
+            logger.debug("  securitycenter %s failed: %s", label, exc)
+    logger.info("  securitycenter: %d resources found", len(resources))
+    return resources
+
+
+@azure_handler("postgresql")
+def _scan_postgresql(factory, subscription_id: str, region: str) -> List[Dict]:
+    """Discover Azure PostgreSQL servers (single server and flexible server)."""
+    region_norm = region.lower().replace(" ", "")
+    resources = []
+    # Single server
+    try:
+        client = factory.get_client("postgresql")
+        for item in azure_list_all(client.servers.list):
+            if _normalize_location(item.get("location", "")) == region_norm:
+                enriched = _enrich_azure_item(item, "postgresql", subscription_id,
+                                              discovery_id="azure.postgresql.servers.servers_list")
+                resources.append(enriched)
+                dup = dict(enriched)
+                dup["_discovery_id"] = "azure.rdbms_postgresql.servers.list"
+                resources.append(dup)
+    except Exception as exc:
+        logger.debug("  postgresql single server failed: %s", exc)
+    # Flexible server
+    try:
+        client = factory.get_client("postgresql_flex")
+        for item in azure_list_all(client.servers.list):
+            if _normalize_location(item.get("location", "")) == region_norm:
+                resources.append(_enrich_azure_item(item, "postgresql", subscription_id,
+                                                    discovery_id="azure.postgresql.servers.servers_list"))
+    except Exception as exc:
+        logger.debug("  postgresql flexible server failed: %s", exc)
+    logger.info("  postgresql/%s: %d servers found", region, len(resources))
+    return resources
+
+
+@azure_handler("redis")
+def _scan_redis(factory, subscription_id: str, region: str) -> List[Dict]:
+    """Discover Azure Cache for Redis."""
+    region_norm = region.lower().replace(" ", "")
+    resources = []
+    try:
+        client = factory.get_client("redis")
+        for item in azure_list_all(client.redis.list_by_subscription):
+            if _normalize_location(item.get("location", "")) == region_norm:
+                enriched = _enrich_azure_item(item, "redis", subscription_id,
+                                              discovery_id="azure.redis.redis.list_by_subscription")
+                resources.append(enriched)
+                dup = dict(enriched)
+                dup["_discovery_id"] = "azure.redis.redis.list_by_resource_group"
+                resources.append(dup)
+    except Exception as exc:
+        logger.warning("  redis list_by_subscription failed: %s", exc)
+    logger.info("  redis/%s: %d Redis caches found", region, len(resources))
+    return resources
+
+
+@azure_handler("containerregistry")
+def _scan_containerregistry(factory, subscription_id: str, region: str) -> List[Dict]:
+    """Discover Azure Container Registry."""
+    region_norm = region.lower().replace(" ", "")
+    resources = []
+    try:
+        client = factory.get_client("containerregistry")
+        for item in azure_list_all(client.registries.list):
+            if _normalize_location(item.get("location", "")) == region_norm:
+                enriched = _enrich_azure_item(item, "containerregistry", subscription_id,
+                                              discovery_id="azure.containerregistry.root.list")
+                resources.append(enriched)
+    except Exception as exc:
+        logger.warning("  containerregistry list failed: %s", exc)
+    logger.info("  containerregistry/%s: %d registries found", region, len(resources))
+    return resources
+
+
+@azure_handler("recoveryservices")
+def _scan_recoveryservices(factory, subscription_id: str, region: str) -> List[Dict]:
+    """Discover Azure Recovery Services Vaults."""
+    region_norm = region.lower().replace(" ", "")
+    resources = []
+    try:
+        client = factory.get_client("recoveryservices")
+        for item in azure_list_all(client.vaults.list_by_subscription_id):
+            if _normalize_location(item.get("location", "")) == region_norm:
+                resources.append(_enrich_azure_item(item, "recoveryservices", subscription_id,
+                                                    discovery_id="azure.recoveryservices.vaults.list_by_subscription_id"))
+    except Exception as exc:
+        logger.warning("  recoveryservices list failed: %s", exc)
+    logger.info("  recoveryservices/%s: %d vaults found", region, len(resources))
+    return resources
+
+
+@azure_handler("aad")
+def _scan_aad(factory, subscription_id: str, region: str) -> List[Dict]:
+    """Discover Azure AD (AAD) resources via Resource Graph / Graph API stub.
+
+    Full Microsoft Graph API requires a separate client (not ARM SDK).
+    We emit a placeholder resource so check rules with for_each=azure.aad.list
+    receive at least one context item — the actual AAD data fields are populated
+    by the check engine pulling from the tenant-level Graph API directly.
+    """
+    if region not in ("eastus", "global"):
+        return []
+    # Return a single tenant-scope resource representing the AAD tenant
+    item = {
+        "id": f"/tenants/{subscription_id}/aad",
+        "type": "Microsoft.AzureActiveDirectory/tenants",
+        "name": "aad_tenant",
+        "subscription_id": subscription_id,
+        "_discovery_id": "azure.aad.list",
+    }
+    item["resource_uid"] = item["id"]
+    item["resource_id"] = item["id"]
+    item["resource_type"] = "AADTenant"
+    item["resource_name"] = "aad_tenant"
+    item["account_id"] = subscription_id
+    item["_raw_response"] = {}
+    dup = dict(item); dup["_discovery_id"] = "azure.aad.list_aads"
+    logger.info("  aad: emitted tenant AAD stub")
+    return [item, dup]
+
+
+@azure_handler("grafana")
+def _scan_grafana(factory, subscription_id: str, region: str) -> List[Dict]:
+    """Discover Azure Managed Grafana instances."""
+    region_norm = region.lower().replace(" ", "")
+    resources = []
+    try:
+        client = factory.get_client("grafana")
+        for item in azure_list_all(client.grafana.list):
+            if _normalize_location(item.get("location", "")) == region_norm:
+                resources.append(_enrich_azure_item(item, "grafana", subscription_id,
+                                                    discovery_id="azure.dashboard.grafana.list"))
+    except Exception as exc:
+        logger.debug("  grafana list failed (SDK may not support): %s", exc)
+    logger.info("  grafana/%s: %d Grafana instances found", region, len(resources))
+    return resources
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+
+
 def _call_with_timeout(future: Future, service: str, region: str) -> Optional[Any]:
     """Execute a submitted future with timeout, returning None on timeout/error.
 
@@ -151,11 +599,12 @@ class AzureDiscoveryScanner(DiscoveryScanner):
     # ── Authentication ──────────────────────────────────────────────────────
 
     def authenticate(self) -> AzureClientFactory:
-        """Authenticate using Azure Service Principal (ClientSecretCredential).
+        """Authenticate using Azure SP credentials or Azure CLI (DefaultAzureCredential).
 
-        If credentials dict already contains all 4 SP keys, uses them directly.
-        Otherwise calls _resolve_credentials(credential_ref) to fetch from
-        AWS Secrets Manager (AZ-17b).
+        Three resolution paths (checked in order):
+        1. credential_type == 'cli' → DefaultAzureCredential (az login)
+        2. credentials dict already has all 4 SP keys → ClientSecretCredential
+        3. credential_ref provided → fetch from AWS Secrets Manager
 
         Returns:
             AzureClientFactory (also stored as self._factory)
@@ -163,6 +612,30 @@ class AzureDiscoveryScanner(DiscoveryScanner):
         Raises:
             AuthenticationError: If credentials are missing or auth fails.
         """
+        cred_type = (self.credential_type or "").lower()
+
+        # Path 1: Azure CLI / DefaultAzureCredential
+        if cred_type == "cli":
+            if not self.subscription_id:
+                raise AuthenticationError(
+                    "subscription_id is required for CLI authentication"
+                )
+            try:
+                self._factory = AzureClientFactory(
+                    credentials={"subscription_id": self.subscription_id}
+                )
+                self.session = self._factory
+                logger.info(
+                    "Azure CLI authentication successful: subscription=%s",
+                    self.subscription_id,
+                )
+                return self._factory
+            except Exception as exc:
+                raise AuthenticationError(
+                    f"Azure DefaultAzureCredential failed: {exc}"
+                ) from exc
+
+        # Path 2 & 3: SP credentials (direct or via Secrets Manager)
         required = {"tenant_id", "client_id", "client_secret", "subscription_id"}
         creds = self.credentials
 
@@ -213,8 +686,9 @@ class AzureDiscoveryScanner(DiscoveryScanner):
         Full implementation: AZ-17b.
         """
         import boto3  # lazy — only needed for Azure credential resolution
+        import os
 
-        client = boto3.client("secretsmanager", region_name="ap-south-1")
+        client = boto3.client("secretsmanager", region_name=os.environ.get("AWS_REGION", "us-east-1"))
         secret = client.get_secret_value(SecretId=credential_ref)
         creds = json.loads(secret["SecretString"])
 
@@ -268,26 +742,18 @@ class AzureDiscoveryScanner(DiscoveryScanner):
         service: str,
         region: str,
         config: Dict[str, Any],
+        skip_dependents: bool = False,
     ) -> List[Dict[str, Any]]:
-        """Execute DB-driven discovery for one Azure service in one region.
+        """Execute Azure service discovery for one service in one region.
 
-        Processes each action in config['discovery'] array:
-        1. Resolves action string to SDK method (dot-notation: 'virtual_machines.list_all')
-        2. Calls azure_list_all() in thread pool (non-blocking)
-        3. Filters results by region (Azure SDK returns subscription-wide for most list_all calls)
-        4. Normalizes each resource to standard output dict
-
-        Server-side vs client-side filtering note:
-        - Azure compute, storage, sql: No server-side region filter on list_all().
-          Must use client-side filter on item.location. Documented per-service below.
-        - Azure network (list by resource group): RG pre-filtered by region where SDK supports.
-        - All filtering is documented inline — no silent O(N) client-side scans.
+        Dispatches to a registered handler in AZURE_SERVICE_HANDLERS.
+        Handlers call Azure SDK directly — no DB config parsing.
 
         Args:
             service: Azure service name (e.g. 'compute', 'storage', 'keyvault')
             region: Azure location (e.g. 'eastus', 'westeurope')
-            config: Discovery config from rule_discoveries.discoveries_data:
-                    {"discovery": [{"action": "virtual_machines.list_all", "params": {}, ...}]}
+            config: Unused — kept for interface compatibility with other providers
+            skip_dependents: Unused — kept for interface compatibility
 
         Returns:
             List of normalized resource dicts with standard fields.
@@ -298,73 +764,24 @@ class AzureDiscoveryScanner(DiscoveryScanner):
         if self._factory is None:
             raise DiscoveryError("authenticate() must be called before scan_service()")
 
-        try:
-            client = self._factory.get_client(service)
-        except (ValueError, ImportError) as exc:
-            logger.warning(
-                "No Azure client for service=%s, skipping region=%s: %s",
-                service, region, exc,
-            )
+        handler = AZURE_SERVICE_HANDLERS.get(service)
+        if not handler:
+            logger.debug("No Azure handler for service=%s, skipping region=%s", service, region)
             return []
 
         loop = asyncio.get_event_loop()
-        results: List[Dict[str, Any]] = []
-        region_normalized = _normalize_location(region)
-
-        discovery_actions = config.get("discovery", [])
-        if not discovery_actions:
-            logger.debug("No discovery actions for service=%s", service)
+        try:
+            results = await loop.run_in_executor(
+                _AZURE_EXECUTOR,
+                handler,
+                self._factory,
+                self.subscription_id,
+                region,
+            )
+            return results or []
+        except Exception as exc:
+            logger.error("Azure %s/%s handler failed: %s", service, region, exc)
             return []
-
-        for action_spec in discovery_actions:
-            action = action_spec.get("action", "")
-            params = action_spec.get("params") or {}
-            resource_type_hint: Optional[str] = action_spec.get("resource_type")
-
-            method = self._resolve_sdk_method(client, action)
-            if method is None:
-                logger.warning(
-                    "Cannot resolve azure action=%r for service=%s — skipping",
-                    action, service,
-                )
-                continue
-
-            # Run blocking azure_list_all in thread pool (non-blocking event loop)
-            try:
-                items: List[Dict[str, Any]] = await loop.run_in_executor(
-                    _AZURE_EXECUTOR,
-                    lambda m=method, p=params: azure_list_all(m, **p),
-                )
-            except Exception as exc:
-                logger.error(
-                    "azure_list_all failed: service=%s region=%s action=%s: %s",
-                    service, region, action, exc,
-                )
-                continue
-
-            if not items:
-                continue
-
-            for item in items:
-                # Client-side region filter (Azure list_all is subscription-wide)
-                # DOCUMENTED: Azure SDK does not support server-side region filter
-                # on virtual_machines.list_all(), storage_accounts.list(), etc.
-                # We filter client-side on item['location'] to scope to one region.
-                item_location = _normalize_location(item.get("location", ""))
-                if item_location and item_location != region_normalized:
-                    continue
-
-                resource = self._normalize_resource(
-                    item, service, region, resource_type_hint
-                )
-                if resource:
-                    results.append(resource)
-
-        logger.info(
-            "Azure scan_service: service=%s region=%s found=%d",
-            service, region, len(results),
-        )
-        return results
 
     def extract_resource_identifier(
         self,
@@ -421,7 +838,9 @@ class AzureDiscoveryScanner(DiscoveryScanner):
             return []
         try:
             loop = asyncio.get_event_loop()
-            sub_client = self._factory.get_client("resource")
+            # SubscriptionClient (azure.mgmt.subscription) has .subscriptions.list_locations
+            # ResourceManagementClient does NOT have .subscriptions — wrong client
+            sub_client = self._factory.get_client("subscription")
 
             locations = await loop.run_in_executor(
                 _AZURE_EXECUTOR,

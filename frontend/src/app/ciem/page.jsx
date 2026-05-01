@@ -1,54 +1,15 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Eye, RefreshCw, Info, ChevronDown } from 'lucide-react';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
-import { fetchView } from '@/lib/api';
-import { useGlobalFilter } from '@/lib/global-filter-context';
+import { useViewFetch } from '@/lib/use-view-fetch';
 import PageLayout from '@/components/shared/PageLayout';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
-
-// ── Demo fallback data (shown when backend returns no data) ───────────────────
-const DEMO_CIEM_TOP_CRITICAL = [
-  { severity: 'critical', title: 'Root account login without MFA detected', rule_id: 'CIEM-L1-001', actor_principal: 'arn:aws:iam::123456789012:root', resource_uid: 'arn:aws:iam::123456789012:root', event_time: '2026-04-01T02:14:33Z' },
-  { severity: 'critical', title: 'IAM role privilege escalation via PassRole', rule_id: 'CIEM-L2-007', actor_principal: 'arn:aws:iam::123456789012:user/admin-deploy', resource_uid: 'arn:aws:iam::123456789012:role/AdminRole', event_time: '2026-03-31T18:47:10Z' },
-  { severity: 'critical', title: 'Anomalous mass S3 GetObject from new IP', rule_id: 'CIEM-L3-022', actor_principal: 'arn:aws:iam::123456789012:user/svc-data-pipeline', resource_uid: 'arn:aws:s3:::prod-customer-data', event_time: '2026-03-31T09:22:05Z' },
-  { severity: 'high', title: 'CloudTrail disabled in eu-west-1 production', rule_id: 'CIEM-L1-014', actor_principal: 'arn:aws:iam::234567890123:user/ops-automation', resource_uid: 'arn:aws:cloudtrail:eu-west-1:234567890123:trail/main', event_time: '2026-03-30T14:05:55Z' },
-  { severity: 'high', title: 'Unusual cross-account role assumption chain', rule_id: 'CIEM-L2-031', actor_principal: 'arn:aws:iam::234567890123:role/CrossAccountDeploy', resource_uid: 'arn:aws:iam::123456789012:role/ProdAdminRole', event_time: '2026-03-29T22:11:40Z' },
-  { severity: 'high', title: 'SecretsManager bulk retrieval by CI/CD principal', rule_id: 'CIEM-L1-019', actor_principal: 'arn:aws:iam::123456789012:role/CICDAutomation', resource_uid: 'arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/*', event_time: '2026-03-29T06:33:17Z' },
-];
-
-const DEMO_CIEM_IDENTITIES = [
-  { actor_principal: 'arn:aws:iam::123456789012:user/admin-deploy',      risk_score: 94, total_findings: 18, critical: 3, high: 7, rules_triggered: 12, services_used: 9, resources_touched: 47 },
-  { actor_principal: 'arn:aws:iam::123456789012:user/svc-data-pipeline', risk_score: 87, total_findings: 15, critical: 2, high: 8, rules_triggered: 11, services_used: 6, resources_touched: 38 },
-  { actor_principal: 'arn:aws:iam::234567890123:role/CrossAccountDeploy',risk_score: 79, total_findings: 11, critical: 1, high: 6, rules_triggered: 8,  services_used: 5, resources_touched: 21 },
-  { actor_principal: 'arn:aws:iam::123456789012:role/CICDAutomation',    risk_score: 72, total_findings: 9,  critical: 1, high: 4, rules_triggered: 7,  services_used: 4, resources_touched: 18 },
-  { actor_principal: 'arn:aws:iam::123456789012:user/ops-automation',    risk_score: 65, total_findings: 7,  critical: 0, high: 5, rules_triggered: 5,  services_used: 4, resources_touched: 14 },
-  { actor_principal: 'arn:aws:iam::345678901234:user/dev-lead-jsmith',   risk_score: 48, total_findings: 5,  critical: 0, high: 2, rules_triggered: 4,  services_used: 3, resources_touched: 9  },
-  { actor_principal: 'arn:aws:iam::234567890123:role/DataScienceRole',   risk_score: 37, total_findings: 4,  critical: 0, high: 1, rules_triggered: 3,  services_used: 2, resources_touched: 7  },
-  { actor_principal: 'arn:aws:iam::345678901234:user/readonly-auditor',  risk_score: 12, total_findings: 1,  critical: 0, high: 0, rules_triggered: 1,  services_used: 1, resources_touched: 2  },
-];
-
-const DEMO_CIEM_TOP_RULES = [
-  { rule_id: 'CIEM-L1-001', severity: 'critical', title: 'Root account MFA not enabled',               finding_count: 3,  rule_source: 'baseline',    unique_actors: 1, unique_resources: 1  },
-  { rule_id: 'CIEM-L2-007', severity: 'critical', title: 'IAM privilege escalation via PassRole',      finding_count: 8,  rule_source: 'correlation', unique_actors: 4, unique_resources: 6  },
-  { rule_id: 'CIEM-L3-022', severity: 'high',     title: 'Anomalous bulk S3 data access',              finding_count: 12, rule_source: 'baseline',    unique_actors: 3, unique_resources: 14 },
-  { rule_id: 'CIEM-L1-014', severity: 'high',     title: 'CloudTrail logging disabled in region',      finding_count: 5,  rule_source: 'baseline',    unique_actors: 2, unique_resources: 3  },
-  { rule_id: 'CIEM-L2-031', severity: 'high',     title: 'Cross-account role assumption chain',        finding_count: 7,  rule_source: 'correlation', unique_actors: 3, unique_resources: 5  },
-  { rule_id: 'CIEM-L1-019', severity: 'medium',   title: 'SecretsManager bulk retrieval detected',     finding_count: 4,  rule_source: 'baseline',    unique_actors: 2, unique_resources: 9  },
-];
-
-const DEMO_CIEM_LOG_SOURCES = [
-  { source_type: 'CloudTrail',   source_bucket: 's3://prod-cloudtrail-logs-123456789012', source_region: 'us-east-1', event_count: 284710, earliest: '2026-03-01T00:00:00Z', latest: '2026-04-01T06:00:00Z' },
-  { source_type: 'VPC Flow Logs',source_bucket: 's3://prod-vpc-flow-logs-123456789012',  source_region: 'us-east-1', event_count: 1823450, earliest: '2026-03-01T00:00:00Z', latest: '2026-04-01T06:00:00Z' },
-  { source_type: 'CloudTrail',   source_bucket: 's3://prod-cloudtrail-logs-234567890123', source_region: 'eu-west-1', event_count: 91340, earliest: '2026-03-10T00:00:00Z', latest: '2026-04-01T05:45:00Z' },
-  { source_type: 'GuardDuty',    source_bucket: 'GuardDuty Findings',                    source_region: 'us-east-1', event_count: 1247,   earliest: '2026-03-01T00:00:00Z', latest: '2026-04-01T06:00:00Z' },
-  { source_type: 'CloudTrail',   source_bucket: 's3://prod-cloudtrail-logs-345678901234', source_region: 'us-west-2', event_count: 47890, earliest: '2026-03-15T00:00:00Z', latest: '2026-04-01T04:30:00Z' },
-];
 
 // ── Colour palette ─────────────────────────────────────────────────────────────
 const C = {
@@ -64,43 +25,6 @@ const C = {
   teal:     '#14b8a6',
 };
 
-// ── Enriched scan trend ────────────────────────────────────────────────────────
-const CIEM_SCAN_TREND = [
-  { date: 'Jan 13', passRate: 38, critical: 8, high: 16, medium: 14, total: 62, overprivileged: 38, detections: 24 },
-  { date: 'Jan 20', passRate: 41, critical: 7, high: 15, medium: 13, total: 56, overprivileged: 35, detections: 21 },
-  { date: 'Jan 27', passRate: 40, critical: 8, high: 16, medium: 13, total: 57, overprivileged: 37, detections: 19 },
-  { date: 'Feb 3',  passRate: 44, critical: 7, high: 14, medium: 12, total: 52, overprivileged: 33, detections: 22 },
-  { date: 'Feb 10', passRate: 47, critical: 6, high: 13, medium: 12, total: 48, overprivileged: 31, detections: 17 },
-  { date: 'Feb 17', passRate: 51, critical: 6, high: 12, medium: 11, total: 45, overprivileged: 29, detections: 15 },
-  { date: 'Feb 24', passRate: 54, critical: 5, high: 11, medium: 10, total: 40, overprivileged: 27, detections: 13 },
-  { date: 'Mar 3',  passRate: 57, critical: 5, high: 11, medium: 10, total: 38, overprivileged: 26, detections: 11 },
-];
-
-// ── Module scores ──────────────────────────────────────────────────────────────
-const CIEM_MODULE_SCORES = [
-  { module: 'Log Collection',    pass: 18, total: 25, color: C.indigo   },
-  { module: 'Rule Detection',    pass: 24, total: 30, color: C.sky      },
-  { module: 'Identity Risk',     pass: 11, total: 20, color: C.critical },
-  { module: 'Correlation Engine',pass:  8, total: 15, color: C.amber    },
-  { module: 'Anomaly Detection', pass:  6, total: 12, color: C.purple   },
-  { module: 'Threat Intel',      pass: 14, total: 20, color: C.teal     },
-];
-
-// ── KPI fallback ───────────────────────────────────────────────────────────────
-const CIEM_KPI_FALLBACK = {
-  posture_score:  57,
-  total_findings: 312,
-  critical: 5, high: 89, medium: 142, low: 76,
-  identities_at_risk: 26,
-  rules_triggered: 47,
-};
-
-const CIEM_SPARKLINES = {
-  posture_score:      [38, 41, 40, 44, 47, 51, 54, 57],
-  total_findings:     [380, 365, 370, 355, 340, 328, 318, 312],
-  identities_at_risk: [42, 39, 41, 37, 34, 31, 29, 26],
-  rules_triggered:    [62, 58, 60, 56, 53, 51, 49, 47],
-};
 
 // ── Pure-SVG severity donut ────────────────────────────────────────────────────
 function CiemDonut({ slices, size = 150 }) {
@@ -148,33 +72,8 @@ function CiemDonut({ slices, size = 150 }) {
 
 
 export default function CiemPage() {
-  const [loading, setLoading]         = useState(true);
-  const [error, setError]             = useState(null);
-  const [data, setData]               = useState({});
+  const { data, loading, error } = useViewFetch('ciem');
   const [detailsOpen, setDetailsOpen] = useState(false);
-
-  const { provider, account, region } = useGlobalFilter();
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const result = await fetchView('ciem', {
-          provider: provider || undefined,
-          account: account || undefined,
-          region: region || undefined,
-        });
-        if (result.error) { setError(result.error); return; }
-        setData(result);
-      } catch (err) {
-        setError(err?.message || 'Failed to load CIEM data');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [provider, account, region]);
 
   // ── Extract data ──
   const totalFindings = data.totalFindings || 0;
@@ -184,53 +83,39 @@ export default function CiemPage() {
   const l3Findings = data.l3Findings || 0;
   const severityBreakdown = data.severityBreakdown || [];
 
-  const rawTopCritical = data.topCritical || [];
-  const rawIdentities  = data.identities  || [];
-  const rawTopRules    = data.topRules    || [];
-  const rawLogSources  = data.logSources  || [];
-
-  const topCritical = rawTopCritical.length ? rawTopCritical : DEMO_CIEM_TOP_CRITICAL;
-  const identities  = rawIdentities.length  ? rawIdentities  : DEMO_CIEM_IDENTITIES;
-  const topRules    = rawTopRules.length    ? rawTopRules    : DEMO_CIEM_TOP_RULES;
-  const logSources  = rawLogSources.length  ? rawLogSources  : DEMO_CIEM_LOG_SOURCES;
+  const topCritical = data.topCritical || [];
+  const identities  = data.identities  || [];
+  const topRules    = data.topRules    || [];
+  const logSources  = data.logSources  || [];
 
   // ── Severity counts ──
   const sevCounts = {};
   severityBreakdown.forEach(s => { sevCounts[s.severity] = s.count; });
 
-  // ── Derive KPI numbers ──
+  // ── Derive KPI numbers from BFF kpiGroups ──
   const kpiNums = useMemo(() => {
     const g0 = data.kpiGroups?.[0]?.items || [];
-    const g1 = data.kpiGroups?.[1]?.items || [];
     const get = (arr, lbl) =>
-      arr.find(x => x.label?.toLowerCase() === lbl.toLowerCase())?.value ?? null;
-
-    const criticalVal = sevCounts.critical || get(g0, 'Critical') || CIEM_KPI_FALLBACK.critical;
-    const highVal     = sevCounts.high     || get(g0, 'High')     || CIEM_KPI_FALLBACK.high;
-    const mediumVal   = sevCounts.medium   || get(g0, 'Medium')   || CIEM_KPI_FALLBACK.medium;
-    const lowVal      = sevCounts.low      || get(g0, 'Low')      || CIEM_KPI_FALLBACK.low;
+      arr.find(x => x.label?.toLowerCase() === lbl.toLowerCase())?.value ?? 0;
 
     return {
-      posture_score:      get(g0, 'Posture Score')     ?? CIEM_KPI_FALLBACK.posture_score,
-      total_findings:     totalFindings                || CIEM_KPI_FALLBACK.total_findings,
-      critical:           criticalVal,
-      high:               highVal,
-      medium:             mediumVal,
-      low:                lowVal,
-      identities_at_risk: uniqueActors                 || CIEM_KPI_FALLBACK.identities_at_risk,
-      rules_triggered:    rulesTriggered               || CIEM_KPI_FALLBACK.rules_triggered,
+      posture_score:      get(g0, 'Posture Score') || data.postureScore || 0,
+      total_findings:     totalFindings,
+      critical:           sevCounts.critical || get(g0, 'Critical'),
+      high:               sevCounts.high     || get(g0, 'High'),
+      medium:             sevCounts.medium   || get(g0, 'Medium'),
+      low:                sevCounts.low      || get(g0, 'Low'),
+      identities_at_risk: uniqueActors       || get(g0, 'Identities at Risk'),
+      rules_triggered:    rulesTriggered     || get(g0, 'Rules Triggered'),
     };
-  }, [data.kpiGroups, totalFindings, uniqueActors, rulesTriggered, severityBreakdown]);
+  }, [data.kpiGroups, data.postureScore, totalFindings, uniqueActors, rulesTriggered, severityBreakdown]);
 
-  // ── Live scan trend (falls back to static if BFF returns < 2 points) ──
+  // ── Live scan trend from BFF ──
   const activeScanTrend = useMemo(() => {
-    if (data.scanTrend?.length >= 2) {
-      return data.scanTrend.map(d => ({
-        ...d,
-        passRate: d.pass_rate ?? d.passRate ?? 0,
-      }));
-    }
-    return CIEM_SCAN_TREND;
+    return (data.scanTrend || []).map(d => ({
+      ...d,
+      passRate: d.pass_rate ?? d.passRate ?? 0,
+    }));
   }, [data.scanTrend]);
 
   // ── Insight strip (single row: 2×2 KPIs | Donut+Modules | Trend) ──
@@ -270,12 +155,12 @@ export default function CiemPage() {
     const sparkIR = activeScanTrend.map(d => d.identities_at_risk ?? 0);
     const sparkRT = activeScanTrend.map(d => d.rules_triggered  ?? 0);
 
-    const first = activeScanTrend[0];
-    const last  = activeScanTrend[activeScanTrend.length - 1];
-    const rateΔ  = last.passRate  - first.passRate;
-    const critΔ  = last.critical  - first.critical;
-    const highΔ  = last.high      - first.high;
-    const totalΔ = last.total     - first.total;
+    const first = activeScanTrend[0] || {};
+    const last  = activeScanTrend[activeScanTrend.length - 1] || {};
+    const rateΔ  = (last.passRate  ?? 0) - (first.passRate  ?? 0);
+    const critΔ  = (last.critical  ?? 0) - (first.critical  ?? 0);
+    const highΔ  = (last.high      ?? 0) - (first.high      ?? 0);
+    const totalΔ = (last.total     ?? 0) - (first.total     ?? 0);
 
     const statPill = (label, value, delta, goodDir) => {
       const improved = goodDir === 'up' ? delta >= 0 : delta <= 0;
@@ -428,36 +313,6 @@ export default function CiemPage() {
             </div>
           </div>
 
-          {/* Module Scores — compact 2-col list */}
-          <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px',
-            marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border-primary)',
-          }}>
-            {CIEM_MODULE_SCORES.map(m => {
-              const pct = Math.round((m.pass / m.total) * 100);
-              const col = pct >= 70 ? C.emerald : pct >= 50 ? C.amber : C.critical;
-              return (
-                <div key={m.module} style={{ display: 'flex', alignItems: 'center',
-                  gap: 6, padding: '3px 0', borderBottom: '1px solid var(--border-primary)' }}>
-                  <span style={{ width: 7, height: 7, borderRadius: 2,
-                    backgroundColor: col, flexShrink: 0 }} />
-                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', flex: 1,
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {m.module}
-                  </span>
-                  <div style={{ width: 32, height: 3, borderRadius: 2,
-                    backgroundColor: 'var(--bg-tertiary)', flexShrink: 0, overflow: 'hidden' }}>
-                    <div style={{ width: `${pct}%`, height: '100%',
-                      borderRadius: 2, backgroundColor: col }} />
-                  </div>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: col,
-                    flexShrink: 0, fontVariantNumeric: 'tabular-nums', width: 28, textAlign: 'right' }}>
-                    {pct}%
-                  </span>
-                </div>
-              );
-            })}
-          </div>
         </div>
 
         {/* ── Col 3: CIEM Posture Trend (ComposedChart) ── */}
@@ -472,7 +327,7 @@ export default function CiemPage() {
                 CIEM Posture Trend
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
-                {first.date} – {last.date} · {CIEM_SCAN_TREND.length} scans
+                {first.date ?? '—'} – {last.date ?? '—'} · {activeScanTrend.length} scans
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -495,10 +350,10 @@ export default function CiemPage() {
 
           {/* 4-stat summary strip */}
           <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-            {statPill('Detect Rate', `${last.passRate}%`, rateΔ,  'up'  )}
-            {statPill('Critical',    last.critical,       critΔ,  'down')}
-            {statPill('High',        last.high,           highΔ,  'down')}
-            {statPill('Total',       last.total,          totalΔ, 'down')}
+            {statPill('Detect Rate', `${last.passRate ?? 0}%`, rateΔ,  'up'  )}
+            {statPill('Critical',    last.critical  ?? 0,     critΔ,  'down')}
+            {statPill('High',        last.high      ?? 0,     highΔ,  'down')}
+            {statPill('Total',       last.total     ?? 0,     totalΔ, 'down')}
           </div>
 
           {/* Composed chart — fills remaining height */}

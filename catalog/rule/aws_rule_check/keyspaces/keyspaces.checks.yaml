@@ -1,0 +1,22 @@
+version: '1.0'
+provider: aws
+service: keyspaces
+checks:
+- rule_id: aws.keyspaces.resource.keyspace_encryption_at_rest_and_in_transit_configured
+  for_each: aws.keyspaces.list_keyspaces
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.EncryptionSpecification.EncryptionType
+      op: exists
+      value: null
+    - var: item.EncryptionSpecification.EncryptionType
+      op: not_equals
+      value: NONE
+- rule_id: aws.keyspaces.resource.keyspace_security_configuration_configured
+  for_each: aws.keyspaces.list_keyspaces
+  severity: MEDIUM
+  conditions:
+    var: item.EncryptionSpecification.EncryptionType
+    op: exists
+    value: null

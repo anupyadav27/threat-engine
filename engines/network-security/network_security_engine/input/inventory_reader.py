@@ -8,11 +8,11 @@ Used by L1 (topology) and L4 (SG→resource attachment).
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any, Dict, List, Optional
 
-import psycopg2
 from psycopg2.extras import RealDictCursor
+
+from engine_common.db_connections import get_inventory_conn
 
 logger = logging.getLogger(__name__)
 
@@ -41,19 +41,6 @@ NETWORK_INFRA_TYPES = {
 }
 
 
-def _get_inventory_conn():
-    """Return a fresh psycopg2 connection to the inventory DB."""
-    return psycopg2.connect(
-        host=os.getenv("INVENTORY_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("INVENTORY_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("INVENTORY_DB_NAME", "threat_engine_inventory"),
-        user=os.getenv("INVENTORY_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("INVENTORY_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-        connect_timeout=10,
-    )
-
-
 class NetworkInventoryReader:
     """Read inventory relationships for network topology."""
 
@@ -63,7 +50,7 @@ class NetworkInventoryReader:
         tenant_id: str,
     ) -> List[Dict[str, Any]]:
         """Load relationships relevant to network topology."""
-        conn = _get_inventory_conn()
+        conn = get_inventory_conn()
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
@@ -105,7 +92,7 @@ class NetworkInventoryReader:
         Returns:
             Dict keyed by sg_id with lists of attached resource dicts.
         """
-        conn = _get_inventory_conn()
+        conn = get_inventory_conn()
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
@@ -158,7 +145,7 @@ class NetworkInventoryReader:
         tenant_id: str,
     ) -> List[Dict[str, Any]]:
         """Load resources marked as internet_connected by inventory."""
-        conn = _get_inventory_conn()
+        conn = get_inventory_conn()
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""

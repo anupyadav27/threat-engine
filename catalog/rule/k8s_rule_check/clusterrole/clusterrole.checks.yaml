@@ -1,0 +1,61 @@
+version: '1.0'
+provider: k8s
+service: clusterrole
+checks:
+- rule_id: k8s.clusterrole.escalation.impersonation_restricted
+  for_each: k8s.clusterroles.list
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.rules[].verbs
+      op: not_contains
+      value: impersonate
+    - var: item.rules[].resources
+      op: not_contains
+      value: users
+    - var: item.rules[].resources
+      op: not_contains
+      value: groups
+    - var: item.rules[].resources
+      op: not_contains
+      value: serviceaccounts
+- rule_id: k8s.clusterrole.permission.exec_restricted
+  for_each: k8s.clusterroles.list
+  severity: HIGH
+  conditions:
+    var: item.rules[].verbs[]
+    op: not_contains
+    value: exec
+- rule_id: k8s.clusterrole.permission.secrets_access_restricted
+  for_each: k8s.clusterroles.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.rules[].resources[]
+      op: not_contains
+      value: secrets
+    - var: item.rules[].resources[]
+      op: not_contains
+      value: '*'
+- rule_id: k8s.clusterrole.permission.wildcard_resources_restricted
+  for_each: k8s.clusterrole.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.rules[].resources[]
+      op: not_contains
+      value: '*'
+    - var: item.rules[].resources[]
+      op: not_contains
+      value: '"*"'
+- rule_id: k8s.clusterrole.permission.wildcard_verbs_restricted
+  for_each: k8s.clusterrole.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.rules[].verbs[]
+      op: not_contains
+      value: '*'
+    - var: item.rules[].verbs[]
+      op: not_contains
+      value: '"*'

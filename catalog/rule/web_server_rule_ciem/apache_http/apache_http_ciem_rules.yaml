@@ -1,0 +1,700 @@
+# APACHE_HTTP — CIEM Detection Rules
+# Real-time authentication & access event analysis
+# Log source: /var/log/httpd/access_log, error_log
+
+tech_type: apache_http
+category: web_server
+log_source: /var/log/httpd/access_log, error_log
+
+rules:
+
+  - rule_id: tciem.apache_http.selinux_is_enabled_in_enforcing_mode
+    title: "Ensure SELinux Is Enabled in Enforcing Mode"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '11.1'
+    cis_section: '11'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to implement the recommended state: If SELinux is not
+      enabled in the configuration file, edit the file /etc/selinux/config and set
+      the value of SELINUX as enforcing and reboot the system for the new
+      configuration to be effective. SELINUX=enforcing If the current mode is not
+      enforcing, and an immediate reboot is not possible, the current mode can be
+      set to enforcing with the setenable command shown below. # setenforce 1
+      Default Value: SELinux is not enabled by default. References: 1.
+      https://en.wikipedia.org/wiki/Security-Enhanced_Linux
+
+  - rule_id: tciem.apache_http.apache_processes_run_in_the_httpd_t_confined
+    title: "Ensure Apache Processes Run in the httpd_t Confined Context"
+    severity: medium
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '11.2'
+    cis_section: '11'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      If the running httpd processes are not confined to the httpd_t SELinux
+      context. Then check the context for the httpd binary and the apachectl binary
+      and set the httpd binary to have a context of httpd_exec_t and the apachectl
+      executable should have a context of initrc_exec_t as shown below. Also note
+      that on some platforms such as Ubuntu, the Apache executable is named apache2
+      instead of httpd. # ls -alZ /usr/sbin/httpd /usr/sbin/httpd.*
+      /usr/sbin/apachectl -rwxr-xr-x. root root system_u:object_r:initrc_exec_t:s0
+      /usr/sbin/apachectl -rwxr-xr-x. root root system_u:object_r:httpd_exec_t:s0
+      /usr/sbin/httpd -rwxr-xr-x. root root system_u:object_r:httpd_exec_t:s0
+      /usr/sbin/httpd.worker -rwxr-xr-x. root root system_u:object_r:httpd_exec_t:s0
+      /usr/sbin/httpd.event If the executable files are not labeled correctly, they
+      may be relabeled with the chcon command, as shown, however the file system
+      labeling is based on the SELinux file context polices and the file systems
+      will on some occasions be relabeled according to the policy. # chcon -t
+      initrc_exec_t /usr/sbin/apachectl # chcon -t httpd_exec_t /usr/sbin/httpd
+      /usr/sbin/httpd.* Since the file system may be relabeled based on SELinux
+      policy, it's best to check the SELinux policy with semanage fcontext -l
+      option. If the policy is not present, then add the pattern to the policy using
+      the -a option. The restorecon command shown below will restore the file
+      context label according to the current policy, which is required if a pattern
+      was added. # ### Check the Policy # semanage fcontext -l | fgrep 'apachectl'
+      /usr/sbin/apachectl regular file system_u:object_r:initrc_exec_t:s0 # semanage
+      fcontext -l | fgrep '/usr/sbin/httpd' /usr/sbin/httpd regular file
+      system_u:object_r:httpd_exec_t:s0 /usr/sbin/httpd.worker regular file
+      system_u:object_r:httpd_exec_t:s0 /usr/sbin/httpd.event regular file
+      system_u:object_r:httpd_exec_t:s0 # ### Add to the policy, if not present #
+      semanage fcontext -f -- -a -t httpd_exec_t '/usr/sbin/httpd' # semanage
+      fcontext -f -- -a -t httpd_exec_t '/usr/sbin/httpd.worker' # semanage fcontext
+      -f -- -a -t httpd_exec_t '/usr/sbin/httpd.event' # semanage fcontext -f -- -a
+      -t initrc_exec_t /usr/sbin/apachectl # ### Restore the file labeling accord to
+      the SELinux policy # restorecon -v /usr/sbin/httpd /usr/sbin/httpd.*
+      /usr/sbin/apachectl Default Value: SELinux is not enabled by default.
+      References: 1. https://access.redhat.com/documentation/en-
+      US/Red_Hat_Enterprise_Linux/6/html/Security-Enhanced_Linux/chap-Security-
+      Enhanced_Linux-Targeted_Policy.html
+
+  - rule_id: tciem.apache_http.httpd_t_type_is_not_in_permissive_mode
+    title: "Ensure the httpd_t Type is Not in Permissive Mode"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '11.3'
+    cis_section: '11'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to implement the recommended state: If the httpd_t type
+      is in permissive mode; the customized permissive mode should be deleted with
+      the following semanage command. # semanage permissive -d httpd_t Default
+      Value: The httpd_t type is not in permissive mode by default. References: 1.
+      https://access.redhat.com/documentation/en-
+      US/Red_Hat_Enterprise_Linux/6/html/Security-Enhanced_Linux/sect-Security-
+      Enhanced_Linux-Fixing_Problems-Permissive_Domains.html
+
+  - rule_id: tciem.apache_http.apparmor_framework_is_enabled
+    title: "Ensure the AppArmor Framework Is Enabled"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '12.1'
+    cis_section: '12'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to implement the recommended state: • If the aa-status
+      command is not found, then the AppArmor package is not installed and needs to
+      be installed using the appropriate the Linux distribution package management.
+      For example: # apt-get install apparmor # apt-get install libapache2-mod-
+      apparmor • To enable the AppArmor framework run the init.d script as shown
+      below. # /etc/init.d/apparmor start Default Value: AppArmor is enabled by
+      default. References: 1. https://help.ubuntu.com/community/AppArmor
+
+  - rule_id: tciem.apache_http.apache_apparmor_profile_is_in_enforce_mode
+    title: "Ensure Apache AppArmor Profile is in Enforce Mode"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '12.3'
+    cis_section: '12'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to implement the recommended state: 1. Set the profile
+      state to enforce mode. # aa-enforce apache2 Setting /usr/sbin/apache2 to
+      enforce mode. 2. Stop the Apache server and confirm that is it not running. In
+      some cases, the AppArmor controls may prevent the web server from stopping
+      properly, and it may be necessary to stop the process manually or even reboot
+      the server. # service apache2 stop * Stopping web server apache2 # service
+      apache2 status * apache2 is not running 3. Restart the Apache service. #
+      service apache2 start * Starting web server apache2 Default Value: The default
+      mode is enforce.
+
+  - rule_id: tciem.apache_http.user_directories_module_is_disabled
+    title: "Ensure the User Directories Module Is Disabled"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.7'
+    cis_section: '2'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform either one of the following to disable the user directories module: 1.
+      For source builds with static modules, run the Apache ./configure script with
+      the --disable-userdir configure script options. $ cd $DOWNLOAD_HTTPD $
+      ./configure --disable-userdir 2. For dynamically loaded modules, comment out
+      or remove the LoadModule directive for mod_userdir module from the httpd.conf
+      file. ##LoadModule userdir_module modules/mod_userdir.so Default Value: The
+      mod_userdir module is not enabled with a default source build. References: 1.
+      https://httpd.apache.org/docs/2.4/mod/mod_userdir.html
+
+  - rule_id: tciem.apache_http.info_module_is_disabled
+    title: "Ensure the Info Module Is Disabled"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.8'
+    cis_section: '2'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform either one of the following to disable the mod_info module: 1. For
+      source builds with static modules, run the Apache ./configure script without
+      including the mod_info in the --enable-modules= configure script options. $ cd
+      $DOWNLOAD_HTTPD $ ./configure 2. For dynamically loaded modules, comment out
+      or remove the LoadModule directive for the mod_info module from the httpd.conf
+      file. ##LoadModule info_module modules/mod_info.so Default Value: The mod_info
+      module is not enabled with a default source build. References: 1.
+      https://httpd.apache.org/docs/2.4/mod/mod_info.html
+
+  - rule_id: tciem.apache_http.basic_and_digest_authentication_modules_are
+    title: "Ensure the Basic and Digest Authentication Modules are Disabled"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.9'
+    cis_section: '2'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform either one of the following to disable the HTTP Basic or HTTP Digest
+      authentication modules: 1. For source builds with static modules run the
+      Apache ./configure script without including the mod_auth_basic, and
+      mod_auth_digest in the --enable- modules=configure script options. $ cd
+      $DOWNLOAD_HTTPD $ ./configure 2. For dynamically loaded modules comment out or
+      remove the LoadModule directive for mod_auth_basic, and mod_auth_digest
+      modules from the httpd.conf file. ##LoadModule mod_auth_basic
+      modules/mod_auth_basic.so ##LoadModule mod_auth_digest
+      modules/mod_auth_digest.so Default Value: The mod_auth_basic and
+      mod_auth_digest modules are not enabled with a default source build.
+      References: 1. https://httpd.apache.org/docs/2.4/mod/mod_auth_basic.html 2.
+      https://httpd.apache.org/docs/2.4/mod/mod_auth_digest.html
+
+  - rule_id: tciem.apache_http.apache_web_server_runs_as_a_non_root_user
+    title: "Ensure the Apache Web Server Runs As a Non-Root User"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '3.1'
+    cis_section: '3'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following: 1. If the apache user and group do not already exist,
+      create the account and group as a unique system account: # groupadd -r apache
+      # useradd apache -r -g apache -d /var/www -s /sbin/nologin 2. Configure the
+      Apache user and group in the Apache configuration file httpd.conf: User apache
+      Group apache Default Value: The default Apache user and group are configured
+      as daemon.
+
+  - rule_id: tciem.apache_http.apache_user_account_has_an_invalid_shell
+    title: "Ensure the Apache User Account Has an Invalid Shell"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.2'
+    cis_section: '3'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Change the apache account to use the nologin shell or an invalid shell such as
+      /dev/null: # chsh -s /sbin/nologin apache Default Value: The default Apache
+      user account is daemon. The daemon account may have a valid login shell or a
+      shell of /sbin/nologin depending on the operating system distribution version.
+
+  - rule_id: tciem.apache_http.other_write_access_on_apache_directories_and
+    title: "Ensure Other Write Access on Apache Directories and Files Is Restricted"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.6'
+    cis_section: '3'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to remove other write access on the $APACHE_PREFIX
+      directories. # chmod -R o-w $APACHE_PREFIX
+
+  - rule_id: tciem.apache_http.core_dump_directory_is_secured
+    title: "Ensure the Core Dump Directory Is Secured"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.7'
+    cis_section: '3'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Either remove the CoreDumpDirectory directive from the Apache configuration
+      files or ensure that the configured directory meets the following
+      requirements. 1. CoreDumpDirectory is not to be within the Apache web document
+      root ($APACHE_PREFIX/htdocs) 2. Must be owned by root and have a group
+      ownership of the Apache group (as defined via the Group directive) # chown
+      root:apache /var/log/httpd 3. Must have no read-write-search access permission
+      for other users. # chmod o-rwx /var/log/httpd Default Value: The default core
+      dump directory is the ServerRoot directory. References: 1.
+      https://httpd.apache.org/docs/2.4/mod/mpm_common.html#coredumpdirectory
+
+  - rule_id: tciem.apache_http.lock_file_is_secured
+    title: "Ensure the Lock File Is Secured"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.8'
+    cis_section: '3'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Find the directory path in which the lock file would be created. The default
+      value is the ServerRoot/logs directory. 1. Modify the directory if the path is
+      a directory within the Apache DocumentRoot 2. Change the ownership and group
+      to be root:root, if not already. 3. Change the permissions so that the
+      directory is only writable by root, or the user under which Apache initially
+      starts up (default is root), 4. Check that the lock file directory is on a
+      locally mounted hard drive rather than an NFS mounted file system. Default
+      Value: The default mechanism for the Mutex directive is platform specific and
+      may be determined by running httpd -V. The default path is the ServerRoot/logs
+      directory. References: 1.
+      https://httpd.apache.org/docs/2.4/mod/core.html#mutex
+
+  - rule_id: tciem.apache_http.group_write_access_for_the_apache_directories_and
+    title: "Ensure Group Write Access for the Apache Directories and Files Is Properly Restricted"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.11'
+    cis_section: '3'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to remove group write access on the $APACHE_PREFIX
+      directories. find -L $APACHE_PREFIX ! -type l -perm /o=w -exec chmod o-w {}
+
+  - rule_id: tciem.apache_http.group_write_access_for_the_document_root
+    title: "Ensure Group Write Access for the Document Root Directories and Files Is Properly Restricted"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.12'
+    cis_section: '3'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to remove group write access on the $DOCROOT directories
+      and files with the apache group. # find -L $DOCROOT -group $GRP -perm /g=w
+      -print | xargs chmod g-w
+
+  - rule_id: tciem.apache_http.access_to_os_root_directory_is_denied_by_default
+    title: "Ensure Access to OS Root Directory Is Denied By Default"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.1'
+    cis_section: '4'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to implement the recommended state: 1. Search the Apache
+      configuration files (httpd.conf and any included configuration files) to find
+      a root <Directory> element. 2. Add a single Require directive and set the
+      value to all denied 3. Remove any Deny and Allow directives from the root
+      <Directory> element. <Directory> . . . Require all denied . . . </Directory>
+      Default Value: The following is the default root directory configuration:
+      <Directory> . . . Require all denied . . . </Directory> References: 1.
+      https://httpd.apache.org/docs/2.4/mod/core.html#directory 2.
+      https://httpd.apache.org/docs/2.4/mod/mod_authz_host.html
+
+  - rule_id: tciem.apache_http.override_is_disabled_for_the_os_root_directory
+    title: "Ensure OverRide Is Disabled for the OS Root Directory"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3'
+    cis_section: '4'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to implement the recommended state: 1. Search the Apache
+      configuration files (httpd.conf and any included configuration files) to find
+      a root <Directory> element. 2. Remove any AllowOverrideList directives found.
+      3. Add a single AllowOverride directive if there is none. 4. Set the value for
+      AllowOverride to None. <Directory /> . . . AllowOverride None . . .
+      </Directory> Default Value: The following is the default root directory
+      configuration: <Directory /> . . . AllowOverride None . . . </Directory>
+      References: 1. https://httpd.apache.org/docs/2.4/mod/core.html#allowoverride
+      2. https://httpd.apache.org/docs/2.4/mod/core.html#allowoverridelist
+
+  - rule_id: tciem.apache_http.override_is_disabled_for_all_directories
+    title: "Ensure OverRide Is Disabled for All Directories"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.4'
+    cis_section: '4'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to implement the recommended state: 1. Search the Apache
+      configuration files (httpd.conf and any included configuration files) to find
+      AllowOverride directives. 2. Set the value for all AllowOverride directives to
+      None. . . . AllowOverride None . . . 3. Remove any AllowOverrideList
+      directives found. References: 1.
+      https://httpd.apache.org/docs/2.4/mod/core.html#allowoverride 2.
+      https://httpd.apache.org/docs/2.4/mod/core.html#allowoverridelist
+
+  - rule_id: tciem.apache_http.access_to_ht_files_is_restricted
+    title: "Ensure Access to .ht* Files Is Restricted"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.10'
+    cis_section: '5'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to implement the recommended state: Add or modify the
+      following lines in the Apache configuration file at the server configuration
+      level. <FilesMatch '^\.ht'> Require all denied </FilesMatch> Default Value:
+      .ht* files are not accessible. References: 1.
+      https://httpd.apache.org/docs/2.4/mod/core.html#filesmatch
+
+  - rule_id: tciem.apache_http.access_to_git_files_is_restricted
+    title: "Ensure Access to .git Files Is Restricted"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.11'
+    cis_section: '5'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to implement the recommended state: Add or modify the
+      following lines in the Apache configuration file at the server configuration
+      level. <DirectoryMatch '/\.git'> Require all denied </DirectoryMatch> Default
+      Value: This is not set by default References: 1.
+      https://httpd.apache.org/docs/2.4/mod/core.html#filesmatch
+
+  - rule_id: tciem.apache_http.access_to_svn_files_is_restricted
+    title: "Ensure Access to .svn Files Is Restricted"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.12'
+    cis_section: '5'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to implement the recommended state: Add or modify the
+      following lines in the Apache configuration file at the server configuration
+      level. <DirectoryMatch '/\.snv'> Require all denied </DirectoryMatch> Default
+      Value: This is not set by default References: 1.
+      https://httpd.apache.org/docs/2.4/mod/core.html#filesmatch
+
+  - rule_id: tciem.apache_http.access_to_inappropriate_file_extensions_is
+    title: "Ensure Access to Inappropriate File Extensions Is Restricted"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.13'
+    cis_section: '5'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to implement the recommended state: 1. Compile a list of
+      existing file extension on the web server. The following find/awk command may
+      be useful, but is likely to need some customization according to the
+      appropriate webroot directories for your web server. Please note that the find
+      command skips over any files without a dot (.) in the file name, as these are
+      not expected to be appropriate web content. find */htdocs -type f -name '*.*'
+      | awk -F. '{print $NF }' | sort -u 2. Review the list of existing file
+      extensions, for appropriate content for the web server, remove those that are
+      inappropriate and add any additional file extensions expected to be added to
+      the web server in the near future. 3. Add the FilesMatch directive below which
+      denies access to all files by default. # Block all files by default, unless
+      specifically allowed. <FilesMatch '^.*$'> Require all denied </FilesMatch> 4.
+      Add another a FilesMatch directive that allows access to those file extensions
+      specifically allowed from the review process in step 2. An example FilesMatch
+      directive is below. The file extensions in the regular expression should match
+      your approved list, and not necessarily the expression below. # Allow files
+      with specifically approved file extensions # Such as (css, htm; html; js; pdf;
+      txt; xml; xsl; ...), # images (gif; ico; jpeg; jpg; png; ...), multimedia
+      <FilesMatch '^.*\.(css|html?|js|pdf|txt|xml|xsl|gif|ico|jpe?g|png)$'> Require
+      all granted </FilesMatch> Default Value: There are no restrictions on file
+      extensions in the default configuration. References: 1.
+      https://httpd.apache.org/docs/2.4/mod/core.html#filesmatch
+
+  - rule_id: tciem.apache_http.ip_address_based_requests_are_disallowed
+    title: "Ensure IP Address Based Requests Are Disallowed"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.14'
+    cis_section: '5'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to implement the recommended state: 1. Load the
+      mod_rewrite module for Apache by doing either one of the following: o Build
+      Apache with mod_rewrite statically loaded during the build, by adding the
+      --enable-rewrite option to the ./configure script. ./configure --enable-
+      rewrite o Or, dynamically loading the module with the LoadModule directive in
+      the httpd.conf configuration file. LoadModule rewrite_module
+      modules/mod_rewrite.so 2. Add the RewriteEngine directive to the configuration
+      within the global server context with the value of on so that the rewrite
+      engine is enabled. RewriteEngine On 3. Locate the Apache configuration file
+      such as httpd.conf and add the following rewrite condition to match the
+      expected host name of the top server level configuration. RewriteCond
+      %{HTTP_HOST} !^www\.example\.com [NC] RewriteCond %{REQUEST_URI} !^/error [NC]
+      RewriteRule ^.(.*) - [L,F] Default Value: RewriteEngine off References: 1.
+      https://httpd.apache.org/docs/2.4/mod/mod_rewrite.html
+
+  - rule_id: tciem.apache_http.server_access_log_is_configured_correctly
+    title: "Ensure the Server Access Log Is Configured Correctly"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '6.3'
+    cis_section: '6'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to implement the recommended state: 1. Add or modify the
+      LogFormat directives in the Apache configuration to use the combined` format
+      show as shown below. LogFormat '%h %l %u %t \'%r\' %>s %b \'%{Referer}i\'
+      \'%{User- agent}i\'' combined 2. Add or modify the CustomLog directives in the
+      Apache configuration to use the combined format with an appropriate log file,
+      syslog facility or piped logging utility. CustomLog log/access_log combined 3.
+      Add a similar CustomLog directives for each virtual host configured if the
+      virtual host will have different people responsible for the web site. Each
+      responsible individual or organization needs access to their own web logs as
+      well as the skills/training/tools for monitoring the logs. Default Value: The
+      following are the default log configuration: LogFormat '%h %l %u %t \'%r\' %>s
+      %b \'%{Referer}i\' \'%{User-Agent}i\' combined LogFormat '%h %l %u %t \'%r\'
+      %>s %b' common CustomLog 'logs/access_log' common References: 1.
+      https://httpd.apache.org/docs/2.4/mod/mod_log_config.html#customlog 2.
+      https://httpd.apache.org/docs/2.4/mod/mod_log_config.html#formats
+
+  - rule_id: tciem.apache_http.modsecurity_is_installed_and_enabled
+    title: "Ensure ModSecurity Is Installed and Enabled"
+    severity: medium
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '6.6'
+    cis_section: '6'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      1. Install the ModSecurity module if it is not already installed in
+      modules/mod_security2.so. It may be installed via OS package installation
+      (such as apt-get or yum) or built from the source files. See
+      https://www.modsecurity.org/download.html for details. 2. Add or modify the
+      LoadModule directive if not already present in the Apache configuration as
+      shown below. Typically, the LoadModule directive is placed in file named
+      mod_security.conf which is included in the Apache configuration: LoadModule
+      security2_module modules/mod_security2.so Default Value: The ModSecurity
+      module is NOT loaded by default. References: 1. https://www.modsecurity.org/
+
+  - rule_id: tciem.apache_http.owasp_modsecurity_core_rule_set_is_installed_and
+    title: "Ensure the OWASP ModSecurity Core Rule Set Is Installed and Enabled"
+    severity: medium
+    mitre_technique: T1530
+    mitre_tactic: collection
+    cis_control: '6.7'
+    cis_section: '6'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: data_access
+      threshold: 1
+      filters:
+        data_classification: sensitive
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Install, configure and test the OWASP ModSecurity Core Rule Set: 1. Download
+      the OWASP ModSecurity CRS from the project page
+      https://www.owasp.org/index.php/Category:OWASP_ModSecurity_Core_Rule_S
+      et_Project 2. Unbundled the archive and follow the instructions in the INSTALL
+      file. 3. Depending on the CRS version used, the crs-setup.conf or the
+      modsecurity_crs_10_setup.conf file will be required, and rules in the
+      base_rules directory are intended as a baseline useful for most applications.
+      4. Test the application for correct functionality after installing the CRS.
+      Check web server error logs and the modsec_audit.log file for blocked requests
+      due to false positives. 5. It is also recommended to test the application
+      response to malicious traffic such as an automated web application scanner to
+      ensure the rules are active. The web server error log and modsec_audit.log
+      files should show logs of the attacks and the servers response codes. Default
+      Value: The OWASP ModSecurity CRS is NOT installed or enabled by default. CRS
+      v3.0 Default Values: • inbound_anomaly_score_threshold = 5 •
+      outbound_anomaly_score_threshold = 4 • paranoia_level = 1 References: 1.
+      https://www.owasp.org/index.php/Category:OWASP_ModSecurity_Core_Rule_S
+      et_Project 2. https://www.modsecurity.org/
+
+  - rule_id: tciem.apache_http.all_web_content_is_accessed_via_https
+    title: "Ensure All Web Content is Accessed via HTTPS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '7.9'
+    cis_section: '7'
+    log_source: "/var/log/httpd/access_log, error_log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to implement the recommended state: Move the web content
+      to a TLS enabled website, and add an HTTP Redirect directive to the Apache
+      configuration file to redirect to the TLS enabled website similar to the
+      example shown. Redirect permanent / https://www.cisecurity.org/ Default Value:
+      The following are the default values: TLS is not enabled by default.
+      References: 1. https://httpd.apache.org/docs/2.4/mod/mod_ssl.html
+

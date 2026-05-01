@@ -17,21 +17,28 @@ logger = logging.getLogger("api-gateway.bff")
 # ── Internal engine base URLs ────────────────────────────────────────────────
 
 ENGINE_URLS: Dict[str, str] = {
-    "inventory":  os.getenv("INVENTORY_ENGINE_URL",  "http://engine-inventory:8022"),
-    "threat":     os.getenv("THREAT_ENGINE_URL",     "http://engine-threat:8020"),
-    "check":      os.getenv("CHECK_ENGINE_URL",      "http://engine-check:8002"),
-    "compliance": os.getenv("COMPLIANCE_ENGINE_URL",  "http://engine-compliance:8010"),
-    "iam":        os.getenv("IAM_ENGINE_URL",         "http://engine-iam:8003"),
-    "datasec":    os.getenv("DATASEC_ENGINE_URL",     "http://engine-datasec:8004"),
-    "encryption": os.getenv("ENCRYPTION_ENGINE_URL",  "http://engine-encryption:8006"),
-    "secops":     os.getenv("SECOPS_ENGINE_URL",      "http://engine-secops:8009"),
-    "risk":       os.getenv("RISK_ENGINE_URL",        "http://engine-risk:8009"),
-    "onboarding": os.getenv("ONBOARDING_ENGINE_URL",  "http://engine-onboarding:8008"),
-    "rule":       os.getenv("RULE_ENGINE_URL",        "http://engine-rule:8000"),
-    "network":    os.getenv("NETWORK_ENGINE_URL",      "http://engine-network:80"),
-    "ciem":        os.getenv("CIEM_ENGINE_URL",        "http://engine-ciem"),
-    "ai_security":     os.getenv("AI_SECURITY_ENGINE_URL", "http://engine-ai-security"),
-    "container_sec":   os.getenv("CONTAINER_SEC_ENGINE_URL", "http://engine-container-sec:80"),
+    "discoveries":   os.getenv("DISCOVERIES_ENGINE_URL",    "http://engine-discoveries"),
+    "inventory":     os.getenv("INVENTORY_ENGINE_URL",      "http://engine-inventory:8022"),
+    "threat":        os.getenv("THREAT_ENGINE_URL",         "http://engine-threat:8020"),
+    "check":         os.getenv("CHECK_ENGINE_URL",          "http://engine-check:8002"),
+    "compliance":    os.getenv("COMPLIANCE_ENGINE_URL",     "http://engine-compliance:8010"),
+    "iam":           os.getenv("IAM_ENGINE_URL",            "http://engine-iam:8003"),
+    "datasec":       os.getenv("DATASEC_ENGINE_URL",        "http://engine-datasec:8004"),
+    # K8s service exposes port 80 → targetPort 8006
+    "encryption":    os.getenv("ENCRYPTION_ENGINE_URL",     "http://engine-encryption"),
+    "secops":        os.getenv("SECOPS_ENGINE_URL",         "http://engine-secops:8009"),
+    "risk":          os.getenv("RISK_ENGINE_URL",           "http://engine-risk:8009"),
+    "onboarding":    os.getenv("ONBOARDING_ENGINE_URL",     "http://engine-onboarding:8008"),
+    "rule":          os.getenv("RULE_ENGINE_URL",           "http://engine-rule:8000"),
+    "network":       os.getenv("NETWORK_ENGINE_URL",        "http://engine-network:80"),
+    "ciem":          os.getenv("CIEM_ENGINE_URL",           "http://engine-ciem"),
+    "ai_security":   os.getenv("AI_SECURITY_ENGINE_URL",    "http://engine-ai-security"),
+    "container_sec": os.getenv("CONTAINER_SEC_ENGINE_URL",  "http://engine-container-sec"),
+    "cnapp":         os.getenv("CNAPP_ENGINE_URL",          "http://engine-cnapp"),
+    "cwpp":          os.getenv("CWPP_ENGINE_URL",           "http://engine-cwpp"),
+    "vulnerability": os.getenv("VULNERABILITY_ENGINE_URL",  "http://engine-vulnerability"),
+    # K8s service exposes port 80 → targetPort 8007
+    "dbsec":         os.getenv("DBSEC_ENGINE_URL",          "http://engine-dbsec"),
 }
 
 # Convenience constants for backward compat
@@ -50,14 +57,20 @@ ENGINE_TIMEOUTS: Dict[str, float] = {
     "threat": 10.0,
     "inventory": 10.0,
     "compliance": 8.0,
-    "iam": 8.0,
-    "datasec": 8.0,
+    "iam": 15.0,
+    "datasec": 12.0,
     "risk": 5.0,
     "onboarding": 5.0,
     "check": 30.0,
     "secops": 8.0,
     "rule": 5.0,
     "ai_security": 8.0,
+    "cnapp": 40.0,        # aggregates 7 pillars in parallel (~20s each internally)
+    "cwpp": 20.0,
+    "container_sec": 15.0,
+    "network": 15.0,
+    "dbsec": 10.0,
+    "encryption": 10.0,
 }
 
 DEFAULT_TIMEOUT = float(os.getenv("BFF_ENGINE_TIMEOUT", "8"))
@@ -71,6 +84,7 @@ async def _fetch_engine(
     path: str,
     params: Optional[Dict[str, str]] = None,
     timeout: Optional[float] = None,
+    auth_headers: Optional[Dict[str, str]] = None,
 ) -> Optional[Any]:
     """GET a single engine endpoint; returns parsed JSON or None on failure."""
     base = ENGINE_URLS.get(engine)
@@ -81,8 +95,14 @@ async def _fetch_engine(
     url = f"{base}{path}"
     t = timeout or ENGINE_TIMEOUTS.get(engine, DEFAULT_TIMEOUT)
 
+    # Merge auth headers into outgoing request headers.
+    # auth_headers are forwarded verbatim — BFF never re-encodes or logs them.
+    headers: Dict[str, str] = {}
+    if auth_headers:
+        headers.update(auth_headers)
+
     try:
-        resp = await client.get(url, params=params or {}, timeout=t)
+        resp = await client.get(url, params=params or {}, headers=headers, timeout=t)
         if resp.status_code == 200:
             data = resp.json()
             # Validate that "latest" scan_run_id resolved to actual data
@@ -103,12 +123,17 @@ async def _fetch_engine(
 
 async def fetch_many(
     calls: List[Tuple[str, str, Optional[Dict[str, str]]]],
+    auth_headers: Optional[Dict[str, str]] = None,
 ) -> List[Optional[Any]]:
     """
     Parallel fan-out to multiple engines.
 
     Args:
-        calls: List of (engine_name, path, params) tuples.
+        calls:        List of (engine_name, path, params) tuples.
+        auth_headers: Optional headers (e.g. {"X-Auth-Context": <value>}) forwarded
+                      verbatim to every engine call.  Pass as None when no auth
+                      context is available — engines will return 401 which is
+                      the correct behaviour.  Never log auth_headers content.
 
     Returns:
         List of results in same order. Failed calls return None.
@@ -116,7 +141,7 @@ async def fetch_many(
     async with httpx.AsyncClient() as client:
         return list(await asyncio.gather(
             *[
-                _fetch_engine(client, engine, path, params)
+                _fetch_engine(client, engine, path, params, auth_headers=auth_headers)
                 for engine, path, params in calls
             ]
         ))
@@ -127,6 +152,7 @@ async def fetch_all_check_findings(
     page_size: int = 500,
     max_pages: int = 20,
     timeout: Optional[float] = None,
+    auth_headers: Optional[Dict[str, str]] = None,
 ) -> List[dict]:
     """
     Fetch ALL check engine findings by paginating automatically.
@@ -135,10 +161,11 @@ async def fetch_all_check_findings(
     reads total_pages, then fetches remaining pages in parallel.
 
     Args:
-        params:    Query params dict (must include tenant_id; domain/posture_category optional)
-        page_size: Items per page (max 500 for check engine)
-        max_pages: Safety cap on total pages to fetch
-        timeout:   Per-request timeout in seconds
+        params:       Query params dict (must include tenant_id; domain/posture_category optional)
+        page_size:    Items per page (max 500 for check engine)
+        max_pages:    Safety cap on total pages to fetch
+        timeout:      Per-request timeout in seconds
+        auth_headers: Optional headers forwarded verbatim to every page request.
 
     Returns:
         Flat list of all finding dicts across all pages.
@@ -151,7 +178,7 @@ async def fetch_all_check_findings(
 
     async with httpx.AsyncClient() as client:
         # Fetch page 1
-        first = await _fetch_engine(client, "check", path, page_params, t)
+        first = await _fetch_engine(client, "check", path, page_params, t, auth_headers=auth_headers)
         if not first or not isinstance(first, dict):
             return []
 
@@ -168,6 +195,7 @@ async def fetch_all_check_findings(
                 client, "check", path,
                 {**params, "page": str(pg), "page_size": str(page_size)},
                 t,
+                auth_headers=auth_headers,
             )
             for pg in range(2, total_pages + 1)
         ]))
@@ -179,11 +207,18 @@ async def fetch_all_check_findings(
         return findings
 
 
-async def _fetch(url: str, timeout: float = DEFAULT_TIMEOUT) -> Dict[str, Any]:
+async def _fetch(
+    url: str,
+    timeout: float = DEFAULT_TIMEOUT,
+    auth_headers: Optional[Dict[str, str]] = None,
+) -> Dict[str, Any]:
     """GET an internal engine URL and return parsed JSON (or empty dict on error)."""
+    headers: Dict[str, str] = {}
+    if auth_headers:
+        headers.update(auth_headers)
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
-            resp = await client.get(url)
+            resp = await client.get(url, headers=headers)
             if resp.status_code == 200:
                 return resp.json()
             logger.warning("BFF fetch %s -> %d", url, resp.status_code)
@@ -231,7 +266,7 @@ def _risk_level(score: int) -> str:
 
 # ── Mock data fallback ──────────────────────────────────────────────────────
 
-MOCK_ENABLED = os.getenv("BFF_MOCK_FALLBACK", "true").lower() in ("true", "1", "yes")
+MOCK_ENABLED = os.getenv("BFF_MOCK_FALLBACK", "false").lower() in ("true", "1", "yes")
 
 
 def is_empty_or_health(data) -> bool:

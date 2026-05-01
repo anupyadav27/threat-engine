@@ -1,0 +1,70 @@
+rule_id: aws.dns.query_log.dynamic_dns_dynu
+service: dns
+provider: aws
+check_type: log
+severity: medium
+title: 'Route53: Dynamic DNS Dynu'
+description: Dynamic DNS provider (Dynu) queried — possible C2 fast-flux domain rotation.
+rationale: Fast flux DNS techniques are used by botnets and C2 infrastructure to evade IP-based blocking by constantly rotating IP addresses for malicious domains.
+threat_category: execution
+mitre_tactics:
+- command_and_control
+mitre_techniques:
+- T1568.001
+risk_score: 58
+resource: route53_zone
+source: default
+is_active: true
+domain: compute_and_workload_security
+action_category: execute
+log_source_type: 
+posture_category: workload_posture
+threat_tags:
+- T1568.001
+- T1568
+- remote_execution
+- cloud_exec
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: execution
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 3.1
+  - 5.1
+  cis_azure_v2:
+  - 5.1
+  - 6.1
+  nist_800_53_r5:
+  - CM-7
+  - SI-3
+  - AU-12
+  pci_dss_v4:
+  - 6.3
+  - 10.2
+  iso_27001_2022:
+  - A.8.19
+  - A.8.8
+remediation: |
+  1. Enable DNS threat intelligence feeds in your security tooling.
+  2. Block connections to domains with abnormally short DNS TTLs.
+  3. Use cloud DNS filtering services with threat intelligence integration.
+references:
+- https://attack.mitre.org/techniques/T1568/001/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: dns
+    - field: operation
+      op: contains
+      value: dynu
+version: '1.0'

@@ -1,8 +1,9 @@
 ---
 paths:
-  - "engine_*/**/*.py"
-  - "consolidated_services/**/*.py"
-  - "src/**/*.py"
+  - "engines/**/*.py"
+  - "shared/common/**/*.py"
+  - "shared/database/**/*.py"
+  - "fix_engine/**/*.py"
 ---
 
 # Python Code Standards
@@ -113,7 +114,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import create_engine, select
 
 # Local application imports
-from consolidated_services.database.config import get_db_connection
+from engine_common.db_connections import get_discoveries_conn
 from engine_discoveries.scanner import AWSScanner, AzureScanner
 from engine_discoveries.models import DiscoveryFinding
 ```

@@ -1,0 +1,87 @@
+# Discovery YAML — databox (Azure)
+# Generated: 2026-04-15T10:39:30Z
+# Source: step1b_operation_registry.json (qualified ops + dependency chains)
+# Actions use {category}.{method} format for SDK method resolution
+version: '1.0'
+provider: azure
+service: databox
+services:
+  client: databox
+  module: azure.mgmt.databox
+discovery:
+  # ── jobs.list [root] ──
+  - discovery_id: azure.databox.jobs.list
+    calls:
+      - action: jobs.list
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        display: '{{ item.display }}'
+        is_data_action: '{{ item.is_data_action }}'
+        origin: '{{ item.origin }}'
+  # ── jobs.list_by_resource_group [root] ──
+  - discovery_id: azure.databox.jobs.list_by_resource_group
+    calls:
+      - action: jobs.list_by_resource_group
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        type: '{{ item.type }}'
+        location: '{{ item.location }}'
+        sku: '{{ item.sku }}'
+        name: '{{ item.name }}'
+        status: '{{ item.status }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+        all_devices_lost: '{{ item.all_devices_lost }}'
+        cancellation_reason: '{{ item.cancellation_reason }}'
+        delayed_stage: '{{ item.delayed_stage }}'
+        delivery_info: '{{ item.delivery_info }}'
+        delivery_type: '{{ item.delivery_type }}'
+        details: '{{ item.details }}'
+        error: '{{ item.error }}'
+        is_cancellable: '{{ item.is_cancellable }}'
+        is_cancellable_without_fee: '{{ item.is_cancellable_without_fee }}'
+        is_deletable: '{{ item.is_deletable }}'
+        is_prepare_to_ship_enabled: '{{ item.is_prepare_to_ship_enabled }}'
+        is_shipping_address_editable: '{{ item.is_shipping_address_editable }}'
+        reverse_shipping_details_update: '{{ item.reverse_shipping_details_update }}'
+        reverse_transport_preference_update: '{{ item.reverse_transport_preference_update }}'
+        start_time: '{{ item.start_time }}'
+        system_data: '{{ item.system_data }}'
+        transfer_type: '{{ item.transfer_type }}'
+  # ════════════════════════════════════════
+  # Dependent operations (for_each + params)
+  # ════════════════════════════════════════
+  # ── jobs.list_credentials [dependent] ──
+  - discovery_id: azure.databox.jobs.list_credentials
+    for_each: azure.databox.jobs.list
+    calls:
+      - action: jobs.list_credentials
+        save_as: response
+        on_error: continue
+        params:
+          job_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        job_name: '{{ item.job_name }}'
+        job_secrets: '{{ item.job_secrets }}'
+
+  # ── Unwired dependent ops (no root producer found) ──
+  # SKIP: azure.databox.service.list_available_skus_by_resource_group — required_params: ['location', 'available_sku_request']

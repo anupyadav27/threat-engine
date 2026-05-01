@@ -1,0 +1,78 @@
+rule_id: alicloud.iam.actiontrail.set_security_preference
+service: iam
+provider: alicloud
+check_type: log
+severity: high
+title: 'AliCloud IMS: Account Security Preferences Modified'
+description: Account-level security preferences (MFA enforcement, session duration,
+  IP restrictions) were changed. Adversaries weaken these settings to persist access
+  more easily.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1556
+risk_score: 80
+resource: alicloud_ram_account
+source: alicloud_ciem_generator
+is_active: true
+domain: identity_and_access_management
+action_category: modify
+log_source_type: alicloud_actiontrail
+posture_category: iam_posture
+threat_tags:
+- T1556
+- defense_evasion
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: true
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '2.1'
+  - '2.2'
+  - '2.3'
+  nist_800_53_r5:
+  - AC-2
+  - AC-3
+  - AC-6
+  - IA-2
+  - IA-5
+  pci_dss_v4:
+  - '7.1'
+  - '8.2'
+  - '10.2'
+  iso_27001_2022:
+  - A.5.18
+  - A.8.2
+  - A.9.2
+remediation: '1. Review the new security preference values.
+
+  2. Ensure MFA enforcement and login IP restrictions remain enabled.
+
+  3. Alert on any reduction in security settings.'
+references:
+- https://attack.mitre.org/techniques/T1556/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: ims
+    - field: operation
+      op: equals
+      value: SetSecurityPreference
+version: '1.0'

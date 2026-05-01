@@ -1,0 +1,52 @@
+rule_id: aws.container.cloudtrail.ecr_image_scan_finding
+service: container
+provider: aws
+check_type: log
+severity: medium
+title: 'Container: Ecr Image Scan Finding'
+description: ECR image scan finding — vulnerability detected in container image.
+rationale: Active scanning of cloud endpoints reveals open ports, services, and API endpoints that can be exploited for initial access or lateral movement.
+threat_category: discovery
+mitre_tactics:
+- discovery
+mitre_techniques:
+- T1595
+risk_score: 50
+resource: eks_cluster
+source: ciem_rule_generator
+is_active: true
+domain: container_and_kubernetes_security
+action_category: audit_activity
+log_source_type: cloudtrail
+posture_category: threat_posture
+threat_tags:
+- T1595
+- kubernetes
+- container_security
+risk_indicators:
+  actor_type: service_account_or_workload
+  action_type: write
+  target_type: kubernetes_workload
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: |
+  1. Apply WAF rules and security groups to minimize service exposure.
+  2. Enable AWS Shield / Azure DDoS Protection.
+  3. Alert on network scanning patterns in VPC / NSG flow logs.
+references:
+- https://attack.mitre.org/techniques/T1595/
+check_config:
+  conditions:
+    field: operation
+    op: equals
+    value: DescribeImageScanFindings
+  for_each: log_events
+  log_source_type: cloudtrail
+  type: log
+version: '1.0'

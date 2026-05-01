@@ -23,33 +23,25 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
 from engine_common.logger import setup_logger
 from engine_common.orchestration import get_orchestration_metadata
-from engine_common.retention import cleanup_old_scans
+from engine_common.db_connections import get_compliance_conn
 
 logger = setup_logger(__name__, engine_name="compliance-scanner")
-
-
-def _get_compliance_conn():
-    """Get psycopg2 connection to the compliance database."""
-    import psycopg2
-    return psycopg2.connect(
-        host=os.getenv("COMPLIANCE_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("COMPLIANCE_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("COMPLIANCE_DB_NAME", "threat_engine_compliance"),
-        user=os.getenv("COMPLIANCE_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("COMPLIANCE_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-    )
 
 
 def _update_report_status(scan_run_id: str, status: str, error: str = None):
     """Update compliance_report status in DB."""
     try:
-        conn = _get_compliance_conn()
+        conn = get_compliance_conn()
         with conn.cursor() as cur:
             if error:
                 cur.execute(
                     "UPDATE compliance_report SET status = %s, report_data = %s::jsonb WHERE scan_run_id = %s",
                     (status, __import__('json').dumps({"error": error}), scan_run_id),
+                )
+            elif status == "completed":
+                cur.execute(
+                    "UPDATE compliance_report SET status = %s, completed_at = NOW() WHERE scan_run_id = %s",
+                    (status, scan_run_id),
                 )
             else:
                 cur.execute(
@@ -66,7 +58,7 @@ def _create_report_row(scan_run_id: str, tenant_id: str, provider: str,
                        check_scan_id: str, metadata: dict):
     """Pre-create compliance_report row with status='running'."""
     try:
-        conn = _get_compliance_conn()
+        conn = get_compliance_conn()
         with conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO tenants (tenant_id, tenant_name)
@@ -156,7 +148,8 @@ def main():
             loader.close()
 
         if not scan_results or not scan_results.get("results"):
-            raise ValueError(f"No check findings found for check_scan_id={check_scan_id}")
+            logger.warning(f"No check findings for check_scan_id={check_scan_id} — writing empty compliance report")
+            scan_results = {"results": [], "metadata": {}}
 
         # Merge CIEM findings into scan_results (log-based compliance evidence)
         try:
@@ -230,10 +223,34 @@ def main():
             from compliance_engine.exporter.db_exporter import DatabaseExporter
             db_exporter = DatabaseExporter()
             db_exporter.create_schema()
-            db_report_id = db_exporter.export_report(enterprise_report, account_id=account_id)
+            db_report_id = db_exporter.export_report(
+                enterprise_report, account_id=account_id, provider=provider
+            )
             logger.info(f"Compliance report exported to database: {db_report_id}")
         except Exception as e:
             logger.warning(f"Database export failed (non-fatal): {e}")
+
+        # Compute per-control assessment and update compliance_report scores
+        try:
+            from compliance_engine.assessor.control_assessor import compute_assessment
+            assessment = compute_assessment(scan_run_id, tenant_id)
+            summary = assessment.get("summary", {})
+            total_controls = assessment.get("total_controls", 0)
+            controls_passed = summary.get("PASS", 0)
+            controls_failed = summary.get("FAIL", 0) + summary.get("PARTIAL", 0)
+            conn = get_compliance_conn()
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE compliance_report SET total_controls=%s, controls_passed=%s, controls_failed=%s WHERE scan_run_id=%s",
+                    (total_controls, controls_passed, controls_failed, scan_run_id),
+                )
+            conn.commit()
+            conn.close()
+            logger.info(
+                f"Control assessment complete: total={total_controls} passed={controls_passed} failed={controls_failed}"
+            )
+        except Exception as e:
+            logger.warning(f"Control assessment failed (non-fatal): {e}")
 
         # 4c. CIEM audit evidence (logging completeness from log_events)
         try:
@@ -251,11 +268,13 @@ def main():
         _update_report_status(scan_run_id, "completed")
         logger.info(f"Compliance scan completed: {scan_run_id} in {duration:.1f}s")
 
-        # 6. Retention cleanup (keep last 3 scans per tenant)
+        # Retention: archive old scans to S3, keep last 5 in DB
         try:
-            cleanup_old_scans("compliance", tenant_id, keep=3)
-        except Exception as e:
-            logger.warning(f"Retention cleanup failed: {e}")
+            from engine_common.retention import run_retention
+            run_retention("compliance", scan_run_id)
+        except Exception as _ret_err:
+            logger.warning("Retention cleanup skipped: %s", _ret_err)
+
 
     except Exception as e:
         logger.error(f"Compliance scan FAILED: {e}", exc_info=True)

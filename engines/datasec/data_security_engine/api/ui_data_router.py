@@ -13,11 +13,49 @@ from typing import Any, Dict, List, Optional
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
 logger = logging.getLogger(__name__)
 
+# ── Auth imports (engine_auth is COPY shared/auth/ ./engine_auth/ in Dockerfile) ──
+try:
+    from engine_auth.fastapi.dependencies import require_permission
+    from engine_auth.core.models import AuthContext
+    _AUTH_AVAILABLE = True
+except ImportError:
+    _AUTH_AVAILABLE = False
+    AuthContext = None  # type: ignore[assignment,misc]
+
 router = APIRouter(tags=["ui-data"])
+
+
+def _strip_sensitive_fields(data: List[Dict[str, Any]], auth: Any) -> List[Dict[str, Any]]:
+    """Remove credential and sensitive JSONB fields based on caller's auth level.
+
+    Args:
+        data: List of finding dicts.
+        auth: AuthContext instance or None.
+
+    Returns:
+        New list with sensitive fields removed; original dicts are not mutated.
+    """
+    if not isinstance(data, list):
+        return data
+    stripped = []
+    for row in data:
+        r = dict(row) if not isinstance(row, dict) else row.copy()
+        if auth is not None and hasattr(auth, "level"):
+            if auth.level > 1:
+                r.pop("credential_ref", None)
+                r.pop("credential_type", None)
+            if auth.level >= 4:
+                # Analyst has datasec:read but not datasec:sensitive — strip JSONB
+                perms = getattr(auth, "permissions", None) or []
+                if "datasec:sensitive" not in perms:
+                    r.pop("finding_data", None)
+                    r.pop("raw_data", None)
+        stripped.append(r)
+    return stripped
 
 # ---------------------------------------------------------------------------
 # DB helpers
@@ -79,13 +117,13 @@ def _resolve_latest_scan_run_id(
     Returns:
         The latest scan_run_id string, or None if no report exists.
     """
-    # Try report table first (with findings)
+    # Try report table first (completed scans only)
     cur.execute(
         """
         SELECT scan_run_id
         FROM datasec_report
-        WHERE tenant_id = %s AND total_findings > 0
-        ORDER BY created_at DESC
+        WHERE tenant_id = %s AND status = 'completed'
+        ORDER BY completed_at DESC NULLS LAST, generated_at DESC NULLS LAST
         LIMIT 1
         """,
         (tenant_id,),
@@ -118,6 +156,7 @@ async def get_datasec_ui_data(
     tenant_id: str = Query(..., description="Tenant ID"),
     scan_id: str = Query(default="latest", description="DataSec scan ID or 'latest'"),
     limit: int = Query(default=200, ge=1, le=1000, description="Max findings to return"),
+    auth: Any = Depends(require_permission("datasec:read") if _AUTH_AVAILABLE else (lambda: None)),
 ) -> Dict[str, Any]:
     """Return aggregated Data Security data for the frontend UI page.
 
@@ -418,6 +457,9 @@ async def get_datasec_ui_data(
             if report_row.get("critical_findings") is not None:
                 sensitive_exposed = report_row.get("sensitive_exposed") or sensitive_exposed
 
+        # Strip sensitive fields based on auth level before returning
+        _findings_stripped = _strip_sensitive_fields(findings, auth)
+
         return {
             "summary": {
                 "total_findings": total_findings,
@@ -447,7 +489,7 @@ async def get_datasec_ui_data(
             "residency": by_region,
             "activity": activity,
             "lineage": lineage,
-            "findings": findings,
+            "findings": _findings_stripped,
             "total_findings": total_findings,
             "scan_id": scan_run_id,
             "scan_trend": scan_trend,

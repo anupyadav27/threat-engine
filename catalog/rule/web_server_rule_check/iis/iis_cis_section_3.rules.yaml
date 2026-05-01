@@ -1,0 +1,186 @@
+tech_type: iis
+category: web_server
+cis_benchmark: CIS Microsoft IIS 10 v1.2.1
+cis_section: '3'
+
+rules:
+
+  - rule_id: iis.cis.3.l2_ensure_debug_is_turned_off
+    title: "(L2) Ensure 'debug' is turned off"
+    severity: medium
+    automation_type: automated
+    cis_control: '3.2'
+    cis_section: '3'
+    profile_applicability: "Level 2"
+    scope: iis.section_3.l2_ensure_debug_is_turned_off
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      To use the UI to make this change: 1. Open IIS Manager and navigate desired
+      server, site, or application 2. In Features View, double-click .NET
+      Compilation 3. On the .NET Compilation page, in the Behavior section, ensure
+      the Debug field is set to False 4. When finished, click Apply in the Actions
+      pane Note: The <compilation debug> switch will not be present in the
+      web.config file unless it has been added manually, or has previously been
+      configured using the IIS Manager GUI. OR Enter the following command in
+      PowerShell to configure: Set-WebConfigurationProperty -pspath
+      'MACHINE/WEBROOT/APPHOST/<website name>' -filter 'system.web/compilation'
+      -name 'debug' -value 'False' Default Value: The compilation of debug binaries
+      is not enabled by default. References: 1. http://technet.microsoft.com/en-
+      us/library/cc725812%28WS.10%29.aspx
+    compliance:
+      - cis_iis_10_v1_2_1_3_2
+
+  - rule_id: iis.cis.3.l2_ensure_custom_error_messages_are_not_off
+    title: "(L2) Ensure custom error messages are not off"
+    severity: medium
+    automation_type: automated
+    cis_control: '3.3'
+    cis_section: '3'
+    profile_applicability: "Level 2"
+    scope: iis.section_3.l2_ensure_custom_error_messages_are_not_off
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      customErrors may be set for a server, site, or application using the IIS
+      Manager GUI, using AppCmd.exe commands in a command-line window, directly
+      editing the configuration files, or by writing WMI scripts. Perform the
+      following to set the customErrors mode to RemoteOnly or On for a Web Site in
+      the IIS Manager GUI: 1. Open the IIS Manager GUI and navigate to the site to
+      be configured 2. In Features View, find and double-click .NET Error Pages icon
+      3. In the Actions Pane, click Edit Feature Settings 4. In modal dialog, choose
+      On or Remote Only for Mode settings 5. Click OK OR Enter the following command
+      in PowerShell to configure: Set-WebConfigurationProperty -pspath
+      'MACHINE/WEBROOT/APPHOST/Default Web Site' -filter 'system.web/customErrors'
+      -name 'mode' -value 'RemoteOnly' Default Value: The default value is
+      <customErrors mode= “RemoteOnly” />. References: 1.
+      http://technet.microsoft.com/en-us/library/dd569096%28WS.10%29.aspx
+    compliance:
+      - cis_iis_10_v1_2_1_3_3
+
+  - rule_id: iis.cis.3.l2_ensure_asp_net_stack_tracing_is_not_enabled
+    title: "(L2) Ensure ASP.NET stack tracing is not enabled"
+    severity: medium
+    automation_type: automated
+    cis_control: '3.5'
+    cis_section: '3'
+    profile_applicability: "Level 2"
+    scope: iis.section_3.l2_ensure_asp_net_stack_tracing_is_not_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "on"
+    remediation: >
+      1. Ensure <deployment retail='true' /> is enabled in the machine.config. 2.
+      Remove all attribute references to ASP.NET tracing by deleting the trace and
+      trace enable attributes. Per Page: Remove any references to: Trace='true' Per
+      Application: <configuration> <system.web> <trace enabled='true'> </system.web>
+      </configuration> OR Enter the following command in PowerShell to configure:
+      Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST/<website name>'
+      -filter 'system.web/trace' -name 'enabled' -value 'False' Default Value: The
+      default value for ASP.NET tracing is off. References: 1.
+      http://msdn.microsoft.com/en-us/library/94c55d08%28v=vs.100%29.aspx 2.
+      http://msdn.microsoft.com/en-us/library/0x5wc973%28v=vs.100%29.aspx
+    compliance:
+      - cis_iis_10_v1_2_1_3_5
+
+  - rule_id: iis.cis.3.l2_ensure_httpcookie_mode_is_configured_for
+    title: "(L2) Ensure 'httpcookie' mode is configured for session state"
+    severity: medium
+    automation_type: automated
+    cis_control: '3.6'
+    cis_section: '3'
+    profile_applicability: "Level 2"
+    scope: iis.section_3.l2_ensure_httpcookie_mode_is_configured_for
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      SessionState can be set to UseCookies by using the IIS Manager GUI, using
+      AppCmd.exe commands in a command-line window, directly editing the
+      configuration files, or by writing WMI scripts. Perform the following to set
+      the cookieless attribute of the sessionState node to UseCookies in the IIS
+      Manager GUI: 1. Open the IIS Manager GUI and navigate desired server, site, or
+      application 2. In Features View, find and double-click the Session State icon
+      3. In the Cookie Settings section, choose Use Cookies from the Mode dropdown
+      4. In the Actions Pane, click Apply To use AppCmd.exe to configure
+      sessionState at the server level, the command would look like this:
+      %systemroot%\system32\inetsrv\appcmd set config /commit:WEBROOT
+      /section:sessionState /cookieless:UseCookies /cookieName:ASP.NET_SessionID
+      /timeout:20 When Appcmd.exe is used to configure the <sessionstate> element at
+      the global level in IIS, the /commit:WEBROOT switch must be included so that
+      configuration changes are made to the root web.config file instead of
+      ApplicationHost.config. OR Enter the following command in PowerShell to
+      configure: Set-WebConfigurationProperty -pspath
+      'MACHINE/WEBROOT/APPHOST/<website name>' -filter 'system.web/sessionState'
+      -name 'mode' -value 'StateServer' Default Value: By default, IIS maintains
+      session state data for a managed code application in the worker process where
+      the application runs e.g. In Process. References: 1.
+      http://www.iis.net/learn/application-frameworks/scenario-build-an-aspnet-
+      website- on-iis/planning-step-2-plan-asp-net-settings 2.
+      http://msdn.microsoft.com/en-us/library/h6bb9cz9%28VS.71%29.aspx
+    compliance:
+      - cis_iis_10_v1_2_1_3_6
+
+  - rule_id: iis.cis.3.l2_ensure_machinekey_validation_method_net_3_5_is
+    title: "(L2) Ensure 'MachineKey validation method - .Net 3.5' is configured"
+    severity: medium
+    automation_type: automated
+    cis_control: '3.8'
+    cis_section: '3'
+    profile_applicability: "Level 2"
+    scope: iis.section_3.l2_ensure_machinekey_validation_method_net_3_5_is
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      Machine key encryption can be set by using the UI, running appcmd.exe
+      commands, by editing configuration files directly, or by writing WMI scripts.
+      To set the Machine Key encryption at the global level using an appcmd.exe
+      command: %systemroot%\system32\inetsrv\appcmd set config /commit:WEBROOT
+      /section:machineKey /validation:SHA1 Note: When Appcmd.exe is used to
+      configure the <machineKey> element at the global level in IIS, the
+      /commit:WEBROOT switch must be included so that configuration changes are made
+      to the root web.config file instead of ApplicationHost.config. Default Value:
+      The default Machine Key validation method is SHA1. References: 1.
+      http://technet.microsoft.com/en-us/library/cc772271%28WS.10%29.aspx 2.
+      http://technet.microsoft.com/en-us/library/cc772287%28WS.10%29.aspx
+    compliance:
+      - cis_iis_10_v1_2_1_3_8
+
+  - rule_id: iis.cis.3.l1_ensure_machinekey_validation_method_net_4_5_is
+    title: "(L1) Ensure 'MachineKey validation method - .Net 4.5' is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '3.9'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: iis.section_3.l1_ensure_machinekey_validation_method_net_4_5_is
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      Machine key encryption can be set by using the UI, running appcmd.exe
+      commands, by editing configuration files directly, or by writing WMI scripts.
+      To set the Machine Key encryption at the global level using an appcmd.exe
+      command: %systemroot%\system32\inetsrv\appcmd set config /commit:WEBROOT
+      /section:machineKey /validation:<validation method> Note: When Appcmd.exe is
+      used to configure the <machineKey> element at the global level in IIS, the
+      /commit:WEBROOT switch must be included so that configuration changes are made
+      to the root web.config file instead of ApplicationHost.config. OR Enter the
+      following command in PowerShell to configure: Set-WebConfigurationProperty
+      -pspath 'MACHINE/WEBROOT' -filter 'system.web/machineKey' -name 'validation'
+      -value '<validation method>' Default Value: The default Machine Key validation
+      method is SHA256. References: 1. http://www.iis.net/learn/get-started/whats-
+      new-in-iis-8/iis-80-aspnet-configuration- management
+    compliance:
+      - cis_iis_10_v1_2_1_3_9
+
+

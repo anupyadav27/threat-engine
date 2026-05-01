@@ -1,0 +1,53 @@
+version: '1.0'
+provider: db
+engine: mssql
+category: logging
+cis_section: '5'
+description: SQL Server CIS Section 5 — Auditing and Logging
+
+discovery:
+  - discovery_id: db.mssql.logging.server_audits_enabled
+    calls:
+      - action: query_table
+        query: >
+          SELECT name, status_desc, is_state_enabled
+          FROM sys.server_audits;
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        audit_name: "{{ item.name }}"
+        status: "{{ item.status_desc }}"
+        enabled: "{{ item.is_state_enabled }}"
+
+  - discovery_id: db.mssql.logging.audit_login_logout
+    calls:
+      - action: query_table
+        query: >
+          SELECT a.name AS audit_name, s.name AS spec_name, s.is_state_enabled
+          FROM sys.server_audit_specification_details d
+          JOIN sys.server_audit_specifications s ON d.server_specification_id = s.server_specification_id
+          JOIN sys.server_audits a ON s.audit_guid = a.audit_guid
+          WHERE d.audit_action_name IN ('SUCCESSFUL_LOGIN_GROUP', 'LOGOUT_GROUP', 'FAILED_LOGIN_GROUP');
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        audit_name: "{{ item.audit_name }}"
+        spec_name: "{{ item.spec_name }}"
+        enabled: "{{ item.is_state_enabled }}"
+
+  - discovery_id: db.mssql.logging.clr_enabled
+    calls:
+      - action: query_table
+        query: "SELECT value_in_use FROM sys.configurations WHERE name = 'clr enabled';"
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        setting_name: clr_enabled
+        value: "{{ item.value_in_use }}"
+        expected: 0

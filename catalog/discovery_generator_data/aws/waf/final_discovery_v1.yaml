@@ -1,0 +1,182 @@
+# ==========================================================
+# Discovery YAML — waf (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 28 | ops: 3 independent, 5 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: waf
+
+services:
+  client: waf
+  module: "boto3.client('waf')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: activated_rules_in_rule_group
+    identifier_op: aws.waf.list_activated_rules_in_rule_group
+    identifier_field: RuleId
+    item_var_path: item.RuleId
+    identifier_template: '{ruleid}'
+  - resource_type: regex_pattern_set
+    identifier_op: aws.waf.list_regex_pattern_sets
+    identifier_field: RegexPatternSetId
+    item_var_path: item.RegexPatternSetId
+    identifier_template: '{regexpatternsetid}'
+  - resource_type: web_ac_l
+    identifier_op: aws.waf.list_web_ac_ls
+    identifier_field: WebACLId
+    item_var_path: item.WebACLId
+    identifier_template: '{webaclid}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.waf.list_activated_rules_in_rule_group  ──
+  - discovery_id: aws.waf.list_activated_rules_in_rule_group
+    calls:
+      - action: list_activated_rules_in_rule_group
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ActivatedRules }}'
+      item:
+        Action: '{{ item.Action }}'
+        Action.Type: '{{ item.Action.Type }}'
+        ExcludedRules: '{{ item.ExcludedRules }}'
+        OverrideAction: '{{ item.OverrideAction }}'
+        Priority: '{{ item.Priority }}'
+        RuleId: '{{ item.RuleId }}'
+        Rules: '{{ item.Rules }}'
+        Rules.Action: '{{ item.Rules.Action }}'
+        Type: '{{ item.Type }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.waf.list_regex_pattern_sets  ──
+  - discovery_id: aws.waf.list_regex_pattern_sets
+    calls:
+      - action: list_regex_pattern_sets
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.RegexPatternSets }}'
+      item:
+        Name: '{{ item.Name }}'
+        RegexPatternSetId: '{{ item.RegexPatternSetId }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.waf.list_web_ac_ls  ──
+  - discovery_id: aws.waf.list_web_ac_ls
+    calls:
+      - action: list_web_ac_ls
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.WebACLs }}'
+      item:
+        Name: '{{ item.Name }}'
+        Policy: '{{ item.Policy }}'
+        WebACLId: '{{ item.WebACLId }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.waf.get_ip_set [dependent] ──
+  - discovery_id: aws.waf.get_ip_set
+    for_each: aws.waf.list_ip_sets
+    calls:
+      - action: get_ip_set
+        params:
+          IPSetId: "{{ item.IPSetId }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Addresses: '{{ item.Addresses }}'
+        IPSetDescriptors: '{{ item.IPSetDescriptors }}'
+        IPSetId: '{{ item.IPSetId }}'
+        Name: '{{ item.Name }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.waf.get_logging_configuration [dependent] ──
+  - discovery_id: aws.waf.get_logging_configuration
+    for_each: aws.waf.list_logging_configurations
+    calls:
+      - action: get_logging_configuration
+        params:
+          ResourceArn: "{{ item.ResourceArn }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        LogDestinationConfigs: '{{ item.LogDestinationConfigs }}'
+        RedactedFields: '{{ item.RedactedFields }}'
+        ResourceArn: '{{ item.ResourceArn }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.waf.get_regex_pattern_set [dependent] ──
+  - discovery_id: aws.waf.get_regex_pattern_set
+    for_each: aws.waf.list_regex_pattern_sets
+    calls:
+      - action: get_regex_pattern_set
+        params:
+          RegexPatternSetId: "{{ item.RegexPatternSetId }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Name: '{{ item.Name }}'
+        RegexPatternSetId: '{{ item.RegexPatternSetId }}'
+        RegexPatternStrings: '{{ item.RegexPatternStrings }}'
+        RegularExpressionList: '{{ item.RegularExpressionList }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.waf.get_rule_group [dependent] ──
+  - discovery_id: aws.waf.get_rule_group
+    for_each: aws.waf.list_rule_groups
+    calls:
+      - action: get_rule_group
+        params:
+          RuleGroupId: "{{ item.RuleGroupId }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        MetricName: '{{ item.MetricName }}'
+        Name: '{{ item.Name }}'
+        RuleGroupId: '{{ item.RuleGroupId }}'
+        VisibilityConfig: '{{ item.VisibilityConfig }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.waf.get_web_acl [dependent] ──
+  - discovery_id: aws.waf.get_web_acl
+    for_each: aws.waf.list_web_ac_ls
+    calls:
+      - action: get_web_acl
+        params:
+          WebACLId: "{{ item.WebACLId }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        DefaultAction: '{{ item.DefaultAction }}'
+        MetricName: '{{ item.MetricName }}'
+        Name: '{{ item.Name }}'
+        Policy: '{{ item.Policy }}'
+        Rules: '{{ item.Rules }}'
+        WebACLArn: '{{ item.WebACLArn }}'
+        WebACLId: '{{ item.WebACLId }}'
+

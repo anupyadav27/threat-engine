@@ -1,0 +1,460 @@
+version: '1.0'
+provider: azure
+service: security
+checks:
+- rule_id: azure.security.center.enabled
+  for_each: azure.security.root.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.center.exploit_guard_enabled
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.center.guardduty_enabled
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.name
+    op: equals
+    value: GuardDuty
+- rule_id: azure.security.center.no_high_severity_findings
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: not_equals
+    value: HIGH
+- rule_id: azure.security.center.vulnerability_assessment_enabled
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.center_alert.incident_response_access_rbac_least_privilege
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.center_alert.incident_response_storage_encrypted_and_private
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.center_alert.incident_response_versioning_and_immutability_enabled
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.security_task_parameters
+      op: contains
+      value: incidentResponseVersioning
+    - var: item.security_task_parameters
+      op: contains
+      value: immutabilityEnabled
+- rule_id: azure.security.center_baseline.vuln_baseline_exemptions_have_expiry_and_owner
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.security_task_parameters
+      op: exists
+      value: null
+    - var: item.security_task_parameters
+      op: contains
+      value: expiry
+    - var: item.security_task_parameters
+      op: contains
+      value: owner
+- rule_id: azure.security.center_baseline.vuln_baseline_required_controls_present
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.center_detector.threat_detector_enabled_in_all_regions
+  for_each: azure.security.locations.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.state
+      op: equals
+      value: RUNNING
+    - var: item.sub_state
+      op: equals
+      value: RUNNING
+- rule_id: azure.security.center_detector.threat_detector_finding_export_encrypted_destination
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.security_task_parameters
+    op: contains
+    value: encrypted
+- rule_id: azure.security.center_finding.threat_finding_alert_destinations_configured
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.security_task_parameters
+    op: not_empty
+    value: null
+- rule_id: azure.security.center_finding.threat_finding_archival_export_encrypted
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.security_task_parameters
+    op: contains
+    value: encrypted
+- rule_id: azure.security.center_patch_management.vuln_patch_approval_rules_defined
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.security_task_parameters
+    op: not_empty
+    value: null
+- rule_id: azure.security.center_patch_management.vuln_patch_baseline_defined_for_os_families
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.security_task_parameters
+    op: not_empty
+    value: null
+- rule_id: azure.security.center_patch_management.vuln_patch_maintenance_windows_configured
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.security_task_parameters
+    op: contains
+    value: patch
+- rule_id: azure.security.center_vulnerability_assessment.vuln_assessment_policy_store_encrypted
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.security_task_parameters
+    op: contains
+    value: vulnerabilityAssessment
+- rule_id: azure.security.center_vulnerability_assessment.vuln_assessment_roles_least_privilege
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.security_task_parameters
+    op: contains
+    value: vulnerabilityAssessment
+- rule_id: azure.security.center_vulnerability_scan.vuln_scan_agents_or_scanners_deployed
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.name
+    op: contains
+    value: vulnerability
+- rule_id: azure.security.center_vulnerability_scan.vuln_scan_results_export_destination_encrypted
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.security_task_parameters
+    op: contains
+    value: encrypted
+- rule_id: azure.security.center_vulnerability_scan.vuln_scan_scope_includes_all_asset_groups
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.security_task_parameters
+    op: contains
+    value: allAssetGroups
+- rule_id: azure.security.defender.additional_email_configured
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.security_task_parameters
+    op: not_empty
+    value: null
+- rule_id: azure.security.defender.arm_protection_enabled
+  for_each: azure.security.root.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.defender.container_scan_enabled
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.name
+    op: equals
+    value: ContainerRegistryVulnerabilityAssessment
+- rule_id: azure.security.defender.container_vulnerabilities_resolved
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RESOLVED
+- rule_id: azure.security.defender.containers_protection_enabled
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.defender.cosmos_protection_enabled
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.defender.databases_protection_enabled
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.defender.dns_protection_enabled
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.name
+    op: equals
+    value: Enable Azure DNS Protection
+- rule_id: azure.security.defender.enabled
+  for_each: azure.security.root.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.defender.for.apis.pricing.tier.standard
+  for_each: azure.security.root.list
+  severity: MEDIUM
+  conditions:
+    var: item.type
+    op: equals
+    value: Microsoft.Security/pricings
+- rule_id: azure.security.defender.high_severity_alerts_enabled
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.defender.iot_hub_protection_enabled
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.defender.keyvault_protection_enabled
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.defender.log_analytics_agent_auto_provisioning
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.defender.mcas_enabled
+  for_each: azure.security.root.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.defender.no_high_severity_findings
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: not_equals
+    value: HIGH
+- rule_id: azure.security.defender.notify_owners_enabled
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.security_task_parameters
+    op: contains
+    value: notifyOwners
+- rule_id: azure.security.defender.relational_db_protection_enabled
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.defender.server_protection_enabled
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.defender.servers_protection_enabled
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.defender.sql_databases_protection_enabled
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.defender.sql_servers_protection_enabled
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.defender.system_updates_applied
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.defender.vulnerability_assessment_auto_provisioning
+  for_each: azure.security.root.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.defender.wdatp_enabled
+  for_each: azure.security.root.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.paas_app.tls_min_1_2_enforced
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.security_task_parameters
+    op: contains
+    value: tls_min_1_2_enforced
+- rule_id: azure.security.paas_application_version.paas_app_version_immutable
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.platform_usage_plan.quota_limits
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.platform_usage_plan.rate_limits
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.privacy_encryption.at_rest_cmek_enabled
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.privacy_encryption.in_transit_tls_min_1_2
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.security_task_parameters
+    op: contains
+    value: tls_min_1_2
+- rule_id: azure.security.serverless_event_source.source_authenticated
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.security_task_parameters
+    op: exists
+    value: null
+- rule_id: azure.security.serverless_layer.source_trusted
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.security_task_parameters
+    op: exists
+    value: null
+- rule_id: azure.security.serverless_layer.version_immutable
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.security_task_parameters
+    op: contains
+    value: version_immutable
+- rule_id: azure.security.storage.defender.pricing.check
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.threat_custom_identifier.source_trusted
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.threat_hub.auto_enroll_new_accounts
+  for_each: azure.security.root.list
+  severity: MEDIUM
+  conditions:
+    var: item.security_task_parameters
+    op: contains
+    value: autoEnrollNewAccounts
+- rule_id: azure.security.threat_hub.master_member
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: azure.security.threat_ip_set.sources_trusted
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.security_task_parameters
+    op: contains
+    value: trusted
+- rule_id: azure.security.threat_ip_set.used_by_detectors
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.security_task_parameters
+    op: contains
+    value: threat_ip_set
+- rule_id: azure.security.vulnerability_maintenance.vuln_maintenance_window_defined
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.security_task_parameters
+    op: not_empty
+    value: null

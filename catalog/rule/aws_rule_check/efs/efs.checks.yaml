@@ -1,0 +1,93 @@
+version: '1.0'
+provider: aws
+service: efs
+checks:
+- rule_id: aws.efs.encryption.at_rest_enabled
+  for_each: aws.efs.describe_file_systems
+  severity: MEDIUM
+  conditions:
+    var: item.Encrypted
+    op: is_true
+    value: null
+- rule_id: aws.efs.filesystem.encryption_at_rest_enabled
+  for_each: aws.efs.describe_file_systems
+  severity: HIGH
+  conditions:
+    var: item.Encrypted
+    op: is_true
+    value: null
+- rule_id: aws.efs.filesystem.kms_key_policy_least_privilege
+  for_each: aws.efs.describe_file_systems
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Encrypted
+      op: is_true
+      value: null
+    - var: item.KmsKeyId
+      op: exists
+      value: null
+- rule_id: aws.efs.filesystem.private_network_only_configured
+  for_each: aws.efs.describe_mount_targets
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.MountTargets
+      op: not_empty
+      value: null
+    - var: item.MountTargets[].SubnetId
+      op: exists
+      value: null
+- rule_id: aws.efs.filesystem.snapshots_enabled
+  for_each: aws.efs.describe_backup_policy
+  severity: MEDIUM
+  conditions:
+    var: item.BackupPolicy.Status
+    op: equals
+    value: ENABLED
+- rule_id: aws.efs.have.backup_enabled
+  for_each: aws.efs.describe_backup_policy
+  severity: MEDIUM
+  conditions:
+    var: item.BackupPolicy.Status
+    op: equals
+    value: ENABLED
+- rule_id: aws.efs.not_publicly_accessible.not_publicly_accessible_configured
+  for_each: aws.efs.describe_file_systems
+  severity: HIGH
+  conditions:
+    var: item.FileSystems[].Policy
+    op: not_contains
+    value: 'Principal": "*"'
+- rule_id: aws.efs.resource.backup_enabled
+  for_each: aws.efs.describe_backup_policy
+  severity: MEDIUM
+  conditions:
+    var: item.BackupPolicy.Status
+    op: equals
+    value: ENABLED
+- rule_id: aws.efs.resource.encryption_at_rest_enabled
+  for_each: aws.efs.describe_file_systems
+  severity: HIGH
+  conditions:
+    var: item.Encrypted
+    op: is_true
+    value: null
+- rule_id: aws.efs.resource.multi_az_enabled
+  for_each: aws.efs.describe_file_systems
+  severity: MEDIUM
+  conditions:
+    var: item.AvailabilityZoneName
+    op: exists
+    value: null
+- rule_id: aws.efs.user.identity_and_root_directory_enforced
+  for_each: aws.efs.describe_access_points
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.PosixUser
+      op: exists
+      value: null
+    - var: item.RootDirectory
+      op: exists
+      value: null

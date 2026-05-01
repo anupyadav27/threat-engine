@@ -1,0 +1,35 @@
+# ============================================================
+# K8s Finalized Discovery — namespace
+# Generated: 2026-04-16T14:28:05Z
+# Source: k8s_field_rule_catalog.csv
+# Ops: 1 list  +  1 get  =  2 total
+# ============================================================
+
+version: '1.0'
+provider: k8s
+service: namespace
+services:
+  client: core_v1_api
+  module: kubernetes.client
+  api_class: CoreV1Api
+discovery:
+- discovery_id: k8s.namespace.list
+  calls:
+  - action: list_namespace
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: k8s.namespace.get
+  for_each: k8s.namespace.list
+  calls:
+  - action: read_namespace
+    save_as: response
+    on_error: continue
+    params:
+      name: '{{ item.metadata.name }}'
+  emit:
+    as: item
+    item:
+      namespace: '{{ response }}'

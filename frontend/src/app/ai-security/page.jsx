@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Brain } from 'lucide-react';
-import { fetchView } from '@/lib/api';
-import { useGlobalFilter } from '@/lib/global-filter-context';
+import { useViewFetch } from '@/lib/use-view-fetch';
 import PageLayout from '@/components/shared/PageLayout';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import FindingDetailPanel from '@/components/shared/FindingDetailPanel';
@@ -130,25 +129,8 @@ function OverviewContent({ coverage, modules }) {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function AiSecurityPage() {
-  const [data, setData]                     = useState({});
-  const [loading, setLoading]               = useState(true);
-  const [error, setError]                   = useState(null);
+  const { data, loading, error } = useViewFetch('ai-security');
   const [selectedFinding, setSelectedFinding] = useState(null);
-
-  const { provider, account, region } = useGlobalFilter();
-
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    fetchView('ai-security', {
-      provider: provider || undefined,
-      account:  account  || undefined,
-      region:   region   || undefined,
-    })
-      .then(d => { setData(d || {}); if (d?.error) setError(d.error); })
-      .catch(e => setError(e?.message || 'Failed to load AI security data'))
-      .finally(() => setLoading(false));
-  }, [provider, account, region]);
 
   // ── Derived data ───────────────────────────────────────────────────────────
   const pageContext = useMemo(() => {

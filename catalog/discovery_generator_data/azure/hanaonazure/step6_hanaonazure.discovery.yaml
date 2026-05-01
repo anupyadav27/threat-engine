@@ -1,0 +1,59 @@
+# Discovery YAML — hanaonazure (Azure)
+# Generated: 2026-04-15T10:39:30Z
+# Source: step1b_operation_registry.json (qualified ops + dependency chains)
+# Actions use {category}.{method} format for SDK method resolution
+version: '1.0'
+provider: azure
+service: hanaonazure
+services:
+  client: hanaonazure
+  module: azure.mgmt.hanaonazure
+discovery:
+  # ── sapmonitors.list [root] ──
+  - discovery_id: azure.hanaonazure.sapmonitors.list
+    calls:
+      - action: sapmonitors.list
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        location: '{{ item.location }}'
+        sku: '{{ item.sku }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        zones: '{{ item.zones }}'
+        kind: '{{ item.kind }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+  # ════════════════════════════════════════
+  # Dependent operations (for_each + params)
+  # ════════════════════════════════════════
+  # ── providerinstances.list [dependent] ──
+  - discovery_id: azure.hanaonazure.providerinstances.list
+    for_each: azure.hanaonazure.sapmonitors.list
+    calls:
+      - action: providerinstances.list
+        save_as: response
+        on_error: continue
+        params:
+          sap_monitor_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        location: '{{ item.location }}'
+        sku: '{{ item.sku }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        zones: '{{ item.zones }}'
+        kind: '{{ item.kind }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'

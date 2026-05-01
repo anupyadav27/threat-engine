@@ -1,61 +1,23 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { FALLBACK_VIEWER_PERMISSIONS } from './permission-constants';
 
-const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL || process.env.NEXT_PUBLIC_API_BASE || '';
-
-// ── Dev auth bypass ──────────────────────────────────────────────────────────
-// When NEXT_PUBLIC_DEV_BYPASS_AUTH=true, skip Django auth entirely and inject
-// a synthetic admin session. This survives HMR and page reloads because
-// auth-context.js checks sessionStorage FIRST on every mount.
-const DEV_BYPASS_AUTH = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === 'true';
-const DEV_TENANT_ID  = process.env.NEXT_PUBLIC_TENANT_ID || 'default-tenant';
-
-const DEV_SESSION = {
-  user: {
-    id: 1,
-    email: 'admin@cspm.local',
-    first_name: 'Admin',
-    last_name: 'User',
-    name: 'Admin User',
-    is_superuser: true,
-    is_staff: true,
-    role: 'platform_admin',
-    roles: ['platform_admin'],
-    tenants: [{ id: DEV_TENANT_ID, name: 'Default' }],
-    selected_tenant: DEV_TENANT_ID,
-    capabilities: [
-      'view_dashboard', 'view_assets', 'view_threats', 'view_compliance',
-      'view_iam', 'view_datasec', 'view_scans', 'create_scans', 'manage_tenants',
-      'manage_users', 'manage_rules', 'manage_policies', 'view_risk',
-    ],
-    permissions: [
-      'view_dashboard', 'view_assets', 'view_threats', 'view_compliance',
-      'view_iam', 'view_datasec', 'view_scans', 'create_scans', 'manage_tenants',
-      'manage_users', 'manage_rules', 'manage_policies', 'view_risk',
-    ],
-  },
-  role: 'platform_admin',
-  roles: ['platform_admin'],
-  tenants: [{ id: DEV_TENANT_ID, name: 'Default' }],
-  selectedTenant: DEV_TENANT_ID,
-  capabilities: [
-    'view_dashboard', 'view_assets', 'view_threats', 'view_compliance',
-    'view_iam', 'view_datasec', 'view_scans', 'create_scans', 'manage_tenants',
-    'manage_users', 'manage_rules', 'manage_policies', 'view_risk',
-  ],
-};
+const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL || process.env.NEXT_PUBLIC_API_BASE ||
+  (process.env.NODE_ENV === 'production' ? '/ui' : '');
 
 const AuthContext = createContext({
   user: null,
   role: null,
+  level: 0,
   roles: [],
   isAuthenticated: false,
   tenants: [],
   selectedTenant: null,
-  capabilities: [],
+  permissions: [],
   isLoading: false,
   isInitialized: false,
+  hasPermission: () => false,
   login: async () => {},
   logout: () => {},
   refreshSession: async () => {},
@@ -66,79 +28,94 @@ const AuthContext = createContext({
 export function AuthProvider({ children }) {
   const [user, setUserState] = useState(null);
   const [role, setRole] = useState(null);
+  const [level, setLevel] = useState(0);
   const [roles, setRoles] = useState([]);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [tenants, setTenants] = useState([]);
   const [selectedTenant, setSelectedTenant] = useState(null);
-  const [capabilities, setCapabilities] = useState([]);
+  const [permissions, setPermissions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
+  /**
+   * Derive permissions from the /me response.
+   * The API returns `user.permissions` as the canonical list (RBAC-03).
+   * If the array is empty (legacy session), fall back to the basic viewer set
+   * so the user still sees a usable shell without erroring.
+   */
+  const resolvePermissions = useCallback((u) => {
+    const raw = u.permissions;
+    if (Array.isArray(raw) && raw.length > 0) return raw;
+    return FALLBACK_VIEWER_PERMISSIONS;
+  }, []);
+
   const applySession = useCallback((data) => {
     const u = data.user || data;
+    const resolvedPermissions = resolvePermissions(u);
+    const engineTenantId = u.selected_tenant
+      || u.tenants?.[0]?.engine_tenant_id
+      || u.tenants?.[0]?.tenant_id
+      || u.tenants?.[0]?.id
+      || null;
+
     setUserState(u);
     setRole(u.role || u.roles?.[0] || 'user');
+    setLevel(u.level ?? 0);
     setRoles(u.roles || [u.role || 'user']);
     setIsAuthenticated(true);
     setTenants(u.tenants || []);
-    setSelectedTenant(u.selected_tenant || u.tenants?.[0]?.id || null);
-    setCapabilities(u.capabilities || u.permissions || [
-      'view_dashboard', 'view_assets', 'view_threats', 'view_compliance',
-      'view_iam', 'view_datasec', 'view_scans', 'create_scans', 'manage_tenants',
-    ]);
+    setSelectedTenant(engineTenantId);
+    setPermissions(resolvedPermissions);
 
+    // Persist to sessionStorage (in-memory tab storage only — not localStorage,
+    // so permissions cannot be tampered with across tabs or page refreshes
+    // without re-validating against the backend).
     const session = {
       user: u,
       role: u.role || u.roles?.[0] || 'user',
+      level: u.level ?? 0,
       roles: u.roles || [u.role || 'user'],
       tenants: u.tenants || [],
-      selectedTenant: u.selected_tenant || u.tenants?.[0]?.id || null,
-      capabilities: u.capabilities || u.permissions || [],
+      selectedTenant: engineTenantId,
+      permissions: resolvedPermissions,
     };
     sessionStorage.setItem('auth_session', JSON.stringify(session));
-  }, []);
+  }, [resolvePermissions]);
 
-  // Restore session on mount — auto-login for dev (bypass Cognito)
+  // Restore session on mount — always validates against the backend
+  // to pick up any permission changes that happened since the tab was opened.
   useEffect(() => {
     const restoreSession = async () => {
       try {
-        // ── Dev bypass: inject synthetic session immediately ───────────
-        if (DEV_BYPASS_AUTH) {
-          console.info('[auth] DEV_BYPASS_AUTH enabled — using synthetic admin session');
-          sessionStorage.setItem('auth_session', JSON.stringify(DEV_SESSION));
-          setUserState(DEV_SESSION.user);
-          setRole(DEV_SESSION.role);
-          setRoles(DEV_SESSION.roles);
-          setIsAuthenticated(true);
-          setTenants(DEV_SESSION.tenants);
-          setSelectedTenant(DEV_SESSION.selectedTenant);
-          setCapabilities(DEV_SESSION.capabilities);
-          setIsInitialized(true);
-          return;
-        }
-
-        // First check sessionStorage
+        // Optimistically restore from sessionStorage to avoid flash of
+        // unauthenticated content while the /me round-trip is in flight.
         const stored = sessionStorage.getItem('auth_session');
         if (stored) {
           const session = JSON.parse(stored);
           setUserState(session.user);
           setRole(session.role);
+          setLevel(session.level ?? 0);
           setRoles(session.roles || []);
           setIsAuthenticated(true);
           setTenants(session.tenants || []);
           setSelectedTenant(session.selectedTenant);
-          setCapabilities(session.capabilities || []);
+          setPermissions(session.permissions || FALLBACK_VIEWER_PERMISSIONS);
           setIsInitialized(true);
-          return;
+          // Fall through — still refresh from backend so stale permissions
+          // are replaced with the latest set.
         }
 
-        // Try to get current user from backend (cookie-based auth)
+        // Always re-validate with the backend.  This ensures that if the
+        // admin changed a user's role/permissions, the next page load picks it up.
         const res = await fetch(`${AUTH_URL}/api/auth/me/`, {
           credentials: 'include',
         });
         if (res.ok) {
           const data = await res.json();
           applySession(data);
+        } else if (!stored) {
+          // No stored session AND /me failed → not authenticated
+          setIsInitialized(true);
         }
       } catch (error) {
         console.error('Failed to restore session:', error);
@@ -167,7 +144,7 @@ export function AuthProvider({ children }) {
         const data = await res.json();
 
         if (res.ok) {
-          // cspm-backend returns { message, expiresIn, user: { id, email, name, roles } }
+          // cspm-backend returns { message, expiresIn, user: { id, email, name, roles, permissions } }
           applySession(data);
           return { success: true };
         }
@@ -206,11 +183,12 @@ export function AuthProvider({ children }) {
     }
     setUserState(null);
     setRole(null);
+    setLevel(0);
     setRoles([]);
     setIsAuthenticated(false);
     setTenants([]);
     setSelectedTenant(null);
-    setCapabilities([]);
+    setPermissions([]);
     sessionStorage.removeItem('auth_session');
   }, []);
 
@@ -260,16 +238,32 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  /**
+   * Convenience method — checks whether the current session includes a
+   * specific permission key.  Sourced entirely from the API response;
+   * never reads localStorage or URL params.
+   *
+   * @param {string|null} key - Permission key, e.g. 'threat:read'
+   * @returns {boolean}
+   */
+  const checkHasPermission = useCallback((key) => {
+    if (!key) return true;
+    if (!permissions || permissions.length === 0) return false;
+    return permissions.includes(key);
+  }, [permissions]);
+
   const value = {
     user,
     role,
+    level,
     roles,
     isAuthenticated,
     tenants,
     selectedTenant,
-    capabilities,
+    permissions,
     isLoading,
     isInitialized,
+    hasPermission: checkHasPermission,
     login,
     logout,
     refreshSession,

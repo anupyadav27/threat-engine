@@ -1,0 +1,66 @@
+# ==========================================================
+# Discovery YAML — kinesisvideo (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 2 | ops: 1 independent, 1 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: kinesisvideo
+
+services:
+  client: kinesisvideo
+  module: "boto3.client('kinesisvideo')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: stream
+    identifier_op: aws.kinesisvideo.describe_stream
+    identifier_field: StreamARN
+    item_var_path: item.StreamARN
+    identifier_template: '{streamarn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.kinesisvideo.describe_stream  ──
+  - discovery_id: aws.kinesisvideo.describe_stream
+    calls:
+      - action: describe_stream
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        CreationTime: '{{ item.CreationTime }}'
+        DataRetentionInHours: '{{ item.DataRetentionInHours }}'
+        DeviceName: '{{ item.DeviceName }}'
+        KmsKeyId: '{{ item.KmsKeyId }}'
+        MediaType: '{{ item.MediaType }}'
+        Status: '{{ item.Status }}'
+        StreamARN: '{{ item.StreamARN }}'
+        StreamInfo: '{{ item.StreamInfo }}'
+        StreamName: '{{ item.StreamName }}'
+        Tags: '{{ item.Tags }}'
+        Version: '{{ item.Version }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.kinesisvideo.get_signaling_channel_endpoint [dependent] ──
+  - discovery_id: aws.kinesisvideo.get_signaling_channel_endpoint
+    for_each: aws.kinesisvideo.describe_signaling_channel
+    calls:
+      - action: get_signaling_channel_endpoint
+        params:
+          ChannelARN: "{{ item.ChannelARN }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ResourceEndpointList }}'
+      item:
+        Protocol: '{{ item.Protocol }}'
+        ResourceEndpoint: '{{ item.ResourceEndpoint }}'
+        Tags: '{{ item.Tags }}'
+

@@ -1,0 +1,76 @@
+rule_id: gcp.dns.audit.record_set_modified
+service: dns
+provider: gcp
+check_type: log
+severity: high
+title: 'Cloud DNS: DNS Record Modified'
+description: A DNS record was added, modified, or deleted in a Cloud DNS zone. Unauthorized DNS record changes are used for traffic hijacking and phishing.
+rationale: Adversaries abuse dns operations to achieve lateral movement in GCP environments. Detected via Cloud Admin Activity or Data Access audit logs.
+threat_category: lateral_movement
+mitre_tactics:
+- lateral_movement
+- collection
+mitre_techniques:
+- T1557
+risk_score: 80
+resource: gcp_dns_resource_record_set
+source: default
+is_active: true
+domain: network_security_and_connectivity
+action_category: network
+log_source_type: 
+posture_category: network_posture
+threat_tags:
+- T1557
+- lateral_movement
+- cloud_pivot
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: network_change
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_gcp_v2:
+  - 1.4
+  - 1.7
+  - 3.1
+  nist_800_53_r5:
+  - AC-4
+  - SC-7
+  - SI-4
+  pci_dss_v4:
+  - 7.2
+  - 1.3
+  - 1.4
+  iso_27001_2022:
+  - A.8.20
+  - A.8.22
+  - A.5.18
+remediation: |
+  1. Revoke the service account impersonation grant (roles/iam.serviceAccountTokenCreator).
+  2. Audit all GenerateAccessToken calls in iamcredentials.googleapis.com audit logs.
+  3. Restrict service account impersonation using IAM Conditions (resource-based restrictions).
+  4. Enable Security Command Center lateral movement threat findings.
+  5. Rotate credentials for all service accounts involved in the impersonation chain.
+references:
+- https://attack.mitre.org/techniques/T1557/
+- https://cloud.google.com/logging/docs/audit
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: dns.googleapis.com
+    - field: operation
+      op: equals
+      value: dns.changes.create
+version: '1.0'

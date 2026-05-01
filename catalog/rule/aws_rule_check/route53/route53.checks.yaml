@@ -1,0 +1,166 @@
+version: '1.0'
+provider: aws
+service: route53
+checks:
+- rule_id: aws.route53.healthcheck.alerts_configured
+  for_each: aws.route53.list_health_checks
+  severity: MEDIUM
+  conditions:
+    var: item.CloudWatchAlarmConfiguration
+    op: exists
+    value: null
+- rule_id: aws.route53.healthcheck.https_or_tls_used_configured
+  for_each: aws.route53.list_health_checks
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.HealthCheckConfig.Type
+      op: equals
+      value: HTTPS
+    - var: item.HealthCheckConfig.Type
+      op: equals
+      value: HTTPS_STR_MATCH
+    - var: item.HealthCheckConfig.Type
+      op: equals
+      value: TLS
+    - var: item.HealthCheckConfig.Type
+      op: equals
+      value: TLS_STR_MATCH
+- rule_id: aws.route53.healthcheck.route53_no_plaintext_credentials_in_url_configured
+  for_each: aws.route53.list_health_checks
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.HealthCheckConfig.FullyQualifiedDomainName
+      op: exists
+      value: null
+    - var: item.HealthCheckConfig.FullyQualifiedDomainName
+      op: not_contains
+      value: ://
+- rule_id: aws.route53.hostedzone.query_logging_enabled
+  for_each: aws.route53.list_query_logging_configs
+  severity: MEDIUM
+  conditions:
+    var: item.CloudWatchLogsLogGroupArn
+    op: exists
+    value: null
+- rule_id: aws.route53.hostedzone.route53_cross_account_sharing_restricted
+  for_each: aws.route53.list_hosted_zones
+  severity: MEDIUM
+  conditions:
+    var: item.Config.PrivateZone
+    op: is_true
+    value: null
+- rule_id: aws.route53.hostedzone.route53_dnssec_enabled_if_supported
+  for_each: aws.route53.list_hosted_zones
+  severity: MEDIUM
+  conditions:
+    var: item.Features
+    op: contains
+    value: DNSSEC
+- rule_id: aws.route53.hostedzone.route53_zone_transfer_restricted_or_tsig_required
+  for_each: aws.route53.list_hosted_zones
+  severity: MEDIUM
+  conditions:
+    var: item.Config.PrivateZone
+    op: is_true
+    value: null
+- rule_id: aws.route53.recordset.no_rfc1918_in_public_zones_configured
+  for_each: aws.route53.list_hosted_zones
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Config.PrivateZone
+      op: is_true
+      value: null
+    - var: item.ResourceRecordSetCount
+      op: gt
+      value: 0
+- rule_id: aws.route53.recordset.route53_alias_targets_in_approved_services_configured
+  for_each: aws.route53.list_hosted_zones
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.ResourceRecordSetCount
+      op: gt
+      value: 0
+    - any:
+      - var: item.LinkedService
+        op: exists
+        value: null
+      - var: item.Features
+        op: contains
+        value: DNSSEC
+- rule_id: aws.route53.recordset.route53_caa_records_present_for_root_and_wildcard_configured
+  for_each: aws.route53.list_hosted_zones
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Name
+      op: not_equals
+      value: ''
+    - any:
+      - var: item.ResourceRecordSetCount
+        op: gt
+        value: 0
+      - var: item.ResourceRecordSetCount
+        op: exists
+        value: null
+- rule_id: aws.route53.recordset.route53_dmarc_record_present_when_mx_configured
+  for_each: aws.route53.list_hosted_zones
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.ResourceRecordSetCount
+      op: gt
+      value: 0
+    - any:
+      - var: item.Name
+        op: contains
+        value: _dmarc.
+      - var: item.Name
+        op: contains
+        value: dmarc.
+- rule_id: aws.route53.recordset.route53_no_broad_wildcards_sensitive_zones_configured
+  for_each: aws.route53.list_hosted_zones
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Name
+      op: not_contains
+      value: sensitive
+    - var: item.ResourceRecordSetCount
+      op: gt
+      value: 0
+- rule_id: aws.route53.resource.public_hosted_zones_cloudwatch_logging_enabled
+  for_each: aws.route53.list_query_logging_configs
+  severity: MEDIUM
+  conditions:
+    var: item.CloudWatchLogsLogGroupArn
+    op: exists
+    value: null
+- rule_id: aws.route53.trafficpolicy.policy_documents_encrypted_and_private
+  for_each: aws.route53.list_hosted_zones
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Config.PrivateZone
+      op: is_true
+      value: null
+    - var: item.Config.Encrypted
+      op: is_true
+      value: null
+- rule_id: aws.route53.trafficpolicy.route53_targets_approved_domains_only_configured
+  for_each: aws.route53.list_health_checks
+  severity: MEDIUM
+  conditions:
+    var: item.HealthCheckConfig
+    op: exists
+    value: null
+- rule_id: aws.route53.trafficpolicy.security_check_health_checks_required_for_failover_configured
+  for_each: aws.route53.list_health_checks
+  severity: MEDIUM
+  conditions:
+    var: item.HealthCheckConfig
+    op: exists
+    value: null

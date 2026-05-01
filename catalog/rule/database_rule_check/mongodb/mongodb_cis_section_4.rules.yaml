@@ -1,0 +1,105 @@
+tech_type: mongodb
+category: database
+cis_benchmark: CIS MongoDB 7 v1.0.0
+cis_section: '4'
+
+rules:
+
+  - rule_id: mongodb.cis.4.legacy_tls_protocols_are_disabled
+    title: "Ensure legacy TLS protocols are disabled"
+    severity: medium
+    automation_type: automated
+    cis_control: '4.1'
+    cis_section: '4'
+    profile_applicability: "Level 2"
+    scope: mongodb.section_4.legacy_tls_protocols_are_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Make changes to configuration file, to configure your mongod or mongos
+      instance to disable legacy protocols, shut down the instance and update the
+      configuration file with the following setting: net: tls: mode: requireTLS
+      certificateKeyFile: /etc/ssl/mongodb.pem CAFile:
+      /etc/ssl/caToValidateClientCertificates.pem disabledProtocols: TLS1_0,TLS1_1
+      Start mongod or mongos instance with the configuration file. mongod --config
+      /etc/mongod.conf Default Value: TLS1_0, TLS1_1, TLS1_2 Note: Starting in
+      version 4.0.4 (and 3.6.9)TLS1_3 is added to the default value. References: 1.
+      https://www.mongodb.com/docs/v7.0/core/security-transport-encryption/ 2.
+      https://www.mongodb.com/docs/v7.0/release-notes/4.0/#std-label-4.0-disable-tls
+    compliance:
+      - cis_mongodb_7_v1_0_0_4_1
+
+  - rule_id: mongodb.cis.4.weak_protocols_are_disabled
+    title: "Ensure Weak Protocols are Disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: mongodb.section_4.weak_protocols_are_disabled
+    assertion:
+      field: enabled
+      operator: exists
+      expected: "false"
+    remediation: >
+      For mongod (“Primary daemon process for the MongoDB system”) In the
+      configuration file /etc/mongod.conf, set the disabledProtocols option to to
+      include TLS1_0,TLS1_1: net: ssl: mode: requireSSL PEMKeyFile:
+      /etc/ssl/mongodb.pem CAFile: /etc/ssl/caToValidateClientCertificates.pem
+      disabledProtocols: TLS1_0,TLS1_1 And restart monogdb instance with mongod
+      --config /etc/mongod.conf Or mongod --sslDisabledProtocols `TLS1_0,TLS1_1
+      Default Value: TLS1_0 if TLS 1.1+ is available on the system. References: 1.
+      https://www.mongodb.com/docs/v7.0/release-notes/4.0/#std-label-4.0-disable-tls
+      2. https://www.mongodb.com/docs/v7.0/reference/configuration-options/#mongodb-
+      setting-net.ssl.disabledProtocols Additional Information: On macOS, you cannot
+      disable TLS1_1 and leave both TLS1_0 and TLS1_2 enabled. You must also disable
+      at least one of the other two; for example, TLS1_0,TLS1_1.
+    compliance:
+      - cis_mongodb_7_v1_0_0_4_2
+
+  - rule_id: mongodb.cis.4.encryption_of_data_in_transit_tls_or_ssl
+    title: "Ensure Encryption of Data in Transit TLS or SSL (Transport Encryption)"
+    severity: high
+    automation_type: automated
+    cis_control: '4.3'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: mongodb.section_4.encryption_of_data_in_transit_tls_or_ssl
+    assertion:
+      field: version
+      operator: equals
+      expected: "on"
+    remediation: >
+      Configure MongoDB servers to require the use of SSL or TLS to encrypt all
+      MongoDB network communications. To implement SSL or TLS to encrypt all MongoDB
+      network communication, perform the following steps: For mongod (“Primary
+      daemon process for the MongoDB system”) In the configuration file
+      /etc/mongod.conf, set the PEMKeyFile option to the certificate file’s path and
+      then start the component with this command: net: tls: mode: requireTLS
+      certificateKeyFile: /etc/ssl/mongodb.pem CAFile:
+      /etc/ssl/caToValidateClientCertificates.pem And restart monogdb instance with
+      mongod --config /etc/mongod.conf Default Value: Not configured References: 1.
+      https://www.mongodb.com/docs/v7.0/tutorial/configure-ssl/ 2.
+      https://www.mongodb.com/docs/v7.0/tutorial/configure-ssl-clients/ 3.
+      https://www.mongodb.com/docs/v7.0/tutorial/upgrade-cluster-to-ssl/ 4.
+      https://www.mongodb.com/docs/v7.0/reference/configuration-options/#mongodb-
+      setting-net.tls.clusterAuthX509.attributes Additional Information:
+      -----------------------------------------------------------------------------
+      Value | Description
+      ------------+----------------------------------------------------------------
+      disabled | The server does not use TLS.
+      ------------+----------------------------------------------------------------
+      allowTLS | Connections between servers do not use TLS. For incoming
+      connections, | the server accepts both TLS and non-TLS. | |
+      ------------+----------------------------------------------------------------
+      preferTLS | Connections between servers use TLS. For incoming connections, the
+      server | accepts both TLS and non-TLS. | |
+      ------------+----------------------------------------------------------------
+      requireTLS | The server uses and accepts only TLS encrypted connections. |
+      -----------------------------------------------------------------------------
+    compliance:
+      - cis_mongodb_7_v1_0_0_4_3
+
+

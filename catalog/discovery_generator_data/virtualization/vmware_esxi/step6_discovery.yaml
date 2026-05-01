@@ -1,0 +1,89 @@
+version: '1.0'
+provider: technology
+category: virtualization
+tech_type: vmware_esxi
+display_name: VMware ESXi
+action_type: vmware_api
+cis_benchmark: CIS VMware ESXi 7.0
+cis_section: '1'
+
+# ─── Authentication & Access ───────────────────────────────────────────────────
+discovery:
+  - discovery_id: vmware_esxi.auth.local_accounts
+    description: Enumerate local user accounts and privilege levels
+    calls:
+      - action: vmware_api
+        target: auth.accounts
+        save_as: accounts
+    emit:
+      as: items
+      items: "{{ accounts }}"
+      item:
+        resource_uid: "{{ item.username or item.name or item.id }}"
+        resource_type: vmware_esxi.user_account
+        username: "{{ item.username or item.name }}"
+        is_admin: "{{ item.is_admin or item.privileged }}"
+        last_login: "{{ item.last_login }}"
+
+  - discovery_id: vmware_esxi.auth.password_policy
+    description: Retrieve password policy configuration
+    calls:
+      - action: vmware_api
+        target: auth.password_policy
+        save_as: policy
+    emit:
+      as: item
+      item:
+        resource_uid: "vmware_esxi.password_policy"
+        resource_type: vmware_esxi.policy
+        min_length: "{{ policy.min_length }}"
+        require_complexity: "{{ policy.complexity_enabled }}"
+        max_age_days: "{{ policy.max_age_days }}"
+
+# ─── Logging & Auditing ────────────────────────────────────────────────────────
+  - discovery_id: vmware_esxi.logging.audit_config
+    description: Retrieve audit/logging configuration
+    calls:
+      - action: vmware_api
+        target: logging.audit_config
+        save_as: audit_cfg
+    emit:
+      as: item
+      item:
+        resource_uid: "vmware_esxi.audit_config"
+        resource_type: vmware_esxi.config
+        audit_enabled: "{{ audit_cfg.enabled }}"
+        log_destination: "{{ audit_cfg.destination }}"
+        log_level: "{{ audit_cfg.level }}"
+
+# ─── Encryption & Transport ────────────────────────────────────────────────────
+  - discovery_id: vmware_esxi.encryption.transport
+    description: Check transport encryption (TLS/SSL) configuration
+    calls:
+      - action: vmware_api
+        target: encryption.transport
+        save_as: tls_cfg
+    emit:
+      as: item
+      item:
+        resource_uid: "vmware_esxi.transport_encryption"
+        resource_type: vmware_esxi.config
+        tls_enabled: "{{ tls_cfg.enabled }}"
+        tls_version: "{{ tls_cfg.min_version }}"
+        cert_path: "{{ tls_cfg.cert_path }}"
+
+# ─── Access Controls ──────────────────────────────────────────────────────────
+  - discovery_id: vmware_esxi.acl.admin_privileges
+    description: Identify accounts with administrative or superuser privileges
+    calls:
+      - action: vmware_api
+        target: acl.admin_accounts
+        save_as: admins
+    emit:
+      as: items
+      items: "{{ admins }}"
+      item:
+        resource_uid: "{{ item.username or item.name }}"
+        resource_type: vmware_esxi.privileged_account
+        username: "{{ item.username or item.name }}"
+        privilege_level: "{{ item.role or item.level }}"

@@ -1,0 +1,82 @@
+# discoveries_only_check: 3 kept / 8 removed from 11 total
+# generated_from: step6_detective.discovery.yaml
+# purpose: only discoveries needed by detective.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: detective
+services:
+  client: detective
+  module: boto3.client
+discovery:
+- discovery_id: aws.detective.list_graphs
+  calls:
+  - action: list_graphs
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.GraphList }}'
+    item:
+      Arn: '{{ item.Arn }}'
+      AutoEnable: '{{ item.AutoEnable }}'
+      CreatedTime: '{{ item.CreatedTime }}'
+      MemberDetails: '{{ item.MemberDetails }}'
+      ScopeEndTime: '{{ item.ScopeEndTime }}'
+      ScopeStartTime: '{{ item.ScopeStartTime }}'
+      GraphList: '{{ item }}'
+- discovery_id: aws.detective.list_invitations
+  calls:
+  - action: list_invitations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Invitations }}'
+    item:
+      AccountId: '{{ item.AccountId }}'
+      Status: '{{ item.Status }}'
+      AdministratorId: '{{ item.AdministratorId }}'
+      DatasourcePackageIngestStates: '{{ item.DatasourcePackageIngestStates }}'
+      DisabledReason: '{{ item.DisabledReason }}'
+      EmailAddress: '{{ item.EmailAddress }}'
+      GraphArn: '{{ item.GraphArn }}'
+      InvitationType: '{{ item.InvitationType }}'
+      InvitedTime: '{{ item.InvitedTime }}'
+      MasterId: '{{ item.MasterId }}'
+      PercentOfGraphUtilization: '{{ item.PercentOfGraphUtilization }}'
+      PercentOfGraphUtilizationUpdatedTime: '{{ item.PercentOfGraphUtilizationUpdatedTime
+        }}'
+      UpdatedTime: '{{ item.UpdatedTime }}'
+      VolumeUsageByDatasourcePackage: '{{ item.VolumeUsageByDatasourcePackage }}'
+      VolumeUsageInBytes: '{{ item.VolumeUsageInBytes }}'
+      VolumeUsageUpdatedTime: '{{ item.VolumeUsageUpdatedTime }}'
+- discovery_id: aws.detective.list_members
+  for_each: aws.detective.list_invitations
+  calls:
+  - action: list_members
+    params:
+      GraphArn: '{{ item.GraphArn }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.MemberDetails }}'
+    item:
+      AccountId: '{{ item.AccountId }}'
+      Status: '{{ item.Status }}'
+      AdministratorId: '{{ item.AdministratorId }}'
+      DatasourcePackageIngestStates: '{{ item.DatasourcePackageIngestStates }}'
+      DisabledReason: '{{ item.DisabledReason }}'
+      EmailAddress: '{{ item.EmailAddress }}'
+      GraphArn: '{{ item.GraphArn }}'
+      InvitationType: '{{ item.InvitationType }}'
+      InvitedTime: '{{ item.InvitedTime }}'
+      MasterId: '{{ item.MasterId }}'
+      MemberDetails: '{{ item.MemberDetails }}'
+      PercentOfGraphUtilization: '{{ item.PercentOfGraphUtilization }}'
+      PercentOfGraphUtilizationUpdatedTime: '{{ item.PercentOfGraphUtilizationUpdatedTime
+        }}'
+      UpdatedTime: '{{ item.UpdatedTime }}'
+      VolumeUsageByDatasourcePackage: '{{ item.VolumeUsageByDatasourcePackage }}'
+      VolumeUsageInBytes: '{{ item.VolumeUsageInBytes }}'
+      VolumeUsageUpdatedTime: '{{ item.VolumeUsageUpdatedTime }}'

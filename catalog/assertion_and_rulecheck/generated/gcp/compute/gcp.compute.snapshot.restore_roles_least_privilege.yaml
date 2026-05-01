@@ -1,0 +1,18 @@
+version: '1.0'
+rule_id: gcp.compute.snapshot.restore_roles_least_privilege
+for_each: gcp.compute.list_snapshots
+severity: HIGH
+conditions:
+  all:
+  - var: item.iam_policy.bindings[].role
+    op: not_in
+    value:
+    - roles/compute.storageAdmin
+    - roles/owner
+    - roles/editor
+  - var: item.iam_policy.bindings[].members[].contains
+    op: not_contains
+    value: allUsers
+  - var: item.iam_policy.bindings[].members[].contains
+    op: not_contains
+    value: allAuthenticatedUsers

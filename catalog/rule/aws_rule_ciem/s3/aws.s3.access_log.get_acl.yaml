@@ -1,0 +1,69 @@
+rule_id: aws.s3.access_log.get_acl
+service: s3
+provider: aws
+check_type: log
+severity: low
+title: 'S3: Get ACL'
+description: S3 ACL retrieved — bucket or object access control list inspected.
+rationale: Cloud account enumeration identifies IAM users, service principals, and roles that can be targeted for credential attacks or privilege escalation.
+threat_category: discovery
+mitre_tactics:
+- discovery
+mitre_techniques:
+- T1087.004
+risk_score: 25
+resource: s3_bucket
+source: default
+is_active: true
+domain: data_protection_and_privacy
+action_category: read
+log_source_type: 
+posture_category: threat_posture
+threat_tags:
+- T1087.004
+- T1087
+- storage_access
+- s3_data
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: read
+  target_type: s3_bucket
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - data_access_governance
+  categories:
+  - sensitive_data_access
+  priority: low
+  impact:
+    pci: PCI DSS Requirement 3.1 — Minimize cardholder data storage
+    gdpr: GDPR Article 25 — Data protection by design; minimize data exposure
+    hipaa: §164.312(a)(1) — Access controls on data repositories containing ePHI
+  sensitive_data_context: |
+  Unauthorized discovery on s3 resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks: {}
+remediation: |
+  1. Apply IAM permission restrictions on ListUsers/ListRoles/ListServicePrincipals.
+  2. Alert on unexpected enumeration API call patterns.
+  3. Use AWS Organizations SCPs / Azure Policy to limit who can enumerate identities.
+references:
+- https://attack.mitre.org/techniques/T1087/004/
+- https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_examples_iam_limited-identities.html
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: s3_access
+    - field: operation
+      op: equals
+      value: REST.GET.ACL
+version: '1.0'

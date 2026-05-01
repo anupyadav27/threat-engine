@@ -1,0 +1,75 @@
+version: '1.0'
+provider: oci
+service: streaming
+services:
+  client: streaming
+  module: oci.streaming
+discovery:
+- discovery_id: oci.streaming.list_streams
+  calls:
+  - action: list_streams
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.data }}'
+    item:
+      ocid: '{{ item.ocid }}'
+      compartment_id: '{{ item.compartment_id }}'
+      name: '{{ item.name }}'
+      status: '{{ item.status }}'
+      time_created: '{{ item.time_created }}'
+      freeform_tags: '{{ item.freeform_tags }}'
+      defined_tags: '{{ item.defined_tags }}'
+      partitions: '{{ item.partitions }}'
+      retention_in_hours: '{{ item.retention_in_hours }}'
+- discovery_id: oci.streaming.get_group
+  calls:
+  - action: get_group
+    params:
+      group_id: '{{ item.ocid }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      ocid: '{{ response.data.ocid }}'
+      compartment_id: '{{ response.data.compartment_id }}'
+      name: '{{ response.data.name }}'
+      status: '{{ response.data.status }}'
+      time_created: '{{ response.data.time_created }}'
+      freeform_tags: '{{ response.data.freeform_tags }}'
+      defined_tags: '{{ response.data.defined_tags }}'
+- discovery_id: oci.streaming.get_messages
+  calls:
+  - action: get_messages
+    params:
+      messag_id: '{{ item.ocid }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      ocid: '{{ response.data.ocid }}'
+      compartment_id: '{{ response.data.compartment_id }}'
+      name: '{{ response.data.name }}'
+      status: '{{ response.data.status }}'
+      time_created: '{{ response.data.time_created }}'
+      freeform_tags: '{{ response.data.freeform_tags }}'
+      defined_tags: '{{ response.data.defined_tags }}'
+- discovery_id: oci.streaming.stream.list
+  calls:
+  - action: list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.data }}'
+    item:
+      ocid: '{{ item.ocid }}'
+      compartment_id: '{{ item.compartment_id }}'
+      name: '{{ item.name }}'
+      status: '{{ item.lifecycle_state }}'
+      time_created: '{{ item.time_created }}'
+      freeform_tags: '{{ item.freeform_tags }}'
+      defined_tags: '{{ item.defined_tags }}'

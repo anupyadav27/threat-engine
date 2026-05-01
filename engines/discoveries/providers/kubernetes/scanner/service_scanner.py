@@ -83,7 +83,7 @@ def _scan_namespaces(core_v1, apps_v1, cluster_name: str, region: str, config: D
             item = _serialize_k8s_object(ns)
             item['kind'] = 'Namespace'
             item['resource_type'] = 'k8s.core/Namespace'
-            item['_discovery_id'] = 'k8s.core.list_namespace'
+            item['_discovery_id'] = 'k8s.cluster.list_namespace'
             resources.append(_enrich_k8s_item(item))
     except Exception as e:
         logger.warning(f"K8s list_namespace failed: {e}")
@@ -101,8 +101,13 @@ def _scan_pods(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -
             item = _serialize_k8s_object(pod)
             item['kind'] = 'Pod'
             item['resource_type'] = 'k8s.core/Pod'
-            item['_discovery_id'] = 'k8s.core.list_pod_for_all_namespaces'
-            resources.append(_enrich_k8s_item(item))
+            item['_discovery_id'] = 'k8s.pod.list_pods'
+            enriched = _enrich_k8s_item(item)
+            resources.append(enriched)
+            # Secondary ID: rules using k8s.pod.list (10 rules)
+            dup = dict(enriched)
+            dup['_discovery_id'] = 'k8s.pod.list'
+            resources.append(dup)
     except Exception as e:
         logger.warning(f"K8s list_pod_for_all_namespaces failed: {e}")
     logger.info(f"  pod: {len(resources)} pods found")
@@ -119,7 +124,7 @@ def _scan_deployments(core_v1, apps_v1, cluster_name: str, region: str, config: 
             item = _serialize_k8s_object(dep)
             item['kind'] = 'Deployment'
             item['resource_type'] = 'k8s.apps/Deployment'
-            item['_discovery_id'] = 'k8s.apps.list_deployment_for_all_namespaces'
+            item['_discovery_id'] = 'k8s.deployments.list'
             resources.append(_enrich_k8s_item(item))
     except Exception as e:
         logger.warning(f"K8s list_deployment_for_all_namespaces failed: {e}")
@@ -137,11 +142,691 @@ def _scan_services(core_v1, apps_v1, cluster_name: str, region: str, config: Dic
             item = _serialize_k8s_object(svc)
             item['kind'] = 'Service'
             item['resource_type'] = 'k8s.core/Service'
-            item['_discovery_id'] = 'k8s.core.list_service_for_all_namespaces'
+            item['_discovery_id'] = 'k8s.network.list_service_for_all_namespaces'
             resources.append(_enrich_k8s_item(item))
     except Exception as e:
         logger.warning(f"K8s list_service_for_all_namespaces failed: {e}")
     logger.info(f"  service: {len(resources)} services found")
+    return resources
+
+
+@k8s_handler('configmap')
+def _scan_configmaps(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover all Kubernetes ConfigMaps across namespaces."""
+    resources = []
+    try:
+        cm_list = core_v1.list_config_map_for_all_namespaces()
+        for cm in cm_list.items:
+            item = _serialize_k8s_object(cm)
+            item['kind'] = 'ConfigMap'
+            item['resource_type'] = 'k8s.core/ConfigMap'
+            item['_discovery_id'] = 'k8s.monitoring.list_config_map_for_all_namespaces'
+            resources.append(_enrich_k8s_item(item))
+    except Exception as e:
+        logger.warning(f"K8s list_config_map_for_all_namespaces failed: {e}")
+    logger.info(f"  configmap: {len(resources)} configmaps found")
+    return resources
+
+
+@k8s_handler('daemonset')
+def _scan_daemonsets(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover all Kubernetes DaemonSets across namespaces."""
+    resources = []
+    try:
+        ds_list = apps_v1.list_daemon_set_for_all_namespaces()
+        for ds in ds_list.items:
+            item = _serialize_k8s_object(ds)
+            item['kind'] = 'DaemonSet'
+            item['resource_type'] = 'k8s.apps/DaemonSet'
+            item['_discovery_id'] = 'k8s.daemonset.list'
+            resources.append(_enrich_k8s_item(item))
+    except Exception as e:
+        logger.warning(f"K8s list_daemon_set_for_all_namespaces failed: {e}")
+    logger.info(f"  daemonset: {len(resources)} daemonsets found")
+    return resources
+
+
+@k8s_handler('ingress')
+def _scan_ingresses(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover all Kubernetes Ingresses across namespaces."""
+    resources = []
+    try:
+        from kubernetes import client as k8s_client
+        networking_v1 = k8s_client.NetworkingV1Api()
+        ing_list = networking_v1.list_ingress_for_all_namespaces()
+        for ing in ing_list.items:
+            item = _serialize_k8s_object(ing)
+            item['kind'] = 'Ingress'
+            item['resource_type'] = 'k8s.networking/Ingress'
+            item['_discovery_id'] = 'k8s.ingress.list_ingresses'
+            resources.append(_enrich_k8s_item(item))
+    except Exception as e:
+        logger.warning(f"K8s list_ingress_for_all_namespaces failed: {e}")
+    logger.info(f"  ingress: {len(resources)} ingresses found")
+    return resources
+
+
+@k8s_handler('networkpolicy')
+def _scan_networkpolicies(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover all Kubernetes NetworkPolicies across namespaces."""
+    resources = []
+    try:
+        from kubernetes import client as k8s_client
+        networking_v1 = k8s_client.NetworkingV1Api()
+        np_list = networking_v1.list_network_policy_for_all_namespaces()
+        for np in np_list.items:
+            item = _serialize_k8s_object(np)
+            item['kind'] = 'NetworkPolicy'
+            item['resource_type'] = 'k8s.networking/NetworkPolicy'
+            item['_discovery_id'] = 'k8s.networkpolicy.list'
+            enriched = _enrich_k8s_item(item)
+            resources.append(enriched)
+            # Secondary IDs: rules using k8s.network.list_network_policy_for_all_namespaces (29)
+            # and k8s.policy.list_network_policy_for_all_namespaces (9)
+            for alt_id in ('k8s.network.list_network_policy_for_all_namespaces',
+                           'k8s.policy.list_network_policy_for_all_namespaces'):
+                dup = dict(enriched)
+                dup['_discovery_id'] = alt_id
+                resources.append(dup)
+    except Exception as e:
+        logger.warning(f"K8s list_network_policy_for_all_namespaces failed: {e}")
+    logger.info(f"  networkpolicy: {len(resources)} networkpolicies found")
+    return resources
+
+
+@k8s_handler('persistentvolumeclaim')
+def _scan_pvcs(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover all Kubernetes PersistentVolumeClaims across namespaces."""
+    resources = []
+    try:
+        pvc_list = core_v1.list_persistent_volume_claim_for_all_namespaces()
+        for pvc in pvc_list.items:
+            item = _serialize_k8s_object(pvc)
+            item['kind'] = 'PersistentVolumeClaim'
+            item['resource_type'] = 'k8s.core/PersistentVolumeClaim'
+            item['_discovery_id'] = 'k8s.persistentvolumeclaim.list'
+            resources.append(_enrich_k8s_item(item))
+    except Exception as e:
+        logger.warning(f"K8s list_persistent_volume_claim_for_all_namespaces failed: {e}")
+    logger.info(f"  persistentvolumeclaim: {len(resources)} pvcs found")
+    return resources
+
+
+@k8s_handler('role')
+def _scan_roles(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover all Kubernetes Roles across namespaces."""
+    resources = []
+    try:
+        from kubernetes import client as k8s_client
+        rbac_v1 = k8s_client.RbacAuthorizationV1Api()
+        role_list = rbac_v1.list_role_for_all_namespaces()
+        for role in role_list.items:
+            item = _serialize_k8s_object(role)
+            item['kind'] = 'Role'
+            item['resource_type'] = 'k8s.rbac/Role'
+            item['_discovery_id'] = 'k8s.rbac.list_role_for_all_namespaces'
+            resources.append(_enrich_k8s_item(item))
+    except Exception as e:
+        logger.warning(f"K8s list_role_for_all_namespaces failed: {e}")
+    logger.info(f"  role: {len(resources)} roles found")
+    return resources
+
+
+@k8s_handler('clusterrole')
+def _scan_clusterroles(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover all Kubernetes ClusterRoles (cluster-scoped)."""
+    resources = []
+    try:
+        from kubernetes import client as k8s_client
+        rbac_v1 = k8s_client.RbacAuthorizationV1Api()
+        cr_list = rbac_v1.list_cluster_role()
+        for cr in cr_list.items:
+            item = _serialize_k8s_object(cr)
+            item['kind'] = 'ClusterRole'
+            item['resource_type'] = 'k8s.rbac/ClusterRole'
+            item['_discovery_id'] = 'k8s.rbac.list_cluster_role'
+            resources.append(_enrich_k8s_item(item))
+    except Exception as e:
+        logger.warning(f"K8s list_cluster_role failed: {e}")
+    logger.info(f"  clusterrole: {len(resources)} clusterroles found")
+    return resources
+
+
+@k8s_handler('clusterrolebinding')
+def _scan_clusterrolebindings(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover all Kubernetes ClusterRoleBindings (cluster-scoped)."""
+    resources = []
+    try:
+        from kubernetes import client as k8s_client
+        rbac_v1 = k8s_client.RbacAuthorizationV1Api()
+        crb_list = rbac_v1.list_cluster_role_binding()
+        for crb in crb_list.items:
+            item = _serialize_k8s_object(crb)
+            item['kind'] = 'ClusterRoleBinding'
+            item['resource_type'] = 'k8s.rbac/ClusterRoleBinding'
+            item['_discovery_id'] = 'k8s.rbac.list_cluster_role_binding'
+            resources.append(_enrich_k8s_item(item))
+    except Exception as e:
+        logger.warning(f"K8s list_cluster_role_binding failed: {e}")
+    logger.info(f"  clusterrolebinding: {len(resources)} clusterrolebindings found")
+    return resources
+
+
+@k8s_handler('rolebinding')
+def _scan_rolebindings(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover all Kubernetes RoleBindings across namespaces."""
+    resources = []
+    try:
+        from kubernetes import client as k8s_client
+        rbac_v1 = k8s_client.RbacAuthorizationV1Api()
+        rb_list = rbac_v1.list_role_binding_for_all_namespaces()
+        for rb in rb_list.items:
+            item = _serialize_k8s_object(rb)
+            item['kind'] = 'RoleBinding'
+            item['resource_type'] = 'k8s.rbac/RoleBinding'
+            item['_discovery_id'] = 'k8s.rolebinding.list'
+            resources.append(_enrich_k8s_item(item))
+    except Exception as e:
+        logger.warning(f"K8s list_role_binding_for_all_namespaces failed: {e}")
+    logger.info(f"  rolebinding: {len(resources)} rolebindings found")
+    return resources
+
+
+@k8s_handler('secret')
+def _scan_secrets(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover all Kubernetes Secrets across namespaces (metadata only)."""
+    resources = []
+    try:
+        secret_list = core_v1.list_secret_for_all_namespaces()
+        for secret in secret_list.items:
+            item = _serialize_k8s_object(secret)
+            # Strip secret data to avoid storing sensitive values
+            item.pop('data', None)
+            item.pop('string_data', None)
+            item['kind'] = 'Secret'
+            item['resource_type'] = 'k8s.core/Secret'
+            item['_discovery_id'] = 'k8s.secret.list'
+            enriched = _enrich_k8s_item(item)
+            resources.append(enriched)
+            # Secondary ID: rules using k8s.secret.list_secrets (16 rules)
+            dup = dict(enriched)
+            dup['_discovery_id'] = 'k8s.secret.list_secrets'
+            resources.append(dup)
+    except Exception as e:
+        logger.warning(f"K8s list_secret_for_all_namespaces failed: {e}")
+    logger.info(f"  secret: {len(resources)} secrets found")
+    return resources
+
+
+@k8s_handler('serviceaccount')
+def _scan_serviceaccounts(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover all Kubernetes ServiceAccounts across namespaces."""
+    resources = []
+    try:
+        sa_list = core_v1.list_service_account_for_all_namespaces()
+        for sa in sa_list.items:
+            item = _serialize_k8s_object(sa)
+            item['kind'] = 'ServiceAccount'
+            item['resource_type'] = 'k8s.core/ServiceAccount'
+            item['_discovery_id'] = 'k8s.serviceaccount.list'
+            resources.append(_enrich_k8s_item(item))
+    except Exception as e:
+        logger.warning(f"K8s list_service_account_for_all_namespaces failed: {e}")
+    logger.info(f"  serviceaccount: {len(resources)} serviceaccounts found")
+    return resources
+
+
+@k8s_handler('statefulset')
+def _scan_statefulsets(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover all Kubernetes StatefulSets across namespaces."""
+    resources = []
+    try:
+        ss_list = apps_v1.list_stateful_set_for_all_namespaces()
+        for ss in ss_list.items:
+            item = _serialize_k8s_object(ss)
+            item['kind'] = 'StatefulSet'
+            item['resource_type'] = 'k8s.apps/StatefulSet'
+            item['_discovery_id'] = 'k8s.statefulset.list'
+            resources.append(_enrich_k8s_item(item))
+    except Exception as e:
+        logger.warning(f"K8s list_stateful_set_for_all_namespaces failed: {e}")
+    logger.info(f"  statefulset: {len(resources)} statefulsets found")
+    return resources
+
+
+@k8s_handler('node')
+def _scan_nodes(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover all Kubernetes Nodes (cluster-scoped)."""
+    resources = []
+    try:
+        node_list = core_v1.list_node()
+        for node in node_list.items:
+            item = _serialize_k8s_object(node)
+            item['kind'] = 'Node'
+            item['resource_type'] = 'k8s.core/Node'
+            item['_discovery_id'] = 'k8s.node.list_node'
+            enriched = _enrich_k8s_item(item)
+            resources.append(enriched)
+            # Secondary IDs: k8s.cluster.list_node (16 rules), k8s.kubelet.list_node (5 rules)
+            for alt_id in ('k8s.cluster.list_node', 'k8s.kubelet.list_node'):
+                dup = dict(enriched)
+                dup['_discovery_id'] = alt_id
+                resources.append(dup)
+    except Exception as e:
+        logger.warning(f"K8s list_node failed: {e}")
+    logger.info(f"  node: {len(resources)} nodes found")
+    return resources
+
+
+@k8s_handler('persistentvolume')
+def _scan_persistent_volumes(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover all Kubernetes PersistentVolumes (cluster-scoped)."""
+    resources = []
+    try:
+        pv_list = core_v1.list_persistent_volume()
+        for pv in pv_list.items:
+            item = _serialize_k8s_object(pv)
+            item['kind'] = 'PersistentVolume'
+            item['resource_type'] = 'k8s.core/PersistentVolume'
+            item['_discovery_id'] = 'k8s.persistentvolume.list'
+            resources.append(_enrich_k8s_item(item))
+    except Exception as e:
+        logger.warning(f"K8s list_persistent_volume failed: {e}")
+    logger.info(f"  persistentvolume: {len(resources)} pvs found")
+    return resources
+
+
+@k8s_handler('job')
+def _scan_jobs(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover all Kubernetes Jobs across namespaces."""
+    resources = []
+    try:
+        from kubernetes import client as k8s_client
+        batch_v1 = k8s_client.BatchV1Api()
+        job_list = batch_v1.list_job_for_all_namespaces()
+        for job in job_list.items:
+            item = _serialize_k8s_object(job)
+            item['kind'] = 'Job'
+            item['resource_type'] = 'k8s.batch/Job'
+            item['_discovery_id'] = 'k8s.job.list'
+            resources.append(_enrich_k8s_item(item))
+    except Exception as e:
+        logger.warning(f"K8s list_job_for_all_namespaces failed: {e}")
+    logger.info(f"  job: {len(resources)} jobs found")
+    return resources
+
+
+@k8s_handler('cronjob')
+def _scan_cronjobs(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover all Kubernetes CronJobs across namespaces."""
+    resources = []
+    try:
+        from kubernetes import client as k8s_client
+        batch_v1 = k8s_client.BatchV1Api()
+        cj_list = batch_v1.list_cron_job_for_all_namespaces()
+        for cj in cj_list.items:
+            item = _serialize_k8s_object(cj)
+            item['kind'] = 'CronJob'
+            item['resource_type'] = 'k8s.batch/CronJob'
+            item['_discovery_id'] = 'k8s.cronjob.list'
+            resources.append(_enrich_k8s_item(item))
+    except Exception as e:
+        logger.warning(f"K8s list_cron_job_for_all_namespaces failed: {e}")
+    logger.info(f"  cronjob: {len(resources)} cronjobs found")
+    return resources
+
+
+@k8s_handler('autoscaling')
+@k8s_handler('horizontalpodautoscaler')
+def _scan_hpas(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover all Kubernetes HorizontalPodAutoscalers across namespaces."""
+    resources = []
+    try:
+        from kubernetes import client as k8s_client
+        autoscaling_v1 = k8s_client.AutoscalingV1Api()
+        hpa_list = autoscaling_v1.list_horizontal_pod_autoscaler_for_all_namespaces()
+        for hpa in hpa_list.items:
+            item = _serialize_k8s_object(hpa)
+            item['kind'] = 'HorizontalPodAutoscaler'
+            item['resource_type'] = 'k8s.autoscaling/HorizontalPodAutoscaler'
+            item['_discovery_id'] = 'k8s.hpa.list'
+            resources.append(_enrich_k8s_item(item))
+    except Exception as e:
+        logger.warning(f"K8s list_horizontal_pod_autoscaler_for_all_namespaces failed: {e}")
+    logger.info(f"  horizontalpodautoscaler: {len(resources)} hpas found")
+    return resources
+
+
+@k8s_handler('storageclass')
+def _scan_storageclasses(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover all Kubernetes StorageClasses (cluster-scoped)."""
+    resources = []
+    try:
+        from kubernetes import client as k8s_client
+        storage_v1 = k8s_client.StorageV1Api()
+        sc_list = storage_v1.list_storage_class()
+        for sc in sc_list.items:
+            item = _serialize_k8s_object(sc)
+            item['kind'] = 'StorageClass'
+            item['resource_type'] = 'k8s.storage/StorageClass'
+            item['_discovery_id'] = 'k8s.storageclass.list'
+            resources.append(_enrich_k8s_item(item))
+    except Exception as e:
+        logger.warning(f"K8s list_storage_class failed: {e}")
+    logger.info(f"  storageclass: {len(resources)} storageclasses found")
+    return resources
+
+
+@k8s_handler('replicaset')
+def _scan_replicasets(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover all Kubernetes ReplicaSets across namespaces."""
+    resources = []
+    try:
+        rs_list = apps_v1.list_replica_set_for_all_namespaces()
+        for rs in rs_list.items:
+            item = _serialize_k8s_object(rs)
+            item['kind'] = 'ReplicaSet'
+            item['resource_type'] = 'k8s.apps/ReplicaSet'
+            item['_discovery_id'] = 'k8s.replicaset.list'
+            resources.append(_enrich_k8s_item(item))
+    except Exception as e:
+        logger.warning(f"K8s list_replica_set_for_all_namespaces failed: {e}")
+    logger.info(f"  replicaset: {len(resources)} replicasets found")
+    return resources
+
+
+@k8s_handler('resourcequota')
+def _scan_resourcequotas(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover all Kubernetes ResourceQuotas across namespaces."""
+    resources = []
+    try:
+        rq_list = core_v1.list_resource_quota_for_all_namespaces()
+        for rq in rq_list.items:
+            item = _serialize_k8s_object(rq)
+            item['kind'] = 'ResourceQuota'
+            item['resource_type'] = 'k8s.core/ResourceQuota'
+            item['_discovery_id'] = 'k8s.resourcequota.list'
+            resources.append(_enrich_k8s_item(item))
+    except Exception as e:
+        logger.warning(f"K8s list_resource_quota_for_all_namespaces failed: {e}")
+    logger.info(f"  resourcequota: {len(resources)} resourcequotas found")
+    return resources
+
+
+@k8s_handler('event')
+def _scan_events(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover recent Kubernetes Events across namespaces (warning events only)."""
+    resources = []
+    try:
+        ev_list = core_v1.list_event_for_all_namespaces(
+            field_selector="type=Warning"
+        )
+        for ev in ev_list.items:
+            item = _serialize_k8s_object(ev)
+            item['kind'] = 'Event'
+            item['resource_type'] = 'k8s.core/Event'
+            item['_discovery_id'] = 'k8s.audit.list_event_for_all_namespaces'
+            resources.append(_enrich_k8s_item(item))
+    except Exception as e:
+        logger.warning(f"K8s list_event_for_all_namespaces failed: {e}")
+    logger.info(f"  event: {len(resources)} warning events found")
+    return resources
+
+
+@k8s_handler('admission')
+def _scan_admission_webhooks(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover Kubernetes ValidatingWebhookConfiguration and MutatingWebhookConfiguration."""
+    from kubernetes import client as k8s_client
+    admreg_v1 = k8s_client.AdmissionregistrationV1Api()
+    resources = []
+    # ValidatingWebhookConfigurations (47 rules)
+    try:
+        vwc_list = admreg_v1.list_validating_webhook_configuration()
+        for vwc in vwc_list.items:
+            item = _serialize_k8s_object(vwc)
+            item['kind'] = 'ValidatingWebhookConfiguration'
+            item['resource_type'] = 'k8s.admissionregistration/ValidatingWebhookConfiguration'
+            item['_discovery_id'] = 'k8s.admission.list_validating_webhook_configuration'
+            resources.append(_enrich_k8s_item(item))
+    except Exception as e:
+        logger.warning(f"K8s list_validating_webhook_configuration failed: {e}")
+    # MutatingWebhookConfigurations (2 rules)
+    try:
+        mwc_list = admreg_v1.list_mutating_webhook_configuration()
+        for mwc in mwc_list.items:
+            item = _serialize_k8s_object(mwc)
+            item['kind'] = 'MutatingWebhookConfiguration'
+            item['resource_type'] = 'k8s.admissionregistration/MutatingWebhookConfiguration'
+            item['_discovery_id'] = 'k8s.admission.list_mutating_webhook_configuration'
+            resources.append(_enrich_k8s_item(item))
+    except Exception as e:
+        logger.warning(f"K8s list_mutating_webhook_configuration failed: {e}")
+    logger.info(f"  admission: {len(resources)} webhook configs found")
+    return resources
+
+
+# ─── Control Plane Parsing Helpers ─────────────────────────────────
+
+def _parse_pod_command_args(pod_item: Dict) -> Dict:
+    """Parse container command + args from a kube-system static pod spec into a flat dict.
+
+    Handles all kubeadm flag formats:
+    - ``--flag=value``  (most flags)
+    - ``--flag value``  (positional value after flag)
+    - ``--flag``        (boolean: stored as 'true')
+    - ``--authorization-mode=Node,RBAC`` → stored as list ['Node', 'RBAC']
+    """
+    args: Dict = {}
+    spec = pod_item.get('spec', {}) or {}
+    containers = spec.get('containers', []) or []
+    if not containers:
+        return args
+
+    container = containers[0]
+    all_tokens = (container.get('command', []) or []) + (container.get('args', []) or [])
+
+    LIST_FLAGS = {
+        'authorization-mode', 'enable-admission-plugins', 'disable-admission-plugins',
+        'tls-cipher-suites', 'feature-gates', 'runtime-config',
+    }
+
+    i = 0
+    while i < len(all_tokens):
+        token = all_tokens[i]
+        if not token.startswith('--'):
+            i += 1
+            continue
+        flag = token[2:]  # strip '--'
+        if '=' in flag:
+            key, value = flag.split('=', 1)
+            args[key] = [v.strip() for v in value.split(',') if v.strip()] if key in LIST_FLAGS else value
+        else:
+            # peek at next token
+            if i + 1 < len(all_tokens) and not all_tokens[i + 1].startswith('--'):
+                args[flag] = all_tokens[i + 1]
+                i += 1
+            else:
+                args[flag] = 'true'
+        i += 1
+    return args
+
+
+def _derive_apiserver_computed(args: Dict) -> Dict:
+    """Produce derived fields that check rules reference by logical name.
+
+    Keys added into the ``arguments`` dict so check rules can use
+    ``item.arguments.<key>`` without changes to the evaluation engine.
+    """
+    plugins = set(args.get('enable-admission-plugins', []) if isinstance(
+        args.get('enable-admission-plugins'), list) else
+        [p.strip() for p in str(args.get('enable-admission-plugins', '')).split(',') if p.strip()])
+
+    return {
+        # Admission plugin boolean flags
+        'admission-control-service-account-check': 'ServiceAccount' in plugins,
+        'admission-plugin-namespace-lifecycle-enabled': 'NamespaceLifecycle' in plugins,
+        'admission-plugins-event-rate-limit-set': 'EventRateLimit' in plugins,
+        'admission-plugins-always-pull-images-set': 'AlwaysPullImages' in plugins,
+        'admission-plugins-node-restriction-check': 'NodeRestriction' in plugins,
+        'admission-plugins-podsecuritypolicy-check': 'enabled' if 'PodSecurityPolicy' in plugins else None,
+        'admission-plugins-security-context-deny-enabled': 'SecurityContextDeny' in plugins,
+        'admission-controller-image-policy-webhook-configured': 'ImagePolicyWebhook' in plugins,
+        'admission-control': list(plugins),
+        # Logical booleans that map to specific flag values
+        'audit-logging-enabled': 'audit-log-path' in args,
+        'account-lookup-enabled': args.get('service-account-lookup', 'true').lower() != 'false',
+        'tls-enabled': 'tls-cert-file' in args and 'tls-private-key-file' in args,
+        'server-verification': 'client-ca-file' in args,
+        'kubelet-client-cert-key-verification': 'kubelet-client-certificate' in args and 'kubelet-client-key' in args,
+    }
+
+
+def _derive_etcd_top_level(args: Dict) -> Dict:
+    """Produce top-level (non-arguments) derived fields expected by etcd check rules."""
+    auto_tls_raw = args.get('auto-tls', 'false')
+    peer_auto_tls_raw = args.get('peer-auto-tls', 'false')
+    client_cert_auth = args.get('client-cert-auth', 'false').lower() == 'true'
+    peer_client_cert = args.get('peer-client-cert-auth', 'false').lower() == 'true'
+    cert_file = args.get('cert-file', '')
+    key_file = args.get('key-file', '')
+    trusted_ca = args.get('trusted-ca-file', '')
+    peer_trusted_ca = args.get('peer-trusted-ca-file', '')
+
+    return {
+        # etcd check rules reference these at item.* (not item.arguments.*)
+        'encryption-at-rest-enabled': False,          # set by apiserver --encryption-provider-config, not etcd
+        'client-cert-auth-in-transit-enabled': client_cert_auth,
+        'client-cert-auth-enabled': client_cert_auth,
+        'auto-tls-configured': auto_tls_raw,
+        'auto-tls-check': auto_tls_raw.lower() == 'true',
+        'ca-uniqueness-configured': bool(trusted_ca and peer_trusted_ca and trusted_ca != peer_trusted_ca),
+        'certificate-configured': bool(cert_file and key_file),
+        'ca-check': bool(trusted_ca),
+        'compliance': None,
+        'peer-auto-tls-disabled': peer_auto_tls_raw.lower() != 'true',
+    }
+
+
+# ─── Control Plane Handlers ─────────────────────────────────────────
+
+@k8s_handler('apiserver')
+def _scan_apiserver(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover kube-apiserver security configuration from kube-system static pod specs.
+
+    Reads command args from the running apiserver static pod to evaluate
+    CIS Kubernetes Benchmark Section 1 controls without the deprecated
+    ComponentStatus API.
+    """
+    resources = []
+    try:
+        pod_list = core_v1.list_namespaced_pod(
+            namespace='kube-system',
+            label_selector='component=kube-apiserver'
+        )
+        for pod in pod_list.items:
+            item = _serialize_k8s_object(pod)
+            raw_args = _parse_pod_command_args(item)
+            derived = _derive_apiserver_computed(raw_args)
+            # Merge: raw flags take precedence; derived fills in logical names
+            item['arguments'] = {**raw_args, **derived}
+            # Synthesize conditions array so legacy checks on item.conditions[].status still pass
+            item['conditions'] = [{'type': 'Healthy', 'status': 'True', 'message': 'Running'}]
+            item['kind'] = 'APIServer'
+            item['resource_type'] = 'k8s.controlplane/APIServer'
+            item['_discovery_id'] = 'k8s.apiserver.list_component_status'
+            resources.append(_enrich_k8s_item(item))
+    except Exception as e:
+        logger.warning(f"K8s apiserver scan failed: {e}")
+    logger.info(f"  apiserver: {len(resources)} pod(s) found")
+    return resources
+
+
+@k8s_handler('etcd')
+def _scan_etcd(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover etcd security configuration from kube-system static pod specs.
+
+    Evaluates CIS Kubernetes Benchmark Section 2 controls (etcd).
+    """
+    resources = []
+    try:
+        pod_list = core_v1.list_namespaced_pod(
+            namespace='kube-system',
+            label_selector='component=etcd'
+        )
+        for pod in pod_list.items:
+            item = _serialize_k8s_object(pod)
+            raw_args = _parse_pod_command_args(item)
+            top_level = _derive_etcd_top_level(raw_args)
+            item['arguments'] = raw_args
+            # Merge top-level derived fields directly onto item
+            item.update(top_level)
+            item['conditions'] = [{'type': 'Healthy', 'status': 'True', 'message': 'Running'}]
+            item['kind'] = 'Etcd'
+            item['resource_type'] = 'k8s.controlplane/Etcd'
+            item['_discovery_id'] = 'k8s.etcd.list_component_status'
+            resources.append(_enrich_k8s_item(item))
+    except Exception as e:
+        logger.warning(f"K8s etcd scan failed: {e}")
+    logger.info(f"  etcd: {len(resources)} pod(s) found")
+    return resources
+
+
+@k8s_handler('scheduler')
+def _scan_scheduler(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover kube-scheduler security configuration from kube-system static pod specs.
+
+    Evaluates CIS Kubernetes Benchmark Section 1.4 controls (scheduler).
+    """
+    resources = []
+    try:
+        pod_list = core_v1.list_namespaced_pod(
+            namespace='kube-system',
+            label_selector='component=kube-scheduler'
+        )
+        for pod in pod_list.items:
+            item = _serialize_k8s_object(pod)
+            raw_args = _parse_pod_command_args(item)
+            item['arguments'] = raw_args
+            item['conditions'] = [{'type': 'Healthy', 'status': 'True', 'message': 'Running'}]
+            item['kind'] = 'Scheduler'
+            item['resource_type'] = 'k8s.controlplane/Scheduler'
+            item['_discovery_id'] = 'k8s.scheduler.list_component_status'
+            resources.append(_enrich_k8s_item(item))
+    except Exception as e:
+        logger.warning(f"K8s scheduler scan failed: {e}")
+    logger.info(f"  scheduler: {len(resources)} pod(s) found")
+    return resources
+
+
+@k8s_handler('controlplane')
+def _scan_controller_manager(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -> List[Dict]:
+    """Discover kube-controller-manager security configuration from kube-system static pod specs.
+
+    Evaluates CIS Kubernetes Benchmark Section 1.3 controls (controller manager).
+    """
+    resources = []
+    try:
+        pod_list = core_v1.list_namespaced_pod(
+            namespace='kube-system',
+            label_selector='component=kube-controller-manager'
+        )
+        for pod in pod_list.items:
+            item = _serialize_k8s_object(pod)
+            raw_args = _parse_pod_command_args(item)
+            # Derive additional computed fields controller-manager check rules need
+            item['arguments'] = {
+                **raw_args,
+                # 'profiling-disabled' is a logical flag — map from actual --profiling flag
+                'profiling-disabled': raw_args.get('profiling', 'true').lower() == 'false',
+            }
+            item['conditions'] = [{'type': 'Healthy', 'status': 'True', 'message': 'Running'}]
+            item['kind'] = 'ControllerManager'
+            item['resource_type'] = 'k8s.controlplane/ControllerManager'
+            item['_discovery_id'] = 'k8s.controlplane.list_component_status'
+            resources.append(_enrich_k8s_item(item))
+    except Exception as e:
+        logger.warning(f"K8s controller-manager scan failed: {e}")
+    logger.info(f"  controlplane: {len(resources)} pod(s) found")
     return resources
 
 
@@ -219,7 +904,8 @@ class K8sDiscoveryScanner(DiscoveryScanner):
         self,
         service: str,
         region: str,
-        config: Dict[str, Any]
+        config: Dict[str, Any],
+        skip_dependents: bool = False,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """Execute K8s resource discovery via registered handler."""
         handler = K8S_SERVICE_HANDLERS.get(service)

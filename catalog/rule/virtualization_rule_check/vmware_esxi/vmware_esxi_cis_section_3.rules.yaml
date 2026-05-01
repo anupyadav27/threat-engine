@@ -1,0 +1,147 @@
+tech_type: vmware_esxi
+category: virtualization
+cis_benchmark: CIS VMware ESXi 8 v1.2.0
+cis_section: '3'
+
+rules:
+
+  - rule_id: vmware_esxi.cis.3.l1_host_must_deactivate_the_esxi_managed_object
+    title: "(L1) Host must deactivate the ESXi Managed Object Browser (MOB)"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: vmware_esxi.section_3.l1_host_must_deactivate_the_esxi_managed_object
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      To disabled MOB, perform the following from the vSphere Web Client: 1. Select
+      a host 2. Click Configure then expand System then select Advanced System
+      Settings. 3. Click Edit then search for
+      Config.HostAgent.plugins.solo.enableMob 4. Set the value to false. 5. Click
+      OK. Note: You cannot disable the MOB while a host is in lockdown mode. Note 2:
+      You must disable MOB from the vSphere interface not via the vim-cmd command.
+      References: 1. https://docs.vmware.com/en/VMware-vSphere/8.0/vsphere-
+      security/GUID- 0EF83EA7-277C-400B-B697-04BDC9173EA3.html Additional
+      Information: Some third-party tools use the MOB to gather information. Use the
+      following command to re-enable the MOB temporarily for third-party tool usage:
+      To disabled MOB, perform the following from the vSphere Web Client: 1. Select
+      a host 2. Click Configure then expand System then select Advanced System
+      Settings. 3. Click Edit then search for
+      Config.HostAgent.plugins.solo.enableMob 4. Set the value to true. 5. Click OK.
+      Note 2: You must enable MOB from the vSphere interface not via the vim-cmd
+      command.
+    compliance:
+      - cis_vmware_esxi_8_v1_2_0_3_3
+
+  - rule_id: vmware_esxi.cis.3.l1_host_must_automatically_terminate_idle_dcui
+    title: "(L1) Host must automatically terminate idle DCUI sessions"
+    severity: high
+    automation_type: automated
+    cis_control: '3.7'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: vmware_esxi.section_3.l1_host_must_automatically_terminate_idle_dcui
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      To correct the DCUI timeout setting, perform the following steps: 1. From the
+      vSphere Web Client, select the host. 2. Click Configure, then under System
+      select Advanced System Settings. 3. Select Edit then enter
+      UserVars.DcuiTimeOut in the filter. 4. Click in the box for the current value,
+      then set the value to 600 seconds or less. Alternately, use the following
+      PowerCLI command: Get-VMHost | Get-AdvancedSetting -Name UserVars.DcuiTimeOut
+      | Set- AdvancedSetting -Value 600
+    compliance:
+      - cis_vmware_esxi_8_v1_2_0_3_7
+
+  - rule_id: vmware_esxi.cis.3.l1_host_must_automatically_deactivate_shell
+    title: "(L1) Host must automatically deactivate shell services"
+    severity: high
+    automation_type: automated
+    cis_control: '3.9'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: vmware_esxi.section_3.l1_host_must_automatically_deactivate_shell
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      To set the timeout to the desired value, perform the following from the
+      vSphere web client: 1. From the vSphere Web Client, select the host. 2. Click
+      Configure then expand System. 3. Select Advanced System Settings then click
+      Edit. 4. Enter ESXiShellTimeOut in the filter. 5. Set the value for this
+      parameter is set to 3600 (1 hour) or less 6. Click OK. Note: A value of 0
+      disables the ESXiShellTimeOut. Alternately, run the following PowerCLI
+      command: # Set UserVars.ESXiShellTimeOut to 3600 on all hosts Get-VMHost |
+      Get-AdvancedSetting -Name 'UserVars.ESXiShellTimeOut' | Set- AdvancedSetting
+      -Value '3600' References: 1. https://docs.vmware.com/en/VMware-
+      vSphere/7.0/com.vmware.vsphere.security.doc/GUID-6E1ECA4D-B617-4D42-
+      B40B-71E4C83DEEFB.html 2. https://docs.vmware.com/en/VMware-
+      vSphere/7.0/com.vmware.vsphere.security.doc/GUID-B314F79B-2BDD-4D68-
+      8096-F009B87ACB33.html 3. http://kb.vmware.com/kb/2004746 4.
+      https://docs.vmware.com/en/VMware-
+      vSphere/7.0/com.vmware.vsphere.security.doc/GUID-94F0C54F-05E3-4E16-
+      8027-0280B9ED1009.html Additional Information: This value can be set in
+      minutes via the DCUI. When using the vCenter GUI or PowerShell API, the value
+      is set in seconds.
+    compliance:
+      - cis_vmware_esxi_8_v1_2_0_3_9
+
+  - rule_id: vmware_esxi.cis.3.l1_ensure_a_centralized_location_is_configured_to
+    title: "(L1) Ensure a centralized location is configured to collect ESXi host core dumps"
+    severity: high
+    automation_type: automated
+    cis_control: '3.1'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: vmware_esxi.section_3.l1_ensure_a_centralized_location_is_configured_to
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      To implement the recommended configuration state, run the following ESXi shell
+      commands: # Configure remote Dump Collector Server esxcli system coredump
+      network set -v [VMK#] -i [DUMP_SERVER] -o [PORT] # Enable remote Dump
+      Collector esxcli system coredump network set -e true References: 1.
+      http://kb.vmware.com/kb/1032051
+    compliance:
+      - cis_vmware_esxi_7_v1_5_0_3_1
+
+  - rule_id: vmware_esxi.cis.3.l1_ensure_remote_logging_is_configured_for_esxi
+    title: "(L1) Ensure remote logging is configured for ESXi hosts"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: vmware_esxi.section_3.l1_ensure_remote_logging_is_configured_for_esxi
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      To configure remote logging properly, perform the following from the vSphere
+      web client: 1. Select the host 2. Click Configure then expand System then
+      select Advanced System Settings. 3. Select Edit then enter
+      Syslog.global.logHost in the filter. 4. Set the Syslog.global.logHost to the
+      hostname or IP address of the central log server. 5. Click OK. Alternately,
+      run the following PowerCLI command: # Set Syslog.global.logHost for each host
+      Get-VMHost | Foreach { Set-AdvancedSetting -VMHost $_ -Name
+      Syslog.global.logHost -Value '<NewLocation>' } Note: When setting a remote log
+      host, it is also recommended to set the 'Syslog.global.logDirUnique' to true.
+      You must configure the syslog settings for each host. References: 1.
+      https://docs.vmware.com/en/VMware-
+      vSphere/7.0/com.vmware.vsphere.security.doc/GUID-9F67DB52-F469-451F-
+      B6C8-DAE8D95976E7.html
+    compliance:
+      - cis_vmware_esxi_7_v1_5_0_3_3
+
+

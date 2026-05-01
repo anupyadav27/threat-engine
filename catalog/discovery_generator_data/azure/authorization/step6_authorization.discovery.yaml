@@ -1,0 +1,331 @@
+version: '1.0'
+provider: azure
+service: authorization
+services:
+  client: authorization
+  module: azure.mgmt.authorization.v2018_01_01_preview
+discovery:
+- discovery_id: azure.authorization.permissions.list_for_resource_group
+  calls:
+  - action: permissions.list_for_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      principal_id: '{{ item.principal_id }}'
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      can_delegate: '{{ item.can_delegate }}'
+      role_definition_id: '{{ item.role_definition_id }}'
+      scope: '{{ item.scope }}'
+- discovery_id: azure.authorization.providermetadata.list
+  calls:
+  - action: providermetadata.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      assignable_scopes: '{{ item.assignable_scopes }}'
+      description: '{{ item.description }}'
+      permissions: '{{ item.permissions }}'
+      role_name: '{{ item.role_name }}'
+      role_type: '{{ item.role_type }}'
+- discovery_id: azure.authorization.roleassignments.list
+  calls:
+  - action: roleassignments.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      assignable_scopes: '{{ item.assignable_scopes }}'
+      description: '{{ item.description }}'
+      permissions: '{{ item.permissions }}'
+      role_name: '{{ item.role_name }}'
+      role_type: '{{ item.role_type }}'
+- discovery_id: azure.authorization.roleassignments.list_for_resource_group
+  calls:
+  - action: roleassignments.list_for_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      principal_id: '{{ item.principal_id }}'
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      can_delegate: '{{ item.can_delegate }}'
+      role_definition_id: '{{ item.role_definition_id }}'
+      scope: '{{ item.scope }}'
+- discovery_id: azure.authorization.roleassignments.get_by_id
+  for_each: azure.authorization.roleassignments.list
+  calls:
+  - action: roleassignments.get_by_id
+    save_as: response
+    on_error: continue
+    params:
+      role_id: '{{ item.id }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.authorization.roleassignments.list_for_scope
+  for_each: azure.authorization.roleassignments.list
+  calls:
+  - action: roleassignments.list_for_scope
+    save_as: response
+    on_error: continue
+    params:
+      scope: '{{ item.scope }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      principal_id: '{{ item.principal_id }}'
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      can_delegate: '{{ item.can_delegate }}'
+      role_definition_id: '{{ item.role_definition_id }}'
+      scope: '{{ item.scope }}'
+- discovery_id: azure.authorization.roledefinitions.get_by_id
+  for_each: azure.authorization.roleassignments.list
+  calls:
+  - action: roledefinitions.get_by_id
+    save_as: response
+    on_error: continue
+    params:
+      role_id: '{{ item.id }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.authorization.roledefinitions.list
+  for_each: azure.authorization.roleassignments.list
+  calls:
+  - action: roledefinitions.list
+    save_as: response
+    on_error: continue
+    params:
+      scope: '{{ item.scope }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      assignable_scopes: '{{ item.assignable_scopes }}'
+      description: '{{ item.description }}'
+      permissions: '{{ item.permissions }}'
+      role_name: '{{ item.role_name }}'
+      role_type: '{{ item.role_type }}'
+- discovery_id: azure.aad.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      deny_assignment_name: '{{ item.deny_assignment_name }}'
+      description: '{{ item.description }}'
+      permissions: '{{ item.permissions }}'
+      scope: '{{ item.scope }}'
+      do_not_apply_to_child_scopes: '{{ item.do_not_apply_to_child_scopes }}'
+      principals: '{{ item.principals }}'
+      exclude_principals: '{{ item.exclude_principals }}'
+      is_system_protected: '{{ item.is_system_protected }}'
+      condition: '{{ item.condition }}'
+      condition_version: '{{ item.condition_version }}'
+      created_on: '{{ item.created_on }}'
+      updated_on: '{{ item.updated_on }}'
+      created_by: '{{ item.created_by }}'
+      updated_by: '{{ item.updated_by }}'
+- discovery_id: azure.aad.list_for_resource_group
+  calls:
+  - action: list_for_resource_group
+    save_as: list_for_resource_group_response
+  emit:
+    items_for: '{{ list_for_resource_group_response.value }}'
+    as: item
+    item:
+      actions: '{{ item.actions }}'
+      not_actions: '{{ item.not_actions }}'
+      data_actions: '{{ item.data_actions }}'
+      not_data_actions: '{{ item.not_data_actions }}'
+- discovery_id: azure.config.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      deny_assignment_name: '{{ item.deny_assignment_name }}'
+      description: '{{ item.description }}'
+      permissions: '{{ item.permissions }}'
+      scope: '{{ item.scope }}'
+      do_not_apply_to_child_scopes: '{{ item.do_not_apply_to_child_scopes }}'
+      principals: '{{ item.principals }}'
+      exclude_principals: '{{ item.exclude_principals }}'
+      is_system_protected: '{{ item.is_system_protected }}'
+      condition: '{{ item.condition }}'
+      condition_version: '{{ item.condition_version }}'
+      created_on: '{{ item.created_on }}'
+      updated_on: '{{ item.updated_on }}'
+      created_by: '{{ item.created_by }}'
+      updated_by: '{{ item.updated_by }}'
+- discovery_id: azure.iam.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      deny_assignment_name: '{{ item.deny_assignment_name }}'
+      description: '{{ item.description }}'
+      permissions: '{{ item.permissions }}'
+      scope: '{{ item.scope }}'
+      do_not_apply_to_child_scopes: '{{ item.do_not_apply_to_child_scopes }}'
+      principals: '{{ item.principals }}'
+      exclude_principals: '{{ item.exclude_principals }}'
+      is_system_protected: '{{ item.is_system_protected }}'
+      condition: '{{ item.condition }}'
+      condition_version: '{{ item.condition_version }}'
+      created_on: '{{ item.created_on }}'
+      updated_on: '{{ item.updated_on }}'
+      created_by: '{{ item.created_by }}'
+      updated_by: '{{ item.updated_by }}'
+- discovery_id: azure.policy.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      display_name: '{{ item.display_name }}'
+      resource_types: '{{ item.resource_types }}'
+      operations: '{{ item.operations }}'
+- discovery_id: azure.policy.list_for_resource_group
+  calls:
+  - action: list_for_resource_group
+    save_as: list_for_resource_group_response
+  emit:
+    items_for: '{{ list_for_resource_group_response.value }}'
+    as: item
+    item:
+      actions: '{{ item.actions }}'
+      not_actions: '{{ item.not_actions }}'
+      data_actions: '{{ item.data_actions }}'
+      not_data_actions: '{{ item.not_data_actions }}'
+- discovery_id: azure.rbac.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      deny_assignment_name: '{{ item.deny_assignment_name }}'
+      description: '{{ item.description }}'
+      permissions: '{{ item.permissions }}'
+      scope: '{{ item.scope }}'
+      do_not_apply_to_child_scopes: '{{ item.do_not_apply_to_child_scopes }}'
+      principals: '{{ item.principals }}'
+      exclude_principals: '{{ item.exclude_principals }}'
+      is_system_protected: '{{ item.is_system_protected }}'
+      condition: '{{ item.condition }}'
+      condition_version: '{{ item.condition_version }}'
+      created_on: '{{ item.created_on }}'
+      updated_on: '{{ item.updated_on }}'
+      created_by: '{{ item.created_by }}'
+      updated_by: '{{ item.updated_by }}'
+- discovery_id: azure.rbac.list_for_resource_group
+  calls:
+  - action: list_for_resource_group
+    save_as: list_for_resource_group_response
+  emit:
+    items_for: '{{ list_for_resource_group_response.value }}'
+    as: item
+    item:
+      actions: '{{ item.actions }}'
+      not_actions: '{{ item.not_actions }}'
+      data_actions: '{{ item.data_actions }}'
+      not_data_actions: '{{ item.not_data_actions }}'
+- discovery_id: azure.security.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      deny_assignment_name: '{{ item.deny_assignment_name }}'
+      description: '{{ item.description }}'
+      permissions: '{{ item.permissions }}'
+      scope: '{{ item.scope }}'
+      do_not_apply_to_child_scopes: '{{ item.do_not_apply_to_child_scopes }}'
+      principals: '{{ item.principals }}'
+      exclude_principals: '{{ item.exclude_principals }}'
+      is_system_protected: '{{ item.is_system_protected }}'
+      condition: '{{ item.condition }}'
+      condition_version: '{{ item.condition_version }}'
+      created_on: '{{ item.created_on }}'
+      updated_on: '{{ item.updated_on }}'
+      created_by: '{{ item.created_by }}'
+      updated_by: '{{ item.updated_by }}'

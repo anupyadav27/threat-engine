@@ -1,0 +1,62 @@
+# ============================================================
+# Discovery YAML — endpoints (final_discovery v1)
+# Generated: 2026-04-16T09:26:47Z
+# Source: gcp_master_field_catalog.csv
+# Check rules: 10 | ops in scope: 2 (1 independent, 1 dependent)
+# ============================================================
+version: '1.0'
+provider: gcp
+service: endpoints
+
+services:
+  client: servicemanagement
+  module: "googleapiclient.discovery.build('servicemanagement', 'v1')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: configs
+    identifier_op: gcp.servicemanagement.services.list
+    identifier_field: services[].serviceName
+    item_var_path: item.services[].serviceName
+    identifier_template: 'services/{serviceName}/configs/{configId}'
+  - resource_type: unknown
+    identifier_op: gcp.servicemanagement.services.configs.list
+    identifier_field: serviceConfigs[].name
+    item_var_path: item.serviceConfigs[].name
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── gcp.servicemanagement.services.list ──
+  - discovery_id: gcp.servicemanagement.services.list
+    calls:
+      - action: services.list
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        name: '{{ item.name }}'
+        producerProjectId: '{{ item.producerProjectId }}'
+        serviceName: '{{ item.serviceName }}'
+        state: '{{ item.state }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── gcp.servicemanagement.services.configs.list [dependent] ──
+  - discovery_id: gcp.servicemanagement.services.configs.list
+    for_each: gcp.servicemanagement.services.list
+    calls:
+      - action: services.configs.list
+        params:
+          serviceName: '{{ item.serviceName }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        logging_config: '{{ item.logging_config }}'
+        serviceConfigs: '{{ response.serviceConfigs }}'
+

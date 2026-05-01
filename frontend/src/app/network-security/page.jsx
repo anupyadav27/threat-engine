@@ -6,8 +6,7 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
-import { fetchView } from '@/lib/api';
-import { useGlobalFilter } from '@/lib/global-filter-context';
+import { useViewFetch } from '@/lib/use-view-fetch';
 import PageLayout from '@/components/shared/PageLayout';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
@@ -28,26 +27,7 @@ const C = {
 };
 
 // ── Enriched scan trend ───────────────────────────────────────────────────────
-const NET_SCAN_TREND = [
-  { date: 'Jan 13', passRate: 42, critical: 18, high: 34, medium: 28, total: 89, exposed_ports: 34, open_sgs: 18 },
-  { date: 'Jan 20', passRate: 44, critical: 17, high: 33, medium: 27, total: 85, exposed_ports: 32, open_sgs: 17 },
-  { date: 'Jan 27', passRate: 43, critical: 18, high: 34, medium: 29, total: 87, exposed_ports: 36, open_sgs: 19 },
-  { date: 'Feb 3',  passRate: 46, critical: 16, high: 31, medium: 26, total: 82, exposed_ports: 31, open_sgs: 16 },
-  { date: 'Feb 10', passRate: 49, critical: 15, high: 30, medium: 25, total: 78, exposed_ports: 28, open_sgs: 15 },
-  { date: 'Feb 17', passRate: 51, critical: 15, high: 29, medium: 25, total: 76, exposed_ports: 26, open_sgs: 14 },
-  { date: 'Feb 24', passRate: 52, critical: 14, high: 28, medium: 24, total: 74, exposed_ports: 24, open_sgs: 12 },
-  { date: 'Mar 3',  passRate: 53, critical: 14, high: 28, medium: 24, total: 73, exposed_ports: 23, open_sgs: 11 },
-];
-
-// ── Module scores ─────────────────────────────────────────────────────────────
-const NET_MODULE_SCORES = [
-  { module: 'Security Groups',   pass: 14, total: 25, color: C.indigo   },
-  { module: 'Internet Exposure', pass:  4, total: 12, color: C.critical },
-  { module: 'WAF / DDoS',        pass:  8, total: 13, color: C.sky      },
-  { module: 'VPC Topology',      pass: 11, total: 15, color: C.purple   },
-  { module: 'DNS Security',      pass:  6, total: 10, color: C.teal     },
-  { module: 'Load Balancer',     pass:  9, total: 12, color: C.emerald  },
-];
+// ── Module score colour map ─────────────────────────────────────────────────
 
 const NET_DOMAIN_MAP = {
   security_groups:   { label: 'Security Groups',   color: '#6366f1' },
@@ -58,19 +38,6 @@ const NET_DOMAIN_MAP = {
   load_balancer:     { label: 'Load Balancer',     color: '#10b981' },
 };
 
-// ── KPI fallback ──────────────────────────────────────────────────────────────
-const NET_KPI_FALLBACK = {
-  posture_score: 53, total_findings: 312,
-  critical: 14, high: 89, medium: 142, low: 67,
-  exposed_resources: 23, internet_exposed: 8, open_sgs: 11, waf_coverage: 62,
-};
-
-const NET_SPARKLINES = {
-  posture_score:     [42, 44, 43, 46, 49, 51, 52, 53],
-  total_findings:    [89, 85, 87, 82, 78, 76, 74, 73],
-  exposed_resources: [34, 32, 36, 31, 28, 26, 24, 23],
-  waf_coverage:      [54, 56, 55, 58, 60, 61, 62, 62],
-};
 
 // ── Pure-SVG severity donut (identical math to IAM) ──────────────────────────
 function NetDonut({ slices, size = 160 }) {
@@ -117,47 +84,6 @@ function NetDonut({ slices, size = 160 }) {
 }
 
 
-// ── Demo / fallback data ──────────────────────────────────────────────────────
-const DEMO_NET_FINDINGS = [
-  { id: 'nf-001', rule_id: 'NET-SG-001', title: 'Security group allows unrestricted SSH access', severity: 'critical', resource_uid: 'sg-0a1b2c3d4e5f', resource_id: 'sg-0a1b2c3d4e5f', resource_type: 'SecurityGroup', account_id: '588989875114', provider: 'aws', region: 'us-east-1', status: 'FAIL', finding_type: 'security_groups', network_layer: 'security_groups', risk_score: 95, description: 'Inbound rule 0.0.0.0/0 on port 22 exposes SSH to the internet, allowing any host to attempt authentication.', remediation: 'Restrict SSH (port 22) inbound rules to specific trusted CIDR ranges. Use AWS Systems Manager Session Manager as an alternative to direct SSH access.', compliance_frameworks: ['CIS AWS 4.1', 'PCI-DSS 1.3', 'NIST AC-17'], mitre_tactics: ['Initial Access'], mitre_techniques: [{ technique_id: 'T1190', technique_name: 'Exploit Public-Facing Application' }], posture_category: 'network_security', first_seen: '2024-01-15', last_seen: '2024-03-03' },
-  { id: 'nf-002', rule_id: 'NET-SG-002', title: 'Security group allows unrestricted RDP access', severity: 'critical', resource_uid: 'sg-0b2c3d4e5f6a', resource_id: 'sg-0b2c3d4e5f6a', resource_type: 'SecurityGroup', account_id: '588989875114', provider: 'aws', region: 'us-west-2', status: 'FAIL', finding_type: 'security_groups', network_layer: 'security_groups', risk_score: 95, description: 'Inbound rule 0.0.0.0/0 on port 3389 exposes RDP to the internet, enabling brute-force attacks.', remediation: 'Restrict RDP (port 3389) to specific IP ranges or use a VPN/bastion host. Enable MFA on all RDP-accessible instances.', compliance_frameworks: ['CIS AWS 4.2', 'PCI-DSS 1.3', 'NIST AC-17', 'SOC 2 CC6.6'], mitre_tactics: ['Initial Access', 'Lateral Movement'], mitre_techniques: [{ technique_id: 'T1021.001', technique_name: 'Remote Desktop Protocol' }], posture_category: 'network_security', first_seen: '2024-01-18', last_seen: '2024-03-03' },
-  { id: 'nf-003', rule_id: 'NET-EXP-001', title: 'EC2 instance has public IP and no WAF association', severity: 'high', resource_uid: 'i-0c3d4e5f6a7b', resource_id: 'i-0c3d4e5f6a7b', resource_type: 'EC2Instance', account_id: '588989875114', provider: 'aws', region: 'us-east-1', status: 'FAIL', finding_type: 'internet_exposure', network_layer: 'reachability', risk_score: 78, description: 'Instance is internet-accessible with no WAF rule group attached, leaving web applications unprotected.', remediation: 'Associate a WAF Web ACL with the load balancer or CloudFront distribution fronting this instance. Consider placing the instance in a private subnet behind an ALB.', compliance_frameworks: ['CIS AWS 5.4', 'NIST SC-7', 'ISO 27001 A.13.1'], mitre_tactics: ['Initial Access'], mitre_techniques: [{ technique_id: 'T1190', technique_name: 'Exploit Public-Facing Application' }], posture_category: 'network_security', first_seen: '2024-02-01', last_seen: '2024-03-03' },
-  { id: 'nf-004', rule_id: 'NET-LB-001', title: 'Load balancer listener uses HTTP instead of HTTPS', severity: 'high', resource_uid: 'arn:aws:elasticloadbalancing:us-east-1:123456789:loadbalancer/app/prod-alb', resource_id: 'arn:aws:elasticloadbalancing:us-east-1:123456789:loadbalancer/app/prod-alb', resource_type: 'LoadBalancer', account_id: '588989875114', provider: 'aws', region: 'us-east-1', status: 'FAIL', finding_type: 'internet_exposure', network_layer: 'load_balancer', risk_score: 72, description: 'ALB listener on port 80 forwards traffic without TLS termination, exposing data in transit.', remediation: 'Add an HTTPS listener (port 443) with a valid ACM certificate. Configure an HTTP-to-HTTPS redirect rule on port 80. Enable TLS 1.2+ policies.', compliance_frameworks: ['PCI-DSS 4.1', 'HIPAA §164.312(e)', 'NIST SC-8', 'SOC 2 CC6.7'], mitre_tactics: ['Credential Access', 'Collection'], mitre_techniques: [{ technique_id: 'T1557', technique_name: 'Adversary-in-the-Middle' }], posture_category: 'encryption_in_transit', first_seen: '2024-01-28', last_seen: '2024-03-03' },
-  { id: 'nf-005', rule_id: 'NET-VPC-001', title: 'VPC flow logs disabled', severity: 'medium', resource_uid: 'vpc-0d4e5f6a7b8c', resource_id: 'vpc-0d4e5f6a7b8c', resource_type: 'VPC', account_id: '588989875114', provider: 'aws', region: 'eu-west-1', status: 'FAIL', finding_type: 'vpc_topology', network_layer: 'topology', risk_score: 55, description: 'VPC flow logging is not enabled; network traffic cannot be audited or investigated for anomalies.', remediation: 'Enable VPC flow logs and send them to CloudWatch Logs or S3. Retain logs for at least 90 days to meet compliance requirements.', compliance_frameworks: ['CIS AWS 3.9', 'NIST AU-2', 'SOC 2 CC7.2'], mitre_tactics: ['Defense Evasion'], mitre_techniques: [{ technique_id: 'T1562.008', technique_name: 'Disable or Modify Cloud Logs' }], posture_category: 'network_monitoring', first_seen: '2024-02-05', last_seen: '2024-03-03' },
-  { id: 'nf-006', rule_id: 'NET-WAF-001', title: 'WAF web ACL has no rate-based rules', severity: 'medium', resource_uid: 'arn:aws:wafv2:us-east-1:123456789:webacl/prod-waf', resource_id: 'arn:aws:wafv2:us-east-1:123456789:webacl/prod-waf', resource_type: 'WAFWebACL', account_id: '588989875114', provider: 'aws', region: 'us-east-1', status: 'FAIL', finding_type: 'waf_protection', network_layer: 'waf', risk_score: 50, description: 'No rate-based rules are configured on this WAF web ACL; DDoS and brute-force mitigation is incomplete.', remediation: 'Add a rate-based rule to limit requests per IP (recommended: 2000 req/5min for public APIs). Enable AWS Shield Advanced for critical resources.', compliance_frameworks: ['NIST SC-5', 'ISO 27001 A.13.2', 'PCI-DSS 6.6'], mitre_tactics: ['Impact'], mitre_techniques: [{ technique_id: 'T1498', technique_name: 'Network Denial of Service' }], posture_category: 'network_security', first_seen: '2024-02-10', last_seen: '2024-03-03' },
-  { id: 'nf-007', rule_id: 'NET-VPC-002', title: 'Subnet routes all traffic through NAT gateway', severity: 'low', resource_uid: 'subnet-0e5f6a7b8c9d', resource_id: 'subnet-0e5f6a7b8c9d', resource_type: 'Subnet', account_id: '588989875114', provider: 'aws', region: 'us-west-2', status: 'PASS', finding_type: 'vpc_topology', network_layer: 'topology', risk_score: 10, description: 'Private subnet correctly routes outbound traffic through NAT gateway, preventing direct internet exposure.', remediation: 'No action required. Continue monitoring for route table changes.', compliance_frameworks: ['CIS AWS 5.5', 'NIST SC-7'], mitre_tactics: [], mitre_techniques: [], posture_category: 'network_security', first_seen: '2024-01-10', last_seen: '2024-03-03' },
-  { id: 'nf-008', rule_id: 'NET-SG-003', title: 'Security group egress unrestricted on all ports', severity: 'medium', resource_uid: 'sg-0f6a7b8c9d0e', resource_id: 'sg-0f6a7b8c9d0e', resource_type: 'SecurityGroup', account_id: '588989875114', provider: 'aws', region: 'ap-southeast-1', status: 'FAIL', finding_type: 'security_groups', network_layer: 'security_groups', risk_score: 52, description: 'Outbound rule 0.0.0.0/0 on all ports allows unrestricted egress, enabling data exfiltration or C2 communication.', remediation: 'Apply least-privilege egress rules. Allow only required ports and destinations. Block known malicious IPs using a managed prefix list.', compliance_frameworks: ['CIS AWS 4.3', 'NIST SC-7', 'PCI-DSS 1.3.2', 'ISO 27001 A.13.1'], mitre_tactics: ['Exfiltration', 'Command and Control'], mitre_techniques: [{ technique_id: 'T1048', technique_name: 'Exfiltration Over Alternative Protocol' }], posture_category: 'network_security', first_seen: '2024-02-14', last_seen: '2024-03-03' },
-];
-
-const DEMO_NET_SGS = [
-  { id: 'sg-001', group_name: 'prod-web-sg',     group_id: 'sg-0a1b2c3d4e5f', provider: 'aws', region: 'us-east-1',      inbound_rules: 3, outbound_rules: 1, attached_resources: 4, risk_level: 'critical', public_exposure: true  },
-  { id: 'sg-002', group_name: 'prod-db-sg',      group_id: 'sg-0b2c3d4e5f6a', provider: 'aws', region: 'us-east-1',      inbound_rules: 2, outbound_rules: 1, attached_resources: 2, risk_level: 'low',      public_exposure: false },
-  { id: 'sg-003', group_name: 'bastion-sg',      group_id: 'sg-0c3d4e5f6a7b', provider: 'aws', region: 'us-west-2',      inbound_rules: 1, outbound_rules: 1, attached_resources: 1, risk_level: 'high',     public_exposure: true  },
-  { id: 'sg-004', group_name: 'internal-app-sg', group_id: 'sg-0d4e5f6a7b8c', provider: 'aws', region: 'eu-west-1',      inbound_rules: 5, outbound_rules: 2, attached_resources: 6, risk_level: 'medium',   public_exposure: false },
-  { id: 'sg-005', group_name: 'cache-sg',        group_id: 'sg-0e5f6a7b8c9d', provider: 'aws', region: 'ap-southeast-1', inbound_rules: 1, outbound_rules: 1, attached_resources: 3, risk_level: 'low',      public_exposure: false },
-];
-
-const DEMO_NET_EXPOSURE = [
-  { id: 'ex-001', resource_name: 'prod-web-01',      resource_type: 'EC2Instance',   provider: 'aws', region: 'us-east-1',      exposure_type: 'direct',          public_ip: '54.23.101.12',  ports_exposed: '22,80,443', risk_score: 92, status: 'FAIL' },
-  { id: 'ex-002', resource_name: 'prod-alb',          resource_type: 'LoadBalancer',  provider: 'aws', region: 'us-east-1',      exposure_type: 'load_balancer',   public_ip: '54.23.100.50',  ports_exposed: '80,443',    risk_score: 45, status: 'PASS' },
-  { id: 'ex-003', resource_name: 'dev-jump-host',     resource_type: 'EC2Instance',   provider: 'aws', region: 'us-west-2',      exposure_type: 'direct',          public_ip: '44.12.67.88',   ports_exposed: '22,3389',   risk_score: 87, status: 'FAIL' },
-  { id: 'ex-004', resource_name: 'staging-rds-proxy', resource_type: 'RDSInstance',   provider: 'aws', region: 'eu-west-1',      exposure_type: 'direct',          public_ip: '18.185.9.23',   ports_exposed: '5432',      risk_score: 78, status: 'FAIL' },
-  { id: 'ex-005', resource_name: 'analytics-elb',     resource_type: 'LoadBalancer',  provider: 'aws', region: 'ap-southeast-1', exposure_type: 'load_balancer',   public_ip: '54.251.80.44',  ports_exposed: '443',       risk_score: 20, status: 'PASS' },
-];
-
-const DEMO_NET_TOPOLOGY = [
-  { id: 'tp-001', source: 'prod-vpc (10.0.0.0/16)',  destination: 'staging-vpc (10.1.0.0/16)',  protocol: 'TCP', port: '5432', direction: 'inbound',  risk_level: 'medium', provider: 'aws', region: 'us-east-1', status: 'FAIL' },
-  { id: 'tp-002', source: 'igw-prod',                destination: 'prod-web-subnet',            protocol: 'TCP', port: '443',  direction: 'inbound',  risk_level: 'low',    provider: 'aws', region: 'us-east-1', status: 'PASS' },
-  { id: 'tp-003', source: 'prod-private-subnet',     destination: 'nat-gw-prod',                protocol: 'TCP', port: '*',    direction: 'outbound', risk_level: 'low',    provider: 'aws', region: 'us-east-1', status: 'PASS' },
-  { id: 'tp-004', source: 'dev-vpc (10.2.0.0/16)',   destination: 'prod-vpc (10.0.0.0/16)',     protocol: 'ALL', port: '*',    direction: 'inbound',  risk_level: 'high',   provider: 'aws', region: 'us-west-2', status: 'FAIL' },
-];
-
-const DEMO_NET_WAF = [
-  { id: 'waf-001', rule_name: 'AWSManagedRulesCommonRuleSet',      waf_name: 'prod-waf', provider: 'aws', region: 'us-east-1',      action: 'Block',  requests_blocked: 14823, false_positives: 12, status: 'active'   },
-  { id: 'waf-002', rule_name: 'AWSManagedRulesSQLiRuleSet',        waf_name: 'prod-waf', provider: 'aws', region: 'us-east-1',      action: 'Block',  requests_blocked: 2341,  false_positives: 3,  status: 'active'   },
-  { id: 'waf-003', rule_name: 'AWSManagedRulesAmazonIpReputationList', waf_name: 'prod-waf', provider: 'aws', region: 'us-east-1', action: 'Block',  requests_blocked: 8912,  false_positives: 0,  status: 'active'   },
-  { id: 'waf-004', rule_name: 'RateLimitRule-500rpm',               waf_name: 'prod-waf', provider: 'aws', region: 'ap-southeast-1', action: 'Count', requests_blocked: 0,    false_positives: 0,  status: 'inactive' },
-];
 
 // ── Network Finding Detail Panel ─────────────────────────────────────────────
 const NET_REMEDIATION = {
@@ -179,9 +105,7 @@ const NET_CATEGORY_COLORS = {
 };
 
 export default function NetworkSecurityPage() {
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState(null);
-  const [data, setData]         = useState({});
+  const { data, loading, error } = useViewFetch('network-security');
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedFinding, setSelectedFinding] = useState(null);
 
@@ -190,41 +114,18 @@ export default function NetworkSecurityPage() {
     if (finding) setSelectedFinding(finding);
   };
 
-  const { provider, account, region } = useGlobalFilter();
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true); setError(null);
-      try {
-        const result = await fetchView('network-security', {
-          provider: provider || undefined,
-          account:  account  || undefined,
-          region:   region   || undefined,
-        });
-        if (result.error) { setError(result.error); return; }
-        setData(result);
-      } catch (err) {
-        setError(err?.message || 'Failed to load network security data');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [provider, account, region]);
-
-  const rawFindings         = (data.data || {}).findings          || [];
-  const rawSecurityGroups   = (data.data || {}).security_groups   || [];
-  const rawInternetExposure = (data.data || {}).internet_exposure || [];
-  const rawTopology         = (data.data || {}).topology          || [];
-  const rawWaf              = (data.data || {}).waf               || [];
+  const rawFindings         = data.findings          || [];
+  const rawSecurityGroups   = data.security_groups   || [];
+  const rawInternetExposure = data.internet_exposure || [];
+  const rawTopology         = data.topology          || [];
+  const rawWaf              = data.waf               || [];
 
   // All sub-tables are filtered views of the same check findings.
-  // Demo fallbacks filter DEMO_NET_FINDINGS by finding_type so columns stay consistent.
-  const findings         = rawFindings.length         ? rawFindings         : DEMO_NET_FINDINGS;
-  const securityGroups   = rawSecurityGroups.length   ? rawSecurityGroups   : DEMO_NET_FINDINGS.filter(f => f.finding_type === 'security_groups');
-  const internetExposure = rawInternetExposure.length ? rawInternetExposure : DEMO_NET_FINDINGS.filter(f => f.finding_type === 'internet_exposure');
-  const topology         = rawTopology.length         ? rawTopology         : DEMO_NET_FINDINGS.filter(f => f.finding_type === 'vpc_topology');
-  const waf              = rawWaf.length              ? rawWaf              : DEMO_NET_FINDINGS.filter(f => f.finding_type === 'waf_protection');
+  const findings         = rawFindings;
+  const securityGroups   = rawSecurityGroups;
+  const internetExposure = rawInternetExposure;
+  const topology         = rawTopology;
+  const waf              = rawWaf;
 
   // ── Derive KPI numbers ──────────────────────────────────────────────────
   const kpiNums = useMemo(() => {
@@ -233,40 +134,39 @@ export default function NetworkSecurityPage() {
     const get = (arr, lbl) =>
       arr.find(x => x.label?.toLowerCase() === lbl.toLowerCase())?.value ?? null;
     return {
-      posture_score:     get(g0, 'Posture Score')      ?? NET_KPI_FALLBACK.posture_score,
-      total_findings:    get(g0, 'Total Findings')     ?? NET_KPI_FALLBACK.total_findings,
-      critical:          get(g0, 'Critical')           ?? NET_KPI_FALLBACK.critical,
-      high:              get(g0, 'High')               ?? NET_KPI_FALLBACK.high,
-      medium:            get(g0, 'Medium')             ?? NET_KPI_FALLBACK.medium,
-      low:               get(g0, 'Low')                ?? NET_KPI_FALLBACK.low,
-      exposed_resources: get(g1, 'Exposed Resources')  ?? NET_KPI_FALLBACK.exposed_resources,
-      internet_exposed:  get(g1, 'Internet Exposed')   ?? NET_KPI_FALLBACK.internet_exposed,
-      open_sgs:          get(g1, 'Open SGs')           ?? NET_KPI_FALLBACK.open_sgs,
-      waf_coverage:      get(g1, 'WAF Coverage')       ?? NET_KPI_FALLBACK.waf_coverage,
+      posture_score:     get(g0, 'Posture Score')      ?? 0,
+      total_findings:    get(g0, 'Total Findings')     ?? 0,
+      critical:          get(g0, 'Critical')           ?? 0,
+      high:              get(g0, 'High')               ?? 0,
+      medium:            get(g0, 'Medium')             ?? 0,
+      low:               get(g0, 'Low')                ?? 0,
+      exposed_resources: get(g1, 'Exposed Resources')  ?? 0,
+      internet_exposed:  get(g1, 'Internet Exposed')   ?? 0,
+      open_sgs:          get(g1, 'Open SGs')           ?? 0,
+      waf_coverage:      get(g1, 'WAF Coverage')       ?? 0,
     };
   }, [data.kpiGroups]);
 
   // ── Active scan trend: live from BFF or static fallback ──────────────
   const activeScanTrend = useMemo(
     () => {
-      if (data.scanTrend?.length >= 2) {
-        // Normalise field names: engine returns pass_rate, chart expects passRate
+      if (data.scanTrend?.length >= 1) {
         return data.scanTrend.map(d => ({ ...d, passRate: d.pass_rate ?? d.passRate ?? 0 }));
       }
-      return NET_SCAN_TREND;
+      return [];
     },
     [data.scanTrend],
   );
 
   const activeModuleScores = useMemo(() => {
     const db = data.domainBreakdown;
-    if (db?.length >= 3) {
+    if (db?.length >= 1) {
       return db.map(d => {
         const meta = NET_DOMAIN_MAP[d.security_domain] ?? { label: d.security_domain, color: '#64748b' };
         return { module: meta.label, pass: d.pass_count ?? 0, total: d.total ?? 0, color: meta.color };
       });
     }
-    return NET_MODULE_SCORES;
+    return [];
   }, [data.domainBreakdown]);
 
   // ── Insight strip ───────────────────────────────────────────────────────
@@ -310,12 +210,12 @@ export default function NetworkSecurityPage() {
     const sparkWAF = activeScanTrend.map(d => d.waf_coverage      ?? 0);
 
     // ── Trend deltas ──
-    const first = activeScanTrend[0];
-    const last  = activeScanTrend[activeScanTrend.length - 1];
-    const rateΔ  = last.passRate  - first.passRate;
-    const critΔ  = last.critical  - first.critical;
-    const highΔ  = last.high      - first.high;
-    const totalΔ = last.total     - first.total;
+    const first = activeScanTrend[0] || {};
+    const last  = activeScanTrend[activeScanTrend.length - 1] || {};
+    const rateΔ  = (last.passRate  ?? 0) - (first.passRate  ?? 0);
+    const critΔ  = (last.critical  ?? 0) - (first.critical  ?? 0);
+    const highΔ  = (last.high      ?? 0) - (first.high      ?? 0);
+    const totalΔ = (last.total     ?? 0) - (first.total     ?? 0);
 
     const statPill = (label, value, delta, goodDir) => {
       const improved = goodDir === 'up' ? delta >= 0 : delta <= 0;
@@ -515,7 +415,7 @@ export default function NetworkSecurityPage() {
                 Network Posture Trend
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
-                {first.date} – {last.date} · {NET_SCAN_TREND.length} scans
+                {first.date} – {last.date} · {activeScanTrend.length} scans
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

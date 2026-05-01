@@ -1,0 +1,76 @@
+rule_id: oci.identity.audit.auth_policy_change
+service: identity
+provider: oci
+check_type: log
+severity: medium
+title: Detect authentication policy weakening and persistent compute instance sessions
+  evading lock.
+description: Detects auth policy weakening and persistent sessions evading logging.
+rationale: Monitoring this activity is essential for detecting adversary defense evasion
+  against OCI resources. Unauthorized or unexpected API calls may indicate account
+  compromise, privilege escalation, or an active attack chain.
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1562
+risk_score: 60
+resource: oci_identity_resource
+source: csv_generated
+is_active: true
+domain: identity_and_access_management
+action_category: modify
+log_source_type: oci_audit_log
+posture_category: threat_posture
+threat_tags:
+- T1562
+- defense_evasion
+- ciem_detection
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: high
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  nist_800_171:
+  - 3.1.10
+remediation: '1. Immediately investigate the principal that performed this action
+  — treat as potentially compromised.
+
+  2. Restore any disabled/deleted security controls (logging, agents, scanning).
+
+  3. Review the full session context for lateral movement or data exfiltration following
+  this action.
+
+  4. Restrict the ability to disable security tools to break-glass roles with MFA
+  enforcement.
+
+  5. Add SCPs/Organization Policies to prevent non-authorized disablement of security
+  controls.'
+references:
+- https://attack.mitre.org/techniques/T1562/
+- https://docs.oracle.com/en-us/iaas/Content/Identity/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit_log
+    - field: service
+      op: equals
+      value: identity
+    - field: operation
+      op: in
+      value:
+      - com.oraclecloud.identity.CreatePolicy
+      - com.oraclecloud.identity.UpdatePolicy
+      - com.oraclecloud.identity.DeletePolicy
+      - com.oraclecloud.identity.CreateOrResetUIPassword
+  type: log
+  version: '1.0'

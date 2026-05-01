@@ -1,0 +1,98 @@
+# ==========================================================
+# Discovery YAML — ivs (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 4 | ops: 0 independent, 3 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: ivs
+
+services:
+  client: ivs
+  module: "boto3.client('ivs')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  []
+
+checks: []
+
+discovery:
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.ivs.get_channel [dependent] ──
+  - discovery_id: aws.ivs.get_channel
+    for_each: aws.ivs.list_channels
+    calls:
+      - action: get_channel
+        params:
+          arn: "{{ item.arn }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Authorized: '{{ item.Authorized }}'
+        Tags: '{{ item.Tags }}'
+        arn: '{{ item.arn }}'
+        authorized: '{{ item.authorized }}'
+        containerFormat: '{{ item.containerFormat }}'
+        ingestEndpoint: '{{ item.ingestEndpoint }}'
+        insecureIngest: '{{ item.insecureIngest }}'
+        latencyMode: '{{ item.latencyMode }}'
+        multitrackInputConfiguration: '{{ item.multitrackInputConfiguration }}'
+        name: '{{ item.name }}'
+        playbackRestrictionPolicyArn: '{{ item.playbackRestrictionPolicyArn }}'
+        playbackUrl: '{{ item.playbackUrl }}'
+        preset: '{{ item.preset }}'
+        recordingConfigurationArn: '{{ item.recordingConfigurationArn }}'
+        srt: '{{ item.srt }}'
+        tags: '{{ item.tags }}'
+        type: '{{ item.type }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.ivs.get_playback_key_pair [dependent] ──
+  - discovery_id: aws.ivs.get_playback_key_pair
+    for_each: aws.ivs.list_channels
+    calls:
+      - action: get_playback_key_pair
+        params:
+          arn: "{{ item.arn }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Tags: '{{ item.Tags }}'
+        arn: '{{ item.arn }}'
+        fingerprint: '{{ item.fingerprint }}'
+        keyPair: '{{ item.keyPair }}'
+        name: '{{ item.name }}'
+        tags: '{{ item.tags }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.ivs.get_recording_configuration [dependent] ──
+  - discovery_id: aws.ivs.get_recording_configuration
+    for_each: aws.ivs.list_channels
+    calls:
+      - action: get_recording_configuration
+        params:
+          arn: "{{ item.arn }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Tags: '{{ item.Tags }}'
+        arn: '{{ item.arn }}'
+        destinationConfiguration: '{{ item.destinationConfiguration }}'
+        name: '{{ item.name }}'
+        recordingReconnectWindowSeconds: '{{ item.recordingReconnectWindowSeconds }}'
+        renditionConfiguration: '{{ item.renditionConfiguration }}'
+        state: '{{ item.state }}'
+        tags: '{{ item.tags }}'
+        thumbnailConfiguration: '{{ item.thumbnailConfiguration }}'
+

@@ -1,0 +1,36 @@
+version: '1.0'
+provider: web_server
+engine: websphere
+category: section_3
+cis_section: '3'
+description: >
+  websphere CIS Section 3 — automatic applications updates are disabled
+
+discovery:
+
+  - discovery_id: websphere.section_3.automatic_applications_updates_are_disabled
+    description: Ensure that automatic applications updates are disabled
+    calls:
+      - action: run_command
+        command: "Review the updateTrigger attribute and dropinsEnabled attributes in the applicationMonitor element in the Liberty configuration . Ensure the updateTrigger attribute is set to a value other than polled. Ensure the dropinsEnabled attritubute is set to false. grep -w -R -i \u0027updateTrigger\u0027 ${server.config.dir} grep -w -R -i \u0027dropinsEnabled\u0027 ${server.config.dir}"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: automatic_applications_updates_are_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: websphere.section_3.jdk_security_manager_is_enabled
+    description: Ensure JDK Security Manager is Enabled
+    calls:
+      - action: run_command
+        command: "Ensure that the websphere.java.security property is configured in ${server.config.dir}/bootstrap.properties file websphere.java.security and also confirm that the appropriate permissions are granted in the application\u0027s permission.xml file and/or in the javaPermission element in Liberty configuration \u003cjavaPermission ... /\u003e"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: jdk_security_manager_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+

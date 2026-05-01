@@ -11,8 +11,14 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
-# Secrets Manager client
-secrets_client = boto3.client('secretsmanager', region_name=os.getenv('AWS_REGION', 'ap-south-1'))
+# Secrets Manager client — built lazily so region is read at call time, not import time
+def _make_secrets_client():
+    region = os.getenv('AWS_REGION')
+    if not region:
+        raise RuntimeError("AWS_REGION env var is required for Secrets Manager")
+    return boto3.client('secretsmanager', region_name=region)
+
+secrets_client = _make_secrets_client()
 
 # KMS Key ID for encryption (optional - Secrets Manager uses default if not specified)
 KMS_KEY_ID = os.getenv('SECRETS_MANAGER_KMS_KEY_ID')

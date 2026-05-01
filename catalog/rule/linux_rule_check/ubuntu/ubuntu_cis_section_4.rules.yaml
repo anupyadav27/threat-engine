@@ -1,0 +1,1196 @@
+tech_type: ubuntu
+category: linux
+cis_benchmark: CIS Ubuntu 24.04 v1.0.0
+cis_section: '4'
+
+rules:
+
+  - rule_id: ubuntu.cis.4.a_single_firewall_configuration_utility_is_in_use
+    title: "Ensure a single firewall configuration utility is in use"
+    severity: high
+    automation_type: automated
+    cis_control: '4.1.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.a_single_firewall_configuration_utility_is_in_use
+    assertion:
+      field: port
+      operator: equals
+      expected: "on"
+    remediation: >
+      Remediating to a single firewall configuration is a complex process and
+      involves several steps. The following provides the basic steps to follow for a
+      single firewall configuration: 1. Determine which firewall utility best fits
+      organizational needs 2. Follow the recommendations in the subsequent
+      subsection for the single firewall to be used Note: Review the firewall
+      subsection overview for the selected firewall to be used, it contains a script
+      to simplify this process. 3. Return to this recommendation to ensure a single
+      firewall configuration utility is in use References: 1.
+      https://wiki.debian.org/DebianFirewall 2.
+      https://wiki.ubuntu.com/UncomplicatedFirewall 3.
+      https://assets.ubuntu.com/v1/544d9904-ubuntu-server-guide-2024-01-22.pdf 4.
+      https://www.debian.org/doc/manuals/debian-reference/debian-reference.en.pdf
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_4_1_1
+
+  - rule_id: ubuntu.cis.4.ufw_is_installed
+    title: "Ensure ufw is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.ufw_is_installed
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to install Uncomplicated Firewall (UFW): # apt
+      install ufw References: 1. NIST SP 800-53 Rev. 5: SC-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_4_2_1
+
+  - rule_id: ubuntu.cis.4.iptables_persistent_is_not_installed_with_ufw
+    title: "Ensure iptables-persistent is not installed with ufw"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.iptables_persistent_is_not_installed_with_ufw
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to remove the iptables-persistent package: # apt
+      purge iptables-persistent References: 1. NIST SP 800-53 Rev. 5: SC-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_4_2_2
+
+  - rule_id: ubuntu.cis.4.ufw_service_is_enabled
+    title: "Ensure ufw service is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.3'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.ufw_service_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Run the following command to unmask the ufw daemon: # systemctl unmask
+      ufw.service Run the following command to enable and start the ufw daemon: #
+      systemctl --now enable ufw.service active Run the following command to enable
+      ufw: # ufw enable References: 1.
+      http://manpages.ubuntu.com/manpages/precise/en/man8/ufw.8.html 2. NIST SP
+      800-53 Rev. 5: SC-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_4_2_3
+
+  - rule_id: ubuntu.cis.4.ufw_loopback_traffic_is_configured
+    title: "Ensure ufw loopback traffic is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.4'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.ufw_loopback_traffic_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      Run the following commands to configure the loopback interface to accept
+      traffic: # ufw allow in on lo # ufw allow out on lo Run the following commands
+      to configure all other interfaces to deny traffic to the loopback network: #
+      ufw deny in from 127.0.0.0/8 # ufw deny in from ::1 Default Value: # allow all
+      on loopback -A ufw-before-input -i lo -j ACCEPT -A ufw-before-output -o lo -j
+      ACCEPT References: 1. NIST SP 800-53 Rev. 5: SC-7 2.
+      https://manpages.ubuntu.com/manpages/jammy/en/man8/ufw-framework.8.html
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_4_2_4
+
+  - rule_id: ubuntu.cis.4.ufw_firewall_rules_exist_for_all_open_ports
+    title: "Ensure ufw firewall rules exist for all open ports"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.6'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.ufw_firewall_rules_exist_for_all_open_ports
+    assertion:
+      field: port
+      operator: equals
+      expected: "true"
+    remediation: >
+      For each port identified in the audit which does not have a firewall rule,
+      evaluate the service listening on the port and add a rule for accepting or
+      denying inbound connections in accordance with local site policy: Examples: #
+      ufw allow in <port>/<tcp or udp protocol> # ufw deny in <port>/<tcp or udp
+      protocol> Note: Examples create rules for from any, to any. More specific
+      rules should be concentered when allowing inbound traffic e.g only traffic
+      from this network. Example to allow traffic on port 443 using the tcp protocol
+      from the 192.168.1.0 network: ufw allow from 192.168.1.0/24 to any proto tcp
+      port 443 References: 1. NIST SP 800-53 Rev. 5: SC-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_4_2_6
+
+  - rule_id: ubuntu.cis.4.ufw_default_deny_firewall_policy
+    title: "Ensure ufw default deny firewall policy"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.7'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.ufw_default_deny_firewall_policy
+    assertion:
+      field: port
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following commands to implement a default deny policy: # ufw default
+      deny incoming # ufw default deny outgoing # ufw default deny routed
+      References: 1. NIST SP 800-53 Rev. 5: SC-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_4_2_7
+
+  - rule_id: ubuntu.cis.4.nftables_is_installed
+    title: "Ensure nftables is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '4.3.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.nftables_is_installed
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following command to install nftables: # apt install nftables
+      References: 1. NIST SP 800-53 Rev. 5: CA-9
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_4_3_1
+
+  - rule_id: ubuntu.cis.4.ufw_is_uninstalled_or_disabled_with_nftables
+    title: "Ensure ufw is uninstalled or disabled with nftables"
+    severity: high
+    automation_type: automated
+    cis_control: '4.3.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.ufw_is_uninstalled_or_disabled_with_nftables
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Run one of the following to either remove ufw or disable ufw and mask
+      ufw.service: Run the following command to remove ufw: # apt purge ufw -OR- Run
+      the following commands to disable ufw and mask ufw.service: # ufw disable #
+      systemctl stop ufw.service # systemctl mask ufw.service Note: ufw disable
+      needs to be run before systemctl mask ufw.service in order to correctly
+      disable UFW References: 1. NIST SP 800-53 Rev. 5: SC-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_4_3_2
+
+  - rule_id: ubuntu.cis.4.a_nftables_table_exists
+    title: "Ensure a nftables table exists"
+    severity: high
+    automation_type: automated
+    cis_control: '4.3.4'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.a_nftables_table_exists
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following command to create a table in nftables # nft create table
+      inet <table name> Example: # nft create table inet filter References: 1. NIST
+      SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_4_3_4
+
+  - rule_id: ubuntu.cis.4.nftables_base_chains_exist
+    title: "Ensure nftables base chains exist"
+    severity: high
+    automation_type: automated
+    cis_control: '4.3.5'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.nftables_base_chains_exist
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to create the base chains: # nft create chain inet
+      <table name> <base chain name> { type filter hook <(input|forward|output)>
+      priority 0 \; } Example: # nft create chain inet filter input { type filter
+      hook input priority 0 \; } # nft create chain inet filter forward { type
+      filter hook forward priority 0 \; } # nft create chain inet filter output {
+      type filter hook output priority 0 \; }
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_4_3_5
+
+  - rule_id: ubuntu.cis.4.nftables_loopback_traffic_is_configured
+    title: "Ensure nftables loopback traffic is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.3.6'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.nftables_loopback_traffic_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      Run the following commands to implement the loopback rules: # nft add rule
+      inet filter input iif lo accept # nft add rule inet filter input ip saddr
+      127.0.0.0/8 counter drop - IF - IPv6 is enabled on the system: Run the
+      following command to implement the IPv6 loopback rule: # nft add rule inet
+      filter input ip6 saddr ::1 counter drop References: 1. NIST SP 800-53 Rev. 5:
+      CA-9, SC-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_4_3_6
+
+  - rule_id: ubuntu.cis.4.nftables_default_deny_firewall_policy
+    title: "Ensure nftables default deny firewall policy"
+    severity: high
+    automation_type: automated
+    cis_control: '4.3.8'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.nftables_default_deny_firewall_policy
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command for the base chains with the input, forward, and
+      output hooks to implement a default DROP policy: # nft chain <table family>
+      <table name> <chain name> { policy drop \; } Example: # nft chain inet filter
+      input { policy drop \; } # nft chain inet filter forward { policy drop \; } #
+      nft chain inet filter output { policy drop \; } Default Value: accept
+      References: 1. Manual Page nft 2. NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_4_3_8
+
+  - rule_id: ubuntu.cis.4.nftables_service_is_enabled
+    title: "Ensure nftables service is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '4.3.9'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.nftables_service_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to enable the nftables service: # systemctl enable
+      nftables References: 1. NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_4_3_9
+
+  - rule_id: ubuntu.cis.4.nftables_rules_are_permanent
+    title: "Ensure nftables rules are permanent"
+    severity: high
+    automation_type: automated
+    cis_control: '4.3.10'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.nftables_rules_are_permanent
+    assertion:
+      field: port
+      operator: equals
+      expected: "on"
+    remediation: >
+      Edit the /etc/nftables.conf file and un-comment or add a line with include
+      <Absolute path to nftables rules file> for each nftables file you want
+      included in the nftables ruleset on boot Example: # vi /etc/nftables.conf Add
+      the line: include '/etc/nftables.rules' References: 1. NIST SP 800-53 Rev. 5:
+      CA-9, SC-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_4_3_10
+
+  - rule_id: ubuntu.cis.4.iptables_packages_are_installed
+    title: "Ensure iptables packages are installed"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.1.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.iptables_packages_are_installed
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to install iptables and iptables-persistent # apt
+      install iptables iptables-persistent References: 1. NIST SP 800-53 Rev. 5:
+      CA-9, SC-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_4_4_1_1
+
+  - rule_id: ubuntu.cis.4.nftables_is_not_in_use_with_iptables
+    title: "Ensure nftables is not in use with iptables"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.1.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.nftables_is_not_in_use_with_iptables
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to remove nftables: # apt purge nftables - OR - Run
+      the following commands to stop and mask nftables.service: # systemctl stop
+      nftables.service # systemctl mask nftables.service References: 1. NIST SP
+      800-53 Rev. 5: CA-9, CM-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_4_4_1_2
+
+  - rule_id: ubuntu.cis.4.ufw_is_not_in_use_with_iptables
+    title: "Ensure ufw is not in use with iptables"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.1.3'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.ufw_is_not_in_use_with_iptables
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to remove ufw: # apt purge ufw - OR - Run the
+      following commands to disable ufw, and stop and mask ufw.service: # ufw
+      disable # systemctl stop ufw.service # systemctl mask ufw.service Note: ufw
+      disable needs to be run before systemctl mask ufw.service in order to
+      correctly disable UFW References: 1. NIST SP 800-53 Rev. 5: CA-9, CM-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_4_4_1_3
+
+  - rule_id: ubuntu.cis.4.iptables_default_deny_firewall_policy
+    title: "Ensure iptables default deny firewall policy"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.2.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.iptables_default_deny_firewall_policy
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following commands to implement a default DROP policy: # iptables -P
+      INPUT DROP # iptables -P OUTPUT DROP # iptables -P FORWARD DROP References: 1.
+      NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_4_4_2_1
+
+  - rule_id: ubuntu.cis.4.iptables_loopback_traffic_is_configured
+    title: "Ensure iptables loopback traffic is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.2.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.iptables_loopback_traffic_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following commands to implement the loopback rules: # iptables -A
+      INPUT -i lo -j ACCEPT # iptables -A OUTPUT -o lo -j ACCEPT # iptables -A INPUT
+      -s 127.0.0.0/8 -j DROP References: 1. NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_4_4_2_2
+
+  - rule_id: ubuntu.cis.4.iptables_firewall_rules_exist_for_all_open_ports
+    title: "Ensure iptables firewall rules exist for all open ports"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.2.4'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.iptables_firewall_rules_exist_for_all_open_ports
+    assertion:
+      field: port
+      operator: equals
+      expected: "on"
+    remediation: >
+      For each port identified in the audit which does not have a firewall rule
+      establish a proper rule for accepting inbound connections: # iptables -A INPUT
+      -p <protocol> --dport <port> -m state --state NEW -j ACCEPT References: 1.
+      NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_4_4_2_4
+
+  - rule_id: ubuntu.cis.4.ip6tables_default_deny_firewall_policy
+    title: "Ensure ip6tables default deny firewall policy"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.3.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.ip6tables_default_deny_firewall_policy
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      - IF - IPv6 is enabled on your system: Run the following commands to implement
+      a default DROP policy: # ip6tables -P INPUT DROP # ip6tables -P OUTPUT DROP #
+      ip6tables -P FORWARD DROP References: 1. NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_4_4_3_1
+
+  - rule_id: ubuntu.cis.4.ip6tables_loopback_traffic_is_configured
+    title: "Ensure ip6tables loopback traffic is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.3.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.ip6tables_loopback_traffic_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      Run the following commands to implement the loopback rules: # ip6tables -A
+      INPUT -i lo -j ACCEPT # ip6tables -A OUTPUT -o lo -j ACCEPT # ip6tables -A
+      INPUT -s ::1 -j DROP References: 1. NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_4_4_3_2
+
+  - rule_id: ubuntu.cis.4.ip6tables_firewall_rules_exist_for_all_open_ports
+    title: "Ensure ip6tables firewall rules exist for all open ports"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.3.4'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.ip6tables_firewall_rules_exist_for_all_open_ports
+    assertion:
+      field: port
+      operator: equals
+      expected: "on"
+    remediation: >
+      For each port identified in the audit which does not have a firewall rule
+      establish a proper rule for accepting inbound connections: # ip6tables -A
+      INPUT -p <protocol> --dport <port> -m state --state NEW -j ACCEPT References:
+      1. NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_4_4_3_4
+
+  - rule_id: ubuntu.cis.4.nftables_is_not_installed_with_iptables
+    title: "Ensure nftables is not installed with iptables"
+    severity: high
+    automation_type: automated
+    cis_control: '4.3.1.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.nftables_is_not_installed_with_iptables
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to remove nftables: # apt purge nftables References:
+      1. NIST SP 800-53 Rev. 5: CA-9, CM-7
+    compliance:
+      - cis_ubuntu_22_04_v2_0_0_4_3_1_2
+
+  - rule_id: ubuntu.cis.4.ufw_is_uninstalled_or_disabled_with_iptables
+    title: "Ensure ufw is uninstalled or disabled with iptables"
+    severity: high
+    automation_type: automated
+    cis_control: '4.3.1.3'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.ufw_is_uninstalled_or_disabled_with_iptables
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "false"
+    remediation: >
+      Run one of the following commands to either remove ufw or stop and mask ufw
+      Run the following command to remove ufw: # apt purge ufw - OR - Run the
+      following commands to disable ufw: # ufw disable # systemctl stop ufw #
+      systemctl mask ufw Note: ufw disable needs to be run before systemctl mask ufw
+      in order to correctly disable UFW References: 1. NIST SP 800-53 Rev. 5: CA-9,
+      CM-7
+    compliance:
+      - cis_ubuntu_22_04_v2_0_0_4_3_1_3
+
+  - rule_id: ubuntu.cis.4.nftables_is_not_in_use_with_ufw
+    title: "Ensure nftables is not in use with ufw"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.nftables_is_not_in_use_with_ufw
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to remove nftables: # apt purge nftables - OR - Run
+      the following commands to stop and mask nftables.service: # systemctl stop
+      nftables.service # systemctl mask nftables.service References: 1. NIST SP
+      800-53 Rev. 5: CA-9, CM-7
+    compliance:
+      - cis_ubuntu_20_04_v3_0_0_4_2_2
+
+  - rule_id: ubuntu.cis.4.cron_daemon_is_enabled_and_active
+    title: "Ensure cron daemon is enabled and active"
+    severity: high
+    automation_type: automated
+    cis_control: '4.1.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.cron_daemon_is_enabled_and_active
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to enable and start cron: # systemctl unmask cron #
+      systemctl --now enable cron References: 1. NIST SP 800-53 Rev. 5: CM-1, CM-2,
+      CM-6, CM-7, IA-5 MITRE ATT&CK Mappings: Techniques / Sub- techniques Tactics
+      Mitigations T1562, T1562.001 TA0005 M1018
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_1_1
+
+  - rule_id: ubuntu.cis.4.at_is_restricted_to_authorized_users
+    title: "Ensure at is restricted to authorized users"
+    severity: high
+    automation_type: automated
+    cis_control: '4.1.9'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.at_is_restricted_to_authorized_users
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following script to: • Remove /etc/at.deny if it exists • Create
+      /etc/at.allow if it doesn't exist • Change ownership of /etc/at.allow to the
+      root user • Change group ownership of /etc/at.allow to the group root
+      #!/usr/bin/env bash { if dpkg-query -W at > /dev/null 2>&1; then
+      l_file='/etc/at.allow' l_mask='0137' l_maxperm='$( printf '%o' $(( 0777 &
+      ~$l_mask)) )' if [ -e /etc/at.deny ]; then echo -e ' - Removing
+      \'/etc/at.deny\'' rm -f /etc/at.deny fi if [ ! -e /etc/at.allow ]; then echo
+      -e ' - creating \'$l_file\'' touch '$l_file' fi while read l_mode l_fown
+      l_fgroup; do if [ $(( $l_mode & $l_mask )) -gt 0 ]; then echo -e ' - Removing
+      excessive permissions from \'$l_file\'' chmod u-x,g-wx,o-rwx '$l_file' fi if [
+      '$l_fown' != 'root' ]; then echo -e ' - Changing owner on \'$l_file\' from:
+      \'$l_fown\' to: \'root\'' chown root '$l_file' fi if [ '$l_fgroup' != 'root'
+      ]; then echo -e ' - Changing group owner on \'$l_file\' from: \'$l_fgroup\'
+      to: \'root\'' chgrp root '$l_file' fi done < <(stat -Lc '%#a %U %G' '$l_file')
+      else echo -e '- cron is not installed on the system, no remediation
+      required\n' fi } References: 1. NIST SP 800-53 Rev. 5: AC-3. MP-2
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_1_9
+
+  - rule_id: ubuntu.cis.4.permissions_on_etc_ssh_sshd_config_are_configured
+    title: "Ensure permissions on /etc/ssh/sshd_config are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.permissions_on_etc_ssh_sshd_config_are_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following script to set ownership and permissions on
+      /etc/ssh/sshd_config and files ending in .conf in the /etc/ssh/sshd_config.d
+      directory: #!/usr/bin/env bash { chmod u-x,og-rwx /etc/ssh/sshd_config chown
+      root:root /etc/ssh/sshd_config while IFS= read -r -d $'\0' l_file; do if [ -e
+      '$l_file' ]; then chmod u-x,og-rwx '$l_file' chown root:root '$l_file' fi done
+      < <(find /etc/ssh/sshd_config.d -type f -print0 2>/dev/null) } References: 1.
+      NIST SP 800-53 Rev. 5: AC-3. MP-2
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_2_1
+
+  - rule_id: ubuntu.cis.4.sshd_banner_is_configured
+    title: "Ensure sshd Banner is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.4'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.sshd_banner_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the parameter above any Match
+      entries as follows: Banner /etc/issue.net Note: First occurrence of a option
+      takes precedence, Match set statements withstanding. References: 1. NIST SP
+      800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5 2. SSHD(8) 3. SSHD_CONFIG(5) MITRE
+      ATT&CK Mappings: Techniques / Sub- techniques Tactics Mitigations TA0001,
+      TA0007 M1035
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_2_4
+
+  - rule_id: ubuntu.cis.4.sshd_ciphers_are_configured
+    title: "Ensure sshd Ciphers are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.5'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.sshd_ciphers_are_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "no"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file and add/modify the Ciphers line to contain
+      a comma separated list of the site unapproved (weak) Ciphers preceded with a
+      -: Example: Ciphers -3des-
+      cbc,aes128-cbc,aes192-cbc,aes256-cbc,chacha20-poly1305@openssh.com - IF -
+      CVE-2023-48795 has been addressed, and it meets local site policy, chacha20-
+      poly1305@openssh.com may be removed from the list of excluded ciphers. Note:
+      First occurrence of an option takes precedence. Default Value: Ciphers
+      chacha20-poly1305@openssh.com,aes128-ctr,aes192-ctr,aes256-ctr,aes128-
+      gcm@openssh.com,aes256-gcm@openssh.com, aes128-cbc,aes192-cbc,aes256-
+      cbc,blowfish-cbc,cast128-cbc,3des-cbc References: 1.
+      https://nvd.nist.gov/vuln/detail/CVE-2016-2183 2.
+      https://www.openssh.com/txt/cbc.adv 3.
+      https://nvd.nist.gov/vuln/detail/CVE-2008-5161 4.
+      https://www.openssh.com/txt/cbc.adv 5. SSHD_CONFIG(5) 6. NIST SP 800-53 Rev.
+      5: SC-8 7. https://nvd.nist.gov/vuln/detail/CVE-2023-48795 8. SSHD(8)
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_2_5
+
+  - rule_id: ubuntu.cis.4.sshd_clientaliveinterval_and_clientalivecountmax
+    title: "Ensure sshd ClientAliveInterval and ClientAliveCountMax are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.6'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.sshd_clientaliveinterval_and_clientalivecountmax
+    assertion:
+      field: row_count
+      operator: exists
+      expected: "true"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the ClientAliveInterval and
+      ClientAliveCountMax parameters above any Match entries according to site
+      policy. Example: ClientAliveInterval 15 ClientAliveCountMax 3 Note: First
+      occurrence of a option takes precedence, Match set statements withstanding.
+      Default Value: ClientAliveInterval 0 ClientAliveCountMax 3 References: 1.
+      SSHD_CONFIG(5) 2. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5 3.
+      SSHD(8) Additional Information:
+      https://bugzilla.redhat.com/show_bug.cgi?id=1873547
+      https://github.com/openssh/openssh-portable/blob/V_8_9/serverloop.c#L137 MITRE
+      ATT&CK Mappings: Techniques / Sub- techniques Tactics Mitigations T1078,
+      T1078.001, T1078.002, T1078.003 TA0001 M1026
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_2_6
+
+  - rule_id: ubuntu.cis.4.sshd_disableforwarding_is_enabled
+    title: "Ensure sshd DisableForwarding is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.7'
+    cis_section: '4'
+    profile_applicability: "Level 1 + Level 2"
+    scope: ubuntu.section_4.sshd_disableforwarding_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "yes"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the DisableForwarding parameter to
+      yes above any Match entries as follows: DisableForwarding yes Note: First
+      occurrence of a option takes precedence, Match set statements withstanding.
+      Default Value: DisableForwarding no References: 1. sshd_config(5) 2. NIST SP
+      800-53 Rev. 5: CM-7 3. SSHD(8)
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_2_7
+
+  - rule_id: ubuntu.cis.4.sshd_gssapiauthentication_is_disabled
+    title: "Ensure sshd GSSAPIAuthentication is disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.8'
+    cis_section: '4'
+    profile_applicability: "Level 1 + Level 2"
+    scope: ubuntu.section_4.sshd_gssapiauthentication_is_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the GSSAPIAuthentication parameter
+      to no above any Match entries as follows: GSSAPIAuthentication no Note: First
+      occurrence of an option takes precedence, Match set statements withstanding.
+      Default Value: GSSAPIAuthentication no References: 1. SSHD_CONFIG(5) 2. NIST
+      SP 800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_2_8
+
+  - rule_id: ubuntu.cis.4.sshd_hostbasedauthentication_is_disabled
+    title: "Ensure sshd HostbasedAuthentication is disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.9'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.sshd_hostbasedauthentication_is_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the HostbasedAuthentication
+      parameter to no above any Match entries as follows: HostbasedAuthentication no
+      Note: First occurrence of a option takes precedence, Match set statements
+      withstanding. Default Value: HostbasedAuthentication no References: 1.
+      SSHD_CONFIG(5) 2. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5 3.
+      SSHD(8) MITRE ATT&CK Mappings: Techniques / Sub- techniques Tactics
+      Mitigations T1078, T1078.001, T1078.003 TA0001 M1042
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_2_9
+
+  - rule_id: ubuntu.cis.4.sshd_ignorerhosts_is_enabled
+    title: "Ensure sshd IgnoreRhosts is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.10'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.sshd_ignorerhosts_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "yes"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the IgnoreRhosts parameter to yes as
+      follows: IgnoreRhosts yes Default Value: IgnoreRhosts yes References: 1.
+      SSHD_CONFIG(5) 2. NIST SP 800-53 Rev. 5: CM-1,CM-2, CM-6, CM-7, IA-5 3.
+      SSHD(8)
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_2_10
+
+  - rule_id: ubuntu.cis.4.sshd_kexalgorithms_is_configured
+    title: "Ensure sshd KexAlgorithms is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.11'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.sshd_kexalgorithms_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file and add/modify the KexAlgorithms line to
+      contain a comma separated list of the site unapproved (weak) Ciphers preceded
+      with a - Example: KexAlgorithms -diffie-hellman-group1-sha1,diffie-hellman-
+      group14-sha1,diffie-hellman-group-exchange-sha1 Note: First occurrence of an
+      option takes precedence. Default Value: KexAlgorithms
+      curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2- nistp256,ecdh-
+      sha2-nistp384,ecdh-sha2-nistp521, diffie-hellman-group-exchange-
+      sha256,diffie-hellman-group14-sha1,diffie-hellman-group1-sha1 References: 1.
+      NIST SP 800-53 Rev. 5: SC-8 Additional Information: The supported algorithms
+      are: curve25519-sha256 curve25519-sha256@libssh.org diffie-hellman-group1-sha1
+      diffie-hellman-group14-sha1 diffie-hellman-group-exchange-sha1 diffie-hellman-
+      group-exchange-sha256 ecdh-sha2-nistp256 ecdh-sha2-nistp384 ecdh-sha2-nistp521
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_2_11
+
+  - rule_id: ubuntu.cis.4.sshd_loglevel_is_configured
+    title: "Ensure sshd LogLevel is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.13'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.sshd_loglevel_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the LogLevel parameter above any
+      Match entries as follows: LogLevel VERBOSE - OR - LogLevel INFO Note: First
+      occurrence of a option takes precedence, Match set statements withstanding.
+      Default Value: LogLevel INFO References: 1. SSHD_CONFIG(5) 2. NIST SP 800-53
+      Rev. 5: AU-3, AU-12, SI-5 3. SSHD(8)
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_2_13
+
+  - rule_id: ubuntu.cis.4.sshd_macs_are_configured
+    title: "Ensure sshd MACs are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.14'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.sshd_macs_are_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file and add/modify the MACs line to contain a
+      comma separated list of the site unapproved (weak) MACs preceded with a -
+      above any Include entries: Example: MACs -hmac-md5,hmac-md5-96,hmac-
+      ripemd160,hmac-sha1-96,umac-64@openssh.com,hmac-md5-etm@openssh.com,hmac-md5-
+      96-etm@openssh.com,hmac-ripemd160-etm@openssh.com,hmac-
+      sha1-96-etm@openssh.com,umac-64-etm@openssh.com,umac-
+      128-etm@openssh.com,hmac-sha1-etm@openssh.com,hmac-
+      sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com - IF - CVE-2023-48795
+      has been reviewed and addressed, the following etm MACs may be dropped from
+      the exclude list: hmac-sha1-etm@openssh.com,hmac-sha2-256-
+      etm@openssh.com,hmac-sha2-512-etm@openssh.com Note: First occurrence of an
+      option takes precedence. Default Value: MACs
+      umac-64-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-256-
+      etm@openssh.com,hmac-sha2-512-etm@openssh.com,hmac-sha1-
+      etm@openssh.com,umac-64@openssh.com,umac-128@openssh.com,hmac-sha2- 256,hmac-
+      sha2-512,hmac-sha1,hmac-sha1-etm@openssh.com References: 1. More information
+      on SSH downgrade attacks can be found here:
+      http://www.mitls.org/pages/attacks/SLOTH 2. SSHD_CONFIG(5) 3. NIST SP 800-53
+      Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5 4.
+      https://nvd.nist.gov/vuln/detail/CVE-2023-48795 Additional Information: The
+      supported MACs are: hmac-md5 hmac-md5-96 hmac-ripemd160 hmac-sha1 hmac-sha1-96
+      hmac-sha2-256 hmac-sha2-512 umac-64@openssh.com umac-128@openssh.com hmac-
+      md5-etm@openssh.com hmac-md5-96-etm@openssh.com hmac-ripemd160-etm@openssh.com
+      hmac-sha1-etm@openssh.com hmac-sha1-96-etm@openssh.com hmac-
+      sha2-256-etm@openssh.com hmac-sha2-512-etm@openssh.com umac-64-etm@openssh.com
+      umac-128-etm@openssh.com
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_2_14
+
+  - rule_id: ubuntu.cis.4.sshd_maxsessions_is_configured
+    title: "Ensure sshd MaxSessions is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.16'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.sshd_maxsessions_is_configured
+    assertion:
+      field: row_count
+      operator: lte
+      expected: "true"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the MaxSessions parameter to 10 or
+      less above any Match entries as follows: MaxSessions 10 Note: First occurrence
+      of a option takes precedence, Match set statements withstanding. Default
+      Value: MaxSessions 10 References: 1. SSHD_CONFIG(5) 2. NIST SP 800-53 Rev. 5:
+      CM-1, CM-2, CM-6, CM-7, IA-5 3. SSHD(8) MITRE ATT&CK Mappings: Techniques /
+      Sub- techniques Tactics Mitigations T1499, T1499.002 TA0040
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_2_16
+
+  - rule_id: ubuntu.cis.4.sshd_maxstartups_is_configured
+    title: "Ensure sshd MaxStartups is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.17'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.sshd_maxstartups_is_configured
+    assertion:
+      field: row_count
+      operator: lte
+      expected: "true"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the MaxStartups parameter to
+      10:30:60 or more restrictive: MaxStartups 10:30:60 Note: First occurrence of a
+      option takes precedence. Default Value: MaxStartups 10:30:100 References: 1.
+      SSHD_CONFIG(5) 2. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5 3.
+      SSHD(8)
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_2_17
+
+  - rule_id: ubuntu.cis.4.sshd_permituserenvironment_is_disabled
+    title: "Ensure sshd PermitUserEnvironment is disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.20'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.sshd_permituserenvironment_is_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the parameter PermitUserEnvironment
+      to no: PermitUserEnvironment no Note: First occurrence of a option takes
+      precedence. Default Value: PermitUserEnvironment no References: 1.
+      SSHD_CONFIG(5) 2. NIST SP 800-53 Rev. 5: CM-1,CM-2, CM-6, CM-7, IA-5 3.
+      SSHD(8) MITRE ATT&CK Mappings: Techniques / Sub- techniques Tactics
+      Mitigations T1021 TA0008 M1042
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_2_20
+
+  - rule_id: ubuntu.cis.4.sshd_usepam_is_enabled
+    title: "Ensure sshd UsePAM is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.21'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.sshd_usepam_is_enabled
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "yes"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the UsePAM parameter to yes: UsePAM
+      yes Note: First occurrence of a option takes precedence. Default Value: UsePAM
+      yes References: 1. SSHD_CONFIG(5) 2. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6,
+      CM-7, IA-5 3. SSHD(8)
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_2_21
+
+  - rule_id: ubuntu.cis.4.password_creation_requirements_are_configured
+    title: "Ensure password creation requirements are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.password_creation_requirements_are_configured
+    assertion:
+      field: row_count
+      operator: gte
+      expected: "true"
+    remediation: >
+      The following setting is a recommend example policy. Alter these values to
+      conform to your own organization's password policies. Run the following
+      command to install the pam_pwquality module: # apt install libpam-pwquality
+      Edit the file /etc/security/pwquality.conf and add or modify the following
+      line for password length to conform to site policy: minlen = 14 Edit the file
+      /etc/security/pwquality.conf and add or modify the following line for password
+      complexity to conform to site policy: Option 1 minclass = 4 Option 2 dcredit =
+      -1 ucredit = -1 ocredit = -1 lcredit = -1 Edit the /etc/pam.d/common-password
+      file to include pam_pwquality.so and to conform to site policy: password
+      requisite pam_pwquality.so retry=3 References: 1. NIST SP 800-53 Rev. 5: IA-5
+      Additional Information: Additional module options may be set, recommendation
+      requirements only cover including try_first_pass and minlen set to 14 or more.
+      NOTE: As of this writing it is not possible to customize the maximum number of
+      retries for the creation of a password within recommended methods. The command
+      pam-auth- update is used to manage certain PAM configurations via profiles,
+      such as /etc/pam.d/common-password. Making a manual change to this file will
+      cause pam-auth- update to overwrite it on the next run and is thus against
+      recommendations. Alternatively, pam_pwquality (via
+      /etc/security/pwquality.conf) fully supports the configuration of the maximum
+      number of retries for a password change with the configuration entry retry =
+      XXX. The issue is that the template /usr/share/pam- configs/pwquality contains
+      retry=3 which will override any retry setting in /etc/security/pwquality.conf
+      as PAM entries takes precedence. This template file should not be modified as
+      any package update will overwrite the change. Thus it is not possible, in any
+      recommended way, to modify password retries.
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_4_1
+
+  - rule_id: ubuntu.cis.4.password_reuse_is_limited
+    title: "Ensure password reuse is limited"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.3'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.password_reuse_is_limited
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      NOTE: Pay special attention to the configuration. Incorrect configuration can
+      cause system lock outs or unexpected behavior. This is example configuration.
+      You configuration may differ based on previous changes to the files. Edit the
+      /etc/pam.d/common-password file to include: • password required
+      pam_pwhistory.so remember=5 • use_authtok on the pam_unix.so line Example:
+      password required pam_pwhistory.so remember=5 password [success=1
+      default=ignore] pam_unix.so obscure sha512 use_authtok References: 1.
+      https://manpages.ubuntu.com/manpages/focal/man8/pam_pwhistory.8.html 2.
+      https://bugs.launchpad.net/ubuntu/+source/pam/+bug/1989731 3. NIST SP 800-53
+      Rev. 5: AC-2, IA-5 Additional Information: Changes only apply to accounts
+      configured on the local system.
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_4_3
+
+  - rule_id: ubuntu.cis.4.inactive_password_lock_is_30_days_or_less
+    title: "Ensure inactive password lock is 30 days or less"
+    severity: high
+    automation_type: automated
+    cis_control: '4.5.1.4'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.inactive_password_lock_is_30_days_or_less
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "false"
+    remediation: >
+      Run the following command to set the default password inactivity period to 30
+      days: # useradd -D -f 30 Modify user parameters for all users with a password
+      set to match: # chage --inactive 30 <user> Default Value: INACTIVE=-1
+      References: 1. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5 Additional
+      Information: A value of -1 would disable this setting
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_5_1_4
+
+  - rule_id: ubuntu.cis.4.all_users_last_password_change_date_is_in_the_past
+    title: "Ensure all users last password change date is in the past"
+    severity: high
+    automation_type: automated
+    cis_control: '4.5.1.5'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.all_users_last_password_change_date_is_in_the_past
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Investigate any users with a password change date in the future and correct
+      them. Locking the account, expiring the password, or resetting the password
+      manually may be appropriate. References: 1. NIST SP 800-53 Rev. 5: IA-5
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_5_1_5
+
+  - rule_id: ubuntu.cis.4.number_of_changed_characters_in_a_new_password_is
+    title: "Ensure the number of changed characters in a new password is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.5.1.6'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.number_of_changed_characters_in_a_new_password_is
+    assertion:
+      field: row_count
+      operator: not_equals
+      expected: "true"
+    remediation: >
+      Edit or add the following line in /etc/security/pwquality.conf to a value of 2
+      or more: difok = 2 Default Value: difok = 1 References: 1. NIST SP 800-53 Rev.
+      5: IA-5
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_5_1_6
+
+  - rule_id: ubuntu.cis.4.password_dictionary_check_is_enabled
+    title: "Ensure password dictionary check is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '4.5.1.7'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.password_dictionary_check_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Edit or add the following line in /etc/security/pwquality.conf to a value of
+      1: dictcheck = 1 Default Value: dictcheck = 1 References: 1. NIST SP 800-53
+      Rev. 5: IA-5
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_5_1_7
+
+  - rule_id: ubuntu.cis.4.system_accounts_are_secured
+    title: "Ensure system accounts are secured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.5.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.system_accounts_are_secured
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "true"
+    remediation: >
+      Set the shell for any accounts returned by the audit to nologin: # usermod -s
+      $(which nologin) <user> Lock any non root accounts returned by the audit: #
+      usermod -L <user> The following script will: • Set the shell for any accounts
+      returned by the audit to nologin • Lock any non root system accounts returned
+      by the audit: #!/usr/bin/env bash { l_output='' l_output2=''
+      l_valid_shells='^($( awk -F\/ '$NF != 'nologin' {print}' /etc/shells | sed -rn
+      '/^\//{s,/,\\\\/,g;p}' | paste -s -d '|' - ))$' a_users=(); a_ulock=() #
+      initialize arrays while read -r l_user; do # change system accounts that have
+      a valid login shell to nolog shell echo -e ' - System account \'$l_user\' has
+      a valid logon shell, changing shell to \'$(which nologin)\'' usermod -s
+      '$(which nologin)' '$l_user' done < <(awk -v pat='$l_valid_shells' -F:
+      '($1!~/(root|sync|shutdown|halt|^\+)/ && $3<''$(awk '/^\s*UID_MIN/{print $2}'
+      /etc/login.defs)'' && $(NF) ~ pat) { print $1 }' /etc/passwd) while read -r
+      l_ulock; do # Lock system accounts that aren't locked echo -e ' - System
+      account \'$l_ulock\' is not locked, locking account' usermod -L '$l_ulock'
+      done < <(awk -v pat='$l_valid_shells' -F: '($1!~/(root|^\+)/ && $2!~/LK?/ &&
+      $3<''$(awk '/^\s*UID_MIN/{print $2}' /etc/login.defs)'' && $(NF) ~ pat) {
+      print $1 }' /etc/passwd) } References: 1. NIST SP 800-53 Rev. 5: AC-2. AC-3,
+      AC-5, MP-2
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_5_2
+
+  - rule_id: ubuntu.cis.4.default_group_for_the_root_account_is_gid_0
+    title: "Ensure default group for the root account is GID 0"
+    severity: high
+    automation_type: automated
+    cis_control: '4.5.3'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.default_group_for_the_root_account_is_gid_0
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to set the root user default group to GID 0 : #
+      usermod -g 0 root References: 1. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6,
+      CM-7, IA-5
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_5_3
+
+  - rule_id: ubuntu.cis.4.maximum_number_of_same_consecutive_characters_in
+    title: "Ensure maximum number of same consecutive characters in a password is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.5.7'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_4.maximum_number_of_same_consecutive_characters_in
+    assertion:
+      field: row_count
+      operator: lte
+      expected: "true"
+    remediation: >
+      Edit or add the following line in /etc/security/pwquality.conf to a value of 3
+      or less and not 0: maxrepeat = 3 Default Value: maxrepeat = 0 References: 1.
+      NIST SP 800-53 Rev. 5: IA-5
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_4_5_7
+
+

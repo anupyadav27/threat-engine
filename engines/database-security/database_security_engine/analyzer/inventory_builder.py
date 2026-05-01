@@ -185,7 +185,85 @@ def _extract_generic(r: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+# ── Azure extractors ─────────────────────────────────────────────────────────
+
+def _extract_azure_sql(r: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract Azure SQL Database / Managed Instance fields."""
+    config = r.get("configuration") or r.get("config") or {}
+    props = config.get("properties") or config
+    return {
+        "db_engine": "azure_sql",
+        "db_engine_version": props.get("currentServiceObjectiveName", ""),
+        "instance_class": props.get("sku", {}).get("name", "") if isinstance(props.get("sku"), dict) else props.get("sku", ""),
+        "publicly_accessible": props.get("publicNetworkAccess", "Enabled") == "Enabled",
+        "encryption_at_rest": props.get("transparentDataEncryption", {}).get("status", "Disabled") == "Enabled"
+            if isinstance(props.get("transparentDataEncryption"), dict) else False,
+        "iam_auth_enabled": bool(props.get("administrators", {}).get("azureADOnlyAuthentication")),
+        "backup_enabled": True,  # Azure SQL always has automated backups
+        "multi_az": bool(props.get("zoneRedundant", False)),
+        "vpc_id": props.get("privateEndpointConnections", [{}])[0].get("id", "") if props.get("privateEndpointConnections") else "",
+    }
+
+
+def _extract_azure_cosmosdb(r: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract Azure Cosmos DB fields."""
+    config = r.get("configuration") or r.get("config") or {}
+    props = config.get("properties") or config
+    return {
+        "db_engine": "cosmosdb",
+        "db_engine_version": props.get("apiProperties", {}).get("serverVersion", "") if isinstance(props.get("apiProperties"), dict) else "",
+        "instance_class": "",
+        "publicly_accessible": props.get("publicNetworkAccess", "Enabled") == "Enabled",
+        "encryption_at_rest": True,  # CosmosDB always encrypts at rest
+        "iam_auth_enabled": bool(props.get("disableLocalAuth", False)),
+        "backup_enabled": (props.get("backupPolicy", {}).get("type") is not None),
+        "multi_az": bool(props.get("enableMultipleWriteLocations", False)),
+        "vpc_id": props.get("virtualNetworkRules", [{}])[0].get("id", "") if props.get("virtualNetworkRules") else "",
+    }
+
+
+# ── GCP extractors ────────────────────────────────────────────────────────────
+
+def _extract_gcp_cloudsql(r: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract GCP Cloud SQL fields."""
+    config = r.get("configuration") or r.get("config") or {}
+    settings = config.get("settings") or config
+    return {
+        "db_engine": config.get("databaseVersion", ""),
+        "db_engine_version": config.get("databaseVersion", ""),
+        "instance_class": settings.get("tier", ""),
+        "publicly_accessible": bool(
+            any(n.get("kind") == "sql#aclEntry" and n.get("value") == "0.0.0.0/0"
+                for n in settings.get("ipConfiguration", {}).get("authorizedNetworks", []))
+        ),
+        "encryption_at_rest": True,  # GCP encrypts all data at rest by default
+        "iam_auth_enabled": settings.get("databaseFlags", [{}])[0].get("value") == "on"
+            if settings.get("databaseFlags") else False,
+        "backup_enabled": settings.get("backupConfiguration", {}).get("enabled", False),
+        "multi_az": settings.get("availabilityType", "ZONAL") == "REGIONAL",
+        "vpc_id": settings.get("ipConfiguration", {}).get("privateNetwork", ""),
+    }
+
+
+def _extract_gcp_spanner(r: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract GCP Spanner fields."""
+    config = r.get("configuration") or r.get("config") or {}
+    return {
+        "db_engine": "spanner",
+        "db_engine_version": "",
+        "instance_class": config.get("config", ""),
+        "publicly_accessible": False,  # Spanner is always private
+        "encryption_at_rest": True,  # Always encrypted
+        "iam_auth_enabled": True,  # Always uses IAM
+        "backup_enabled": True,
+        "multi_az": True,  # Always multi-region
+        "vpc_id": "",
+        "processing_units": config.get("processingUnits", 0),
+    }
+
+
 _SERVICE_EXTRACTORS = {
+    # AWS
     "rds": _extract_rds,
     "dynamodb": _extract_dynamodb,
     "redshift": _extract_redshift,
@@ -194,13 +272,22 @@ _SERVICE_EXTRACTORS = {
     "opensearch": _extract_opensearch,
     "timestream": _extract_timestream,
     "keyspaces": _extract_keyspaces,
+    # Azure
+    "sql": _extract_azure_sql,
+    "azure_sql": _extract_azure_sql,
+    "cosmosdb": _extract_azure_cosmosdb,
+    "cosmos_db": _extract_azure_cosmosdb,
+    # GCP
+    "cloudsql": _extract_gcp_cloudsql,
+    "spanner": _extract_gcp_spanner,
 }
 
 
 def _detect_service(resource: Dict[str, Any]) -> str:
     """Infer the DB service from a discovery resource dict.
 
-    Checks ``resource_type`` first, then falls back to ``resource_uid`` (ARN).
+    Checks ``resource_type`` first, then falls back to ``resource_uid``.
+    Supports AWS, Azure, and GCP resource types.
     """
     rt = (resource.get("resource_type") or "").lower()
     uid = (resource.get("resource_uid") or "").lower()
@@ -209,11 +296,33 @@ def _detect_service(resource: Dict[str, Any]) -> str:
         if svc in rt or f":{svc}:" in uid or f"/{svc}/" in uid:
             return svc
 
-    # Additional patterns
+    # AWS additional patterns
     if "docdb" in rt or "docdb" in uid or "documentdb" in rt:
         return "documentdb"
     if "dax" in rt or ":dax:" in uid:
         return "dax"
+
+    # Azure patterns
+    if "microsoft.sql" in rt or "microsoft.sql" in uid or "azure.sql" in rt:
+        return "sql"
+    if "microsoft.documentdb" in rt or "cosmosdb" in rt or "cosmos" in rt:
+        return "cosmosdb"
+    if "microsoft.dbforpostgresql" in rt or "azure.postgresql" in rt:
+        return "sql"  # treat as generic SQL
+    if "microsoft.dbformysql" in rt or "azure.mysql" in rt:
+        return "sql"
+    if "microsoft.cache" in rt or "azure.cache" in rt:
+        return "elasticache"  # Redis Cache → elasticache pattern
+
+    # GCP patterns
+    if "google.cloud.sql" in rt or "sqladmin" in rt or "gcp.sql" in rt:
+        return "cloudsql"
+    if "google.spanner" in rt or "gcp.spanner" in rt:
+        return "spanner"
+    if "google.bigtable" in rt or "gcp.bigtable" in rt:
+        return "bigtable"
+    if "google.firestore" in rt or "gcp.firestore" in rt:
+        return "firestore"
 
     return "unknown"
 
@@ -269,10 +378,43 @@ def build_db_inventory(
         uid = ds.get("resource_uid", "")
         classification_by_uid[uid] = ds.get("data_classification", "unclassified")
 
-    # ── Build inventory entries ──────────────────────────────────────────
+    # ── Non-instance resource_types to skip (metadata, snapshots, not live DBs) ──
+    _SKIP_RESOURCE_TYPES = frozenset({
+        "db_engine_version", "db_snapshot", "cluster_snapshot",
+        "db_cluster_snapshot", "db_cluster_snapshot_attribute", "db_snapshot_attribute",
+        "certificate", "option_group", "db_security_group",
+        "db_parameter_group", "db_cluster_parameter_group", "db_subnet_group",
+        "db_log_file", "event_subscription", "global_cluster",
+        # ElastiCache non-instances
+        "cache_subnet_group", "cache_parameter_group", "cache_security_group",
+        # Redshift non-instances
+        "cluster_parameter_group", "cluster_subnet_group",
+        # Generic
+        "parameter_group", "subnet_group", "security_group",
+    })
+
+    # ── Build inventory entries (deduplicate by resource_uid) ────────────
     inventory: List[Dict[str, Any]] = []
+    seen_uids: set = set()
 
     for resource in discovery_resources:
+        # Skip metadata resources that aren't actual DB instances
+        rt = (resource.get("resource_type") or "").lower().replace("-", "_")
+        if rt in _SKIP_RESOURCE_TYPES:
+            continue
+        # Skip resources whose UID is a synthetic bulk-API key, not a real resource
+        uid = resource.get("resource_uid", "")
+        if uid and "describe_" in uid:
+            continue
+        # Skip snapshot ARNs by UID pattern (catch anything missed by resource_type)
+        if uid and (":snapshot:" in uid or "/snapshots/" in uid):
+            continue
+
+        # Deduplicate: keep first occurrence of each resource_uid
+        if uid in seen_uids:
+            continue
+        seen_uids.add(uid)
+
         db_service = _detect_service(resource)
         if db_service == "unknown":
             continue

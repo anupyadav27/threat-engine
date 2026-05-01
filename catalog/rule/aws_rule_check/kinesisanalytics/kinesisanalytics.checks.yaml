@@ -1,0 +1,36 @@
+version: '1.0'
+provider: aws
+service: kinesisanalytics
+checks:
+- rule_id: aws.kinesisanalytics.application.network_private_only_configured
+  for_each: aws.kinesisanalytics.describe_application
+  severity: HIGH
+  conditions:
+    var: item.ApplicationConfigurationDescription.VpcConfigurationDescriptions
+    op: not_empty
+    value: null
+- rule_id: aws.kinesisanalytics.application.role_least_privilege
+  for_each: aws.kinesisanalytics.describe_application
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.ServiceExecutionRole
+      op: exists
+      value: null
+    - var: item.ServiceExecutionRole
+      op: not_equals
+      value: '*'
+- rule_id: aws.kinesisanalytics.application.security_check_checkpoints_and_outputs_encrypted_configured
+  for_each: aws.kinesisanalytics.describe_application
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.ApplicationConfigurationDescription.CheckpointConfigurationDescription.ConfigurationType
+      op: equals
+      value: DEFAULT
+    - var: item.ApplicationConfigurationDescription.OutputDescriptions[].KinesisStreamsOutputDescription.DestinationSchema.RecordFormatType
+      op: equals
+      value: JSON
+    - var: item.ApplicationConfigurationDescription.OutputDescriptions[].KinesisFirehoseOutputDescription.DestinationSchema.RecordFormatType
+      op: equals
+      value: JSON

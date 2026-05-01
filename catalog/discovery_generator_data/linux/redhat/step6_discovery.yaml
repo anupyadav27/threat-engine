@@ -1,0 +1,89 @@
+version: '1.0'
+provider: technology
+category: linux
+tech_type: redhat
+display_name: Red Hat Enterprise
+action_type: ssh_command
+cis_benchmark: CIS RHEL 9
+cis_section: '1'
+
+# ─── Authentication & Access ───────────────────────────────────────────────────
+discovery:
+  - discovery_id: redhat.auth.local_accounts
+    description: Enumerate local user accounts and privilege levels
+    calls:
+      - action: ssh_command
+        target: auth.accounts
+        save_as: accounts
+    emit:
+      as: items
+      items: "{{ accounts }}"
+      item:
+        resource_uid: "{{ item.username or item.name or item.id }}"
+        resource_type: redhat.user_account
+        username: "{{ item.username or item.name }}"
+        is_admin: "{{ item.is_admin or item.privileged }}"
+        last_login: "{{ item.last_login }}"
+
+  - discovery_id: redhat.auth.password_policy
+    description: Retrieve password policy configuration
+    calls:
+      - action: ssh_command
+        target: auth.password_policy
+        save_as: policy
+    emit:
+      as: item
+      item:
+        resource_uid: "redhat.password_policy"
+        resource_type: redhat.policy
+        min_length: "{{ policy.min_length }}"
+        require_complexity: "{{ policy.complexity_enabled }}"
+        max_age_days: "{{ policy.max_age_days }}"
+
+# ─── Logging & Auditing ────────────────────────────────────────────────────────
+  - discovery_id: redhat.logging.audit_config
+    description: Retrieve audit/logging configuration
+    calls:
+      - action: ssh_command
+        target: logging.audit_config
+        save_as: audit_cfg
+    emit:
+      as: item
+      item:
+        resource_uid: "redhat.audit_config"
+        resource_type: redhat.config
+        audit_enabled: "{{ audit_cfg.enabled }}"
+        log_destination: "{{ audit_cfg.destination }}"
+        log_level: "{{ audit_cfg.level }}"
+
+# ─── Encryption & Transport ────────────────────────────────────────────────────
+  - discovery_id: redhat.encryption.transport
+    description: Check transport encryption (TLS/SSL) configuration
+    calls:
+      - action: ssh_command
+        target: encryption.transport
+        save_as: tls_cfg
+    emit:
+      as: item
+      item:
+        resource_uid: "redhat.transport_encryption"
+        resource_type: redhat.config
+        tls_enabled: "{{ tls_cfg.enabled }}"
+        tls_version: "{{ tls_cfg.min_version }}"
+        cert_path: "{{ tls_cfg.cert_path }}"
+
+# ─── Access Controls ──────────────────────────────────────────────────────────
+  - discovery_id: redhat.acl.admin_privileges
+    description: Identify accounts with administrative or superuser privileges
+    calls:
+      - action: ssh_command
+        target: acl.admin_accounts
+        save_as: admins
+    emit:
+      as: items
+      items: "{{ admins }}"
+      item:
+        resource_uid: "{{ item.username or item.name }}"
+        resource_type: redhat.privileged_account
+        username: "{{ item.username or item.name }}"
+        privilege_level: "{{ item.role or item.level }}"

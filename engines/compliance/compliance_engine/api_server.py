@@ -22,8 +22,16 @@ from engine_common.middleware import RequestLoggingMiddleware, CorrelationIDMidd
 from engine_common.storage_paths import get_project_root
 from engine_common.orchestration import get_orchestration_metadata
 from engine_common.job_creator import create_engine_job
+from engine_common.db_connections import get_compliance_conn
 
 logger = setup_logger(__name__, engine_name="engine-compliance")
+
+# ── Auth imports (engine_auth is COPY shared/auth/ ./engine_auth/ in Dockerfile) ──
+try:
+    from engine_auth.fastapi.middleware import AuthMiddleware as _AuthMiddleware
+    _AUTH_AVAILABLE = True
+except ImportError:
+    _AUTH_AVAILABLE = False
 
 # ── Scanner Job config ───────────────────────────────────────────────────────
 SCANNER_IMAGE = os.getenv("COMPLIANCE_SCANNER_IMAGE", "yadavanup84/threat-engine-compliance-engine:v-job")
@@ -85,6 +93,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# AuthMiddleware validates access_token / X-Auth-Context for every non-health path
+if _AUTH_AVAILABLE:
+    app.add_middleware(_AuthMiddleware)
 
 # In-memory storage for reports (use Redis/DB in production)
 reports = {}
@@ -874,15 +886,29 @@ async def generate_compliance_report_from_check_db(
 
         # Return lightweight summary (full report saved to DB + S3 + local JSON)
         summary = dashboard.get("summary", {})
+        # Aggregate passed/failed across all framework reports
+        total_passed = sum(
+            fw.get("controls_passed", 0) for fw in dashboard.get("frameworks", [])
+            if isinstance(fw, dict)
+        )
+        total_failed = sum(
+            fw.get("controls_failed", 0) for fw in dashboard.get("frameworks", [])
+            if isinstance(fw, dict)
+        )
+        total_controls = sum(
+            fw.get("total_controls", 0) for fw in dashboard.get("frameworks", [])
+            if isinstance(fw, dict)
+        )
         return {
             "report_id": report_id,
             "status": "completed",
-            "scan_id": scan_results.get("scan_id"),
+            "scan_run_id": scan_results.get("scan_id"),
             "tenant_id": request.tenant_id,
             "csp": request.csp,
-            "total_checks": summary.get("total_checks", 0),
-            "passed": summary.get("passed", 0),
-            "failed": summary.get("failed", 0),
+            "total_controls": total_controls,
+            "controls_passed": total_passed,
+            "controls_failed": total_failed,
+            "compliance_score": summary.get("overall_compliance_score", 0),
             "frameworks": len(framework_reports),
             "compliance_scan_id": compliance_scan_id if 'compliance_scan_id' in dir() else None,
         }
@@ -1082,18 +1108,6 @@ async def get_resource_drilldown(
         )
 
 
-def _get_compliance_conn():
-    """Get psycopg2 connection to compliance DB for status queries."""
-    return psycopg2.connect(
-        host=os.getenv("COMPLIANCE_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("COMPLIANCE_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("COMPLIANCE_DB_NAME", "threat_engine_compliance"),
-        user=os.getenv("COMPLIANCE_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("COMPLIANCE_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-    )
-
-
 @app.post("/api/v1/scan")
 async def generate_enterprise_report(request: GenerateEnterpriseReportRequest):
     """
@@ -1131,7 +1145,7 @@ async def generate_enterprise_report(request: GenerateEnterpriseReportRequest):
 
     # Pre-create compliance_report row in DB (so status endpoint works immediately)
     try:
-        conn = _get_compliance_conn()
+        conn = get_compliance_conn()
         with conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO compliance_report
@@ -1176,10 +1190,10 @@ async def get_compliance_status(compliance_scan_id: str):
     """Get compliance scan status from compliance_report DB table."""
     from psycopg2.extras import RealDictCursor
     try:
-        conn = _get_compliance_conn()
+        conn = get_compliance_conn()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
-                "SELECT scan_run_id, status, provider, check_scan_id, completed_at, metadata "
+                "SELECT scan_run_id, status, provider, check_scan_id, completed_at "
                 "FROM compliance_report WHERE scan_run_id = %s",
                 (compliance_scan_id,),
             )
@@ -2455,7 +2469,7 @@ async def get_compliance_findings_for_resource(
        where account_id is stored on compliance_findings from the write path.
     """
     try:
-        conn = _get_compliance_conn()
+        conn = get_compliance_conn()
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Database unavailable: {e}")
 
@@ -2569,7 +2583,7 @@ async def get_findings_by_control(
     Failing Controls table or asset compliance tab.
     """
     try:
-        conn = _get_compliance_conn()
+        conn = get_compliance_conn()
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Database unavailable: {e}")
 
@@ -2656,7 +2670,7 @@ async def get_framework_findings_grouped(
     Resolves account_id the same way as the resource findings endpoint.
     """
     try:
-        conn = _get_compliance_conn()
+        conn = get_compliance_conn()
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Database unavailable: {e}")
 

@@ -1,0 +1,20 @@
+version: '1.0'
+provider: gcp
+service: kms
+checks:
+- rule_id: gcp.kms.crypto_key.encryption_at_rest_cmek_enabled
+  for_each: gcp.kms.list_crypto_keys
+  severity: HIGH
+  conditions:
+    var: item.Primary.VersionTemplate.ProtectionLevel
+    op: equals
+    value: HSM
+- rule_id: gcp.kms.crypto_key.encryption_in_transit_tls_min_1_2
+  for_each: gcp.kms.crypto_keys.list
+  severity: HIGH
+  conditions:
+    var: item.primary.version_template.protection_level
+    op: in
+    value:
+    - SOFTWARE
+    - HSM

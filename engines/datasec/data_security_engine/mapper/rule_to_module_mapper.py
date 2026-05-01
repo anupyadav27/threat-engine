@@ -1,131 +1,62 @@
 """
-Map threat findings to data security modules using rule_id and resource_type patterns.
+Map threat findings to data security modules.
 
-Data-security-relevant findings are identified by:
-  1. resource_type being a data store (s3, rds, dynamodb, redshift, glacier, etc.)
-  2. rule_id containing data-security keywords (encryption, backup, logging, etc.)
+Source of truth: rule_metadata table (check DB).
+  Scope column : data_security JSONB {applicable: true, modules: [...]}
+  Service list : service column WHERE data_security applicable → resource type set.
 
-Modules are derived from rule_id patterns.
+Lookup chain per finding:
+  1. Exact rule_id match in DB-loaded rule→modules map
+  2. Resource-type membership (returns ['data_access_control'] as default)
 """
 
-from typing import Dict, List, Optional, Set
-import logging
-import re
+from __future__ import annotations
 
-from ..input.threat_db_reader import load_data_store_services
+import logging
+from typing import Dict, List, Set
 
 logger = logging.getLogger(__name__)
 
-# Fallback set (used when datasec DB is unavailable at import time)
-_DATA_SECURITY_RESOURCE_TYPES_FALLBACK = {
-    's3', 'rds', 'dynamodb', 'redshift', 'glacier', 'documentdb',
-    'neptune', 'glue', 'lakeformation', 'macie', 'ecr', 'kms',
-    'elasticache', 'dax', 'efs', 'fsx',
-}
+# ── DB-loaded tables (lazy, cached via CategoryLoader) ───────────────────────
+_rule_module_map: Dict[str, List[str]] = {}
+_resource_type_set: Set[str] = set()
+_loaded = False
 
 
-def _get_all_data_store_types() -> Set[str]:
-    """
-    Load data store service types from DB for all known CSPs.
-
-    Returns a union set so that a finding from any CSP can be checked
-    without knowing the CSP at classification time.
-    """
-    all_types: Set[str] = set()
-    for csp in ("aws", "azure", "gcp", "oci", "ibm", "alicloud"):
-        try:
-            all_types.update(load_data_store_services(csp))
-        except Exception:
-            pass
-    return all_types if all_types else _DATA_SECURITY_RESOURCE_TYPES_FALLBACK
-
-
-# Module-level set loaded once at import time (per process)
-try:
-    DATA_SECURITY_RESOURCE_TYPES: Set[str] = _get_all_data_store_types()
-except Exception:
-    DATA_SECURITY_RESOURCE_TYPES = _DATA_SECURITY_RESOURCE_TYPES_FALLBACK
-
-# Data-security relevant rule_id patterns
-DATA_SECURITY_RULE_PATTERNS = [
-    re.compile(r'\.s3\.'),
-    re.compile(r'\.rds\.'),
-    re.compile(r'\.dynamodb\.'),
-    re.compile(r'\.redshift\.'),
-    re.compile(r'\.glacier\.'),
-    re.compile(r'\.documentdb\.'),
-    re.compile(r'\.neptune\.'),
-    re.compile(r'\.glue\.'),
-    re.compile(r'\.lakeformation\.'),
-    re.compile(r'\.macie\.'),
-    re.compile(r'\.ecr\.'),
-    re.compile(r'\.kms\.'),
-    re.compile(r'\.elasticache\.'),
-    re.compile(r'\.efs\.'),
-    re.compile(r'\.fsx\.'),
-    re.compile(r'encryption'),
-    re.compile(r'backup'),
-    re.compile(r'data_protection'),
-]
-
-# Module derivation from rule_id keywords
-DATA_SECURITY_MODULE_KEYWORDS = {
-    'data_protection_encryption': ['encryption', 'encrypt', 'kms', 'sse', 'tls', 'ssl',
-                                    'at_rest', 'in_transit', 'cmk', 'key_rotation'],
-    'data_classification': ['classification', 'sensitive', 'macie', 'pii', 'phi',
-                           'tagging', 'labeling'],
-    'data_access_control': ['access', 'policy', 'acl', 'bucket_policy', 'public',
-                           'block_public', 'restrict', 'permission', 'iam'],
-    'data_backup_recovery': ['backup', 'snapshot', 'replication', 'recovery',
-                            'retention', 'versioning', 'lifecycle', 'pitr'],
-    'data_logging_monitoring': ['logging', 'monitoring', 'audit', 'trail',
-                                'cloudtrail', 'access_logging', 'event'],
-    'data_residency': ['residency', 'region', 'cross_region', 'geo',
-                       'location', 'sovereignty'],
-    'data_lifecycle': ['lifecycle', 'retention', 'expiration', 'deletion',
-                       'archival', 'transition'],
-}
+def _ensure_loaded() -> None:
+    global _rule_module_map, _resource_type_set, _loaded
+    if _loaded:
+        return
+    _loaded = True
+    from engine_common.category_loader import load_rule_module_map, load_engine_services
+    from engine_common.db_connections import get_check_conn
+    _rule_module_map = load_rule_module_map("data_security", get_check_conn)
+    _resource_type_set = load_engine_services("data_security", get_check_conn)
+    logger.info("rule_to_module_mapper: %d rules, %d resource types loaded",
+                len(_rule_module_map), len(_resource_type_set))
 
 
 def _is_data_security_relevant(rule_id: str, resource_type: str = '') -> bool:
-    """Check if a finding is data-security-relevant."""
-    if not rule_id and not resource_type:
-        return False
-    # Resource type check
-    if resource_type and resource_type.lower() in DATA_SECURITY_RESOURCE_TYPES:
+    _ensure_loaded()
+    if rule_id and rule_id in _rule_module_map:
         return True
-    # Rule pattern check
-    rule_lower = (rule_id or '').lower()
-    for pattern in DATA_SECURITY_RULE_PATTERNS:
-        if pattern.search(rule_lower):
-            return True
+    if resource_type and resource_type.lower() in _resource_type_set:
+        return True
     return False
 
 
 def _derive_modules(rule_id: str, resource_type: str = '') -> List[str]:
-    """Derive data security modules from rule_id patterns."""
-    if not rule_id:
+    _ensure_loaded()
+    modules = _rule_module_map.get(rule_id)
+    if modules:
+        return list(modules)
+    if resource_type and resource_type.lower() in _resource_type_set:
         return ['data_access_control']
-    rule_lower = rule_id.lower()
-    modules = []
-    for module, keywords in DATA_SECURITY_MODULE_KEYWORDS.items():
-        for kw in keywords:
-            if kw in rule_lower:
-                modules.append(module)
-                break
-    if not modules:
-        # Default module based on resource type
-        if resource_type and resource_type.lower() in DATA_SECURITY_RESOURCE_TYPES:
-            modules.append('data_access_control')
-    return list(dict.fromkeys(modules))  # deduplicate preserving order
+    return []
 
 
 class RuleToModuleMapper:
     """Maps findings to data security modules."""
-
-    def __init__(self, rule_db_path: Optional[str] = None):
-        # rule_db_path no longer needed — relevance determined by patterns
-        pass
 
     def get_modules_for_finding(self, finding: Dict) -> List[str]:
         rule_id = finding.get("rule_id", "")
@@ -145,14 +76,14 @@ class RuleToModuleMapper:
         return [self.map_finding_to_modules(f) for f in findings]
 
     def group_findings_by_module(self, findings: List[Dict]) -> Dict[str, List[Dict]]:
-        grouped = {}
+        grouped: Dict[str, List[Dict]] = {}
         for f in findings:
             for module in f.get("data_security_modules", []):
                 grouped.setdefault(module, []).append(f)
         return grouped
 
     def get_module_statistics(self, findings: List[Dict]) -> Dict[str, int]:
-        stats = {}
+        stats: Dict[str, int] = {}
         for f in findings:
             for module in f.get("data_security_modules", []):
                 stats[module] = stats.get(module, 0) + 1

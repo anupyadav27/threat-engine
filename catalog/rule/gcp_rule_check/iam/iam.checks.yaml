@@ -1,0 +1,249 @@
+version: '1.0'
+provider: gcp
+service: iam
+checks:
+- rule_id: gcp.iam.group.rbac_group_attached_policies_not_admin_star
+  for_each: gcp.iam.projects.serviceAccounts.list
+  severity: HIGH
+  conditions:
+    var: item.disabled
+    op: is_false
+    value: null
+- rule_id: gcp.iam.group.rbac_group_external_sharing_restricted_where_supported
+  for_each: gcp.iam.organizations.roles.list
+  severity: HIGH
+  conditions:
+    var: item.mode
+    op: not_equals
+    value: EXTERNAL
+- rule_id: gcp.iam.group.rbac_group_no_inline_policies
+  for_each: gcp.iam.projects.serviceAccounts.list
+  severity: HIGH
+  conditions:
+    var: item.inlineCertificateIssuanceConfig
+    op: not_exists
+    value: null
+- rule_id: gcp.iam.policy.rbac_policy_conditions_used_where_applicable
+  for_each: gcp.iam.organizations.roles.list
+  severity: HIGH
+  conditions:
+    var: item.mode
+    op: equals
+    value: example-value
+- rule_id: gcp.iam.policy.rbac_policy_no_action_star_on_resource_star
+  for_each: gcp.iam.organizations.roles.list
+  severity: HIGH
+  conditions:
+    var: item.includedPermissions
+    op: not_contains
+    value: '*'
+- rule_id: gcp.iam.policy.rbac_policy_no_policy_allows_without_constraints
+  for_each: gcp.iam.organizations.roles.list
+  severity: HIGH
+  conditions:
+    var: item.inlineTrustConfig
+    op: exists
+    value: null
+- rule_id: gcp.iam.policy.rbac_policy_resource_constraints_present
+  for_each: gcp.iam.organizations.roles.list
+  severity: HIGH
+  conditions:
+    var: item.name
+    op: exists
+    value: null
+- rule_id: gcp.iam.role.rbac_role_attached_policies_not_admin_star
+  for_each: gcp.iam.organizations.roles.list
+  severity: HIGH
+  conditions:
+    var: item.name
+    op: not_contains
+    value: admin
+- rule_id: gcp.iam.role.rbac_role_no_inline_policies
+  for_each: gcp.iam.organizations.roles.list
+  severity: HIGH
+  conditions:
+    var: item.inlineCertificateIssuanceConfig
+    op: not_exists
+    value: null
+- rule_id: gcp.iam.role.rbac_role_session_duration_reasonable_where_applicable
+  for_each: gcp.iam.organizations.roles.list
+  severity: HIGH
+  conditions:
+    var: item.expireTime
+    op: exists
+    value: null
+- rule_id: gcp.iam.role.role_attached_policies_not_admin_star
+  for_each: gcp.iam.organizations.roles.list
+  severity: HIGH
+  conditions:
+    var: item.name
+    op: not_contains
+    value: admin
+- rule_id: gcp.iam.role.role_max_session_duration_reasonable
+  for_each: gcp.iam.organizations.roles.list
+  severity: HIGH
+  conditions:
+    var: item.expireTime
+    op: exists
+    value: null
+- rule_id: gcp.iam.role.role_no_inline_policies
+  for_each: gcp.iam.organizations.roles.list
+  severity: HIGH
+  conditions:
+    var: item.inlineCertificateIssuanceConfig
+    op: not_exists
+    value: null
+- rule_id: gcp.iam.role.role_trust_principals_allowlist_only
+  for_each: gcp.iam.projects.serviceAccounts.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.inlineTrustConfig
+      op: exists
+      value: null
+    - var: item.inlineTrustConfig.endpoint
+      op: not_contains
+      value: allowlist
+- rule_id: gcp.iam.role.role_trust_requires_external_id_or_audience_condition_where_supported
+  for_each: gcp.iam.projects.locations.workloadIdentityPools.list
+  severity: HIGH
+  conditions:
+    var: item.inlineTrustConfig
+    op: exists
+    value: null
+- rule_id: gcp.iam.service_account.instance_profile_no_instance_profile_with_admin_star
+  for_each: gcp.iam.projects.serviceAccounts.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.name
+      op: exists
+      value: null
+    - var: item.name
+      op: not_contains
+      value: admin
+    - var: item.name
+      op: not_contains
+      value: '*'
+- rule_id: gcp.iam.service_account.instance_profile_role_attached
+  for_each: gcp.iam.projects.serviceAccounts.list
+  severity: HIGH
+  conditions:
+    var: item.disabled
+    op: is_false
+    value: null
+- rule_id: gcp.iam.service_account.instance_profile_role_policies_least_privilege
+  for_each: gcp.iam.projects.serviceAccounts.list
+  severity: HIGH
+  conditions:
+    var: item.disabled
+    op: is_false
+    value: null
+- rule_id: gcp.iam.service_account.service_account_keys_not_used_or_rotated_90_days_or_less
+  for_each: gcp.iam.projects.serviceAccounts.keys.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.expireTime
+      op: exists
+      value: null
+    - var: item.expireTime
+      op: gt
+      value: '2025-01-01T00:00:00Z'
+- rule_id: gcp.iam.service_account.service_account_no_user_managed_long_lived_keys
+  for_each: gcp.iam.projects.serviceAccounts.keys.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.expireTime
+      op: exists
+      value: null
+    - var: item.expireTime
+      op: not_equals
+      value: null
+- rule_id: gcp.iam.service_account.service_account_scopes_or_roles_least_privilege
+  for_each: gcp.iam.projects.serviceAccounts.list
+  severity: HIGH
+  conditions:
+    var: item.disabled
+    op: is_true
+    value: null
+- rule_id: gcp.iam.service_account.service_account_workload_identity_federation_used_where_supported
+  for_each: gcp.iam.projects.serviceAccounts.list
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.inlineCertificateIssuanceConfig
+      op: exists
+      value: null
+    - var: item.inlineTrustConfig
+      op: exists
+      value: null
+- rule_id: gcp.iam.workload_identity_pool.oidc_allowed_client_ids_audiences_restricted
+  for_each: gcp.iam.projects.locations.workloadIdentityPools.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.inlineCertificateIssuanceConfig.endpoint
+      op: exists
+      value: null
+    - var: item.inlineCertificateIssuanceConfig.keyStorageType
+      op: equals
+      value: example-type
+- rule_id: gcp.iam.workload_identity_pool.oidc_issuer_https_and_matches_discovery
+  for_each: gcp.iam.projects.locations.workloadIdentityPools.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.inlineTrustConfig.endpoint
+      op: exists
+      value: null
+    - var: item.inlineTrustConfig.endpoint
+      op: contains
+      value: https://
+- rule_id: gcp.iam.workload_identity_pool.oidc_thumbprints_or_jwks_pinning_configured
+  for_each: gcp.iam.projects.locations.workloadIdentityPools.list
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.inlineCertificateIssuanceConfig
+      op: exists
+      value: null
+    - var: item.inlineTrustConfig
+      op: exists
+      value: null
+- rule_id: gcp.iam.workload_identity_pool.oidc_token_lifetime_reasonable
+  for_each: gcp.iam.projects.locations.workloadIdentityPools.list
+  severity: HIGH
+  conditions:
+    var: item.expireTime
+    op: exists
+    value: null
+- rule_id: gcp.iam.workload_identity_pool.saml_assertion_lifetime_reasonable
+  for_each: gcp.iam.projects.locations.workloadIdentityPools.list
+  severity: HIGH
+  conditions:
+    var: item.expireTime
+    op: exists
+    value: null
+- rule_id: gcp.iam.workload_identity_pool.saml_audience_restriction_configured
+  for_each: gcp.iam.projects.locations.workloadIdentityPools.list
+  severity: HIGH
+  conditions:
+    var: item.inlineTrustConfig.endpoint
+    op: exists
+    value: null
+- rule_id: gcp.iam.workload_identity_pool.saml_certificates_not_expired
+  for_each: gcp.iam.projects.locations.workloadIdentityPools.list
+  severity: HIGH
+  conditions:
+    var: item.expireTime
+    op: gt
+    value: ${NOW}
+- rule_id: gcp.iam.workload_identity_pool.saml_idp_metadata_signed
+  for_each: gcp.iam.projects.locations.workloadIdentityPools.list
+  severity: HIGH
+  conditions:
+    var: item.inlineTrustConfig.keyStorageType
+    op: exists
+    value: null

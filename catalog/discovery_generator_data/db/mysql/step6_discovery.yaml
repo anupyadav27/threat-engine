@@ -1,0 +1,363 @@
+version: '1.0'
+provider: technology
+category: db
+tech_type: mysql
+display_name: MySQL
+cis_benchmark: CIS MySQL 8.0
+
+# action types:
+#   query_table    → executes full SQL — returns one or many rows
+#
+# emit_as:
+#   single  → one TechFinding for the whole result (settings, counts)
+#   rows    → one TechFinding per row (users, grants)
+#
+# resource_uid:          static string — for singleton results
+# resource_uid_template: Python .format(**row) — for per-row results
+#
+# SELECT @@global.var AS var_name pattern returns {var_name: value}
+# so expected_key in check rules matches the column alias.
+
+discovery:
+
+  # ── Section 1: Password Validation ────────────────────────────────────────────
+
+  - discovery_id: db.mysql.security.validate_password_policy
+    description: "CIS 4.3 — Ensure validate_password.policy is MEDIUM or STRONG"
+    resource_uid: "mysql.setting.validate_password_policy"
+    resource_type: mysql.setting
+    action: query_table
+    sql: >
+      SELECT @@global.validate_password.policy AS validate_password_policy
+    emit_as: single
+
+  - discovery_id: db.mysql.security.validate_password_length
+    description: "CIS 4.3 — Ensure validate_password.length >= 14"
+    resource_uid: "mysql.setting.validate_password_length"
+    resource_type: mysql.setting
+    action: query_table
+    sql: >
+      SELECT @@global.validate_password.length AS validate_password_length
+    emit_as: single
+
+  # ── Section 2: File Access ─────────────────────────────────────────────────────
+
+  - discovery_id: db.mysql.security.local_infile
+    description: "CIS 4.1 — Ensure local_infile is disabled"
+    resource_uid: "mysql.setting.local_infile"
+    resource_type: mysql.setting
+    action: query_table
+    sql: >
+      SELECT @@global.local_infile AS local_infile
+    emit_as: single
+
+  # ── Section 3: Connection Hardening ───────────────────────────────────────────
+
+  - discovery_id: db.mysql.security.max_connect_errors
+    description: "CIS 4.5 — Ensure max_connect_errors is not set to an unlimited value"
+    resource_uid: "mysql.setting.max_connect_errors"
+    resource_type: mysql.setting
+    action: query_table
+    sql: >
+      SELECT @@global.max_connect_errors AS max_connect_errors
+    emit_as: single
+
+  - discovery_id: db.mysql.security.max_user_connections
+    description: "Rate limiting — Ensure max_user_connections is non-zero"
+    resource_uid: "mysql.setting.max_user_connections"
+    resource_type: mysql.setting
+    action: query_table
+    sql: >
+      SELECT @@global.max_user_connections AS max_user_connections
+    emit_as: single
+
+  # ── Section 4: Transport Encryption (TLS) ─────────────────────────────────────
+
+  - discovery_id: db.mysql.encryption.require_secure_transport
+    description: "CIS 8.1 — Ensure require_secure_transport is ON"
+    resource_uid: "mysql.setting.require_secure_transport"
+    resource_type: mysql.setting
+    action: query_table
+    sql: >
+      SELECT @@global.require_secure_transport AS require_secure_transport
+    emit_as: single
+
+  - discovery_id: db.mysql.encryption.tls_version
+    description: "CIS 8.2 — Ensure tls_version excludes TLSv1 and TLSv1.1"
+    resource_uid: "mysql.setting.tls_version"
+    resource_type: mysql.setting
+    action: query_table
+    sql: >
+      SELECT @@global.tls_version AS tls_version
+    emit_as: single
+
+  - discovery_id: db.mysql.encryption.ssl_cipher
+    description: "CIS 8.3 — Ensure ssl_cipher is not empty"
+    resource_uid: "mysql.setting.ssl_cipher"
+    resource_type: mysql.setting
+    action: query_table
+    sql: >
+      SELECT @@global.ssl_cipher AS ssl_cipher
+    emit_as: single
+
+  # ── Section 5: Logging & Auditing ─────────────────────────────────────────────
+
+  - discovery_id: db.mysql.logging.general_log
+    description: "CIS 6.2 — Ensure general_log is disabled"
+    resource_uid: "mysql.setting.general_log"
+    resource_type: mysql.setting
+    action: query_table
+    sql: >
+      SELECT @@global.general_log AS general_log
+    emit_as: single
+
+  - discovery_id: db.mysql.logging.slow_query_log
+    description: "CIS 6.3 — Ensure slow_query_log is enabled"
+    resource_uid: "mysql.setting.slow_query_log"
+    resource_type: mysql.setting
+    action: query_table
+    sql: >
+      SELECT @@global.slow_query_log AS slow_query_log
+    emit_as: single
+
+  - discovery_id: db.mysql.logging.long_query_time
+    description: "CIS 6.4 — Ensure long_query_time <= 2 seconds"
+    resource_uid: "mysql.setting.long_query_time"
+    resource_type: mysql.setting
+    action: query_table
+    sql: >
+      SELECT @@global.long_query_time AS long_query_time
+    emit_as: single
+
+  - discovery_id: db.mysql.logging.log_error
+    description: "CIS 6.1 — Ensure log_error is set"
+    resource_uid: "mysql.setting.log_error"
+    resource_type: mysql.setting
+    action: query_table
+    sql: >
+      SELECT @@global.log_error AS log_error
+    emit_as: single
+
+  - discovery_id: db.mysql.logging.log_raw
+    description: "CIS 6.5 — Ensure log_raw is OFF (prevents password exposure in logs)"
+    resource_uid: "mysql.setting.log_raw"
+    resource_type: mysql.setting
+    action: query_table
+    sql: >
+      SELECT @@global.log_raw AS log_raw
+    emit_as: single
+
+  - discovery_id: db.mysql.logging.audit_plugin
+    description: "CIS 6.6 — Count active audit plugins (must be >= 1)"
+    resource_uid: "mysql.audit_plugin_count"
+    resource_type: mysql.plugin
+    action: query_table
+    sql: >
+      SELECT COUNT(*) AS audit_plugin_count
+      FROM   information_schema.PLUGINS
+      WHERE  PLUGIN_STATUS = 'ACTIVE'
+        AND (PLUGIN_NAME IN ('audit_log', 'audit_log_filter', 'mysql_firewall')
+         OR  PLUGIN_NAME LIKE '%audit%')
+    emit_as: single
+
+  - discovery_id: db.mysql.logging.audit_plugin_detail
+    description: "Enumerate installed audit plugins for visibility"
+    resource_uid_template: "mysql.plugin.{plugin_name}"
+    resource_type: mysql.plugin
+    action: query_table
+    sql: >
+      SELECT PLUGIN_NAME AS plugin_name,
+             PLUGIN_STATUS AS plugin_status,
+             PLUGIN_TYPE AS plugin_type
+      FROM   information_schema.PLUGINS
+      WHERE  PLUGIN_NAME IN ('audit_log', 'audit_log_filter', 'mysql_firewall')
+         OR  PLUGIN_NAME LIKE '%audit%'
+      LIMIT  5
+    emit_as: rows
+
+  # ── Section 6: User Accounts & Privileges ─────────────────────────────────────
+  # CIS 5.x checks use COUNT(*) with emit_as:single so the check engine can
+  # produce PASS when count=0 (no bad accounts) or FAIL when count>0.
+  # Separate row-based entries below provide full audit detail for the UI.
+
+  - discovery_id: db.mysql.auth.anonymous_account_count
+    description: "CIS 5.1 — Count anonymous accounts (must be 0)"
+    resource_uid: "mysql.anonymous_account_count"
+    resource_type: mysql.user_audit
+    action: query_table
+    sql: >
+      SELECT COUNT(*) AS anonymous_count
+      FROM   mysql.user
+      WHERE  User = ''
+    emit_as: single
+
+  - discovery_id: db.mysql.auth.empty_password_count
+    description: "CIS 5.2 — Count active users with empty passwords (must be 0)"
+    resource_uid: "mysql.empty_password_count"
+    resource_type: mysql.user_audit
+    action: query_table
+    sql: >
+      SELECT COUNT(*) AS empty_password_count
+      FROM   mysql.user
+      WHERE  authentication_string = ''
+        AND  User != ''
+        AND  account_locked = 'N'
+    emit_as: single
+
+  - discovery_id: db.mysql.auth.wildcard_host_count
+    description: "CIS 5.3 — Count users with wildcard host % (must be 0)"
+    resource_uid: "mysql.wildcard_host_count"
+    resource_type: mysql.user_audit
+    action: query_table
+    sql: >
+      SELECT COUNT(*) AS wildcard_host_count
+      FROM   mysql.user
+      WHERE  Host = '%'
+        AND  User != ''
+    emit_as: single
+
+  - discovery_id: db.mysql.auth.file_priv_count
+    description: "CIS 5.4 — Count non-root users with FILE privilege (must be 0)"
+    resource_uid: "mysql.file_priv_count"
+    resource_type: mysql.user_audit
+    action: query_table
+    sql: >
+      SELECT COUNT(*) AS file_priv_count
+      FROM   mysql.user
+      WHERE  File_priv = 'Y'
+        AND  User NOT IN ('root', 'mysql.sys', 'mysql.infoschema')
+    emit_as: single
+
+  - discovery_id: db.mysql.auth.super_priv_count
+    description: "CIS 5.5 — Count non-root users with SUPER privilege (must be 0)"
+    resource_uid: "mysql.super_priv_count"
+    resource_type: mysql.user_audit
+    action: query_table
+    sql: >
+      SELECT COUNT(*) AS super_priv_count
+      FROM   mysql.user
+      WHERE  Super_priv = 'Y'
+        AND  User NOT IN ('root')
+    emit_as: single
+
+  # Detailed row enumeration for audit/inventory UI (separate from CIS checks)
+  - discovery_id: db.mysql.auth.anonymous_accounts
+    description: "Enumerate anonymous accounts for audit visibility"
+    resource_uid_template: "mysql.user.anonymous.{Host}"
+    resource_type: mysql.user_audit
+    action: query_table
+    sql: >
+      SELECT User, Host,
+             (authentication_string = '') AS has_empty_password,
+             account_locked
+      FROM   mysql.user
+      WHERE  User = ''
+    emit_as: rows
+
+  - discovery_id: db.mysql.auth.wildcard_host_users
+    description: "Enumerate wildcard-host users for audit visibility"
+    resource_uid_template: "mysql.user.{User}.wildcard"
+    resource_type: mysql.user_audit
+    action: query_table
+    sql: >
+      SELECT User, Host, Super_priv, File_priv, Grant_priv, account_locked
+      FROM   mysql.user
+      WHERE  Host = '%'
+        AND  User != ''
+    emit_as: rows
+
+  - discovery_id: db.mysql.auth.users_with_grant_option
+    description: "Enumerate users with GRANT OPTION for audit visibility"
+    resource_uid_template: "mysql.user.{User}.{Host}.grant_opt"
+    resource_type: mysql.user_audit
+    action: query_table
+    sql: >
+      SELECT User, Host, Grant_priv, account_locked
+      FROM   mysql.user
+      WHERE  Grant_priv = 'Y'
+        AND  User NOT IN ('root', 'mysql.sys', 'mysql.infoschema')
+    emit_as: rows
+
+  - discovery_id: db.mysql.auth.all_accounts
+    description: "Enumerate all non-system MySQL accounts"
+    resource_uid_template: "mysql.user.{User}.{Host}"
+    resource_type: mysql.user
+    action: query_table
+    sql: >
+      SELECT User, Host, Super_priv, File_priv, Grant_priv,
+             Create_priv, Drop_priv, Shutdown_priv,
+             (authentication_string != '') AS has_password,
+             account_locked,
+             password_expired,
+             password_last_changed
+      FROM   mysql.user
+      WHERE  User NOT IN ('mysql.sys', 'mysql.infoschema', 'mysql.session')
+      ORDER  BY Super_priv DESC, User
+    emit_as: rows
+
+  # ── Section 7: Network / Bind Address ─────────────────────────────────────────
+
+  - discovery_id: db.mysql.network.bind_address
+    description: "CIS 4.6 — Ensure MySQL is not bound to all interfaces (0.0.0.0)"
+    resource_uid: "mysql.setting.bind_address"
+    resource_type: mysql.setting
+    action: query_table
+    sql: >
+      SELECT @@global.bind_address AS bind_address
+    emit_as: single
+
+  # ── Section 8: Replication Security ───────────────────────────────────────────
+
+  - discovery_id: db.mysql.replication.master_info_repository
+    description: "CIS 9.1 — Ensure master_info_repository is TABLE (not FILE)"
+    resource_uid: "mysql.setting.master_info_repository"
+    resource_type: mysql.setting
+    action: query_table
+    sql: >
+      SELECT @@global.master_info_repository AS master_info_repository
+    emit_as: single
+
+  # ── Section 9: Inventory / Version ────────────────────────────────────────────
+
+  - discovery_id: db.mysql.inventory.server_version
+    description: "Identify MySQL server version for EOL / CVE tracking"
+    resource_uid: "mysql.server_version"
+    resource_type: mysql.server
+    action: query_table
+    sql: >
+      SELECT @@global.version AS version,
+             @@global.version_comment AS version_comment,
+             @@global.hostname AS hostname,
+             @@global.port AS port,
+             @@global.datadir AS datadir
+    emit_as: single
+
+  - discovery_id: db.mysql.inventory.databases
+    description: "Enumerate all user databases"
+    resource_uid_template: "mysql.database.{schema_name}"
+    resource_type: mysql.database
+    action: query_table
+    sql: >
+      SELECT SCHEMA_NAME AS schema_name,
+             DEFAULT_CHARACTER_SET_NAME AS charset,
+             DEFAULT_COLLATION_NAME AS collation
+      FROM   information_schema.SCHEMATA
+      WHERE  SCHEMA_NAME NOT IN ('information_schema','performance_schema','mysql','sys')
+      ORDER  BY SCHEMA_NAME
+    emit_as: rows
+
+  # ── Section 10: Active Sessions ────────────────────────────────────────────────
+
+  - discovery_id: db.mysql.sessions.active_connections
+    description: "Active session count and breakdown by user/host"
+    resource_uid: "mysql.active_connections"
+    resource_type: mysql.sessions
+    action: query_table
+    sql: >
+      SELECT COUNT(*) AS total_connections,
+             SUM(CASE WHEN COMMAND != 'Sleep' THEN 1 ELSE 0 END) AS active_count,
+             SUM(CASE WHEN COMMAND = 'Sleep' THEN 1 ELSE 0 END) AS idle_count,
+             MAX(TIME) AS max_idle_seconds
+      FROM   information_schema.PROCESSLIST
+      WHERE  USER != 'event_scheduler'
+    emit_as: single

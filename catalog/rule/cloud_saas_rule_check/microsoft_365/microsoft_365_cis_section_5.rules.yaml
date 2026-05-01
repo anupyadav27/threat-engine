@@ -1,0 +1,256 @@
+tech_type: microsoft_365
+category: cloud_saas
+cis_benchmark: CIS Microsoft 365 v5.0.0
+cis_section: '5'
+
+rules:
+
+  - rule_id: microsoft_365.cis.5.l2_ensure_third_party_integrated_applications_are
+    title: "(L2) Ensure third party integrated applications are not allowed"
+    severity: medium
+    automation_type: automated
+    cis_control: '5.1.2.2'
+    cis_section: '5'
+    profile_applicability: "Level 2"
+    scope: microsoft_365.section_5.l2_ensure_third_party_integrated_applications_are
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      To remediate using the UI: 1. Navigate to Microsoft Entra admin center
+      https://entra.microsoft.com/. 2. Click to expand Identity > Users select Users
+      settings. 3. Set Users can register applications to No. 4. Click Save. To
+      remediate using PowerShell: 1. Connect to Microsoft Graph using Connect-
+      MgGraph -Scopes 'Policy.ReadWrite.Authorization' 2. Run the following
+      commands: $param = @{ AllowedToCreateApps = '$false' } Update-
+      MgPolicyAuthorizationPolicy -DefaultUserRolePermissions $param Default Value:
+      Yes (Users can register applications.) References: 1.
+      https://learn.microsoft.com/en-us/entra/identity-platform/how-applications-
+      are- added
+    compliance:
+      - cis_microsoft_365_v5_0_0_5_1_2_2
+
+  - rule_id: microsoft_365.cis.5.l1_ensure_a_dynamic_group_for_guest_users_is
+    title: "(L1) Ensure a dynamic group for guest users is created"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.3.1'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: microsoft_365.section_5.l1_ensure_a_dynamic_group_for_guest_users_is
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "on"
+    remediation: >
+      To remediate using the UI: 1. Navigate to Microsoft Entra admin center
+      https://entra.microsoft.com/. 2. Click to expand Identity > Groups select All
+      groups. 3. Select New group and assign the following values: o Group type:
+      Security o Microsoft Entra roles can be assigned to the group: No o Membership
+      type: Dynamic User 4. Select Add dynamic query. 5. Above the Rule syntax text
+      box, select Edit. 6. Place the following expression in the box: (user.userType
+      -eq 'Guest') 7. Select OK and Save To remediate using PowerShell: 1. Connect
+      to Microsoft Graph using Connect-MgGraph -Scopes 'Group.ReadWrite.All' 2. In
+      the script below edit DisplayName and MailNickname as needed and run: $params
+      = @{ DisplayName = 'Dynamic Test Group' MailNickname = 'DynGuestUsers'
+      MailEnabled = $false SecurityEnabled = $true GroupTypes = 'DynamicMembership'
+      MembershipRule = '(user.userType -eq 'Guest')' MembershipRuleProcessingState =
+      'On' } New-MgGroup @params Default Value: Undefined References: 1.
+      https://learn.microsoft.com/en-us/entra/identity/users/groups-create-rule 2.
+      https://learn.microsoft.com/en-us/entra/identity/users/groups-dynamic-
+      membership 3. https://learn.microsoft.com/en-us/entra/external-id/use-dynamic-
+      groups
+    compliance:
+      - cis_microsoft_365_v5_0_0_5_1_3_1
+
+  - rule_id: microsoft_365.cis.5.l2_ensure_guest_user_invitations_are_limited_to
+    title: "(L2) Ensure guest user invitations are limited to the Guest Inviter role"
+    severity: medium
+    automation_type: automated
+    cis_control: '5.1.6.3'
+    cis_section: '5'
+    profile_applicability: "Level 2"
+    scope: microsoft_365.section_5.l2_ensure_guest_user_invitations_are_limited_to
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      To remediate using the UI: 1. Navigate to Microsoft Entra admin center
+      https://entra.microsoft.com/. 2. Click to expand Identity > External
+      Identities select External collaboration settings. 3. Under Guest invite
+      settings set Guest invite restrictions to Only users assigned to specific
+      admin roles can invite guest users. To remediate using PowerShell: 1. Connect
+      to Microsoft Graph using Connect-MgGraph -Scopes
+      'Policy.ReadWrite.Authorization' 2. Run the following command: Update-
+      MgPolicyAuthorizationPolicy -AllowInvitesFrom 'adminsAndGuestInviters' Note:
+      The more restrictive position of the value will also pass audit, it is however
+      not required. Default Value: • UI: Anyone in the organization can invite guest
+      users including guests and non-admins (most inclusive) • PowerShell: everyone
+      References: 1. https://learn.microsoft.com/en-us/entra/external-id/external-
+      collaboration-settings- configure 2. https://learn.microsoft.com/en-
+      us/entra/identity/role-based-access- control/permissions-reference#guest-
+      inviter
+    compliance:
+      - cis_microsoft_365_v5_0_0_5_1_6_3
+
+  - rule_id: microsoft_365.cis.5.l1_ensure_microsoft_authenticator_is_configured
+    title: "(L1) Ensure Microsoft Authenticator is configured to protect against MFA fatigue"
+    severity: high
+    automation_type: automated
+    cis_control: '5.2.3.1'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: microsoft_365.section_5.l1_ensure_microsoft_authenticator_is_configured
+    assertion:
+      field: enabled
+      operator: exists
+      expected: "true"
+    remediation: >
+      To remediate using the UI: 1. Navigate to the Microsoft Entra admin center
+      https://entra.microsoft.com. 2. Click to expand Protection > Authentication
+      methods select Policies. 3. Select Microsoft Authenticator 4. Under Enable and
+      Target ensure the setting is set to Enable. 5. Select Configure 6. Set the
+      following Microsoft Authenticator settings: o Require number matching for push
+      notifications Status is set to Enabled, Target All users o Show application
+      name in push and passwordless notifications is set to Enabled, Target All
+      users o Show geographic location in push and passwordless notifications is set
+      to Enabled, Target All users Note: Valid groups such as break glass accounts
+      can be excluded per organization policy. Default Value: Microsoft-managed
+      References: 1. https://learn.microsoft.com/en-
+      us/entra/identity/authentication/concept- authentication-default-enablement 2.
+      https://techcommunity.microsoft.com/t5/microsoft-entra-blog/defend-your-users-
+      from-mfa-fatigue-attacks/ba-p/2365677 3. https://learn.microsoft.com/en-
+      us/entra/identity/authentication/how-to-mfa- number-match
+    compliance:
+      - cis_microsoft_365_v5_0_0_5_2_3_1
+
+  - rule_id: microsoft_365.cis.5.l1_ensure_custom_banned_passwords_lists_are_used
+    title: "(L1) Ensure custom banned passwords lists are used"
+    severity: high
+    automation_type: automated
+    cis_control: '5.2.3.2'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: microsoft_365.section_5.l1_ensure_custom_banned_passwords_lists_are_used
+    assertion:
+      field: port
+      operator: equals
+      expected: "yes"
+    remediation: >
+      To remediate using the UI: 1. Navigate to Microsoft Entra admin center
+      https://entra.microsoft.com/ 2. Click to expand Protection > Authentication
+      methods 3. Select Password protection 4. Set Enforce custom list to Yes 5. In
+      Custom banned password list create a list using suggestions outlined in this
+      document. 6. Click Save Note: Below is a list of examples that can be used as
+      a starting place. The references section contains more suggestions. • Brand
+      names • Product names • Locations, such as company headquarters • Company-
+      specific internal terms • Abbreviations that have specific company meaning
+      References: 1. https://learn.microsoft.com/en-
+      us/entra/identity/authentication/concept-password- ban-bad#custom-banned-
+      password-list 2. https://learn.microsoft.com/en-
+      us/entra/identity/authentication/tutorial-configure- custom-password-
+      protection
+    compliance:
+      - cis_microsoft_365_v5_0_0_5_2_3_2
+
+  - rule_id: microsoft_365.cis.5.l1_ensure_password_protection_is_enabled_for_on
+    title: "(L1) Ensure password protection is enabled for on-prem Active Directory"
+    severity: high
+    automation_type: automated
+    cis_control: '5.2.3.3'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: microsoft_365.section_5.l1_ensure_password_protection_is_enabled_for_on
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "on"
+    remediation: >
+      To remediate using the UI: • Download and install the Azure AD Password
+      Proxies and DC Agents from the following location:
+      https://www.microsoft.com/download/details.aspx?id=57071 After installed
+      follow the steps below. 1. Navigate to Microsoft Entra admin center
+      https://entra.microsoft.com/. 2. Click to expand Protection select
+      Authentication methods. 3. Select Password protection and set Enable password
+      protection on Windows Server Active Directory to Yes and Mode to Enforced.
+      Default Value: Enable - Yes Mode - Audit References: 1.
+      https://learn.microsoft.com/en-us/entra/identity/authentication/howto-
+      password- ban-bad-on-premises-operations
+    compliance:
+      - cis_microsoft_365_v5_0_0_5_2_3_3
+
+  - rule_id: microsoft_365.cis.5.l1_ensure_all_member_users_are_mfa_capable
+    title: "(L1) Ensure all member users are 'MFA capable'"
+    severity: high
+    automation_type: automated
+    cis_control: '5.2.3.4'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: microsoft_365.section_5.l1_ensure_all_member_users_are_mfa_capable
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "on"
+    remediation: >
+      Remediation steps will depend on the status of the personnel in question or
+      configuration of Conditional Access policies and will not be covered in
+      detail. Administrators should review each user identified on a case-by-case
+      basis using the conditions below. User has never signed on: • Employment
+      status should be reviewed, and appropriate action taken on the user account's
+      roles, licensing and enablement. Conditional Access policy applicability: •
+      Ensure a CA policy is in place requiring all users to use MFA. • Ensure the
+      user is not excluded from the CA MFA policy. • Ensure the policy's state is
+      set to On. • Use What if to determine applicable CA policies. (Protection >
+      Conditional Access > Policies) • Review the user account in Sign-in logs.
+      Under the Activity Details pane click the Conditional Access tab to view
+      applied policies. Note: Conditional Access is covered step by step in section
+      5.2.2 References: 1. https://learn.microsoft.com/en-
+      us/powershell/module/microsoft.graph.reports/update-
+      mgreportauthenticationmethoduserregistrationdetail?view=graph-powershell-
+      1.0#-ismfacapable 2. https://learn.microsoft.com/en-
+      us/entra/identity/monitoring-health/how-to-view- applied-conditional-access-
+      policies 3. https://learn.microsoft.com/en-us/entra/identity/conditional-
+      access/what-if-tool 4. https://learn.microsoft.com/en-
+      us/entra/identity/authentication/howto- authentication-methods-activity
+    compliance:
+      - cis_microsoft_365_v5_0_0_5_2_3_4
+
+  - rule_id: microsoft_365.cis.5.l1_ensure_weak_authentication_methods_are_disabled
+    title: "(L1) Ensure weak authentication methods are disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '5.2.3.5'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: microsoft_365.section_5.l1_ensure_weak_authentication_methods_are_disabled
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "false"
+    remediation: >
+      To remediate using the UI: 1. Navigate to Microsoft Entra admin center
+      https://entra.microsoft.com/. 2. Click to expand Protection select
+      Authentication methods. 3. Select Policies. 4. Inspect each method that is out
+      of compliance and remediate: o Click on the method to open it. o Change the
+      Enable toggle to the off position. o Click Save. Note: If the save button
+      remains greyed out after toggling a method off, then first turn it back on and
+      then change the position of the Target selection (all users or select groups).
+      Turn the method off again and save. This was observed to be a bug in the UI at
+      the time this document was published. To remediate using Powershell: 1.
+      Connect to Graph using Connect-MgGraph -Scopes
+      'Policy.ReadWrite.AuthenticationMethod' 2. Run the following to disable all
+      three authentication methods: $params = @( @{ Id = 'Sms'; State = 'disabled'
+      }, @{ Id = 'Voice'; State = 'disabled' }, @{ Id = 'Email'; State = 'disabled'
+      } ) Update-MgPolicyAuthenticationMethodPolicy
+      -AuthenticationMethodConfigurations $params Default Value: • SMS : Disabled •
+      Voice Call : Disabled • Email OTP : Enabled References: 1.
+      https://learn.microsoft.com/en-us/entra/identity/authentication/concept-
+      authentication-methods-manage 2. https://learn.microsoft.com/en-
+      us/entra/external-id/one-time-passcode 3. https://www.microsoft.com/en-
+      us/microsoft-365-life-hacks/privacy-and- safety/what-is-sim-swapping
+    compliance:
+      - cis_microsoft_365_v5_0_0_5_2_3_5
+
+

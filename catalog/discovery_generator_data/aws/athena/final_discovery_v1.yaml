@@ -1,0 +1,65 @@
+# ==========================================================
+# Discovery YAML — athena (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 9 | ops: 2 independent, 0 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: athena
+
+services:
+  client: athena
+  module: "boto3.client('athena')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: application
+    identifier_op: aws.athena.list_work_groups
+    identifier_field: IdentityCenterApplicationArn
+    item_var_path: item.IdentityCenterApplicationArn
+    identifier_template: '{identitycenterapplicationarn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.athena.get_work_group  ──
+  - discovery_id: aws.athena.get_work_group
+    calls:
+      - action: get_work_group
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Configuration: '{{ item.Configuration }}'
+        Configuration.EnforceWorkGroupConfiguration: '{{ item.Configuration.EnforceWorkGroupConfiguration }}'
+        Configuration.ResultConfiguration: '{{ item.Configuration.ResultConfiguration }}'
+        Configuration.ResultConfiguration.EncryptionConfiguration: '{{ item.Configuration.ResultConfiguration.EncryptionConfiguration }}'
+        Configuration.ResultConfiguration.EncryptionConfiguration.EncryptionOption: '{{ item.Configuration.ResultConfiguration.EncryptionConfiguration.EncryptionOption }}'
+        CreationTime: '{{ item.CreationTime }}'
+        Description: '{{ item.Description }}'
+        IdentityCenterApplicationArn: '{{ item.IdentityCenterApplicationArn }}'
+        Name: '{{ item.Name }}'
+        State: '{{ item.State }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.athena.list_work_groups  ──
+  - discovery_id: aws.athena.list_work_groups
+    calls:
+      - action: list_work_groups
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.WorkGroups }}'
+      item:
+        CreationTime: '{{ item.CreationTime }}'
+        Description: '{{ item.Description }}'
+        EngineVersion: '{{ item.EngineVersion }}'
+        IdentityCenterApplicationArn: '{{ item.IdentityCenterApplicationArn }}'
+        Name: '{{ item.Name }}'
+        State: '{{ item.State }}'
+

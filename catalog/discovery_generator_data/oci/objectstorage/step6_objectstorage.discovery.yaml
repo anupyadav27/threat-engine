@@ -1,0 +1,22 @@
+version: '1.0'
+provider: oci
+service: objectstorage
+discovery:
+- discovery_id: oci.object_storage.list_preauthenticated_requests
+  calls:
+  - action: list_preauthenticated_requests
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.data }}'
+    item:
+      ocid: '{{ item.ocid }}'
+      compartment_id: '{{ item.compartment_id }}'
+      name: '{{ item.name }}'
+      status: '{{ item.status }}'
+      time_created: '{{ item.time_created }}'
+      freeform_tags: '{{ item.freeform_tags }}'
+      defined_tags: '{{ item.defined_tags }}'
+  _used_by_rules:
+  - oci.objectstorage.preauthenticated_request.allowed_protocols_https_only

@@ -25,33 +25,25 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
 from engine_common.logger import setup_logger
 from engine_common.orchestration import get_orchestration_metadata
-from engine_common.retention import cleanup_old_scans
+from engine_common.db_connections import get_datasec_conn
 
 logger = setup_logger(__name__, engine_name="datasec-scanner")
-
-
-def _get_datasec_conn():
-    """Get psycopg2 connection to the DataSec database."""
-    import psycopg2
-    return psycopg2.connect(
-        host=os.getenv("DATASEC_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("DATASEC_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("DATASEC_DB_NAME", "threat_engine_datasec"),
-        user=os.getenv("DATASEC_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("DATASEC_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-    )
 
 
 def _update_report_status(scan_run_id: str, status: str, error: str = None):
     """Update datasec_report status in DB."""
     try:
-        conn = _get_datasec_conn()
+        conn = get_datasec_conn()
         with conn.cursor() as cur:
             if error:
                 cur.execute(
                     "UPDATE datasec_report SET status = %s, report_data = %s::jsonb WHERE scan_run_id = %s",
                     (status, json.dumps({"error": error}), scan_run_id),
+                )
+            elif status == "completed":
+                cur.execute(
+                    "UPDATE datasec_report SET status = %s, completed_at = NOW() WHERE scan_run_id = %s",
+                    (status, scan_run_id),
                 )
             else:
                 cur.execute(
@@ -66,16 +58,24 @@ def _update_report_status(scan_run_id: str, status: str, error: str = None):
 
 def _create_report_row(scan_run_id: str, tenant_id: str, provider: str,
                        threat_scan_id: str, metadata: dict):
-    """Pre-create datasec_report row with status='running'."""
+    """Pre-create datasec_report row with status='running'.
+    datasec_scan_id is the PK (set to scan_run_id); scan_run_id is a plain column.
+    """
     try:
-        conn = _get_datasec_conn()
+        conn = get_datasec_conn()
         with conn.cursor() as cur:
+            # Upsert tenant first to satisfy the FK constraint
+            cur.execute(
+                "INSERT INTO tenants (tenant_id) VALUES (%s) ON CONFLICT (tenant_id) DO NOTHING",
+                (tenant_id,),
+            )
             cur.execute(
                 """INSERT INTO datasec_report
-                   (scan_run_id, tenant_id, provider, threat_scan_id, status, generated_at, report_data)
-                   VALUES (%s, %s, %s, %s, 'running', NOW(), '{}'::jsonb)
-                   ON CONFLICT (scan_run_id) DO UPDATE SET status = 'running'""",
-                (scan_run_id, tenant_id, provider, threat_scan_id),
+                   (datasec_scan_id, scan_run_id, tenant_id, cloud, provider,
+                    threat_scan_id, status, report_data, generated_at)
+                   VALUES (%s, %s, %s, %s, %s, %s, 'running', '{}'::jsonb, NOW())
+                   ON CONFLICT (datasec_scan_id) DO UPDATE SET status = 'running'""",
+                (scan_run_id, scan_run_id, tenant_id, provider, provider, threat_scan_id),
             )
         conn.commit()
         conn.close()
@@ -115,6 +115,9 @@ def main():
         provider = (metadata.get("provider") or metadata.get("provider_type", "aws")).lower()
         credential_ref = metadata.get("credential_ref", "")
         credential_type = metadata.get("credential_type", "")
+
+        from data_security_engine.providers import get_provider as get_datasec_provider
+        ds_provider = get_datasec_provider(provider)
 
         logger.info(f"Resolved: tenant={tenant_id} account={account_id} provider={provider} threat_scan_id={threat_scan_id}")
 
@@ -163,8 +166,11 @@ def main():
                 logger.error(f"Check-based datasec analysis failed: {e}", exc_info=True)
 
         # 4b. FALLBACK: Legacy threat_findings + module evaluator (if check approach produced nothing)
-        if not module_results:
-            logger.info("Falling back to legacy threat_findings-based approach")
+        # Only runs for supported providers — the module orchestrator uses boto3-backed analyzers
+        # (classification, lineage, activity) that require credentials.
+        # Unsupported providers rely entirely on the check_findings primary path above.
+        if not module_results and ds_provider.is_supported():
+            logger.info("Falling back to legacy threat_findings-based approach (AWS only)")
             try:
                 from data_security_engine.rules.rule_loader import DataSecRuleLoader
                 from data_security_engine.orchestrator.module_orchestrator import ModuleOrchestrator
@@ -195,6 +201,45 @@ def main():
             except Exception as e:
                 logger.error(f"Fallback datasec analysis also failed: {e}", exc_info=True)
                 summary = {"total_findings": 0, "findings_by_status": {}, "findings_by_module": {}, "findings_by_severity": {}}
+
+        if not module_results and not ds_provider.is_supported():
+            logger.info(f"No datasec findings for provider={provider} — check_findings path produced nothing (expected if check scan had no data-security rules)")
+            summary = {"total_findings": 0, "findings_by_status": {}, "findings_by_module": {}, "findings_by_severity": {}}
+
+        # 4b2. SECONDARY: provider.analyze() — discovery-based DSPM (additive)
+        # Runs after check_findings path regardless. Produces structured per-module
+        # findings with dspm_module, classification_labels, encryption_status, public_access.
+        try:
+            from engine_common.db_connections import get_discoveries_conn, get_check_conn
+            from data_security_engine.storage.datasec_db_writer import save_dspm_findings
+
+            discoveries_conn = get_discoveries_conn()
+            check_conn = get_check_conn()
+            try:
+                dspm_findings = ds_provider.analyze(
+                    scan_run_id=scan_run_id,
+                    tenant_id=tenant_id,
+                    account_id=account_id,
+                    discoveries_conn=discoveries_conn,
+                    check_conn=check_conn,
+                )
+                if dspm_findings:
+                    written = save_dspm_findings(
+                        dspm_findings,
+                        credential_ref=credential_ref,
+                        credential_type=credential_type,
+                    )
+                    logger.info(
+                        f"DSPM analyze(): {len(dspm_findings)} findings produced, "
+                        f"{written} written to DB for provider={provider}"
+                    )
+                else:
+                    logger.info(f"DSPM analyze(): 0 findings for provider={provider} scan_run_id={scan_run_id}")
+            finally:
+                discoveries_conn.close()
+                check_conn.close()
+        except Exception as dspm_exc:
+            logger.warning(f"DSPM analyze() secondary path failed (non-fatal): {dspm_exc}", exc_info=True)
 
         # 4c. Write findings to DB
         try:
@@ -335,11 +380,13 @@ def main():
         fails = summary.get("findings_by_status", {}).get("FAIL", 0)
         logger.info(f"DataSec scan completed: {scan_run_id} — {total} evaluations, {fails} failures in {duration:.1f}s")
 
-        # 6. Retention cleanup (keep last 3 scans per tenant)
+        # Retention: archive old scans to S3, keep last 5 in DB
         try:
-            cleanup_old_scans("datasec", tenant_id, keep=3)
-        except Exception as e:
-            logger.warning(f"Retention cleanup failed: {e}")
+            from engine_common.retention import run_retention
+            run_retention("datasec", scan_run_id)
+        except Exception as _ret_err:
+            logger.warning("Retention cleanup skipped: %s", _ret_err)
+
 
     except Exception as e:
         logger.error(f"DataSec scan FAILED: {e}", exc_info=True)

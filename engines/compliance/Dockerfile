@@ -22,6 +22,9 @@ COPY engines/compliance/run_scan.py ./run_scan.py
 COPY shared/common/ ./engine_common/
 COPY shared/database/ ./consolidated_services/
 
+# Auth module (destination matches Python imports: engine_auth.*)
+COPY shared/auth/ ./engine_auth/
+
 ENV PYTHONPATH=/app
 
 # Expose port

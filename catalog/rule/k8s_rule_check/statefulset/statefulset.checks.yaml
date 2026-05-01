@@ -1,0 +1,40 @@
+version: '1.0'
+provider: k8s
+service: statefulset
+checks:
+- rule_id: k8s.statefulset.container.automount_sa_token_disabled
+  for_each: k8s.statefulsets.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.spec.template.spec.automountServiceAccountToken
+      op: is_false
+      value: null
+- rule_id: k8s.statefulset.container.host_network_disabled
+  for_each: k8s.statefulsets.list
+  severity: HIGH
+  conditions:
+    var: item.spec.template.spec.hostNetwork
+    op: is_false
+    value: null
+- rule_id: k8s.statefulset.container.privileged_disabled
+  for_each: k8s.statefulsets.list
+  severity: CRITICAL
+  conditions:
+    var: item.spec.template.spec.containers[].securityContext.privileged
+    op: not_contains
+    value: true
+- rule_id: k8s.statefulset.container.resource_limits_configured
+  for_each: k8s.statefulset.list
+  severity: MEDIUM
+  conditions:
+    var: item.spec.template.spec.containers[].resources.limits
+    op: not_empty
+    value: null
+- rule_id: k8s.statefulset.container.run_as_non_root_enabled
+  for_each: k8s.statefulset.list_statefulsets
+  severity: HIGH
+  conditions:
+    var: item.Spec.Template.Spec.SecurityContext.RunAsNonRoot
+    op: is_true
+    value: null

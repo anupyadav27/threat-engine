@@ -1,0 +1,45 @@
+# ==========================================================
+# Discovery YAML — codepipeline (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 2 | ops: 1 independent, 0 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: codepipeline
+
+services:
+  client: codepipeline
+  module: "boto3.client('codepipeline')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: webhook
+    identifier_op: aws.codepipeline.list_webhooks
+    identifier_field: arn
+    item_var_path: item.arn
+    identifier_template: '{arn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.codepipeline.list_webhooks  ──
+  - discovery_id: aws.codepipeline.list_webhooks
+    calls:
+      - action: list_webhooks
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.webhooks }}'
+      item:
+        arn: '{{ item.arn }}'
+        definition: '{{ item.definition }}'
+        errorCode: '{{ item.errorCode }}'
+        errorMessage: '{{ item.errorMessage }}'
+        item: '{{ item }}'
+        lastTriggered: '{{ item.lastTriggered }}'
+        tags: '{{ item.tags }}'
+        url: '{{ item.url }}'
+

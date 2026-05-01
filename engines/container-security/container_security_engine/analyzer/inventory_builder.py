@@ -160,19 +160,126 @@ def _extract_generic(r: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+# ── Azure extractors ─────────────────────────────────────────────────────────
+
+def _extract_aks(r: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract Azure Kubernetes Service (AKS) fields."""
+    config = r.get("configuration") or r.get("config") or {}
+    props = config.get("properties") or config
+    network_profile = props.get("networkProfile") or {}
+    addon_profiles = props.get("addonProfiles") or {}
+
+    return {
+        "container_service": "aks",
+        "k8s_version": props.get("kubernetesVersion", ""),
+        "platform_version": "",
+        "endpoint_public": not bool(
+            props.get("apiServerAccessProfile", {}).get("enablePrivateCluster")
+        ),
+        "encryption_enabled": bool(props.get("diskEncryptionSetID")),
+        "logging_enabled": bool(addon_profiles.get("omsagent", {}).get("enabled")),
+        "network_policy_enabled": bool(network_profile.get("networkPolicy")),
+        "vpc_id": props.get("nodeResourceGroup", ""),
+        "security_groups": [],
+        "cluster_status": props.get("provisioningState", ""),
+        "node_count": sum(
+            pool.get("count", 0)
+            for pool in props.get("agentPoolProfiles", [])
+        ),
+    }
+
+
+def _extract_azure_acr(r: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract Azure Container Registry fields."""
+    config = r.get("configuration") or r.get("config") or {}
+    props = config.get("properties") or config
+    return {
+        "container_service": "acr",
+        "k8s_version": "",
+        "platform_version": "",
+        "endpoint_public": props.get("publicNetworkAccess", "Enabled") == "Enabled",
+        "encryption_enabled": bool(props.get("encryption", {}).get("status") == "enabled"),
+        "logging_enabled": False,
+        "network_policy_enabled": False,
+        "vpc_id": "",
+        "security_groups": [],
+        "image_tag_mutability": "IMMUTABLE" if props.get("policies", {}).get("quarantinePolicy", {}).get("status") == "enabled" else "MUTABLE",
+    }
+
+
+# ── GCP extractors ────────────────────────────────────────────────────────────
+
+def _extract_gke(r: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract GCP Google Kubernetes Engine (GKE) fields."""
+    config = r.get("configuration") or r.get("config") or {}
+    master_auth = config.get("masterAuth") or {}
+    addons = config.get("addonsConfig") or {}
+    network_config = config.get("networkConfig") or {}
+
+    return {
+        "container_service": "gke",
+        "k8s_version": config.get("currentMasterVersion", ""),
+        "platform_version": config.get("currentNodeVersion", ""),
+        "endpoint_public": not bool(
+            config.get("privateClusterConfig", {}).get("enablePrivateNodes")
+        ),
+        "encryption_enabled": bool(config.get("databaseEncryption", {}).get("keyName")),
+        "logging_enabled": config.get("loggingService", "none") != "none",
+        "network_policy_enabled": bool(
+            config.get("networkPolicy", {}).get("enabled")
+        ),
+        "vpc_id": config.get("network", ""),
+        "security_groups": [],
+        "cluster_status": config.get("status", ""),
+    }
+
+
+# ── K8s native extractor ──────────────────────────────────────────────────────
+
+def _extract_k8s_generic(r: Dict[str, Any]) -> Dict[str, Any]:
+    """Generic extractor for native K8s resources (namespaces, pods, deployments)."""
+    config = r.get("configuration") or r.get("config") or {}
+    metadata = config.get("metadata") or {}
+    spec = config.get("spec") or {}
+    return {
+        "container_service": "k8s",
+        "k8s_version": "",
+        "platform_version": "",
+        "endpoint_public": False,
+        "encryption_enabled": False,
+        "logging_enabled": False,
+        "network_policy_enabled": False,
+        "vpc_id": "",
+        "security_groups": [],
+        "namespace": metadata.get("namespace", "default"),
+        "labels": metadata.get("labels", {}),
+        "replicas": spec.get("replicas"),
+    }
+
+
 _SERVICE_EXTRACTORS = {
+    # AWS
     "eks": _extract_eks,
     "ecs": _extract_ecs,
     "ecr": _extract_ecr,
     "fargate": _extract_fargate,
     "lambda": _extract_lambda,
+    # Azure
+    "aks": _extract_aks,
+    "acr": _extract_azure_acr,
+    # GCP
+    "gke": _extract_gke,
+    # K8s native
+    "k8s": _extract_k8s_generic,
+    "kubernetes": _extract_k8s_generic,
 }
 
 
 def _detect_service(resource: Dict[str, Any]) -> str:
     """Infer the container service from a discovery resource dict.
 
-    Checks ``resource_type`` first, then falls back to ``resource_uid`` (ARN).
+    Checks ``resource_type`` first, then falls back to ``resource_uid``.
+    Supports AWS, Azure, GCP, and K8s native resource types.
     """
     rt = (resource.get("resource_type") or "").lower()
     uid = (resource.get("resource_uid") or "").lower()
@@ -186,9 +293,25 @@ def _detect_service(resource: Dict[str, Any]) -> str:
         if svc in rt or f":{svc}:" in uid or f"/{svc}/" in uid:
             return svc
 
-    # Additional patterns
+    # AWS additional patterns
     if "fargate" in rt or "fargate" in uid:
         return "fargate"
+
+    # Azure patterns
+    if "microsoft.containerservice" in rt or "azure.aks" in rt:
+        return "aks"
+    if "microsoft.containerregistry" in rt or "azure.acr" in rt:
+        return "acr"
+
+    # GCP patterns
+    if "google.container" in rt or "gcp.gke" in rt or "container.cluster" in rt:
+        return "gke"
+    if "google.run" in rt or "gcp.cloudrun" in rt:
+        return "gke"  # treat Cloud Run similarly
+
+    # K8s native patterns
+    if any(k in rt for k in ("pod", "deployment", "namespace", "replicaset", "statefulset", "daemonset")):
+        return "k8s"
 
     return "unknown"
 

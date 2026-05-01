@@ -63,9 +63,9 @@ CREATE TABLE IF NOT EXISTS risk_input_transformed (
     cve_id                  VARCHAR(30),
     exposure_factor         DECIMAL(4,2)  DEFAULT 1.0,
     -- Metadata
-    account_id              VARCHAR(20),
+    account_id              VARCHAR(256),
     region                  VARCHAR(50),
-    csp                     VARCHAR(20)   DEFAULT 'aws',
+    csp                     VARCHAR(50)   DEFAULT 'aws',
     scanned_at              TIMESTAMP     DEFAULT NOW()
 );
 
@@ -110,10 +110,16 @@ CREATE TABLE IF NOT EXISTS risk_scenarios (
     -- Calculation audit trail
     calculation_model       JSONB,
     -- Metadata
-    account_id              VARCHAR(20),
+    account_id              VARCHAR(256),
     region                  VARCHAR(50),
-    csp                     VARCHAR(20)   DEFAULT 'aws',
-    created_at              TIMESTAMP     DEFAULT NOW()
+    csp                     VARCHAR(50)   DEFAULT 'aws',
+    created_at              TIMESTAMP     DEFAULT NOW(),
+    -- ENG-13: Neo4j blast radius + regulatory audit + MITRE mapping
+    blast_radius_score      INTEGER       DEFAULT 0,           -- 0-100, set ONLY by risk engine via Neo4j
+    blast_radius_sample     JSONB         DEFAULT '[]',        -- up to 10 reachable resource UIDs
+    regulatory_multiplier   FLOAT         DEFAULT 1.0,         -- highest applicable reg multiplier (>=1.0)
+    mitre_techniques        JSONB         DEFAULT '[]',        -- MITRE ATT&CK technique IDs for scenario type
+    attack_path             JSONB         DEFAULT '[]'         -- Neo4j traversal path (populated when graph has data)
 );
 
 CREATE INDEX IF NOT EXISTS idx_risk_scenarios_scan

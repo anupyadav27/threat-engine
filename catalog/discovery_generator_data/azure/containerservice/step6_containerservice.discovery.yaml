@@ -1,0 +1,583 @@
+version: '1.0'
+provider: azure
+service: containerservice
+services:
+  client: containerservice
+  module: azure.mgmt.containerservice
+discovery:
+- discovery_id: azure.containerservice.managedclusters.list
+  calls:
+  - action: managedclusters.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      zones: '{{ item.zones }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.containerservice.managedclusters.list_by_resource_group
+  calls:
+  - action: managedclusters.list_by_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      creation_data: '{{ item.creation_data }}'
+      enable_fips: '{{ item.enable_fips }}'
+      kubernetes_version: '{{ item.kubernetes_version }}'
+      node_image_version: '{{ item.node_image_version }}'
+      os_sku: '{{ item.os_sku }}'
+      os_type: '{{ item.os_type }}'
+      snapshot_type: '{{ item.snapshot_type }}'
+      system_data: '{{ item.system_data }}'
+      vm_size: '{{ item.vm_size }}'
+- discovery_id: azure.containerservice.snapshots.list
+  calls:
+  - action: snapshots.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      zones: '{{ item.zones }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.containerservice.snapshots.list_by_resource_group
+  calls:
+  - action: snapshots.list_by_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      creation_data: '{{ item.creation_data }}'
+      enable_fips: '{{ item.enable_fips }}'
+      kubernetes_version: '{{ item.kubernetes_version }}'
+      node_image_version: '{{ item.node_image_version }}'
+      os_sku: '{{ item.os_sku }}'
+      os_type: '{{ item.os_type }}'
+      snapshot_type: '{{ item.snapshot_type }}'
+      system_data: '{{ item.system_data }}'
+      vm_size: '{{ item.vm_size }}'
+- discovery_id: azure.containerservice.agentpools.get_available_agent_pool_versions
+  for_each: azure.containerservice.managedclusters.list
+  calls:
+  - action: agentpools.get_available_agent_pool_versions
+    save_as: response
+    on_error: continue
+    params:
+      resource_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.containerservice.agentpools.get_upgrade_profile
+  for_each: azure.containerservice.managedclusters.list
+  calls:
+  - action: agentpools.get_upgrade_profile
+    save_as: response
+    on_error: continue
+    params:
+      resource_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.containerservice.agentpools.list
+  for_each: azure.containerservice.managedclusters.list
+  calls:
+  - action: agentpools.list
+    save_as: response
+    on_error: continue
+    params:
+      resource_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      zones: '{{ item.zones }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.containerservice.machines.list
+  for_each: azure.containerservice.managedclusters.list
+  calls:
+  - action: machines.list
+    save_as: response
+    on_error: continue
+    params:
+      resource_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      zones: '{{ item.zones }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.containerservice.maintenanceconfigurations.list_by_managed_cluster
+  for_each: azure.containerservice.managedclusters.list
+  calls:
+  - action: maintenanceconfigurations.list_by_managed_cluster
+    save_as: response
+    on_error: continue
+    params:
+      resource_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      e_tag: '{{ item.e_tag }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.containerservice.managedclusters.get_access_profile
+  for_each: azure.containerservice.managedclusters.list
+  calls:
+  - action: managedclusters.get_access_profile
+    save_as: response
+    on_error: continue
+    params:
+      resource_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.containerservice.managedclusters.get_command_result
+  for_each: azure.containerservice.managedclusters.list
+  calls:
+  - action: managedclusters.get_command_result
+    save_as: response
+    on_error: continue
+    params:
+      resource_name: '{{ item.name }}'
+      command_id: '{{ item.id }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.containerservice.managedclusters.get_mesh_revision_profile
+  for_each: azure.containerservice.managedclusters.list
+  calls:
+  - action: managedclusters.get_mesh_revision_profile
+    save_as: response
+    on_error: continue
+    params:
+      location: '{{ item.location }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.containerservice.managedclusters.get_mesh_upgrade_profile
+  for_each: azure.containerservice.managedclusters.list
+  calls:
+  - action: managedclusters.get_mesh_upgrade_profile
+    save_as: response
+    on_error: continue
+    params:
+      resource_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.containerservice.managedclusters.get_upgrade_profile
+  for_each: azure.containerservice.managedclusters.list
+  calls:
+  - action: managedclusters.get_upgrade_profile
+    save_as: response
+    on_error: continue
+    params:
+      resource_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.containerservice.managedclusters.list_cluster_admin_credentials
+  for_each: azure.containerservice.managedclusters.list
+  calls:
+  - action: managedclusters.list_cluster_admin_credentials
+    save_as: response
+    on_error: continue
+    params:
+      resource_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.containerservice.managedclusters.list_cluster_monitoring_user_credentials
+  for_each: azure.containerservice.managedclusters.list
+  calls:
+  - action: managedclusters.list_cluster_monitoring_user_credentials
+    save_as: response
+    on_error: continue
+    params:
+      resource_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.containerservice.managedclusters.list_cluster_user_credentials
+  for_each: azure.containerservice.managedclusters.list
+  calls:
+  - action: managedclusters.list_cluster_user_credentials
+    save_as: response
+    on_error: continue
+    params:
+      resource_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.containerservice.managedclusters.list_kubernetes_versions
+  for_each: azure.containerservice.managedclusters.list
+  calls:
+  - action: managedclusters.list_kubernetes_versions
+    save_as: response
+    on_error: continue
+    params:
+      location: '{{ item.location }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.containerservice.managedclusters.list_mesh_revision_profiles
+  for_each: azure.containerservice.managedclusters.list
+  calls:
+  - action: managedclusters.list_mesh_revision_profiles
+    save_as: response
+    on_error: continue
+    params:
+      location: '{{ item.location }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.containerservice.managedclusters.list_mesh_upgrade_profiles
+  for_each: azure.containerservice.managedclusters.list
+  calls:
+  - action: managedclusters.list_mesh_upgrade_profiles
+    save_as: response
+    on_error: continue
+    params:
+      resource_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.containerservice.managedclusters.list_outbound_network_dependencies_endpoints
+  for_each: azure.containerservice.managedclusters.list
+  calls:
+  - action: managedclusters.list_outbound_network_dependencies_endpoints
+    save_as: response
+    on_error: continue
+    params:
+      resource_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      category: '{{ item.category }}'
+      endpoints: '{{ item.endpoints }}'
+- discovery_id: azure.containerservice.managednamespaces.list_by_managed_cluster
+  for_each: azure.containerservice.managedclusters.list
+  calls:
+  - action: managednamespaces.list_by_managed_cluster
+    save_as: response
+    on_error: continue
+    params:
+      resource_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      e_tag: '{{ item.e_tag }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.containerservice.managednamespaces.list_credential
+  for_each: azure.containerservice.managedclusters.list
+  calls:
+  - action: managednamespaces.list_credential
+    save_as: response
+    on_error: continue
+    params:
+      resource_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.containerservice.privateendpointconnections.list
+  for_each: azure.containerservice.managedclusters.list
+  calls:
+  - action: privateendpointconnections.list
+    save_as: response
+    on_error: continue
+    params:
+      resource_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      zones: '{{ item.zones }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.containerservice.privatelinkresources.list
+  for_each: azure.containerservice.managedclusters.list
+  calls:
+  - action: privatelinkresources.list
+    save_as: response
+    on_error: continue
+    params:
+      resource_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      zones: '{{ item.zones }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.containerservice.trustedaccessrolebindings.list
+  for_each: azure.containerservice.managedclusters.list
+  calls:
+  - action: trustedaccessrolebindings.list
+    save_as: response
+    on_error: continue
+    params:
+      resource_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      zones: '{{ item.zones }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.aks.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      system_data: '{{ item.system_data }}'
+      tags: '{{ item.tags }}'
+      location: '{{ item.location }}'
+      e_tag: '{{ item.e_tag }}'
+      sku: '{{ item.sku }}'
+      extended_location: '{{ item.extended_location }}'
+      identity: '{{ item.identity }}'
+      kind: '{{ item.kind }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      power_state: '{{ item.power_state }}'
+      max_agent_pools: '{{ item.max_agent_pools }}'
+      kubernetes_version: '{{ item.kubernetes_version }}'
+      current_kubernetes_version: '{{ item.current_kubernetes_version }}'
+      dns_prefix: '{{ item.dns_prefix }}'
+      fqdn_subdomain: '{{ item.fqdn_subdomain }}'
+      fqdn: '{{ item.fqdn }}'
+      private_fqdn: '{{ item.private_fqdn }}'
+- discovery_id: azure.containerregistry.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      system_data: '{{ item.system_data }}'
+      tags: '{{ item.tags }}'
+      location: '{{ item.location }}'
+      e_tag: '{{ item.e_tag }}'
+      sku: '{{ item.sku }}'
+      extended_location: '{{ item.extended_location }}'
+      identity: '{{ item.identity }}'
+      kind: '{{ item.kind }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      power_state: '{{ item.power_state }}'
+      max_agent_pools: '{{ item.max_agent_pools }}'
+      kubernetes_version: '{{ item.kubernetes_version }}'
+      current_kubernetes_version: '{{ item.current_kubernetes_version }}'
+      dns_prefix: '{{ item.dns_prefix }}'
+      fqdn_subdomain: '{{ item.fqdn_subdomain }}'
+      fqdn: '{{ item.fqdn }}'
+      private_fqdn: '{{ item.private_fqdn }}'

@@ -1,0 +1,84 @@
+rule_id: aws.guardduty.finding.privilege_escalation
+service: guardduty
+provider: aws
+check_type: log
+severity: critical
+title: 'GuardDuty: Privilege Escalation'
+description: 'Privilege escalation chain detected: permission boundary removed → policies attached → cross-account role assumed.'
+rationale: 'Adversaries circumvent elevation control mechanisms to gain higher-level permissions. In cloud environments this includes SAML assertion manipulation, IAM role privilege boundary modifications, and STS:AssumeRole chaining to escalate from limited to administrative access. Detected via: privilege boundary removal events, STS role chaining with unusually broad permissions, and unexpected policy attachments.'
+threat_category: privilege_escalation
+mitre_tactics:
+- privilege_escalation
+mitre_techniques:
+- T1548.005
+risk_score: 92
+resource: guardduty_finding
+source: default
+is_active: true
+domain: identity_and_access_management
+action_category: privilege_escalation
+posture_category: iam_posture
+threat_tags:
+- T1548.005
+- T1548
+- cloud_iam
+- privilege_escalation
+- threat_detection
+- guardduty
+risk_indicators:
+  actor_type: external_threat_actor
+  action_type: privilege_change
+  target_type: cloud_workload
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - role_management
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.1
+  - 1.16
+  - 1.17
+  cis_azure_v2:
+  - 1.1
+  - 2.1
+  - 3.1
+  nist_800_53_r5:
+  - AC-2
+  - AC-3
+  - AC-6
+  - IA-2
+  pci_dss_v4:
+  - 7.1
+  - 7.2
+  - 8.2
+  iso_27001_2022:
+  - A.5.18
+  - A.8.2
+  - A.8.3
+detection_events:
+- 'iam:CreateRole with permissive trust'
+- 'sts:AssumeRole with cross-account escalation'
+- Microsoft.Authorization/elevateAccess/action
+remediation: |
+  1. Review and revoke temporary elevated credentials.
+  2. Implement SCP / Azure Policy guardrails to prevent unauthorized role chaining.
+  3. Enable session recording for all privileged access sessions.
+  4. Alert on all AssumeRole / elevateAccess API calls.
+references:
+- https://attack.mitre.org/techniques/T1548/005/
+- https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use.html
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: guardduty
+    - field: operation
+      op: contains
+      value: PrivilegeEscalation
+version: '1.0'

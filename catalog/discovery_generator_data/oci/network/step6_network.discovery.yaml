@@ -1,0 +1,23 @@
+version: '1.0'
+provider: oci
+service: network
+discovery:
+- discovery_id: oci.core.get_security_list
+  calls:
+  - action: get_security_list
+    params:
+      security_list_id: '{{ item.ocid }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      ocid: '{{ response.data.ocid }}'
+      compartment_id: '{{ response.data.compartment_id }}'
+      name: '{{ response.data.name }}'
+      status: '{{ response.data.status }}'
+      time_created: '{{ response.data.time_created }}'
+      freeform_tags: '{{ response.data.freeform_tags }}'
+      defined_tags: '{{ response.data.defined_tags }}'
+  _used_by_rules:
+  - oci.network.security_list.restrict_default_configured

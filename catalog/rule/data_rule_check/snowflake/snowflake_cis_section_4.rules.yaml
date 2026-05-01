@@ -1,0 +1,156 @@
+tech_type: snowflake
+category: data
+cis_benchmark: CIS Snowflake 1.0.0
+cis_section: '4'
+
+rules:
+
+  - rule_id: snowflake.cis.4.yearly_rekeying_is_enabled_for_a_snowflake_account
+    title: "Ensure yearly rekeying is enabled for a Snowflake account"
+    severity: medium
+    automation_type: automated
+    cis_control: '4.1'
+    cis_section: '4'
+    profile_applicability: "Level 2"
+    scope: snowflake.section_4.yearly_rekeying_is_enabled_for_a_snowflake_account
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "true"
+    remediation: >
+      Programmatically: Set parameter value to true: ALTER ACCOUNT SET
+      PERIODIC_DATA_REKEYING=true; Default Value: By default, yearly re-keying is
+      disabled. References: 1. https://docs.snowflake.com/en/user-guide/security-
+      encryption-manage.html 2. https://docs.snowflake.com/en/sql-
+      reference/parameters.html#periodic-data- rekeying Additional Information:
+      Periodic data rekeying setting is only available to Enterprise Edition or
+      higher.
+    compliance:
+      - cis_snowflake_1_0_0_4_1
+
+  - rule_id: snowflake.cis.4.aes_encryption_key_size_used_to_encrypt_files
+    title: "Ensure AES encryption key size used to encrypt files stored in internal stages is set to 256 bits"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: snowflake.section_4.aes_encryption_key_size_used_to_encrypt_files
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Programmatically: To set the length of the AES encryption keys used to encrypt
+      data uploaded to internal stages, run the following command: ALTER ACCOUNT SET
+      CLIENT_ENCRYPTION_KEY_SIZE=256; Default Value: By default, files uploaded to
+      internal stages are encrypted with 128-bit long AES encryption keys.
+      References: 1. https://docs.snowflake.com/en/sql-reference/parameters#client-
+      encryption-key- size
+    compliance:
+      - cis_snowflake_1_0_0_4_2
+
+  - rule_id: snowflake.cis.4.the_min_data_retention_time_in_days_account
+    title: "Ensure that the MIN_DATA_RETENTION_TIME_IN_DAYS account parameter is set to 7 or higher"
+    severity: medium
+    automation_type: automated
+    cis_control: '4.4'
+    cis_section: '4'
+    profile_applicability: "Level 2"
+    scope: snowflake.section_4.the_min_data_retention_time_in_days_account
+    assertion:
+      field: row_count
+      operator: gte
+      expected: "true"
+    remediation: >
+      Programmatically: Set the MIN_DATA_RETENTION_TIME_IN_DAYS on the account level
+      to 7 or higher: ALTER ACCOUNT SET MIN_DATA_RETENTION_TIME_IN_DAYS=7; Default
+      Value: The default value for the MIN_DATA_RETENTION_TIME_IN_DAYS account
+      parameter is 0. References: 1. https://docs.snowflake.com/en/user-guide/data-
+      time-travel.html 2. https://docs.snowflake.com/en/user-guide/data-cdp-storage-
+      costs.html
+    compliance:
+      - cis_snowflake_1_0_0_4_4
+
+  - rule_id: snowflake.cis.4.the_require_storage_integration_for_stage_operati
+    title: "Ensure that the REQUIRE_STORAGE_INTEGRATION_FOR_STAGE_OPERATI ON account parameter is set to true"
+    severity: high
+    automation_type: automated
+    cis_control: '4.6'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: snowflake.section_4.the_require_storage_integration_for_stage_operati
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "true"
+    remediation: >
+      Programmatically: Set the REQUIRE_STORAGE_INTEGRATION_FOR_STAGE_OPERATION on
+      the account level to true: ALTER ACCOUNT SET
+      REQUIRE_STORAGE_INTEGRATION_FOR_STAGE_OPERATION=true; NOTE: To avoid
+      disruption of existing workflow relying on external stages not referencing a
+      storage integration, all such workflows should be identified and migrated to
+      external stages referencing storage integrations. Default Value: By default
+      the REQUIRE_STORAGE_INTEGRATION_FOR_STAGE_OPERATION account level parameter is
+      set to false. References: 1. https://docs.snowflake.com/en/sql-
+      reference/parameters#require-storage- integration-for-stage-operation 2.
+      https://www.snowflake.com/blog/how-to-configure-a-snowflake-account-to-
+      prevent-data-exfiltration/
+    compliance:
+      - cis_snowflake_1_0_0_4_6
+
+  - rule_id: snowflake.cis.4.all_external_stages_have_storage_integrations
+    title: "Ensure that all external stages have storage integrations"
+    severity: high
+    automation_type: automated
+    cis_control: '4.7'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: snowflake.section_4.all_external_stages_have_storage_integrations
+    assertion:
+      field: port
+      operator: equals
+      expected: "on"
+    remediation: >
+      Programmatically: 1. For each external stage, create a storage integration
+      <my_storage_integration>: CREATE STORAGE INTEGRATION <my_storage_integration>
+      TYPE = EXTERNAL_STAGE STORAGE_PROVIDER = 'S3' ENABLED = TRUE
+      STORAGE_AWS_ROLE_ARN = 'arn:aws:iam::001234567890:role/myrole'; 2. Update the
+      external stage <my_external_stage> to use the new storage integration: ALTER
+      STAGE <my_external_stage> SET STORAGE_INTEGRATION = <my_storage_integration>;
+      Default Value: By default, external stages may be created without storage
+      integrations. References: 1. https://docs.snowflake.com/en/sql-
+      reference/sql/create-stage 2. https://docs.snowflake.com/en/sql-
+      reference/sql/create-storage-integration 3.
+      https://www.snowflake.com/blog/how-to-configure-a-snowflake-account-to-
+      prevent-data-exfiltration/ 4. https://docs.snowflake.com/en/sql-
+      reference/sql/alter-stage
+    compliance:
+      - cis_snowflake_1_0_0_4_7
+
+  - rule_id: snowflake.cis.4.the_prevent_unload_to_inline_url_account
+    title: "Ensure that the PREVENT_UNLOAD_TO_INLINE_URL account parameter is set to true"
+    severity: high
+    automation_type: automated
+    cis_control: '4.8'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: snowflake.section_4.the_prevent_unload_to_inline_url_account
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "true"
+    remediation: >
+      Programmatically: Set the PREVENT_UNLOAD_TO_INLINE_URL on the account level to
+      true: ALTER ACCOUNT SET PREVENT_UNLOAD_TO_INLINE_URL=true; NOTE : To avoid
+      disruption of existing workflow relying on direct unloading data to external
+      storage locations, all such workflows should be identified and migrated to
+      unloading data to external stages referencing storage integrations. Default
+      Value: By default the PREVENT_UNLOAD_TO_INLINE_URL account level parameter is
+      set to false. References: 1. https://docs.snowflake.com/en/sql-
+      reference/sql/copy-into-location 2. https://docs.snowflake.com/en/sql-
+      reference/parameters#prevent-unload-to- inline-url
+    compliance:
+      - cis_snowflake_1_0_0_4_8
+
+

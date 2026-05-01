@@ -1,0 +1,153 @@
+version: '1.0'
+provider: web_server
+engine: apache_http
+category: section_5
+cis_section: '5'
+description: >
+  apache_http CIS Section 5 — Options for the OS Root Directory Are Restricted
+
+discovery:
+
+  - discovery_id: apache_http.section_5.options_for_the_os_root_directory_are_restricted
+    description: Ensure Options for the OS Root Directory Are Restricted
+    calls:
+      - action: run_command
+        command: "Perform the following to determine if the recommended state is implemented: 1. Search the Apache configuration files (httpd.conf and any included configuration files) to find a root \u003cDirectory\u003e element. 2. Ensure there is a single Options directive with the value of None. The following may be useful for extracting root directory elements from the Apache configuration for auditing. perl -ne \u0027print if /^ *\u003cDirectory */i .. /\u003c\\/Directory/i\u0027 $APACHE_PREFIX/conf/httpd.conf"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: options_for_the_os_root_directory_are_restricted
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_5.options_for_the_web_root_directory_are_restricted
+    description: Ensure Options for the Web Root Directory Are Restricted
+    calls:
+      - action: run_command
+        command: "Perform the following to determine if the recommended state is implemented: 1. Search the Apache configuration files (httpd.conf and any included configuration files) to find the document root \u003cDirectory\u003e elements. 2. Ensure there is a single Options directive with the value of None or Multiviews. The following may be useful in extracting directory elements from the Apache configuration for auditing. perl -ne \u0027print if /^ *\u003cDirectory */i .. /\u003c\\/Directory/i\u0027 $APACHE_PREFIX/conf/httpd.conf"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: options_for_the_web_root_directory_are_restricted
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_5.options_for_other_directories_are_minimized
+    description: Ensure Options for Other Directories Are Minimized
+    calls:
+      - action: run_command
+        command: "Perform the following to determine if the recommended state is implemented: 1. Search the Apache configuration files (httpd.conf and any included configuration files) to find the all Directory elements. 2. Ensure that the Options directives do not enable Includes. The following may be useful for extracting Directory elements from the Apache configuration for auditing. perl -ne \u0027print if /^ *\u003cDirectory */i .. /\u003c\\/Directory/i\u0027 $APACHE_PREFIX/conf/httpd.conf or grep -i -A 12 \u0027\u003cDirectory[[:space:]]\u0027 $APACHE_PREFIX/conf/httpd.conf"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: options_for_other_directories_are_minimized
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_5.default_html_content_is_removed
+    description: Ensure Default HTML Content Is Removed
+    calls:
+      - action: run_command
+        command: "Perform the following to determine if the recommended state is implemented: 1. Verify the document root directory and the configuration files do not provide for default index.html or welcome page, 2. Ensure the Apache User Manual content is not installed by checking the configuration files for manual location directives. 3. Verify the Apache configuration files do not have the Server Status handler configured. 4. Verify that the Server Information handler is not configured. 5. Verify that any other handler configurations such as perl-status is not enabled."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: default_html_content_is_removed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_5.default_cgi_content_printenv_script_is_removed
+    description: Ensure the Default CGI Content printenv Script Is Removed
+    calls:
+      - action: run_command
+        command: "Perform the following to determine if the recommended state is implemented: 1. Locate cgi-bin files and directories enabled in the Apache configuration via Script, ScriptAlias or ScriptAliasMatch or ScriptInterpreterSource directives. 2. Ensure the printenv CGI is not installed in any configured cgi-bin directory."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: default_cgi_content_printenv_script_is_removed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_5.default_cgi_content_test_cgi_script_is_removed
+    description: Ensure the Default CGI Content test-cgi Script Is Removed
+    calls:
+      - action: run_command
+        command: "Perform the following to determine if the recommended state is implemented: 1. Locate cgi-bin files and directories enabled in the Apache configuration via Script, ScriptAlias or ScriptAliasMatch other ScriptInterpreterSource directives. 2. Ensure the test-cgi script is not installed in any configured cgi-bin directory."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: default_cgi_content_test_cgi_script_is_removed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_5.http_request_methods_are_restricted
+    description: Ensure HTTP Request Methods Are Restricted
+    calls:
+      - action: run_command
+        command: "Perform the following to determine if the recommended state is implemented: 1. Locate the Apache configuration files and included configuration files. 2. Search for all \u003cDirectory\u003e directives other than the OS root directory. 3. Ensure that either one of the following three methods are configured: Using the deprecated Order/Deny/Allow method: 1. Ensure that group contains a single Order directive within the \u003cDirectory\u003e directive with a value of deny, allow 2. Verify the \u003cLimitExcept\u003e directive does not include any HTTP methods other than GET, POST, and OPTIONS. (It may contain fewer methods.) Using the Require method: 3. Ensure there is a single Require directive with the value of all denied 4. Ensure there are no Allow or Deny directives in the root element. ** Using the experimental allow methods_module 1. Ensure \u0027LoadModule allow methods_module modules/mod_allowmethods.so\u0027 statement is present. 2. Review the AllowMethods line and verify that there are no methods other than GET, POST, and OPTIONS."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: http_request_methods_are_restricted
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_5.http_trace_method_is_disabled
+    description: Ensure the HTTP TRACE Method Is Disabled
+    calls:
+      - action: run_command
+        command: "Perform the following to determine if the recommended state is implemented: 1. Locate the Apache configuration files and included configuration files. 2. Verify there is a single TraceEnable directive configured with a value of off."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: http_trace_method_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_5.old_http_protocol_versions_are_disallowed
+    description: Ensure Old HTTP Protocol Versions Are Disallowed
+    calls:
+      - action: run_command
+        command: "Perform the following to determine if the recommended state is implemented: 1. Locate the Apache configuration files and included configuration files. 2. Verify there is a rewrite condition within the global server context that disallows requests that do not include the HTTP/1.1 header as shown below. RewriteEngine On RewriteCond %{THE_REQUEST} !(HTTP/1\\.1|HTTP/2\\.0)$ RewriteRule .* - [F] 3. Verify the following directives are included in each section so that the main server settings will be inherited. RewriteEngine On RewriteOptions Inherit"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: old_http_protocol_versions_are_disallowed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_5.ip_addresses_for_listening_for_requests_are
+    description: Ensure the IP Addresses for Listening for Requests Are Specified
+    calls:
+      - action: run_command
+        command: "Perform the following steps to determine if the recommended state is implemented: Verify that no Listen directives are in the Apache configuration file with no IP address specified, or with an IP address of all zeros."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ip_addresses_for_listening_for_requests_are
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_5.browser_framing_is_restricted
+    description: Ensure Browser Framing Is Restricted
+    calls:
+      - action: run_command
+        command: "Perform the following steps to determine if the recommended state is implemented: \u2022 Ensure a Header directive for Content-Security-Policy is present in the Apache configuration and has the condition always , an action of set or append and a directive of frame-ancestors with a value of none or self , as shown below: # grep -i Content-Security-Policy $APACHE_PREFIX/conf/httpd.conf Header always append \u0027Content-Security-Policy \u0027frame-ancestors \u0027self\u0027 \u2022 If no Content-Security-Policy header is found, check if a header directive for X- Frame-Options is present in the Apache configuration and has the condition always , an action of set or append and a value of SAMEORIGIN or DENY , as shown below: # grep -i X-Frame-Options $APACHE_PREFIX/conf/httpd.conf Header always set X-Frame-Options SAMEORIGIN If either header configuration is present and has as a compliant value, then the server is compliant."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: browser_framing_is_restricted
+        value: "{{ result.stdout }}"
+        expected: ""
+

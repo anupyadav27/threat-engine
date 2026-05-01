@@ -1,0 +1,32 @@
+version: '1.0'
+provider: azure
+service: automation
+checks:
+# ═══════════════════════════════════════════
+# Automation Account — azure.automation.automationaccount.list_by_resource_group
+# Fields: id, name, type, location, tags, sku, identity, properties, provisioning_state
+# ═══════════════════════════════════════════
+- rule_id: azure.automation.account.managed_identity_enabled
+  for_each: azure.automation.automationaccount.list_by_resource_group
+  conditions:
+    var: item.identity
+    op: not_empty
+
+- rule_id: azure.automation.account.provisioning_succeeded
+  for_each: azure.automation.automationaccount.list_by_resource_group
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.automation.account.tags_configured
+  for_each: azure.automation.automationaccount.list_by_resource_group
+  conditions:
+    var: item.tags
+    op: not_empty
+
+- rule_id: azure.automation.account.sku_configured
+  for_each: azure.automation.automationaccount.list_by_resource_group
+  conditions:
+    var: item.sku
+    op: not_empty

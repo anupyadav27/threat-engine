@@ -1,0 +1,80 @@
+rule_id: azure.iam.entra_audit.tenant_policy_update
+service: iam
+provider: azure
+check_type: log
+severity: high
+title: 'IAM: Tenant Policy Update'
+description: Tenant directory sync policy updated — synchronization settings change may introduce on-prem compromise path.
+rationale: Modifying cloud trust relationships (AWS Organizations trust policies, Azure AD B2B settings) can expand the attack surface by allowing external identity providers to authenticate to tenant resources.
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1484.002
+risk_score: 70
+resource: entra_tenant
+source: default
+is_active: true
+domain: logging_monitoring_and_alerting
+action_category: modify
+log_source_type: entra_audit
+posture_category: security_posture
+threat_tags:
+- T1484.002
+- T1484
+- defense_evasion
+- log_tampering
+- cloud_iam
+- identity
+risk_indicators:
+  actor_type: iam_user_or_role
+  action_type: write
+  target_type: iam_identity
+  blast_radius: account
+  stealth_risk: critical
+iam_security:
+  applicable: true
+  modules:
+  - policy_analysis
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 3.1
+  - 3.2
+  - 3.3
+  - 3.4
+  cis_azure_v2:
+  - 5.1
+  - 5.2
+  - 5.3
+  nist_800_53_r5:
+  - AU-2
+  - AU-6
+  - AU-12
+  - SI-4
+  pci_dss_v4:
+  - 10.1
+  - 10.2
+  - 10.3
+  iso_27001_2022:
+  - A.8.15
+  - A.8.16
+  - A.5.28
+remediation: |
+  1. Review and revert unauthorized trust relationship changes.
+  2. Require multi-party approval for cross-tenant trust modifications.
+  3. Audit external collaboration settings in Azure AD / AWS Organizations regularly.
+  4. Alert on all federation or cross-account trust policy changes.
+references:
+- https://attack.mitre.org/techniques/T1484/002/
+- https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_scps.html
+check_config:
+  conditions:
+    all:
+    - field: operation
+      op: equals
+      value: microsoft.directory/organization/dirSync/update
+  log_source_type: entra_audit
+version: '1.0'

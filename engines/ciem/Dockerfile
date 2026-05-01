@@ -9,6 +9,7 @@ COPY engines/ciem/ciem_engine/ ./ciem_engine/
 COPY engines/ciem/run_scan.py ./run_scan.py
 COPY engines/ciem/rules/ ./rules/
 COPY shared/common/ ./engine_common/
+COPY shared/auth/ ./engine_auth/
 COPY shared/database/ ./consolidated_services/
 ENV PYTHONPATH=/app
 

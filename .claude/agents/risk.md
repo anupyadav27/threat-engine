@@ -15,7 +15,7 @@ You are a specialist agent for the Risk engine in the Threat Engine CSPM platfor
 
 ## Your API
 - **Port**: 8006
-- **Image**: yadavanup84/engine-risk:v2.1-aliases
+- **Image**: `yadavanup84/engine-risk:v-etl-fix`
 
 ## Key Facts
 - Risk scores range 0-100
@@ -24,12 +24,12 @@ You are a specialist agent for the Risk engine in the Threat Engine CSPM platfor
 - Can run independently of the main pipeline
 
 ## Full Stack (UI → BFF → API → DB)
-- **UI page**: `/risk` → `ui_samples/src/app/risk/page.jsx`
+- **UI page**: `/risk` → `frontend/src/app/risk/page.jsx`
 - **BFF file**: `shared/api_gateway/bff/risk.py` → `GET /api/v1/views/risk`
 - **BFF calls**: risk `/api/v1/ui-data`, threat (fallback scoring)
 - **Engine code**: `engines/risk/`
 - **K8s manifest**: `deployment/aws/eks/engines/engine-risk.yaml`
-- **Image**: `yadavanup84/engine-risk:v2.1-aliases`
+- **Image**: `yadavanup84/engine-risk:v-etl-fix`
 
 ## Pipeline Dependencies
 ```

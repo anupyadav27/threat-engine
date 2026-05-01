@@ -1,0 +1,159 @@
+version: '1.0'
+provider: azure
+service: apimanagement
+checks:
+# ═══════════════════════════════════════════
+# Network & Access Control
+# ═══════════════════════════════════════════
+- rule_id: azure.apimanagement.service.public_network_access_disabled
+  for_each: azure.apimanagement.apimanagementservice.list
+  conditions:
+    var: item.public_network_access
+    op: equals
+    value: Disabled
+
+- rule_id: azure.apimanagement.service.private_networking_enforced
+  for_each: azure.apimanagement.apimanagementservice.list
+  conditions:
+    var: item.virtual_network_type
+    op: equals
+    value: Internal
+
+- rule_id: azure.apimanagement.service.vnet_integrated
+  for_each: azure.apimanagement.apimanagementservice.list
+  conditions:
+    var: item.virtual_network_type
+    op: not_equals
+    value: None
+
+- rule_id: azure.apimanagement.service.private_endpoints_configured
+  for_each: azure.apimanagement.apimanagementservice.list
+  conditions:
+    var: item.private_endpoint_connections
+    op: not_empty
+
+- rule_id: azure.apimanagement.service.vnet_configuration_present
+  for_each: azure.apimanagement.apimanagementservice.list
+  conditions:
+    var: item.virtual_network_configuration
+    op: not_empty
+
+# ═══════════════════════════════════════════
+# Authentication & Authorization
+# ═══════════════════════════════════════════
+- rule_id: azure.apimanagement.service.client_certificate_required
+  for_each: azure.apimanagement.apimanagementservice.list
+  conditions:
+    var: item.enable_client_certificate
+    op: equals
+    value: 'true'
+
+- rule_id: azure.apimanagement.service.managed_identity_enabled
+  for_each: azure.apimanagement.apimanagementservice.list
+  conditions:
+    var: item.identity
+    op: not_empty
+
+# ═══════════════════════════════════════════
+# Encryption & TLS
+# ═══════════════════════════════════════════
+- rule_id: azure.apimanagement.service.tls10_disabled
+  for_each: azure.apimanagement.apimanagementservice.list
+  conditions:
+    var: item.custom_properties
+    op: contains
+    value: 'Tls10=false'
+
+- rule_id: azure.apimanagement.service.tls11_disabled
+  for_each: azure.apimanagement.apimanagementservice.list
+  conditions:
+    var: item.custom_properties
+    op: contains
+    value: 'Tls11=false'
+
+- rule_id: azure.apimanagement.service.backend_ssl30_disabled
+  for_each: azure.apimanagement.apimanagementservice.list
+  conditions:
+    var: item.custom_properties
+    op: contains
+    value: 'Ssl30=false'
+
+- rule_id: azure.apimanagement.service.triple_des_disabled
+  for_each: azure.apimanagement.apimanagementservice.list
+  conditions:
+    var: item.custom_properties
+    op: contains
+    value: 'TripleDes168=false'
+
+- rule_id: azure.apimanagement.service.certificates_configured
+  for_each: azure.apimanagement.apimanagementservice.list
+  conditions:
+    var: item.certificates
+    op: not_empty
+
+- rule_id: azure.apimanagement.service.hostname_configurations_present
+  for_each: azure.apimanagement.apimanagementservice.list
+  conditions:
+    var: item.hostname_configurations
+    op: not_empty
+
+# ═══════════════════════════════════════════
+# Gateway & API Versioning
+# ═══════════════════════════════════════════
+- rule_id: azure.apimanagement.service.gateway_enabled
+  for_each: azure.apimanagement.apimanagementservice.list
+  conditions:
+    var: item.disable_gateway
+    op: equals
+    value: 'false'
+
+- rule_id: azure.apimanagement.service.api_version_constraint_set
+  for_each: azure.apimanagement.apimanagementservice.list
+  conditions:
+    var: item.api_version_constraint
+    op: not_empty
+
+# ═══════════════════════════════════════════
+# Portal Security
+# ═══════════════════════════════════════════
+- rule_id: azure.apimanagement.service.legacy_portal_disabled
+  for_each: azure.apimanagement.apimanagementservice.list
+  conditions:
+    var: item.legacy_portal_status
+    op: equals
+    value: Disabled
+
+# ═══════════════════════════════════════════
+# Resource Health & Inventory
+# ═══════════════════════════════════════════
+- rule_id: azure.apimanagement.service.provisioning_succeeded
+  for_each: azure.apimanagement.apimanagementservice.list
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.apimanagement.service.tags_configured
+  for_each: azure.apimanagement.apimanagementservice.list
+  conditions:
+    var: item.tags
+    op: not_empty
+
+- rule_id: azure.apimanagement.service.availability_zones_configured
+  for_each: azure.apimanagement.apimanagementservice.list
+  conditions:
+    var: item.zones
+    op: not_empty
+
+- rule_id: azure.apimanagement.service.nat_gateway_enabled
+  for_each: azure.apimanagement.apimanagementservice.list
+  conditions:
+    var: item.nat_gateway_state
+    op: equals
+    value: Enabled
+
+- rule_id: azure.apimanagement.service.notification_sender_configured
+  for_each: azure.apimanagement.apimanagementservice.list
+  conditions:
+    var: item.notification_sender_email
+    op: not_empty

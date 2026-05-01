@@ -9,11 +9,12 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, List
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
-from ._shared import fetch_many, safe_get, mock_fallback, is_empty_or_health
+from ._shared import fetch_many, safe_get
 from ._transforms import normalize_framework, normalize_failing_control
 from ._page_context import compliance_page_context, compliance_filter_schema
+from ._cache import cache_key, cached_view, TTL_COMPLIANCE, auth_level_from_header
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
@@ -22,6 +23,7 @@ MATRIX_FRAMEWORKS = ["CIS", "NIST", "SOC2", "PCI", "HIPAA", "ISO", "GDPR"]
 
 @router.get("/compliance")
 async def view_compliance(
+    request: Request,
     tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
@@ -30,13 +32,22 @@ async def view_compliance(
 ):
     """Single endpoint returning everything the compliance page needs."""
 
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+    role_level = auth_level_from_header(auth_ctx_header)
+
+    ck = cache_key("compliance", tenant_id, scan_run_id, provider or "", account or "", region or "", role_level=role_level)
+    cached = cached_view(ck)
+    if cached is not None:
+        return cached
+
     # ── 4 parallel calls ───────────────────────────────────────────────────
     results = await fetch_many([
         ("compliance", "/api/v1/compliance/ui-data", {"tenant_id": tenant_id, "scan_id": "latest"}),
         ("compliance", "/api/v1/compliance/frameworks/summary", {"tenant_id": tenant_id}),
         ("onboarding", "/api/v1/cloud-accounts", {"tenant_id": tenant_id}),
         ("threat",     "/api/v1/threat/ui-data",     {"tenant_id": tenant_id, "scan_run_id": "latest", "limit": "1"}),
-    ])
+    ], auth_headers=fwd_headers)
 
     compliance_data, all_frameworks_data, onboarding_data, threat_data = results
 
@@ -45,12 +56,6 @@ async def view_compliance(
     all_frameworks_data = all_frameworks_data if isinstance(all_frameworks_data, dict) else {}
     onboarding_data = onboarding_data if isinstance(onboarding_data, dict) else {}
     threat_data = threat_data if isinstance(threat_data, dict) else {}
-
-    # Mock fallback when engine data is empty
-    if is_empty_or_health(compliance_data):
-        m = mock_fallback("compliance")
-        if m is not None:
-            return m
 
     # ── Normalize frameworks — prefer all_frameworks (multi-CSP) ──────────
     all_fw_list = all_frameworks_data.get("frameworks", [])
@@ -123,15 +128,6 @@ async def view_compliance(
 
     if not overall_score and total_controls > 0:
         overall_score = round(pass_rate, 1)
-
-    # ── Degenerate-data guard — use mock when DB data is structurally incomplete ──
-    # Triggers when: engine returned a response (not empty/health) but all
-    # framework names/ids are blank (compliance_framework column was never set).
-    # This happens with incomplete scan data; production scans populate these columns.
-    if not frameworks:
-        m = mock_fallback("compliance")
-        if m is not None:
-            return m
 
     # ── Failing controls ─────────────────────────────────────────────────
     raw_fc = compliance_data.get("failing_controls", [])
@@ -311,7 +307,7 @@ async def view_compliance(
         {"id": "matrix", "label": "Account Matrix", "count": len(account_matrix)},
     ]
 
-    return {
+    result = {
         "pageContext": page_ctx,
         "filterSchema": compliance_filter_schema(),
         "kpiGroups": [
@@ -341,10 +337,13 @@ async def view_compliance(
         "exceptions": exceptions,
         "accountMatrix": account_matrix,
     }
+    cached_view(ck, result, ttl=TTL_COMPLIANCE)
+    return result
 
 
 @router.get("/compliance/framework/{framework_id}")
 async def view_framework_detail(
+    request: Request,
     framework_id: str,
     tenant_id: str = Query(...),
     scan_run_id: str = Query("latest"),
@@ -353,10 +352,13 @@ async def view_framework_detail(
 
     Calls compliance engine /framework/{framework_id}/assessment.
     """
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
     results = await fetch_many([
         ("compliance", f"/api/v1/compliance/framework/{framework_id}/assessment",
          {"tenant_id": tenant_id, "scan_run_id": scan_run_id}),
-    ])
+    ], auth_headers=fwd_headers)
 
     data = results[0] if results[0] and isinstance(results[0], dict) else {}
 
@@ -374,6 +376,7 @@ async def view_framework_detail(
 
 @router.get("/compliance/framework/{framework_id}/report")
 async def view_framework_report(
+    request: Request,
     framework_id: str,
     tenant_id: str = Query(...),
     scan_run_id: str = Query("latest"),
@@ -382,10 +385,13 @@ async def view_framework_report(
     """Framework compliance report — full data for export (CSV/JSON)."""
     from fastapi.responses import StreamingResponse
 
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
     results = await fetch_many([
         ("compliance", f"/api/v1/compliance/framework/{framework_id}/report",
          {"tenant_id": tenant_id, "scan_run_id": scan_run_id, "format": format}),
-    ])
+    ], auth_headers=fwd_headers)
 
     data = results[0] if results[0] else {}
 

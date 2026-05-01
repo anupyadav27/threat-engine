@@ -1,0 +1,73 @@
+rule_id: aws.datasec.correlation.cloudtrail.rds_query_activity
+service: datasec
+provider: aws
+check_type: log
+severity: medium
+title: 'Data Security: RDS Query Activity'
+description: RDS query activity log event — database query recorded.
+rationale: 'Adversaries access data from cloud object storage (S3, Azure Blob, GCS) which may be misconfigured with overly permissive policies exposing PII, medical records, financial data, or credentials. Bulk download followed by external transfer indicates active data theft. Detected via: unusual object access patterns from new IAM users or roles, OAuth token grants to external apps preceding high-volume downloads, and GetObject events from anomalous IPs or user agents.'
+threat_category: discovery
+mitre_tactics:
+- collection
+mitre_techniques:
+- T1530
+risk_score: 55
+resource: s3_bucket
+source: ciem_rule_generator
+is_active: true
+domain: data_protection_and_privacy
+action_category: audit_activity
+log_source_type: cloudtrail
+posture_category: threat_posture
+threat_tags:
+- T1530
+- data_security
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: data_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - database_security
+  categories:
+  - sensitive_data_access
+  priority: medium
+  impact:
+    pci: PCI DSS Requirement 7 — Restrict access to cardholder data by business need
+    gdpr: GDPR Article 25 — Data protection by design and by default
+    hipaa: §164.312(a)(1) — Access control for ePHI data systems
+compliance_frameworks: {}
+detection_events:
+- 's3:GetObject (high volume from single principal)'
+- Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read
+- ListObjects followed by bulk GetObject
+- Storage access from external/anonymous IP
+remediation: |
+  1. Enable server-side access logging for all storage buckets and containers.
+  2. Alert on high-volume GetObject/BlobRead operations by single principals.
+  3. Apply bucket policies to restrict GetObject to authorized principals only.
+  4. Enable Macie / Defender for Storage for sensitive data detection and alerting.
+references:
+- https://attack.mitre.org/techniques/T1530/
+- https://docs.aws.amazon.com/AmazonS3/latest/userguide/logging-with-S3.html
+- https://learn.microsoft.com/en-us/azure/storage/common/storage-analytics-logging
+check_config:
+  conditions:
+    field: operation
+    op: in
+    value:
+    - QUERY
+    - SELECT
+    - INSERT
+    - UPDATE
+    - DELETE
+  for_each: log_events
+  log_source_type: cloudtrail
+  type: log
+version: '1.0'

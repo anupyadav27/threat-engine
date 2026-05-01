@@ -1,0 +1,54 @@
+version: '1.0'
+provider: aws
+service: workflows
+checks:
+- rule_id: aws.workflows.workflow.change_audit_logging_enabled
+  for_each: aws.workflows.describe_state_machine
+  severity: MEDIUM
+  conditions:
+    var: item.loggingConfiguration
+    op: exists
+    value: null
+- rule_id: aws.workflows.workflow.kms_encryption_enabled
+  for_each: aws.workflows.describe_state_machine
+  severity: HIGH
+  conditions:
+    var: item.loggingConfiguration
+    op: exists
+    value: null
+- rule_id: aws.workflows.workflow.workflows_approval_steps_required_for_destructive_actions
+  for_each: aws.workflows.describe_state_machine
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.definition
+      op: contains
+      value: Approval
+    - var: item.definition
+      op: contains
+      value: Delete
+- rule_id: aws.workflows.workflow.workflows_artifacts_encrypted_and_private
+  for_each: aws.workflows.describe_state_machine
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.loggingConfiguration.destinations[0].cloudWatchLogsLogGroup.encryptionConfiguration.kmsKeyArn
+      op: exists
+      value: null
+    - var: item.loggingConfiguration.level
+      op: not_equals
+      value: 'OFF'
+- rule_id: aws.workflows.workflow.workflows_integrations_least_privilege
+  for_each: aws.workflows.describe_state_machine
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.loggingConfiguration
+      op: exists
+      value: null
+    - var: item.loggingConfiguration.level
+      op: equals
+      value: ALL
+    - var: item.loggingConfiguration.includeExecutionData
+      op: is_true
+      value: null

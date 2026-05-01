@@ -1,0 +1,37 @@
+version: '1.0'
+provider: oci
+service: kms
+checks:
+- rule_id: oci.kms.key.key_manager_configured
+  for_each: oci.kms.list_keys
+  severity: MEDIUM
+  conditions:
+    var: item.protection_mode
+    op: in
+    value:
+    - HSM
+    - EXTERNAL
+- rule_id: oci.kms.key.key_shape_configured
+  for_each: oci.kms.list_keys
+  severity: MEDIUM
+  conditions:
+    var: item.algorithm
+    op: in
+    value:
+    - AES
+    - RSA
+    - ECDSA
+- rule_id: oci.kms.key.key_version_configured
+  for_each: oci.kms.list_keys
+  severity: MEDIUM
+  conditions:
+    var: item.current_key_version
+    op: is_not_empty
+    value: ''
+- rule_id: oci.kms.key.rotation_interval_configured
+  for_each: oci.kms.get_key_version
+  severity: MEDIUM
+  conditions:
+    var: item.auto_key_rotation_details
+    op: is_not_empty
+    value: ''

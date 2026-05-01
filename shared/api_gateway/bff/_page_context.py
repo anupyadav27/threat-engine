@@ -506,3 +506,77 @@ def ai_security_filter_schema(modules: Optional[List[str]] = None) -> List[Dict]
         _number_field("risk_score", "Risk Score"),
         _bool_field("public", "Publicly Accessible"),
     ]
+
+
+# ── CNAPP ─────────────────────────────────────────────────────────────────────
+
+def cnapp_page_context(summary: Dict[str, Any]) -> Dict:
+    score = summary.get("cnapp_posture_score", 0)
+    total = summary.get("total_findings", 0)
+    critical = summary.get("critical", 0)
+    pillars_ok = summary.get("pillars_ok", 0)
+    return {
+        "title": "CNAPP",
+        "brief": f"CNAPP posture score {score}/100 — {pillars_ok} pillars active, {total} findings, {critical} critical",
+        "details": [
+            "Unified Cloud-Native Application Protection Platform view across all security pillars",
+            "CSPM: Cloud configuration compliance (check + compliance engines)",
+            "CIEM: Identity & entitlement management (ciem + iam engines)",
+            "CWPP: Workload protection — containers, images, hosts, serverless, runtime",
+            "DSPM: Data security posture — sensitive stores, encryption, PII/PHI exposure",
+            "Network: 7-layer network posture — SGs, NACLs, WAF, flow logs",
+            "Threat: MITRE ATT&CK attack paths and threat intelligence",
+            "AppSec: Shift-left security — SAST, DAST, SCA/SBOM",
+        ],
+        "tabs": [],
+    }
+
+
+def cnapp_filter_schema() -> List[Dict]:
+    return [
+        _enum_field("pillar", "Pillar", [
+            "cspm", "ciem", "cwpp", "dspm", "network", "threat", "appsec",
+        ]),
+        _enum_field("risk_band", "Risk Band", ["critical", "high", "medium", "low", "unknown"]),
+        _enum_field("status", "Status", ["ok", "unavailable", "no_data"]),
+        _enum_field("provider", "Cloud Provider", PROVIDER_VALUES),
+        _string_field("account_id", "Account"),
+        _number_field("posture_score", "Posture Score"),
+    ]
+
+
+# ── CWPP ──────────────────────────────────────────────────────────────────────
+
+def cwpp_page_context(summary: Dict[str, Any]) -> Dict:
+    score = summary.get("cwpp_posture_score", 0)
+    total = summary.get("total_findings", 0)
+    critical = summary.get("critical_findings", 0)
+    return {
+        "title": "CWPP",
+        "brief": f"CWPP posture score {score}/100 — {total} findings, {critical} critical",
+        "details": [
+            "Cloud Workload Protection Platform — unified security across all compute surfaces",
+            "Containers: K8s / EKS / ECS / AKS / GKE cluster, pod, and RBAC security",
+            "Images: Container image posture checks; CVE scanning via Trivy/Grype (planned)",
+            "Hosts: Agent-based OS/VM CVEs + middleware (Tomcat, Nginx, JBoss) via vul_engine",
+            "Serverless: Lambda / Azure Functions / GCF — IAM roles, deprecated runtimes, public URLs",
+            "Runtime: Privileged containers, host-network, CIEM runtime threat events",
+        ],
+        "tabs": [],
+    }
+
+
+def cwpp_filter_schema() -> List[Dict]:
+    return [
+        _enum_field("workload_type", "Workload Type", [
+            "containers", "images", "hosts", "serverless", "runtime",
+        ]),
+        _enum_field("severity", "Severity", SEVERITY_VALUES),
+        _enum_field("status", "Status", STATUS_VALUES),
+        _enum_field("risk_band", "Risk Band", ["critical", "high", "medium", "low", "unknown"]),
+        _enum_field("provider", "Cloud Provider", PROVIDER_VALUES),
+        _string_field("account_id", "Account"),
+        _string_field("region", "Region"),
+        _string_field("resource_uid", "Resource"),
+        _number_field("posture_score", "Posture Score"),
+    ]

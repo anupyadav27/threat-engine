@@ -1,0 +1,126 @@
+tech_type: iis
+category: web_server
+cis_benchmark: CIS Microsoft IIS 10 v1.2.1
+cis_section: '2'
+
+rules:
+
+  - rule_id: iis.cis.2.l2_ensure_forms_authentication_is_set_to_use
+    title: "(L2) Ensure 'forms authentication' is set to use cookies"
+    severity: medium
+    automation_type: automated
+    cis_control: '2.4'
+    cis_section: '2'
+    profile_applicability: "Level 2"
+    scope: iis.section_2.l2_ensure_forms_authentication_is_set_to_use
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      1. Open IIS Manager and navigate to the level where Forms Authentication is
+      enabled 2. In Features View, double-click Authentication 3. On the
+      Authentication page, select Forms Authentication 4. In the Actions pane, click
+      Edit 5. In the Cookie settings section, select Use cookies from the Mode
+      dropdown OR Enter the following command in AppCmd.exe to configure:
+      %systemroot%\system32\inetsrv\appcmd set config -
+      section:system.web/authentication /forms.cookieless:'UseCookies' OR Enter the
+      following command in PowerShell to configure: Set-WebConfigurationProperty
+      -pspath 'MACHINE/WEBROOT/APPHOST/Default Web Site' -filter
+      'system.web/authentication/forms' -name 'cookieless' -value 'UseCookies'
+      Default Value: The default setting for Cookie Mode is Auto Detect which will
+      only use cookies if the device profile supports cookies. References: 1.
+      http://technet.microsoft.com/en-us/library/cc732830%28WS.10%29.aspx
+    compliance:
+      - cis_iis_10_v1_2_1_2_4
+
+  - rule_id: iis.cis.2.l1_ensure_cookie_protection_mode_is_configured
+    title: "(L1) Ensure 'cookie protection mode' is configured for forms authentication"
+    severity: high
+    automation_type: automated
+    cis_control: '2.5'
+    cis_section: '2'
+    profile_applicability: "Level 1"
+    scope: iis.section_2.l1_ensure_cookie_protection_mode_is_configured
+    assertion:
+      field: enabled
+      operator: exists
+      expected: "false"
+    remediation: >
+      Cookie protection mode can be configured by using the user interface (UI), by
+      running Appcmd.exe commands in a command-line window, by editing configuration
+      files directly, or by writing WMI scripts. Using IIS Manager: 1. Open IIS
+      Manager and navigate to the level where Forms Authentication is enabled 2. In
+      Features View, double-click Authentication 3. On the Authentication page,
+      select Forms Authentication 4. In the Actions pane, click Edit 5. In the
+      Cookie settings section, verify the drop-down for Protection mode is set for
+      Encryption and validation OR Enter the following command in PowerShell to
+      configure: Set-WebConfigurationProperty -pspath
+      'MACHINE/WEBROOT/APPHOST/<website name>' -filter
+      'system.web/authentication/forms' -name 'protection' -value 'All' Default
+      Value: When cookies are used for Forms Authentication, the default cookie
+      protection mode is All, meaning the application encrypts and validates the
+      cookie. References: 1. http://technet.microsoft.com/en-
+      us/library/cc731804%28WS.10%29.aspx
+    compliance:
+      - cis_iis_10_v1_2_1_2_5
+
+  - rule_id: iis.cis.2.l1_ensure_passwordformat_is_not_set_to_clear
+    title: "(L1) Ensure 'passwordFormat' is not set to clear"
+    severity: high
+    automation_type: automated
+    cis_control: '2.7'
+    cis_section: '2'
+    profile_applicability: "Level 1"
+    scope: iis.section_2.l1_ensure_passwordformat_is_not_set_to_clear
+    assertion:
+      field: row_count
+      operator: exists
+      expected: "true"
+    remediation: >
+      Authentication mode is configurable at the machine.config, root-level
+      web.config, or application-level web.config: 1. Locate and open the
+      configuration file where the credentials are stored 2. Find the <credentials>
+      element 3. If present, ensure passwordFormat is not set to Clear 4. Change
+      passwordFormat to SHA1 The clear text passwords will need to be replaced with
+      the appropriate hashed version. OR Enter the following command in PowerShell
+      to configure: Set-WebConfigurationProperty -pspath
+      'MACHINE/WEBROOT/APPHOST/<website name>' -filter
+      'system.web/authentication/forms/credentials' -name 'passwordFormat' -value
+      'SHA1' Default Value: The default passwordFormat method is SHA1. References:
+      1.
+      http://www.iis.net/ConfigReference/system.webServer/management/authenticatio
+      n/credentials 2. http://msdn.microsoft.com/en-
+      us/library/bb422401%28VS.90%29.aspx 3. https://docs.microsoft.com/en-
+      us/dotnet/framework/whats-new/#v471
+    compliance:
+      - cis_iis_10_v1_2_1_2_7
+
+  - rule_id: iis.cis.2.l2_ensure_credentials_are_not_stored_in
+    title: "(L2) Ensure 'credentials' are not stored in configuration files"
+    severity: medium
+    automation_type: automated
+    cis_control: '2.8'
+    cis_section: '2'
+    profile_applicability: "Level 2"
+    scope: iis.section_2.l2_ensure_credentials_are_not_stored_in
+    assertion:
+      field: row_count
+      operator: exists
+      expected: "true"
+    remediation: >
+      Authentication mode is configurable at the machine.config, root-level
+      web.config, or application-level web.config: 1. Locate and open the
+      configuration file where the credentials are stored 2. Find the <credentials>
+      element 3. If present, remove the section This will remove all references to
+      stored users in the configuration files. OR Enter the following command in
+      PowerShell to configure: Remove-WebConfigurationProperty -pspath
+      'MACHINE/WEBROOT/APPHOST/<website name>' -filter
+      'system.web/authentication/forms/credentials' -name '.' References: 1.
+      http://www.iis.net/ConfigReference/system.webServer/management/authenticatio
+      n/credentials 2. http://msdn.microsoft.com/en-
+      us/library/bb422401%28VS.90%29.aspx
+    compliance:
+      - cis_iis_10_v1_2_1_2_8
+
+

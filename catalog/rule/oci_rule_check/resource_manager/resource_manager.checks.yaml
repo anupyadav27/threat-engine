@@ -1,0 +1,73 @@
+version: '1.0'
+provider: oci
+service: resource_manager
+checks:
+- rule_id: oci.resource_manager.stack.automation_execution_roles_least_privilege_required
+  for_each: oci.resource_manager.list_stacks
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.automation_execution_roles
+      op: exists
+      value: null
+    - var: item.automation_execution_roles[].policy
+      op: not_contains
+      value: '*'
+- rule_id: oci.resource_manager.stack.documentation_access_rbac_least_privilege_required
+  for_each: oci.resource_manager.list_stacks
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.resource_manager.stack.documentation_storage_encrypted_and_private
+  for_each: oci.resource_manager.list_stacks
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.config_source_type
+      op: equals
+      value: ZIP_UPLOAD
+    - var: item.config_source_working_directory
+      op: exists
+      value: null
+    - var: item.config_source_working_directory
+      op: not_equals
+      value: ''
+- rule_id: oci.resource_manager.stack.kubelet_config_ownership_restricted
+  for_each: oci.resource_manager.list_stacks
+  severity: LOW
+  conditions:
+    all:
+    - var: item.freeform_tags.KubeletConfigOwnership
+      op: exists
+      value: null
+    - var: item.freeform_tags.KubeletConfigOwnership
+      op: equals
+      value: restricted
+- rule_id: oci.resource_manager.stack.kubelet_config_permissions_restricted
+  for_each: oci.resource_manager.list_stacks
+  severity: LOW
+  conditions:
+    all:
+    - var: item.freeform_tags.KubeletConfigPermissions
+      op: equals
+      value: restricted
+    - var: item.defined_tags.KubeletConfigPermissions
+      op: equals
+      value: restricted
+- rule_id: oci.resource_manager.stack.portfolio_shared_within_organization_only
+  for_each: oci.resource_manager.list_stacks
+  severity: LOW
+  conditions:
+    all:
+    - var: item.freeform_tags.Shared
+      op: not_equals
+      value: public
+    - var: item.defined_tags.Organization
+      op: exists
+      value: null

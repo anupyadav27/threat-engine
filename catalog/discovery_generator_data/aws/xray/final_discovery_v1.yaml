@@ -1,0 +1,89 @@
+# ==========================================================
+# Discovery YAML — xray (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 6 | ops: 3 independent, 0 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: xray
+
+services:
+  client: xray
+  module: "boto3.client('xray')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: get_encryption_config
+    identifier_op: aws.xray.get_encryption_config
+    identifier_field: KeyId
+    item_var_path: item.KeyId
+    identifier_template: '{keyid}'
+  - resource_type: get_sampling_rule
+    identifier_op: aws.xray.get_sampling_rules
+    identifier_field: ResourceARN
+    item_var_path: item.ResourceARN
+    identifier_template: '{resourcearn}'
+  - resource_type: get_sampling_statistic_summarie
+    identifier_op: aws.xray.get_sampling_statistic_summaries
+    identifier_field: RuleName
+    item_var_path: item.RuleName
+    identifier_template: '{rulename}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.xray.get_encryption_config  ──
+  - discovery_id: aws.xray.get_encryption_config
+    calls:
+      - action: get_encryption_config
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        EncryptionConfig: '{{ item.EncryptionConfig }}'
+        KeyId: '{{ item.KeyId }}'
+        Status: '{{ item.Status }}'
+        Type: '{{ item.Type }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.xray.get_sampling_rules  ──
+  - discovery_id: aws.xray.get_sampling_rules
+    calls:
+      - action: get_sampling_rules
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.SamplingRuleRecords }}'
+      item:
+        CreatedAt: '{{ item.CreatedAt }}'
+        ModifiedAt: '{{ item.ModifiedAt }}'
+        ResourceARN: '{{ item.ResourceARN }}'
+        RuleARN: '{{ item.RuleARN }}'
+        RuleName: '{{ item.RuleName }}'
+        SamplingRule: '{{ item.SamplingRule }}'
+        SamplingRuleRecords: '{{ item.SamplingRuleRecords }}'
+        ServiceName: '{{ item.ServiceName }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.xray.get_sampling_statistic_summaries  ──
+  - discovery_id: aws.xray.get_sampling_statistic_summaries
+    calls:
+      - action: get_sampling_statistic_summaries
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.SamplingStatisticSummaries }}'
+      item:
+        BorrowCount: '{{ item.BorrowCount }}'
+        RequestCount: '{{ item.RequestCount }}'
+        RuleName: '{{ item.RuleName }}'
+        SampledCount: '{{ item.SampledCount }}'
+        SamplingStatisticSummaries: '{{ item.SamplingStatisticSummaries }}'
+        Timestamp: '{{ item.Timestamp }}'
+

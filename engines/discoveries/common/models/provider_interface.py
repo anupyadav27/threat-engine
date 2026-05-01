@@ -203,6 +203,40 @@ class DiscoveryScanner(ABC):
             f"{self.__class__.__name__} must implement get_account_id()"
         )
 
+    async def list_org_accounts(self) -> List[Dict[str, str]]:
+        """
+        Return all accounts in the cloud organization.
+
+        Override in CSP-specific implementations that support org-wide scanning
+        (AWS Organizations, Azure Management Groups, GCP Org, etc.).
+
+        Default returns empty list — DiscoveryEngine treats this as single-account
+        mode and scans only the account from the scan metadata.
+
+        Returns:
+            List of account dicts: [{'id': '123456789012', 'name': 'prod-account'}, ...]
+        """
+        return []
+
+    def clone_for_account(self, account_id: str) -> 'DiscoveryScanner':
+        """
+        Return a new scanner instance authenticated to the given sub-account.
+
+        Override in CSP-specific implementations. For AWS, this assumes a role
+        in the target account. For Azure, it switches subscription context.
+
+        If not overridden, the engine falls back to using this same scanner for
+        all accounts (single-session mode — acceptable when the base session
+        already has cross-account access).
+
+        Args:
+            account_id: Target account/subscription/project identifier
+
+        Returns:
+            New DiscoveryScanner instance authenticated to account_id
+        """
+        return self
+
 
 class AuthenticationError(Exception):
     """Raised when cloud provider authentication fails"""

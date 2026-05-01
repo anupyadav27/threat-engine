@@ -13,7 +13,7 @@ Two-layer edge model:
 
 from typing import Dict, List, Optional, Set
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
 from ._shared import fetch_many, safe_get
 
@@ -178,6 +178,7 @@ def _build_graph_from_paths(
 
 @router.get("/threats/graph")
 async def view_threat_graph(
+    request: Request,
     tenant_id: str = Query(...),
 ):
     """BFF view for the threat graph visualization page.
@@ -188,6 +189,9 @@ async def view_threat_graph(
     Edges include edge_kind="path"|"association" for two-layer rendering.
     Also fetches orca_paths for the Orca-style attack path cards.
     """
+
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 
     results = await fetch_many([
         ("threat", "/api/v1/graph/summary", {
@@ -213,7 +217,7 @@ async def view_threat_graph(
             "max_hops": "5",
             "min_severity": "medium",
         }),
-    ])
+    ], auth_headers=fwd_headers)
 
     summary_data, subgraph_data, inet_paths_data, all_paths_data, orca_data = results
 
@@ -298,6 +302,7 @@ async def view_threat_graph(
 
 @router.get("/threats/graph/filtered")
 async def view_threat_graph_filtered(
+    request: Request,
     tenant_id: str = Query(...),
     resource_type: Optional[str] = Query(None),
     security_status: Optional[str] = Query(None),
@@ -313,6 +318,9 @@ async def view_threat_graph_filtered(
     Returns {nodes, edges, total_nodes, total_edges, matched_nodes, cypher_summary}
     with edge_kind on every edge for two-layer rendering.
     """
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
     params: Dict[str, str] = {"tenant_id": tenant_id, "limit": str(limit)}
     if resource_type:
         params["resource_type"] = resource_type
@@ -328,7 +336,7 @@ async def view_threat_graph_filtered(
 
     results = await fetch_many([
         ("threat", "/api/v1/graph/explore", params)
-    ])
+    ], auth_headers=fwd_headers)
     data = results[0] if results else {}
     if not isinstance(data, dict):
         data = {}

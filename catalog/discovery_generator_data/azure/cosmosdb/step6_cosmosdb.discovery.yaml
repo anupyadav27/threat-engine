@@ -1,0 +1,1958 @@
+version: '1.0'
+provider: azure
+service: cosmosdb
+services:
+  client: cosmosdb
+  module: azure.mgmt.cosmosdb
+discovery:
+- discovery_id: azure.cosmosdb.cassandraclusters.list_by_resource_group
+  calls:
+  - action: cassandraclusters.list_by_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.cosmosdb.cassandraclusters.list_by_subscription
+  calls:
+  - action: cassandraclusters.list_by_subscription
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: databaseaccounts.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.databaseaccounts.list_by_resource_group
+  calls:
+  - action: databaseaccounts.list_by_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.cosmosdb.fleet.list
+  calls:
+  - action: fleet.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.fleet.list_by_resource_group
+  calls:
+  - action: fleet.list_by_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.cosmosdb.locations.list
+  calls:
+  - action: locations.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.restorabledatabaseaccounts.list
+  calls:
+  - action: restorabledatabaseaccounts.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.cassandradatacenters.list
+  for_each: azure.cosmosdb.cassandraclusters.list_by_subscription
+  calls:
+  - action: cassandradatacenters.list
+    save_as: response
+    on_error: continue
+    params:
+      cluster_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.cassandraresources.get_cassandra_keyspace
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: cassandraresources.get_cassandra_keyspace
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.cassandraresources.get_cassandra_keyspace_throughput
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: cassandraresources.get_cassandra_keyspace_throughput
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.cassandraresources.get_cassandra_table
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: cassandraresources.get_cassandra_table
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.cassandraresources.get_cassandra_table_throughput
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: cassandraresources.get_cassandra_table_throughput
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.cassandraresources.list_cassandra_keyspaces
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: cassandraresources.list_cassandra_keyspaces
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      options: '{{ item.options }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.cassandraresources.list_cassandra_tables
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: cassandraresources.list_cassandra_tables
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      options: '{{ item.options }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.collection.list_metric_definitions
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: collection.list_metric_definitions
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_rid: '{{ item.database_r_id }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      metric_availabilities: '{{ item.metric_availabilities }}'
+      primary_aggregation_type: '{{ item.primary_aggregation_type }}'
+      resource_uri: '{{ item.resource_uri }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cosmosdb.collection.list_metrics
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: collection.list_metrics
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_rid: '{{ item.database_r_id }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      end_time: '{{ item.end_time }}'
+      metric_values: '{{ item.metric_values }}'
+      start_time: '{{ item.start_time }}'
+      time_grain: '{{ item.time_grain }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cosmosdb.collection.list_usages
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: collection.list_usages
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_rid: '{{ item.database_r_id }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      current_value: '{{ item.current_value }}'
+      limit: '{{ item.limit }}'
+      quota_period: '{{ item.quota_period }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cosmosdb.collectionpartition.list_metrics
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: collectionpartition.list_metrics
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      end_time: '{{ item.end_time }}'
+      metric_values: '{{ item.metric_values }}'
+      start_time: '{{ item.start_time }}'
+      time_grain: '{{ item.time_grain }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cosmosdb.collectionpartition.list_usages
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: collectionpartition.list_usages
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_rid: '{{ item.database_r_id }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      current_value: '{{ item.current_value }}'
+      limit: '{{ item.limit }}'
+      quota_period: '{{ item.quota_period }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cosmosdb.collectionpartitionregion.list_metrics
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: collectionpartitionregion.list_metrics
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_rid: '{{ item.database_r_id }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      end_time: '{{ item.end_time }}'
+      metric_values: '{{ item.metric_values }}'
+      start_time: '{{ item.start_time }}'
+      time_grain: '{{ item.time_grain }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cosmosdb.collectionregion.list_metrics
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: collectionregion.list_metrics
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_rid: '{{ item.database_r_id }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      end_time: '{{ item.end_time }}'
+      metric_values: '{{ item.metric_values }}'
+      start_time: '{{ item.start_time }}'
+      time_grain: '{{ item.time_grain }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cosmosdb.database.list_metric_definitions
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: database.list_metric_definitions
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_rid: '{{ item.database_r_id }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      metric_availabilities: '{{ item.metric_availabilities }}'
+      primary_aggregation_type: '{{ item.primary_aggregation_type }}'
+      resource_uri: '{{ item.resource_uri }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cosmosdb.database.list_metrics
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: database.list_metrics
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_rid: '{{ item.database_r_id }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      end_time: '{{ item.end_time }}'
+      metric_values: '{{ item.metric_values }}'
+      start_time: '{{ item.start_time }}'
+      time_grain: '{{ item.time_grain }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cosmosdb.database.list_usages
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: database.list_usages
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_rid: '{{ item.database_r_id }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      current_value: '{{ item.current_value }}'
+      limit: '{{ item.limit }}'
+      quota_period: '{{ item.quota_period }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cosmosdb.databaseaccountregion.list_metrics
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: databaseaccountregion.list_metrics
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      end_time: '{{ item.end_time }}'
+      metric_values: '{{ item.metric_values }}'
+      start_time: '{{ item.start_time }}'
+      time_grain: '{{ item.time_grain }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cosmosdb.databaseaccounts.get_read_only_keys
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: databaseaccounts.get_read_only_keys
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.databaseaccounts.list_connection_strings
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: databaseaccounts.list_connection_strings
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.cosmosdb.databaseaccounts.list_keys
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: databaseaccounts.list_keys
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.cosmosdb.databaseaccounts.list_metric_definitions
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: databaseaccounts.list_metric_definitions
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      metric_availabilities: '{{ item.metric_availabilities }}'
+      primary_aggregation_type: '{{ item.primary_aggregation_type }}'
+      resource_uri: '{{ item.resource_uri }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cosmosdb.databaseaccounts.list_metrics
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: databaseaccounts.list_metrics
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      end_time: '{{ item.end_time }}'
+      metric_values: '{{ item.metric_values }}'
+      start_time: '{{ item.start_time }}'
+      time_grain: '{{ item.time_grain }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cosmosdb.databaseaccounts.list_read_only_keys
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: databaseaccounts.list_read_only_keys
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.cosmosdb.databaseaccounts.list_usages
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: databaseaccounts.list_usages
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      current_value: '{{ item.current_value }}'
+      limit: '{{ item.limit }}'
+      quota_period: '{{ item.quota_period }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cosmosdb.fleetspace.list
+  for_each: azure.cosmosdb.fleet.list
+  calls:
+  - action: fleetspace.list
+    save_as: response
+    on_error: continue
+    params:
+      fleet_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.fleetspaceaccount.list
+  for_each: azure.cosmosdb.fleet.list
+  calls:
+  - action: fleetspaceaccount.list
+    save_as: response
+    on_error: continue
+    params:
+      fleet_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.gremlinresources.get_gremlin_database
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: gremlinresources.get_gremlin_database
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.gremlinresources.get_gremlin_database_throughput
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: gremlinresources.get_gremlin_database_throughput
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.gremlinresources.get_gremlin_graph
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: gremlinresources.get_gremlin_graph
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.gremlinresources.get_gremlin_graph_throughput
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: gremlinresources.get_gremlin_graph_throughput
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.gremlinresources.list_gremlin_databases
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: gremlinresources.list_gremlin_databases
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      options: '{{ item.options }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.gremlinresources.list_gremlin_graphs
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: gremlinresources.list_gremlin_graphs
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      options: '{{ item.options }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.mongodbresources.get_mongo_db_collection
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: mongodbresources.get_mongo_db_collection
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.mongodbresources.get_mongo_db_collection_throughput
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: mongodbresources.get_mongo_db_collection_throughput
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.mongodbresources.get_mongo_db_database
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: mongodbresources.get_mongo_db_database
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.mongodbresources.get_mongo_db_database_throughput
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: mongodbresources.get_mongo_db_database_throughput
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.mongodbresources.get_mongo_role_definition
+  for_each: azure.cosmosdb.mongodbresources.list_mongo_db_databases
+  calls:
+  - action: mongodbresources.get_mongo_role_definition
+    save_as: response
+    on_error: continue
+    params:
+      mongo_role_definition_id: '{{ item.id }}'
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.mongodbresources.get_mongo_user_definition
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: mongodbresources.get_mongo_user_definition
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.mongodbresources.list_mongo_db_collections
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: mongodbresources.list_mongo_db_collections
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      options: '{{ item.options }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.mongodbresources.list_mongo_db_databases
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: mongodbresources.list_mongo_db_databases
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      options: '{{ item.options }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.mongodbresources.list_mongo_role_definitions
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: mongodbresources.list_mongo_role_definitions
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      database_name: '{{ item.database_name }}'
+      privileges: '{{ item.privileges }}'
+      role_name: '{{ item.role_name }}'
+      roles: '{{ item.roles }}'
+      type_properties_type: '{{ item.type_properties_type }}'
+- discovery_id: azure.cosmosdb.mongodbresources.list_mongo_user_definitions
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: mongodbresources.list_mongo_user_definitions
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      custom_data: '{{ item.custom_data }}'
+      database_name: '{{ item.database_name }}'
+      mechanisms: '{{ item.mechanisms }}'
+      password: '{{ item.password }}'
+      roles: '{{ item.roles }}'
+      user_name: '{{ item.user_name }}'
+- discovery_id: azure.cosmosdb.notebookworkspaces.list_by_database_account
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: notebookworkspaces.list_by_database_account
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      group_id: '{{ item.group_id }}'
+      required_members: '{{ item.required_members }}'
+      required_zone_names: '{{ item.required_zone_names }}'
+- discovery_id: azure.cosmosdb.notebookworkspaces.list_connection_info
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: notebookworkspaces.list_connection_info
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.cosmosdb.partitionkeyrangeid.list_metrics
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: partitionkeyrangeid.list_metrics
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_rid: '{{ item.database_r_id }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      end_time: '{{ item.end_time }}'
+      metric_values: '{{ item.metric_values }}'
+      start_time: '{{ item.start_time }}'
+      time_grain: '{{ item.time_grain }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cosmosdb.partitionkeyrangeidregion.list_metrics
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: partitionkeyrangeidregion.list_metrics
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_rid: '{{ item.database_r_id }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      end_time: '{{ item.end_time }}'
+      metric_values: '{{ item.metric_values }}'
+      start_time: '{{ item.start_time }}'
+      time_grain: '{{ item.time_grain }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cosmosdb.percentile.list_metrics
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: percentile.list_metrics
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      end_time: '{{ item.end_time }}'
+      metric_values: '{{ item.metric_values }}'
+      start_time: '{{ item.start_time }}'
+      time_grain: '{{ item.time_grain }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cosmosdb.percentilesourcetarget.list_metrics
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: percentilesourcetarget.list_metrics
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      end_time: '{{ item.end_time }}'
+      metric_values: '{{ item.metric_values }}'
+      start_time: '{{ item.start_time }}'
+      time_grain: '{{ item.time_grain }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cosmosdb.percentiletarget.list_metrics
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: percentiletarget.list_metrics
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      end_time: '{{ item.end_time }}'
+      metric_values: '{{ item.metric_values }}'
+      start_time: '{{ item.start_time }}'
+      time_grain: '{{ item.time_grain }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cosmosdb.privateendpointconnections.list_by_database_account
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: privateendpointconnections.list_by_database_account
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      group_id: '{{ item.group_id }}'
+      required_members: '{{ item.required_members }}'
+      required_zone_names: '{{ item.required_zone_names }}'
+- discovery_id: azure.cosmosdb.privatelinkresources.list_by_database_account
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: privatelinkresources.list_by_database_account
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      group_id: '{{ item.group_id }}'
+      required_members: '{{ item.required_members }}'
+      required_zone_names: '{{ item.required_zone_names }}'
+- discovery_id: azure.cosmosdb.restorabledatabaseaccounts.get_by_location
+  for_each: azure.cosmosdb.cassandraclusters.list_by_subscription
+  calls:
+  - action: restorabledatabaseaccounts.get_by_location
+    save_as: response
+    on_error: continue
+    params:
+      location: '{{ item.location }}'
+      instance_id: '{{ item.id }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.restorabledatabaseaccounts.list_by_location
+  for_each: azure.cosmosdb.cassandraclusters.list_by_subscription
+  calls:
+  - action: restorabledatabaseaccounts.list_by_location
+    save_as: response
+    on_error: continue
+    params:
+      location: '{{ item.location }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      account_name: '{{ item.account_name }}'
+      api_type: '{{ item.api_type }}'
+      creation_time: '{{ item.creation_time }}'
+      deletion_time: '{{ item.deletion_time }}'
+      oldest_restorable_time: '{{ item.oldest_restorable_time }}'
+      restorable_locations: '{{ item.restorable_locations }}'
+- discovery_id: azure.cosmosdb.restorablegremlindatabases.list
+  for_each: azure.cosmosdb.cassandraclusters.list_by_subscription
+  calls:
+  - action: restorablegremlindatabases.list
+    save_as: response
+    on_error: continue
+    params:
+      location: '{{ item.location }}'
+      instance_id: '{{ item.id }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.restorablegremlingraphs.list
+  for_each: azure.cosmosdb.cassandraclusters.list_by_subscription
+  calls:
+  - action: restorablegremlingraphs.list
+    save_as: response
+    on_error: continue
+    params:
+      location: '{{ item.location }}'
+      instance_id: '{{ item.id }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.restorablegremlinresources.list
+  for_each: azure.cosmosdb.cassandraclusters.list_by_subscription
+  calls:
+  - action: restorablegremlinresources.list
+    save_as: response
+    on_error: continue
+    params:
+      location: '{{ item.location }}'
+      instance_id: '{{ item.id }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.restorablemongodbcollections.list
+  for_each: azure.cosmosdb.cassandraclusters.list_by_subscription
+  calls:
+  - action: restorablemongodbcollections.list
+    save_as: response
+    on_error: continue
+    params:
+      location: '{{ item.location }}'
+      instance_id: '{{ item.id }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.restorablemongodbdatabases.list
+  for_each: azure.cosmosdb.cassandraclusters.list_by_subscription
+  calls:
+  - action: restorablemongodbdatabases.list
+    save_as: response
+    on_error: continue
+    params:
+      location: '{{ item.location }}'
+      instance_id: '{{ item.id }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.restorablemongodbresources.list
+  for_each: azure.cosmosdb.cassandraclusters.list_by_subscription
+  calls:
+  - action: restorablemongodbresources.list
+    save_as: response
+    on_error: continue
+    params:
+      location: '{{ item.location }}'
+      instance_id: '{{ item.id }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.restorablesqlcontainers.list
+  for_each: azure.cosmosdb.cassandraclusters.list_by_subscription
+  calls:
+  - action: restorablesqlcontainers.list
+    save_as: response
+    on_error: continue
+    params:
+      location: '{{ item.location }}'
+      instance_id: '{{ item.id }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.restorablesqldatabases.list
+  for_each: azure.cosmosdb.cassandraclusters.list_by_subscription
+  calls:
+  - action: restorablesqldatabases.list
+    save_as: response
+    on_error: continue
+    params:
+      location: '{{ item.location }}'
+      instance_id: '{{ item.id }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.restorablesqlresources.list
+  for_each: azure.cosmosdb.cassandraclusters.list_by_subscription
+  calls:
+  - action: restorablesqlresources.list
+    save_as: response
+    on_error: continue
+    params:
+      location: '{{ item.location }}'
+      instance_id: '{{ item.id }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.restorabletableresources.list
+  for_each: azure.cosmosdb.cassandraclusters.list_by_subscription
+  calls:
+  - action: restorabletableresources.list
+    save_as: response
+    on_error: continue
+    params:
+      location: '{{ item.location }}'
+      instance_id: '{{ item.id }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.restorabletables.list
+  for_each: azure.cosmosdb.cassandraclusters.list_by_subscription
+  calls:
+  - action: restorabletables.list
+    save_as: response
+    on_error: continue
+    params:
+      location: '{{ item.location }}'
+      instance_id: '{{ item.id }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.service.list
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: service.list
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.sqlresources.get_client_encryption_key
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: sqlresources.get_client_encryption_key
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.sqlresources.get_sql_container
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: sqlresources.get_sql_container
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.sqlresources.get_sql_container_throughput
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: sqlresources.get_sql_container_throughput
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.sqlresources.get_sql_database
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: sqlresources.get_sql_database
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.sqlresources.get_sql_database_throughput
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: sqlresources.get_sql_database_throughput
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.sqlresources.get_sql_role_assignment
+  for_each: azure.cosmosdb.sqlresources.list_sql_databases
+  calls:
+  - action: sqlresources.get_sql_role_assignment
+    save_as: response
+    on_error: continue
+    params:
+      role_assignment_id: '{{ item.id }}'
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.sqlresources.get_sql_role_definition
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: sqlresources.get_sql_role_definition
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.sqlresources.get_sql_stored_procedure
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: sqlresources.get_sql_stored_procedure
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.sqlresources.get_sql_trigger
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: sqlresources.get_sql_trigger
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.sqlresources.get_sql_user_defined_function
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: sqlresources.get_sql_user_defined_function
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.sqlresources.list_client_encryption_keys
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: sqlresources.list_client_encryption_keys
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.sqlresources.list_sql_containers
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: sqlresources.list_sql_containers
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      options: '{{ item.options }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.sqlresources.list_sql_databases
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: sqlresources.list_sql_databases
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      options: '{{ item.options }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.sqlresources.list_sql_role_assignments
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: sqlresources.list_sql_role_assignments
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      principal_id: '{{ item.principal_id }}'
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      role_definition_id: '{{ item.role_definition_id }}'
+      scope: '{{ item.scope }}'
+- discovery_id: azure.cosmosdb.sqlresources.list_sql_role_definitions
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: sqlresources.list_sql_role_definitions
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      assignable_scopes: '{{ item.assignable_scopes }}'
+      permissions: '{{ item.permissions }}'
+      role_name: '{{ item.role_name }}'
+      type_properties_type: '{{ item.type_properties_type }}'
+- discovery_id: azure.cosmosdb.sqlresources.list_sql_stored_procedures
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: sqlresources.list_sql_stored_procedures
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.sqlresources.list_sql_triggers
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: sqlresources.list_sql_triggers
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.sqlresources.list_sql_user_defined_functions
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: sqlresources.list_sql_user_defined_functions
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      database_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.tableresources.get_table
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: tableresources.get_table
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.tableresources.get_table_throughput
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: tableresources.get_table_throughput
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cosmosdb.tableresources.list_tables
+  for_each: azure.cosmosdb.databaseaccounts.list
+  calls:
+  - action: tableresources.list_tables
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      options: '{{ item.options }}'
+      resource: '{{ item.resource }}'
+- discovery_id: azure.cosmosdb.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'
+      kind: '{{ item.kind }}'
+      identity: '{{ item.identity }}'
+      system_data: '{{ item.system_data }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      document_endpoint: '{{ item.document_endpoint }}'
+      database_account_offer_type: '{{ item.database_account_offer_type }}'
+      ip_rules: '{{ item.ip_rules }}'
+      is_virtual_network_filter_enabled: '{{ item.is_virtual_network_filter_enabled
+        }}'
+      enable_automatic_failover: '{{ item.enable_automatic_failover }}'
+      consistency_policy: '{{ item.consistency_policy }}'
+      capabilities: '{{ item.capabilities }}'
+      write_locations: '{{ item.write_locations }}'
+      read_locations: '{{ item.read_locations }}'
+      locations: '{{ item.locations }}'
+      failover_policies: '{{ item.failover_policies }}'
+- discovery_id: azure.cosmosdb.list_by_resource_group
+  calls:
+  - action: list_by_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.cosmosdb.list_by_subscription
+  calls:
+  - action: list_by_subscription
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.cosmosdb.list_cassandra_keyspaces
+  calls:
+  - action: list_cassandra_keyspaces
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'

@@ -1,0 +1,190 @@
+version: '1.0'
+provider: aws
+service: identitycenter
+checks:
+- rule_id: aws.identitycenter.group.identitycenter_attached_policies_not_admin_star_configured
+  for_each: aws.identitystore.list_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.attached_policies[].policy_name
+      op: not_contains
+      value: AdministratorAccess
+    - var: item.attached_policies[].policy_name
+      op: not_contains
+      value: '*'
+- rule_id: aws.identitycenter.group.identitycenter_external_sharing_restricted_if_supported
+  for_each: aws.identitystore.list_groups
+  severity: MEDIUM
+  conditions:
+    var: item.ExternalId
+    op: not_exists
+    value: null
+- rule_id: aws.identitycenter.group.identitycenter_membership_review_enabled_if_supported
+  for_each: aws.identitystore.list_groups
+  severity: MEDIUM
+  conditions:
+    var: item.MembershipReviewEnabled
+    op: is_true
+    value: null
+- rule_id: aws.identitycenter.group.identitycenter_no_inline_policies_configured
+  for_each: aws.identitystore.list_groups
+  severity: MEDIUM
+  conditions:
+    var: item.InlinePolicies
+    op: is_empty
+    value: null
+- rule_id: aws.identitycenter.permissionset.identitycenter_attached_policies_not_admin_star_configured
+  for_each: aws.sso-admin.list_permission_sets_provisioned_to_account
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.AttachedManagedPolicies[].PolicyName
+      op: not_contains
+      value: AdministratorAccess
+    - var: item.AttachedManagedPolicies[].PolicyName
+      op: not_contains
+      value: AWSAdministratorAccess
+- rule_id: aws.identitycenter.permissionset.identitycenter_no_inline_policies_configured
+  for_each: aws.sso-admin.list_permission_sets_provisioned_to_account
+  severity: MEDIUM
+  conditions:
+    var: item.InlinePolicy
+    op: not_exists
+    value: null
+- rule_id: aws.identitycenter.permissionset.identitycenter_trust_external_id_or_audience_required
+  for_each: aws.sso-admin.list_permission_sets_provisioned_to_account
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.TrustedIdentityPropagationConfiguration.TrustedIssuer[].TrustedIssuerUrl
+      op: exists
+      value: null
+    - any:
+      - var: item.TrustedIdentityPropagationConfiguration.TrustedIssuer[].Audience
+        op: exists
+        value: null
+      - var: item.TrustedIdentityPropagationConfiguration.TrustedIssuer[].ExternalId
+        op: exists
+        value: null
+- rule_id: aws.identitycenter.permissionset.identitycenter_trust_principals_allowlist_only_configured
+  for_each: aws.sso-admin.list_permission_sets_provisioned_to_account
+  severity: MEDIUM
+  conditions:
+    var: item.TrustedPrincipals
+    op: exists
+    value: null
+- rule_id: aws.identitycenter.permissionset.identitycenter_workload_identity_federation_used_if_supported
+  for_each: aws.sso-admin.list_permission_sets_provisioned_to_account
+  severity: MEDIUM
+  conditions:
+    var: item.WorkloadIdentityFederationEnabled
+    op: is_true
+    value: null
+- rule_id: aws.identitycenter.permissionset.keys_not_used_or_rotated_90_days_or_less_configured
+  for_each: aws.sso-admin.list_permission_sets_provisioned_to_account
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.key_rotation_enabled
+      op: is_true
+      value: null
+    - var: item.key_rotation_max_age_days
+      op: lte
+      value: '90'
+- rule_id: aws.identitycenter.permissionset.max_session_duration_configured
+  for_each: aws.sso-admin.list_permission_sets_provisioned_to_account
+  severity: MEDIUM
+  conditions:
+    var: item.SessionDuration
+    op: exists
+    value: null
+- rule_id: aws.identitycenter.permissionset.no_user_managed_long_lived_keys_configured
+  for_each: aws.sso-admin.list_permission_sets_provisioned_to_account
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.CustomerManagedPolicyReferences[].Path
+      op: not_contains
+      value: IAMUser
+    - var: item.CustomerManagedPolicyReferences[].Name
+      op: not_contains
+      value: AccessKey
+- rule_id: aws.identitycenter.permissionset.scopes_or_roles_least_privilege
+  for_each: aws.sso-admin.list_permission_sets_provisioned_to_account
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.PermissionsBoundary.ManagedPolicyArn
+      op: exists
+      value: null
+    - var: item.InlinePolicy
+      op: is_empty
+      value: null
+- rule_id: aws.identitycenter.permissionset.session_duration_reasonable_if_applicable_configured
+  for_each: aws.sso-admin.list_permission_sets_provisioned_to_account
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.SessionDuration
+      op: not_exists
+      value: null
+    - var: item.SessionDuration
+      op: lte
+      value: 14400
+- rule_id: aws.identitycenter.user.access_keys_rotated_90_days_or_less_when_present
+  for_each: aws.identitystore.list_users
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.AccessKeys
+      op: exists
+      value: null
+    - var: item.AccessKeys[].CreateDate
+      op: not_empty
+      value: null
+    - var: item.AccessKeys[].Status
+      op: equals
+      value: Active
+    - var: item.AccessKeys[].key_age_days
+      op: lte
+      value: '90'
+- rule_id: aws.identitycenter.user.console_password_present_only_if_required
+  for_each: aws.identitystore.list_users
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.PasswordEnabled
+      op: is_false
+      value: null
+    - var: item.PasswordRequired
+      op: is_false
+      value: null
+- rule_id: aws.identitycenter.user.identitycenter_inactive_90_days_disabled
+  for_each: aws.identitystore.list_users
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Status
+      op: equals
+      value: ACTIVE
+    - var: item.LastAccessedDate
+      op: exists
+      value: null
+    - var: item.LastAccessedDate
+      op: gte
+      value: 90 days ago
+- rule_id: aws.identitycenter.user.identitycenter_no_inline_policies_enabled
+  for_each: aws.identitystore.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.InlinePolicies
+    op: is_empty
+    value: null
+- rule_id: aws.identitycenter.user.mfa_required
+  for_each: aws.identitystore.list_users
+  severity: CRITICAL
+  conditions:
+    var: item.MFAEnabled
+    op: is_true
+    value: null

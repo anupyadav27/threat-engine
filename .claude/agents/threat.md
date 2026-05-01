@@ -41,9 +41,9 @@ id, scan_run_id (NOT threat_scan_id!), detection_id, tenant_id, technique_id, ta
 
 ## Full Stack (UI → BFF → API → DB)
 - **UI pages**:
-  - `/threats` → `ui_samples/src/app/threats/page.jsx` (threat list)
+  - `/threats` → `frontend/src/app/threats/page.jsx` (threat list)
   - `/threats/[threatId]` → threat detail page
-  - `/threats/graph` → `ui_samples/src/app/threats/graph/page.jsx` (Neo4j Wiz-style graph)
+  - `/threats/graph` → `frontend/src/app/threats/graph/page.jsx` (Neo4j Wiz-style graph)
   - `/threats/attack-paths` → attack chain analysis
   - `/threats/blast-radius` → blast radius visualization
   - `/threats/toxic-combinations` → toxic combo analysis

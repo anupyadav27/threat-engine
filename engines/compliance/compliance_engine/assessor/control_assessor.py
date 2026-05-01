@@ -134,11 +134,12 @@ def compute_assessment(
                 datetime.now(timezone.utc),  # assessed_at
             ))
 
-        # 6. Write assessment header
-        _write_assessment(conn, assessment_id, scan_run_id, tenant_id, framework_id, controls, summary)
-
-        # 7. Write control results (batch)
-        _write_results(conn, results)
+        # 6. Write assessment header + control results only when a specific framework is given.
+        # When called without framework_id (aggregate pass from run_scan), skip DB writes
+        # to avoid FK constraint on compliance_assessments.framework_id.
+        if framework_id:
+            _write_assessment(conn, assessment_id, scan_run_id, tenant_id, framework_id, controls, summary)
+            _write_results(conn, results)
 
         conn.commit()
         logger.info(
@@ -211,8 +212,8 @@ def _get_fail_counts(conn, scan_run_id: str, tenant_id: str) -> Dict[str, int]:
 def _get_total_counts_from_check(scan_run_id: str, tenant_id: str) -> Dict[str, int]:
     """Get total resource counts per rule from check DB (pass + fail).
 
-    Uses the latest check scan for this tenant since the compliance scan_run_id
-    is different from the check scan_run_id.
+    All engines share the same scan_run_id, so check_findings for this
+    pipeline run are queried directly by scan_run_id.
     """
     counts: Dict[str, int] = {}
     try:
@@ -224,16 +225,7 @@ def _get_total_counts_from_check(scan_run_id: str, tenant_id: str) -> Dict[str, 
             password=os.getenv("CHECK_DB_PASSWORD", ""),
         )
         with check_conn.cursor() as cur:
-            # Find the latest check scan for this tenant
-            cur.execute("""
-                SELECT scan_run_id FROM check_report
-                WHERE tenant_id = %s AND status = 'completed'
-                ORDER BY first_seen_at DESC LIMIT 1
-            """, (tenant_id,))
-            row = cur.fetchone()
-            check_scan_id = row[0] if row else scan_run_id
-
-            # Count pass+fail per rule
+            # Count pass+fail per rule for the same pipeline scan_run_id
             cur.execute("""
                 SELECT rule_id, COUNT(*) AS cnt,
                        COUNT(CASE WHEN status = 'PASS' THEN 1 END) AS pass_cnt,
@@ -241,7 +233,7 @@ def _get_total_counts_from_check(scan_run_id: str, tenant_id: str) -> Dict[str, 
                 FROM check_findings
                 WHERE scan_run_id = %s AND tenant_id = %s
                 GROUP BY rule_id
-            """, (check_scan_id, tenant_id))
+            """, (scan_run_id, tenant_id))
             for row in cur.fetchall():
                 if row[0]:
                     counts[row[0]] = row[1]  # total

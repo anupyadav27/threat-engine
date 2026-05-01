@@ -1,6 +1,5 @@
 import os
 import boto3
-import aioboto3
 import botocore
 from typing import Optional
 
@@ -52,7 +51,7 @@ def get_boto3_session(default_region: Optional[str] = None) -> boto3.session.Ses
     return boto3.session.Session(profile_name=profile, region_name=default_region)
 
 
-def get_aioboto3_session(default_region: Optional[str] = None) -> aioboto3.Session:
+def get_aioboto3_session(default_region: Optional[str] = None):  # -> aioboto3.Session
     """Create an aioboto3 Session for async AWS API calls.
 
     Mirrors get_boto3_session() but returns an aioboto3.Session that supports
@@ -62,6 +61,7 @@ def get_aioboto3_session(default_region: Optional[str] = None) -> aioboto3.Sessi
     - Optionally assumes role if AWS_ROLE_ARN is set (sync STS call to bootstrap)
     - Falls back to environment/default credentials
     """
+    import aioboto3  # lazy import — only loaded if async path is used
     profile = os.getenv("AWS_PROFILE")
     role_arn = os.getenv("AWS_ROLE_ARN")
     role_session_name = os.getenv("AWS_ROLE_SESSION_NAME", "compliance-session")

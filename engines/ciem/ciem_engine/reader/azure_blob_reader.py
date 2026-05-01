@@ -66,16 +66,12 @@ class AzureBlobReader(BaseReader):
         """
         base = source.prefix or ""
 
-        if source.source_type == "azure_activity":
-            # Activity logs: insights-activity-logs/resourceId=.../y=YYYY/m=MM/d=DD/
+        if source.source_type in ("azure_activity", "azure_nsg_flow"):
+            # Azure diagnostic logs path: resourceId=/SUBSCRIPTIONS/{guid}/y=YYYY/m=MM/d=DD/
+            # Use "resourceId=" prefix to match all subscription/resource paths.
             return (
-                f"{base}"
-                f"y={day.year:04d}/m={day.month:02d}/d={day.day:02d}/"
-            )
-        elif source.source_type == "azure_nsg_flow":
-            # NSG flow logs: insights-logs-networksecuritygroupflowevent/resourceId=.../y=YYYY/m=MM/d=DD/
-            return (
-                f"{base}"
+                f"{base}resourceId=/"
+                f"SUBSCRIPTIONS/{source.account_id.upper()}/"
                 f"y={day.year:04d}/m={day.month:02d}/d={day.day:02d}/"
             )
         else:
@@ -109,13 +105,12 @@ class AzureBlobReader(BaseReader):
             try:
                 blobs = container_client.list_blobs(name_starts_with=prefix)
                 for blob in blobs:
-                    last_modified = blob.last_modified
-                    if last_modified and last_modified < start_time:
-                        continue
+                    # Azure Monitor writes files 60-90 min after events — don't
+                    # filter by upload time. Date prefix already scopes the window.
                     files.append({
                         "key": blob.name,
                         "size": blob.size or 0,
-                        "last_modified": last_modified,
+                        "last_modified": blob.last_modified,
                     })
             except Exception as exc:
                 logger.warning(

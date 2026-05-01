@@ -1,0 +1,239 @@
+# CISCO_IOS_XR — CIEM Detection Rules
+# Real-time authentication & access event analysis
+# Log source: syslog, SNMP trap
+
+tech_type: cisco_ios_xr
+category: networking
+log_source: syslog, SNMP trap
+
+rules:
+
+  - rule_id: tciem.cisco_ios_xr.console_authentication
+    title: "console authentication"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.1.2.1'
+    cis_section: '1'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Configure an authentication list that references the AAA group that was
+      created in the prerequisites. AAA lists are prioritized list of databases. If
+      the system is unable to use a database, it automatically rolls over to the
+      next database on the list. If the authentication, authorization, or accounting
+      request is rejected by any database, the rollover does not occur and the
+      request is rejected. It is common to include 'local' as the last entry in the
+      list, to allow access to manage the device even if all servers from the AAA
+      group are unavailable. Note that it also means that if an attacker can DoS the
+      AAA Servers, they can start to try authenticate locally as well. Hence, always
+      ensure to use strong passwords for local users. IOSXR(config)#aaa
+      authentication login default group {tacacs_group|radius_group} local Above
+      configuration authenticates first against a central aaa group and uses local
+      user accounts as fallback. Ensure the above list is referenced under the line
+      templates: IOSXR(config)#line console login authentication default Ensure the
+      vty pool references the above line template: IOSXR(config)#vty-pool default 0
+      4 line-template default Default Value: By default IOS XR authenticates against
+      the local user database. However, there is no way to show the default
+      configuration. We follow the principle 'explicit is better than implicit' and
+      recommend to configure the authentication explicitly. References: 1.
+      https://www.cisco.com/c/en/us/td/docs/routers/asr9000/software/asr9k-r7-
+      5/system-security/configuration/guide/b-system-security-cg-asr9000-
+      75x/configuring-aaa-services.html
+
+  - rule_id: tciem.cisco_ios_xr.vty_line_authentication
+    title: "vty line authentication"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.1.2.2'
+    cis_section: '1'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Configure an authentication list that references the AAA group that was
+      created in the prerequisites. AAA lists are prioritized list of databases. If
+      the system is unable to use a database, it automatically rolls over to the
+      next database on the list. If the authentication, authorization, or accounting
+      request is rejected by any database, the rollover does not occur and the
+      request is rejected. It is common to include 'local' as the last entry in the
+      list, to allow access to manage the device even if all servers from the AAA
+      group are unavailable. Note that it also means that if an attacker can DoS the
+      AAA Servers, they can start to try authenticate locally as well. Hence, always
+      ensure to use strong passwords for local users. IOSXR(config)#aaa
+      authentication login default group {tacacs_group|radius_group} local Above
+      configuration authenticates first against a central aaa group and uses local
+      user accounts as fallback. Ensure the above list is referenced under the line
+      templates: IOSXR(config)#line console login authentication default
+      IOSXR(config)#line default login authentication default Ensure the vty pool
+      references the above line template: IOSXR(config)#vty-pool default 0 4 line-
+      template default Default Value: By default IOS XR authenticates against the
+      local user database. However, there is no way to show the default
+      configuration. We follow the principle 'explicit is better than implicit' and
+      recommend to configure the authentication explicitly. References: 1.
+      https://www.cisco.com/c/en/us/td/docs/routers/asr9000/software/asr9k-r7-
+      5/system-security/configuration/guide/b-system-security-cg-asr9000-
+      75x/configuring-aaa-services.html
+
+  - rule_id: tciem.cisco_ios_xr.set_seconds_for_ssh_timeout_for_60_seconds_or_less
+    title: "Set 'seconds' for 'ssh timeout' for 60 seconds or less"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.2.3'
+    cis_section: '1'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Configure the SSH timeout IOSXR(config)#ssh timeout {ssh_timeout} Default
+      Value: SSH in not enabled by default. When SSH is enabled and no value is
+      configured, the default value of 30 seconds is used. The range is from 5 to
+      120. References: 1.
+      https://www.cisco.com/c/en/us/td/docs/routers/crs/software/crs_r6-
+      1/security/configuration/guide/b-syssec-cg-crs-61x.html Additional
+      Information: This cannot exceed 120 seconds.
+
+  - rule_id: tciem.cisco_ios_xr.unset_private_for_snmp_server_community
+    title: "Unset 'private' for 'snmp-server community'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.5.1'
+    cis_section: '1'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Disable the default SNMP community string private IOSXR(config)#no snmp-server
+      community {community_string} References: 1.
+      https://www.cisco.com/c/en/us/td/docs/routers/xr12000/software/xr12k_r3-
+      9/system_management/configuration/guide/yc39xr12k_chapter10.html
+
+  - rule_id: tciem.cisco_ios_xr.unset_public_for_snmp_server_community
+    title: "Unset 'public' for 'snmp-server community'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.5.2'
+    cis_section: '1'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Disable the default SNMP community string 'public' IOSXR(config)#no snmp-
+      server community {community_string} References: 1.
+      https://www.cisco.com/c/en/us/td/docs/routers/xr12000/software/xr12k_r3-
+      9/system_management/configuration/guide/yc39xr12k_chapter10.html
+
+  - rule_id: tciem.cisco_ios_xr.disable_telnet_access
+    title: "Disable Telnet Access"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '1.6.1'
+    cis_section: '1'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: configuration_change
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      It's recommended to restrict VTYs to SSH for management access and not allow
+      this device to SSH to other devices: vty-pool default 0 4 line-template
+      default line default transport input ssh transport output none Default Value:
+      By default both telnet and ssh access are enabled.
+
+  - rule_id: tciem.cisco_ios_xr.exec_timeout_for_console_sessions_is_set
+    title: "Ensure Exec Timeout for Console Sessions is set"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.6.3'
+    cis_section: '1'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      vty-pool default 0 4 line-template default line default exec-timeout 10 0
+      Default Value: When nothing is configured, the default is 10 minutes.
+      References: 1.
+      https://www.cisco.com/en/US/docs/ios_xr_sw/iosxr_r3.7/system_management/co
+      mmand/reference/yr37term.pdf
+
+  - rule_id: tciem.cisco_ios_xr.pre_authentication_banner
+    title: "Pre-authentication Banner"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.7.1'
+    cis_section: '1'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Configure a login banner as shown below. The delimiter character shown is a
+      '^', but any character can serve as a delimiter. IOSXR(config)# banner login ^
+      {login_banner} ^ Default Value: No login or motd banner is set by default.
+      Additional Information: On IOS XR the sequence of banners is as follows (for
+      SSH login, might differ for telnet): 1. motd banner (shown before
+      authentication) 2. login banner (shown after motd, before authentication) 3.
+      exec banner (shown after successful authentication) We recommend using the
+      'login' banner (for consistency with IOS XE). But motd banner can also be used
+      instead.
+
+  - rule_id: tciem.cisco_ios_xr.post_authentication_banner
+    title: "Post-authentication Banner"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.7.2'
+    cis_section: '1'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Configure an exec banner as shown below. The delimiter character shown is a
+      '^', but any character can serve as a delimiter. IOSXR(config)# banner exec ^
+      {exec_banner} ^ Default Value: No banner is set by default. Additional
+      Information: On IOS XR the sequence of banners is as follows (for SSH login):
+      1. motd banner (shown before authentication) 2. login banner (shown after
+      motd, before authentication) 3. exec banner (shown after successful
+      authentication) Only the exec banner can be used for this purpose.
+

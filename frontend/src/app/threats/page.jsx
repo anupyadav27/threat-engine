@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   Shield,
   AlertTriangle,
@@ -10,8 +10,7 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { fetchView, getFromEngine } from '@/lib/api';
-import { useGlobalFilter } from '@/lib/global-filter-context';
+import { useViewFetch } from '@/lib/use-view-fetch';
 import { SEVERITY_COLORS } from '@/lib/constants';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import ThreatsSubNav from '@/components/shared/ThreatsSubNav';
@@ -21,46 +20,6 @@ import FindingDetailPanel from '@/components/shared/FindingDetailPanel';
 import ThreatDetailPanel from '@/components/shared/ThreatDetailPanel';
 import { AttackPathList } from '@/components/shared/AttackPathCard';
 
-// ── Demo fallback threats (shown when backend returns no data) ─────────────────
-const DEMO_THREATS = [
-  { id: 'T-001', title: 'Privilege Escalation via IAM Role Assumption', severity: 'critical', status: 'open', mitreTechnique: 'T1548', threat_category: 'privilege_escalation', affected_resource: 'arn:aws:iam::123456789012:role/AdminRole', provider: 'AWS', account: '123456789012', region: 'us-east-1', riskScore: 92, resourceType: 'IAM', lastSeen: '2026-04-01', assignee: null, hasAttackPath: true },
-  { id: 'T-002', title: 'Exposed S3 Bucket with Sensitive Data', severity: 'critical', status: 'investigating', mitreTechnique: 'T1530', threat_category: 'data_exfiltration', affected_resource: 'arn:aws:s3:::prod-customer-pii-bucket', provider: 'AWS', account: '123456789012', region: 'us-east-1', riskScore: 89, resourceType: 'S3', lastSeen: '2026-03-31', assignee: 'alice@corp.com', hasAttackPath: true },
-  { id: 'T-003', title: 'Root Account Login Without MFA', severity: 'critical', status: 'open', mitreTechnique: 'T1078', threat_category: 'initial_access', affected_resource: 'arn:aws:iam::123456789012:root', provider: 'AWS', account: '123456789012', region: 'us-east-1', riskScore: 95, resourceType: 'IAM', lastSeen: '2026-04-01', assignee: null, hasAttackPath: false },
-  { id: 'T-004', title: 'Lateral Movement via EC2 Instance Metadata Service', severity: 'high', status: 'open', mitreTechnique: 'T1552', threat_category: 'credential_access', affected_resource: 'arn:aws:ec2:us-east-1:123456789012:instance/i-0abc123def456', provider: 'AWS', account: '123456789012', region: 'us-east-1', riskScore: 77, resourceType: 'EC2', lastSeen: '2026-03-30', assignee: null, hasAttackPath: true },
-  { id: 'T-005', title: 'Suspicious Lambda Function Invocation Pattern', severity: 'high', status: 'investigating', mitreTechnique: 'T1059', threat_category: 'execution', affected_resource: 'arn:aws:lambda:us-west-2:123456789012:function:DataProcessor', provider: 'AWS', account: '123456789012', region: 'us-west-2', riskScore: 74, resourceType: 'Lambda', lastSeen: '2026-03-29', assignee: 'bob@corp.com', hasAttackPath: false },
-  { id: 'T-006', title: 'RDS Snapshot Shared with Unknown External Account', severity: 'high', status: 'open', mitreTechnique: 'T1537', threat_category: 'exfiltration', affected_resource: 'arn:aws:rds:us-east-1:123456789012:snapshot:prod-db-backup-2026', provider: 'AWS', account: '123456789012', region: 'us-east-1', riskScore: 71, resourceType: 'RDS', lastSeen: '2026-03-28', assignee: null, hasAttackPath: false },
-  { id: 'T-007', title: 'Overpermissive Cross-Account Role Trust Policy', severity: 'medium', status: 'open', mitreTechnique: 'T1098', threat_category: 'persistence', affected_resource: 'arn:aws:iam::123456789012:role/CrossAccountAccess', provider: 'AWS', account: '123456789012', region: 'us-east-1', riskScore: 58, resourceType: 'IAM', lastSeen: '2026-03-27', assignee: null, hasAttackPath: false },
-  { id: 'T-008', title: 'CloudTrail Logging Disabled in Production Region', severity: 'medium', status: 'resolved', mitreTechnique: 'T1562', threat_category: 'defense_evasion', affected_resource: 'arn:aws:cloudtrail:eu-west-1:123456789012:trail/prod-trail', provider: 'AWS', account: '123456789012', region: 'eu-west-1', riskScore: 53, resourceType: 'CloudTrail', lastSeen: '2026-03-25', assignee: 'carol@corp.com', hasAttackPath: false },
-];
-
-const MOCK_THREAT_TREND = [
-  { date: 'Jan 6',  critical: 10, high: 32, medium: 18, low: 5 },
-  { date: 'Jan 13', critical: 12, high: 34, medium: 21, low: 6 },
-  { date: 'Jan 20', critical: 15, high: 31, medium: 19, low: 4 },
-  { date: 'Jan 27', critical: 11, high: 29, medium: 22, low: 7 },
-  { date: 'Feb 3',  critical: 14, high: 33, medium: 20, low: 5 },
-  { date: 'Feb 10', critical: 9,  high: 27, medium: 17, low: 4 },
-  { date: 'Feb 17', critical: 11, high: 25, medium: 15, low: 3 },
-  { date: 'Feb 24', critical: 8,  high: 22, medium: 13, low: 3 },
-  { date: 'Mar 3',  critical: 7,  high: 21, medium: 12, low: 2 },
-  { date: 'Mar 10', critical: 4,  high: 18, medium: 10, low: 2 },
-];
-
-// Sparkline data per KPI card (10 weekly points)
-const THREAT_SPARKLINES = {
-  total:       [40, 45, 52, 48, 60, 56, 51, 47, 43, 40],
-  critical:    [12, 15, 11, 14,  9, 11,  8,  7,  5,  4],
-  high:        [32, 34, 31, 33, 27, 25, 22, 21, 19, 18],
-  riskScore:   [51, 54, 50, 56, 48, 49, 47, 46, 44, 48],
-  attackPaths: [7, 9, 8, 11, 10, 12, 10, 9, 9, 9],
-  active:      [18, 22, 20, 24, 19, 21, 18, 17, 16, 15],
-};
-
-const SPARK_TICKS = [
-  { idx: 0, label: '8w' },
-  { idx: 4, label: '4w' },
-  { idx: 9, label: 'Now' },
-];
 
 // colour palette
 const TC = {
@@ -307,59 +266,20 @@ function MitreCompactGrid({ mitreTactics, totalMitreTechniques, selectedTechniqu
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function ThreatsPage() {
-  const { provider, account, region } = useGlobalFilter();
+  const { data, loading, error } = useViewFetch('threats');
+  const { data: apData, loading: attackPathsLoading } = useViewFetch('threats/attack-paths');
 
-  // ── Data state ────────────────────────────────────────────────────────────
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [kpi, setKpi] = useState(null);
-  const [threats, setThreats] = useState([]);
-  const [findings, setFindings] = useState([]);
-  const [trendData, setTrendData] = useState([]);
-  const [mitreMatrix, setMitreMatrix] = useState({});
-  const [attackPaths, setAttackPaths] = useState([]);
-  const [attackPathsLoading, setAttackPathsLoading] = useState(false);
+  const kpi         = data.kpi         || null;
+  const threats     = data.threats     || [];
+  const findings    = data.threatFindings || [];
+  const trendData   = data.trendData   || [];
+  const mitreMatrix = data.mitreMatrix || {};
+  const attackPaths = apData.attackPaths || [];
 
   // ── UI state ────────────────────────────────────────────────────────────
   const [selectedTechnique, setSelectedTechnique] = useState(null);
   const [selectedThreat, setSelectedThreat]       = useState(null);
   const [selectedFinding, setSelectedFinding]     = useState(null);
-
-  // ── Fetch ─────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await fetchView('threats', {
-          provider: provider || undefined,
-          account: account || undefined,
-          region: region || undefined,
-        });
-        if (data.error) { setError(data.error); return; }
-        if (data.kpi) setKpi(data.kpi);
-        if (data.threats) setThreats(data.threats);
-        if (data.threatFindings) setFindings(data.threatFindings);
-        if (data.trendData) setTrendData(data.trendData);
-        if (data.mitreMatrix) setMitreMatrix(data.mitreMatrix);
-
-        // Fetch attack paths (separate BFF endpoint, non-blocking)
-        setAttackPathsLoading(true);
-        getFromEngine('gateway', '/api/v1/views/threats/attack-paths', {
-          tenant_id: data.tenantId || 'default-tenant',
-        }).then(apData => {
-          if (apData && apData.attackPaths) setAttackPaths(apData.attackPaths);
-        }).catch(() => {}).finally(() => setAttackPathsLoading(false));
-
-      } catch (err) {
-        console.warn('[threats] fetch error:', err);
-        setError('Failed to load threats data');
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadData();
-  }, [provider, account, region]);
 
   // ── Computed stats ──────────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -399,8 +319,7 @@ export default function ThreatsPage() {
 
   // ── Base threats (technique-filtered) ─────────────────────────────────
   const baseThreats = useMemo(() => {
-    const rawThreats = threats.length ? threats : DEMO_THREATS;
-    let result = rawThreats;
+    let result = threats;
     if (selectedTechnique) {
       result = result.filter((t) => t.mitreTechnique === selectedTechnique);
     }
@@ -758,7 +677,7 @@ export default function ThreatsPage() {
             backgroundColor:'rgba(239,68,68,0.12)', color:'#ef4444' }}>↓ 6.2%</span>
         </div>
         <div style={{ fontSize:11, color:'var(--text-tertiary)', marginBottom:6 }}>vs last 8 scans</div>
-        <ThreatSparkline values={THREAT_SPARKLINES.total} color={TC.sky} ticks={SPARK_TICKS} />
+        <ThreatSparkline values={[]} color={TC.sky} ticks={[]} />
       </div>
 
       {/* Critical */}
@@ -773,7 +692,7 @@ export default function ThreatsPage() {
             backgroundColor:'rgba(239,68,68,0.12)', color:'#ef4444' }}>↓ 67%</span>
         </div>
         <div style={{ fontSize:11, color:'var(--text-tertiary)', marginBottom:6 }}>from 12 peak · 8 scans</div>
-        <ThreatSparkline values={THREAT_SPARKLINES.critical} color={TC.critical} ticks={SPARK_TICKS} />
+        <ThreatSparkline values={[]} color={TC.critical} ticks={[]} />
       </div>
 
       {/* High */}
@@ -788,7 +707,7 @@ export default function ThreatsPage() {
             backgroundColor:'rgba(249,115,22,0.12)', color:TC.orange }}>↓ 44%</span>
         </div>
         <div style={{ fontSize:11, color:'var(--text-tertiary)', marginBottom:6 }}>from 34 peak · 8 scans</div>
-        <ThreatSparkline values={THREAT_SPARKLINES.high} color={TC.orange} ticks={SPARK_TICKS} />
+        <ThreatSparkline values={[]} color={TC.orange} ticks={[]} />
       </div>
 
       {/* Avg Risk Score */}
@@ -806,7 +725,7 @@ export default function ThreatsPage() {
           <div style={{ height:'100%', borderRadius:2, width:`${stats.avgRiskScore ?? 47}%`,
             background:`linear-gradient(90deg, ${TC.emerald}, ${TC.amber})` }} />
         </div>
-        <ThreatSparkline values={THREAT_SPARKLINES.riskScore} color={TC.amber} ticks={SPARK_TICKS} />
+        <ThreatSparkline values={[]} color={TC.amber} ticks={[]} />
       </div>
 
       {/* Attack Paths */}
@@ -823,7 +742,7 @@ export default function ThreatsPage() {
         <div style={{ fontSize:11, color:'var(--text-tertiary)', marginBottom:6 }}>
           MITRE: <strong style={{ color:'var(--text-secondary)', fontWeight:700 }}>{totalMitreTechniques} techniques</strong>
         </div>
-        <ThreatSparkline values={THREAT_SPARKLINES.attackPaths} color={TC.violet} ticks={SPARK_TICKS} />
+        <ThreatSparkline values={[]} color={TC.violet} ticks={[]} />
       </div>
 
       {/* Active / Resolved */}
@@ -845,7 +764,7 @@ export default function ThreatsPage() {
           <span style={{ fontSize:11, color:'var(--text-tertiary)' }}>Unassigned</span>
           <span style={{ fontSize:11, fontWeight:700, color:TC.amber }}>{stats.unassigned ?? 31}</span>
         </div>
-        <ThreatSparkline values={THREAT_SPARKLINES.active} color={TC.emerald} ticks={SPARK_TICKS} />
+        <ThreatSparkline values={[]} color={TC.emerald} ticks={[]} />
       </div>
 
     </div>
@@ -861,7 +780,7 @@ export default function ThreatsPage() {
             30-Day Threat Trend
           </h3>
           <div style={{ height: 180 }}>
-            <TrendChartInline data={trendData.length > 0 ? trendData : MOCK_THREAT_TREND} />
+            <TrendChartInline data={trendData} />
           </div>
         </div>
       }

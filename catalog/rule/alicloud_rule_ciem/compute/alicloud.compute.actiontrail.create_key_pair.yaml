@@ -1,0 +1,72 @@
+rule_id: alicloud.compute.actiontrail.create_key_pair
+service: compute
+provider: alicloud
+check_type: log
+severity: medium
+title: 'AliCloud ECS: SSH Key Pair Created'
+description: An SSH key pair was created. Adversaries create new key pairs to establish
+  persistent SSH access to instances independent of password-based authentication.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: persistence
+mitre_tactics:
+- persistence
+mitre_techniques:
+- T1098.004
+risk_score: 65
+resource: alicloud_ecs_keypair
+source: alicloud_ciem_generator
+is_active: true
+domain: compute_and_workload_security
+action_category: create
+log_source_type: alicloud_actiontrail
+posture_category: workload_posture
+threat_tags:
+- T1098.004
+- persistence
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '8.1'
+  - '8.2'
+  nist_800_53_r5:
+  - CM-2
+  - CM-7
+  - SC-7
+  pci_dss_v4:
+  - '6.3'
+  - '6.4'
+  iso_27001_2022:
+  - A.8.9
+  - A.8.25
+remediation: '1. Verify the key pair was created by an authorized user.
+
+  2. Audit which instances have this key pair attached.
+
+  3. Use instance metadata service instead of key pairs where possible.'
+references:
+- https://attack.mitre.org/techniques/T1098/004/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: ecs
+    - field: operation
+      op: equals
+      value: CreateKeyPair
+version: '1.0'

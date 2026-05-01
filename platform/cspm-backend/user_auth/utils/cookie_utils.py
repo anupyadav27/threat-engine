@@ -1,3 +1,4 @@
+import os
 from datetime import timedelta
 from django.conf import settings
 from django.utils import timezone
@@ -12,11 +13,17 @@ REFRESH_TOKEN_LIFETIME = timedelta(
 
 def set_auth_cookies(response, access_token=None, refresh_token=None):
     """
-    Set HTTP-only, secure cookies for tokens.
-    Only sets cookies if tokens are provided.
+    Set HTTP-only cookies for tokens.
+    COOKIE_SECURE env var overrides the default (True in prod, False in dev).
     """
     now = timezone.now()
-    secure = not settings.DEBUG
+    _env = os.environ.get("COOKIE_SECURE", "").strip().lower()
+    if _env in ("true", "1"):
+        secure = True
+    elif _env in ("false", "0"):
+        secure = False
+    else:
+        secure = not settings.DEBUG
 
     if access_token:
         response.set_cookie(
@@ -25,7 +32,7 @@ def set_auth_cookies(response, access_token=None, refresh_token=None):
             expires=now + ACCESS_TOKEN_LIFETIME,
             httponly=True,
             secure=secure,
-            samesite="Strict",
+            samesite="Lax",
             path="/",
         )
 
@@ -36,7 +43,7 @@ def set_auth_cookies(response, access_token=None, refresh_token=None):
             expires=now + REFRESH_TOKEN_LIFETIME,
             httponly=True,
             secure=secure,
-            samesite="Strict",
+            samesite="Lax",
             path="/",
         )
 

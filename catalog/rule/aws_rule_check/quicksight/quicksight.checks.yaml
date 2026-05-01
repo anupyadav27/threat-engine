@@ -1,0 +1,113 @@
+version: '1.0'
+provider: aws
+service: quicksight
+checks:
+- rule_id: aws.quicksight.dashboard.admin_activity_logging_enabled
+  for_each: aws.quicksight.list_dashboards
+  severity: MEDIUM
+  conditions:
+    var: item.DashboardPublishOptions
+    op: exists
+    value: null
+- rule_id: aws.quicksight.dashboard.logs_retention_days_minimum
+  for_each: aws.quicksight.list_dashboards
+  severity: MEDIUM
+  conditions:
+    var: item.DashboardPublishOptions
+    op: exists
+    value: null
+- rule_id: aws.quicksight.dashboard.public_embeds_disabled
+  for_each: aws.quicksight.describe_account_settings
+  severity: HIGH
+  conditions:
+    var: item.PublicSharingEnabled
+    op: is_false
+    value: null
+- rule_id: aws.quicksight.dashboard.query_access_logging_enabled
+  for_each: aws.quicksight.list_dashboards
+  severity: MEDIUM
+  conditions:
+    var: item.DashboardPublishOptions
+    op: exists
+    value: null
+- rule_id: aws.quicksight.dashboard.quicksight_export_controls_enabled
+  for_each: aws.quicksight.describe_account_settings
+  severity: MEDIUM
+  conditions:
+    var: item.PublicSharingEnabled
+    op: is_false
+    value: null
+- rule_id: aws.quicksight.dashboard.quicksight_sharing_restricted_to_org_configured
+  for_each: aws.quicksight.describe_account_settings
+  severity: MEDIUM
+  conditions:
+    var: item.PublicSharingEnabled
+    op: is_false
+    value: null
+- rule_id: aws.quicksight.dashboard.quicksight_sso_required
+  for_each: aws.quicksight.describe_account_settings
+  severity: MEDIUM
+  conditions:
+    var: item.AccountSettings
+    op: exists
+    value: null
+- rule_id: aws.quicksight.dataset.access_policies_least_privilege
+  for_each: aws.quicksight.describe_data_set_permissions
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Actions
+      op: not_contains
+      value: '*'
+    - var: item.Actions
+      op: not_contains
+      value: quicksight:*
+- rule_id: aws.quicksight.dataset.encryption_at_rest_enabled
+  for_each: aws.quicksight.list_data_sets
+  severity: HIGH
+  conditions:
+    var: item.EncryptionAtRestEnabled
+    op: is_true
+    value: null
+- rule_id: aws.quicksight.dataset.public_sharing_disabled
+  for_each: aws.quicksight.describe_account_settings
+  severity: HIGH
+  conditions:
+    var: item.PublicSharingEnabled
+    op: is_false
+    value: null
+- rule_id: aws.quicksight.dataset.row_level_security_enabled
+  for_each: aws.quicksight.list_data_sets
+  severity: MEDIUM
+  conditions:
+    var: item.RowLevelPermissionDataSet
+    op: exists
+    value: null
+- rule_id: aws.quicksight.group.quicksight_external_sharing_restricted
+  for_each: aws.quicksight.describe_account_settings
+  severity: MEDIUM
+  conditions:
+    var: item.PublicSharingEnabled
+    op: is_false
+    value: null
+- rule_id: aws.quicksight.group.roles_minimal_configured
+  for_each: aws.quicksight.list_data_sets
+  severity: HIGH
+  conditions:
+    var: item.RowLevelPermissionDataSet
+    op: exists
+    value: null
+- rule_id: aws.quicksight.user.quicksight_sso_required
+  for_each: aws.quicksight.describe_account_settings
+  severity: MEDIUM
+  conditions:
+    var: item.AccountSettings.AuthenticationType
+    op: equals
+    value: IAM_AND_QUICKSIGHT
+- rule_id: aws.quicksight.user.roles_minimal_configured
+  for_each: aws.quicksight.list_data_sets
+  severity: HIGH
+  conditions:
+    var: item.RowLevelPermissionDataSet
+    op: exists
+    value: null

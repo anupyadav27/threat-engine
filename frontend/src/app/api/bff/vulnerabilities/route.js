@@ -16,10 +16,6 @@
 
 import { NextResponse } from 'next/server';
 
-const NLB_URL =
-  process.env.NEXT_PUBLIC_GATEWAY_URL ||
-  'http://a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com';
-
 // ── helpers ──────────────────────────────────────────────────────────────────
 async function tryFetch(url) {
   try {
@@ -302,18 +298,49 @@ function buildMockVulnerabilities() {
   };
 }
 
+function buildEmptyVulnerabilities() {
+  return {
+    _source: 'empty',
+    summary: {
+      total_vulnerabilities: 0, critical_count: 0, high_count: 0,
+      medium_count: 0, low_count: 0, affected_assets: 0, total_agents: 0,
+      active_agents: 0, sla_breached: 0, sla_on_track: 0,
+      mean_time_to_remediate: 0, patch_coverage_pct: 0, exploitable_count: 0,
+    },
+    severity_breakdown: { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 },
+    cvss_distribution: { '9-10': 0, '7-9': 0, '4-7': 0, '0-4': 0 },
+    age_distribution: { '<7d': 0, '7-30d': 0, '30-90d': 0, '>90d': 0 },
+    top_packages: [],
+    trend_30d: [],
+    vulnerabilities: [],
+    assets: [],
+    sbom: [],
+    dast: [],
+    remediation_queue: [],
+  };
+}
+
 // ── Route handler ─────────────────────────────────────────────────────────────
 export async function GET(request) {
+  const NLB_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || process.env.NLB_URL;
   const { searchParams } = new URL(request.url);
   const tenantId = searchParams.get('tenant_id') || '';
 
-  // Try live engine dashboard
-  const dashUrl = `${NLB_URL}/vulnerability/api/v1/reports/dashboard?tenant_id=${tenantId}`;
-  let liveData = await tryFetch(dashUrl);
+  const dashUrl = NLB_URL
+    ? `${NLB_URL}/vulnerability/api/v1/reports/dashboard?tenant_id=${tenantId}`
+    : null;
+
+  if (!dashUrl) {
+    return NextResponse.json(buildEmptyVulnerabilities(), {
+      headers: { 'X-Vuln-Source': 'empty-no-url' },
+    });
+  }
+
+  const liveData = await tryFetch(dashUrl);
 
   if (isDegenerate(liveData)) {
-    return NextResponse.json(buildMockVulnerabilities(), {
-      headers: { 'X-Vuln-Source': 'mock' },
+    return NextResponse.json(buildEmptyVulnerabilities(), {
+      headers: { 'X-Vuln-Source': 'empty' },
     });
   }
 

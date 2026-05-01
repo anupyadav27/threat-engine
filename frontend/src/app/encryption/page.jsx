@@ -8,8 +8,7 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
-import { fetchView } from '@/lib/api';
-import { useGlobalFilter } from '@/lib/global-filter-context';
+import { useViewFetch } from '@/lib/use-view-fetch';
 import PageLayout from '@/components/shared/PageLayout';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
@@ -29,27 +28,6 @@ const C = {
   teal:     '#14b8a6',
 };
 
-// ── Static trend data ─────────────────────────────────────────────────────────
-const ENC_SCAN_TREND = [
-  { date: 'Jan 13', passRate: 52, critical: 8,  high: 24, medium: 31, total: 76 },
-  { date: 'Jan 20', passRate: 54, critical: 7,  high: 23, medium: 29, total: 72 },
-  { date: 'Jan 27', passRate: 53, critical: 8,  high: 24, medium: 30, total: 74 },
-  { date: 'Feb 3',  passRate: 57, critical: 6,  high: 21, medium: 27, total: 68 },
-  { date: 'Feb 10', passRate: 60, critical: 5,  high: 19, medium: 25, total: 63 },
-  { date: 'Feb 17', passRate: 63, critical: 5,  high: 18, medium: 23, total: 59 },
-  { date: 'Feb 24', passRate: 65, critical: 4,  high: 16, medium: 21, total: 55 },
-  { date: 'Mar 3',  passRate: 67, critical: 4,  high: 15, medium: 20, total: 53 },
-];
-
-// ── Module scores ─────────────────────────────────────────────────────────────
-const ENC_MODULE_SCORES = [
-  { module: 'KMS Keys',      pass: 18, total: 24, color: '#8b5cf6' },
-  { module: 'S3 Buckets',    pass:  9, total: 18, color: '#ef4444' },
-  { module: 'RDS Instances', pass: 14, total: 17, color: '#3b82f6' },
-  { module: 'EBS Volumes',   pass: 11, total: 19, color: '#f97316' },
-  { module: 'TLS / HTTPS',   pass: 16, total: 20, color: '#06b6d4' },
-  { module: 'Certificates',  pass: 12, total: 15, color: '#10b981' },
-];
 
 const ENC_DOMAIN_MAP = {
   kms_keys:         { label: 'KMS Keys',      color: '#8b5cf6' },
@@ -60,73 +38,6 @@ const ENC_DOMAIN_MAP = {
   certificates:     { label: 'Certificates',  color: '#10b981' },
 };
 
-// ── Demo fallback data ────────────────────────────────────────────────────────
-const DEMO_ENC_OVERVIEW = [
-  { id: 1,  resource_name: 'prod-rds-postgres-01',    resource_type: 'RDS Instance',   provider: 'aws', region: 'us-east-1',    encryption_status: 'encrypted',         algorithm: 'AES-256', key_type: 'AWS_MANAGED', rotation_enabled: true,  expiry_date: null,         risk_score: 12 },
-  { id: 2,  resource_name: 'data-lake-s3-raw',        resource_type: 'S3 Bucket',      provider: 'aws', region: 'us-east-1',    encryption_status: 'unencrypted',       algorithm: null,      key_type: null,          rotation_enabled: false, expiry_date: null,         risk_score: 92 },
-  { id: 3,  resource_name: 'analytics-ebs-vol-07f2',  resource_type: 'EBS Volume',     provider: 'aws', region: 'us-west-2',   encryption_status: 'encrypted',         algorithm: 'AES-256', key_type: 'CUSTOMER_MANAGED', rotation_enabled: true, expiry_date: null,    risk_score: 8  },
-  { id: 4,  resource_name: 'legacy-app-ebs-vol-003a', resource_type: 'EBS Volume',     provider: 'aws', region: 'eu-west-1',   encryption_status: 'unencrypted',       algorithm: null,      key_type: null,          rotation_enabled: false, expiry_date: null,         risk_score: 88 },
-  { id: 5,  resource_name: 'ml-sagemaker-notebook',   resource_type: 'SageMaker',      provider: 'aws', region: 'us-east-1',    encryption_status: 'partially',         algorithm: 'AES-128', key_type: 'AWS_MANAGED', rotation_enabled: false, expiry_date: null,         risk_score: 54 },
-  { id: 6,  resource_name: 'dynamodb-sessions-prod',  resource_type: 'DynamoDB Table', provider: 'aws', region: 'ap-southeast-1', encryption_status: 'encrypted',       algorithm: 'AES-256', key_type: 'AWS_OWNED',   rotation_enabled: true,  expiry_date: null,         risk_score: 20 },
-];
-
-const DEMO_ENC_FINDINGS = [
-  { id: 1,  title: 'S3 bucket missing server-side encryption',       severity: 'critical', resource_name: 'data-lake-s3-raw',       resource_type: 'S3 Bucket',      provider: 'aws', region: 'us-east-1',      category: 'missing_encryption', status: 'FAIL', description: 'Bucket stores sensitive data without SSE-S3 or SSE-KMS enabled.' },
-  { id: 2,  title: 'KMS key rotation not enabled',                   severity: 'high',     resource_name: 'prod-cmk-app-data',      resource_type: 'KMS Key',        provider: 'aws', region: 'us-east-1',      category: 'key_rotation',       status: 'FAIL', description: 'Customer-managed CMK has automatic annual rotation disabled.'    },
-  { id: 3,  title: 'EBS volume at rest unencrypted',                 severity: 'high',     resource_name: 'legacy-app-ebs-vol-003a', resource_type: 'EBS Volume',    provider: 'aws', region: 'eu-west-1',      category: 'missing_encryption', status: 'FAIL', description: 'Volume attached to production EC2 instance is not encrypted.'    },
-  { id: 4,  title: 'TLS 1.0 still accepted on load balancer',        severity: 'high',     resource_name: 'prod-alb-public',        resource_type: 'ALB',            provider: 'aws', region: 'us-east-1',      category: 'weak_algorithm',     status: 'FAIL', description: 'Security policy allows deprecated TLS 1.0 connections.'          },
-  { id: 5,  title: 'ACM certificate expiring in 18 days',            severity: 'medium',   resource_name: 'api.prod.example.com',   resource_type: 'ACM Certificate', provider: 'aws', region: 'us-east-1',     category: 'expired_cert',       status: 'FAIL', description: 'Certificate will expire on 2026-04-19; auto-renewal not set.'    },
-  { id: 6,  title: 'Secrets Manager secret rotation overdue',        severity: 'medium',   resource_name: 'prod/db/master-creds',   resource_type: 'SM Secret',      provider: 'aws', region: 'us-east-1',      category: 'key_rotation',       status: 'FAIL', description: 'Last rotation was 127 days ago; policy requires 90-day cycle.'   },
-  { id: 7,  title: 'SageMaker notebook lacks full volume encryption', severity: 'medium',   resource_name: 'ml-sagemaker-notebook',  resource_type: 'SageMaker',      provider: 'aws', region: 'us-east-1',      category: 'missing_encryption', status: 'FAIL', description: 'Only model artefacts are encrypted; scratch volume is plaintext.' },
-  { id: 8,  title: 'RDS snapshot public and unencrypted',            severity: 'critical', resource_name: 'rds-snap-2026-02-14',    resource_type: 'RDS Snapshot',   provider: 'aws', region: 'us-west-2',      category: 'missing_encryption', status: 'FAIL', description: 'Snapshot is publicly accessible and not encrypted at rest.'       },
-];
-
-const DEMO_ENC_KEYS = [
-  { id: 1,  key_id: 'mrk-a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6', alias: 'alias/prod-app-data',      provider: 'aws', region: 'us-east-1',    key_type: 'SYMMETRIC_DEFAULT', rotation_enabled: true,  last_rotated: '2026-01-07', expiry_date: null,         status: 'Enabled', usage_count: 8412 },
-  { id: 2,  key_id: 'mrk-b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7', alias: 'alias/rds-master-key',      provider: 'aws', region: 'us-east-1',    key_type: 'SYMMETRIC_DEFAULT', rotation_enabled: false, last_rotated: '2024-11-03', expiry_date: null,         status: 'Enabled', usage_count: 3201 },
-  { id: 3,  key_id: 'mrk-c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8', alias: 'alias/s3-data-lake',        provider: 'aws', region: 'us-west-2',   key_type: 'SYMMETRIC_DEFAULT', rotation_enabled: true,  last_rotated: '2026-02-14', expiry_date: null,         status: 'Enabled', usage_count: 19874 },
-  { id: 4,  key_id: 'mrk-d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9', alias: 'alias/secrets-manager-key', provider: 'aws', region: 'eu-west-1',   key_type: 'SYMMETRIC_DEFAULT', rotation_enabled: false, last_rotated: '2025-06-20', expiry_date: null,         status: 'Enabled', usage_count: 540  },
-  { id: 5,  key_id: 'mrk-e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0', alias: 'alias/ebs-backup-key',      provider: 'aws', region: 'ap-southeast-1', key_type: 'SYMMETRIC_DEFAULT', rotation_enabled: true, last_rotated: '2026-03-01', expiry_date: null,        status: 'Enabled', usage_count: 2293 },
-  { id: 6,  key_id: 'mrk-f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1', alias: 'alias/deprecated-hmac',     provider: 'aws', region: 'us-east-1',    key_type: 'HMAC_256',          rotation_enabled: false, last_rotated: '2024-08-11', expiry_date: '2026-08-11', status: 'Pending deletion', usage_count: 0 },
-];
-
-const DEMO_ENC_CERTS = [
-  { id: 1, domain: 'api.prod.example.com',      cert_type: 'ACM',         provider: 'aws', region: 'us-east-1',    issuer: 'Amazon',       valid_from: '2025-04-01', valid_to: '2026-04-01', days_until_expiry: 0,   status: 'EXPIRING', auto_renew: false },
-  { id: 2, domain: 'app.prod.example.com',      cert_type: 'ACM',         provider: 'aws', region: 'us-east-1',    issuer: 'Amazon',       valid_from: '2025-07-15', valid_to: '2026-07-15', days_until_expiry: 105, status: 'ISSUED',   auto_renew: true  },
-  { id: 3, domain: 'internal.corp.example.com', cert_type: 'Self-Signed', provider: 'aws', region: 'eu-west-1',    issuer: 'Corp CA',      valid_from: '2024-01-10', valid_to: '2026-04-19', days_until_expiry: 18,  status: 'EXPIRING', auto_renew: false },
-  { id: 4, domain: 'cdn.example.com',           cert_type: 'ACM',         provider: 'aws', region: 'us-east-1',    issuer: 'Amazon',       valid_from: '2025-10-22', valid_to: '2026-10-22', days_until_expiry: 204, status: 'ISSUED',   auto_renew: true  },
-  { id: 5, domain: 'legacy-api.example.com',    cert_type: 'DigiCert',    provider: 'aws', region: 'us-west-2',    issuer: 'DigiCert',     valid_from: '2025-03-01', valid_to: '2026-03-01', days_until_expiry: -31, status: 'EXPIRED',  auto_renew: false },
-];
-
-const DEMO_ENC_SECRETS = [
-  { id: 1, secret_name: 'prod/db/master-creds',        provider: 'aws', region: 'us-east-1',    last_rotated: '2025-11-25', rotation_enabled: false, days_since_rotation: 127, status: 'Rotation overdue', usage_type: 'Database credentials' },
-  { id: 2, secret_name: 'prod/app/api-keys',           provider: 'aws', region: 'us-east-1',    last_rotated: '2026-02-10', rotation_enabled: true,  days_since_rotation: 50,  status: 'Active',           usage_type: 'API keys'             },
-  { id: 3, secret_name: 'prod/integrations/stripe-sk', provider: 'aws', region: 'us-east-1',    last_rotated: '2025-09-01', rotation_enabled: false, days_since_rotation: 212, status: 'Rotation overdue', usage_type: 'Payment integration'  },
-  { id: 4, secret_name: 'staging/db/replica-creds',    provider: 'aws', region: 'eu-west-1',    last_rotated: '2026-03-15', rotation_enabled: true,  days_since_rotation: 17,  status: 'Active',           usage_type: 'Database credentials' },
-  { id: 5, secret_name: 'prod/infra/k8s-service-acct', provider: 'aws', region: 'ap-southeast-1', last_rotated: '2025-12-01', rotation_enabled: false, days_since_rotation: 121, status: 'Rotation overdue', usage_type: 'Service account' },
-];
-
-const DEMO_ENC_REMEDIATIONS = [
-  { id: 1, title: 'Enable SSE-KMS on data-lake-s3-raw bucket',              priority: 'P1-URGENT', affected_resource: 'data-lake-s3-raw',       action: 'Enable bucket encryption with CMK',       effort: 'Low',    owner: 'Platform',  due_date: '2026-04-08', status: 'Open'        },
-  { id: 2, title: 'Enable rotation on prod-cmk-app-data KMS key',           priority: 'P1-URGENT', affected_resource: 'prod-cmk-app-data',      action: 'Enable automatic annual key rotation',    effort: 'Low',    owner: 'SecOps',    due_date: '2026-04-10', status: 'In Progress' },
-  { id: 3, title: 'Encrypt legacy-app-ebs-vol-003a at rest',                priority: 'P2-HIGH',   affected_resource: 'legacy-app-ebs-vol-003a', action: 'Snapshot, copy with encryption, swap',   effort: 'Medium', owner: 'Platform',  due_date: '2026-04-15', status: 'Open'        },
-  { id: 4, title: 'Renew internal.corp.example.com certificate',            priority: 'P2-HIGH',   affected_resource: 'internal.corp.example.com', action: 'Issue new cert via Corp CA pipeline',  effort: 'Low',    owner: 'NetOps',    due_date: '2026-04-12', status: 'In Progress' },
-  { id: 5, title: 'Rotate prod/db/master-creds secret and enable schedule', priority: 'P3-MEDIUM', affected_resource: 'prod/db/master-creds',    action: 'Rotate via Secrets Manager + set Lambda', effort: 'Medium', owner: 'AppTeam',   due_date: '2026-04-22', status: 'Open'        },
-];
-
-// ── KPI fallback ──────────────────────────────────────────────────────────────
-const ENC_KPI_FALLBACK = {
-  posture_score: 67, total_findings: 202,
-  critical: 4, high: 15, medium: 20, low: 163,
-  total_resources: 113, unencrypted: 31, weak_keys: 7, expiring_certs: 12,
-};
-
-const ENC_SPARKLINES = {
-  posture_score:   [44, 46, 45, 48, 50, 52, 53, 55],
-  total_findings:  [198, 192, 195, 188, 183, 179, 176, 172],
-  unencrypted:     [38, 36, 37, 34, 32, 30, 29, 27],
-  expiring_certs:  [14, 14, 15, 13, 12, 12, 11, 11],
-};
 
 // ── Pure-SVG severity donut ───────────────────────────────────────────────────
 function EncDonut({ slices, size = 160 }) {
@@ -173,34 +84,9 @@ function EncDonut({ slices, size = 160 }) {
 }
 
 export default function EncryptionPage() {
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState(null);
-  const [data, setData]         = useState({});
+  const { data, loading, error } = useViewFetch('encryption');
   const [selectedFinding, setSelectedFinding] = useState(null);
   const handleRowClick = (row) => { const f = row?.original || row; if (f) setSelectedFinding(f); };
-
-  const { provider, account, region } = useGlobalFilter();
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const result = await fetchView('encryption', {
-          provider: provider || undefined,
-          account:  account  || undefined,
-          region:   region   || undefined,
-        });
-        if (result.error) { setError(result.error); return; }
-        setData(result);
-      } catch (err) {
-        setError(err?.message || 'Failed to load encryption data');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [provider, account, region]);
 
   // ── Extract data arrays (with DEMO fallback when API returns nothing) ──
   const rawFindings     = data.findings     || [];
@@ -208,10 +94,10 @@ export default function EncryptionPage() {
   const rawCertificates = data.certificates || [];
   const rawSecrets      = data.secrets      || [];
 
-  const findings     = rawFindings.length     ? rawFindings     : DEMO_ENC_FINDINGS;
-  const keys         = rawKeys.length         ? rawKeys         : DEMO_ENC_KEYS;
-  const certificates = rawCertificates.length ? rawCertificates : DEMO_ENC_CERTS;
-  const secrets      = rawSecrets.length      ? rawSecrets      : DEMO_ENC_SECRETS;
+  const findings     = rawFindings;
+  const keys         = rawKeys;
+  const certificates = rawCertificates;
+  const secrets      = rawSecrets;
 
   // Build pageContext — inject Overview tab if not returned by BFF
   const pageContext = useMemo(() => {
@@ -229,39 +115,39 @@ export default function EncryptionPage() {
     const g0 = data.kpiGroups?.[0]?.items || [];
     const get = (arr, lbl) => arr.find(x => x.label?.toLowerCase() === lbl.toLowerCase())?.value ?? null;
     return {
-      posture_score:   get(g0, 'Posture Score')   ?? ENC_KPI_FALLBACK.posture_score,
-      total_findings:  get(g0, 'Total Findings')  ?? ENC_KPI_FALLBACK.total_findings,
-      critical:        get(g0, 'Critical')        ?? ENC_KPI_FALLBACK.critical,
-      high:            get(g0, 'High')            ?? ENC_KPI_FALLBACK.high,
-      medium:          get(g0, 'Medium')          ?? ENC_KPI_FALLBACK.medium,
-      low:             get(g0, 'Low')             ?? ENC_KPI_FALLBACK.low,
-      total_resources: get(g0, 'Total Resources') ?? ENC_KPI_FALLBACK.total_resources,
-      unencrypted:     get(g0, 'Unencrypted')     ?? ENC_KPI_FALLBACK.unencrypted,
-      weak_keys:       get(g0, 'Weak Keys')       ?? ENC_KPI_FALLBACK.weak_keys,
-      expiring_certs:  get(g0, 'Expiring Certs')  ?? ENC_KPI_FALLBACK.expiring_certs,
+      posture_score:   get(g0, 'Posture Score')   ?? 0,
+      total_findings:  get(g0, 'Total Findings')  ?? findings.length,
+      critical:        get(g0, 'Critical')        ?? 0,
+      high:            get(g0, 'High')            ?? 0,
+      medium:          get(g0, 'Medium')          ?? 0,
+      low:             get(g0, 'Low')             ?? 0,
+      total_resources: get(g0, 'Total Resources') ?? 0,
+      unencrypted:     get(g0, 'Unencrypted')     ?? 0,
+      weak_keys:       get(g0, 'Weak Keys')       ?? 0,
+      expiring_certs:  get(g0, 'Expiring Certs')  ?? 0,
     };
   }, [data.kpiGroups]);
 
   // ── Active scan trend: live from BFF or static fallback ──────────────
   const activeScanTrend = useMemo(
     () => {
-      if (data.scanTrend?.length >= 2) {
+      if (data.scanTrend?.length >= 1) {
         return data.scanTrend.map(d => ({ ...d, passRate: d.pass_rate ?? d.passRate ?? 0 }));
       }
-      return ENC_SCAN_TREND;
+      return [];
     },
     [data.scanTrend],
   );
 
   const activeModuleScores = useMemo(() => {
     const db = data.domainBreakdown;
-    if (db?.length >= 3) {
+    if (db?.length >= 1) {
       return db.map(d => {
         const meta = ENC_DOMAIN_MAP[d.security_domain] ?? { label: d.security_domain, color: '#64748b' };
         return { module: meta.label, pass: d.pass_count ?? 0, total: d.total ?? 0, color: meta.color };
       });
     }
-    return ENC_MODULE_SCORES;
+    return [];
   }, [data.domainBreakdown]);
 
   // ── Insight strip ────────────────────────────────────────────────────────
@@ -305,12 +191,12 @@ export default function EncryptionPage() {
     ];
 
     // ── Trend deltas ──
-    const first  = activeScanTrend[0];
-    const last   = activeScanTrend[activeScanTrend.length - 1];
-    const rateΔ  = last.passRate  - first.passRate;
-    const critΔ  = last.critical  - first.critical;
-    const highΔ  = last.high      - first.high;
-    const totalΔ = last.total     - first.total;
+    const first  = activeScanTrend[0] || {};
+    const last   = activeScanTrend[activeScanTrend.length - 1] || {};
+    const rateΔ  = (last.passRate  ?? 0) - (first.passRate  ?? 0);
+    const critΔ  = (last.critical  ?? 0) - (first.critical  ?? 0);
+    const highΔ  = (last.high      ?? 0) - (first.high      ?? 0);
+    const totalΔ = (last.total     ?? 0) - (first.total     ?? 0);
 
     const statPill = (label, value, delta, goodDir) => {
       const improved = goodDir === 'up' ? delta >= 0 : delta <= 0;
@@ -510,7 +396,7 @@ export default function EncryptionPage() {
                   Encryption Posture Trend
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
-                  {first.date} – {last.date} · {ENC_SCAN_TREND.length} scans
+                  {first.date && last.date ? `${first.date} – ${last.date} · ` : ''}{activeScanTrend.length} scans
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -533,10 +419,10 @@ export default function EncryptionPage() {
 
             {/* 4-stat summary strip */}
             <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-              {statPill('Pass Rate', `${last.passRate}%`, rateΔ,  'up'  )}
-              {statPill('Critical',  last.critical,       critΔ,  'down')}
-              {statPill('High',      last.high,           highΔ,  'down')}
-              {statPill('Total',     last.total,          totalΔ, 'down')}
+              {statPill('Pass Rate', `${last.passRate ?? 0}%`, rateΔ,  'up'  )}
+              {statPill('Critical',  last.critical ?? 0,    critΔ,  'down')}
+              {statPill('High',      last.high ?? 0,        highΔ,  'down')}
+              {statPill('Total',     last.total ?? 0,       totalΔ, 'down')}
             </div>
 
             {/* Composed chart — fills remaining height */}

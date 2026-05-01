@@ -1,0 +1,132 @@
+tech_type: oracle_db
+category: database
+cis_benchmark: CIS Oracle Db 23ai v1.0.0
+cis_section: '4'
+
+rules:
+
+  - rule_id: oracle_db.cis.4.no_custom_oracle_maintained_users_exist
+    title: "Ensure No Custom 'ORACLE_MAINTAINED' Users Exist"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: oracle_db.section_4.no_custom_oracle_maintained_users_exist
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "true"
+    remediation: >
+      To remediate this setting, execute the following SQL statement. DROP USER
+      <USERNAME> ;
+    compliance:
+      - cis_oracle_db_23ai_v1_0_0_4_2
+
+  - rule_id: oracle_db.cis.4.old_password_versions_are_not_used
+    title: "Ensure Old Password Versions Are Not Used"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: oracle_db.section_4.old_password_versions_are_not_used
+    assertion:
+      field: version
+      operator: equals
+      expected: "true"
+    remediation: >
+      Follow the process 'Finding and Resetting User Passwords That Use the 10G
+      Password Version' as outlined in the Oracle Database Upgrade Guide to reset
+      affected user passwords and enforce 12c password versioning. • Identify users
+      with old password versions. • Ensure that SQLNET.ALLOWED_LOGON_VERSION_SERVER
+      is set to 12. • Reset their passwords using the ALTER USER command.
+      References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/upgrd/recommended-and-best-practices-complete-upgrading- oracle-
+      database.html#GUID-D7B09DFE-F55D-449A-8F8A-174D89936304
+    compliance:
+      - cis_oracle_db_23ai_v1_0_0_4_4
+
+  - rule_id: oracle_db.cis.4.database_link_passwords_are_using_the_latest
+    title: "Ensure That Database Link Passwords Are Using The Latest Encryption"
+    severity: high
+    automation_type: automated
+    cis_control: '4.8'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: oracle_db.section_4.database_link_passwords_are_using_the_latest
+    assertion:
+      field: version
+      operator: equals
+      expected: "true"
+    remediation: >
+      After upgrading to Oracle 23ai, drop and recreate the database link to ensure
+      that passwords are encrypted using the latest method.
+    compliance:
+      - cis_oracle_db_23ai_v1_0_0_4_8
+
+  - rule_id: oracle_db.cis.4.all_sample_data_and_users_have_been_removed
+    title: "Ensure All Sample Data And Users Have Been Removed"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: oracle_db.section_4.all_sample_data_and_users_have_been_removed
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to run the drop script.
+      $ORACLE_HOME/demo/schema/drop_sch.sql Then, execute the following SQL
+      statement. DROP USER SCOTT CASCADE; Note: The recyclebin is not set to OFF
+      within the default drop script, which means that the data will still be
+      present in your environment until the recyclebin is emptied. References: 1.
+      https://docs.oracle.com/en/database/oracle/oracle-database/19/comsc/toc.htm
+    compliance:
+      - cis_oracle_db_19c_v1_2_0_4_2
+
+  - rule_id: oracle_db.cis.4.no_users_are_assigned_the_default_profile
+    title: "Ensure No Users Are Assigned the 'DEFAULT' Profile"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: oracle_db.section_4.no_users_are_assigned_the_default_profile
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      To remediate this recommendation, execute the following SQL statement for each
+      user returned by the audit query using a functional-appropriate profile,
+      keeping in mind if this is granted in both container and pluggable database,
+      you must connect to both places to revoke. ALTER USER <username> PROFILE
+      <appropriate_profile> ;
+    compliance:
+      - cis_oracle_db_19c_v1_2_0_4_4
+
+  - rule_id: oracle_db.cis.4.sys_user_mig_has_been_dropped
+    title: "Ensure 'SYS.USER$MIG' Has Been Dropped"
+    severity: high
+    automation_type: automated
+    cis_control: '4.5'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: oracle_db.section_4.sys_user_mig_has_been_dropped
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. DROP TABLE SYS.USER$MIG;
+    compliance:
+      - cis_oracle_db_19c_v1_2_0_4_5
+
+

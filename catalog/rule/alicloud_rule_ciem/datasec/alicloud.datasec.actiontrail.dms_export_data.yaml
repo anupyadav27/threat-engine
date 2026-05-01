@@ -1,0 +1,76 @@
+rule_id: alicloud.datasec.actiontrail.dms_export_data
+service: datasec
+provider: alicloud
+check_type: log
+severity: high
+title: 'AliCloud DMS: SQL Query Exported to File'
+description: A DMS (Data Management Service) data export was initiated. Bulk SQL exports
+  bypass row-level security and audit controls, enabling large-scale data exfiltration.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: data_exfiltration
+mitre_tactics:
+- collection
+- exfiltration
+mitre_techniques:
+- T1213
+risk_score: 78
+resource: alicloud_dms_order
+source: alicloud_ciem_generator
+is_active: true
+domain: data_protection_and_privacy
+action_category: audit_activity
+log_source_type: alicloud_actiontrail
+posture_category: data_security_posture
+threat_tags:
+- T1213
+- collection
+- exfiltration
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '5.1'
+  - '5.2'
+  nist_800_53_r5:
+  - SC-28
+  - AC-3
+  - AU-9
+  pci_dss_v4:
+  - '3.4'
+  - '3.5'
+  - '6.3'
+  iso_27001_2022:
+  - A.8.10
+  - A.8.24
+remediation: '1. Review the export query scope — flag exports on tables with PII or
+  financial data.
+
+  2. Require approval workflows for all DMS export orders.
+
+  3. Enable DMS operation log auditing.'
+references:
+- https://attack.mitre.org/techniques/T1213/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: dms
+    - field: operation
+      op: equals
+      value: ApproveOrder
+version: '1.0'

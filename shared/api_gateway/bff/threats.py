@@ -11,9 +11,10 @@ and Analytics pages into a single comprehensive view.
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, List
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
-from ._shared import fetch_many, safe_get, mock_fallback, is_empty_or_health
+from ._shared import fetch_many, safe_get
+from ._cache import cache_key, cached_view, TTL_THREATS, auth_level_from_header
 from ._transforms import (
     normalize_threat, normalize_attack_chain, normalize_intel,
     build_mitre_matrix, build_mitre_matrix_from_raw,
@@ -37,6 +38,7 @@ def _enrich_threats_provider(threats, account_provider_map, default_provider="")
 
 @router.get("/threats")
 async def view_threats(
+    request: Request,
     tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
@@ -44,6 +46,15 @@ async def view_threats(
     scan_run_id: str = Query("latest"),
 ):
     """BFF view for /threats page — detection-level data."""
+
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+    role_level = auth_level_from_header(auth_ctx_header)
+
+    ck = cache_key("threats", tenant_id, scan_run_id, provider or "", account or "", region or "", role_level=role_level)
+    cached = cached_view(ck)
+    if cached is not None:
+        return cached
 
     results = await fetch_many([
         ("threat", "/api/v1/threat/ui-data", {
@@ -55,7 +66,7 @@ async def view_threats(
         ("onboarding", "/api/v1/cloud-accounts", {
             "tenant_id": tenant_id,
         }),
-    ])
+    ], auth_headers=fwd_headers)
 
     threat_data, onboarding_data = results
 
@@ -63,19 +74,6 @@ async def view_threats(
         threat_data = {}
     if not isinstance(onboarding_data, dict):
         onboarding_data = {}
-
-    # Mock fallback when engine data is empty or has no detections
-    _has_detections = (
-        isinstance(threat_data, dict)
-        and (
-            safe_get(threat_data, "threats", [])
-            or safe_get(threat_data, "summary.total_detections", 0)
-        )
-    )
-    if is_empty_or_health(threat_data) or not _has_detections:
-        m = mock_fallback("threats")
-        if m is not None:
-            return m
 
     # Build account->provider mapping from onboarding
     raw_accounts = (
@@ -366,7 +364,7 @@ async def view_threats(
         {"id": "timeline",     "label": "Timeline",        "count": len(trend_list)},
     ]
 
-    return {
+    result = {
         "pageContext": page_ctx,
         "filterSchema": threats_filter_schema(),
         "kpiGroups": [
@@ -416,3 +414,5 @@ async def view_threats(
             "avgRiskScore": avg_risk,
         },
     }
+    cached_view(ck, result, ttl=TTL_THREATS)
+    return result

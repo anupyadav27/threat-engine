@@ -1,0 +1,43 @@
+version: '1.0'
+provider: aws
+service: inspector2
+checks:
+- rule_id: aws.inspector2.coverage.ecr_scanning_enabled
+  for_each: aws.inspector2.list_coverage
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.resourceType
+      op: equals
+      value: AWS_ECR_CONTAINER_IMAGE
+    - var: item.scanStatus
+      op: equals
+      value: ACTIVE
+- rule_id: aws.inspector2.finding.critical_finding_not_open
+  for_each: aws.inspector2.list_findings
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.severity
+      op: equals
+      value: CRITICAL
+    - var: item.status
+      op: not_equals
+      value: ACTIVE
+- rule_id: aws.inspector2.organization.scanning_enabled
+  for_each: aws.inspector2.describe_organization_configuration
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.autoEnable
+      op: exists
+      value: null
+    - var: item.autoEnable.ec2
+      op: is_true
+      value: null
+    - var: item.autoEnable.ecr
+      op: is_true
+      value: null
+    - var: item.autoEnable.lambda
+      op: is_true
+      value: null

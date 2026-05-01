@@ -1,0 +1,184 @@
+# ==========================================================
+# Discovery YAML — eks (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 78 | ops: 3 independent, 2 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: eks
+
+services:
+  client: eks
+  module: "boto3.client('eks')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: access_entry
+    identifier_op: aws.eks.describe_access_entry
+    identifier_field: accessEntryArn
+    item_var_path: item.accessEntryArn
+    identifier_template: '{accessentryarn}'
+  - resource_type: fargate_profile
+    identifier_op: aws.eks.describe_fargate_profile
+    identifier_field: fargateProfileArn
+    item_var_path: item.fargateProfileArn
+    identifier_template: '{fargateprofilearn}'
+  - resource_type: nodegroup
+    identifier_op: aws.eks.describe_nodegroup
+    identifier_field: nodegroupArn
+    item_var_path: item.nodegroupArn
+    identifier_template: '{nodegrouparn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.eks.describe_access_entry  ──
+  - discovery_id: aws.eks.describe_access_entry
+    calls:
+      - action: describe_access_entry
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        accessEntryArn: '{{ item.accessEntryArn }}'
+        clusterName: '{{ item.clusterName }}'
+        createdAt: '{{ item.createdAt }}'
+        kubernetesGroups: '{{ item.kubernetesGroups }}'
+        modifiedAt: '{{ item.modifiedAt }}'
+        principalArn: '{{ item.principalArn }}'
+        tags: '{{ item.tags }}'
+        type: '{{ item.type }}'
+        username: '{{ item.username }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.eks.describe_fargate_profile  ──
+  - discovery_id: aws.eks.describe_fargate_profile
+    calls:
+      - action: describe_fargate_profile
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        clusterName: '{{ item.clusterName }}'
+        createdAt: '{{ item.createdAt }}'
+        fargateProfileArn: '{{ item.fargateProfileArn }}'
+        fargateProfileName: '{{ item.fargateProfileName }}'
+        health: '{{ item.health }}'
+        podExecutionRoleArn: '{{ item.podExecutionRoleArn }}'
+        selectors: '{{ item.selectors }}'
+        status: '{{ item.status }}'
+        subnets: '{{ item.subnets }}'
+        tags: '{{ item.tags }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.eks.describe_nodegroup  ──
+  - discovery_id: aws.eks.describe_nodegroup
+    calls:
+      - action: describe_nodegroup
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        amiType: '{{ item.amiType }}'
+        capacityType: '{{ item.capacityType }}'
+        clusterName: '{{ item.clusterName }}'
+        createdAt: '{{ item.createdAt }}'
+        diskSize: '{{ item.diskSize }}'
+        health: '{{ item.health }}'
+        instanceTypes: '{{ item.instanceTypes }}'
+        labels: '{{ item.labels }}'
+        launchTemplate: '{{ item.launchTemplate }}'
+        modifiedAt: '{{ item.modifiedAt }}'
+        nodeRepairConfig: '{{ item.nodeRepairConfig }}'
+        nodeRole: '{{ item.nodeRole }}'
+        nodegroupArn: '{{ item.nodegroupArn }}'
+        nodegroupName: '{{ item.nodegroupName }}'
+        releaseVersion: '{{ item.releaseVersion }}'
+        remoteAccess: '{{ item.remoteAccess }}'
+        resources: '{{ item.resources }}'
+        scalingConfig: '{{ item.scalingConfig }}'
+        status: '{{ item.status }}'
+        subnets: '{{ item.subnets }}'
+        tags: '{{ item.tags }}'
+        taints: '{{ item.taints }}'
+        updateConfig: '{{ item.updateConfig }}'
+        version: '{{ item.version }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.eks.describe_addon [dependent] ──
+  - discovery_id: aws.eks.describe_addon
+    for_each: aws.eks.list_addons
+    calls:
+      - action: describe_addon
+        params:
+          addonName: "{{ item }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        addonArn: '{{ item.addonArn }}'
+        addonName: '{{ item.addonName }}'
+        addonVersion: '{{ item.addonVersion }}'
+        clusterName: '{{ item.clusterName }}'
+        configurationValues: '{{ item.configurationValues }}'
+        health: '{{ item.health }}'
+        namespaceConfig: '{{ item.namespaceConfig }}'
+        serviceAccountRoleArn: '{{ item.serviceAccountRoleArn }}'
+        status: '{{ item.status }}'
+        tags: '{{ item.tags }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.eks.describe_cluster [dependent] ──
+  - discovery_id: aws.eks.describe_cluster
+    for_each: aws.eks.list_access_policies
+    calls:
+      - action: describe_cluster
+        params:
+          name: "{{ item.name }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        accessConfig: '{{ item.accessConfig }}'
+        arn: '{{ item.arn }}'
+        certificateAuthority: '{{ item.certificateAuthority }}'
+        clientRequestToken: '{{ item.clientRequestToken }}'
+        computeConfig: '{{ item.computeConfig }}'
+        connectorConfig: '{{ item.connectorConfig }}'
+        controlPlaneScalingConfig: '{{ item.controlPlaneScalingConfig }}'
+        createdAt: '{{ item.createdAt }}'
+        deletionProtection: '{{ item.deletionProtection }}'
+        encryptionConfig: '{{ item.encryptionConfig }}'
+        endpoint: '{{ item.endpoint }}'
+        health: '{{ item.health }}'
+        id: '{{ item.id }}'
+        identity: '{{ item.identity }}'
+        kubernetesNetworkConfig: '{{ item.kubernetesNetworkConfig }}'
+        logging: '{{ item.logging }}'
+        name: '{{ item.name }}'
+        outpostConfig: '{{ item.outpostConfig }}'
+        platformVersion: '{{ item.platformVersion }}'
+        remoteNetworkConfig: '{{ item.remoteNetworkConfig }}'
+        resourcesVpcConfig: '{{ item.resourcesVpcConfig }}'
+        resourcesVpcConfig.endpointPrivateAccess: '{{ item.resourcesVpcConfig.endpointPrivateAccess }}'
+        resourcesVpcConfig.endpointPublicAccess: '{{ item.resourcesVpcConfig.endpointPublicAccess }}'
+        roleArn: '{{ item.roleArn }}'
+        status: '{{ item.status }}'
+        storageConfig: '{{ item.storageConfig }}'
+        tags: '{{ item.tags }}'
+        upgradePolicy: '{{ item.upgradePolicy }}'
+        version: '{{ item.version }}'
+        zonalShiftConfig: '{{ item.zonalShiftConfig }}'
+

@@ -114,8 +114,16 @@ class InventoryReader:
                     query += " AND scan_run_id = %s"
                     params.append(scan_id)
                 if discovery_id:
-                    query += " AND properties->>'discovery_id' = %s"
-                    params.append(discovery_id)
+                    # Match root op OR any enrichment op that contributed to the asset.
+                    # properties->>'discovery_id' = root op (Pass 1).
+                    # properties->'enriched_from' = JSONB array of all contributing ops (Pass 2).
+                    # source_discovery_ids = same list, populated from enriched_from in index_writer.
+                    query += (
+                        " AND (properties->>'discovery_id' = %s"
+                        " OR properties->'enriched_from' @> jsonb_build_array(%s::text)"
+                        " OR source_discovery_ids @> jsonb_build_array(%s::text))"
+                    )
+                    params.extend([discovery_id, discovery_id, discovery_id])
                 if tenant_id:
                     query += " AND tenant_id = %s"
                     params.append(tenant_id)
@@ -153,7 +161,40 @@ class InventoryReader:
                     except (json.JSONDecodeError, TypeError):
                         config = {}
                 if config:
+                    # Keep nested access via _configuration (for explicit paths)
                     ef["_configuration"] = config
+                    # Flatten enrichment op data into emitted_fields in two passes:
+                    # Pass A: direct flatten of each op's top-level fields (root fields win).
+                    # Pass B: if an op value is a single-key AWS response wrapper
+                    #         (e.g. {'PublicAccessBlockConfiguration': {'BlockPublicAcls': True}}),
+                    #         also flatten the inner dict so rules using flat field names work.
+                    _OP_PREFIXES = ("get_", "list_", "describe_", "put_", "create_")
+                    for op_data in config.values():
+                        if not isinstance(op_data, dict):
+                            continue
+                        # Pass A
+                        for k, v in op_data.items():
+                            if k not in ef:
+                                ef[k] = v
+                        # Pass B — single-key wrapper unwrap
+                        if len(op_data) == 1:
+                            inner = next(iter(op_data.values()))
+                            if isinstance(inner, dict):
+                                for k, v in inner.items():
+                                    if k not in ef:
+                                        ef[k] = v
+
+                # Also flatten op-name wrapper keys already present in emitted_fields
+                # e.g. ef['get_key_rotation_status'] = {'KeyRotationEnabled': True}
+                # → ef['KeyRotationEnabled'] = True
+                _OP_PREFIXES = ("get_", "list_", "describe_", "put_", "create_")
+                for key in list(ef.keys()):
+                    if any(key.startswith(p) for p in _OP_PREFIXES):
+                        inner = ef[key]
+                        if isinstance(inner, dict):
+                            for k, v in inner.items():
+                                if k not in ef:
+                                    ef[k] = v
 
                 rec["emitted_fields"] = ef
                 rec["discovery_id"] = props.get("discovery_id", "")

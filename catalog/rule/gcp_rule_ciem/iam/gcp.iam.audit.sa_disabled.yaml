@@ -1,0 +1,77 @@
+rule_id: gcp.iam.audit.sa_disabled
+service: iam
+provider: gcp
+check_type: log
+severity: high
+title: 'GCP IAM: Service Account Disabled'
+description: A service account was disabled. An attacker may disable production service accounts to cause service disruption or cover lateral movement.
+rationale: Adversaries abuse iam operations to achieve impact in GCP environments. Detected via Cloud Admin Activity or Data Access audit logs.
+threat_category: impact
+mitre_tactics:
+- impact
+mitre_techniques:
+- T1531
+risk_score: 74
+resource: gcp_iam_service_account
+source: default
+is_active: true
+domain: impact
+action_category: delete
+log_source_type: 
+posture_category: workload_posture
+threat_tags:
+- T1531
+- impact
+- availability
+- cloud_iam
+- identity
+risk_indicators:
+  actor_type: iam_user_or_role
+  action_type: destructive
+  target_type: iam_identity
+  blast_radius: account
+  stealth_risk: low
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_gcp_v2:
+  - 2.1
+  - 5.1
+  - 6.5
+  nist_800_53_r5:
+  - CP-9
+  - CP-10
+  - SI-7
+  pci_dss_v4:
+  - 12.3
+  - 10.2
+  iso_27001_2022:
+  - A.8.13
+  - A.8.14
+  - A.5.30
+remediation: |
+  1. Restore the deleted resource from Cloud Storage versioning, BigQuery snapshots, or Persistent Disk snapshot.
+  2. Enable Cloud Storage Object Versioning and Bucket Lock for critical buckets.
+  3. Apply Org Policy `constraints/gcp.resourceLocations` to restrict deletion regions.
+  4. Set up Cloud Asset Inventory change notifications for resource deletion events.
+  5. Require two-person approval for project deletion via Resource Manager policy.
+references:
+- https://attack.mitre.org/techniques/T1531/
+- https://cloud.google.com/logging/docs/audit
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: iam.googleapis.com
+    - field: operation
+      op: equals
+      value: google.iam.admin.v1.DisableServiceAccount
+version: '1.0'

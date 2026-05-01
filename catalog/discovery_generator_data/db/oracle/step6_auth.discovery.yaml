@@ -1,0 +1,58 @@
+version: '1.0'
+provider: db
+engine: oracle
+category: authentication
+cis_section: '4'
+description: Oracle CIS Section 4 — Authentication and Authorization
+
+discovery:
+  - discovery_id: db.oracle.auth.password_verify_function
+    calls:
+      - action: query_table
+        query: >
+          SELECT profile, resource_name, limit
+          FROM dba_profiles
+          WHERE resource_name = 'PASSWORD_VERIFY_FUNCTION'
+            AND profile = 'DEFAULT';
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        profile: "{{ item.PROFILE }}"
+        resource: "{{ item.RESOURCE_NAME }}"
+        limit: "{{ item.LIMIT }}"
+
+  - discovery_id: db.oracle.auth.password_life_time
+    calls:
+      - action: query_table
+        query: >
+          SELECT profile, limit
+          FROM dba_profiles
+          WHERE resource_name = 'PASSWORD_LIFE_TIME'
+            AND profile = 'DEFAULT';
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        profile: "{{ item.PROFILE }}"
+        limit: "{{ item.LIMIT }}"
+        expected_max: 90
+
+  - discovery_id: db.oracle.auth.dba_users
+    calls:
+      - action: query_table
+        query: >
+          SELECT username, account_status, profile
+          FROM dba_users
+          WHERE granted_role = 'DBA'
+          ORDER BY username;
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        username: "{{ item.USERNAME }}"
+        status: "{{ item.ACCOUNT_STATUS }}"
+        profile: "{{ item.PROFILE }}"

@@ -76,7 +76,171 @@ _CATEGORY_MAP = {
     "cloudwatch.alarm": "logging",
     # EXTERNAL SURFACE
     "cloudfront.distribution": "external", "apigateway.rest-api": "external",
+    "apigateway.item_rest_api": "external", "apigateway.resource": "external",
     "waf.web-acl": "external",
+    "route53.hostedzone": "external", "route53.query_logging_config_hosted_zone": "external",
+    # ADDITIONAL AWS (vpc.* prefix, ecs.cluster, ecr, etc.)
+    "vpc.vpc": "network", "vpc.subnet": "network", "vpc.vpc-endpoint": "network",
+    "vpcflowlogs.flow-log": "logging",
+    "ecs.cluster": "compute", "ecs.capacity-provider": "compute",
+    "fargate.cluster": "compute", "fargate.capacity_provider": "compute",
+    "ecr.repository": "compute",
+    "eks.resource": "compute",
+    "ec2.key-pair": "identity", "ec2.key": "identity",
+    "ec2.elastic-ip": "network", "ec2.dhcp-options": "network",
+    "ec2.group": "network",
+    "cognito-idp.user_pool": "identity",
+    "bedrock.foundation-model": "compute",
+    "config.configuration-recorder": "logging",
+    "access-analyzer.analyzer": "identity", "access-analyzer.resource": "identity",
+    "securityhub.hub": "logging", "securityhub.product": "logging",
+    "controlcatalog.control": "other",
+    "backup.resource": "storage",
+    "stepfunctions.execution_state_machine": "serverless",
+    "states.resource": "serverless", "workflows.state_machine": "serverless",
+    "glue.resource": "database",
+    "dynamodb.resource": "database",
+    "rds.resource": "database",
+    "redshift.resource": "database",
+    "elasticmapreduce.resource": "compute",
+    "lambda.resource": "serverless",
+    "s3.resource": "storage",
+
+    # ── AZURE ────────────────────────────────────────────────────────────
+    # Compute
+    "compute.virtualmachine": "compute", "compute.virtualmachinescaleset": "compute",
+    "compute.disk": "storage", "compute.snapshot": "storage",
+    "containerregistry.registry": "compute",
+    "containerservice.managedcluster": "compute",
+    "containerinstance.containergroup": "compute",
+    # Storage
+    "storage.storageaccount": "storage", "storage.blobcontainer": "storage",
+    "storage.fileshare": "storage", "storage.queue": "storage",
+    "storage.table": "storage",
+    "datalakestore.account": "storage", "datalake.store": "storage",
+    # Database
+    "sql.server": "database", "sql.database": "database", "sql.elasticpool": "database",
+    "dbforpostgresql.server": "database", "dbformysql.server": "database",
+    "dbformariadb.server": "database", "cosmos.account": "database",
+    "documentdb.databaseaccount": "database", "cache.redis": "database",
+    "synapse.workspace": "database",
+    # Network
+    "network.virtualnetwork": "network", "network.subnet": "network",
+    "network.networksecuritygroup": "network", "network.networkinterface": "network",
+    "network.publicipaddress": "network", "network.routetable": "network",
+    "network.applicationgateway": "load_balancer",
+    "network.loadbalancer": "load_balancer",
+    "network.frontdoor": "external", "network.trafficmanagerprofile": "external",
+    "network.dnszones": "external", "network.privatednszones": "network",
+    "network.expressroutecircuit": "network", "network.vpngateway": "network",
+    "network.azurefirewall": "network",
+    "azure.resource_group": "network",
+    # Identity
+    "authorization.roleassignment": "identity", "authorization.roledefinition": "identity",
+    "managedidentity.userassignedidentity": "identity",
+    # Encryption / Secrets
+    "keyvault.vault": "encryption", "keyvault.keyvault": "encryption",
+    "keyvault.key": "encryption", "keyvault.secret": "encryption",
+    "keyvault.certificate": "encryption",
+    # Serverless / Event
+    "web.site": "serverless", "logic.workflow": "serverless",
+    "eventgrid.topic": "serverless", "servicebus.namespace": "serverless",
+    "eventhub.namespace": "serverless",
+    # Logging / Monitoring
+    "insights.component": "logging", "operationalinsights.workspace": "logging",
+    "monitor.diagnosticsetting": "logging", "monitor.activitylogalert": "logging",
+    "security.securitycontact": "logging",
+
+    # ── GCP ──────────────────────────────────────────────────────────────
+    # Compute
+    "compute.instance": "compute", "compute.instancegroup": "compute",
+    "compute.instancetemplate": "compute", "container.cluster": "compute",
+    "run.service": "serverless", "cloudfunctions.function": "serverless",
+    "appengine.application": "compute",
+    # Storage
+    "storage.bucket": "storage",
+    "file.instance": "storage",
+    # Database
+    "sql.instance": "database", "bigtable.instance": "database",
+    "spanner.instance": "database", "datastore.index": "database",
+    "redis.instance": "database",
+    # Network
+    "compute.network": "network", "compute.subnetwork": "network",
+    "compute.firewall": "network", "compute.router": "network",
+    "compute.forwardingrule": "load_balancer", "compute.backendservice": "load_balancer",
+    "dns.managedzone": "external",
+    # Identity
+    "gcp.iam_service_account": "identity", "iam.serviceaccount": "identity",
+    "iam.role": "identity",
+    # Encryption
+    "cloudkms.cryptokey": "encryption", "cloudkms.keyring": "encryption",
+    # Logging
+    "logging.logmetric": "logging", "logging.logsink": "logging",
+    "monitoring.alertpolicy": "logging",
+    # Serverless / Event
+    "pubsub.topic": "serverless", "pubsub.subscription": "serverless",
+    "bigquery.dataset": "database", "bigquery.table": "database",
+
+    # ── OCI ──────────────────────────────────────────────────────────────
+    # Compute
+    "core.instance": "compute", "core.instancepool": "compute",
+    "containerengine.cluster": "compute", "functions.application": "serverless",
+    # Storage
+    "objectstorage.bucket": "storage", "filestorage.filesystem": "storage",
+    "blockstorage.volume": "storage",
+    # Database
+    "database.dbsystem": "database", "database.autonomousdatabase": "database",
+    "nosql.table": "database", "mysql.dbsystem": "database",
+    # Network
+    "core.vcn": "network", "core.subnet": "network",
+    "core.securitylist": "network", "core.networksecuritygroup": "network",
+    "core.drg": "network", "core.internetgateway": "network",
+    "core.natgateway": "network", "core.loadbalancer": "load_balancer",
+    # Identity
+    "identity.compartment": "identity", "identity.policy": "identity",
+    "identity.group": "identity", "identity.user": "identity",
+    # Encryption
+    "keymanagement.vault": "encryption", "keymanagement.key": "encryption",
+    # Logging
+    "logging.log": "logging", "loggingsearch.searchlogsdetails": "logging",
+
+    # ── K8s ──────────────────────────────────────────────────────────────
+    "pod.k8s.core/pod": "compute", "deployment.k8s.apps/deployment": "compute",
+    "daemonset.k8s.apps/daemonset": "compute", "statefulset.k8s.apps/statefulset": "compute",
+    "replicaset.k8s.apps/replicaset": "compute", "job.k8s.batch/job": "compute",
+    "cronjob.k8s.batch/cronjob": "compute",
+    "service.k8s.core/service": "network", "ingress.k8s.networking.k8s.io/ingress": "network",
+    "networkpolicy.k8s.networking.k8s.io/networkpolicy": "network",
+    "namespace.k8s.core/namespace": "network",
+    "configmap.k8s.core/configmap": "other", "secret.k8s.core/secret": "encryption",
+    "serviceaccount.k8s.core/serviceaccount": "identity",
+    "clusterrole.k8s.rbac.authorization.k8s.io/clusterrole": "identity",
+    "clusterrolebinding.k8s.rbac.authorization.k8s.io/clusterrolebinding": "identity",
+    "persistentvolume.k8s.core/persistentvolume": "storage",
+    "persistentvolumeclaim.k8s.core/persistentvolumeclaim": "storage",
+
+    # ── IBM ──────────────────────────────────────────────────────────────
+    "is.instance": "compute", "is.baremetal": "compute",
+    "is.vpc": "network", "is.subnet": "network", "is.securitygroup": "network",
+    "is.floatingip": "network", "is.publicgateway": "network",
+    "is.loadbalancer": "load_balancer",
+    "is.volume": "storage", "is.snapshot": "storage",
+    "ibm.cos.bucket": "storage",
+    "iam.serviceId": "identity",
+    "kp.key": "encryption",
+
+    # ── AliCloud ─────────────────────────────────────────────────────────
+    "ecs.instance": "compute", "ecs.disk": "storage", "ecs.snapshot": "storage",
+    "ack.cluster": "compute", "fc.function": "serverless",
+    "oss.bucket": "storage",
+    "rds.dbinstance": "database", "polardb.cluster": "database",
+    "redis.instance": "database", "mongodb.instance": "database",
+    "vpc.vpc": "network", "vpc.vswitch": "network",
+    "ecs.securitygroup": "network", "slb.loadbalancer": "load_balancer",
+    "ram.user": "identity", "ram.role": "identity", "ram.group": "identity",
+    "ram.policy": "identity",
+    "kms.key": "encryption",
+    "log.project": "logging", "actiontrail.trail": "logging",
 }
 
 
@@ -197,7 +361,7 @@ class InventoryDBLoader:
             rt = row["resource_type"] or ""
             assets.append(self._row_to_asset(row, rt))
 
-        # Back-fill last_scanned from scan_orchestration for assets missing it
+        # Back-fill last_scanned from scan_runs for assets missing it
         self._backfill_last_scanned(assets)
 
         return assets, total
@@ -238,7 +402,7 @@ class InventoryDBLoader:
     def _backfill_last_scanned(assets: List[Dict[str, Any]]) -> None:
         """Resolve last_scanned for assets where updated_at was NULL.
 
-        Looks up scan_orchestration.completed_at (or started_at) in the
+        Looks up scan_runs.completed_at (or started_at) in the
         onboarding DB using each asset's scan_run_id.  A single
         batch query covers all distinct scan IDs in the page.
         """
@@ -257,10 +421,10 @@ class InventoryDBLoader:
                 with conn.cursor() as cur:
                     cur.execute(
                         """
-                        SELECT inventory_scan_id,
+                        SELECT scan_run_id,
                                COALESCE(completed_at, started_at) AS ts
-                        FROM scan_orchestration
-                        WHERE inventory_scan_id = ANY(%s::text[])
+                        FROM scan_runs
+                        WHERE scan_run_id = ANY(%s::text[])
                         """,
                         (list(need),),
                     )
@@ -268,7 +432,7 @@ class InventoryDBLoader:
             finally:
                 conn.close()
         except Exception as exc:
-            logger.warning("Could not resolve last_scanned from scan_orchestration: %s", exc)
+            logger.warning("Could not resolve last_scanned from scan_runs: %s", exc)
             return
 
         for a in assets:
@@ -866,6 +1030,7 @@ class InventoryDBLoader:
         'vpc.vpc', 'compute.network',    # GCP
         'core.vcn', 'vcn.vcn',          # OCI
         'is.vpc',                        # IBM
+        'namespace.k8s.core/Namespace',  # K8s
     ]
 
     # All relation types for BFS graph walking — traverse EVERY known edge
@@ -994,6 +1159,27 @@ class InventoryDBLoader:
             self.conn.rollback()
             return {"nodes": [], "relationships": [], "exposure": []}
 
+        cross_scan_fallback = False
+        if not discovered_uids:
+            # No VPC/namespace roots found — cross-scan fallback: load all nodes
+            # for tenant regardless of scan_run_id (findings and relationships may
+            # come from different scans when the latest scan didn't run the
+            # relationship-builder step).
+            cross_scan_fallback = True
+            try:
+                with self.conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT DISTINCT ON (resource_uid) resource_uid "
+                        "FROM inventory_findings WHERE tenant_id = %s "
+                        "ORDER BY resource_uid, updated_at DESC LIMIT %s",
+                        (tenant_id, max_nodes),
+                    )
+                    discovered_uids = [row[0] for row in cur.fetchall()]
+            except Exception as e:
+                logger.warning(f"Graph BFS flat fallback failed: {e}")
+                self.conn.rollback()
+                return {"nodes": [], "relationships": [], "exposure": []}
+
         if not discovered_uids:
             return {"nodes": [], "relationships": [], "exposure": []}
 
@@ -1019,15 +1205,28 @@ class InventoryDBLoader:
         relationships = []
         try:
             with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute(
-                    """SELECT from_uid, to_uid, relation_type,
-                           from_resource_type, to_resource_type,
-                           provider, account_id, region, properties
-                    FROM inventory_relationships
-                    WHERE tenant_id = %s AND scan_run_id = %s
-                      AND from_uid = ANY(%s) AND to_uid = ANY(%s)""",
-                    (tenant_id, effective_scan, discovered_uids, discovered_uids),
-                )
+                if cross_scan_fallback:
+                    # Cross-scan: don't restrict by scan_run_id since nodes and
+                    # relationships may come from different pipeline runs.
+                    cur.execute(
+                        """SELECT from_uid, to_uid, relation_type,
+                               from_resource_type, to_resource_type,
+                               provider, account_id, region, properties
+                        FROM inventory_relationships
+                        WHERE tenant_id = %s
+                          AND from_uid = ANY(%s) AND to_uid = ANY(%s)""",
+                        (tenant_id, discovered_uids, discovered_uids),
+                    )
+                else:
+                    cur.execute(
+                        """SELECT from_uid, to_uid, relation_type,
+                               from_resource_type, to_resource_type,
+                               provider, account_id, region, properties
+                        FROM inventory_relationships
+                        WHERE tenant_id = %s AND scan_run_id = %s
+                          AND from_uid = ANY(%s) AND to_uid = ANY(%s)""",
+                        (tenant_id, effective_scan, discovered_uids, discovered_uids),
+                    )
                 relationships = [dict(r) for r in cur.fetchall()]
         except Exception as e:
             logger.warning(f"Graph BFS relationship load failed: {e}")

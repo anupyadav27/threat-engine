@@ -1,0 +1,152 @@
+# ==========================================================
+# Discovery YAML — sso-admin (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 14 | ops: 2 independent, 6 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: sso-admin
+
+services:
+  client: sso-admin
+  module: "boto3.client('sso-admin')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: get_inline_policy_for_permission_set
+    identifier_op: aws.sso-admin.get_inline_policy_for_permission_set
+    identifier_field: Statement
+    item_var_path: item.Statement
+    identifier_template: '{statement}'
+  - resource_type: permission_sets_provisioned_to_account
+    identifier_op: aws.sso-admin.list_permission_sets_provisioned_to_account
+    identifier_field: PermissionSetArn
+    item_var_path: item.PermissionSetArn
+    identifier_template: '{permissionsetarn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.sso-admin.get_inline_policy_for_permission_set  ──
+  - discovery_id: aws.sso-admin.get_inline_policy_for_permission_set
+    calls:
+      - action: get_inline_policy_for_permission_set
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Statement: '{{ item.Statement }}'
+        Version: '{{ item.Version }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.sso-admin.list_permission_sets_provisioned_to_account  ──
+  - discovery_id: aws.sso-admin.list_permission_sets_provisioned_to_account
+    calls:
+      - action: list_permission_sets_provisioned_to_account
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        PermissionSetArn: '{{ item.PermissionSetArn }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.sso-admin.describe_instance_access_control_attribute_configuration [dependent] ──
+  - discovery_id: aws.sso-admin.describe_instance_access_control_attribute_configuration
+    for_each: aws.sso-admin.list_instances
+    calls:
+      - action: describe_instance_access_control_attribute_configuration
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        AccessControlAttributes: '{{ item.AccessControlAttributes }}'
+        InstanceAccessControlAttributeConfiguration: '{{ item.InstanceAccessControlAttributeConfiguration }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.sso-admin.describe_permission_set [dependent] ──
+  - discovery_id: aws.sso-admin.describe_permission_set
+    for_each: aws.sso-admin.list_instances
+    calls:
+      - action: describe_permission_set
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        CreatedDate: '{{ item.CreatedDate }}'
+        Description: '{{ item.Description }}'
+        Name: '{{ item.Name }}'
+        PermissionSetArn: '{{ item.PermissionSetArn }}'
+        RelayState: '{{ item.RelayState }}'
+        SessionDuration: '{{ item.SessionDuration }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.sso-admin.get_permissions_boundary_for_permission_set [dependent] ──
+  - discovery_id: aws.sso-admin.get_permissions_boundary_for_permission_set
+    for_each: aws.sso-admin.list_instances
+    calls:
+      - action: get_permissions_boundary_for_permission_set
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        CustomerManagedPolicyReference: '{{ item.CustomerManagedPolicyReference }}'
+        ManagedPolicyArn: '{{ item.ManagedPolicyArn }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.sso-admin.list_customer_managed_policy_references_in_permission_set [dependent] ──
+  - discovery_id: aws.sso-admin.list_customer_managed_policy_references_in_permission_set
+    for_each: aws.sso-admin.list_instances
+    calls:
+      - action: list_customer_managed_policy_references_in_permission_set
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Name: '{{ item.Name }}'
+        Path: '{{ item.Path }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.sso-admin.list_managed_policies_in_permission_set [dependent] ──
+  - discovery_id: aws.sso-admin.list_managed_policies_in_permission_set
+    for_each: aws.sso-admin.list_instances
+    calls:
+      - action: list_managed_policies_in_permission_set
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        Name: '{{ item.Name }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.sso-admin.list_trusted_token_issuers [dependent] ──
+  - discovery_id: aws.sso-admin.list_trusted_token_issuers
+    for_each: aws.sso-admin.list_instances
+    calls:
+      - action: list_trusted_token_issuers
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Name: '{{ item.Name }}'
+        TrustedTokenIssuerArn: '{{ item.TrustedTokenIssuerArn }}'
+        TrustedTokenIssuerType: '{{ item.TrustedTokenIssuerType }}'
+

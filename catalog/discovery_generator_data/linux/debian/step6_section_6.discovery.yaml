@@ -1,0 +1,218 @@
+version: '1.0'
+provider: linux
+engine: debian
+category: section_6
+cis_section: '6'
+description: >
+  debian CIS Section 6 — journald service is enabled and active
+
+discovery:
+
+  - discovery_id: debian.section_6.journald_service_is_enabled_and_active
+    description: Ensure journald service is enabled and active
+    calls:
+      - action: run_command
+        command: "Run the following command to verify systemd-journald is enabled: # systemctl is-enabled systemd-journald.service static Note: By default the systemd-journald service does not have an [Install] section and thus cannot be enabled / disabled. It is meant to be referenced as Requires or Wants by other unit files. As such, if the status of systemd-journald is not static, investigate why Run the following command to verify systemd-journald is active: # systemctl is-active systemd-journald.service active"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: journald_service_is_enabled_and_active
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_6.only_one_logging_system_is_in_use
+    description: Ensure only one logging system is in use
+    calls:
+      - action: run_command
+        command: "Run the following script to ensure only one logging system is in use: #!/usr/bin/env bash { l_output=\u0027\u0027 l_output2=\u0027\u0027 # Check the status of rsyslog and journald if systemctl is-active --quiet rsyslog; then l_output=\u0027$l_output\\n - rsyslog is in use\\n- follow the recommendations in Configure rsyslog subsection only\u0027 elif systemctl is-active --quiet systemd-journald; then l_output=\u0027$l_output\\n - journald is in use\\n- follow the recommendations in Configure journald subsection only\u0027 else echo -e \u201cunable to determine system logging\u201d l_output2=\u0027$l_output2\\n - unable to determine system logging\\n- Configure only ONE system logging: rsyslog OR journald\u0027 fi if [ -z \u0027$l_output2\u0027 ]; then # Provide audit results echo -e \u0027\\n- Audit Result:\\n ** PASS **\\n$l_output\\n\u0027 else echo -e \u0027\\n- Audit Result:\\n ** FAIL **\\n - Reason(s) for audit failure:\\n$l_output2\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: only_one_logging_system_is_in_use
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_6.systemd_journal_remote_is_installed
+    description: Ensure systemd-journal-remote is installed
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: systemd_journal_remote_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_6.systemd_journal_upload_is_enabled_and_active
+    description: Ensure systemd-journal-upload is enabled and active
+    calls:
+      - action: run_command
+        command: "Run the following command to verify systemd-journal-upload is enabled. # systemctl is-enabled systemd-journal-upload.service enabled Run the following command to verify systemd-journal-upload is active: # systemctl is-active systemd-journal-upload.service active"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: systemd_journal_upload_is_enabled_and_active
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_6.systemd_journal_remote_service_is_not_in_use
+    description: Ensure systemd-journal-remote service is not in use
+    calls:
+      - action: run_command
+        command: "Run the following command to verify systemd-journal-remote.socket and systemd- journal-remote.service are not enabled: # systemctl is-enabled systemd-journal-remote.socket systemd-journal- remote.service | grep -P -- \u0027^enabled\u0027 Nothing should be returned Run the following command to verify systemd-journal-remote.socket and systemd- journal-remote.service are not active: # systemctl is-active systemd-journal-remote.socket systemd-journal- remote.service | grep -P -- \u0027^active\u0027 Nothing should be returned"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: systemd_journal_remote_service_is_not_in_use
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_6.journald_forwardtosyslog_is_disabled
+    description: Ensure journald ForwardToSyslog is disabled
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: journald_forwardtosyslog_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_6.journald_compress_is_configured
+    description: Ensure journald Compress is configured
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: journald_compress_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_6.journald_storage_is_configured
+    description: Ensure journald Storage is configured
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: journald_storage_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_6.rsyslog_is_installed
+    description: Ensure rsyslog is installed
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: rsyslog_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_6.rsyslog_service_is_enabled_and_active
+    description: Ensure rsyslog service is enabled and active
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: rsyslog_service_is_enabled_and_active
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_6.journald_is_configured_to_send_logs_to_rsyslog
+    description: Ensure journald is configured to send logs to rsyslog
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: journald_is_configured_to_send_logs_to_rsyslog
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_6.rsyslog_log_file_creation_mode_is_configured
+    description: Ensure rsyslog log file creation mode is configured
+    calls:
+      - action: run_command
+        command: "Run the following command Run the following script to verify $FileCreateMode to set to mode 0640 or more restrictive: #!/usr/bin/env bash { a_output=() a_output2=() l_analyze_cmd=\u0027$(readlink -f /bin/systemd-analyze)\u0027 l_include=\u0027\\$IncludeConfig\u0027 a_config_files=(\u0027/etc/rsyslog.conf\u0027) l_parameter_name=\u0027\\$FileCreateMode\u0027 f_parameter_chk() { l_perm_mask=\u00270137\u0027; l_maxperm=\u0027$( printf \u0027%o\u0027 $(( 0777 \u0026 ~$l_perm_mask )) )\u0027 l_mode=\u0027$(awk \u0027{print $2}\u0027 \u003c\u003c\u003c \u0027$l_used_parameter_setting\u0027 | xargs)\u0027 if [ $(( $l_mode \u0026 $l_perm_mask )) -gt 0 ]; then a_output2+=(\u0027 - Parameter: \\\u0027${l_parameter_name//\\\\/}\\\u0027 is incorrectly set to mode: \\\u0027$l_mode\\\u0027\u0027 \\ \u0027 in the file: \\\u0027$l_file\\\u0027\u0027 \u0027 Should be mode: \\\u0027$l_maxperm\\\u0027 or more restrictive\u0027) else a_output+=(\u0027 - Parameter: \\\u0027${l_parameter_name//\\\\/}\\\u0027 is correctly set to mode: \\\u0027$l_mode\\\u0027\u0027 \\ \u0027 in the file: \\\u0027$l_file\\\u0027\u0027 \u0027 Should be mode: \\\u0027$l_maxperm\\\u0027 or more restrictive\u0027) fi } while IFS= read -r l_file; do l_conf_loc=\u0027$(awk \u0027$1~/^\\s*\u0027\u0027$l_include\u0027\u0027$/ {print $2}\u0027 \u0027$(tr -d \u0027# \u0027 \u003c\u003c\u003c \u0027$l_file\u0027)\u0027 | tail -n 1)\u0027 [ -n \u0027$l_conf_loc\u0027 ] \u0026\u0026 break done \u003c \u003c($l_analyze_cmd cat-config \u0027${a_config_files[*]}\u0027 | tac | grep -Pio \u0027^\\h*#\\h*\\/[^#\\n\\r\\h]+\\.conf\\b\u0027) if [ -d \u0027$l_conf_loc\u0027 ]; then l_dir=\u0027$l_conf_loc\u0027 l_ext=\u0027*\u0027 elif grep -Psq \u0027\\/\\*\\.([^#/\\n\\r]+)?\\h*$\u0027 \u003c\u003c\u003c \u0027$l_conf_loc\u0027 || [ -f \u0027$(readlink -f \u0027$l_conf_loc\u0027)\u0027 ]; then l_dir=\u0027$(dirname \u0027$l_conf_loc\u0027)\u0027 l_ext=\u0027$(basename \u0027$l_conf_loc\u0027)\u0027 fi while read -r -d $\u0027\\0\u0027 l_file_name; do [ -f \u0027$(readlink -f \u0027$l_file_name\u0027)\u0027 ] \u0026\u0026 a_config_files+=(\u0027$(readlink -f \u0027$l_file_name\u0027)\u0027) done \u003c \u003c(find -L \u0027$l_dir\u0027 -type f -name \u0027$l_ext\u0027 -print0 2\u003e/dev/null) while IFS= read -r l_file; do l_file=\u0027$(tr -d \u0027# \u0027 \u003c\u003c\u003c \u0027$l_file\u0027)\u0027 l_used_parameter_setting=\u0027$(grep -PHs -- \u0027^\\h*\u0027\u0027$l_parameter_name\u0027\u0027\\b\u0027 \u0027$l_file\u0027 | tail -n 1)\u0027 [ -n \u0027$l_used_parameter_setting\u0027 ] \u0026\u0026 break done \u003c \u003c($l_analyze_cmd cat-config \u0027${a_config_files[@]}\u0027 | tac | grep -Pio \u0027^\\h*#\\h*\\/[^#\\n\\r\\h]+\\.conf\\b\u0027) if [ -n \u0027$l_used_parameter_setting\u0027 ]; then f_parameter_chk else a_output2+=(\u0027 - Parameter: \\\u0027${l_parameter_name//\\\\/}\\\u0027 is not set in a configuration file\u0027 \\ \u0027 *** Note: \\\u0027${l_parameter_name//\\\\/}\\\u0027 May be set in a file that\u0027s ignored by load procedure ***\u0027) fi if [ \u0027${#a_output2[@]}\u0027 -le 0 ]; then printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** PASS **\u0027 \u0027${a_output[@]}\u0027 \u0027\u0027 else printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** FAIL **\u0027 \u0027 - Reason(s) for audit failure:\u0027 \u0027${a_output2[@]}\u0027 [ \u0027${#a_output[@]}\u0027 -gt 0 ] \u0026\u0026 printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Correctly set:\u0027 \u0027${a_output[@]}\u0027 \u0027\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: rsyslog_log_file_creation_mode_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_6.rsyslog_is_not_configured_to_receive_logs_from_a
+    description: Ensure rsyslog is not configured to receive logs from a remote client
+    calls:
+      - action: run_command
+        command: "Unless the system\u0027s primary function is to serve as a logfile server, run the following script to review the rsyslog configuration and verify that the system is not configured to accept incoming logs. advanced format #!/usr/bin/env bash { a_output2=() l_analyze_cmd=\u0027$(readlink -f /bin/systemd-analyze)\u0027 l_include=\u0027\\$IncludeConfig\u0027 a_config_files=(\u0027/etc/rsyslog.conf\u0027) while IFS= read -r l_file; do l_conf_loc=\u0027$(awk \u0027$1~/^\\s*\u0027\u0027$l_include\u0027\u0027$/ {print $2}\u0027 \u0027$(tr -d \u0027# \u0027 \u003c\u003c\u003c \u0027$l_file\u0027)\u0027 | tail -n 1)\u0027 [ -n \u0027$l_conf_loc\u0027 ] \u0026\u0026 break done \u003c \u003c($l_analyze_cmd cat-config \u0027${a_config_files[@]}\u0027 | tac | grep - Pio \u0027^\\h*#\\h*\\/[^#\\n\\r\\h]+\\.conf\\b\u0027) if [ -d \u0027$l_conf_loc\u0027 ]; then l_dir=\u0027$l_conf_loc\u0027 l_ext=\u0027*\u0027 elif grep -Psq \u0027\\/\\*\\.([^#/\\n\\r]+)?\\h*$\u0027 \u003c\u003c\u003c \u0027$l_conf_loc\u0027 || [ -f \u0027$(readlink -f \u0027$l_conf_loc\u0027)\u0027 ]; then l_dir=\u0027$(dirname \u0027$l_conf_loc\u0027)\u0027 l_ext=\u0027$(basename \u0027$l_conf_loc\u0027)\u0027 fi while read -r -d $\u0027\\0\u0027 l_file_name; do [ -f \u0027$(readlink -f \u0027$l_file_name\u0027)\u0027 ] \u0026\u0026 a_config_files+=(\u0027$(readlink -f \u0027$l_file_name\u0027)\u0027) done \u003c \u003c(find -L \u0027$l_dir\u0027 -type f -name \u0027$l_ext\u0027 -print0 2\u003e/dev/null) for l_logfile in \u0027${a_config_files[@]}\u0027; do l_fail=\u0027$(grep -Psi -- \u0027^\\h*module\\(load=\\\u0027?imtcp\\\u0027?\\)\u0027 \u0027$l_logfile\u0027)\u0027 [ -n \u0027$l_fail\u0027 ] \u0026\u0026 a_output2+=(\u0027- Advanced format entry to accept incoming logs: \\\u0027$l_fail\\\u0027\u0027 \u0027found in: \\\u0027$l_logfile\\\u0027\u0027) l_fail=\u0027$(grep -Psi -- \u0027^\\h*input\\(type=\\\u0027?imtcp\\\u0027?\\b\u0027 \u0027$l_logfile\u0027)\u0027 [ -n \u0027$l_fail\u0027 ] \u0026\u0026 a_output2+=(\u0027- Advanced format entry to accept incoming logs: \\\u0027$l_fail\\\u0027\u0027 \u0027found in: \\\u0027$l_logfile\\\u0027\u0027) l_fail=\u0027$(grep -Psi -- \u0027^\\h*module\\(load=\\\u0027?imtcp\\\u0027?\\)\u0027 \u0027$l_logfile\u0027)\u0027 [ -n \u0027$l_fail\u0027 ] \u0026\u0026 a_output2+=(\u0027- Obsolete format entry to accept incoming logs: \\\u0027$l_fail\\\u0027\u0027 \u0027found in: \\\u0027$l_logfile\\\u0027\u0027) l_fail=\u0027$(grep -Psi -- \u0027^\\h*input\\(type=\\\u0027?imtcp\\\u0027?\\b\u0027 \u0027$l_logfile\u0027)\u0027 [ -n \u0027$l_fail\u0027 ] \u0026\u0026 a_output2+=(\u0027- Obsolete format entry to accept incoming logs: \\\u0027$l_fail\\\u0027\u0027 \u0027found in: \\\u0027$l_logfile\\\u0027\u0027) done if [ \u0027${#a_output2[@]}\u0027 -le \u00270\u0027 ]; then printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** PASS **\u0027 \u0027 - No entries to accept incoming logs found\u0027 else printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** FAIL **\u0027 \u0027 - Reason(s) for audit failure:\u0027 \u0027${a_output2[@]}\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: rsyslog_is_not_configured_to_receive_logs_from_a
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_6.file_deletion_events_by_users_are_collected
+    description: Ensure file deletion events by users are collected
+    calls:
+      - action: run_command
+        command: "On disk configuration Run the following command to check the on disk rules: # { UID_MIN=$(awk \u0027/^\\s*UID_MIN/{print $2}\u0027 /etc/login.defs) [ -n \u0027${UID_MIN}\u0027 ] \u0026\u0026 awk \u0027/^ *-a *always,exit/ \\ \u0026\u0026/ -F *arch=b(32|64)/ \\ \u0026\u0026(/ -F *auid!=unset/||/ -F *auid!=-1/||/ -F *auid!=4294967295/) \\ \u0026\u0026/ -F *auid\u003e=${UID_MIN}/ \\ \u0026\u0026/ -S/ \\ \u0026\u0026(/unlink/||/rename/||/unlinkat/||/renameat/) \\ \u0026\u0026(/ key= *[!-~]* *$/||/ -k *[!-~]* *$/)\u0027 /etc/audit/rules.d/*.rules \\ || printf \u0027ERROR: Variable \u0027UID_MIN\u0027 is unset.\\n\u0027 } Verify the output matches: -a always,exit -F arch=b64 -S unlink,unlinkat,rename,renameat -F auid\u003e=1000 - F auid!=unset -k delete -a always,exit -F arch=b32 -S unlink,unlinkat,rename,renameat -F auid\u003e=1000 - F auid!=unset -k delete Running configuration Run the following command to check loaded rules: # { UID_MIN=$(awk \u0027/^\\s*UID_MIN/{print $2}\u0027 /etc/login.defs) [ -n \u0027${UID_MIN}\u0027 ] \u0026\u0026 auditctl -l | awk \u0027/^ *-a *always,exit/ \\ \u0026\u0026/ -F *arch=b(32|64)/ \\ \u0026\u0026(/ -F *auid!=unset/||/ -F *auid!=-1/||/ -F *auid!=4294967295/) \\ \u0026\u0026/ -F *auid\u003e=${UID_MIN}/ \\ \u0026\u0026/ -S/ \\ \u0026\u0026(/unlink/||/rename/||/unlinkat/||/renameat/) \\ \u0026\u0026(/ key= *[!-~]* *$/||/ -k *[!-~]* *$/)\u0027 \\ || printf \u0027ERROR: Variable \u0027UID_MIN\u0027 is unset.\\n\u0027 } Verify the output matches: -a always,exit -F arch=b64 -S rename,unlink,unlinkat,renameat -F auid\u003e=1000 - F auid!=-1 -F key=delete -a always,exit -F arch=b32 -S unlink,rename,unlinkat,renameat -F auid\u003e=1000 - F auid!=-1 -F key=delete"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: file_deletion_events_by_users_are_collected
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_6.aide_is_installed
+    description: Ensure AIDE is installed
+    calls:
+      - action: run_command
+        command: "Run the following command to verify aide is installed: # dpkg-query -s aide \u0026\u003e/dev/null \u0026\u0026 echo \u0027aide is installed\u0027 aide is installed Run the following command to verify aide-common is installed: # dpkg-query -s aide-common \u0026\u003e/dev/null \u0026\u0026 echo \u0027aide-common is installed\u0027 aide-common is installed"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: aide_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_6.filesystem_integrity_is_regularly_checked
+    description: Ensure filesystem integrity is regularly checked
+    calls:
+      - action: run_command
+        command: "Run the following command: # systemctl list-unit-files | awk \u0027$1~/^dailyaidecheck\\.(timer|service)$/{print $1 \u0027\\t\u0027 $2}\u0027 Example output: dailyaidecheck.service static dailyaidecheck.timer enabled Verify dailyaidecheck.timer is enabled and dailyaidecheck.service is either static or enabled. Run the following command to verify dailyaidecheck.timer is active: # systemctl is-active dailyaidecheck.timer active"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: filesystem_integrity_is_regularly_checked
+        value: "{{ result.stdout }}"
+        expected: ""
+

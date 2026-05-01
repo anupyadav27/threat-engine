@@ -1,0 +1,100 @@
+version: '1.0'
+provider: k8s
+service: service
+checks:
+- rule_id: k8s.service.mesh.dos_protection_enabled
+  for_each: k8s.service.mesh.list_services
+  severity: LOW
+  conditions:
+    var: item.DoSProtectionEnabled
+    op: is_true
+    value: null
+- rule_id: k8s.service.mesh.intrusion_detection_enabled
+  for_each: k8s.service.mesh.list_meshes
+  severity: MEDIUM
+  conditions:
+    var: item.IntrusionDetectionEnabled
+    op: is_true
+    value: null
+- rule_id: k8s.service.mesh.mtls_enabled
+  for_each: k8s.service.mesh.list_mesh_policies
+  severity: HIGH
+  conditions:
+    var: item.mtls_enabled
+    op: is_true
+    value: null
+- rule_id: k8s.service.mesh.rate_limiting_configured
+  for_each: k8s.service.list
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations['service.beta.kubernetes.io/service-mesh-rate-limit']
+    op: exists
+    value: null
+- rule_id: k8s.service.mesh.threat_detection_integrated
+  for_each: k8s.service.list_services
+  severity: MEDIUM
+  conditions:
+    var: item.Annotations['mesh.threat-detection']
+    op: exists
+    value: null
+- rule_id: k8s.service.mesh.tls_certificate_expiration_check
+  for_each: k8s.service.mesh.list_tls_certificates
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.ExpirationDate
+      op: exists
+      value: null
+    - var: item.ExpirationDate
+      op: gt
+      value: '2025-05-15T00:00:00.000Z'
+- rule_id: k8s.service.mesh.traffic_control_enabled
+  for_each: k8s.service.mesh.list_services
+  severity: MEDIUM
+  conditions:
+    var: item.TrafficControlEnabled
+    op: is_true
+    value: null
+- rule_id: k8s.service.no.external_ip
+  for_each: k8s.service.list_services
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.spec.externalIPs
+      op: exists
+      value: null
+    - var: item.spec.externalIPs
+      op: is_empty
+      value: null
+- rule_id: k8s.service.service.mesh_tls_enforced
+  for_each: k8s.service.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.spec.ports[].appProtocol
+      op: not_contains
+      value: http
+    - var: item.spec.ports[].appProtocol
+      op: not_contains
+      value: http2
+- rule_id: k8s.service.service.no_external_ip_configured
+  for_each: k8s.service.list
+  severity: MEDIUM
+  conditions:
+    var: item.spec.externalIPs
+    op: is_empty
+    value: null
+- rule_id: k8s.service.type.loadbalancer_restricted
+  for_each: k8s.services.list
+  severity: LOW
+  conditions:
+    var: item.spec.type
+    op: not_equals
+    value: LoadBalancer
+- rule_id: k8s.service.type.not_nodeport
+  for_each: k8s.service.list
+  severity: LOW
+  conditions:
+    var: item.spec.type
+    op: not_equals
+    value: NodePort

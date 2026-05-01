@@ -1,0 +1,100 @@
+# ==========================================================
+# Discovery YAML — glacier (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 13 | ops: 4 independent, 0 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: glacier
+
+services:
+  client: glacier
+  module: "boto3.client('glacier')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: vault
+    identifier_op: aws.glacier.describe_vault
+    identifier_field: VaultARN
+    item_var_path: item.VaultARN
+    identifier_template: '{vaultarn}'
+  - resource_type: get_data_retrieval_policy
+    identifier_op: aws.glacier.get_data_retrieval_policy
+    identifier_field: Rules
+    item_var_path: item.Rules
+    identifier_template: '{rules}'
+  - resource_type: get_vault_access_policy
+    identifier_op: aws.glacier.get_vault_access_policy
+    identifier_field: Policy
+    item_var_path: item.Policy
+    identifier_template: '{policy}'
+  - resource_type: get_vault_lock
+    identifier_op: aws.glacier.get_vault_lock
+    identifier_field: State
+    item_var_path: item.State
+    identifier_template: '{state}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.glacier.describe_vault  ──
+  - discovery_id: aws.glacier.describe_vault
+    calls:
+      - action: describe_vault
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        CreationDate: '{{ item.CreationDate }}'
+        LastInventoryDate: '{{ item.LastInventoryDate }}'
+        NumberOfArchives: '{{ item.NumberOfArchives }}'
+        SizeInBytes: '{{ item.SizeInBytes }}'
+        VaultARN: '{{ item.VaultARN }}'
+        VaultName: '{{ item.VaultName }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.glacier.get_data_retrieval_policy  ──
+  - discovery_id: aws.glacier.get_data_retrieval_policy
+    calls:
+      - action: get_data_retrieval_policy
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Rules: '{{ item.Rules }}'
+        Statement: '{{ item.Statement }}'
+        Version: '{{ item.Version }}'
+        policy: '{{ item.policy }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.glacier.get_vault_access_policy  ──
+  - discovery_id: aws.glacier.get_vault_access_policy
+    calls:
+      - action: get_vault_access_policy
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Policy: '{{ item.Policy }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.glacier.get_vault_lock  ──
+  - discovery_id: aws.glacier.get_vault_lock
+    calls:
+      - action: get_vault_lock
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        State: '{{ item.State }}'
+

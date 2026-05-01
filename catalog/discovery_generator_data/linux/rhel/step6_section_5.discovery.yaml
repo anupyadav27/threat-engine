@@ -1,0 +1,699 @@
+version: '1.0'
+provider: linux
+engine: rhel
+category: section_5
+cis_section: '5'
+description: >
+  rhel CIS Section 5 — permissions on /etc/ssh/sshd_config are configured
+
+discovery:
+
+  - discovery_id: rhel.section_5.permissions_on_etc_ssh_sshd_config_are_configured
+    description: Ensure permissions on /etc/ssh/sshd_config are configured
+    calls:
+      - action: run_command
+        command: "Run the following script and verify /etc/ssh/sshd_config and files ending in .conf in the /etc/ssh/sshd_config.d directory are: \u2022 Mode 0600 or more restrictive \u2022 Owned by the root user \u2022 Group owned by the group root. #!/usr/bin/env bash { l_output=\u0027\u0027 l_output2=\u0027\u0027 perm_mask=\u00270177\u0027 \u0026\u0026 maxperm=\u0027$( printf \u0027%o\u0027 $(( 0777 \u0026 ~$perm_mask)) )\u0027 SSHD_FILES_CHK() { while IFS=: read -r l_mode l_user l_group; do l_out2=\u0027\u0027 [ $(( $l_mode \u0026 $perm_mask )) -gt 0 ] \u0026\u0026 l_out2=\u0027$l_out2\\n - Is mode: \\\u0027$l_mode\\\u0027 should be: \\\u0027$maxperm\\\u0027 or more restrictive\u0027 [ \u0027$l_user\u0027 != \u0027root\u0027 ] \u0026\u0026 l_out2=\u0027$l_out2\\n - Is owned by \\\u0027$l_user\\\u0027 should be owned by \\\u0027root\\\u0027\u0027 [ \u0027$l_group\u0027 != \u0027root\u0027 ] \u0026\u0026 l_out2=\u0027$l_out2\\n - Is group owned by \\\u0027$l_user\\\u0027 should be group owned by \\\u0027root\\\u0027\u0027 if [ -n \u0027$l_out2\u0027 ]; then l_output2=\u0027$l_output2\\n - File: \\\u0027$l_file\\\u0027:$l_out2\u0027 else l_output=\u0027$l_output\\n - File: \\\u0027$l_file\\\u0027:\\n - Correct: mode ($l_mode), owner ($l_user), and group owner ($l_group) configured\u0027 fi done \u003c \u003c(stat -Lc \u0027%#a:%U:%G\u0027 \u0027$l_file\u0027) } [ -e \u0027/etc/ssh/sshd_config\u0027 ] \u0026\u0026 l_file=\u0027/etc/ssh/sshd_config\u0027 \u0026\u0026 SSHD_FILES_CHK while IFS= read -r -d $\u0027\\0\u0027 l_file; do [ -e \u0027$l_file\u0027 ] \u0026\u0026 SSHD_FILES_CHK done \u003c \u003c(find -L /etc/ssh/sshd_config.d -type f \\( -perm /077 -o ! -user root -o ! -group root \\) -print0 2\u003e/dev/null) if [ -z \u0027$l_output2\u0027 ]; then echo -e \u0027\\n- Audit Result:\\n *** PASS ***\\n- * Correctly set * :\\n$l_output\\n\u0027 else echo -e \u0027\\n- Audit Result:\\n ** FAIL **\\n - * Reasons for audit failure * :\\n$l_output2\\n\u0027 [ -n \u0027$l_output\u0027 ] \u0026\u0026 echo -e \u0027 - * Correctly set * :\\n$l_output\\n\u0027 fi } - IF - other locations are listed in an Include statement, *.conf files in these locations should also be checked."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: permissions_on_etc_ssh_sshd_config_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.permissions_on_ssh_private_host_key_files_are
+    description: Ensure permissions on SSH private host key files are configured
+    calls:
+      - action: run_command
+        command: "Run the following script to verify SSH private host key files are owned by the root user and either: \u2022 owned by the group root and mode 0600 or more restrictive - OR - \u2022 owned by the group designated to own openSSH private keys and mode 0640 or more restrictive #!/usr/bin/env bash { l_output=\u0027\u0027 l_output2=\u0027\u0027 l_ssh_group_name=\u0027$(awk -F: \u0027($1 ~ /^(ssh_keys|_?ssh)$/) {print $1}\u0027 /etc/group)\u0027 f_file_chk() { while IFS=: read -r l_file_mode l_file_owner l_file_group; do l_out2=\u0027\u0027 [ \u0027$l_file_group\u0027 = \u0027$l_ssh_group_name\u0027 ] \u0026\u0026 l_pmask=\u00270137\u0027 || l_pmask=\u00270177\u0027 l_maxperm=\u0027$( printf \u0027%o\u0027 $(( 0777 \u0026 ~$l_pmask )) )\u0027 if [ $(( $l_file_mode \u0026 $l_pmask )) -gt 0 ]; then l_out2=\u0027$l_out2\\n - Mode: \\\u0027$l_file_mode\\\u0027 should be mode: \\\u0027$l_maxperm\\\u0027 or more restrictive\u0027 fi if [ \u0027$l_file_owner\u0027 != \u0027root\u0027 ]; then l_out2=\u0027$l_out2\\n - Owned by: \\\u0027$l_file_owner\\\u0027 should be owned by \\\u0027root\\\u0027\u0027 fi if [[ ! \u0027$l_file_group\u0027 =~ ($l_ssh_group_name|root) ]]; then l_out2=\u0027$l_out2\\n - Owned by group \\\u0027$l_file_group\\\u0027 should be group owned by: \\\u0027$l_ssh_group_name\\\u0027 or \\\u0027root\\\u0027\u0027 fi if [ -n \u0027$l_out2\u0027 ]; then l_output2=\u0027$l_output2\\n - File: \\\u0027$l_file\\\u0027$l_out2\u0027 else l_output=\u0027$l_output\\n - File: \\\u0027$l_file\\\u0027\\n - Correct: mode: \\\u0027$l_file_mode\\\u0027, owner: \\\u0027$l_file_owner\\\u0027, and group owner: \\\u0027$l_file_group\\\u0027 configured\u0027 fi done \u003c \u003c(stat -Lc \u0027%#a:%U:%G\u0027 \u0027$l_file\u0027) } while IFS= read -r -d $\u0027\\0\u0027 l_file; do if ssh-keygen -lf \u0026\u003e/dev/null \u0027$l_file\u0027; then file \u0027$l_file\u0027 | grep -Piq -- \u0027\\bopenssh\\h+([^#\\n\\r]+\\h+)?private\\h+key\\b\u0027 \u0026\u0026 f_file_chk fi done \u003c \u003c(find -L /etc/ssh -xdev -type f -print0 2\u003e/dev/null) if [ -z \u0027$l_output2\u0027 ]; then [ -z \u0027$l_output\u0027 ] \u0026\u0026 l_output=\u0027\\n - No openSSH private keys found\u0027 echo -e \u0027\\n- Audit Result:\\n ** PASS **\\n - * Correctly configured * :$l_output\u0027 else echo -e \u0027\\n- Audit Result:\\n ** FAIL **\\n - * Reasons for audit failure * :$l_output2\\n\u0027 [ -n \u0027$l_output\u0027 ] \u0026\u0026 echo -e \u0027\\n - * Correctly configured * :\\n$l_output\\n\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: permissions_on_ssh_private_host_key_files_are
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.permissions_on_ssh_public_host_key_files_are
+    description: Ensure permissions on SSH public host key files are configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify Access does not grant write or execute permissions to group or other for all returned files: Run the following script to verify SSH public host key files are mode 0644 or more restrictive, owned by the root user, and owned by the root group: #!/usr/bin/env bash { l_output=\u0027\u0027 l_output2=\u0027\u0027 l_pmask=\u00270133\u0027 \u0026\u0026 l_maxperm=\u0027$( printf \u0027%o\u0027 $(( 0777 \u0026 ~$l_pmask )) )\u0027 FILE_CHK() { while IFS=: read -r l_file_mode l_file_owner l_file_group; do l_out2=\u0027\u0027 if [ $(( $l_file_mode \u0026 $l_pmask )) -gt 0 ]; then l_out2=\u0027$l_out2\\n - Mode: \\\u0027$l_file_mode\\\u0027 should be mode: \\\u0027$l_maxperm\\\u0027 or more restrictive\u0027 fi if [ \u0027$l_file_owner\u0027 != \u0027root\u0027 ]; then l_out2=\u0027$l_out2\\n - Owned by: \\\u0027$l_file_owner\\\u0027 should be owned by \\\u0027root\\\u0027\u0027 fi if [ \u0027$l_file_group\u0027 != \u0027root\u0027 ]; then l_out2=\u0027$l_out2\\n - Owned by group \\\u0027$l_file_group\\\u0027 should be group owned by group: \\\u0027root\\\u0027\u0027 fi if [ -n \u0027$l_out2\u0027 ]; then l_output2=\u0027$l_output2\\n - File: \\\u0027$l_file\\\u0027$l_out2\u0027 else l_output=\u0027$l_output\\n - File: \\\u0027$l_file\\\u0027\\n - Correct: mode: \\\u0027$l_file_mode\\\u0027, owner: \\\u0027$l_file_owner\\\u0027, and group owner: \\\u0027$l_file_group\\\u0027 configured\u0027 fi done \u003c \u003c(stat -Lc \u0027%#a:%U:%G\u0027 \u0027$l_file\u0027) } while IFS= read -r -d $\u0027\\0\u0027 l_file; do if ssh-keygen -lf \u0026\u003e/dev/null \u0027$l_file\u0027; then file \u0027$l_file\u0027 | grep -Piq -- \u0027\\bopenssh\\h+([^#\\n\\r]+\\h+)?public\\h+key\\b\u0027 \u0026\u0026 FILE_CHK fi done \u003c \u003c(find -L /etc/ssh -xdev -type f -print0 2\u003e/dev/null) if [ -z \u0027$l_output2\u0027 ]; then [ -z \u0027$l_output\u0027 ] \u0026\u0026 l_output=\u0027\\n - No openSSH public keys found\u0027 echo -e \u0027\\n- Audit Result:\\n ** PASS **\\n - * Correctly configured * :$l_output\u0027 else echo -e \u0027\\n- Audit Result:\\n ** FAIL **\\n - * Reasons for audit failure * :$l_output2\\n\u0027 [ -n \u0027$l_output\u0027 ] \u0026\u0026 echo -e \u0027\\n - * Correctly configured * :\\n$l_output\\n\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: permissions_on_ssh_public_host_key_files_are
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.sshd_ciphers_are_configured
+    description: Ensure sshd Ciphers are configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify none of the \u0027weak\u0027 ciphers are being used: # sshd -T | grep -Pi -- \u0027^ciphers\\h+\\\u0027?([^#\\n\\r]+,)?((3des|blowfish|cast128|aes(128|192|256))- cbc|arcfour(128|256)?|rijndael-cbc@lysator\\.liu\\.se|chacha20- poly1305@openssh\\.com)\\b\u0027 - IF - a line is returned, review the list of ciphers. If the line includes chacha20- poly1305@openssh.com, review CVE-2023-48795 and verify the system has been patched. No ciphers in the list below should be returned as they\u0027re considered \u0027weak\u0027: 3des-cbc aes128-cbc aes192-cbc aes256-cbc"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_ciphers_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.sshd_kexalgorithms_is_configured
+    description: Ensure sshd KexAlgorithms is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify none of the \u0027weak\u0027 Key Exchange algorithms are being used: # sshd -T | grep -Pi -- \u0027kexalgorithms\\h+([^#\\n\\r]+,)?(diffie-hellman-group1- sha1|diffie-hellman-group14-sha1|diffie-hellman-group-exchange-sha1)\\b\u0027 Nothing should be returned The following are considered \u0027weak\u0027 Key Exchange Algorithms, and should not be used: diffie-hellman-group1-sha1 diffie-hellman-group14-sha1 diffie-hellman-group-exchange-sha1"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_kexalgorithms_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.sshd_macs_are_configured
+    description: Ensure sshd MACs are configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify none of the \u0027weak\u0027 MACs are being used: # sshd -T | grep -Pi -- \u0027macs\\h+([^#\\n\\r]+,)?(hmac-md5|hmac-md5-96|hmac- ripemd160|hmac-sha1-96|umac-64@openssh\\.com|hmac-md5-etm@openssh\\.com|hmac- md5-96-etm@openssh\\.com|hmac-ripemd160-etm@openssh\\.com|hmac-sha1-96- etm@openssh\\.com|umac-64-etm@openssh\\.com|umac-128-etm@openssh\\.com)\\b\u0027 Nothing should be returned Note: Review CVE-2023-48795 and verify the system has been patched. If the system has not been patched, review the use of the Encrypt Then Mac (etm) MACs. The following are considered \u0027weak\u0027 MACs, and should not be used: hmac-md5 hmac-md5-96 hmac-sha1-96 umac-64@openssh.com hmac-md5-etm@openssh.com hmac-md5-96-etm@openssh.com hmac-sha1-96-etm@openssh.com umac-64-etm@openssh.com umac-128-etm@openssh.com"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_macs_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.sshd_banner_is_configured
+    description: Ensure sshd Banner is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify Banner is set: # sshd -T | grep -Pi -- \u0027^banner\\h+\\/\\H+\u0027 Example: banner /etc/issue.net - IF - Match set statements are used in your environment, specify the connection parameters to use for the -T extended test mode and run the audit to verify the setting is not incorrectly configured in a match block Example additional audit needed for a match block for the user sshuser: # sshd -T -C user=sshuser | grep -Pi -- \u0027^banner\\h+\\/\\H+\u0027 Note: If provided, any Match directives in the configuration file that would apply are applied before the configuration is written to standard output. The connection parameters are supplied as keyword=value pairs and may be supplied in any order, either with multiple -C options or as a comma-separated list. The keywords are addr (source address), user (user), host (resolved source host name), laddr (local address), lport (local port number), and rdomain (routing domain). Run the following command and verify that the contents or the file being called by the Banner argument match site policy: # [ -e \u0027$(sshd -T | awk \u0027$1 == \u0027banner\u0027 {print $2}\u0027)\u0027 ] \u0026\u0026 cat \u0027$(sshd -T | awk \u0027$1 == \u0027banner\u0027 {print $2}\u0027)\u0027 Run the following command and verify no results are returned: # grep -Psi -- \u0027(\\\\\\v|\\\\\\r|\\\\\\m|\\\\\\s|\\b$(grep \u0027^ID=\u0027 /etc/os-release | cut - d= -f2 | sed -e \u0027s/\u0027//g\u0027)\\b)\u0027 \u0027$(sshd -T | awk \u0027$1 == \u0027banner\u0027 {print $2}\u0027)\u0027"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_banner_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.sshd_clientaliveinterval_and_clientalivecountmax
+    description: Ensure sshd ClientAliveInterval and ClientAliveCountMax are configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify ClientAliveInterval and ClientAliveCountMax are greater than zero: # sshd -T | grep -Pi -- \u0027(clientaliveinterval|clientalivecountmax)\u0027 Example Output: clientaliveinterval 15 clientalivecountmax 3 - IF - Match set statements are used in your environment, specify the connection parameters to use for the -T extended test mode and run the audit to verify the setting is not incorrectly configured in a match block Example additional audit needed for a match block for the user sshuser: # sshd -T -C user=sshuser | grep -Pi -- \u0027(clientaliveinterval|clientalivecountmax)\u0027 Note: If provided, any Match directives in the configuration file that would apply are applied before the configuration is written to standard output. The connection parameters are supplied as keyword=value pairs and may be supplied in any order, either with multiple -C options or as a comma-separated list. The keywords are addr (source address), user (user), host (resolved source host name), laddr (local address), lport (local port number), and rdomain (routing domain)."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_clientaliveinterval_and_clientalivecountmax
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.sshd_disableforwarding_is_enabled
+    description: Ensure sshd DisableForwarding is enabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify DisableForwarding is set to yes: # sshd -T | grep -i disableforwarding disableforwarding yes"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_disableforwarding_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.sshd_gssapiauthentication_is_disabled
+    description: Ensure sshd GSSAPIAuthentication is disabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify GSSAPIAuthentication is set to no: # sshd -T | grep gssapiauthentication gssapiauthentication no - IF - Match set statements are used in your environment, specify the connection parameters to use for the -T extended test mode and run the audit to verify the setting is not incorrectly configured in a match block Example additional audit needed for a match block for the user sshuser: # sshd -T -C user=sshuser | grep gssapiauthentication Note: If provided, any Match directives in the configuration file that would apply are applied before the configuration is written to standard output. The connection parameters are supplied as keyword=value pairs and may be supplied in any order, either with multiple -C options or as a comma-separated list. The keywords are addr (source address), user (user), host (resolved source host name), laddr (local address), lport (local port number), and rdomain (routing domain)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_gssapiauthentication_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.sshd_hostbasedauthentication_is_disabled
+    description: Ensure sshd HostbasedAuthentication is disabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify HostbasedAuthentication is set to no: # sshd -T | grep hostbasedauthentication hostbasedauthentication no - IF - Match set statements are used in your environment, specify the connection parameters to use for the -T extended test mode and run the audit to verify the setting is not incorrectly configured in a match block Example additional audit needed for a match block for the user sshuser: # sshd -T -C user=sshuser | grep hostbasedauthentication Note: If provided, any Match directives in the configuration file that would apply are applied before the configuration is written to standard output. The connection parameters are supplied as keyword=value pairs and may be supplied in any order, either with multiple -C options or as a comma-separated list. The keywords are addr (source address), user (user), host (resolved source host name), laddr (local address), lport (local port number), and rdomain (routing domain)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_hostbasedauthentication_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.sshd_ignorerhosts_is_enabled
+    description: Ensure sshd IgnoreRhosts is enabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify IgnoreRhosts is set to yes: # sshd -T | grep ignorerhosts ignorerhosts yes - IF - Match set statements are used in your environment, specify the connection parameters to use for the -T extended test mode and run the audit to verify the setting is not incorrectly configured in a match block Example additional audit needed for a match block for the user sshuser: # sshd -T -C user=sshuser | grep ignorerhosts Note: If provided, any Match directives in the configuration file that would apply are applied before the configuration is written to standard output. The connection parameters are supplied as keyword=value pairs and may be supplied in any order, either with multiple -C options or as a comma-separated list. The keywords are addr (source address), user (user), host (resolved source host name), laddr (local address), lport (local port number), and rdomain (routing domain)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_ignorerhosts_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.sshd_loglevel_is_configured
+    description: Ensure sshd LogLevel is configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that output matches loglevel VERBOSE or loglevel INFO: # sshd -T | grep loglevel loglevel VERBOSE - OR - loglevel INFO - IF - Match set statements are used in your environment, specify the connection parameters to use for the -T extended test mode and run the audit to verify the setting is not incorrectly configured in a match block Example additional audit needed for a match block for the user sshuser: # sshd -T -C user=sshuser | grep loglevel Note: If provided, any Match directives in the configuration file that would apply are applied before the configuration is written to standard output. The connection parameters are supplied as keyword=value pairs and may be supplied in any order, either with multiple -C options or as a comma-separated list. The keywords are addr (source address), user (user), host (resolved source host name), laddr (local address), lport (local port number), and rdomain (routing domain)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_loglevel_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.sshd_maxstartups_is_configured
+    description: Ensure sshd MaxStartups is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify MaxStartups is 10:30:60 or more restrictive: # sshd -T | awk \u0027$1 ~ /^\\s*maxstartups/{split($2, a, \u0027:\u0027);{if(a[1] \u003e 10 || a[2] \u003e 30 || a[3] \u003e 60) print $0}}\u0027 Nothing should be returned"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_maxstartups_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.sshd_maxsessions_is_configured
+    description: Ensure sshd MaxSessions is configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that MaxSessions is 10 or less: # sshd -T | grep -i maxsessions maxsessions 10 Run the following command and verify the output: grep -Psi -- \u0027^\\h*MaxSessions\\h+\\\u0027?(1[1-9]|[2-9][0-9]|[1-9][0-9][0-9]+)\\b\u0027 /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf Nothing should be returned - IF - Match set statements are used in your environment, specify the connection parameters to use for the -T extended test mode and run the audit to verify the setting is not incorrectly configured in a match block Example additional audit needed for a match block for the user sshuser: # sshd -T -C user=sshuser | grep maxsessions Note: If provided, any Match directives in the configuration file that would apply are applied before the configuration is written to standard output. The connection parameters are supplied as keyword=value pairs and may be supplied in any order, either with multiple -C options or as a comma-separated list. The keywords are addr (source address), user (user), host (resolved source host name), laddr (local address), lport (local port number), and rdomain (routing domain)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_maxsessions_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.sshd_permituserenvironment_is_disabled
+    description: Ensure sshd PermitUserEnvironment is disabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify PermitUserEnviroment is set to no: # sshd -T | grep permituserenvironment permituserenvironment no"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_permituserenvironment_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.sshd_usepam_is_enabled
+    description: Ensure sshd UsePAM is enabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify UsePAM is set to yes: # sshd -T | grep -i usepam usepam yes"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_usepam_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.latest_version_of_pam_is_installed
+    description: Ensure latest version of pam is installed
+    calls:
+      - action: run_command
+        command: "Run the following command to verify the version of PAM on the system: # rpm -q pam Verify output is version pam-1.5.1-19 or greater: Example: pam-1.5.1-19.el9.x86_64"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: latest_version_of_pam_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.latest_version_of_authselect_is_installed
+    description: Ensure latest version of authselect is installed
+    calls:
+      - action: run_command
+        command: "Run the following command to verify the version of authselect on the system: # rpm -q authselect Verify output is version authselect-1.2.6-2 or greater: Example: authselect-1.2.6-2.el9.x86_64"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: latest_version_of_authselect_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.latest_version_of_libpwquality_is_installed
+    description: Ensure latest version of libpwquality is installed
+    calls:
+      - action: run_command
+        command: "Run the following command to verify the version of libpwquality on the system: # rpm -q libpwquality Verify output is version libpwquality-1.4.4-8 or greater: Example: libpwquality-1.4.4-8.el9.x86_64"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: latest_version_of_libpwquality_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.active_authselect_profile_includes_pam_modules
+    description: Ensure active authselect profile includes pam modules
+    calls:
+      - action: run_command
+        command: "Run the following command to verify the active authselect profile includes lines for the pwquality, pwhistory, faillock, and unix modules: # grep -P -- \u0027\\b(pam_pwquality\\.so|pam_pwhistory\\.so|pam_faillock\\.so|pam_unix\\.so)\\b\u0027 /etc/authselect/\u0027$(head -1 /etc/authselect/authselect.conf)\u0027/{system,password}-auth Example output: /etc/authselect/custom/custom-profile/password-auth:auth required pam_faillock.so preauth silent {include if \u0027with-faillock\u0027} /etc/authselect/custom/custom-profile/password-auth:auth sufficient pam_unix.so {if not \u0027without-nullok\u0027:nullok} /etc/authselect/custom/custom-profile/password-auth:auth required pam_faillock.so authfail {include if \u0027with-faillock\u0027} /etc/authselect/custom/custom-profile/password-auth:account required pam_faillock.so {include if \u0027with-faillock\u0027} /etc/authselect/custom/custom-profile/password-auth:account required pam_unix.so /etc/authselect/custom/custom-profile/password-auth:password requisite pam_pwquality.so local_users_only /etc/authselect/custom/custom-profile/password-auth:password required pam_pwhistory.so use_authtok /etc/authselect/custom/custom-profile/password-auth:password sufficient pam_unix.so sha512 shadow {if not \u0027without-nullok\u0027:nullok} use_authtok /etc/authselect/custom/custom-profile/password-auth:session required pam_unix.so /etc/authselect/custom/custom-profile/system-auth:auth required pam_faillock.so preauth silent {include if \u0027with-faillock\u0027} /etc/authselect/custom/custom-profile/system-auth:auth sufficient pam_unix.so {if not \u0027without-nullok\u0027:nullok} /etc/authselect/custom/custom-profile/system-auth:auth required pam_faillock.so authfail {include if \u0027with-faillock\u0027} /etc/authselect/custom/custom-profile/system-auth:account required pam_faillock.so {include if \u0027with-faillock\u0027} /etc/authselect/custom/custom-profile/system-auth:account required pam_unix.so /etc/authselect/custom/custom-profile/system-auth:password requisite pam_pwquality.so local_users_only /etc/authselect/custom/custom-profile/system-auth:password required pam_pwhistory.so use_authtok /etc/authselect/custom/custom-profile/system-auth:password sufficient pam_unix.so sha512 shadow {if not \u0027without-nullok\u0027:nullok} /etc/authselect/custom/custom-profile/system-auth:session required pam_unix.so Notes: \u2022 The lines may or may not include feature options defined by text surrounded by curly brackets ({}) e.g. {include if \u0027with-faillock\u0027} \u2022 File path may be different due to the active profile in use"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: active_authselect_profile_includes_pam_modules
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.pam_faillock_module_is_enabled
+    description: Ensure pam_faillock module is enabled
+    calls:
+      - action: run_command
+        command: "Run the following commands to verify that pam_faillock is enabled # grep -P -- \u0027\\bpam_faillock.so\\b\u0027 /etc/pam.d/{password,system}-auth Output should be similar to: /etc/pam.d/password-auth:auth required pam_faillock.so preauth silent /etc/pam.d/password-auth:auth required pam_faillock.so authfail /etc/pam.d/password-auth:account required pam_faillock.so /etc/pam.d/system-auth:auth required pam_faillock.so preauth silent /etc/pam.d/system-auth:auth required pam_faillock.so authfail /etc/pam.d/system-auth:account required pam_faillock.so"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: pam_faillock_module_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.pam_pwquality_module_is_enabled
+    description: Ensure pam_pwquality module is enabled
+    calls:
+      - action: run_command
+        command: "Run the following commands to verify that pam_pwquality is enabled: # grep -P -- \u0027\\bpam_pwquality\\.so\\b\u0027 /etc/pam.d/{password,system}-auth Output should be similar to: /etc/pam.d/password-auth:password requisite pam_pwquality.so local_users_only /etc/pam.d/system-auth:password requisite pam_pwquality.so local_users_only"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: pam_pwquality_module_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.pam_pwhistory_module_is_enabled
+    description: Ensure pam_pwhistory module is enabled
+    calls:
+      - action: run_command
+        command: "Run the following commands to verify that pam_pwhistory is enabled: # grep -P -- \u0027\\bpam_pwhistory\\.so\\b\u0027 /etc/pam.d/{password,system}-auth Output should be similar to: /etc/pam.d/password-auth:password required pam_pwhistory.so use_authtok /etc/pam.d/system-auth:password required pam_pwhistory.so use_authtok"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: pam_pwhistory_module_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.pam_unix_module_is_enabled
+    description: Ensure pam_unix module is enabled
+    calls:
+      - action: run_command
+        command: "Run the following commands to verify that pam_unix is enabled: # grep -P -- \u0027\\bpam_unix\\.so\\b\u0027 /etc/pam.d/{password,system}-auth Output should be similar to: /etc/pam.d/password-auth:auth sufficient pam_unix.so /etc/pam.d/password-auth:account required pam_unix.so /etc/pam.d/password-auth:password sufficient pam_unix.so sha512 shadow use_authtok /etc/pam.d/password-auth:session required pam_unix.so /etc/pam.d/system-auth:auth sufficient pam_unix.so /etc/pam.d/system-auth:account required pam_unix.so /etc/pam.d/system-auth:password sufficient pam_unix.so sha512 shadow use_authtok /etc/pam.d/system-auth:session required pam_unix.so"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: pam_unix_module_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.password_number_of_changed_characters_is
+    description: Ensure password number of changed characters is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that the difok option is set to 2 or more and follows local site policy: # grep -Psi -- \u0027^\\h*difok\\h*=\\h*([2-9]|[1-9][0-9]+)\\b\u0027 /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf Example output: /etc/security/pwquality.conf.d/50-pwdifok.conf:difok = 2 Verify returned value(s) are 2 or more and meet local site policy Run the following command to verify that difok is not set, is 2 or more, and conforms to local site policy: grep -Psi -- \u0027^\\h*password\\h+(requisite|required|sufficient)\\h+pam_pwquality\\.so\\h+([^#\\n\\ r]+\\h+)?difok\\h*=\\h*([0-1])\\b\u0027 /etc/pam.d/system-auth /etc/pam.d/password- auth Nothing should be returned Notes: \u2022 settings should be configured in only one location for clarity \u2022 Settings observe an order of precedence: o module arguments override the settings in the /etc/security/pwquality.conf configuration file o settings in the /etc/security/pwquality.conf configuration file override settings in a .conf file in the /etc/security/pwquality.conf.d/ directory o settings in a .conf file in the /etc/security/pwquality.conf.d/ directory are read in canonical order, with last read file containing the setting taking precedence \u2022 It is recommended that settings be configured in a .conf file in the /etc/security/pwquality.conf.d/ directory for clarity, convenience, and durability."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_number_of_changed_characters_is
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.password_length_is_configured
+    description: Ensure password length is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that password length is 14 or more characters, and conforms to local site policy: # grep -Psi -- \u0027^\\h*minlen\\h*=\\h*(1[4-9]|[2-9][0-9]|[1-9][0-9]{2,})\\b\u0027 /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf Example output: /etc/security/pwquality.conf.d/50-pwlength.conf:minlen = 14 Verify returned value(s) are no less than 14 characters and meet local site policy Run the following command to verify that minlen is not set, or is 14 or more characters, and conforms to local site policy: grep -Psi -- \u0027^\\h*password\\h+(requisite|required|sufficient)\\h+pam_pwquality\\.so\\h+([^#\\n\\ r]+\\h+)?minlen\\h*=\\h*([0-9]|1[0-3])\\b\u0027 /etc/pam.d/system-auth /etc/pam.d/password-auth Nothing should be returned Notes: \u2022 settings should be configured in only one location for clarity \u2022 Settings observe an order of precedence: o module arguments override the settings in the /etc/security/pwquality.conf configuration file o settings in the /etc/security/pwquality.conf configuration file override settings in a .conf file in the /etc/security/pwquality.conf.d/ directory o settings in a .conf file in the /etc/security/pwquality.conf.d/ directory are read in canonical order, with last read file containing the setting taking precedence \u2022 It is recommended that settings be configured in a .conf file in the /etc/security/pwquality.conf.d/ directory for clarity, convenience, and durability."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_length_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.password_same_consecutive_characters_is_configured
+    description: Ensure password same consecutive characters is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that the maxrepeat option is set to 3 or less, not 0, and follows local site policy: # grep -Psi -- \u0027^\\h*maxrepeat\\h*=\\h*[1-3]\\b\u0027 /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf Example output: /etc/security/pwquality.conf.d/50-pwrepeat.conf:maxrepeat = 3 Verify returned value(s) are 3 or less, not 0, and meet local site policy Run the following command to verify that maxrepeat is not set, is 3 or less, not 0, and conforms to local site policy: grep -Psi -- \u0027^\\h*password\\h+(requisite|required|sufficient)\\h+pam_pwquality\\.so\\h+([^#\\n\\ r]+\\h+)?maxrepeat\\h*=\\h*(0|[4-9]|[1-9][0-9]+)\\b\u0027 /etc/pam.d/system-auth /etc/pam.d/password-auth Nothing should be returned Notes: \u2022 settings should be configured in only one location for clarity \u2022 Settings observe an order of precedence: o module arguments override the settings in the /etc/security/pwquality.conf configuration file o settings in the /etc/security/pwquality.conf configuration file override settings in a .conf file in the /etc/security/pwquality.conf.d/ directory o settings in a .conf file in the /etc/security/pwquality.conf.d/ directory are read in canonical order, with last read file containing the setting taking precedence \u2022 It is recommended that settings be configured in a .conf file in the /etc/security/pwquality.conf.d/ directory for clarity, convenience, and durability."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_same_consecutive_characters_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.password_maximum_sequential_characters_is
+    description: Ensure password maximum sequential characters is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that the maxsequence option is set to 3 or less, not 0, and follows local site policy: # grep -Psi -- \u0027^\\h*maxsequence\\h*=\\h*[1-3]\\b\u0027 /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf Example output: /etc/security/pwquality.conf.d/50-pwmaxsequence.conf:maxsequence = 3 Verify returned value(s) are 3 or less, not 0, and meet local site policy Run the following command to verify that maxsequence is not set, is 3 or less, not 0, and conforms to local site policy: grep -Psi -- \u0027^\\h*password\\h+(requisite|required|sufficient)\\h+pam_pwquality\\.so\\h+([^#\\n\\ r]+\\h+)?maxsequence\\h*=\\h*(0|[4-9]|[1-9][0-9]+)\\b\u0027 /etc/pam.d/system-auth /etc/pam.d/password-auth Nothing should be returned Note: \u2022 settings should be configured in only one location for clarity \u2022 Settings observe an order of precedence: o module arguments override the settings in the /etc/security/pwquality.conf configuration file o settings in the /etc/security/pwquality.conf configuration file override settings in a .conf file in the /etc/security/pwquality.conf.d/ directory o settings in a .conf file in the /etc/security/pwquality.conf.d/ directory are read in canonical order, with last read file containing the setting taking precedence \u2022 It is recommended that settings be configured in a .conf file in the /etc/security/pwquality.conf.d/ directory for clarity, convenience, and durability."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_maximum_sequential_characters_is
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.password_dictionary_check_is_enabled
+    description: Ensure password dictionary check is enabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that the dictcheck option is not set to 0 (disabled) in a pwquality configuration file: # grep -Psi -- \u0027^\\h*dictcheck\\h*=\\h*0\\b\u0027 /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf Nothing should be returned Run the following command to verify that the dictcheck option is not set to 0 (disabled) as a module argument in a PAM file: # grep -Psi -- \u0027^\\h*password\\h+(requisite|required|sufficient)\\h+pam_pwquality\\.so\\h+([^#\\n\\ r]+\\h+)?dictcheck\\h*=\\h*0\\b\u0027 /etc/pam.d/system-auth /etc/pam.d/password-auth Nothing should be returned Notes: \u2022 Settings observe an order of precedence: o module arguments override the settings in the /etc/security/pwquality.conf configuration file o settings in the /etc/security/pwquality.conf configuration file override settings in a .conf file in the /etc/security/pwquality.conf.d/ directory o settings in a .conf file in the /etc/security/pwquality.conf.d/ directory are read in canonical order, with last read file containing the setting taking precedence \u2022 It is recommended that settings be configured in a .conf file in the /etc/security/pwquality.conf.d/ directory for clarity, convenience, and durability."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_dictionary_check_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.password_quality_is_enforced_for_the_root_user
+    description: Ensure password quality is enforced for the root user
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that the enforce_for_root option is enabled in a pwquality configuration file: # grep -Psi -- \u0027^\\h*enforce_for_root\\b\u0027 /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf Example output: /etc/security/pwquality.conf.d/50-pwroot.conf:enforce_for_root Notes: \u2022 Settings observe an order of precedence: o module arguments override the settings in the /etc/security/pwquality.conf configuration file o settings in the /etc/security/pwquality.conf configuration file override settings in a .conf file in the /etc/security/pwquality.conf.d/ directory o settings in a .conf file in the /etc/security/pwquality.conf.d/ directory are read in canonical order, with last read file containing the setting taking precedence \u2022 It is recommended that settings be configured in a .conf file in the /etc/security/pwquality.conf.d/ directory for clarity, convenience, and durability."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_quality_is_enforced_for_the_root_user
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.password_history_remember_is_configured
+    description: Ensure password history remember is configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that the remember option is set to 24 or more and meets local site policy in /etc/security/pwhistory.conf: # grep -Pi -- \u0027^\\h*remember\\h*=\\h*(2[4-9]|[3-9][0-9]|[1-9][0-9]{2,})\\b\u0027 /etc/security/pwhistory.conf remember = 24 Run the following command to verify that the remember option is not set to less than 24 on the pam_pwhistory.so module in /etc/pam.d/password-auth and /etc/pam.d/system-auth: # grep -Pi -- \u0027^\\h*password\\h+(requisite|required|sufficient)\\h+pam_pwhistory\\.so\\h+([^#\\n\\ r]+\\h+)?remember=(2[0-3]|1[0-9]|[0-9])\\b\u0027 /etc/pam.d/system-auth /etc/pam.d/password-auth Nothing should be returned"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_history_remember_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.password_history_is_enforced_for_the_root_user
+    description: Ensure password history is enforced for the root user
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that the enforce_for_root option is enabled in /etc/pwhistory.conf: # grep -Pi -- \u0027^\\h*enforce_for_root\\b\u0027 /etc/security/pwhistory.conf enforce_for_root Notes: \u2022 Settings observe an order of precedence. \u2022 Module arguments override the settings in the /etc/security/pwhistory.conf configuration file \u2022 It is recommended that settings be configured in /etc/security/pwhistory.conf for clarity, convenience, and durability."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_history_is_enforced_for_the_root_user
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.pam_pwhistory_includes_use_authtok
+    description: Ensure pam_pwhistory includes use_authtok
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that use_authtok is set on the pam_pwhistory.so module lines in the password stack: # grep -P -- \u0027^\\h*password\\h+([^#\\n\\r]+)\\h+pam_pwhistory\\.so\\h+([^#\\n\\r]+\\h+)?use_authtok\\ b\u0027 /etc/pam.d/{password,system}-auth Output should be similar to: /etc/pam.d/password-auth:password required pam_pwhistory.so use_authtok /etc/pam.d/system-auth:password required pam_pwhistory.so use_authtok Verify that the lines include use_authtok"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: pam_pwhistory_includes_use_authtok
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.pam_unix_does_not_include_remember
+    description: Ensure pam_unix does not include remember
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that the remember argument is not set on the pam_unix.so module: # grep -Pi \u0027^\\h*password\\h+([^#\\n\\r]+\\h+)?pam_unix\\.so\\b\u0027 /etc/pam.d/{password,system}-auth | grep -Pv \u0027\\bremember=\\d\\b\u0027 Output should be similar to: /etc/pam.d/password-auth:password sufficient pam_unix.so sha512 shadow use_authtok /etc/pam.d/system-auth:password sufficient pam_unix.so sha512 shadow use_authtok"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: pam_unix_does_not_include_remember
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.pam_unix_includes_a_strong_password_hashing
+    description: Ensure pam_unix includes a strong password hashing algorithm
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that a strong password hashing algorithm is set on the pam_unix.so module: # grep -P -- \u0027^\\h*password\\h+([^#\\n\\r]+)\\h+pam_unix\\.so\\h+([^#\\n\\r]+\\h+)?(sha512|yescrypt) \\b\u0027 /etc/pam.d/{password,system}-auth Output should be similar to: /etc/pam.d/password-auth:password sufficient pam_unix.so sha512 shadow use_authtok /etc/pam.d/system-auth:password sufficient pam_unix.so sha512 shadow use_authtok Verify that the lines include either sha512 - OR - yescrypt"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: pam_unix_includes_a_strong_password_hashing
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.pam_unix_includes_use_authtok
+    description: Ensure pam_unix includes use_authtok
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that use_authtok is set on the pam_unix.so module lines in the password stack: # grep -P -- \u0027^\\h*password\\h+([^#\\n\\r]+)\\h+pam_unix\\.so\\h+([^#\\n\\r]+\\h+)?use_authtok\\b\u0027 /etc/pam.d/{password,system}-auth Output should be similar to: /etc/pam.d/password-auth:password sufficient pam_unix.so sha512 shadow use_authtok /etc/pam.d/system-auth:password sufficient pam_unix.so sha512 shadow use_authtok Verify that the lines include use_authtok"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: pam_unix_includes_use_authtok
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.strong_password_hashing_algorithm_is_configured
+    description: Ensure strong password hashing algorithm is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify the hashing algorithm is sha512 or yescrypt in /etc/login.defs: # grep -Pi -- \u0027^\\h*ENCRYPT_METHOD\\h+(SHA512|yescrypt)\\b\u0027 /etc/login.defs Example output: ENCRYPT_METHOD SHA512 - OR - ENCRYPT_METHOD YESCRYPT"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: strong_password_hashing_algorithm_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.inactive_password_lock_is_configured
+    description: Ensure inactive password lock is configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify INACTIVE conforms to site policy (no more than 45 days): # useradd -D | grep INACTIVE INACTIVE=45 Verify all users with a password have Password inactive no more than 45 days after password expires Verify all users with a password have Password inactive no more than 45 days after password expires: Run the following command and Review list of users and INACTIVE to verify that all users INACTIVE conforms to site policy (no more than 45 days): # awk -F: \u0027($2~/^\\$.+\\$/) {if($7 \u003e 45 || $7 \u003c 0)print \u0027User: \u0027 $1 \u0027 INACTIVE: \u0027 $7}\u0027 /etc/shadow Nothing should be returned"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: inactive_password_lock_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.all_users_last_password_change_date_is_in_the_past
+    description: Ensure all users last password change date is in the past
+    calls:
+      - action: run_command
+        command: "Run the following script and verify nothing is returned: #!/usr/bin/env bash { while IFS= read -r l_user; do l_change=$(date -d \u0027$(chage --list $l_user | grep \u0027^Last password change\u0027 | cut -d: -f2 | grep -v \u0027never$\u0027)\u0027 +%s) if [[ \u0027$l_change\u0027 -gt \u0027$(date +%s)\u0027 ]]; then echo \u0027User: \\\u0027$l_user\\\u0027 last password change was \\\u0027$(chage --list $l_user | grep \u0027^Last password change\u0027 | cut -d: -f2)\\\u0027\u0027 fi done \u003c \u003c(awk -F: \u0027$2~/^\\$.+\\$/{print $1}\u0027 /etc/shadow) }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: all_users_last_password_change_date_is_in_the_past
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.root_is_the_only_gid_0_account
+    description: Ensure root is the only GID 0 account
+    calls:
+      - action: run_command
+        command: "Run the following command to verify the root user\u0027s primary GID is 0, and no other user\u0027s have GID 0 as their primary GID: # awk -F: \u0027($1 !~ /^(sync|shutdown|halt|operator)/ \u0026\u0026 $4==\u00270\u0027) {print $1\u0027:\u0027$4}\u0027 /etc/passwd root:0 Note: User\u0027s: sync, shutdown, halt, and operator are excluded from the check for other user\u0027s with GID 0"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: root_is_the_only_gid_0_account
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.group_root_is_the_only_gid_0_group
+    description: Ensure group root is the only GID 0 group
+    calls:
+      - action: run_command
+        command: "Run the following command to verify no group other than root is assigned GID 0: # awk -F: \u0027$3==\u00270\u0027{print $1\u0027:\u0027$3}\u0027 /etc/group root:0"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: group_root_is_the_only_gid_0_group
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.root_path_integrity
+    description: Ensure root path integrity
+    calls:
+      - action: run_command
+        command: "Run the following script to verify root\u0027s path does not include: \u2022 Locations that are not directories \u2022 An empty directory (::) \u2022 A trailing (:) \u2022 Current working directory (.) \u2022 Non root owned directories \u2022 Directories that less restrictive than mode 0755 #!/usr/bin/env bash { l_output2=\u0027\u0027 l_pmask=\u00270022\u0027 l_maxperm=\u0027$( printf \u0027%o\u0027 $(( 0777 \u0026 ~$l_pmask )) )\u0027 l_root_path=\u0027$(sudo -Hiu root env | grep \u0027^PATH\u0027 | cut -d= -f2)\u0027 unset a_path_loc \u0026\u0026 IFS=\u0027:\u0027 read -ra a_path_loc \u003c\u003c\u003c \u0027$l_root_path\u0027 grep -q \u0027::\u0027 \u003c\u003c\u003c \u0027$l_root_path\u0027 \u0026\u0026 l_output2=\u0027$l_output2\\n - root\u0027s path contains a empty directory (::)\u0027 grep -Pq \u0027:\\h*$\u0027 \u003c\u003c\u003c \u0027$l_root_path\u0027 \u0026\u0026 l_output2=\u0027$l_output2\\n - root\u0027s path contains a trailing (:)\u0027 grep -Pq \u0027(\\h+|:)\\.(:|\\h*$)\u0027 \u003c\u003c\u003c \u0027$l_root_path\u0027 \u0026\u0026 l_output2=\u0027$l_output2\\n - root\u0027s path contains current working directory (.)\u0027 while read -r l_path; do if [ -d \u0027$l_path\u0027 ]; then while read -r l_fmode l_fown; do [ \u0027$l_fown\u0027 != \u0027root\u0027 ] \u0026\u0026 l_output2=\u0027$l_output2\\n - Directory: \\\u0027$l_path\\\u0027 is owned by: \\\u0027$l_fown\\\u0027 should be owned by \\\u0027root\\\u0027\u0027 [ $(( $l_fmode \u0026 $l_pmask )) -gt 0 ] \u0026\u0026 l_output2=\u0027$l_output2\\n - Directory: \\\u0027$l_path\\\u0027 is mode: \\\u0027$l_fmode\\\u0027 and should be mode: \\\u0027$l_maxperm\\\u0027 or more restrictive\u0027 done \u003c\u003c\u003c \u0027$(stat -Lc \u0027%#a %U\u0027 \u0027$l_path\u0027)\u0027 else l_output2=\u0027$l_output2\\n - \\\u0027$l_path\\\u0027 is not a directory\u0027 fi done \u003c\u003c\u003c \u0027$(printf \u0027%s\\n\u0027 \u0027${a_path_loc[@]}\u0027)\u0027 if [ -z \u0027$l_output2\u0027 ]; then echo -e \u0027\\n- Audit Result:\\n *** PASS ***\\n - Root\u0027s path is correctly configured\\n\u0027 else echo -e \u0027\\n- Audit Result:\\n ** FAIL **\\n - * Reasons for audit failure * :\\n$l_output2\\n\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: root_path_integrity
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.rsyslog_is_installed
+    description: Ensure rsyslog is installed
+    calls:
+      - action: run_command
+        command: "Run the following command to verify rsyslog is installed. # rpm -q rsyslog Verify the output matches: rsyslog-\u003cversion\u003e"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: rsyslog_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.rsyslog_default_file_permissions_are_configured
+    description: Ensure rsyslog default file permissions are configured
+    calls:
+      - action: run_command
+        command: "Run the following command: # grep -Ps \u0027^\\h*\\$FileCreateMode\\h+0[0,2,4,6][0,2,4]0\\b\u0027 /etc/rsyslog.conf /etc/rsyslog.d/*.conf Verify the output is includes 0640 or more restrictive: $FileCreateMode 0640"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: rsyslog_default_file_permissions_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.rsyslog_is_not_configured_to_receive_logs_from_a
+    description: Ensure rsyslog is not configured to receive logs from a remote client
+    calls:
+      - action: run_command
+        command: "Review the /etc/rsyslog.conf and /etc/rsyslog.d/*.conf files and verify that the system is not configured to accept incoming logs. New format # grep -Ps -- \u0027^\\h*module\\(load=\u0027imtcp\u0027\\)\u0027 /etc/rsyslog.conf /etc/rsyslog.d/*.conf # grep -Ps -- \u0027^\\h*input\\(type=\u0027imtcp\u0027 port=\u0027514\u0027\\)\u0027 /etc/rsyslog.conf /etc/rsyslog.d/*.conf No output expected. - OR - Old format # grep -s \u0027$ModLoad imtcp\u0027 /etc/rsyslog.conf /etc/rsyslog.d/*.conf # grep -s \u0027$InputTCPServerRun\u0027 /etc/rsyslog.conf /etc/rsyslog.d/*.conf No output expected."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: rsyslog_is_not_configured_to_receive_logs_from_a
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.journald_is_not_configured_to_receive_logs_from_a
+    description: Ensure journald is not configured to receive logs from a remote client
+    calls:
+      - action: run_command
+        command: "Run the following command to verify systemd-journal-remote.socket is not enabled: # systemctl is-enabled systemd-journal-remote.socket Verify the output matches: masked"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: journald_is_not_configured_to_receive_logs_from_a
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.journald_service_is_enabled
+    description: Ensure journald service is enabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify systemd-journald is enabled: # systemctl is-enabled systemd-journald.service Verify the output matches: static"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: journald_service_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.journald_is_configured_to_compress_large_log_files
+    description: Ensure journald is configured to compress large log files
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: journald_is_configured_to_compress_large_log_files
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.journald_is_configured_to_write_logfiles_to
+    description: Ensure journald is configured to write logfiles to persistent disk
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: journald_is_configured_to_write_logfiles_to
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.file_deletion_events_by_users_are_collected
+    description: Ensure file deletion events by users are collected
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: file_deletion_events_by_users_are_collected
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.aide_is_installed
+    description: Ensure AIDE is installed
+    calls:
+      - action: run_command
+        command: "Run the following command and verify aide is installed: # rpm -q aide aide-\u003cversion\u003e"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: aide_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_5.filesystem_integrity_is_regularly_checked
+    description: Ensure filesystem integrity is regularly checked
+    calls:
+      - action: run_command
+        command: "Run the following commands to verify a cron job scheduled to run the aide check. # grep -Ers \u0027^([^#]+\\s+)?(\\/usr\\/s?bin\\/|^\\s*)aide(\\.wrapper)?\\s(--?\\S+\\s)*(- -(check|update)|\\$AIDEARGS)\\b\u0027 /etc/cron.* /etc/crontab /var/spool/cron/ Ensure a cron job in compliance with site policy is returned. - OR - Run the following commands to verify that aidecheck.service and aidecheck.timer are enabled and aidcheck.timer is running # systemctl is-enabled aidecheck.service # systemctl is-enabled aidecheck.timer # systemctl status aidecheck.timer"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: filesystem_integrity_is_regularly_checked
+        value: "{{ result.stdout }}"
+        expected: ""
+

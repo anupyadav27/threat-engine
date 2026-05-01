@@ -1,46 +1,33 @@
 """
 Network Security Engine — K8s Job Entry Point
 
-Pipeline position: Layer 3 (parallel with compliance/iam/datasec, after threat)
-Receives scan_run_id, loads discovery data, runs 7-layer analysis, saves findings.
+Architecture:
+  Layer 1 (all CSPs): Surface check_findings where rule_metadata.network_security=true.
+                       Zero hardcoding — rules live in the DB, evaluated by check engine.
+  Layer 2 (AWS only): Topology analysis — VPC graph, reachability paths, exposure chains.
+                       Cross-resource correlation that per-rule check engine cannot do.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import logging
 import os
 import sys
 import time
-from collections import Counter
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
-# ── Setup path ────────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "shared"))
 
-from network_security_engine.input.discovery_db_reader import NetworkDiscoveryReader
-from network_security_engine.input.inventory_reader import NetworkInventoryReader
-from network_security_engine.analyzers.network_topology_analyzer import (
-    build_topology, analyze_topology,
-)
-from network_security_engine.analyzers.network_reachability_analyzer import analyze_reachability
-from network_security_engine.analyzers.nacl_analyzer import analyze_nacls
-from network_security_engine.analyzers.security_group_analyzer import analyze_security_groups
-from network_security_engine.analyzers.load_balancer_analyzer import (
-    build_load_balancers, analyze_load_balancers,
-)
-from network_security_engine.analyzers.waf_analyzer import build_waf_acls, analyze_waf
-from network_security_engine.analyzers.flow_analysis_enricher import enrich_with_flow_data
-from network_security_engine.enricher.finding_enricher import (
-    enrich_findings, compute_blast_radius,
-)
 from network_security_engine.storage.network_db_writer import (
     save_network_report, save_network_findings,
     save_topology_snapshots, update_report_status,
-    cleanup_old_scans, _get_network_conn, _ensure_tenant,
+    cleanup_old_scans, _ensure_tenant,
 )
+from engine_common.db_connections import get_network_conn, get_onboarding_conn
 
 logging.basicConfig(
     level=logging.INFO,
@@ -50,37 +37,66 @@ logger = logging.getLogger("network_security.run_scan")
 
 
 def get_orchestration_metadata(scan_run_id: str) -> Dict[str, Any]:
-    """Read scan metadata from scan_orchestration table."""
-    import psycopg2
+    """Read scan metadata from scan_runs table."""
     from psycopg2.extras import RealDictCursor
-
-    conn = psycopg2.connect(
-        host=os.getenv("ONBOARDING_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("ONBOARDING_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("ONBOARDING_DB_NAME", "threat_engine_onboarding"),
-        user=os.getenv("ONBOARDING_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("ONBOARDING_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-        connect_timeout=10,
-    )
+    conn = get_onboarding_conn()
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(
-                "SELECT * FROM scan_orchestration WHERE scan_run_id = %s",
-                (scan_run_id,),
-            )
+            cur.execute("SELECT * FROM scan_runs WHERE scan_run_id = %s", (scan_run_id,))
             row = cur.fetchone()
             return dict(row) if row else {}
     finally:
         conn.close()
 
 
+def _check_finding_to_network_row(
+    cf: Dict[str, Any],
+    scan_run_id: str,
+    tenant_id: str,
+    credential_ref: str,
+    credential_type: str,
+) -> Dict[str, Any]:
+    """Convert a check_finding row into the network_findings schema."""
+    fid = hashlib.sha256(
+        f"net|{cf.get('rule_id', '')}|{cf.get('resource_uid', '')}|{scan_run_id}".encode()
+    ).hexdigest()[:16]
+
+    fd = cf.get("finding_data") or {}
+    return {
+        "finding_id": fid,
+        "scan_run_id": scan_run_id,
+        "tenant_id": tenant_id,
+        "account_id": cf.get("account_id", ""),
+        "region": cf.get("region", ""),
+        "provider": cf.get("provider", ""),
+        "credential_ref": cf.get("credential_ref") or credential_ref,
+        "credential_type": cf.get("credential_type") or credential_type,
+        "resource_uid": cf.get("resource_uid", ""),
+        "resource_type": cf.get("resource_type", ""),
+        "rule_id": cf.get("rule_id", ""),
+        "network_modules": ["check_findings"],
+        "effective_exposure": fd.get("effective_exposure"),
+        "blast_radius_score": 0,
+        "severity": (cf.get("severity") or "medium").lower(),
+        "status": cf.get("status", "FAIL"),
+        "finding_data": {
+            "source": "check_engine",
+            "title": cf.get("title") or fd.get("title") or cf.get("rule_id", ""),
+            "description": cf.get("description") or fd.get("description", ""),
+            "remediation": cf.get("remediation") or fd.get("remediation", ""),
+            "mitre_tactics": cf.get("mitre_tactics") or [],
+            "mitre_techniques": cf.get("mitre_techniques") or [],
+            "action_category": cf.get("action_category", ""),
+        },
+    }
+
+
 def run_network_scan(scan_run_id: str) -> Dict[str, Any]:
-    """Execute the full 7-layer network security analysis."""
+    """Execute network security analysis."""
     start_time = time.time()
     logger.info("=== Network Security Scan START: %s ===", scan_run_id)
 
-    # ── 1. Get orchestration metadata ─────────────────────────────────────
+    # ── 1. Get orchestration metadata ──────────────────────────────────────
     metadata = get_orchestration_metadata(scan_run_id)
     tenant_id = metadata.get("tenant_id", os.getenv("TENANT_ID", "default-tenant"))
     account_id = metadata.get("account_id", os.getenv("ACCOUNT_ID", ""))
@@ -90,13 +106,14 @@ def run_network_scan(scan_run_id: str) -> Dict[str, Any]:
 
     logger.info("Tenant: %s, Account: %s, Provider: %s", tenant_id, account_id, provider)
 
-    # ── 2. Pre-create report (status=running) ─────────────────────────────
-    conn = _get_network_conn()
+    # ── 2. Pre-create report (status=running) ──────────────────────────────
+    conn = get_network_conn()
     try:
         _ensure_tenant(conn, tenant_id)
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO network_report (scan_run_id, tenant_id, account_id, provider, status, started_at)
+                INSERT INTO network_report
+                    (scan_run_id, tenant_id, account_id, provider, status, started_at)
                 VALUES (%s, %s, %s, %s, 'running', NOW())
                 ON CONFLICT (scan_run_id) DO UPDATE SET status = 'running', started_at = NOW()
             """, (scan_run_id, tenant_id, account_id, provider))
@@ -104,290 +121,190 @@ def run_network_scan(scan_run_id: str) -> Dict[str, Any]:
     finally:
         conn.close()
 
+    finding_rows: List[Dict[str, Any]] = []
+    topology_snapshots: List[Dict[str, Any]] = []
+    report_metrics: Dict[str, Any] = {}
+
+    # ── 3. Layer 1: DB-driven check findings (ALL CSPs) ────────────────────
+    # Uses rule_metadata.network_security = {"applicable": true}
+    # No hardcoding — rules are in the DB, evaluated by the check engine.
     try:
-        # ── 3. Load discovery data ────────────────────────────────────────
-        reader = NetworkDiscoveryReader()
-        discovery_data = reader.load_all_network_resources(scan_run_id, tenant_id, account_id)
+        from network_security_engine.input.check_db_reader import NetworkCheckReader
+        reader = NetworkCheckReader()
+        check_findings = reader.load_network_check_findings(
+            scan_run_id, tenant_id, account_id or None
+        )
+        logger.info("Layer 1: %d network check_findings loaded (provider=%s)", len(check_findings), provider)
 
-        if not discovery_data:
-            logger.warning("No network discovery data found for scan %s", scan_run_id)
-            update_report_status(scan_run_id, "completed", "No discovery data")
-            return {"status": "completed", "findings": 0}
+        for cf in check_findings:
+            finding_rows.append(
+                _check_finding_to_network_row(cf, scan_run_id, tenant_id, credential_ref, credential_type)
+            )
+    except Exception as e:
+        logger.warning("Layer 1 (check_findings) failed: %s", e, exc_info=True)
 
-        # ── 4. Load inventory relationships (for SG attachments) ──────────
-        sg_attachments = {}
+    # ── 4. Layer 2: Topology analysis — provider factory dispatch ─────────
+    # AWS: full 7-layer VPC/SG/NACL/LB/WAF graph analysis.
+    # OCI/AliCloud: lightweight VCN/VPC security-group topology.
+    # Azure/GCP/K8s: deferred — topology stubs return skipped.
+    _PROVIDER_MAP = {
+        "aws":      "network_security_engine.providers.aws.AWSNetworkProvider",
+        "azure":    "network_security_engine.providers.azure.AzureNetworkProvider",
+        "gcp":      "network_security_engine.providers.gcp.GCPNetworkProvider",
+        "oci":      "network_security_engine.providers.oci.OCINetworkProvider",
+        "alicloud": "network_security_engine.providers.alicloud.AliCloudNetworkProvider",
+        "ibm":      "network_security_engine.providers.ibm.IBMNetworkProvider",
+        "k8s":      "network_security_engine.providers.k8s.K8sNetworkProvider",
+    }
+
+    provider_cls_path = _PROVIDER_MAP.get(provider)
+    if provider_cls_path:
         try:
-            inv_reader = NetworkInventoryReader()
-            sg_attachments = inv_reader.load_sg_attachments(scan_run_id, tenant_id)
-            logger.info("Loaded SG attachments for %d security groups", len(sg_attachments))
-        except Exception as e:
-            logger.warning("Could not load inventory relationships: %s", e)
-
-        # ── 5. Build topology (Layer 1) ───────────────────────────────────
-        topology = build_topology(discovery_data, account_id)
-
-        # ── 6. Build load balancers and WAF (Layer 5/6 data) ─────────────
-        build_load_balancers(discovery_data, topology)
-        build_waf_acls(discovery_data, topology)
-
-        # ── 7. Run all 7 layers ───────────────────────────────────────────
-        all_findings = []
-
-        # L1: Network Topology
-        l1_findings = analyze_topology(topology)
-        logger.info("L1 Topology: %d findings", len(l1_findings))
-        all_findings.extend(l1_findings)
-
-        # L2: Network Reachability (marks subnets public/private)
-        l2_findings = analyze_reachability(topology)
-        logger.info("L2 Reachability: %d findings", len(l2_findings))
-        all_findings.extend(l2_findings)
-
-        # L3: Network ACLs
-        l3_findings = analyze_nacls(topology)
-        logger.info("L3 NACLs: %d findings", len(l3_findings))
-        all_findings.extend(l3_findings)
-
-        # L4: Security Groups
-        l4_findings = analyze_security_groups(topology, sg_attachments)
-        logger.info("L4 Security Groups: %d findings", len(l4_findings))
-        all_findings.extend(l4_findings)
-
-        # L5: Load Balancers
-        l5_findings = analyze_load_balancers(topology)
-        logger.info("L5 Load Balancers: %d findings", len(l5_findings))
-        all_findings.extend(l5_findings)
-
-        # L6: WAF
-        l6_findings = analyze_waf(topology)
-        logger.info("L6 WAF: %d findings", len(l6_findings))
-        all_findings.extend(l6_findings)
-
-        # L7: Flow Analysis (enrichment only, no new findings for now)
-        try:
-            l4_dicts = [f.finding_data for f in l4_findings if f.finding_data.get("sg_posture")]
-            enrich_with_flow_data(l4_dicts, tenant_id, account_id)
-            logger.info("L7 Flow analysis enrichment completed")
-        except Exception as e:
-            logger.warning("L7 Flow analysis skipped: %s", e)
-
-        # ── 8. Enrich findings ────────────────────────────────────────────
-        blast_map = compute_blast_radius(topology, sg_attachments)
-        all_findings = enrich_findings(all_findings, blast_map)
-
-        # ── 9. Convert to DB rows ────────────────────────────────────────
-        finding_rows = []
-        for f in all_findings:
-            finding_rows.append(f.to_db_row(
+            module_path, cls_name = provider_cls_path.rsplit(".", 1)
+            import importlib
+            mod = importlib.import_module(module_path)
+            provider_instance = getattr(mod, cls_name)()
+            result = provider_instance.analyze(
                 scan_run_id=scan_run_id,
                 tenant_id=tenant_id,
                 account_id=account_id,
-                provider=provider,
                 credential_ref=credential_ref,
                 credential_type=credential_type,
-            ))
+            )
+            if result.get("status") != "skipped":
+                topo_findings = result.get("findings", [])
+                topology_snapshots = result.get("topology_snapshots", [])
+                report_metrics = result.get("report_metrics", {})
+                logger.info(
+                    "Layer 2 (%s topology): %d additional findings",
+                    provider, len(topo_findings),
+                )
+                existing_rule_resource = {
+                    (f["rule_id"], f["resource_uid"]) for f in finding_rows
+                }
+                for tf in topo_findings:
+                    key = (tf.get("rule_id", ""), tf.get("resource_uid", ""))
+                    if key not in existing_rule_resource:
+                        finding_rows.append(tf)
+            else:
+                logger.info(
+                    "Layer 2 (%s): skipped — %s",
+                    provider, result.get("reason", ""),
+                )
+        except Exception as e:
+            logger.warning("Layer 2 (%s topology) failed: %s", provider, e, exc_info=True)
+    else:
+        logger.info("Layer 2: no topology provider registered for provider=%s", provider)
 
-        # ── 9b. CIEM network findings (log-based detections) ───────────���─
-        try:
-            from engine_common.ciem_reader import CIEMReader
-            import hashlib
-            ciem = CIEMReader(tenant_id=tenant_id, account_id=account_id or "", days=30)
-            ciem_net_findings = ciem.get_ciem_findings(engine_filter="network")
-            if ciem_net_findings:
-                logger.info("CIEM: %d network findings from ciem_findings", len(ciem_net_findings))
-                for cf in ciem_net_findings:
-                    ciem_fid = hashlib.sha256(
-                        f"{cf.get('rule_id','')}|{cf.get('resource_uid','')}|{cf.get('account_id','')}|{cf.get('region','')}".encode()
-                    ).hexdigest()[:16]
-                    finding_rows.append({
-                        "finding_id": ciem_fid,
-                        "scan_run_id": scan_run_id,
-                        "tenant_id": tenant_id,
-                        "account_id": cf.get("account_id", account_id or ""),
-                        "region": cf.get("region", ""),
-                        "provider": provider,
-                        "credential_ref": credential_ref,
-                        "credential_type": credential_type,
-                        "resource_uid": cf.get("resource_uid", ""),
-                        "resource_type": cf.get("resource_type", ""),
-                        "rule_id": cf.get("rule_id", ""),
-                        "network_modules": ["ciem_detection"],
-                        "effective_exposure": None,
-                        "blast_radius_score": 0,
-                        "severity": (cf.get("severity") or "medium").upper(),
-                        "status": "FAIL",
-                        "finding_data": {
-                            "source": "ciem",
-                            "title": cf.get("title", ""),
-                            "description": cf.get("description", ""),
-                            "remediation": cf.get("remediation", ""),
-                            "compliance_frameworks": cf.get("compliance_frameworks", []),
-                            "mitre_tactics": cf.get("mitre_tactics", []),
-                            "mitre_techniques": cf.get("mitre_techniques", []),
-                            "risk_score": cf.get("risk_score"),
-                            "domain": cf.get("domain", ""),
-                            "actor": cf.get("actor_principal", ""),
-                            "operation": cf.get("operation", ""),
-                            "action_category": cf.get("action_category", ""),
-                        },
-                    })
-        except Exception as ciem_net_err:
-            logger.warning("CIEM network findings load failed (non-fatal): %s", ciem_net_err)
+    # ── 5. Build report metrics if not populated by topology layer ─────────
+    # Build/fill report_metrics — ensure all network_report columns are present
+    sev = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+    for f in finding_rows:
+        s = (f.get("severity") or "medium").lower()
+        sev[s] = sev.get(s, 0) + 1
+    total = len(finding_rows)
+    fail_count = sum(1 for f in finding_rows if f.get("status") == "FAIL")
+    internet_exposed = sum(1 for f in finding_rows if f.get("effective_exposure") == "internet")
 
-        # ── 10. Save findings ─────────────────────────────────────────────
-        saved_count = save_network_findings(finding_rows)
+    _defaults = {
+        "posture_score": max(0, 100 - sev["critical"] * 20 - sev["high"] * 10 - sev["medium"] * 5),
+        "topology_score": 100,
+        "reachability_score": 100,
+        "nacl_score": 100,
+        "firewall_score": max(0, 100 - sev["high"] * 10 - sev["critical"] * 20),
+        "lb_score": 100,
+        "waf_score": 100,
+        "monitoring_score": 100,
+        "total_findings": total,
+        "critical_findings": sev["critical"],
+        "high_findings": sev["high"],
+        "medium_findings": sev["medium"],
+        "low_findings": sev["low"],
+        "total_vpcs": 0,
+        "total_subnets": 0,
+        "total_security_groups": 0,
+        "total_nacls": 0,
+        "total_route_tables": 0,
+        "total_load_balancers": 0,
+        "total_waf_acls": 0,
+        "total_nat_gateways": 0,
+        "total_igws": 0,
+        "total_tgws": 0,
+        "total_vpc_endpoints": 0,
+        "total_eips": 0,
+        "total_network_firewalls": 0,
+        "internet_exposed_resources": internet_exposed,
+        "cross_vpc_paths_count": 0,
+        "orphaned_sg_count": 0,
+        "findings_by_module": {"check_findings": total},
+        "findings_by_status": {"FAIL": fail_count, "PASS": total - fail_count},
+        "findings_by_layer": {"layer1_check": total},
+        "severity_breakdown": sev,
+        "exposure_summary": {
+            "internet_exposed": internet_exposed,
+            "cross_vpc": 0,
+            "vpc_internal": 0,
+        },
+    }
+    # Topology layer metrics (AWS) override defaults where present
+    if not report_metrics:
+        report_metrics = _defaults
+    else:
+        for k, v in _defaults.items():
+            report_metrics.setdefault(k, v)
 
-        # ── 11. Save topology snapshots ───────────────────────────────────
-        snapshots = []
-        for vpc_id, vpc in topology.vpcs.items():
-            snapshots.append({
-                "scan_run_id": scan_run_id,
-                "tenant_id": tenant_id,
-                "account_id": account_id,
-                "provider": provider,
-                "region": vpc.region,
-                "vpc_id": vpc_id,
-                "vpc_cidr_blocks": vpc.cidr_blocks,
-                "is_default_vpc": vpc.is_default,
-                "flow_log_enabled": vpc.flow_log_enabled,
-                "subnets": [{"subnet_id": s.subnet_id, "cidr": s.cidr_block,
-                             "az": s.availability_zone, "is_public": s.is_public,
-                             "nacl_id": s.nacl_id, "route_table_id": s.route_table_id}
-                            for s in vpc.subnets.values()],
-                "route_tables": [{"rtb_id": r.route_table_id, "is_main": r.is_main,
-                                  "subnet_ids": r.subnet_ids}
-                                 for r in vpc.route_tables.values()],
-                "peering_connections": vpc.peering_connections,
-                "tgw_attachments": vpc.tgw_attachments,
-                "igw_id": vpc.igw_id,
-                "nat_gateways": vpc.nat_gateways,
-                "vpc_endpoints": vpc.vpc_endpoints,
-                "network_firewalls": vpc.network_firewalls,
-                "isolation_score": 100 - (50 if vpc.has_internet_gateway else 0)
-                                  - (20 if vpc.is_default else 0)
-                                  - (30 if not vpc.flow_log_enabled else 0),
-                "public_subnet_count": len(vpc.public_subnets),
-                "private_subnet_count": len(vpc.private_subnets),
-                "has_internet_path": vpc.has_internet_gateway,
-            })
-        save_topology_snapshots(snapshots)
+    # ── 6. Deduplicate by finding_id — prevents CardinalityViolation ─────
+    # Multiple findings can hash to the same finding_id within one batch;
+    # last-write-wins is fine here since the content is equivalent.
+    _seen: dict = {}
+    for _f in finding_rows:
+        _seen[_f["finding_id"]] = _f
+    finding_rows = list(_seen.values())
 
-        # ── 12. Compute scores and save report ───────────────────────────
-        severity_counts = Counter(f.severity for f in all_findings if f.status == "FAIL")
-        layer_counts = Counter(f.network_layer for f in all_findings if f.status == "FAIL")
-        module_counts = Counter()
-        for f in all_findings:
-            if f.status == "FAIL":
-                for m in f.network_modules:
-                    module_counts[m] += 1
-        status_counts = Counter(f.status for f in all_findings)
+    # ── 7. Save findings + topology + report ──────────────────────────────
+    save_network_findings(finding_rows)
+    save_topology_snapshots(topology_snapshots)
 
-        elapsed_ms = int((time.time() - start_time) * 1000)
+    elapsed_ms = int((time.time() - start_time) * 1000)
+    report = {
+        "scan_run_id": scan_run_id,
+        "tenant_id": tenant_id,
+        "account_id": account_id,
+        "provider": provider,
+        "status": "completed",
+        "started_at": datetime.now(timezone.utc),
+        "completed_at": datetime.now(timezone.utc),
+        "scan_duration_ms": elapsed_ms,
+        **report_metrics,
+        "report_data": {},
+    }
+    save_network_report(report)
+    cleanup_old_scans(tenant_id, keep=5)
 
-        report = {
-            "scan_run_id": scan_run_id,
-            "tenant_id": tenant_id,
-            "account_id": account_id,
-            "provider": provider,
-            "status": "completed",
-            "posture_score": _compute_posture_score(severity_counts, len(all_findings)),
-            "topology_score": _layer_score(l1_findings),
-            "reachability_score": _layer_score(l2_findings),
-            "nacl_score": _layer_score(l3_findings),
-            "firewall_score": _layer_score(l4_findings),
-            "lb_score": _layer_score(l5_findings),
-            "waf_score": _layer_score(l6_findings),
-            "monitoring_score": 100,  # L7 is enrichment-only for now
-            "total_findings": len(all_findings),
-            "critical_findings": severity_counts.get("critical", 0),
-            "high_findings": severity_counts.get("high", 0),
-            "medium_findings": severity_counts.get("medium", 0),
-            "low_findings": severity_counts.get("low", 0),
-            "total_vpcs": topology.total_vpcs,
-            "total_subnets": topology.total_subnets,
-            "total_security_groups": topology.total_security_groups,
-            "total_nacls": topology.total_nacls,
-            "total_route_tables": topology.total_route_tables,
-            "total_load_balancers": len(topology.load_balancers),
-            "total_waf_acls": len(topology.waf_acls),
-            "total_nat_gateways": sum(len(v.nat_gateways) for v in topology.vpcs.values()),
-            "total_igws": sum(1 for v in topology.vpcs.values() if v.igw_id),
-            "total_tgws": len(topology.tgw_map),
-            "total_vpc_endpoints": sum(len(v.vpc_endpoints) for v in topology.vpcs.values()),
-            "total_eips": len(topology.eips),
-            "total_network_firewalls": sum(len(v.network_firewalls) for v in topology.vpcs.values()),
-            "internet_exposed_resources": sum(
-                1 for f in all_findings if f.effective_exposure == "internet" and f.status == "FAIL"
-            ),
-            "cross_vpc_paths_count": sum(
-                1 for f in all_findings if f.effective_exposure == "cross_vpc" and f.status == "FAIL"
-            ),
-            "orphaned_sg_count": sum(
-                1 for f in all_findings if f.rule_id == "net.l4.orphaned_security_group"
-            ),
-            "findings_by_module": dict(module_counts),
-            "findings_by_status": dict(status_counts),
-            "findings_by_layer": dict(layer_counts),
-            "severity_breakdown": dict(severity_counts),
-            "exposure_summary": {
-                "internet_exposed": sum(1 for f in all_findings if f.effective_exposure == "internet"),
-                "cross_vpc": sum(1 for f in all_findings if f.effective_exposure == "cross_vpc"),
-                "vpc_internal": sum(1 for f in all_findings if f.effective_exposure == "vpc_internal"),
-            },
-            "report_data": {},
-            "started_at": datetime.now(timezone.utc),
-            "completed_at": datetime.now(timezone.utc),
-            "scan_duration_ms": elapsed_ms,
-        }
-        save_network_report(report)
+    total_findings = len(finding_rows)
+    logger.info(
+        "=== Network Security Scan COMPLETE: %d findings (%d from check engine, provider=%s) in %dms ===",
+        total_findings,
+        sum(1 for f in finding_rows if "check_findings" in (f.get("network_modules") or [])),
+        provider,
+        elapsed_ms,
+    )
 
-        # ── 13. Cleanup old scans ─────────────────────────────────────────
-        cleanup_old_scans(tenant_id, keep=3)
+    try:
+        from engine_common.retention import run_retention
+        run_retention("network", scan_run_id)
+    except Exception as _ret_err:
+        logger.warning("Retention cleanup skipped: %s", _ret_err)
 
-        logger.info(
-            "=== Network Security Scan COMPLETE: %d findings (%d critical, %d high) in %dms ===",
-            len(all_findings), severity_counts.get("critical", 0),
-            severity_counts.get("high", 0), elapsed_ms,
-        )
+    return {
+        "status": "completed",
+        "findings": total_findings,
+        "critical": report_metrics.get("critical_findings", 0),
+        "high": report_metrics.get("high_findings", 0),
+        "posture_score": report_metrics.get("posture_score", 0),
+        "scan_duration_ms": elapsed_ms,
+    }
 
-        return {
-            "status": "completed",
-            "findings": len(all_findings),
-            "critical": severity_counts.get("critical", 0),
-            "high": severity_counts.get("high", 0),
-            "posture_score": report["posture_score"],
-            "scan_duration_ms": elapsed_ms,
-        }
-
-    except Exception as e:
-        logger.exception("Network security scan failed: %s", e)
-        update_report_status(scan_run_id, "failed", str(e))
-        return {"status": "failed", "error": str(e)}
-
-
-def _compute_posture_score(severity_counts: Counter, total: int) -> int:
-    """Compute 0-100 posture score (higher = worse posture). Same formula as IAM."""
-    if total == 0:
-        return 0
-    raw = (severity_counts.get("critical", 0) * 10
-           + severity_counts.get("high", 0) * 5
-           + severity_counts.get("medium", 0) * 2
-           + severity_counts.get("low", 0) * 1) / max(total, 1) * 10
-    return min(int(round(raw)), 100)
-
-
-def _layer_score(findings: list) -> int:
-    """Compute per-layer score (100 = no issues, 0 = all critical)."""
-    if not findings:
-        return 100
-    fail_count = sum(1 for f in findings if f.status == "FAIL")
-    critical = sum(1 for f in findings if f.severity == "critical" and f.status == "FAIL")
-    high = sum(1 for f in findings if f.severity == "high" and f.status == "FAIL")
-    penalty = critical * 20 + high * 10 + (fail_count - critical - high) * 3
-    return max(0, 100 - penalty)
-
-
-# ── CLI entry point ──────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Network Security Engine Scanner")

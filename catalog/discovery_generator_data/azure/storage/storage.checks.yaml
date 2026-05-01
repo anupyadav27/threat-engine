@@ -1,0 +1,157 @@
+version: '1.0'
+provider: azure
+service: storage
+checks:
+# ═══════════════════════════════════════════
+# Storage Accounts — azure.storage.storageaccounts.list_by_resource_group
+# 53 fields including encryption, TLS, network, access, identity, data protection
+# ═══════════════════════════════════════════
+
+# --- Encryption ---
+- rule_id: azure.storage.account.encryption_configured
+  for_each: azure.storage.storageaccounts.list_by_resource_group
+  conditions:
+    var: item.encryption
+    op: not_empty
+
+- rule_id: azure.storage.account.https_only_enforced
+  for_each: azure.storage.storageaccounts.list_by_resource_group
+  conditions:
+    var: item.enable_https_traffic_only
+    op: equals
+    value: 'true'
+
+- rule_id: azure.storage.account.minimum_tls_version_12
+  for_each: azure.storage.storageaccounts.list_by_resource_group
+  conditions:
+    var: item.minimum_tls_version
+    op: equals
+    value: TLS1_2
+
+# --- Network Access ---
+- rule_id: azure.storage.account.public_network_access_disabled
+  for_each: azure.storage.storageaccounts.list_by_resource_group
+  conditions:
+    var: item.public_network_access
+    op: equals
+    value: Disabled
+
+- rule_id: azure.storage.account.public_blob_access_disabled
+  for_each: azure.storage.storageaccounts.list_by_resource_group
+  conditions:
+    var: item.allow_blob_public_access
+    op: equals
+    value: 'false'
+
+- rule_id: azure.storage.account.network_rules_configured
+  for_each: azure.storage.storageaccounts.list_by_resource_group
+  conditions:
+    var: item.network_rule_set
+    op: not_empty
+
+- rule_id: azure.storage.account.private_endpoints_configured
+  for_each: azure.storage.storageaccounts.list_by_resource_group
+  conditions:
+    var: item.private_endpoint_connections
+    op: not_empty
+
+# --- Authentication & Authorization ---
+- rule_id: azure.storage.account.shared_key_access_disabled
+  for_each: azure.storage.storageaccounts.list_by_resource_group
+  conditions:
+    var: item.allow_shared_key_access
+    op: equals
+    value: 'false'
+
+- rule_id: azure.storage.account.default_oauth_authentication
+  for_each: azure.storage.storageaccounts.list_by_resource_group
+  conditions:
+    var: item.default_to_o_auth_authentication
+    op: equals
+    value: 'true'
+
+- rule_id: azure.storage.account.managed_identity_enabled
+  for_each: azure.storage.storageaccounts.list_by_resource_group
+  conditions:
+    var: item.identity
+    op: not_empty
+
+# --- Data Protection ---
+- rule_id: azure.storage.account.immutable_storage_configured
+  for_each: azure.storage.storageaccounts.list_by_resource_group
+  conditions:
+    var: item.immutable_storage_with_versioning
+    op: not_empty
+
+- rule_id: azure.storage.account.cross_tenant_replication_disabled
+  for_each: azure.storage.storageaccounts.list_by_resource_group
+  conditions:
+    var: item.allow_cross_tenant_replication
+    op: equals
+    value: 'false'
+
+- rule_id: azure.storage.account.sas_policy_configured
+  for_each: azure.storage.storageaccounts.list_by_resource_group
+  conditions:
+    var: item.sas_policy
+    op: not_empty
+
+- rule_id: azure.storage.account.key_policy_configured
+  for_each: azure.storage.storageaccounts.list_by_resource_group
+  conditions:
+    var: item.key_policy
+    op: not_empty
+
+# --- Advanced Features ---
+- rule_id: azure.storage.account.hns_enabled
+  for_each: azure.storage.storageaccounts.list_by_resource_group
+  conditions:
+    var: item.is_hns_enabled
+    op: equals
+    value: 'true'
+
+- rule_id: azure.storage.account.sftp_disabled
+  for_each: azure.storage.storageaccounts.list_by_resource_group
+  conditions:
+    var: item.is_sftp_enabled
+    op: equals
+    value: 'false'
+
+- rule_id: azure.storage.account.local_user_disabled
+  for_each: azure.storage.storageaccounts.list_by_resource_group
+  conditions:
+    var: item.is_local_user_enabled
+    op: equals
+    value: 'false'
+
+- rule_id: azure.storage.account.nfsv3_disabled
+  for_each: azure.storage.storageaccounts.list_by_resource_group
+  conditions:
+    var: item.enable_nfs_v3
+    op: equals
+    value: 'false'
+
+# --- Resource Health & Inventory ---
+- rule_id: azure.storage.account.provisioning_succeeded
+  for_each: azure.storage.storageaccounts.list_by_resource_group
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.storage.account.tags_configured
+  for_each: azure.storage.storageaccounts.list_by_resource_group
+  conditions:
+    var: item.tags
+    op: not_empty
+
+- rule_id: azure.storage.account.zones_configured
+  for_each: azure.storage.storageaccounts.list_by_resource_group
+  conditions:
+    var: item.zones
+    op: not_empty
+
+# ═══════════════════════════════════════════
+# Blob Containers — azure.storage.blobcontainers.list (dependent on storageaccounts)
+# ═══════════════════════════════════════════
+# TODO: Add blob container checks once dependent discovery chain is validated

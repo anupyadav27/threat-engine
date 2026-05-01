@@ -1,0 +1,140 @@
+version: '1.0'
+provider: web_server
+engine: nginx
+category: section_2
+cis_section: '2'
+description: >
+  nginx CIS Section 2 — HTTP WebDAV module is not installed
+
+discovery:
+
+  - discovery_id: nginx.section_2.http_webdav_module_is_not_installed
+    description: Ensure HTTP WebDAV module is not installed
+    calls:
+      - action: run_command
+        command: "Run the following command to ensure the http_dav_module is not installed: nginx -V 2\u003e\u00261 | grep http_dav_module Ensure the output of the command is empty."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: http_webdav_module_is_not_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: nginx.section_2.modules_with_gzip_functionality_are_disabled
+    description: Ensure modules with gzip functionality are disabled
+    calls:
+      - action: run_command
+        command: "Run the following command to ensure gzip modules are not installed: nginx -V 2\u003e\u00261 | grep -E \u0027(http_gzip_module|http_gzip_static_module)\u0027 Ensure the output of the command is empty."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: modules_with_gzip_functionality_are_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: nginx.section_2.autoindex_module_is_disabled
+    description: Ensure the autoindex module is disabled
+    calls:
+      - action: run_command
+        command: "To determine if the autoindex module is disabled, search the NGINX configuration files (nginx.conf and any included configuration files) for autoindex directives: egrep -i \u0027^\\s*autoindex\\s+\u0027 /etc/nginx/nginx.conf egrep -i \u0027^\\s*autoindex\\s+\u0027 /etc/nginx/conf.d/* Ensure there are no autoindex on directives present."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: autoindex_module_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: nginx.section_2.nginx_directories_and_files_are_owned_by_root
+    description: Ensure NGINX directories and files are owned by root
+    calls:
+      - action: run_command
+        command: "Run the following command to verify the ownership of the nginx configuration files: stat /etc/nginx The output should show the ownership and group as root, similar to the output below: Access: (0755/drwxr-xr-x) Uid: ( 0/ root) Gid: ( 0/ root)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: nginx_directories_and_files_are_owned_by_root
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: nginx.section_2.nginx_process_id_pid_file_is_secured
+    description: Ensure the NGINX process ID (PID) file is secured
+    calls:
+      - action: run_command
+        command: "Run this command to verify the ownership and permissions of the nginx PID file: stat -L -c \u0027%U:%G\u0027 /var/run/nginx.pid \u0026\u0026 stat -L -c \u0027%a\u0027 /var/run/nginx.pid The output should show that the PID file is owned by root and has the group root and that the permissions are 644 as shown below: root:root 644"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: nginx_process_id_pid_file_is_secured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: nginx.section_2.keepalive_timeout_is_10_seconds_or_less_but_not_0
+    description: Ensure keepalive_timeout is 10 seconds or less, but not 0
+    calls:
+      - action: run_command
+        command: "To check the current setting for the keepalive_timeout directive, issue the below command. You should also manually check your nginx configuration for include statements that may be located outside the /etc/nginx directory. If none of these are present, the value is set at the default. grep -ir keepalive_timeout /etc/nginx The output of the command should contain something similar to the following: keepalive_timeout 10;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: keepalive_timeout_is_10_seconds_or_less_but_not_0
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: nginx.section_2.send_timeout_is_set_to_10_seconds_or_less_but_not
+    description: Ensure send_timeout is set to 10 seconds or less, but not 0
+    calls:
+      - action: run_command
+        command: "To check the current setting for the send_timeout directive, issue the below command. You should also manually check your nginx configuration for include statements that may be located outside the /etc/nginx directory. If none of these are present, the value is set at the default. grep -ir send_timeout /etc/nginx The output of the command should be similar to the following: send_timeout 10;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: send_timeout_is_set_to_10_seconds_or_less_but_not
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: nginx.section_2.server_tokens_directive_is_set_to_off
+    description: Ensure server_tokens directive is set to `off`
+    calls:
+      - action: run_command
+        command: "In the NGINX configuration file nginx.conf, verify the server_tokens directive is set to off. To do this, check the response headers for the server header by issuing this command: curl -I 127.0.0.1 | grep -i server The output should not contain the server header providing your server version, such as the below: Server: nginx/1.22.0"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: server_tokens_directive_is_set_to_off
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: nginx.section_2.default_error_and_index_html_pages_do_not
+    description: Ensure default error and index.html pages do not reference NGINX
+    calls:
+      - action: run_command
+        command: "Locate the error page and index directives in the location block of your server configuration. The default index and error pages in nginx are located at /usr/share/nginx/html/. Open these files and verify there are no references to NGINX. Issue the following commands to check the default pages and verify no results are returned: grep -i nginx /usr/share/nginx/html/index.html grep -i nginx /usr/share/nginx/html/50x.html"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: default_error_and_index_html_pages_do_not
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: nginx.section_2.nginx_reverse_proxy_does_not_enable_information
+    description: Ensure the NGINX reverse proxy does not enable information disclosure
+    calls:
+      - action: run_command
+        command: "Confirm that the headers are denied as part of the location block of the nginx configuration. You may also have to check included files as part of this configuration. Run this command: grep proxy_hide_header /etc/nginx/nginx.conf The output should read: proxy_hide_header X-Powered-By; proxy_hide_header Server;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: nginx_reverse_proxy_does_not_enable_information
+        value: "{{ result.stdout }}"
+        expected: ""
+

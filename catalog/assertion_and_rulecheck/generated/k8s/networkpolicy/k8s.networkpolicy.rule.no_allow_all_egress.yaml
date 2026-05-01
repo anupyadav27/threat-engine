@@ -1,0 +1,16 @@
+version: '1.0'
+rule_id: k8s.networkpolicy.rule.no_allow_all_egress
+for_each: k8s.networkpolicies.list
+severity: MEDIUM
+conditions:
+  all:
+  - var: item.spec.egress
+    op: exists
+  - var: item.spec.egress[].to
+    op: not_empty
+  - all:
+    - var: item.spec.egress[].to[].ipBlock
+      op: exists
+    - var: item.spec.egress[].to[].ipBlock.cidr
+      op: not_equals
+      value: 0.0.0.0/0

@@ -1,0 +1,85 @@
+# ============================================================
+# Discovery YAML — certificatemanager (final_discovery v1)
+# Generated: 2026-04-16T09:26:47Z
+# Source: gcp_master_field_catalog.csv
+# Check rules: 5 | ops in scope: 2 (2 independent, 0 dependent)
+# ============================================================
+version: '1.0'
+provider: gcp
+service: certificatemanager
+
+services:
+  client: certificatemanager
+  module: "googleapiclient.discovery.build('certificatemanager', 'v1')"
+
+# Anchors: service-level parameters provided by caller
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: unknown
+    identifier_op: gcp.certificatemanager.projects.locations.certificateMaps.list
+    identifier_field: certificateMaps[].name
+    item_var_path: item.certificateMaps[].name
+  - resource_type: unknown
+    identifier_op: gcp.certificatemanager.projects.locations.certificates.list
+    identifier_field: certificates[].name
+    item_var_path: item.certificates[].name
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── gcp.certificatemanager.projects.locations.certificateMaps.list ──
+  # python: svc.projects().locations().certificateMaps().list(**params).execute()
+  - discovery_id: gcp.certificatemanager.projects.locations.certificateMaps.list
+    calls:
+      - action: projects.locations.certificateMaps.list
+        params:
+          parent: '{{ project_id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.certificateMaps }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        description: '{{ item.description }}'
+        gclbTargets: '{{ item.gclbTargets }}'
+        labels: '{{ item.labels }}'
+        name: '{{ item.name }}'
+        updateTime: '{{ item.updateTime }}'
+
+  # ── gcp.certificatemanager.projects.locations.certificates.list ──
+  # python: svc.projects().locations().certificates().list(**params).execute()
+  - discovery_id: gcp.certificatemanager.projects.locations.certificates.list
+    calls:
+      - action: projects.locations.certificates.list
+        params:
+          parent: '{{ project_id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.certificates }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        description: '{{ item.description }}'
+        expireTime: '{{ item.expireTime }}'
+        labels: '{{ item.labels }}'
+        managed: '{{ item.managed }}'
+        managedIdentity: '{{ item.managedIdentity }}'
+        name: '{{ item.name }}'
+        pemCertificate: '{{ item.pemCertificate }}'
+        sanDnsnames: '{{ item.sanDnsnames }}'
+        scope: '{{ item.scope }}'
+        selfManaged: '{{ item.selfManaged }}'
+        updateTime: '{{ item.updateTime }}'
+        usedBy: '{{ item.usedBy }}'

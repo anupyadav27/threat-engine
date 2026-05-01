@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
 from engine_common.logger import setup_logger, LogContext, log_duration, audit_log
 from engine_common.orchestration import get_orchestration_metadata
-from engine_common.retention import cleanup_old_scans
+from engine_common.db_connections import get_threat_conn
 
 from threat_engine.schemas.threat_report_schema import (
     ThreatReport,
@@ -47,19 +47,6 @@ logger = setup_logger(__name__, engine_name="threat-scanner")
 
 # ── DB helpers ───────────────────────────────────────────────────────────────
 
-def _get_threat_conn():
-    """Get a psycopg2 connection to the threat DB."""
-    import psycopg2
-    return psycopg2.connect(
-        host=os.getenv("THREAT_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("THREAT_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("THREAT_DB_NAME", "threat_engine_threat"),
-        user=os.getenv("THREAT_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("THREAT_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        connect_timeout=5,
-    )
-
-
 def _ensure_tenant(conn, tenant_id: str):
     """Upsert tenant row (FK requirement)."""
     with conn.cursor() as cur:
@@ -76,7 +63,7 @@ def _create_report_row(scan_run_id: str, tenant_id: str, provider: str,
                         metadata: dict):
     """Pre-create threat_report row with status='running'."""
     try:
-        conn = _get_threat_conn()
+        conn = get_threat_conn()
         _ensure_tenant(conn, tenant_id)
         with conn.cursor() as cur:
             cur.execute(
@@ -97,7 +84,7 @@ def _create_report_row(scan_run_id: str, tenant_id: str, provider: str,
 def _update_report_status(scan_run_id: str, status: str, error: str = None):
     """Update threat_report status in DB."""
     try:
-        conn = _get_threat_conn()
+        conn = get_threat_conn()
         with conn.cursor() as cur:
             if error:
                 cur.execute(
@@ -157,9 +144,18 @@ def main():
         account_id = metadata.get("account_id", "")
         discovery_scan_run_id = scan_run_id
 
-        # Determine cloud enum
+        # Determine cloud enum — all 7 CSPs supported
         provider_lower = provider.lower()
-        cloud_map = {"aws": Cloud.AWS, "azure": Cloud.AZURE, "gcp": Cloud.GCP}
+        cloud_map = {
+            "aws": Cloud.AWS,
+            "azure": Cloud.AZURE,
+            "gcp": Cloud.GCP,
+            "k8s": Cloud.K8S,
+            "kubernetes": Cloud.K8S,
+            "alicloud": Cloud.ALICLOUD,
+            "oci": Cloud.OCI,
+            "ibm": Cloud.IBM,
+        }
         cloud = cloud_map.get(provider_lower, Cloud.AWS)
 
         logger.info(f"Resolved: tenant={tenant_id} provider={provider} check={check_scan_run_id}")
@@ -351,11 +347,13 @@ def main():
             f"{analysis_count} analyses in {duration:.1f}s"
         )
 
-        # 11. Retention cleanup (keep last 3 scans per tenant)
+        # Retention: archive old scans to S3, keep last 5 in DB
         try:
-            cleanup_old_scans("threat", tenant_id, keep=3)
-        except Exception as e:
-            logger.warning(f"Retention cleanup failed: {e}")
+            from engine_common.retention import run_retention
+            run_retention("threat", scan_run_id)
+        except Exception as _ret_err:
+            logger.warning("Retention cleanup skipped: %s", _ret_err)
+
 
     except Exception as e:
         logger.error(f"Threat scan FAILED: {e}", exc_info=True)

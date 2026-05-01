@@ -1,0 +1,54 @@
+rule_id: oci.iam.audit.identity_provider_change
+service: iam
+provider: oci
+check_type: log
+severity: critical
+title: 'OCI IAM: Identity Provider Modified'
+description: An OCI identity provider (SAML/OIDC federation) was created, updated, or deleted. Modifying federation configuration can grant external identities access to OCI.
+threat_category: persistence
+mitre_tactics:
+- persistence
+- initial_access
+mitre_techniques:
+- T1484
+risk_score: 93
+resource: oci_identity_provider
+domain: identity_and_access_management
+action_category: modify
+log_source_type: 
+posture_category: iam_posture
+threat_tags:
+- T1484
+- persistence
+- backdoor
+- cloud_iam
+- identity
+risk_indicators:
+  actor_type: iam_user_or_role
+  action_type: write
+  target_type: iam_identity
+  blast_radius: account
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: Review and investigate this activity in the OCI Console and take corrective action.
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.identitycontrolplane
+    - field: operation
+      op: in
+      value:
+      - CreateIdentityProvider
+      - UpdateIdentityProvider
+      - DeleteIdentityProvider

@@ -1,0 +1,25 @@
+version: '1.0'
+provider: k8s
+service: storageclass
+checks:
+- rule_id: k8s.storageclass.access.volume_binding_mode_configured
+  for_each: k8s.storageclass.list
+  severity: LOW
+  conditions:
+    var: item.volumeBindingMode
+    op: exists
+    value: null
+- rule_id: k8s.storageclass.encryption.encryption_enabled
+  for_each: k8s.storageclass.list_storageclasses
+  severity: HIGH
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: k8s.storageclass.policy.reclaim_policy_retain_configured
+  for_each: k8s.storageclass.list
+  severity: MEDIUM
+  conditions:
+    var: item.reclaimPolicy
+    op: equals
+    value: Retain

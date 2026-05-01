@@ -1,0 +1,1465 @@
+checks:
+- rule_id: alicloud.ecs.ami.public
+  for_each: alicloud.elasticsearch.DescribeDynamicSettings
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ecs.backup.automated_enabled
+  for_each: alicloud.general.backup_enabled
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.client.vpn_endpoint_connection_logging_enabled
+  for_each: alicloud.general.client_certificate_mandatory
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.compute_service.vm_data_volumes_encrypted_cmek
+  for_each: alicloud.ecs.compute_service
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.kms_key_id
+      op: exists
+- rule_id: alicloud.ecs.compute_service.vm_imds_hardened
+  for_each: alicloud.ecs.compute_service
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.compute_service.vm_no_public_ip_assigned
+  for_each: alicloud.ecs.compute_service
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+- rule_id: alicloud.ecs.compute_service.vm_root_volume_encrypted_cmek
+  for_each: alicloud.ecs.compute_service
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.kms_key_id
+      op: exists
+- rule_id: alicloud.ecs.compute_service.vm_secure_boot_enabled
+  for_each: alicloud.ecs.compute_service
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.compute_service.vm_security_group_inbound_restricted
+  for_each: alicloud.ecs.compute_service
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.compute_service.vm_serial_console_access_restricted
+  for_each: alicloud.ecs.compute_service
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.compute_service.vm_ssh_key_based_auth_required
+  for_each: alicloud.ecs.compute_service
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.compute_service.vm_ssh_password_auth_disabled
+  for_each: alicloud.ecs.compute_service
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.custom_image.image_approved_image_allowlist_enforced
+  for_each: alicloud.ecs.custom_image
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ecs.custom_image.image_encrypted_cmek
+  for_each: alicloud.ecs.custom_image
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.kms_key_id
+      op: exists
+- rule_id: alicloud.ecs.custom_image.image_image_signed_and_verified
+  for_each: alicloud.ecs.custom_image
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.custom_image.image_not_publicly_shared
+  for_each: alicloud.ecs.custom_image
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+- rule_id: alicloud.ecs.custom_image.image_vuln_scanned_no_critical
+  for_each: alicloud.ecs.custom_image
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.disk.cmk_cmek_configured
+  for_each: alicloud.ecs.disk
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.kms_key_id
+      op: exists
+- rule_id: alicloud.ecs.disk.encryption_at_rest_enabled
+  for_each: alicloud.ecs.disk
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.disk.public_snapshot_access_blocked
+  for_each: alicloud.ecs.disk
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+    - var: item.backup_enabled
+      op: equals
+- rule_id: alicloud.ecs.disk.snapshot_public_access_block_enforced
+  for_each: alicloud.ecs.disk
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ecs.disk.snapshots_encrypted
+  for_each: alicloud.ecs.disk
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.disk.volume_cmk_cmek_configured
+  for_each: alicloud.ecs.disk
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.kms_key_id
+      op: exists
+- rule_id: alicloud.ecs.disk.volume_encryption_at_rest_enabled
+  for_each: alicloud.ecs.disk
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.disk.volume_snapshots_configured
+  for_each: alicloud.ecs.disk
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.disk.volume_snapshots_encrypted
+  for_each: alicloud.ecs.disk
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.disk_default_encryption_at_rest_enabled.configured
+  for_each: alicloud.ecs.disk_default_encryption_at_rest_enabled
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.disk_public_snapshot_access_blocked.configured
+  for_each: alicloud.ecs.disk_public_snapshot_access_blocked
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+- rule_id: alicloud.ecs.disk_volume.backup_plan_enforced
+  for_each: alicloud.ecs.disk_volume
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.disk_volume.encryption_at_rest_enabled
+  for_each: alicloud.ecs.disk_volume
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.disk_volume_encryption_at_rest_enabled.configured
+  for_each: alicloud.ecs.disk_volume_encryption_at_rest_enabled
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.e_hpc.training_job_vpc_configured
+  for_each: alicloud.ecs.e_hpc
+  conditions:
+    var: item.vpc_id
+    op: exists
+- rule_id: alicloud.ecs.e_hpc.training_pipeline_private_networking_enforced
+  for_each: alicloud.ecs.e_hpc
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ecs.e_hpc.training_pipeline_secrets_from_vault_only
+  for_each: alicloud.ecs.e_hpc
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ecs.e_hpc_ai.network_isolation_enabled
+  for_each: alicloud.ecs.e_hpc_ai
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ecs.ebs.default_encryption
+  for_each: alicloud.ecs.ebs
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.ebs.public_snapshot
+  for_each: alicloud.ecs.ebs
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ecs.ebs.public_snapshot_alicloud_rds_instance_no_public_access_alicloud_ack_endpoints_not_publicly_accessible_alicloud_oss_account_level_public_access_blocks_alicloud_awslambda_function_not_publicly_accessible_alicloud_emr_cluster_master_nodes_no
+  for_each: alicloud.ecs.ebs
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ecs.ebs.public_snapshot_alicloud_rds_instance_no_public_access_alicloud_ack_endpoints_not_publicly_accessible_alicloud_vpc_endpoint_for_ec2_enabled_alicloud_oss_account_level_public_access_blocks_alicloud_awslambda_function_not_publicly_accessibl
+  for_each: alicloud.ecs.ebs
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ecs.ebs.public_snapshot_alicloud_rds_instance_no_public_access_alicloud_awslambda_function_not_publicly_accessible_alicloud_rds_snapshots_public_access_alicloud_elasticsearch_service_domains_not_publicly_accessible_alicloud_analyticdb_cluster_pub
+  for_each: alicloud.ecs.ebs
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ecs.ebs.public_snapshot_alicloud_rds_instance_no_public_access_alicloud_ecs_securitygroup_default_restrict_traffic_alicloud_ecs_securitygroup_allow_ingress_from_internet_to_all_ports_alicloud_ecs_networkacl_allow_ingress_tcp_port_22_alicloud_awsl
+  for_each: alicloud.ecs.ebs
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ecs.ebs.snapshot_account_block_public_access
+  for_each: alicloud.ecs.ebs
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ecs.ebs.snapshots_encrypted
+  for_each: alicloud.ecs.ebs
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.ebs.volume_encryption
+  for_each: alicloud.ecs.ebs
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.ebs.volume_encryption_enabled
+  for_each: alicloud.ecs.ebs
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.ebs.volume_protected_by_backup_plan
+  for_each: alicloud.ecs.ebs
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.ebs.volume_snapshots_exists
+  for_each: alicloud.ecs.ebs
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.eip_exposure_to_shodan.configured
+  for_each: alicloud.ecs.eip_exposure_to_shodan
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ecs.eip_unassigned_cleanup_required.configured
+  for_each: alicloud.ecs.eip_unassigned_cleanup_required
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.elastic.ip_shodan
+  for_each: alicloud.elasticsearch.confluence_n_a_service
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ecs.elastic.ip_unassigned
+  for_each: alicloud.elasticsearch.confluence_n_a_service
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.ensure.attached_disks_encrypted_with_cmk
+  for_each: alicloud.ecs.ensure
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.kms_key_id
+      op: exists
+- rule_id: alicloud.ecs.ensure.unattached_disks_encrypted_with_cmk
+  for_each: alicloud.ecs.ensure
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.kms_key_id
+      op: exists
+- rule_id: alicloud.ecs.ensure.using_managed_disks
+  for_each: alicloud.ecs.ensure
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.firewall.rdp_access_internet_blocked
+  for_each: alicloud.cfw.DescribeVpcFirewallControlPolicy
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.firewall.ssh_access_internet_blocked
+  for_each: alicloud.cfw.DescribeVpcFirewallControlPolicy
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.image.vulnerability_scan_passed
+  for_each: alicloud.ecs.custom_image
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.image_public_access_blocked.configured
+  for_each: alicloud.ecs.image_public_access_blocked
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+- rule_id: alicloud.ecs.instance.age_check_older_than_90_days
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.instance.cassandra_port_internet_blocked
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.instance.cifs_port_internet_blocked
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.instance.confidential_computing_enforced
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.instance.configured
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.instance.critical_cve_remediated
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.instance.csek_encryption_at_rest_enabled
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.kms_key_id
+      op: exists
+- rule_id: alicloud.ecs.instance.default_service_account_in_use_with_full_api_access
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ecs.instance.detailed_monitoring_active
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.instance.detailed_monitoring_mandatory
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.instance.elasticsearch_kibana_port_internet_blocked
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+    - var: item.permissions
+      op: not_contains
+- rule_id: alicloud.ecs.instance.env_no_plaintext_secrets
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ecs.instance.ftp_port_internet_blocked
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+    - var: item.security_group_rules
+      op: not_contains
+- rule_id: alicloud.ecs.instance.iam_profile_attached
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.instance.imdsv2_mandatory
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.instance.instance_profile_least_privilege
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ecs.instance.internet_facing_instance_profile_least_privilege
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ecs.instance.ip_forwarding_disabled_for_security
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ecs.instance.kafka_port_internet_blocked
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.instance.kerberos_port_internet_blocked
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.instance.ldap_port_internet_blocked
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.instance.least_privilege_service_account
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ecs.instance.managed
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.instance.managed_by_ssm
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.instance.management_enabled
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.instance.memcached_port_internet_blocked
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.instance.mongodb_port_internet_blocked
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.instance.mysql_port_internet_blocked
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.instance.network_type_verified
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.vpc_id
+    op: exists
+- rule_id: alicloud.ecs.instance.no_privileged_containers
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ecs.instance.no_public_ip_assigned
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.public_ip_address
+    op: not_exists
+- rule_id: alicloud.ecs.instance.oracle_port_internet_blocked
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.instance.os_version_supported
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.instance.paravirtual_type_deprecated
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.instance.password_auth_disabled
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.instance.port_ftp_exposed_to_internet
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.instance.port_rdp_exposed_to_internet
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.instance.port_ssh_exposed_to_internet
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    all:
+    - var: item.permissions
+      op: not_contains
+    - var: item.security_group_rules
+      op: not_contains
+- rule_id: alicloud.ecs.instance.postgresql_port_internet_blocked
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.instance.project_wide_ssh_keys_block_enforced
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0:22
+- rule_id: alicloud.ecs.instance.public_ip_detected
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.public_ip_address
+    op: exists
+- rule_id: alicloud.ecs.instance.public_ip_disabled
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.public_ip_address
+    op: not_exists
+- rule_id: alicloud.ecs.instance.public_ip_disabled_unless_explicitly_approved
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.public_ip_address
+    op: not_exists
+- rule_id: alicloud.ecs.instance.rdp_port_internet_blocked
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.instance.rds_sqlserver_port_internet_blocked
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.instance.redis_port_internet_blocked
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.instance.secrets_user_data
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ecs.instance.security_center_agent_installed_and_active
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.instance.security_hardening_applied
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.instance.security_patches_applied
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.instance.serial_ports_disabled_for_security
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.instance.shielded_vm_security_features_enabled
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.instance.single_eni_usage_verified
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ecs.instance.ssh_key_authentication_mandatory
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.instance.ssh_port_internet_blocked
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.instance.telnet_port_public_access_blocked
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.instance.unattached_disks_encryption_at_rest_with_customer_managed_keys_enabled
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.kms_key_id
+      op: exists
+- rule_id: alicloud.ecs.instance.user_data_secrets_exposure_prevented
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ecs.instance.uses_single_eni
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ecs.instance.volumes_encrypted
+  for_each: alicloud.ecs.DescribeAutoProvisioningGroupInstances
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.instance_managed_by_ssm_agent_installed.configured
+  for_each: alicloud.ecs.instance_managed_by_ssm_agent_installed
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.key_pair.inactive_keys_disabled_after_90_days
+  for_each: alicloud.ecs.key_pair
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.launch.template_imdsv2_required
+  for_each: alicloud.ecs.launch
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.launch.template_no_public_ip
+  for_each: alicloud.ecs.launch
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+- rule_id: alicloud.ecs.launch.template_no_secrets
+  for_each: alicloud.ecs.launch
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ecs.launch_template.imdsv2_enforcement
+  for_each: alicloud.ecs.launch_template
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.launch_template.instance_profile_least_privilege
+  for_each: alicloud.ecs.launch_template
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ecs.launch_template.public_ip_assignment_disabled
+  for_each: alicloud.ecs.launch_template
+  conditions:
+    var: item.public_ip_address
+    op: not_exists
+- rule_id: alicloud.ecs.launch_template.root_volume_encrypted_by_default
+  for_each: alicloud.ecs.launch_template
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.launch_template.secrets_management_enforced
+  for_each: alicloud.ecs.launch_template
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ecs.launch_template.security_groups_restrictive
+  for_each: alicloud.ecs.launch_template
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.load_balancer.logging_enabled
+  for_each: alicloud.ecs.load_balancer
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.loadbalancer.traffic_logging_enabled
+  for_each: alicloud.ecs.loadbalancer
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.management.compliance
+  for_each: alicloud.ecs.management
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.management_compliance_standards_met.configured
+  for_each: alicloud.ecs.management_compliance_standards_met
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.network_custom_vpc_required.configured
+  for_each: alicloud.ecs.network_custom_vpc_required
+  conditions:
+    var: item.vpc_id
+    op: exists
+- rule_id: alicloud.ecs.network_modern_architecture_required.configured
+  for_each: alicloud.ecs.network_modern_architecture_required
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ecs.networkacl.allow_ingress_tcp_port_22
+  for_each: alicloud.ecs.networkacl
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.networkacl.allow_ingress_tcp_port_22, alicloud_ecs_securitygroup_allow_ingress_from_internet_to_all_ports,
+    alicloud_ecs_networkacl_allow_ingress_tcp_port_3389, alicloud_pai_notebook_instance_without_direct_internet_access_configured
+  for_each: alicloud.ecs.networkacl
+  conditions:
+    all:
+    - var: item.permissions
+      op: not_contains
+      value: '*'
+    - var: item.security_group_rules
+      op: not_contains
+      value: 0.0.0.0/0:22
+    - var: item.security_group_rules
+      op: not_contains
+      value: 0.0.0.0/0:3389
+- rule_id: alicloud.ecs.networkacl.allow_ingress_tcp_port_3389
+  for_each: alicloud.ecs.networkacl
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.networkacl.default_in_use
+  for_each: alicloud.ecs.networkacl
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.networkacl.dns_query_logging_enabled
+  for_each: alicloud.ecs.networkacl
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.networkacl.ingress_any_port_blocked
+  for_each: alicloud.ecs.networkacl
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.networkacl.ingress_least_privilege_enforced
+  for_each: alicloud.ecs.networkacl
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.networkacl.not_legacy
+  for_each: alicloud.ecs.networkacl
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.networkacl.rdp_port_3389_ingress_restricted
+  for_each: alicloud.ecs.networkacl
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.networkacl.ssh_port_22_ingress_restricted
+  for_each: alicloud.ecs.networkacl
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.networkacl.unrestricted_ingress
+  for_each: alicloud.ecs.networkacl
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.networkacl.unused
+  for_each: alicloud.ecs.networkacl
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.networkacl.unused_resources_identified
+  for_each: alicloud.ecs.networkacl
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.patch.compliance
+  for_each: alicloud.ecs.patch_management_compliance_standards_met
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.patch_management_compliance_standards_met.configured
+  for_each: alicloud.ecs.patch_management_compliance_standards_met
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.project.os_login_mfa_enabled
+  for_each: alicloud.asr.GetProjectList
+  conditions:
+    var: item.mfa_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.public.address_shodan
+  for_each: alicloud.ecs.disk_public_snapshot_access_blocked
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ecs.public_address_shodan_detected.configured
+  for_each: alicloud.ecs.public_address_shodan_detected
+  conditions:
+    var: item.public_ip_address
+    op: exists
+- rule_id: alicloud.ecs.ram_role.instance_profile_no_instance_profile_with_admin_star
+  for_each: alicloud.ecs.ram_role
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ecs.ram_role.instance_profile_role_policies_least_privilege
+  for_each: alicloud.ecs.ram_role
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ecs.security_group.all_ports_public_ingress_blocked
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.allow_ingress_from_internet_to_all_ports
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.allow_ingress_from_internet_to_all_ports, alicloud_api_gateway_restapi_waf_acl_attached,
+    alicloud_alb_waf_acl_attached
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ecs.security_group.allow_ingress_from_internet_to_any_port
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.allow_ingress_from_internet_to_high_risk_tcp_ports
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.allow_ingress_from_internet_to_tcp_port_22
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.allow_ingress_from_internet_to_tcp_port_3389
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.allow_ingress_from_internet_to_tcp_port_cassandra_7199_9160_8888
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.allow_ingress_from_internet_to_tcp_port_elasticsearch_kibana_9200_9300_5601
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.allow_ingress_from_internet_to_tcp_port_ftp_20_21
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.allow_ingress_from_internet_to_tcp_port_kafka_9092
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.allow_ingress_from_internet_to_tcp_port_memcached_11211
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.allow_ingress_from_internet_to_tcp_port_mongodb_27017_27018
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.allow_ingress_from_internet_to_tcp_port_mysql_3306
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.allow_ingress_from_internet_to_tcp_port_oracle_1521_2483
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.allow_ingress_from_internet_to_tcp_port_postgres_5432
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.allow_ingress_from_internet_to_tcp_port_redis_6379
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.allow_ingress_from_internet_to_tcp_port_sql_server_1433_1434
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.allow_ingress_from_internet_to_tcp_port_telnet_23
+  for_each: alicloud.ecs.security_group
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.permissions
+      op: not_contains
+    - var: item.security_group_rules
+      op: not_contains
+- rule_id: alicloud.ecs.security_group.any_port_public_ingress_blocked
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.cassandra_ports_public_ingress_blocked
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.common_ports_access_restricted
+  for_each: alicloud.ecs.security_group
+  conditions:
+    all:
+    - var: item.permissions
+      op: not_contains
+    - var: item.security_group_rules
+      op: not_contains
+    - var: item.security_group_rules
+      op: not_contains
+    - var: item.security_group_rules
+      op: not_contains
+    - var: item.security_group_rules
+      op: not_contains
+- rule_id: alicloud.ecs.security_group.default_deny_all
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.default_restricted
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.elasticsearch_kibana_ports_public_ingress_blocked
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.excessive_ingress_egress_rules_reviewed
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.fine_grained_rules_enforced
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.from_launch_wizard
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.security_group.ftp_ports_public_ingress_blocked
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.high_risk_ports_public_ingress_blocked
+  for_each: alicloud.ecs.security_group
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+    - var: item.security_group_rules
+      op: not_contains
+    - var: item.security_group_rules
+      op: not_contains
+    - var: item.security_group_rules
+      op: not_contains
+    - var: item.security_group_rules
+      op: not_contains
+- rule_id: alicloud.ecs.security_group.inbound_3389_restricted_to_trusted_ips
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.ingress_port_22_restricted_to_trusted_ips
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.kafka_port_public_ingress_blocked
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.launch_wizard_security_group_audit
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.security_group.memcached_port_public_ingress_blocked
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.mongodb_ports_public_ingress_blocked
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.mysql_port_public_ingress_blocked
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.not_used
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.security_group.oracle_ports_public_ingress_blocked
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.postgres_port_public_ingress_blocked
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.rdp_access_restricted_to_vpn
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.redis_port_public_ingress_blocked
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.sql_server_ports_public_ingress_blocked
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.ssh_access_restricted_to_whitelist
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.ssh_rdp_access_restricted_to_trusted_ips
+  for_each: alicloud.ecs.security_group
+  conditions:
+    all:
+    - var: item.permissions
+      op: not_contains
+    - var: item.security_group_rules
+      op: not_contains
+    - var: item.security_group_rules
+      op: not_contains
+- rule_id: alicloud.ecs.security_group.telnet_port_public_ingress_blocked
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ecs.security_group.unused_security_groups_identified
+  for_each: alicloud.ecs.security_group
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.security_group.wide_open_public_ipv4_detected
+  for_each: alicloud.ecs.security_group
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: exists
+    - var: item.permissions
+      op: not_contains
+- rule_id: alicloud.ecs.securitygroup_default_deny_all_traffic.configured
+  for_each: alicloud.ecs.securitygroup_default_deny_all_traffic
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ecs.securitygroup_ingress_tcp_3389_from_internet_blocked.configured
+  for_each: alicloud.ecs.securitygroup_ingress_tcp_3389_from_internet_blocked
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+    - var: item.permissions
+      op: not_contains
+    - var: item.security_group_rules
+      op: not_contains
+- rule_id: alicloud.ecs.securitygroup_ingress_tcp_port_22_internet_access_blocked.configured
+  for_each: alicloud.ecs.securitygroup_ingress_tcp_port_22_internet_access_blocked
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+    - var: item.permissions
+      op: not_contains
+    - var: item.security_group_rules
+      op: not_contains
+- rule_id: alicloud.ecs.snapshot.encryption_at_rest_enabled
+  for_each: alicloud.ecs.snapshot
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.backup_enabled
+      op: equals
+- rule_id: alicloud.ecs.snapshot.snapshot_cross_region_copy_encrypted
+  for_each: alicloud.ecs.snapshot
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.snapshot.snapshot_encrypted
+  for_each: alicloud.ecs.snapshot
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.snapshot.snapshot_not_public
+  for_each: alicloud.ecs.snapshot
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+    - var: item.backup_enabled
+      op: equals
+- rule_id: alicloud.ecs.stopped.instance
+  for_each: alicloud.ecs.stopped
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.subnet.flow_logging_enabled_for_traffic_analysis
+  for_each: alicloud.ecs.subnet
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.task.definitions_logging_block_mode
+  for_each: alicloud.ecs.task_definitions
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.task.definitions_logging_enabled
+  for_each: alicloud.ecs.task_definitions
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.task_definitions.logging_block_mode_enabled
+  for_each: alicloud.ecs.task_definitions
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.task_definitions.logging_enabled_90_day_retention
+  for_each: alicloud.ecs.task_definitions
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.training_job.network_isolation_enabled
+  for_each: alicloud.ecs.training_job
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ecs.training_job_inter_container.encryption_enabled
+  for_each: alicloud.ecs.training_job_inter_container
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.transitgateway.auto_accept_vpc_attachments
+  for_each: alicloud.ecs.transitgateway
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ecs.transitgateway.vpc_attachment_auto_accept_disabled
+  for_each: alicloud.ecs.transitgateway
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ecs.trusted.launch_secure_boot_enabled
+  for_each: alicloud.ecs.trusted
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.unattached.disks_encryption_at_rest_check
+  for_each: alicloud.ecs.unattached
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.unattached_disks.encryption_at_rest_enabled
+  for_each: alicloud.ecs.unattached_disks
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.volume.in_use
+  for_each: alicloud.ecs.volume
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.volume_attached_to_instance.configured
+  for_each: alicloud.ecs.volume_attached_to_instance
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.vpn_gateway_endpoint.connection_logging_enabled_90_day_retention
+  for_each: alicloud.ecs.vpn_gateway_endpoint
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ecs.vulnerability.automated_scanning_scheduled_weekly
+  for_each: alicloud.ecs.vulnerability
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.vulnerability.scan_enabled
+  for_each: alicloud.ecs.vulnerability
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ecs.vulnerability_scan_scheduled.configured
+  for_each: alicloud.ecs.vulnerability_scan_scheduled
+  conditions:
+    var: item.status
+    op: equals
+    value: Active

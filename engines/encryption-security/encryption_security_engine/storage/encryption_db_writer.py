@@ -5,28 +5,15 @@ Writes encryption_report, encryption_findings, and inventory tables
 to the threat_engine_encryption database.
 """
 
-import os
 import json
 import hashlib
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 
-import psycopg2
+from engine_common.db_connections import get_encryption_conn
 
 logger = logging.getLogger(__name__)
-
-
-def _get_encryption_conn():
-    """Get connection to the Encryption database."""
-    return psycopg2.connect(
-        host=os.getenv("ENCRYPTION_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("ENCRYPTION_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("ENCRYPTION_DB_NAME", "threat_engine_encryption"),
-        user=os.getenv("ENCRYPTION_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("ENCRYPTION_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-    )
 
 
 def generate_finding_id(rule_id: str, resource_uid: str, account_id: str, region: str) -> str:
@@ -54,7 +41,7 @@ def save_findings_to_db(
     Returns:
         Number of findings written.
     """
-    conn = _get_encryption_conn()
+    conn = get_encryption_conn()
     now = datetime.now(timezone.utc)
     count = 0
 
@@ -132,6 +119,7 @@ def save_findings_to_db(
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                             %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
                     ON CONFLICT (finding_id) DO UPDATE SET
+                        scan_run_id = EXCLUDED.scan_run_id,
                         last_seen_at = EXCLUDED.last_seen_at,
                         status = EXCLUDED.status,
                         severity = EXCLUDED.severity,
@@ -179,7 +167,7 @@ def save_key_inventory(
     keys: List[Dict[str, Any]],
 ) -> int:
     """Save KMS key inventory entries."""
-    conn = _get_encryption_conn()
+    conn = get_encryption_conn()
     count = 0
     try:
         with conn.cursor() as cur:
@@ -233,7 +221,7 @@ def save_cert_inventory(
     certs: List[Dict[str, Any]],
 ) -> int:
     """Save certificate inventory entries."""
-    conn = _get_encryption_conn()
+    conn = get_encryption_conn()
     count = 0
     try:
         with conn.cursor() as cur:
@@ -282,7 +270,7 @@ def save_secrets_inventory(
     secrets: List[Dict[str, Any]],
 ) -> int:
     """Save secrets inventory entries."""
-    conn = _get_encryption_conn()
+    conn = get_encryption_conn()
     count = 0
     try:
         with conn.cursor() as cur:

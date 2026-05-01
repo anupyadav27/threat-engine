@@ -64,6 +64,31 @@ class CIEMReader:
         self.account_id = account_id
         self.days = days
 
+    def _resolve_latest_ciem_scan_run_id(self) -> Optional[str]:
+        """Return the scan_run_id of the latest completed CIEM scan for this tenant.
+
+        Falls back to None when no completed scan exists (caller then uses time window).
+        """
+        conn = _get_ciem_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT scan_run_id FROM ciem_report
+                    WHERE tenant_id = %s AND status = 'completed'
+                    ORDER BY completed_at DESC NULLS LAST
+                    LIMIT 1
+                    """,
+                    (self.tenant_id,),
+                )
+                row = cur.fetchone()
+                return row[0] if row else None
+        except Exception as exc:
+            logger.warning(f"CIEMReader._resolve_latest_ciem_scan_run_id failed: {exc}")
+            return None
+        finally:
+            conn.close()
+
     # ═══════════════════════════════════════════════════════════
     # IAM Engine: identity usage tracking
     # ═══════════════════════════════════════════════════════════
@@ -157,26 +182,91 @@ class CIEMReader:
             conn.close()
         return results
 
+    # Maps caller engine_filter names → rule_metadata JSONB scope column
+    _ENGINE_SCOPE_COL: Dict[str, str] = {
+        "datasec":          "data_security",
+        "data_security":    "data_security",
+        "container":        "container_security",
+        "container-security": "container_security",
+        "container_security": "container_security",
+        "database":         "database_security",
+        "dbsec":            "database_security",
+        "database_security": "database_security",
+        "ai_security":      "ai_security",
+        "ai-security":      "ai_security",
+        "network":          "network_security",
+        "network_security": "network_security",
+        "iam":              "iam_security",
+        "iam_security":     "iam_security",
+    }
+
+    def _get_applicable_rule_ids(self, scope_col: str) -> Optional[List[str]]:
+        """Return rule_ids from rule_metadata where scope_col->>'applicable' = true.
+
+        Returns None if the lookup fails (caller should skip the filter).
+        """
+        try:
+            conn = _get_check_conn()
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"SELECT rule_id FROM rule_metadata "
+                    f"WHERE ({scope_col}->>'applicable')::boolean = true "
+                    f"AND customer_id IS NULL"
+                )
+                ids = [r[0] for r in cur.fetchall()]
+            conn.close()
+            logger.debug(f"engine_filter scope '{scope_col}': {len(ids)} applicable rule_ids")
+            return ids
+        except Exception as exc:
+            logger.warning(f"CIEMReader._get_applicable_rule_ids({scope_col}) failed: {exc}")
+            return None
+
     def get_ciem_findings(self, engine_filter: str = "", enrich: bool = True) -> List[Dict]:
-        """Get CIEM findings, optionally filtered by engine.
+        """Get CIEM findings, optionally filtered by engine scope.
 
         Args:
-            engine_filter: Filter by primary_engine or engines[] array.
+            engine_filter: Engine name (e.g. 'datasec', 'container', 'dbsec',
+                'ai_security', 'network', 'iam'). Resolved to a rule_metadata
+                JSONB scope column — only CIEM rule_ids that are applicable to
+                that engine scope are returned.  Pass "" for all findings.
             enrich: If True, auto-enrich with rule_metadata from Check DB
                     (title, description, remediation, compliance_frameworks, MITRE).
 
         Returns:
             List of finding dicts, enriched with rule metadata when available.
         """
+        # Resolve engine_filter → applicable rule_ids from rule_metadata
+        applicable_rule_ids: Optional[List[str]] = None
+        if engine_filter:
+            scope_col = self._ENGINE_SCOPE_COL.get(engine_filter.lower())
+            if scope_col:
+                applicable_rule_ids = self._get_applicable_rule_ids(scope_col)
+                if applicable_rule_ids is not None and len(applicable_rule_ids) == 0:
+                    logger.info(f"No CIEM-applicable rules for engine '{engine_filter}' — returning empty")
+                    return []
+            # If scope_col not found, fall through without rule_id filter
+            # (e.g. engine_filter='threat' or 'ciem' → return all findings)
+
+        # Prefer findings scoped to the latest completed CIEM scan so we never
+        # pull from in-progress or duplicate across multiple runs.  Fall back to
+        # the rolling time-window when no completed scan exists yet.
+        latest_scan_run_id = self._resolve_latest_ciem_scan_run_id()
+
         conn = _get_ciem_conn()
         results = []
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                engine_clause = ""
-                params = [self.tenant_id, self.days]
-                if engine_filter:
-                    engine_clause = "AND (primary_engine = %s OR %s = ANY(engines))"
-                    params.extend([engine_filter, engine_filter])
+                if latest_scan_run_id:
+                    scope_clause = "AND scan_run_id = %s"
+                    params: list = [self.tenant_id, latest_scan_run_id]
+                else:
+                    scope_clause = "AND event_time > NOW() - INTERVAL '%s days'"
+                    params = [self.tenant_id, self.days]
+
+                rule_id_clause = ""
+                if applicable_rule_ids is not None:
+                    rule_id_clause = "AND rule_id = ANY(%s)"
+                    params.append(applicable_rule_ids)
 
                 cur.execute(f"""
                     SELECT finding_id, rule_id, severity, operation,
@@ -185,8 +275,8 @@ class CIEMReader:
                            account_id, region
                     FROM ciem_findings
                     WHERE tenant_id = %s
-                    AND event_time > NOW() - INTERVAL '%s days'
-                    {engine_clause}
+                    {scope_clause}
+                    {rule_id_clause}
                     ORDER BY event_time DESC LIMIT 5000
                 """, params)
                 results = [dict(r) for r in cur.fetchall()]

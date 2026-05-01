@@ -1,0 +1,125 @@
+version: '1.0'
+provider: azure
+service: event
+checks:
+- rule_id: azure.event.event_hub.consumer_auth_required
+  for_each: azure.eventhub.namespaces.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.isAutoInflateEnabled
+      op: is_true
+      value: null
+    - var: item.properties.kafkaEnabled
+      op: is_true
+      value: null
+- rule_id: azure.event.event_hub.encryption_at_rest_enabled
+  for_each: azure.eventhub.namespaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption.key_source
+    op: exists
+    value: null
+- rule_id: azure.event.event_hub.private_network_only_where_supported
+  for_each: azure.eventhub.namespaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.isPrivateEndpointEnabled
+    op: is_true
+    value: null
+- rule_id: azure.event.event_hub_consumer.streaming_consumer_access_least_privilege
+  for_each: azure.eventhub.namespaces.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.authorizationRules[].rights[]
+      op: not_contains
+      value: Manage
+    - var: item.properties.authorizationRules[].rights[]
+      op: not_contains
+      value: Listen,Manage,Send
+- rule_id: azure.event.event_hub_consumer.streaming_consumer_auth_required
+  for_each: azure.eventhub.namespaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.requiresClientAuthorization
+    op: is_true
+    value: null
+- rule_id: azure.event.grid_subscription.data_analytics_subscription_cross_account_sharing_restricted
+  for_each: azure.eventgrid.eventsubscriptions.list_by_resource
+  severity: MEDIUM
+  conditions:
+    var: item.properties.destination.endpointBaseUrl
+    op: not_contains
+    value: https://
+- rule_id: azure.event.grid_subscription.data_analytics_subscription_destination_encrypted
+  for_each: azure.eventgrid.eventsubscriptions.list_by_resource
+  severity: MEDIUM
+  conditions:
+    var: item.destination.dataLakeStorageAccountEndpoint
+    op: exists
+    value: null
+- rule_id: azure.event.grid_subscription.data_analytics_subscription_destination_least_privilege
+  for_each: azure.eventgrid.eventsubscriptions.list_by_resource
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.destination.endpointType
+      op: equals
+      value: AzureDataExplorer
+    - var: item.destination.properties.identity
+      op: exists
+      value: null
+    - var: item.destination.properties.identity.type
+      op: equals
+      value: UserAssigned
+- rule_id: azure.event.grid_subscription.data_warehouse_subscription_cross_account_sharing_restricted
+  for_each: azure.eventgrid.eventsubscriptions.list_by_resource
+  severity: MEDIUM
+  conditions:
+    var: item.destination.endpointType
+    op: not_equals
+    value: AzureDataWarehouse
+- rule_id: azure.event.grid_subscription.data_warehouse_subscription_destination_encrypted
+  for_each: azure.eventgrid.eventsubscriptions.list_by_resource
+  severity: MEDIUM
+  conditions:
+    var: item.destination.dataWarehouseDestinationProperties.dataEncryption
+    op: exists
+    value: null
+- rule_id: azure.event.grid_subscription.data_warehouse_subscription_destination_least_privilege
+  for_each: azure.eventgrid.eventsubscriptions.list_by_resource
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.destination.dataWarehouseSubscriptionDestination
+      op: exists
+      value: null
+    - var: item.destination.dataWarehouseSubscriptionDestination.permissions
+      op: contains
+      value: Microsoft.EventGrid/EventSubscriptions/Write
+- rule_id: azure.event.hubs_eventhub.data_protection_storage_stream_consumer_auth_required
+  for_each: azure.eventhub.eventhubs.list_by_namespace
+  severity: MEDIUM
+  conditions:
+    var: item.properties.requiresClientAuthorization
+    op: is_true
+    value: null
+- rule_id: azure.event.hubs_eventhub.data_protection_storage_stream_encryption_at_rest_enabled
+  for_each: azure.eventhub.eventhubs.list_by_namespace
+  severity: MEDIUM
+  conditions:
+    var: item.encryption.key_source
+    op: equals
+    value: Microsoft.KeyVault
+- rule_id: azure.event.hubs_eventhub.data_protection_storage_stream_private_network_only_where_supported
+  for_each: azure.eventhub.namespaces.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.networkRuleSet.defaultAction
+      op: equals
+      value: Deny
+    - var: item.properties.networkRuleSet.virtualNetworkRules
+      op: not_empty
+      value: null

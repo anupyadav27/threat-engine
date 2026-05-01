@@ -24,7 +24,7 @@ import { useTenant } from '@/lib/tenant-context';
 
 // ── Provider catalogue ────────────────────────────────────────────────────────
 
-const PROVIDERS = {
+const CLOUD_PROVIDERS = {
   aws:      { name: 'AWS',      full: 'Amazon Web Services',         color: '#FF9900' },
   azure:    { name: 'Azure',    full: 'Microsoft Azure',             color: '#0078D4' },
   gcp:      { name: 'GCP',      full: 'Google Cloud Platform',       color: '#4285F4' },
@@ -33,6 +33,17 @@ const PROVIDERS = {
   ibm:      { name: 'IBM',      full: 'IBM Cloud',                   color: '#1F70C1' },
   k8s:      { name: 'K8s',      full: 'Kubernetes Cluster',          color: '#326CE5' },
 };
+
+const DB_PROVIDERS = {
+  postgres: { name: 'PostgreSQL', full: 'Self-hosted PostgreSQL', color: '#336791' },
+  mysql:    { name: 'MySQL',      full: 'Self-hosted MySQL',      color: '#4479A1' },
+  mssql:    { name: 'SQL Server', full: 'Microsoft SQL Server',   color: '#CC2927' },
+  mongodb:  { name: 'MongoDB',    full: 'Self-hosted MongoDB',    color: '#47A248' },
+  oracle:   { name: 'Oracle DB',  full: 'Oracle Database',        color: '#C74634' },
+};
+
+const PROVIDERS = { ...CLOUD_PROVIDERS, ...DB_PROVIDERS };
+const DB_PROVIDER_SET = new Set(Object.keys(DB_PROVIDERS));
 
 // ── Auth methods + credential fields per provider ─────────────────────────────
 
@@ -47,6 +58,12 @@ const AUTH_METHODS = {
   alicloud: [{ value: 'access_key',        label: 'Access Key',        desc: 'Alibaba Cloud access key pair' }],
   ibm:      [{ value: 'api_key',           label: 'API Key',           desc: 'IBM Cloud API key' }],
   k8s:      [{ value: 'kubeconfig',        label: 'Kubeconfig',        desc: 'Kubernetes cluster config' }],
+  // Database providers — all use username_password except mongodb (connection_string)
+  postgres: [{ value: 'username_password', label: 'Username / Password', desc: 'Direct DB credentials' }],
+  mysql:    [{ value: 'username_password', label: 'Username / Password', desc: 'Direct DB credentials' }],
+  mssql:    [{ value: 'username_password', label: 'Username / Password', desc: 'Direct DB credentials' }],
+  mongodb:  [{ value: 'connection_string', label: 'Connection URI',       desc: 'mongodb:// or mongodb+srv:// URI' }],
+  oracle:   [{ value: 'username_password', label: 'Username / Password', desc: 'Direct DB credentials' }],
 };
 
 const CREDENTIAL_FIELDS = {
@@ -86,6 +103,40 @@ const CREDENTIAL_FIELDS = {
   k8s_kubeconfig: [
     { key: 'kubeconfig', label: 'Kubeconfig YAML', placeholder: 'apiVersion: v1\nkind: Config\n…', secret: true, textarea: true },
   ],
+  // Database credential fields
+  postgres_username_password: [
+    { key: 'host',     label: 'Host',     placeholder: '192.168.1.10 or db.internal', secret: false },
+    { key: 'port',     label: 'Port',     placeholder: '5432',                         secret: false },
+    { key: 'dbname',   label: 'Database', placeholder: 'postgres',                     secret: false },
+    { key: 'username', label: 'Username', placeholder: 'postgres',                     secret: false },
+    { key: 'password', label: 'Password', placeholder: '••••',                         secret: true  },
+    { key: 'ssl_mode', label: 'SSL Mode', placeholder: 'prefer (disable/allow/require/verify-full)', secret: false, optional: true },
+  ],
+  mysql_username_password: [
+    { key: 'host',     label: 'Host',     placeholder: '192.168.1.10 or db.internal', secret: false },
+    { key: 'port',     label: 'Port',     placeholder: '3306',                         secret: false },
+    { key: 'dbname',   label: 'Database', placeholder: 'mysql',                        secret: false },
+    { key: 'username', label: 'Username', placeholder: 'root',                         secret: false },
+    { key: 'password', label: 'Password', placeholder: '••••',                         secret: true  },
+  ],
+  mssql_username_password: [
+    { key: 'host',     label: 'Host',     placeholder: '192.168.1.10 or db.internal', secret: false },
+    { key: 'port',     label: 'Port',     placeholder: '1433',                         secret: false },
+    { key: 'dbname',   label: 'Database', placeholder: 'master',                       secret: false },
+    { key: 'username', label: 'Username', placeholder: 'sa',                           secret: false },
+    { key: 'password', label: 'Password', placeholder: '••••',                         secret: true  },
+    { key: 'instance', label: 'Instance', placeholder: 'SQLEXPRESS (optional)',        secret: false, optional: true },
+  ],
+  mongodb_connection_string: [
+    { key: 'uri', label: 'Connection URI', placeholder: 'mongodb://username:password@host:27017/dbname', secret: true, textarea: false },
+  ],
+  oracle_username_password: [
+    { key: 'host',         label: 'Host',         placeholder: '192.168.1.10 or db.internal', secret: false },
+    { key: 'port',         label: 'Port',         placeholder: '1521',                         secret: false },
+    { key: 'service_name', label: 'Service Name', placeholder: 'ORCL or XE',                  secret: false },
+    { key: 'username',     label: 'Username',     placeholder: 'system',                       secret: false },
+    { key: 'password',     label: 'Password',     placeholder: '••••',                         secret: true  },
+  ],
 };
 
 function getFields(provider, authMethod) {
@@ -103,7 +154,8 @@ const CRON_PRESETS = [
   { key: 'custom',    label: 'Custom cron…',          cron: '',            desc: 'Enter your own cron expression' },
 ];
 
-const ALL_ENGINES = ['discovery', 'check', 'inventory', 'threat', 'compliance', 'iam', 'datasec'];
+const ALL_ENGINES    = ['discovery', 'check', 'inventory', 'threat', 'compliance', 'iam', 'datasec'];
+const DB_ENGINES     = ['dbsec'];
 const ENGINE_LABELS = {
   discovery:  { label: 'Discovery',   desc: 'Enumerate cloud resources' },
   check:      { label: 'Check',       desc: 'Evaluate compliance rules' },
@@ -112,6 +164,7 @@ const ENGINE_LABELS = {
   compliance: { label: 'Compliance',  desc: 'Framework reports (CIS, NIST…)' },
   iam:        { label: 'IAM',         desc: 'IAM posture analysis' },
   datasec:    { label: 'Data Sec',    desc: 'Data classification & security' },
+  dbsec:      { label: 'DB Security', desc: 'CIS DB benchmark checks' },
 };
 
 const COMMON_TIMEZONES = [
@@ -177,13 +230,38 @@ function Step1({ form, setForm }) {
           style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-primary)', color: 'var(--text-primary)' }} />
       </div>
 
-      {/* Provider grid */}
+      {/* Category tabs */}
       <div>
         <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
-          Cloud Provider <span className="text-red-400">*</span>
+          Account Type <span className="text-red-400">*</span>
+        </label>
+        <div className="flex gap-2 mb-3">
+          {[
+            { key: 'cloud',    label: '☁️ Cloud Provider' },
+            { key: 'database', label: '🗄️ Database' },
+          ].map(cat => (
+            <button key={cat.key}
+              onClick={() => setForm(f => ({ ...f, accountCategory: cat.key, provider: '', authMethod: '' }))}
+              className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
+              style={{
+                border: `2px solid ${form.accountCategory === cat.key ? 'var(--accent-primary)' : 'var(--border-primary)'}`,
+                backgroundColor: form.accountCategory === cat.key ? 'rgba(59,130,246,0.08)' : 'var(--bg-tertiary)',
+                color: form.accountCategory === cat.key ? 'var(--accent-primary)' : 'var(--text-secondary)',
+              }}>
+              {cat.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Provider grid */}
+      {form.accountCategory && (
+      <div>
+        <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
+          {form.accountCategory === 'database' ? 'Database Engine' : 'Cloud Provider'} <span className="text-red-400">*</span>
         </label>
         <div className="grid grid-cols-4 gap-2">
-          {Object.entries(PROVIDERS).map(([key, p]) => {
+          {Object.entries(form.accountCategory === 'database' ? DB_PROVIDERS : CLOUD_PROVIDERS).map(([key, p]) => {
             const selected = form.provider === key;
             return (
               <button key={key} onClick={() => setForm(f => ({ ...f, provider: key, authMethod: '' }))}
@@ -199,6 +277,7 @@ function Step1({ form, setForm }) {
           })}
         </div>
       </div>
+      )}
 
       {/* Auth method */}
       {form.provider && (
@@ -320,7 +399,8 @@ function Step3({ steps, result, form }) {
 
 // ── Step 4: Schedule configuration ───────────────────────────────────────────
 
-function Step4({ schedule, setSchedule }) {
+function Step4({ schedule, setSchedule, isDbAccount }) {
+  const availableEngines = isDbAccount ? DB_ENGINES : ALL_ENGINES;
   const selectedPreset = CRON_PRESETS.find(p => p.cron === schedule.cron_expression && p.key !== 'custom') || CRON_PRESETS.find(p => p.key === 'custom');
   const [preset, setPreset] = useState(selectedPreset?.key || 'weekly');
 
@@ -399,7 +479,7 @@ function Step4({ schedule, setSchedule }) {
           <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Engines to Run</span>
         </div>
         <div className="grid grid-cols-2 gap-1.5">
-          {ALL_ENGINES.map(eng => {
+          {availableEngines.map(eng => {
             const enabled = schedule.engines_requested.includes(eng);
             const info = ENGINE_LABELS[eng];
             return (
@@ -463,14 +543,15 @@ function Step4({ schedule, setSchedule }) {
 // ── Step 5: Summary ───────────────────────────────────────────────────────────
 
 function Step5({ form, schedule, accountId, result, launching, launchError }) {
-  const provider = PROVIDERS[form.provider];
-  const authLabel = AUTH_METHODS[form.provider]?.find(m => m.value === form.authMethod)?.label;
+  const provider   = PROVIDERS[form.provider];
+  const isDb       = DB_PROVIDER_SET.has(form.provider);
+  const authLabel  = AUTH_METHODS[form.provider]?.find(m => m.value === form.authMethod)?.label;
   const freqPreset = CRON_PRESETS.find(p => p.cron === schedule.cron_expression)?.label || schedule.cron_expression;
 
   const sections = [
     {
-      icon: '☁️',
-      title: 'Cloud Account',
+      icon:  isDb ? '🗄️' : '☁️',
+      title: isDb ? 'Database Account' : 'Cloud Account',
       rows: [
         { label: 'Account Name', value: form.accountName },
         { label: 'Provider', value: `${provider?.name} — ${provider?.full}` },
@@ -543,16 +624,18 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
 
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
-    tenantId:    '',
-    accountName: '',
-    provider:    '',
-    authMethod:  '',
-    credentials: {},
+    tenantId:        '',
+    accountName:     '',
+    accountCategory: '',
+    provider:        '',
+    authMethod:      '',
+    credentials:     {},
   });
+  const isDbAccount = DB_PROVIDER_SET.has(form.provider);
   const [schedule, setSchedule] = useState({
-    cron_expression:  '0 2 * * 0',
-    timezone:         'UTC',
-    enabled:          true,
+    cron_expression:   '0 2 * * 0',
+    timezone:          'UTC',
+    enabled:           true,
     engines_requested: [...ALL_ENGINES],
     notify_on_failure: true,
     notify_on_success: false,
@@ -582,10 +665,11 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
 
     try {
       const created = await postToEngine('onboarding', '/api/v1/cloud-accounts', {
-        customer_id:  customerId,
-        tenant_id:    form.tenantId,
-        account_name: form.accountName,
-        provider:     form.provider,
+        customer_id:      customerId,
+        tenant_id:        form.tenantId,
+        account_name:     form.accountName,
+        account_category: form.accountCategory,
+        provider:         form.provider,
       });
 
       if (created.error || !created.account_id) {
@@ -659,13 +743,18 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
       setStep(3);
       await runValidation();
     } else if (step === 3 && result?.success) {
+      // Pre-select the right engine set for the account type
+      setSchedule(s => ({
+        ...s,
+        engines_requested: isDbAccount ? [...DB_ENGINES] : [...ALL_ENGINES],
+      }));
       setStep(4);
     } else if (step === 4) {
       setStep(5);
     }
   }
 
-  const step1Valid = form.tenantId && form.accountName.trim() && form.provider && form.authMethod;
+  const step1Valid = form.tenantId && form.accountName.trim() && form.accountCategory && form.provider && form.authMethod;
   const step2Valid = getFields(form.provider, form.authMethod)
     .filter(f => !f.optional)
     .every(f => form.credentials[f.key]?.trim());
@@ -679,7 +768,9 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b"
           style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-secondary)' }}>
-          <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>Add Cloud Account</h2>
+          <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+            {isDbAccount ? 'Add Database Account' : 'Add Cloud Account'}
+          </h2>
           <button onClick={onCancel} className="p-1 rounded hover:bg-white/10">
             <X className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
           </button>
@@ -715,7 +806,7 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
           {step === 1 && <Step1 form={form} setForm={setForm} />}
           {step === 2 && <Step2 form={form} setForm={setForm} />}
           {step === 3 && <Step3 steps={validationSteps} result={result} form={form} />}
-          {step === 4 && <Step4 schedule={schedule} setSchedule={setSchedule} />}
+          {step === 4 && <Step4 schedule={schedule} setSchedule={setSchedule} isDbAccount={isDbAccount} />}
           {step === 5 && (
             <Step5
               form={form}

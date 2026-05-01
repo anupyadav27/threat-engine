@@ -1,0 +1,277 @@
+version: '1.0'
+provider: aws
+service: sns
+checks:
+- rule_id: aws.sns.resource.topics_kms_encryption_at_rest_enabled
+  for_each: aws.sns.get_topic_attributes
+  severity: HIGH
+  conditions:
+    var: item.KmsMasterKeyId
+    op: exists
+    value: null
+- rule_id: aws.sns.subscription.change_audit_logging_enabled
+  for_each: aws.sns.get_subscription_attributes
+  severity: HIGH
+  conditions:
+    var: item.Attributes.RawMessageDelivery
+    op: is_true
+    value: null
+- rule_id: aws.sns.subscription.endpoints_authenticated_configured
+  for_each: aws.sns.list_subscriptions
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Protocol
+      op: in
+      value:
+      - HTTPS
+      - email
+      - email-json
+      - sms
+      - sqs
+      - application
+      - lambda
+      - firehose
+    - any:
+      - var: item.Protocol
+        op: not_equals
+        value: HTTPS
+      - var: item.Endpoint
+        op: contains
+        value: https://
+- rule_id: aws.sns.subscription.message_encryption_in_transit_configured
+  for_each: aws.sns.list_subscriptions
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.Protocol
+      op: equals
+      value: HTTPS
+    - var: item.Protocol
+      op: equals
+      value: HTTPS2
+- rule_id: aws.sns.subscription.no_public_webhooks_configured
+  for_each: aws.sns.list_subscriptions
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.Protocol
+      op: not_equals
+      value: HTTPS
+    - var: item.Protocol
+      op: not_equals
+      value: email
+    - var: item.Protocol
+      op: not_equals
+      value: email-json
+    - var: item.Protocol
+      op: not_equals
+      value: sms
+    - var: item.Protocol
+      op: not_equals
+      value: sqs
+    - var: item.Protocol
+      op: not_equals
+      value: application
+    - var: item.Protocol
+      op: not_equals
+      value: lambda
+    - var: item.Protocol
+      op: not_equals
+      value: firehose
+- rule_id: aws.sns.subscription.oncall_contacts_verified
+  for_each: aws.sns.list_subscriptions
+  severity: MEDIUM
+  conditions:
+    var: item.Protocol
+    op: equals
+    value: HTTPS
+- rule_id: aws.sns.subscription.policy_exists_for_critical_severity_configured
+  for_each: aws.sns.get_subscription_attributes
+  severity: HIGH
+  conditions:
+    var: item.Policy
+    op: exists
+    value: null
+- rule_id: aws.sns.subscription.sns_subscription_destinations_configured
+  for_each: aws.sns.list_subscriptions
+  severity: MEDIUM
+  conditions:
+    var: item.SubscriptionArn
+    op: exists
+    value: null
+- rule_id: aws.sns.topic.alarm_actions_configured
+  for_each: aws.sns.get_topic_attributes
+  severity: MEDIUM
+  conditions:
+    var: item.Attributes.AlarmActions
+    op: not_empty
+    value: null
+- rule_id: aws.sns.topic.change_audit_logging_enabled
+  for_each: aws.sns.get_topic_attributes
+  severity: HIGH
+  conditions:
+    var: item.Attributes.TracingConfig
+    op: exists
+    value: null
+- rule_id: aws.sns.topic.channels_configured
+  for_each: aws.sns.get_topic_attributes
+  severity: MEDIUM
+  conditions:
+    var: item.Attributes.SubscriptionsConfirmed
+    op: not_empty
+    value: null
+- rule_id: aws.sns.topic.critical_alarms_enabled
+  for_each: aws.sns.get_topic_attributes
+  severity: MEDIUM
+  conditions:
+    var: item.Attributes.SubscriptionsConfirmed
+    op: gt
+    value: '0'
+- rule_id: aws.sns.topic.destinations_access_least_privilege
+  for_each: aws.sns.get_topic_attributes
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Attributes.Policy
+      op: exists
+      value: null
+    - var: item.Attributes.Policy.Statement[].Principal
+      op: not_contains
+      value: '*'
+- rule_id: aws.sns.topic.destinations_authenticated_configured
+  for_each: aws.sns.list_subscriptions
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.Protocol
+      op: equals
+      value: email
+    - var: item.Protocol
+      op: equals
+      value: email-json
+    - var: item.Protocol
+      op: equals
+      value: http
+    - var: item.Protocol
+      op: equals
+      value: https
+    - all:
+      - var: item.Protocol
+        op: equals
+        value: sqs
+      - var: item.Endpoint
+        op: contains
+        value: 'arn:aws:sqs:'
+    - all:
+      - var: item.Protocol
+        op: equals
+        value: lambda
+      - var: item.Endpoint
+        op: contains
+        value: 'arn:aws:lambda:'
+    - all:
+      - var: item.Protocol
+        op: equals
+        value: firehose
+      - var: item.Endpoint
+        op: contains
+        value: 'arn:aws:firehose:'
+    - all:
+      - var: item.Protocol
+        op: equals
+        value: application
+      - var: item.Endpoint
+        op: contains
+        value: 'arn:aws:sns:'
+- rule_id: aws.sns.topic.destinations_configured
+  for_each: aws.sns.get_topic_attributes
+  severity: MEDIUM
+  conditions:
+    var: item.SubscriptionsConfirmed
+    op: not_equals
+    value: '0'
+- rule_id: aws.sns.topic.endpoints_authenticated_configured
+  for_each: aws.sns.list_subscriptions
+  severity: MEDIUM
+  conditions:
+    var: item.Protocol
+    op: in
+    value:
+    - HTTPS
+    - email
+    - email-json
+    - sms
+    - sqs
+    - application
+- rule_id: aws.sns.topic.message_encryption_in_transit_configured
+  for_each: aws.sns.get_topic_attributes
+  severity: HIGH
+  conditions:
+    var: item.KmsMasterKeyId
+    op: exists
+    value: null
+- rule_id: aws.sns.topic.no_public_webhooks_configured
+  for_each: aws.sns.list_subscriptions
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Protocol
+      op: not_equals
+      value: HTTPS
+    - var: item.Endpoint
+      op: not_contains
+      value: https://hooks.slack.com
+    - var: item.Endpoint
+      op: not_contains
+      value: https://discord.com/api/webhooks
+- rule_id: aws.sns.topic.no_public_webhooks_without_auth_configured
+  for_each: aws.sns.list_subscriptions
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Protocol
+      op: equals
+      value: HTTPS
+    - var: item.SubscriptionArn
+      op: exists
+      value: null
+- rule_id: aws.sns.topic.oncall_contacts_verified
+  for_each: aws.sns.list_subscriptions
+  severity: MEDIUM
+  conditions:
+    var: item.Protocol
+    op: equals
+    value: HTTPS
+- rule_id: aws.sns.topic.policy_exists_for_critical_severity_configured
+  for_each: aws.sns.get_topic_attributes
+  severity: HIGH
+  conditions:
+    var: item.Attributes.Policy
+    op: exists
+    value: null
+- rule_id: aws.sns.topic_subscription_configured.topic_subscription_configured_configured
+  for_each: aws.sns.list_subscriptions
+  severity: MEDIUM
+  conditions:
+    var: item.SubscriptionArn
+    op: exists
+    value: null
+- rule_id: aws.sns.topics.kms_encryption_at_rest_enabled
+  for_each: aws.sns.get_topic_attributes
+  severity: HIGH
+  conditions:
+    var: item.KmsMasterKeyId
+    op: exists
+    value: null
+- rule_id: aws.sns.topics_not_publicly_accessible.topics_not_publicly_accessible_configured
+  for_each: aws.sns.get_topic_attributes
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Attributes.Policy
+      op: exists
+      value: null
+    - var: item.Attributes.Policy
+      op: not_contains
+      value: '"Effect":"Allow","Principal":{"AWS":"*"}'

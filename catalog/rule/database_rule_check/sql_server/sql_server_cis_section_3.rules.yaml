@@ -1,0 +1,102 @@
+tech_type: sql_server
+category: database
+cis_benchmark: CIS Microsoft SQL Server 2022 v1.2.0
+cis_section: '3'
+
+rules:
+
+  - rule_id: sql_server.cis.3.server_authentication_property_is_set_to_windows
+    title: "Ensure 'Server Authentication' Property is set to 'Windows Authentication Mode'"
+    severity: high
+    automation_type: automated
+    cis_control: '3.1'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: sql_server.section_3.server_authentication_property_is_set_to_windows
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Perform either the GUI or T-SQL method shown: GUI Method 1. Open SQL Server
+      Management Studio . 2. Open the Object Explorer tab and connect to the target
+      SQL Server instance. 3. Right click the instance name and select Properties .
+      4. Select the Security page from the left menu. 5. Set the Server
+      authentication setting to Windows Authentication Mode . T-SQL Method Run the
+      following T-SQL in a Query Window: USE [master] GO EXEC xp_instance_regwrite
+      N'HKEY_LOCAL_MACHINE', N'Software\Microsoft\MSSQLServer\MSSQLServer',
+      N'LoginMode', REG_DWORD, 1 GO Restart the SQL Server service for the change to
+      take effect. Default Value: Windows Authentication Mode References: 1.
+      https://learn.microsoft.com/en-us/sql/database-engine/configure-
+      windows/server- properties-security-page
+    compliance:
+      - cis_sql_server_2022_v1_2_0_3_1
+
+  - rule_id: sql_server.cis.3.connect_permissions_on_the_guest_user_is_revoked
+    title: "Ensure CONNECT permissions on the 'guest' user is Revoked within all SQL Server databases"
+    severity: high
+    automation_type: automated
+    cis_control: '3.2'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: sql_server.section_3.connect_permissions_on_the_guest_user_is_revoked
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      The following code snippet revokes CONNECT permissions from the guest user in
+      a database. Replace <database_name> as appropriate: USE <database_name>; GO
+      REVOKE CONNECT FROM guest; Default Value: The guest user cannot have the
+      CONNECT permission revoked in master, msdb, tempdb, and, on AWS RDS instances,
+      rdsadmin; however, this permission should be revoked in all other databases on
+      the SQL Server instance. References: 1. https://learn.microsoft.com/en-
+      us/sql/relational-databases/policy-based- management/guest-permissions-on-
+      user-databases Additional Information: The guest user cannot have the CONNECT
+      permission revoked in master, msdb and tempdb, but this permission should be
+      revoked in all other databases on the SQL Server instance.
+    compliance:
+      - cis_sql_server_2022_v1_2_0_3_2
+
+  - rule_id: sql_server.cis.3.sql_authentication_is_not_used_in_contained
+    title: "Ensure SQL Authentication is not used in contained databases"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: sql_server.section_3.sql_authentication_is_not_used_in_contained
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Leverage Windows Authenticated users in contained databases. Default Value:
+      SQL Authenticated users (USER WITH PASSWORD authentication) are allowed in
+      contained databases. References: 1. https://learn.microsoft.com/en-
+      us/sql/relational-databases/databases/security- best-practices-with-contained-
+      databases
+    compliance:
+      - cis_sql_server_2022_v1_2_0_3_4
+
+  - rule_id: sql_server.cis.3.membership_in_admin_roles_in_msdb_database_is
+    title: "Ensure membership in admin roles in MSDB database is limited"
+    severity: high
+    automation_type: automated
+    cis_control: '3.13'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: sql_server.section_3.membership_in_admin_roles_in_msdb_database_is
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "on"
+    remediation: >
+      USE [msdb] GO ALTER ROLE [db_owner] DROP MEMBER <username>; Default Value:
+      Default value is that only dbo user is member of db_owner role in MSDB
+      database References: 1. https://learn.microsoft.com/en-us/sql/relational-
+      databases/security/trustworthy- database-property?view=sql-server-ver16
+    compliance:
+      - cis_sql_server_2022_v1_2_0_3_13
+
+

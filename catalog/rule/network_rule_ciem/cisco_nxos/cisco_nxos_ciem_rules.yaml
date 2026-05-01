@@ -1,0 +1,63 @@
+# Cisco NX-OS — CIEM Detection Rules
+# Real-time authentication & access event analysis
+# Log source: syslog / NX-API
+
+tech_type: cisco_nxos
+category: network
+log_source: syslog / NX-API
+
+rules:
+  - rule_id: tciem.cisco_nxos.brute_force_login
+    title: "Detect brute force login attempts"
+    severity: high
+    mitre_technique: T1110
+    mitre_tactic: credential_access
+    detection:
+      event_type: authentication_failure
+      threshold: 5
+      window_seconds: 300
+      group_by: [source_ip, username]
+    evidence_fields: [source_ip, username, failure_count, first_attempt, last_attempt]
+    response: alert
+
+  - rule_id: tciem.cisco_nxos.successful_login_after_failures
+    title: "Detect successful login after repeated failures (possible credential stuffing)"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    detection:
+      event_type: authentication_success
+      preceded_by:
+        event_type: authentication_failure
+        min_count: 3
+        window_seconds: 600
+      group_by: [source_ip, username]
+    evidence_fields: [source_ip, username, failure_count, success_time]
+    response: alert
+
+  - rule_id: tciem.cisco_nxos.admin_privilege_grant
+    title: "Detect privilege escalation or admin role grant"
+    severity: critical
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION]
+        target_privilege_in: [admin, superuser, root, DBA, wheel]
+    evidence_fields: [actor, target_user, privilege_granted, timestamp]
+    response: alert
+
+  - rule_id: tciem.cisco_nxos.off_hours_access
+    title: "Detect access outside business hours (22:00–06:00 UTC)"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    detection:
+      event_type: authentication_success
+      time_condition:
+        utc_hour_not_in: [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]
+      filters:
+        account_type: human
+    evidence_fields: [username, source_ip, login_time_utc]
+    response: alert

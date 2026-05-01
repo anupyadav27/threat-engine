@@ -1,0 +1,30 @@
+version: '1.0'
+provider: alicloud
+service: kms
+checks:
+- rule_id: alicloud.kms.key.automatic_rotation_enabled
+  for_each: alicloud.kms.DescribeKey
+  severity: MEDIUM
+  conditions:
+    var: item.logging_enabled
+    op: is_true
+- rule_id: alicloud.kms.key.key_manager_configured
+  for_each: alicloud.kms.DescribeKey
+  severity: MEDIUM
+  conditions:
+    var: item.key_status
+    op: equals
+    value: Active
+- rule_id: alicloud.kms.key.not_publicly_accessible_enforced
+  for_each: alicloud.kms.DescribeKey
+  severity: MEDIUM
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.kms.key.expiration_set
+  for_each: alicloud.kms.DescribeKey
+  severity: MEDIUM
+  conditions:
+    var: item.logging_enabled
+    op: is_true

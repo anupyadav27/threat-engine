@@ -22,7 +22,7 @@ compliance_scan_id (PK), tenant_id, scan_run_id, cloud, trigger_type (NOT NULL!)
 
 ## Your API
 - **Port**: 8000 (container 8010)
-- **Scan trigger**: POST /api/v1/scan `{orchestration_id, scan_run_id, tenant_id, csp}`
+- **Scan trigger**: POST /api/v1/scan `{scan_run_id, tenant_id, csp}`
 - **Frameworks**: GET /api/v1/compliance/frameworks
 - **Framework detail**: GET /api/v1/compliance/framework/{framework}/detailed?tenant_id=X
 
@@ -36,13 +36,13 @@ compliance_scan_id (PK), tenant_id, scan_run_id, cloud, trigger_type (NOT NULL!)
 
 ## Full Stack (UI → BFF → API → DB)
 - **UI pages**:
-  - `/compliance` → `ui_samples/src/app/compliance/page.jsx` (framework matrix)
+  - `/compliance` → `frontend/src/app/compliance/page.jsx` (framework matrix)
   - Also contributes to `/dashboard` KPIs
 - **BFF file**: `shared/api_gateway/bff/compliance.py` → `GET /api/v1/views/compliance`
 - **BFF calls**: compliance `/api/v1/compliance/ui-data`
 - **Engine code**: `engines/compliance/`
 - **K8s manifest**: `deployment/aws/eks/engines/engine-compliance.yaml`
-- **Image**: `yadavanup84/threat-engine-compliance-engine:v-uid-fix`
+- **Image**: `yadavanup84/threat-engine-compliance-engine:v-std-cols`
 
 ## Pipeline Dependencies
 ```

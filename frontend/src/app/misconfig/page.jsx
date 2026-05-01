@@ -13,9 +13,8 @@ import {
   Download, FileSpreadsheet, RefreshCw, ArrowRight,
   Zap, Clock, AlertOctagon, TrendingUp, TrendingDown, Layers,
 } from 'lucide-react';
-import { useGlobalFilter } from '@/lib/global-filter-context';
 import { SEVERITY_COLORS, CLOUD_PROVIDERS } from '@/lib/constants';
-import { fetchView } from '@/lib/api';
+import { useViewFetch } from '@/lib/use-view-fetch';
 import PageLayout from '@/components/shared/PageLayout';
 import InsightRow from '@/components/shared/InsightRow';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
@@ -38,63 +37,6 @@ const C = {
   cyan:     '#06b6d4',
 };
 
-// ── Dummy / seed data ─────────────────────────────────────────────────────────
-const POSTURE_SCAN_TREND = [
-  { date: 'Jan 6',  passRate: 58, critical: 12, high: 22, medium: 18, total: 65 },
-  { date: 'Jan 13', passRate: 61, critical: 11, high: 21, medium: 16, total: 61 },
-  { date: 'Jan 20', passRate: 64, critical: 10, high: 19, medium: 15, total: 56 },
-  { date: 'Jan 27', passRate: 66, critical:  9, high: 18, medium: 14, total: 52 },
-  { date: 'Feb 3',  passRate: 69, critical:  8, high: 17, medium: 13, total: 48 },
-  { date: 'Feb 10', passRate: 71, critical:  7, high: 16, medium: 12, total: 44 },
-  { date: 'Feb 17', passRate: 73, critical:  7, high: 15, medium: 11, total: 42 },
-  { date: 'Mar 3',  passRate: 75, critical:  6, high: 15, medium: 10, total: 39 },
-];
-
-const POSTURE_BY_CATEGORY = [
-  { category: 'IAM Security',       fail: 9,  total: 18, color: C.medium   },
-  { category: 'Network Security',   fail: 3,  total:  8, color: C.indigo   },
-  { category: 'Data Security',      fail: 7,  total: 12, color: C.cyan     },
-  { category: 'Encryption',         fail: 4,  total: 15, color: C.purple   },
-  { category: 'Database Security',  fail: 6,  total: 10, color: C.teal     },
-  { category: 'Container Security', fail: 5,  total: 14, color: C.high     },
-];
-
-const MISCONFIG_SPARKLINES = {
-  pass_rate:       [58, 61, 64, 66, 69, 71, 73, 75],
-  services:        [28, 28, 27, 27, 26, 26, 25, 25],
-  auto_remediable: [5, 5, 6, 6, 7, 7, 8, 8],
-  sla_breached:    [14, 13, 12, 11, 10, 9, 8, 7],
-  avg_age:         [48, 47, 46, 45, 44, 43, 42, 41],
-  new_this_scan:   [8, 7, 6, 6, 5, 5, 4, 3],
-};
-
-const POSTURE_FINDINGS_MOCK = [
-  { rule_id: 'aws.s3.encryption.default',       title: 'S3 bucket default encryption not enabled',             severity: 'critical', status: 'FAIL', service: 's3',         provider: 'aws', account_id: '198765432109', region: 'us-east-1',  age_days: 45,  auto_remediable: true,  resource_uid: 'arn:aws:s3:::prod-data-bucket',                              posture_category: 'encryption',     risk_score: 88, sla_status: 'breached' },
-  { rule_id: 'aws.s3.public_access_block',      title: 'S3 public access block not configured',                severity: 'critical', status: 'FAIL', service: 's3',         provider: 'aws', account_id: '588989875114', region: 'ap-south-1', age_days: 30,  auto_remediable: true,  resource_uid: 'arn:aws:s3:::staging-assets',                               posture_category: 'public_access',  risk_score: 92, sla_status: 'active'   },
-  { rule_id: 'aws.s3.versioning',               title: 'S3 bucket versioning not enabled',                     severity: 'high',     status: 'PASS', service: 's3',         provider: 'aws', account_id: '198765432109', region: 'ap-south-1', age_days: 12,  auto_remediable: true,  resource_uid: 'arn:aws:s3:::backup-store',                                  posture_category: 'backup',         risk_score: 62, sla_status: 'active'   },
-  { rule_id: 'aws.s3.logging',                  title: 'S3 bucket server access logging disabled',             severity: 'high',     status: 'FAIL', service: 's3',         provider: 'aws', account_id: '312456789012', region: 'eu-west-1',  age_days: 67,  auto_remediable: false, resource_uid: 'arn:aws:s3:::eu-logs-bucket',                                posture_category: 'logging',        risk_score: 71, sla_status: 'breached' },
-  { rule_id: 'aws.iam.mfa_console',             title: 'IAM user with console access missing MFA',             severity: 'medium',   status: 'FAIL', service: 'iam',        provider: 'aws', account_id: '588989875114', region: 'global',     age_days: 23,  auto_remediable: false, resource_uid: 'arn:aws:iam::588989875114:user/john.doe',                    posture_category: 'access_control', risk_score: 55, sla_status: 'active'   },
-  { rule_id: 'aws.iam.password_policy',         title: 'IAM password policy minimum length below 14 characters', severity: 'critical', status: 'FAIL', service: 'iam',      provider: 'aws', account_id: '198765432109', region: 'global',     age_days: 89,  auto_remediable: false, resource_uid: 'arn:aws:iam::198765432109:root',                             posture_category: 'access_control', risk_score: 80, sla_status: 'breached' },
-  { rule_id: 'aws.iam.access_key_rotation',     title: 'IAM access key not rotated in 90+ days',               severity: 'high',     status: 'FAIL', service: 'iam',        provider: 'aws', account_id: '588989875114', region: 'global',     age_days: 102, auto_remediable: false, resource_uid: 'arn:aws:iam::588989875114:user/admin',                       posture_category: 'access_control', risk_score: 75, sla_status: 'breached' },
-  { rule_id: 'aws.iam.admin_policy',            title: 'IAM policy grants full administrative privileges (*:*)', severity: 'medium',   status: 'FAIL', service: 'iam',       provider: 'aws', account_id: '198765432109', region: 'global',     age_days: 15,  auto_remediable: false, resource_uid: 'arn:aws:iam::198765432109:policy/AdminAccess',               posture_category: 'access_control', risk_score: 68, sla_status: 'active'   },
-  { rule_id: 'aws.ec2.sg_open_ssh',             title: 'Security group allows unrestricted SSH (port 22)',      severity: 'critical', status: 'FAIL', service: 'ec2',        provider: 'aws', account_id: '312456789012', region: 'eu-west-1',  age_days: 34,  auto_remediable: true,  resource_uid: 'arn:aws:ec2:eu-west-1:312456789012:security-group/sg-0abc1', posture_category: 'network',        risk_score: 91, sla_status: 'breached' },
-  { rule_id: 'aws.ec2.sg_open_rdp',            title: 'Security group allows unrestricted RDP (port 3389)',    severity: 'critical', status: 'FAIL', service: 'ec2',        provider: 'aws', account_id: '312456789012', region: 'eu-west-1',  age_days: 34,  auto_remediable: true,  resource_uid: 'arn:aws:ec2:eu-west-1:312456789012:security-group/sg-0abc2', posture_category: 'network',        risk_score: 94, sla_status: 'active'   },
-  { rule_id: 'aws.cloudtrail.enabled',          title: 'CloudTrail trail not enabled in all regions',          severity: 'high',     status: 'FAIL', service: 'cloudtrail', provider: 'aws', account_id: '198765432109', region: 'ap-south-1', age_days: 8,   auto_remediable: true,  resource_uid: 'arn:aws:cloudtrail:ap-south-1:198765432109:trail/default',    posture_category: 'logging',        risk_score: 78, sla_status: 'active'   },
-  { rule_id: 'aws.rds.encryption',              title: 'RDS instance not encrypted at rest',                   severity: 'high',     status: 'FAIL', service: 'rds',        provider: 'aws', account_id: '588989875114', region: 'us-east-1',  age_days: 56,  auto_remediable: false, resource_uid: 'arn:aws:rds:us-east-1:588989875114:db:prod-mysql',           posture_category: 'encryption',     risk_score: 83, sla_status: 'breached' },
-  { rule_id: 'aws.rds.backup_retention',        title: 'RDS automated backup retention less than 7 days',      severity: 'medium',   status: 'FAIL', service: 'rds',        provider: 'aws', account_id: '312456789012', region: 'us-east-1',  age_days: 21,  auto_remediable: false, resource_uid: 'arn:aws:rds:us-east-1:312456789012:db:analytics-pg',         posture_category: 'backup',         risk_score: 58, sla_status: 'active'   },
-  { rule_id: 'aws.rds.public_access',           title: 'RDS instance is publicly accessible',                  severity: 'critical', status: 'FAIL', service: 'rds',        provider: 'aws', account_id: '198765432109', region: 'us-east-1',  age_days: 18,  auto_remediable: false, resource_uid: 'arn:aws:rds:us-east-1:198765432109:db:dev-reporting',        posture_category: 'public_access',  risk_score: 96, sla_status: 'active'   },
-  { rule_id: 'aws.lambda.env_encrypted',        title: 'Lambda environment variables not encrypted with KMS',  severity: 'medium',   status: 'FAIL', service: 'lambda',     provider: 'aws', account_id: '198765432109', region: 'us-east-1',  age_days: 4,   auto_remediable: false, resource_uid: 'arn:aws:lambda:us-east-1:198765432109:function:api-handler', posture_category: 'encryption',     risk_score: 52, sla_status: 'active'   },
-  { rule_id: 'aws.kms.key_rotation',            title: 'KMS CMK automatic key rotation not enabled',           severity: 'medium',   status: 'FAIL', service: 'kms',        provider: 'aws', account_id: '588989875114', region: 'us-east-1',  age_days: 120, auto_remediable: true,  resource_uid: 'arn:aws:kms:us-east-1:588989875114:key/abc-123',             posture_category: 'key_management', risk_score: 61, sla_status: 'breached' },
-  { rule_id: 'aws.ec2.ebs_encryption',          title: 'EBS volume not encrypted',                             severity: 'high',     status: 'FAIL', service: 'ec2',        provider: 'aws', account_id: '198765432109', region: 'eu-west-1',  age_days: 44,  auto_remediable: false, resource_uid: 'arn:aws:ec2:eu-west-1:198765432109:volume/vol-0abc5',        posture_category: 'encryption',     risk_score: 70, sla_status: 'breached' },
-  { rule_id: 'aws.iam.root_access_key',         title: 'Root account access key exists',                       severity: 'critical', status: 'FAIL', service: 'iam',        provider: 'aws', account_id: '312456789012', region: 'global',     age_days: 200, auto_remediable: false, resource_uid: 'arn:aws:iam::312456789012:root',                             posture_category: 'access_control', risk_score: 98, sla_status: 'breached' },
-  { rule_id: 'aws.sns.encryption',              title: 'SNS topic not encrypted with KMS',                     severity: 'low',      status: 'FAIL', service: 'sns',        provider: 'aws', account_id: '588989875114', region: 'us-east-1',  age_days: 6,   auto_remediable: true,  resource_uid: 'arn:aws:sns:us-east-1:588989875114:alerts-topic',            posture_category: 'encryption',     risk_score: 35, sla_status: 'active'   },
-  { rule_id: 'aws.dynamodb.encryption',         title: 'DynamoDB table not encrypted with customer-managed key', severity: 'low',    status: 'FAIL', service: 'dynamodb',   provider: 'aws', account_id: '198765432109', region: 'us-east-1',  age_days: 9,   auto_remediable: false, resource_uid: 'arn:aws:dynamodb:us-east-1:198765432109:table/users',        posture_category: 'encryption',     risk_score: 40, sla_status: 'active'   },
-  { rule_id: 'aws.ec2.instance_metadata_v2',    title: 'EC2 instance metadata service v2 not enforced',        severity: 'medium',   status: 'PASS', service: 'ec2',        provider: 'aws', account_id: '312456789012', region: 'us-east-1',  age_days: 3,   auto_remediable: true,  resource_uid: 'arn:aws:ec2:us-east-1:312456789012:instance/i-0abc9',        posture_category: 'configuration',  risk_score: 48, sla_status: 'active'   },
-  { rule_id: 'aws.vpc.flow_logs',               title: 'VPC flow logs not enabled',                            severity: 'medium',   status: 'FAIL', service: 'vpc',        provider: 'aws', account_id: '198765432109', region: 'us-east-1',  age_days: 55,  auto_remediable: false, resource_uid: 'arn:aws:ec2:us-east-1:198765432109:vpc/vpc-0abc1',          posture_category: 'logging',        risk_score: 60, sla_status: 'breached' },
-  { rule_id: 'aws.guardduty.enabled',           title: 'GuardDuty not enabled in region',                      severity: 'high',     status: 'FAIL', service: 'guardduty',  provider: 'aws', account_id: '312456789012', region: 'ap-south-1', age_days: 77,  auto_remediable: true,  resource_uid: 'arn:aws:guardduty:ap-south-1:312456789012:detector',         posture_category: 'threat_detection', risk_score: 82, sla_status: 'breached' },
-  { rule_id: 'aws.config.recorder',             title: 'AWS Config recorder not enabled',                      severity: 'medium',   status: 'FAIL', service: 'config',     provider: 'aws', account_id: '588989875114', region: 'eu-west-1',  age_days: 33,  auto_remediable: false, resource_uid: 'arn:aws:config:eu-west-1:588989875114:config-recorder',      posture_category: 'logging',        risk_score: 63, sla_status: 'active'   },
-  { rule_id: 'aws.ecr.image_scan',              title: 'ECR repository image scanning on push not enabled',    severity: 'low',      status: 'PASS', service: 'ecr',        provider: 'aws', account_id: '198765432109', region: 'us-east-1',  age_days: 2,   auto_remediable: true,  resource_uid: 'arn:aws:ecr:us-east-1:198765432109:repository/api',          posture_category: 'configuration',  risk_score: 30, sla_status: 'active'   },
-];
 
 // ── Severity Donut (mirrors InvDonut from inventory) ────────────────────────
 function PosDonut({ slices, size = 200 }) {
@@ -677,19 +619,16 @@ function ServiceBreakdownChart({ byService }) {
 
 // ── Posture Trend Chart ──────────────────────────────────────────────────────
 
-// Scan tick labels shared by both trend sparklines
-const SCAN_TICKS = [
-  { idx: 0, label: POSTURE_SCAN_TREND[0].date },
-  { idx: POSTURE_SCAN_TREND.length - 1, label: POSTURE_SCAN_TREND[POSTURE_SCAN_TREND.length - 1].date },
-];
-
-function PostureTrendChart({ data = POSTURE_SCAN_TREND }) {
+function PostureTrendChart({ data = [] }) {
+  if (!data || data.length === 0) {
+    return <div className="text-sm text-center py-8" style={{ color: 'var(--text-muted)' }}>No trend data yet</div>;
+  }
   const last  = data[data.length - 1];
   const first = data[0];
-  const rateΔ  = last.passRate - first.passRate;
-  const critΔ  = last.critical - first.critical;
-  const highΔ  = last.high     - first.high;
-  const totalΔ = last.total    - first.total;
+  const rateΔ  = (last.passRate ?? 0) - (first.passRate ?? 0);
+  const critΔ  = (last.critical ?? 0) - (first.critical ?? 0);
+  const highΔ  = (last.high ?? 0)     - (first.high ?? 0);
+  const totalΔ = (last.total ?? 0)    - (first.total ?? 0);
 
   const statPill = (label, value, delta, goodDir) => {
     const improved = goodDir === 'up' ? delta >= 0 : delta <= 0;
@@ -879,18 +818,21 @@ function PostureTrendChart({ data = POSTURE_SCAN_TREND }) {
 // ── By-Category Radar Chart ──────────────────────────────────────────────────
 
 
-function ByCategoryChart({ data = POSTURE_BY_CATEGORY }) {
+function ByCategoryChart({ data = [] }) {
+  if (!data || data.length === 0) {
+    return <div className="text-sm text-center py-8" style={{ color: 'var(--text-muted)' }}>No category data yet</div>;
+  }
   const radarData = data.map(cat => ({
     subject:   cat.category,
-    passScore: Math.round(((cat.total - cat.fail) / cat.total) * 100),
+    passScore: cat.total > 0 ? Math.round(((cat.total - cat.fail) / cat.total) * 100) : 0,
     target:    80,
     _cat:      cat,
   }));
 
-  const overallPass = Math.round(
-    (data.reduce((s, d) => s + (d.total - d.fail), 0) /
-     data.reduce((s, d) => s + d.total, 0)) * 100
-  );
+  const totalSum = data.reduce((s, d) => s + d.total, 0);
+  const overallPass = totalSum > 0
+    ? Math.round((data.reduce((s, d) => s + (d.total - d.fail), 0) / totalSum) * 100)
+    : 0;
 
   const RadarTooltip = ({ active, payload }) => {
     if (!active || !payload?.length) return null;
@@ -1027,7 +969,7 @@ function ByCategoryChart({ data = POSTURE_BY_CATEGORY }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px', marginTop: 10,
         paddingTop: 10, borderTop: '1px solid var(--border-primary)' }}>
         {data.map(cat => {
-          const pct = Math.round(((cat.total - cat.fail) / cat.total) * 100);
+          const pct = cat.total > 0 ? Math.round(((cat.total - cat.fail) / cat.total) * 100) : 0;
           const col = pct >= 70 ? C.clean : pct >= 50 ? C.medium : C.critical;
           return (
             <div key={cat.category} style={{ display: 'flex', alignItems: 'center',
@@ -1115,91 +1057,41 @@ function QuickWinsPanel({ findings }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function MisconfigurationsPage() {
-  const { provider: globalProvider, account: globalAccount, region: globalRegion } = useGlobalFilter();
-
-  // Data state
-  const [loading, setLoading] = useState(true);
-  const [allFindings, setAllFindings] = useState([]);
-  const [summary, setSummary] = useState(null);
-  const [error, setError] = useState(null);
+  const { data: rawData, loading, error, refetch } = useViewFetch('misconfig');
   const [exporting, setExporting] = useState(false);
-  const [scanTrendData, setScanTrendData] = useState([]);
-
-  // Detail panel
   const [selectedFinding, setSelectedFinding] = useState(null);
 
-  // ── Fetch ─────────────────────────────────────────────────────────────
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await fetchView('misconfig', {
-        provider: globalProvider ? globalProvider.toLowerCase() : undefined,
-        account: globalAccount || undefined,
-        region: globalRegion || undefined,
-      });
-      if (data.error) {
-        setError(data.error);
-        setLoading(false);
-        return;
-      }
+  const allFindings = useMemo(() => (rawData.findings || []).map(f => ({
+    ...f,
+    account_id: f.account_id || '',
+    resource_uid: f.resource_id || f.resource_uid || '',
+    title: f.title || f.rule_name || f.rule_id || '',
+    created_at: f.detected_at || f.created_at || '',
+  })), [rawData.findings]);
 
-      const kpi = data.kpi || {};
+  const summary = useMemo(() => {
+    const kpi = rawData.kpi;
+    if (!kpi) return null;
+    const ruleCounts = {};
+    allFindings.forEach(f => {
+      const key = f.rule_id || f.title;
+      if (!ruleCounts[key]) ruleCounts[key] = { rule_id: f.rule_id, title: f.title, severity: f.severity, count: 0 };
+      ruleCounts[key].count++;
+    });
+    const topRules = Object.values(ruleCounts).sort((a, b) => b.count - a.count).slice(0, 10);
+    const byServiceList = Object.entries(rawData.byService || {}).map(([service, count]) => ({
+      service, total: count, fail: count,
+    })).sort((a, b) => b.total - a.total);
+    return {
+      total: kpi.total || 0,
+      severity_counts: { critical: kpi.critical || 0, high: kpi.high || 0, medium: kpi.medium || 0, low: kpi.low || 0 },
+      status_counts: { FAIL: kpi.failed || 0, PASS: kpi.passed || 0 },
+      top_rules: topRules,
+      by_service: byServiceList,
+    };
+  }, [rawData.kpi, rawData.byService, allFindings]);
 
-      // Process findings
-      const processed = (data.findings || []).map(f => ({
-        ...f,
-        account_id: f.account_id || '',
-        resource_uid: f.resource_id || f.resource_uid || '',
-        title: f.title || f.rule_name || f.rule_id || '',
-        created_at: f.detected_at || f.created_at || '',
-      }));
-
-      // Derive top_rules
-      const ruleCounts = {};
-      processed.forEach(f => {
-        const key = f.rule_id || f.title;
-        if (!ruleCounts[key]) ruleCounts[key] = { rule_id: f.rule_id, title: f.title, severity: f.severity, count: 0 };
-        ruleCounts[key].count++;
-      });
-      const topRules = Object.values(ruleCounts).sort((a, b) => b.count - a.count).slice(0, 10);
-
-      // Derive by_service
-      const byServiceList = Object.entries(data.byService || {}).map(([service, count]) => ({
-        service,
-        total: count,
-        fail: count,
-      })).sort((a, b) => b.total - a.total);
-
-      setSummary({
-        total: kpi.total || 0,
-        severity_counts: {
-          critical: kpi.critical || 0,
-          high: kpi.high || 0,
-          medium: kpi.medium || 0,
-          low: kpi.low || 0,
-        },
-        status_counts: {
-          FAIL: kpi.failed || 0,
-          PASS: kpi.passed || 0,
-        },
-        top_rules: topRules,
-        by_service: byServiceList,
-      });
-
-      if (data.scanTrend) setScanTrendData(data.scanTrend);
-
-      // Fall back to mock findings when API returns nothing
-      setAllFindings(processed.length > 0 ? processed : POSTURE_FINDINGS_MOCK);
-    } catch (err) {
-      console.warn('[misconfig] fetch error — using mock data:', err);
-      setAllFindings(POSTURE_FINDINGS_MOCK);
-    } finally {
-      setLoading(false);
-    }
-  }, [globalProvider, globalAccount, globalRegion]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const scanTrendData = rawData.scanTrend || [];
 
   // ── Derived data ──────────────────────────────────────────────────────
   const sevCounts = summary?.severity_counts || { critical: 0, high: 0, medium: 0, low: 0 };
@@ -1395,13 +1287,12 @@ export default function MisconfigurationsPage() {
     },
   ], [sevCounts, totalFindings, statusCounts]);
 
-  // ── Active scan trend: live from BFF or static fallback ──────────────
   const activeScanTrend = useMemo(
     () => {
-      if (scanTrendData?.length >= 2) {
+      if (scanTrendData?.length >= 1) {
         return scanTrendData.map(d => ({ ...d, passRate: d.pass_rate ?? d.passRate ?? 0 }));
       }
-      return POSTURE_SCAN_TREND;
+      return [];
     },
     [scanTrendData],
   );
@@ -1450,7 +1341,7 @@ export default function MisconfigurationsPage() {
       { label: 'Auto-Remediable',   value: autoCount,        accent: C.sky,      sub: 'Fix with 1-click · quick wins',                 sparkData: sparkAR,   delta: sparkAR[sparkAR.length - 1]     - sparkAR[0],   deltaGood: 'up'   },
       { label: 'SLA Breached',      value: slaCount,         accent: C.critical, sub: 'Overdue · require immediate action',             sparkData: sparkSLAB, delta: sparkSLAB[sparkSLAB.length - 1] - sparkSLAB[0], deltaGood: 'down' },
       { label: 'Avg Finding Age',   value: `${avgAge}d`,     accent: C.slate,    sub: 'Days since first detection',                    sparkData: sparkAA,   delta: sparkAA[sparkAA.length - 1]     - sparkAA[0],   deltaGood: 'down' },
-      { label: 'New This Scan',     value: activeScanTrend[activeScanTrend.length-1].total - activeScanTrend[activeScanTrend.length-2].total, accent: C.medium, sub: 'Change vs previous scan', sparkData: sparkNTS, delta: null, deltaGood: 'down' },
+      { label: 'New This Scan',     value: activeScanTrend.length >= 2 ? activeScanTrend[activeScanTrend.length-1].total - activeScanTrend[activeScanTrend.length-2].total : 0, accent: C.medium, sub: 'Change vs previous scan', sparkData: sparkNTS, delta: null, deltaGood: 'down' },
     ];
 
     // ── Right donut slices: severity breakdown of FAILED findings ──
@@ -1594,7 +1485,7 @@ export default function MisconfigurationsPage() {
             style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}>
             <Download className="w-3.5 h-3.5" /> PDF
           </button>
-          <button onClick={fetchData}
+          <button onClick={refetch}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-opacity hover:opacity-80"
             style={{ backgroundColor: 'var(--accent-primary)', color: '#fff' }}>
             <RefreshCw className="w-3.5 h-3.5" /> Refresh

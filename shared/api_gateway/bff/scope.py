@@ -7,7 +7,7 @@ appears at the top of every page.
 
 from typing import Optional, Dict, Any, List
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
 from ._shared import fetch_many, safe_get
 
@@ -16,12 +16,16 @@ router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
 @router.get("/scope")
 async def view_scope(
+    request: Request,
     tenant_id: Optional[str] = Query(None),
 ):
     """Global scope context for the top-of-page selector bar."""
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
     results = await fetch_many([
         ("onboarding", "/api/v1/cloud-accounts", {"tenant_id": tenant_id} if tenant_id else {}),
-    ])
+    ], auth_headers=fwd_headers)
 
     accounts_raw = results[0] or []
     if isinstance(accounts_raw, dict):

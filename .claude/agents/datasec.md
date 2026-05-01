@@ -19,7 +19,7 @@ id, datasec_scan_id, tenant_id, finding_id, rule_id, severity, resource_uid, res
 
 ## Your API
 - **Port**: 8004
-- **Scan trigger**: POST /api/v1/scan `{orchestration_id, scan_run_id, tenant_id, csp}`
+- **Scan trigger**: POST /api/v1/scan `{scan_run_id, tenant_id, csp}`
 
 ## Key Facts
 - 62 data security rules
@@ -29,12 +29,12 @@ id, datasec_scan_id, tenant_id, finding_id, rule_id, severity, resource_uid, res
 - Dockerfile paths: engines/datasec/ → /app/engine_datasec/
 
 ## Full Stack (UI → BFF → API → DB)
-- **UI page**: `/datasec` → `ui_samples/src/app/datasec/page.jsx`
+- **UI page**: `/datasec` → `frontend/src/app/datasec/page.jsx`
 - **BFF file**: `shared/api_gateway/bff/datasec.py` → `GET /api/v1/views/datasec`
 - **BFF calls**: datasec `/api/v1/data-security/ui-data`
 - **Engine code**: `engines/datasec/`
 - **K8s manifest**: `deployment/aws/eks/engines/engine-datasec.yaml`
-- **Image**: `yadavanup84/engine-datasec:v2-latest-scan`
+- **Image**: `yadavanup84/engine-datasec:v-schema-fix3`
 
 ## Pipeline Dependencies
 ```

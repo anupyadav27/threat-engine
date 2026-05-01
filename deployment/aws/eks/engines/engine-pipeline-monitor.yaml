@@ -1,0 +1,213 @@
+# ============================================================================
+# Pipeline Monitor Engine K8s Manifest
+# Always-on Deployment — Port 8012 (container) / 80 (service)
+# Provides real-time pipeline status (SSE) + CloudWatch Insights admin endpoints
+# ============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: engine-pipeline-monitor
+  namespace: threat-engine-engines
+  labels:
+    app: engine-pipeline-monitor
+    engine: pipeline-monitor
+    tier: observability
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: engine-pipeline-monitor
+  template:
+    metadata:
+      labels:
+        app: engine-pipeline-monitor
+        engine: pipeline-monitor
+    spec:
+      serviceAccountName: engine-sa
+      containers:
+        - name: engine-pipeline-monitor
+          image: yadavanup84/engine-pipeline-monitor:v1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8012
+          envFrom:
+            - configMapRef:
+                name: threat-engine-db-config
+          env:
+            - name: PYTHONPATH
+              value: /app
+            - name: DB_SSLMODE
+              value: require
+            # AWS region for CloudWatch Logs Insights
+            - name: AWS_DEFAULT_REGION
+              value: ap-south-1
+            # CW log group names
+            - name: CW_ENGINES_LOG_GROUP
+              value: /threat-engine/engines
+            - name: CW_ARGO_LOG_GROUP
+              value: /threat-engine/argo
+            # Discoveries DB (scan_orchestration lives here)
+            - name: DISCOVERIES_DB_NAME
+              value: threat_engine_discoveries
+            - name: DISCOVERIES_DB_HOST
+              value: postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
+            - name: DISCOVERIES_DB_PORT
+              value: "5432"
+            - name: DISCOVERIES_DB_USER
+              value: postgres
+            - name: DISCOVERIES_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: DISCOVERIES_DB_PASSWORD
+            # Check DB
+            - name: CHECK_DB_NAME
+              value: threat_engine_check
+            - name: CHECK_DB_HOST
+              value: postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
+            - name: CHECK_DB_PORT
+              value: "5432"
+            - name: CHECK_DB_USER
+              value: postgres
+            - name: CHECK_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: CHECK_DB_PASSWORD
+            # Inventory DB
+            - name: INVENTORY_DB_NAME
+              value: threat_engine_inventory
+            - name: INVENTORY_DB_HOST
+              value: postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
+            - name: INVENTORY_DB_PORT
+              value: "5432"
+            - name: INVENTORY_DB_USER
+              value: postgres
+            - name: INVENTORY_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: INVENTORY_DB_PASSWORD
+            # Threat DB
+            - name: THREAT_DB_NAME
+              value: threat_engine_threat
+            - name: THREAT_DB_HOST
+              value: postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
+            - name: THREAT_DB_PORT
+              value: "5432"
+            - name: THREAT_DB_USER
+              value: postgres
+            - name: THREAT_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: THREAT_DB_PASSWORD
+            # Compliance DB
+            - name: COMPLIANCE_DB_NAME
+              value: threat_engine_compliance
+            - name: COMPLIANCE_DB_HOST
+              value: postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
+            - name: COMPLIANCE_DB_PORT
+              value: "5432"
+            - name: COMPLIANCE_DB_USER
+              value: postgres
+            - name: COMPLIANCE_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: COMPLIANCE_DB_PASSWORD
+            # IAM DB
+            - name: IAM_DB_NAME
+              value: threat_engine_iam
+            - name: IAM_DB_HOST
+              value: postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
+            - name: IAM_DB_PORT
+              value: "5432"
+            - name: IAM_DB_USER
+              value: postgres
+            - name: IAM_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: IAM_DB_PASSWORD
+            # DataSec DB
+            - name: DATASEC_DB_NAME
+              value: threat_engine_datasec
+            - name: DATASEC_DB_HOST
+              value: postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
+            - name: DATASEC_DB_PORT
+              value: "5432"
+            - name: DATASEC_DB_USER
+              value: postgres
+            - name: DATASEC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: DATASEC_DB_PASSWORD
+            # Network DB
+            - name: NETWORK_DB_NAME
+              value: threat_engine_network
+            - name: NETWORK_DB_HOST
+              value: postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
+            - name: NETWORK_DB_PORT
+              value: "5432"
+            - name: NETWORK_DB_USER
+              value: postgres
+            - name: NETWORK_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: NETWORK_DB_PASSWORD
+            # CIEM DB
+            - name: CIEM_DB_NAME
+              value: threat_engine_ciem
+            - name: CIEM_DB_HOST
+              value: postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
+            - name: CIEM_DB_PORT
+              value: "5432"
+            - name: CIEM_DB_USER
+              value: postgres
+            - name: CIEM_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: CIEM_DB_PASSWORD
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health/live
+              port: 8012
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health/ready
+              port: 8012
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      restartPolicy: Always
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: engine-pipeline-monitor
+  namespace: threat-engine-engines
+  labels:
+    app: engine-pipeline-monitor
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8012
+      protocol: TCP
+  selector:
+    app: engine-pipeline-monitor

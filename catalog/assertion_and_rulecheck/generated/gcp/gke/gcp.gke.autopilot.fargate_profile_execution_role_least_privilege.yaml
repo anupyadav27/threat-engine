@@ -1,0 +1,18 @@
+version: '1.0'
+rule_id: gcp.gke.autopilot.fargate_profile_execution_role_least_privilege
+for_each: gcp.gke.list_clusters
+severity: HIGH
+conditions:
+  all:
+  - var: item.Autopilot.Enabled
+    op: is_true
+  - var: item.SecurityConfig.WorkloadConfig
+    op: exists
+  - var: item.SecurityConfig.WorkloadConfig.ExecutionRole
+    op: exists
+  - var: item.SecurityConfig.WorkloadConfig.ExecutionRole.Policies[].PolicyName
+    op: not_contains
+    value: '*Admin*'
+  - var: item.SecurityConfig.WorkloadConfig.ExecutionRole.Policies[].PolicyName
+    op: not_contains
+    value: '*FullAccess*'

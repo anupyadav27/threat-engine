@@ -1,0 +1,54 @@
+# discoveries_only_check: 3 kept / 17 removed from 20 total
+# generated_from: step6_xray.discovery.yaml
+# purpose: only discoveries needed by xray.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: xray
+services:
+  client: xray
+  module: boto3.client
+discovery:
+- discovery_id: aws.xray.get_encryption_config
+  calls:
+  - action: get_encryption_config
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      EncryptionConfig: '{{ response.EncryptionConfig.EncryptionConfig }}'
+      Status: '{{ response.EncryptionConfig.Status }}'
+      KeyId: '{{ response.EncryptionConfig.KeyId }}'
+      Type: '{{ response.EncryptionConfig.Type }}'
+- discovery_id: aws.xray.get_sampling_rules
+  calls:
+  - action: get_sampling_rules
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.SamplingRuleRecords }}'
+    item:
+      CreatedAt: '{{ item.CreatedAt }}'
+      ModifiedAt: '{{ item.ModifiedAt }}'
+      SamplingRule: '{{ item.SamplingRule }}'
+      SamplingRuleRecords: '{{ item.SamplingRuleRecords }}'
+      RuleARN: '{{ item.SamplingRule.RuleARN }}'
+      ResourceARN: '{{ item.SamplingRule.ResourceARN }}'
+      RuleName: '{{ item.SamplingRule.RuleName }}'
+      ServiceName: '{{ item.SamplingRule.ServiceName }}'
+- discovery_id: aws.xray.get_sampling_statistic_summaries
+  calls:
+  - action: get_sampling_statistic_summaries
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.SamplingStatisticSummaries }}'
+    item:
+      BorrowCount: '{{ item.BorrowCount }}'
+      RequestCount: '{{ item.RequestCount }}'
+      RuleName: '{{ item.RuleName }}'
+      SampledCount: '{{ item.SampledCount }}'
+      SamplingStatisticSummaries: '{{ item.SamplingStatisticSummaries }}'
+      Timestamp: '{{ item.Timestamp }}'

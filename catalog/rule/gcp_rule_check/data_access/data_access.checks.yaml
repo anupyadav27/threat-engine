@@ -1,0 +1,72 @@
+version: '1.0'
+provider: gcp
+service: data_access
+checks:
+- rule_id: gcp.data_access.bucket_list
+  for_each: gcp.storage.list_buckets
+  severity: MEDIUM
+  conditions:
+    var: item.IamConfiguration.BucketPolicyOnly.Enabled
+    op: is_true
+    value: null
+- rule_id: gcp.data_access.bulk_download
+  for_each: gcp.iam.list_service_account_keys
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.KeyType
+      op: equals
+      value: USER_MANAGED
+    - var: item.ValidAfterTime
+      op: exists
+      value: null
+    - var: item.ValidBeforeTime
+      op: exists
+      value: null
+- rule_id: gcp.data_access.cross_project_access
+  for_each: gcp.data_access.list_iam_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.bindings[].members[]
+      op: not_contains
+      value: allUsers
+    - var: item.bindings[].members[]
+      op: not_contains
+      value: allAuthenticatedUsers
+- rule_id: gcp.data_access.large_egress
+  for_each: gcp.data_access.list_egress_events
+  severity: MEDIUM
+  conditions:
+    var: item.bytes_sent
+    op: lt
+    value: 1000000000
+- rule_id: gcp.data_access.object_acl_change
+  for_each: gcp.storage.list_buckets
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.iamConfiguration.uniformBucketLevelAccess.enabled
+      op: is_true
+      value: null
+    - var: item.acl
+      op: is_empty
+      value: null
+- rule_id: gcp.data_access.object_delete
+  for_each: gcp.storage.list_buckets
+  severity: MEDIUM
+  conditions:
+    var: item.IamConfiguration.BucketPolicyOnly.Enabled
+    op: is_true
+    value: null
+- rule_id: gcp.data_access.public_object_access
+  for_each: gcp.storage.list_buckets
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.iamConfiguration.uniformBucketLevelAccess.enabled
+      op: is_true
+      value: null
+    - var: item.iamConfiguration.uniformBucketLevelAccess.enabled
+      op: is_true
+      value: null

@@ -5,28 +5,15 @@ Writes container_sec_report, container_sec_findings, and container_sec_inventory
 tables to the threat_engine_container_security database.
 """
 
-import os
 import json
 import hashlib
 import logging
 from typing import Dict, Any, List
 from datetime import datetime, timezone
 
-import psycopg2
+from engine_common.db_connections import get_container_sec_conn
 
 logger = logging.getLogger(__name__)
-
-
-def _get_csec_conn():
-    """Get connection to the Container Security database."""
-    return psycopg2.connect(
-        host=os.getenv("CSEC_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("CSEC_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("CSEC_DB_NAME", "threat_engine_container_security"),
-        user=os.getenv("CSEC_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("CSEC_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-    )
 
 
 def generate_finding_id(rule_id: str, resource_uid: str, account_id: str, region: str) -> str:
@@ -54,7 +41,7 @@ def save_findings_to_db(
     Returns:
         Number of findings written.
     """
-    conn = _get_csec_conn()
+    conn = get_container_sec_conn()
     now = datetime.now(timezone.utc)
     count = 0
 
@@ -134,15 +121,20 @@ def save_findings_to_db(
                         resource_uid, resource_type,
                         container_service, security_domain,
                         severity, status, rule_id, finding_data,
+                        layer, layer_check, check_id,
                         first_seen_at, last_seen_at
                     )
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                            %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
+                            %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s)
                     ON CONFLICT (finding_id) DO UPDATE SET
+                        scan_run_id = EXCLUDED.scan_run_id,
                         last_seen_at = EXCLUDED.last_seen_at,
                         status = EXCLUDED.status,
                         severity = EXCLUDED.severity,
-                        finding_data = EXCLUDED.finding_data
+                        finding_data = EXCLUDED.finding_data,
+                        layer = EXCLUDED.layer,
+                        layer_check = EXCLUDED.layer_check,
+                        check_id = EXCLUDED.check_id
                 """, (
                     f["finding_id"],
                     scan_run_id,
@@ -160,6 +152,9 @@ def save_findings_to_db(
                     f["status"],
                     f.get("rule_id"),
                     json.dumps(f.get("finding_data", {}), default=str),
+                    f.get("layer"),
+                    f.get("layer_check"),
+                    f.get("check_id"),
                     now,
                     now,
                 ))
@@ -190,7 +185,7 @@ def save_container_inventory(
     Returns:
         Number of inventory entries written.
     """
-    conn = _get_csec_conn()
+    conn = get_container_sec_conn()
     count = 0
     try:
         with conn.cursor() as cur:
@@ -231,6 +226,104 @@ def save_container_inventory(
                 count += 1
         conn.commit()
         logger.info(f"Saved {count} container inventory entries for scan {scan_run_id}")
+        return count
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def save_cis_findings_to_db(
+    scan_run_id: str,
+    tenant_id: str,
+    provider: str,
+    cis_findings: List[Dict[str, Any]],
+    credential_ref: str = None,
+    credential_type: str = None,
+) -> int:
+    """Save CIS benchmark findings produced by cis_analyzer to container_sec_findings.
+
+    Args:
+        scan_run_id: Pipeline scan run identifier.
+        tenant_id: Tenant identifier.
+        provider: Cloud provider (aws|azure|gcp|oci|alicloud|k8s).
+        cis_findings: List of finding dicts from cis_analyzer.run_cis_analysis().
+        credential_ref: Optional credential reference.
+        credential_type: Optional credential type.
+
+    Returns:
+        Number of findings written.
+    """
+    if not cis_findings:
+        return 0
+
+    conn = get_container_sec_conn()
+    now = datetime.now(timezone.utc)
+    count = 0
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO tenants (tenant_id, tenant_name) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                (tenant_id, tenant_id),
+            )
+
+            for f in cis_findings:
+                cur.execute("""
+                    INSERT INTO container_sec_findings (
+                        finding_id, scan_run_id, tenant_id, account_id,
+                        credential_ref, credential_type, provider, region,
+                        resource_uid, resource_type,
+                        container_service, security_domain,
+                        severity, status, rule_id, finding_data,
+                        layer, layer_check, check_id,
+                        first_seen_at, last_seen_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                            %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s)
+                    ON CONFLICT (finding_id) DO UPDATE SET
+                        scan_run_id = EXCLUDED.scan_run_id,
+                        last_seen_at = EXCLUDED.last_seen_at,
+                        status = EXCLUDED.status,
+                        severity = EXCLUDED.severity,
+                        layer = EXCLUDED.layer,
+                        layer_check = EXCLUDED.layer_check,
+                        check_id = EXCLUDED.check_id
+                """, (
+                    f["finding_id"],
+                    scan_run_id,
+                    tenant_id,
+                    f.get("account_id"),
+                    credential_ref,
+                    credential_type,
+                    f.get("provider", provider),
+                    f.get("region"),
+                    f["resource_uid"],
+                    f["resource_type"],
+                    f.get("layer"),          # reuse layer as container_service for CIS findings
+                    f.get("layer"),          # reuse layer as security_domain for CIS findings
+                    f.get("severity", "HIGH"),
+                    f.get("status", "FAIL"),
+                    f.get("rule_id"),
+                    json.dumps({
+                        "title": f.get("title", ""),
+                        "blast_radius_score": 0,
+                        "layer": f.get("layer"),
+                        "check_id": f.get("check_id"),
+                    }, default=str),
+                    f.get("layer"),
+                    f.get("layer_check"),
+                    f.get("check_id"),
+                    f.get("first_seen_at", now),
+                    f.get("last_seen_at", now),
+                ))
+                count += 1
+
+        conn.commit()
+        logger.info(
+            "Saved %d CIS findings for provider=%s scan=%s", count, provider, scan_run_id
+        )
         return count
     except Exception:
         conn.rollback()

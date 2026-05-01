@@ -9,9 +9,10 @@ are filtered sub-views of the same check findings — split here by service.
 
 from typing import Optional, List
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
-from ._shared import fetch_many, fetch_all_check_findings, safe_get, mock_fallback, is_empty_or_health
+from ._shared import fetch_many, fetch_all_check_findings, safe_get, is_empty_or_health
+from ._cache import cache_key, cached_view, TTL_NETWORK, auth_level_from_header
 from ._transforms import apply_global_filters, normalize_check_finding
 from ._page_context import network_security_page_context, network_security_filter_schema
 
@@ -25,20 +26,44 @@ _SG_SVCS       = frozenset({'ec2'})
 
 
 def _classify(f: dict) -> str:
-    """Classify a check finding into a network sub-table."""
+    """Classify a check/network finding into a network sub-table."""
     svc  = (f.get('service')          or '').lower()
     rt   = (f.get('resource_type')    or '').lower().replace('-', '').replace('_', '')
     rule = (f.get('rule_id')          or '').lower()
     cat  = (f.get('posture_category') or '').lower()
+    layer = (f.get('network_layer')   or '').lower()
 
-    if svc in _WAF_SVCS or 'waf' in svc or 'shield' in svc:
+    # WAF / DDoS
+    if (svc in _WAF_SVCS or 'waf' in svc or 'shield' in svc
+            or 'waf' in rule or 'shield' in rule or 'firewall' in rule
+            or '.dos' in rule or 'networkfirewall' in rule or 'networkfirewall' in rt):
         return 'waf'
-    if svc in _TOPOLOGY_SVCS or 'vpc' in rule or 'flowlog' in rule:
+
+    # VPC / Topology
+    if (svc in _TOPOLOGY_SVCS or 'vpc' in rule or 'flowlog' in rule
+            or 'vcn' in rule or 'route_table' in rule or 'topology' in rule
+            or 'transit' in rule or 'directconnect' in rule
+            or 'vcn' in rt or 'routetable' in rt
+            or layer in ('network_isolation', 'network_reachability')):
         return 'topology'
-    if svc in _EXPOSURE_SVCS or 'public' in cat or 'exposure' in cat:
+
+    # Internet Exposure
+    if (svc in _EXPOSURE_SVCS or 'public' in cat or 'exposure' in cat
+            or 'public' in rule or 'internet' in rule or 'exposure' in rule
+            or 'ingress.tls' in rule or 'ingress.controller' in rule
+            or 'eip' in rule or 'publicip' in rt
+            or layer in ('load_balancer_security',)):
         return 'exposure'
-    if svc in _SG_SVCS and ('securitygroup' in rt or 'security_group' in rule or '.sg.' in rule or '_sg_' in rule):
+
+    # Security Groups / network ACLs
+    if (svc in _SG_SVCS
+            or 'securitygroup' in rt or 'security_group' in rule or '.sg.' in rule or '_sg_' in rule
+            or 'security_list' in rule or 'security_list' in rt
+            or 'network_policy' in rule or 'network.restrict' in rule
+            or 'nacl' in rule or 'networkacl' in rt
+            or layer in ('network_acl', 'security_group_rules')):
         return 'sg'
+
     return 'general'
 
 
@@ -77,6 +102,7 @@ def _check_findings_to_net_data(findings: List[dict]) -> dict:
 
 @router.get("/network-security")
 async def view_network_security(
+    request: Request,
     tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
@@ -85,12 +111,21 @@ async def view_network_security(
 ):
     """Single endpoint returning everything the network security page needs."""
 
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+    role_level = auth_level_from_header(auth_ctx_header)
+
+    ck = cache_key("network-security", tenant_id, scan_id, provider or "", account or "", region or "", role_level=role_level)
+    cached = cached_view(ck)
+    if cached is not None:
+        return cached
+
     results = await fetch_many([
         ("network", "/api/v1/network-security/ui-data", {
             "tenant_id": tenant_id,
             "scan_id": scan_id,
         }),
-    ])
+    ], auth_headers=fwd_headers)
 
     net_data = results[0]
     if not isinstance(net_data, dict):
@@ -102,15 +137,10 @@ async def view_network_security(
         check_raw = await fetch_all_check_findings({
             "tenant_id": tenant_id,
             "domain": "network_security_and_connectivity",
-        })
+        }, auth_headers=fwd_headers)
         if check_raw:
             normalized = [_enrich_for_ui(normalize_check_finding(f)) for f in check_raw]
             net_data = _check_findings_to_net_data(normalized)
-        else:
-            # Last resort: UI-level demo data
-            m = mock_fallback("network_security")
-            if m is not None:
-                return m
 
     summary = safe_get(net_data, "summary", {})
 
@@ -118,19 +148,32 @@ async def view_network_security(
     raw_findings = safe_get(net_data, "findings", [])
     filtered_findings = apply_global_filters(raw_findings, provider, account, region)
 
+    # -- Sub-tab classification --------------------------------------------------
+    # Network engine may return findings but empty sub-tab arrays (it leaves
+    # classification to the consumer).  Re-classify whenever sub-tabs are empty
+    # but findings are present so the UI tabs are always populated.
+    raw_sg       = safe_get(net_data, "security_groups",   [])
+    raw_exposure = safe_get(net_data, "internet_exposure",  [])
+    raw_topology = safe_get(net_data, "topology",           [])
+    raw_waf      = safe_get(net_data, "waf",                [])
+
+    if raw_findings and not (raw_sg or raw_exposure or raw_topology or raw_waf):
+        sub = _check_findings_to_net_data(raw_findings)
+        raw_sg       = sub["security_groups"]
+        raw_exposure = sub["internet_exposure"]
+        raw_topology = sub["topology"]
+        raw_waf      = sub["waf"]
+
     # -- Security Groups ---------------------------------------------------------
-    raw_sg = safe_get(net_data, "security_groups", [])
     filtered_sg = apply_global_filters(raw_sg, provider, account, region)
 
     # -- Internet Exposure -------------------------------------------------------
-    raw_exposure = safe_get(net_data, "internet_exposure", [])
     filtered_exposure = apply_global_filters(raw_exposure, provider, account, region)
 
     # -- Topology ----------------------------------------------------------------
-    topology = safe_get(net_data, "topology", [])
+    topology = apply_global_filters(raw_topology, provider, account, region)
 
     # -- WAF ---------------------------------------------------------------------
-    raw_waf = safe_get(net_data, "waf", [])
     filtered_waf = apply_global_filters(raw_waf, provider, account, region)
 
     # -- KPI derivation ----------------------------------------------------------
@@ -202,7 +245,7 @@ async def view_network_security(
         {"id": "waf",               "label": "WAF / DDoS",        "count": len(filtered_waf)       },
     ]
 
-    return {
+    result = {
         "pageContext": page_ctx,
         "filterSchema": network_security_filter_schema(),
         "kpiGroups": [
@@ -231,13 +274,13 @@ async def view_network_security(
                 "items": module_items,
             },
         ],
-        "data": {
-            "findings":         filtered_findings,
-            "security_groups":  filtered_sg,
-            "internet_exposure": filtered_exposure,
-            "topology":         topology,
-            "waf":              filtered_waf,
-        },
+        "findings":         filtered_findings,
+        "security_groups":  filtered_sg,
+        "internet_exposure": filtered_exposure,
+        "topology":         topology,
+        "waf":              filtered_waf,
         "domainBreakdown": safe_get(net_data, "domain_breakdown", []),
         "scanTrend":        safe_get(net_data, "scan_trend",       []),
     }
+    cached_view(ck, result, ttl=TTL_NETWORK)
+    return result

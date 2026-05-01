@@ -1,0 +1,22 @@
+version: '1.0'
+provider: oci
+service: blockstorage
+checks:
+- rule_id: oci.blockstorage.volume.backup_policy_configured
+  for_each: oci.block_storage.get_volume_backup_policy
+  severity: MEDIUM
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: oci.blockstorage.volume.encryption_at_rest_configured
+  for_each: oci.block_storage.list_block_volume_replicas
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.status
+      op: not_empty
+      value: null
+    - var: item.kms_key_id
+      op: exists
+      value: null

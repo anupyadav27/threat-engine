@@ -14,8 +14,9 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
-# Resource type -> ML service mapping
+# Resource type -> ML service mapping — all CSPs
 ML_RESOURCE_TYPES: Dict[str, Dict[str, str]] = {
+    # ── AWS ──────────────────────────────────────────────────────────────────
     "sagemaker.endpoint": {"ml_service": "sagemaker", "deployment_type": "endpoint"},
     "sagemaker.model": {"ml_service": "sagemaker", "deployment_type": "model"},
     "sagemaker.notebook_instance": {"ml_service": "sagemaker", "deployment_type": "notebook"},
@@ -35,6 +36,23 @@ ML_RESOURCE_TYPES: Dict[str, Dict[str, str]] = {
     "kendra.index": {"ml_service": "kendra", "deployment_type": "index"},
     "translate.terminology": {"ml_service": "translate", "deployment_type": "model"},
     "lex.bot": {"ml_service": "lex", "deployment_type": "bot"},
+    # ── Azure ─────────────────────────────────────────────────────────────────
+    "microsoft.machinelearningservices.workspace": {"ml_service": "azure_ml", "deployment_type": "workspace"},
+    "microsoft.machinelearningservices.onlineendpoint": {"ml_service": "azure_ml", "deployment_type": "endpoint"},
+    "microsoft.machinelearningservices.model": {"ml_service": "azure_ml", "deployment_type": "model"},
+    "microsoft.cognitiveservices.account": {"ml_service": "cognitive_services", "deployment_type": "endpoint"},
+    "azure.openai": {"ml_service": "azure_openai", "deployment_type": "endpoint"},
+    "azure.ml.workspace": {"ml_service": "azure_ml", "deployment_type": "workspace"},
+    "azure.ml.endpoint": {"ml_service": "azure_ml", "deployment_type": "endpoint"},
+    # ── GCP ──────────────────────────────────────────────────────────────────
+    "aiplatform.model": {"ml_service": "vertex_ai", "deployment_type": "model"},
+    "aiplatform.endpoint": {"ml_service": "vertex_ai", "deployment_type": "endpoint"},
+    "aiplatform.dataset": {"ml_service": "vertex_ai", "deployment_type": "dataset"},
+    "aiplatform.pipeline": {"ml_service": "vertex_ai", "deployment_type": "pipeline"},
+    "aiplatform.featurestore": {"ml_service": "vertex_ai", "deployment_type": "feature_store"},
+    "aiplatform.tensorboard": {"ml_service": "vertex_ai", "deployment_type": "monitoring"},
+    "gcp.vertex_ai.endpoint": {"ml_service": "vertex_ai", "deployment_type": "endpoint"},
+    "gcp.vertex_ai.model": {"ml_service": "vertex_ai", "deployment_type": "model"},
 }
 
 # LLM / generative model types that require guardrail checks

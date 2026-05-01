@@ -36,12 +36,11 @@ from providers.azure.scanner.service_scanner import AzureDiscoveryScanner
 from providers.gcp.scanner.service_scanner import GCPDiscoveryScanner
 from providers.oci.scanner.service_scanner import OCIDiscoveryScanner
 from providers.ibm.scanner.service_scanner import IBMDiscoveryScanner
+from providers.alicloud.scanner.service_scanner import AliCloudDiscoveryScanner
 from providers.kubernetes.scanner.service_scanner import K8sDiscoveryScanner
 
 # Orchestration helpers
-from consolidated_services.database.orchestration_client import (
-    get_scan_context as get_orchestration_metadata,
-)
+from engine_common.orchestration import get_orchestration_metadata
 
 # Credential retrieval
 from engine_onboarding.storage.secrets_manager_storage import SecretsManagerStorage
@@ -58,6 +57,7 @@ PROVIDER_SCANNERS = {
     "gcp": GCPDiscoveryScanner,
     "oci": OCIDiscoveryScanner,
     "ibm": IBMDiscoveryScanner,
+    "alicloud": AliCloudDiscoveryScanner,
     "k8s": K8sDiscoveryScanner,
 }
 
@@ -75,6 +75,22 @@ def _resolve_credentials(account_id: str, credential_ref: str, credential_type: 
             "role_arn": credential_ref,
         }
 
+    # CLI / DefaultAzureCredential: no Secrets Manager fetch needed
+    # account_id == subscription_id for Azure
+    if cred_type == "cli":
+        return {
+            "credential_type": "cli",
+            "subscription_id": account_id,
+        }
+
+    # K8s in-cluster: no Secrets Manager fetch needed — uses pod service account
+    if cred_type in ("in_cluster", "k8s_in_cluster"):
+        return {
+            "credential_type": "in_cluster",
+            "account_id": account_id,
+            "cluster_name": account_id,
+        }
+
     # Key-based: fetch from Secrets Manager
     storage = SecretsManagerStorage()
     secret_data = storage.retrieve(account_id=account_id)
@@ -82,13 +98,46 @@ def _resolve_credentials(account_id: str, credential_ref: str, credential_type: 
     if not isinstance(secret_data, dict) or not secret_data:
         raise ValueError(f"Empty/invalid credentials for account {account_id}")
 
-    # Normalize credential_type
+    # Normalize credential_type per provider
     raw_type = (secret_data.get("credential_type") or "").lower()
+
     if provider == "aws":
         if raw_type in ("aws_access_key", "access_key", "access_key_id"):
             secret_data["credential_type"] = "access_key"
         elif "role" in raw_type:
             secret_data["credential_type"] = "iam_role"
+
+    elif provider == "gcp":
+        # GCP service account key stored under "credentials" or "service_account_json"
+        if raw_type in ("service_account", "service_account_key", "gcp_service_account"):
+            secret_data["credential_type"] = "service_account"
+        # Ensure the SA JSON is accessible under the key the GCP scanner expects
+        if not secret_data.get("credentials") and not secret_data.get("service_account_json"):
+            # Secret may have been stored with SA JSON at top level (type: service_account)
+            if secret_data.get("type") == "service_account":
+                secret_data["credentials"] = {k: v for k, v in secret_data.items()
+                                               if k not in ("credential_type", "account_id",
+                                                            "created_at", "expires_at")}
+
+    elif provider == "azure":
+        if raw_type in ("service_principal", "client_secret", "azure_service_principal"):
+            secret_data["credential_type"] = "service_principal"
+
+    elif provider == "oci":
+        if raw_type in ("api_key", "oci_api_key"):
+            secret_data["credential_type"] = "api_key"
+
+    elif provider == "ibm":
+        if raw_type in ("api_key", "ibm_api_key"):
+            secret_data["credential_type"] = "api_key"
+
+    elif provider in ("k8s", "kubernetes"):
+        if raw_type in ("in_cluster", "kubeconfig"):
+            secret_data["credential_type"] = raw_type or "in_cluster"
+
+    elif provider == "alicloud":
+        if raw_type in ("access_key", "alicloud_access_key"):
+            secret_data["credential_type"] = "access_key"
 
     return secret_data
 
@@ -156,7 +205,6 @@ def main():
         # 4. Build scan metadata (same shape as api_server.py passes to DiscoveryEngine)
         scan_metadata = {
             "scan_run_id": scan_run_id,
-            "scan_run_id": scan_run_id,
             "provider": provider,
             "tenant_id": metadata.get("tenant_id", "default-tenant"),
             "customer_id": metadata.get("customer_id", "default"),
@@ -176,6 +224,13 @@ def main():
         # 6. Orchestration table uses scan_run_id directly (no per-engine scan IDs)
 
         logger.info("Discovery scan COMPLETED scan_id=%s", scan_run_id)
+
+        # Retention: archive old scans to S3, keep last 5 in DB
+        try:
+            from engine_common.retention import run_retention
+            run_retention("discoveries", scan_run_id)
+        except Exception as _ret_err:
+            logger.warning("Retention cleanup skipped: %s", _ret_err)
 
     except (AuthenticationError, DiscoveryError, ValueError) as exc:
         logger.error("Discovery scan FAILED: %s", exc)

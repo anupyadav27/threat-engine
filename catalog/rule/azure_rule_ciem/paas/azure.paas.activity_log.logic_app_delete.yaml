@@ -1,0 +1,69 @@
+rule_id: azure.paas.activity_log.logic_app_delete
+service: paas
+provider: azure
+check_type: log
+severity: high
+title: 'PaaS: Logic App Delete'
+description: Logic App deleted — automated workflow and its integrations destroyed.
+rationale: Service disruption attacks stop critical cloud services, causing availability incidents; attackers may use this to create leverage or cover their tracks.
+threat_category: impact
+mitre_tactics:
+- impact
+mitre_techniques:
+- T1489
+risk_score: 70
+resource: azure_logic_app
+source: default
+is_active: true
+domain: compute_and_workload_security
+action_category: delete
+log_source_type: activity_log
+posture_category: workload_posture
+threat_tags:
+- T1489
+- impact
+- availability
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: destructive
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: low
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 2.6
+  - 3.1
+  cis_azure_v2:
+  - 7.5
+  - 5.1
+  nist_800_53_r5:
+  - CP-9
+  - CP-10
+  - SI-12
+  - IR-4
+  pci_dss_v4:
+  - 12.3
+  - 3.4
+  iso_27001_2022:
+  - A.5.29
+  - A.8.13
+remediation: |
+  1. Restart affected services and investigate the root cause.
+  2. Restrict service modification/deletion permissions via RBAC.
+  3. Use resource locks on critical services to prevent accidental or malicious deletion.
+  4. Enable auto-remediation via AWS Config / Azure Policy for critical service states.
+references:
+- https://attack.mitre.org/techniques/T1489/
+check_config:
+  conditions:
+    all:
+    - field: operation
+      op: equals
+      value: Microsoft.Logic/workflows/delete
+  log_source_type: activity_log
+version: '1.0'

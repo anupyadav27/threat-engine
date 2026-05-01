@@ -1,0 +1,78 @@
+rule_id: k8s.node.audit.label_modify_sensitive
+service: node
+provider: k8s
+check_type: log
+severity: medium
+title: 'Node: Sensitive Node Label Modified'
+description: Node label modified on sensitive labels (kubernetes.io/role, node-role.kubernetes.io) — may affect workload scheduling, pod placement, and node selector targeting.
+rationale: Adversaries modify Kubernetes Service objects to add external load balancer IPs or NodePort configurations, exposing internal cluster services to the internet. This creates unauthorized ingress points for C2 traffic or data exfiltration. Detected via K8s audit logs for service patch/update operations adding externalIPs or changing type to NodePort/LoadBalancer.
+threat_category: lateral_movement
+mitre_tactics:
+- lateral_movement
+mitre_techniques:
+- T1205
+risk_score: 60
+resource: k8s_node
+source: default
+is_active: true
+domain: network_security_and_connectivity
+action_category: modify
+log_source_type: k8s_audit
+posture_category: network_posture
+threat_tags:
+- T1205
+- lateral_movement
+- cloud_pivot
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_k8s_v1:
+  - 5.2.5
+  - 5.2.7
+  - 5.7.1
+  nist_800_53_r5:
+  - AC-4
+  - SC-7
+  - SI-4
+  pci_dss_v4:
+  - 1.3
+  - 7.2
+  iso_27001_2022:
+  - A.8.20
+  - A.8.22
+remediation: |
+  1. Terminate the unauthorized kubectl exec or port-forward session immediately.
+  2. Audit RBAC permissions: restrict pods/exec and pods/portforward to specific service accounts.
+  3. Apply NetworkPolicies to prevent unauthorized pod-to-pod communication.
+  4. Enable audit log alerting for exec/portforward operations by non-CI/CD users.
+  5. Use Falco rules to detect and alert on interactive exec sessions in production namespaces.
+references:
+- https://attack.mitre.org/techniques/T1205/
+- https://kubernetes.io/docs/concepts/services-networking/service/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: k8s_audit
+    - field: resource
+      op: equals
+      value: nodes
+    - field: verb
+      op: in
+      value:
+      - patch
+      - update
+    - field: label_key
+      op: contains
+      value: node-role.kubernetes.io
+version: '1.0'

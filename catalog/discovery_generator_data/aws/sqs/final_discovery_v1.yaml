@@ -1,0 +1,45 @@
+# ==========================================================
+# Discovery YAML — sqs (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 6 | ops: 1 independent, 0 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: sqs
+
+services:
+  client: sqs
+  module: "boto3.client('sqs')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: get_queue_attribute
+    identifier_op: aws.sqs.get_queue_attributes
+    identifier_field: QueueArn
+    item_var_path: item.QueueArn
+    identifier_template: '{queuearn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.sqs.get_queue_attributes  ──
+  - discovery_id: aws.sqs.get_queue_attributes
+    calls:
+      - action: get_queue_attributes
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Attributes: '{{ item.Attributes }}'
+        KmsMasterKeyId: '{{ item.KmsMasterKeyId }}'
+        MaximumMessageSize: '{{ item.MaximumMessageSize }}'
+        Policy: '{{ item.Policy }}'
+        QueueArn: '{{ item.QueueArn }}'
+        RedrivePolicy: '{{ item.RedrivePolicy }}'
+        SqsManagedSseEnabled: '{{ item.SqsManagedSseEnabled }}'
+        VisibilityTimeout: '{{ item.VisibilityTimeout }}'
+

@@ -1,0 +1,60 @@
+checks:
+- rule_id: alicloud.emr.cluster.account_public_access_blocked
+  for_each: alicloud.emr.DescribeClusterBasicInfo
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+    - var: item.permissions
+      op: not_contains
+- rule_id: alicloud.emr.cluster.audit_logging_enabled_centralized
+  for_each: alicloud.emr.DescribeClusterBasicInfo
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.emr.cluster.iam_roles_least_privilege_enforced
+  for_each: alicloud.emr.DescribeClusterBasicInfo
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.emr.cluster.master_nodes_public_ip_disabled
+  for_each: alicloud.emr.DescribeClusterBasicInfo
+  conditions:
+    var: item.public_ip_address
+    op: not_exists
+- rule_id: alicloud.emr.cluster.private_networking_enforced
+  for_each: alicloud.emr.DescribeClusterBasicInfo
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.emr.cluster.public_access_blocked
+  for_each: alicloud.emr.DescribeClusterBasicInfo
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+- rule_id: alicloud.emr.cluster.tls_version_minimum_1_2_enforced
+  for_each: alicloud.emr.DescribeClusterBasicInfo
+  conditions:
+    all:
+    - var: item.ssl_enabled
+      op: equals
+    - var: item.min_tls_version
+      op: gte
+- rule_id: alicloud.emr.encrypted.with_cmks_disabled
+  for_each: alicloud.emr.encrypted
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.kms_key_id
+      op: exists
+    - var: item.logging_enabled
+      op: equals

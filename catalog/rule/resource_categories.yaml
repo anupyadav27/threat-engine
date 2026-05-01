@@ -1,0 +1,442 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# RESOURCE CATEGORIES — CSP-Agnostic Service + Resource Taxonomy
+# ═══════════════════════════════════════════════════════════════════════════
+# Maps abstract resource categories to CSP-specific services.
+# Each category lists which security assertions apply to it.
+#
+# Format:
+#   category_id:
+#     name: Human readable
+#     description: What this category covers
+#     assertions: [list of assertion_ids from assertions.yaml]
+#     csp_mapping:
+#       aws: {service: s3, resource: bucket, discovery: aws.s3.list_buckets}
+#       azure: {service: storage, resource: account, discovery: azure.storage.storageaccounts.list_by_resource_group}
+#       gcp: {service: storage, resource: bucket, discovery: gcp.storage.buckets.list}
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ─── STORAGE ────────────────────────────────────────────────────────────
+
+storage.object_storage:
+  name: Object/Blob Storage
+  description: S3 buckets, Azure Blob Storage, GCP Cloud Storage
+  assertions:
+    - encryption_at_rest_enabled
+    - kms_encryption_enabled
+    - encryption_at_rest_cmek_configured
+    - tls_min_1_2_enforced
+    - require_tls_in_transit_configured
+    - public_access_disabled
+    - private_networking_enforced
+    - rbac_least_privilege
+    - iam_or_managed_identity_auth_enabled
+    - logging_enabled
+    - access_logging_enabled
+    - deletion_protection_enabled
+    - backup_enabled
+    - retention_days_minimum
+  csp_mapping:
+    aws:
+      service: s3
+      resource: bucket
+      discovery: aws.s3.list_buckets
+    azure:
+      service: storage
+      resource: account
+      discovery: azure.storage.storageaccounts.list_by_resource_group
+
+storage.block_storage:
+  name: Block Storage / Managed Disks
+  description: EBS volumes, Azure Managed Disks, GCP Persistent Disks
+  assertions:
+    - encryption_at_rest_enabled
+    - kms_encryption_enabled
+    - encryption_at_rest_cmek_configured
+    - deletion_protection_enabled
+    - backup_enabled
+  csp_mapping:
+    aws:
+      service: ec2
+      resource: volume
+      discovery: aws.ec2.describe_volumes
+    azure:
+      service: compute
+      resource: disk
+      discovery: azure.compute.disks.list_by_resource_group
+
+# ─── COMPUTE ────────────────────────────────────────────────────────────
+
+compute.virtual_machine:
+  name: Virtual Machines / Instances
+  description: EC2 instances, Azure VMs, GCP Compute instances
+  assertions:
+    - encryption_at_rest_enabled
+    - private_networking_enforced
+    - iam_or_managed_identity_auth_enabled
+    - logging_enabled
+    - backup_enabled
+    - deletion_protection_enabled
+    - alert_destinations_configured
+  csp_mapping:
+    aws:
+      service: ec2
+      resource: instance
+      discovery: aws.ec2.describe_instances
+    azure:
+      service: compute
+      resource: vm
+      discovery: azure.compute.virtualmachines.list_all
+
+compute.scale_set:
+  name: VM Scale Sets / Auto Scaling Groups
+  description: VMSS, ASGs, Instance Groups
+  assertions:
+    - encryption_at_rest_enabled
+    - iam_or_managed_identity_auth_enabled
+    - logging_enabled
+  csp_mapping:
+    aws:
+      service: autoscaling
+      resource: group
+      discovery: aws.autoscaling.describe_auto_scaling_groups
+    azure:
+      service: compute
+      resource: vmss
+      discovery: azure.compute.virtualmachinescalesets.list_all
+
+# ─── DATABASE ───────────────────────────────────────────────────────────
+
+database.relational:
+  name: Relational Database (SQL)
+  description: RDS, Azure SQL, Cloud SQL, PostgreSQL, MySQL
+  assertions:
+    - encryption_at_rest_enabled
+    - kms_encryption_enabled
+    - tls_min_1_2_enforced
+    - require_tls_in_transit_configured
+    - public_access_disabled
+    - private_networking_enforced
+    - iam_or_managed_identity_auth_enabled
+    - audit_logging_enabled
+    - backup_enabled
+    - deletion_protection_enabled
+    - retention_days_minimum
+  csp_mapping:
+    aws:
+      service: rds
+      resource: instance
+      discovery: aws.rds.describe_db_instances
+    azure:
+      service: sql
+      resource: server
+      discovery: azure.sql.servers.list
+
+database.nosql:
+  name: NoSQL Database
+  description: DynamoDB, CosmosDB, Firestore
+  assertions:
+    - encryption_at_rest_enabled
+    - kms_encryption_enabled
+    - public_access_disabled
+    - private_networking_enforced
+    - backup_enabled
+    - deletion_protection_enabled
+  csp_mapping:
+    aws:
+      service: dynamodb
+      resource: table
+      discovery: aws.dynamodb.list_tables
+    azure:
+      service: cosmosdb
+      resource: account
+      discovery: azure.cosmosdb.databaseaccounts.list_by_resource_group
+
+database.cache:
+  name: Cache / In-Memory Database
+  description: ElastiCache, Azure Redis, Memorystore
+  assertions:
+    - encryption_at_rest_enabled
+    - tls_min_1_2_enforced
+    - require_tls_in_transit_configured
+    - public_access_disabled
+    - private_networking_enforced
+    - iam_or_managed_identity_auth_enabled
+    - backup_enabled
+  csp_mapping:
+    aws:
+      service: elasticache
+      resource: cluster
+      discovery: aws.elasticache.describe_cache_clusters
+    azure:
+      service: redis
+      resource: cache
+      discovery: azure.redis.redis.list_by_resource_group
+
+# ─── NETWORKING ─────────────────────────────────────────────────────────
+
+network.firewall:
+  name: Network Security Groups / Firewalls
+  description: Security Groups, NSGs, Firewall rules
+  assertions:
+    - rbac_least_privilege
+    - logging_enabled
+    - change_audit_logging_enabled
+  csp_mapping:
+    aws:
+      service: ec2
+      resource: security_group
+      discovery: aws.ec2.describe_security_groups
+    azure:
+      service: network
+      resource: nsg
+      discovery: azure.network.networksecuritygroups.list_all
+
+network.waf:
+  name: Web Application Firewall
+  description: WAF, Azure WAF, Cloud Armor
+  assertions:
+    - logging_enabled
+    - alert_destinations_configured
+  csp_mapping:
+    aws:
+      service: wafv2
+      resource: web_acl
+      discovery: aws.wafv2.list_web_acls
+    azure:
+      service: network
+      resource: waf_policy
+      discovery: azure.network.webapplicationfirewallpolicies.list_all
+
+network.load_balancer:
+  name: Load Balancer
+  description: ALB/NLB, Azure LB, GCP LB
+  assertions:
+    - tls_min_1_2_enforced
+    - logging_enabled
+    - deletion_protection_enabled
+  csp_mapping:
+    aws:
+      service: elbv2
+      resource: load_balancer
+      discovery: aws.elbv2.describe_load_balancers
+    azure:
+      service: network
+      resource: lb
+      discovery: azure.network.loadbalancers.list_all
+
+# ─── IDENTITY ───────────────────────────────────────────────────────────
+
+identity.iam_role:
+  name: IAM Roles / RBAC
+  description: IAM roles, Azure role assignments, GCP IAM bindings
+  assertions:
+    - rbac_least_privilege
+    - execution_roles_least_privilege
+    - role_least_privilege
+  csp_mapping:
+    aws:
+      service: iam
+      resource: role
+      discovery: aws.iam.list_roles
+    azure:
+      service: authorization
+      resource: role_assignment
+      discovery: azure.authorization.roleassignments.list
+
+# ─── SECRETS & KEYS ─────────────────────────────────────────────────────
+
+secrets.key_vault:
+  name: Key Management / Secrets Manager
+  description: KMS, Key Vault, Secret Manager
+  assertions:
+    - encryption_at_rest_enabled
+    - rbac_least_privilege
+    - logging_enabled
+    - audit_logging_enabled
+    - deletion_protection_enabled
+    - backup_enabled
+  csp_mapping:
+    aws:
+      service: kms
+      resource: key
+      discovery: aws.kms.list_keys
+    azure:
+      service: keyvault
+      resource: vault
+      discovery: azure.keyvault.vaults.list_by_subscription
+
+# ─── WEB / APP ──────────────────────────────────────────────────────────
+
+web.app_service:
+  name: Web App / App Service
+  description: Elastic Beanstalk, Azure App Service, App Engine
+  assertions:
+    - tls_min_1_2_enforced
+    - require_tls_in_transit_configured
+    - public_access_disabled
+    - private_networking_enforced
+    - iam_or_managed_identity_auth_enabled
+    - logging_enabled
+  csp_mapping:
+    aws:
+      service: elasticbeanstalk
+      resource: environment
+      discovery: aws.elasticbeanstalk.describe_environments
+    azure:
+      service: web
+      resource: app
+      discovery: azure.web.webapps.list_by_resource_group
+
+web.api_gateway:
+  name: API Gateway / API Management
+  description: API Gateway, Azure API Management, Apigee
+  assertions:
+    - tls_min_1_2_enforced
+    - public_access_disabled
+    - private_networking_enforced
+    - iam_or_managed_identity_auth_enabled
+    - logging_enabled
+    - access_logging_enabled
+  csp_mapping:
+    aws:
+      service: apigateway
+      resource: rest_api
+      discovery: aws.apigateway.get_rest_apis
+    azure:
+      service: apimanagement
+      resource: service
+      discovery: azure.apimanagement.apimanagementservice.list
+
+# ─── CONTAINERS ─────────────────────────────────────────────────────────
+
+container.kubernetes:
+  name: Managed Kubernetes
+  description: EKS, AKS, GKE
+  assertions:
+    - encryption_at_rest_enabled
+    - private_networking_enforced
+    - rbac_least_privilege
+    - logging_enabled
+    - audit_logging_enabled
+  csp_mapping:
+    aws:
+      service: eks
+      resource: cluster
+      discovery: aws.eks.list_clusters
+    azure:
+      service: containerservice
+      resource: cluster
+      discovery: azure.containerservice.managedclusters.list
+
+container.registry:
+  name: Container Registry
+  description: ECR, ACR, GCR/Artifact Registry
+  assertions:
+    - encryption_at_rest_enabled
+    - public_access_disabled
+    - private_networking_enforced
+  csp_mapping:
+    aws:
+      service: ecr
+      resource: repository
+      discovery: aws.ecr.describe_repositories
+    azure:
+      service: containerregistry
+      resource: registry
+      discovery: azure.containerregistry.registries.list_by_resource_group
+
+# ─── MESSAGING ──────────────────────────────────────────────────────────
+
+messaging.queue:
+  name: Message Queue / Service Bus
+  description: SQS, Azure Service Bus, Pub/Sub
+  assertions:
+    - encryption_at_rest_enabled
+    - tls_min_1_2_enforced
+    - public_access_disabled
+    - iam_or_managed_identity_auth_enabled
+  csp_mapping:
+    aws:
+      service: sqs
+      resource: queue
+      discovery: aws.sqs.list_queues
+    azure:
+      service: servicebus
+      resource: namespace
+      discovery: azure.servicebus.namespaces.list_by_resource_group
+
+messaging.event_hub:
+  name: Event Streaming
+  description: Kinesis, Event Hubs, Pub/Sub
+  assertions:
+    - encryption_at_rest_enabled
+    - private_networking_enforced
+    - iam_or_managed_identity_auth_enabled
+  csp_mapping:
+    aws:
+      service: kinesis
+      resource: stream
+      discovery: aws.kinesis.list_streams
+    azure:
+      service: eventhub
+      resource: namespace
+      discovery: azure.eventhub.namespaces.list_by_resource_group
+
+# ─── MONITORING ─────────────────────────────────────────────────────────
+
+monitoring.log_analytics:
+  name: Log Analytics / CloudWatch
+  description: CloudWatch, Azure Monitor / Log Analytics, Cloud Logging
+  assertions:
+    - encryption_at_rest_enabled
+    - kms_encryption_enabled
+    - public_access_disabled
+    - retention_days_minimum
+  csp_mapping:
+    aws:
+      service: cloudwatch
+      resource: log_group
+      discovery: aws.logs.describe_log_groups
+    azure:
+      service: loganalytics
+      resource: workspace
+      discovery: azure.loganalytics.workspaces.list
+
+monitoring.alerts:
+  name: Alert Rules / Metric Alerts
+  description: CloudWatch Alarms, Azure Monitor Alerts
+  assertions:
+    - alert_destinations_configured
+    - logging_enabled
+  csp_mapping:
+    aws:
+      service: cloudwatch
+      resource: alarm
+      discovery: aws.cloudwatch.describe_alarms
+    azure:
+      service: monitor
+      resource: activity_log_alert
+      discovery: azure.monitor.activitylogalerts.list_by_subscription_id
+
+# ─── ANALYTICS ──────────────────────────────────────────────────────────
+
+analytics.data_explorer:
+  name: Data Explorer / Analytics Cluster
+  description: Redshift, Azure Data Explorer (Kusto), BigQuery
+  assertions:
+    - encryption_at_rest_enabled
+    - kms_encryption_enabled
+    - encryption_at_rest_cmek_configured
+    - public_access_disabled
+    - private_networking_enforced
+    - logging_enabled
+    - deletion_protection_enabled
+  csp_mapping:
+    aws:
+      service: redshift
+      resource: cluster
+      discovery: aws.redshift.describe_clusters
+    azure:
+      service: kusto
+      resource: cluster
+      discovery: azure.kusto.clusters.list_by_resource_group

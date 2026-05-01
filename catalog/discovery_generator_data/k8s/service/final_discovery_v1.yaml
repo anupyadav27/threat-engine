@@ -1,0 +1,47 @@
+# ============================================================
+# Discovery YAML — service (final_discovery v1)
+# Generated: 2026-04-16T09:36:43Z
+# Check rules: 12 | ops in scope: 1
+# ============================================================
+version: '1.0'
+provider: k8s
+service: service
+
+services:
+  client: core_v1_api
+  module: kubernetes.client
+  api_class: CoreV1Api
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: 
+    identifier_op: k8s.service.list
+    identifier_field: metadata.name
+    item_var_path: item.metadata.name
+    identifier_template: '{namespace}/{name}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── k8s.service.list ──
+  - discovery_id: k8s.service.list
+    calls:
+      - action: list_service_for_all_namespaces
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        metadata: '{{ item.metadata }}'
+        metadata.annotations: '{{ item.metadata.annotations }}'
+        metadata.name: '{{ item.metadata.name }}'
+        metadata.namespace: '{{ item.metadata.namespace }}'
+        spec: '{{ item.spec }}'
+        spec.externalTrafficPolicy: '{{ item.spec.externalTrafficPolicy }}'
+        spec.ports: '{{ item.spec.ports }}'
+        spec.selector: '{{ item.spec.selector }}'
+        spec.type: '{{ item.spec.type }}'
+

@@ -1,21 +1,17 @@
 """
-CIEM Rule Evaluator — evaluates log detection rules against log_events.
+CIEM L1 Rule Evaluator — in-memory evaluation against NormalizedEvent stream.
+
+No log_events table. Rules are loaded once at startup, then evaluated
+against each NormalizedEvent as it comes off the parser — zero DB roundtrips
+per event.
 
 Reads:
-  - rule_checks WHERE check_type = 'log' (conditions)
+  - rule_checks WHERE check_type = 'log'   (conditions)
   - rule_metadata WHERE rule_source = 'log' (enrichment)
-  - log_events (events to evaluate)
 
 Writes:
-  - ciem_findings (matched events)
-  - ciem_report (scan summary)
-
-Evaluation logic:
-  For each log rule:
-    1. Build SQL WHERE clause from rule conditions
-    2. Query log_events matching the conditions
-    3. For each matched event → create a ciem_finding
-    4. Enrich with metadata (title, severity, MITRE, compliance)
+  - ciem_findings  (matched events)
+  - ciem_report    (scan summary)
 """
 
 import hashlib
@@ -24,21 +20,142 @@ import logging
 import os
 from collections import defaultdict
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
 
+from ..normalizer.schema import NormalizedEvent
+
 logger = logging.getLogger(__name__)
 
+# ── Field accessor map ────────────────────────────────────────────────────────
+# Maps rule condition field names → callables that extract a string value
+# from a NormalizedEvent. Returns None if the field is absent.
+
+def _str(v) -> Optional[str]:
+    return str(v) if v is not None else None
+
+_FIELD_ACCESSORS: Dict[str, Callable[[NormalizedEvent], Optional[str]]] = {
+    "service":                lambda e: _str(e.service),
+    "operation":              lambda e: _str(e.operation),
+    "outcome":                lambda e: _str(e.outcome.value if hasattr(e.outcome, "value") else e.outcome),
+    "error_code":             lambda e: _str(e.error_code),
+    "source_type":            lambda e: _str(e.source_type),
+    "severity":               lambda e: _str(e.severity.value if hasattr(e.severity, "value") else e.severity),
+    "actor.principal":        lambda e: _str(e.actor.principal) if e.actor else None,
+    "actor.principal_type":   lambda e: _str(e.actor.principal_type) if e.actor else None,
+    "actor.ip_address":       lambda e: _str(e.actor.ip_address) if e.actor else None,
+    "actor.account_id":       lambda e: _str(e.actor.account_id) if e.actor else None,
+    "resource.uid":           lambda e: _str(e.resource.uid) if e.resource else None,
+    "resource.type":          lambda e: _str(e.resource.resource_type) if e.resource else None,
+    "resource.name":          lambda e: _str(e.resource.name) if e.resource else None,
+    "resource.region":        lambda e: _str(e.resource.region) if e.resource else None,
+    "network.src_ip":         lambda e: _str(e.network.src_ip) if e.network else None,
+    "network.dst_ip":         lambda e: _str(e.network.dst_ip) if e.network else None,
+    "network.src_port":       lambda e: _str(e.network.src_port) if e.network else None,
+    "network.dst_port":       lambda e: _str(e.network.dst_port) if e.network else None,
+    "network.protocol":       lambda e: _str(e.network.protocol) if e.network else None,
+    "network.flow_action":    lambda e: _str(e.network.flow_action) if e.network else None,
+}
+
+
+def _match(field_val: Optional[str], op: str, value: Any) -> bool:
+    """Apply a single operator against a field value extracted from a NormalizedEvent."""
+    if field_val is None:
+        return op in ("is_null",)
+
+    v = field_val  # already a str
+    if op == "equals":
+        return v == str(value)
+    if op == "not_equals":
+        return v != str(value)
+    if op == "in":
+        return isinstance(value, list) and v in [str(x) for x in value]
+    if op == "not_in":
+        return isinstance(value, list) and v not in [str(x) for x in value]
+    if op == "contains":
+        return str(value) in v
+    if op == "not_contains":
+        return str(value) not in v
+    if op == "starts_with":
+        return v.startswith(str(value))
+    if op == "starts_with_any":
+        return isinstance(value, list) and any(v.startswith(str(x)) for x in value)
+    if op == "is_not_null":
+        return True
+    if op == "is_null":
+        return False
+    return False
+
+
+def _compile_conditions(conditions: Dict) -> Optional[Callable[[NormalizedEvent], bool]]:
+    """Compile a rule's condition tree into a single callable matcher.
+
+    Returns None if the conditions are empty or unrecognised.
+    """
+    if not conditions:
+        return None
+
+    if "all" in conditions:
+        sub = [_compile_single(c) for c in conditions["all"] if "field" in c]
+        sub = [s for s in sub if s]
+        if not sub:
+            return None
+        return lambda e, _sub=sub: all(fn(e) for fn in _sub)
+
+    if "any" in conditions:
+        sub = [_compile_single(c) for c in conditions["any"] if "field" in c]
+        sub = [s for s in sub if s]
+        if not sub:
+            return None
+        return lambda e, _sub=sub: any(fn(e) for fn in _sub)
+
+    if "field" in conditions:
+        return _compile_single(conditions)
+
+    return None
+
+
+def _compile_single(cond: Dict) -> Optional[Callable[[NormalizedEvent], bool]]:
+    field = cond.get("field", "")
+    op = cond.get("op", "")
+    value = cond.get("value", "")
+    accessor = _FIELD_ACCESSORS.get(field)
+    if accessor is None:
+        # Fall back to raw_event for provider-specific fields (e.g. K8s: verb, resource, namespace)
+        accessor = lambda e, _f=field: _str(e.raw_event.get(_f)) if e.raw_event else None
+    return lambda e, _acc=accessor, _op=op, _val=value: _match(_acc(e), _op, _val)
+
+
+# ── Main evaluator ────────────────────────────────────────────────────────────
 
 class CIEMRuleEvaluator:
-    """Evaluate log rules against log_events and write findings."""
+    """In-memory L1 rule evaluator.
+
+    Usage (from run_scan.py):
+        evaluator = CIEMRuleEvaluator(scan_run_id, tenant_id, provider)
+        evaluator.load()          # one DB round-trip at start of scan
+        for event in stream:
+            findings += evaluator.evaluate_event(event)
+        evaluator.flush(findings)  # one batch write at end
+    """
 
     def __init__(self, scan_run_id: str, tenant_id: str, provider: str = "aws"):
         self.scan_run_id = scan_run_id
         self.tenant_id = tenant_id
         self.provider = provider
+        self._matchers: List[Tuple[Dict, Dict, Callable]] = []  # (rule, meta, matcher_fn)
+
+    # ── DB helpers ────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _pw(*keys: str) -> str:
+        for k in keys:
+            v = os.getenv(k)
+            if v:
+                return v
+        return os.getenv("DISCOVERIES_DB_PASSWORD", "")
 
     def _get_check_conn(self):
         return psycopg2.connect(
@@ -46,16 +163,7 @@ class CIEMRuleEvaluator:
             port=int(os.getenv("CHECK_DB_PORT", os.getenv("DB_PORT", "5432"))),
             database=os.getenv("CHECK_DB_NAME", "threat_engine_check"),
             user=os.getenv("CHECK_DB_USER", os.getenv("DB_USER", "postgres")),
-            password=os.getenv("CHECK_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        )
-
-    def _get_log_conn(self):
-        return psycopg2.connect(
-            host=os.getenv("INVENTORY_DB_HOST", os.getenv("DB_HOST", "localhost")),
-            port=int(os.getenv("INVENTORY_DB_PORT", os.getenv("DB_PORT", "5432"))),
-            database=os.getenv("INVENTORY_DB_NAME", "threat_engine_inventory"),
-            user=os.getenv("INVENTORY_DB_USER", os.getenv("DB_USER", "postgres")),
-            password=os.getenv("INVENTORY_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
+            password=self._pw("CHECK_DB_PASSWORD", "DB_PASSWORD"),
         )
 
     def _get_ciem_conn(self):
@@ -64,349 +172,128 @@ class CIEMRuleEvaluator:
             port=int(os.getenv("CIEM_DB_PORT", os.getenv("DB_PORT", "5432"))),
             database=os.getenv("CIEM_DB_NAME", "threat_engine_ciem"),
             user=os.getenv("CIEM_DB_USER", os.getenv("DB_USER", "postgres")),
-            password=os.getenv("CIEM_DB_PASSWORD", os.getenv("INVENTORY_DB_PASSWORD", os.getenv("DB_PASSWORD", ""))),
+            password=self._pw("CIEM_DB_PASSWORD", "INVENTORY_DB_PASSWORD", "DB_PASSWORD"),
         )
 
-    def evaluate(self) -> Dict[str, Any]:
-        """Run full evaluation: load rules → match events → write findings."""
-        started = datetime.now(timezone.utc)
+    # ── Load rules (once per scan) ────────────────────────────────────────────
 
-        # 1. Load rules
-        rules = self._load_rules()
-        logger.info(f"Loaded {len(rules)} log rules for {self.provider}")
-
-        # 2. Load metadata for enrichment
-        metadata = self._load_metadata(rules)
-        logger.info(f"Loaded metadata for {len(metadata)} rules")
-
-        # 3. Evaluate rules against log_events
-        findings = self._evaluate_rules(rules, metadata)
-        logger.info(f"Evaluation produced {len(findings)} findings")
-
-        # 4. Write findings
-        self._write_findings(findings)
-
-        # 5. Write report
-        completed = datetime.now(timezone.utc)
-        stats = self._write_report(findings, started, completed)
-
-        return stats
-
-    def _load_rules(self) -> List[Dict]:
-        """Load log rules from rule_checks."""
+    def load(self) -> int:
+        """Load + compile all log rules from DB. Returns number of rules compiled."""
         conn = self._get_check_conn()
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
-                    SELECT rule_id, service, check_type, check_config
-                    FROM rule_checks
-                    WHERE check_type = 'log' AND is_active = true
-                    AND (provider = %s OR provider IS NULL)
+                    SELECT rc.rule_id, rc.service, rc.check_type, rc.check_config,
+                           rm.severity, rm.title, rm.description, rm.remediation,
+                           rm.subcategory, rm.threat_category,
+                           rm.mitre_tactics, rm.mitre_techniques,
+                           rm.compliance_frameworks
+                    FROM rule_checks rc
+                    LEFT JOIN rule_metadata rm USING (rule_id)
+                    WHERE rc.check_type = 'log' AND rc.is_active = true
+                      AND (rc.provider = %s OR rc.provider IS NULL)
                 """, (self.provider,))
-                return [dict(r) for r in cur.fetchall()]
+                rows = cur.fetchall()
         finally:
             conn.close()
 
-    def _load_metadata(self, rules: List[Dict]) -> Dict[str, Dict]:
-        """Load rule_metadata for enrichment."""
-        rule_ids = [r["rule_id"] for r in rules]
-        if not rule_ids:
-            return {}
+        compiled = 0
+        for row in rows:
+            config = row["check_config"] or {}
+            if isinstance(config, str):
+                config = json.loads(config)
+            conditions = config.get("conditions", {})
+            matcher = _compile_conditions(conditions)
+            if matcher is None:
+                continue
+            self._matchers.append((dict(row), matcher))
+            compiled += 1
 
-        conn = self._get_check_conn()
-        try:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                metadata = {}
-                for i in range(0, len(rule_ids), 500):
-                    chunk = rule_ids[i:i + 500]
-                    placeholders = ",".join(["%s"] * len(chunk))
-                    cur.execute(f"""
-                        SELECT rule_id, severity, title, description, remediation,
-                               subcategory, threat_category, risk_score,
-                               mitre_tactics, mitre_techniques,
-                               compliance_frameworks, data_security
-                        FROM rule_metadata
-                        WHERE rule_id IN ({placeholders})
-                    """, chunk)
-                    for row in cur.fetchall():
-                        metadata[row["rule_id"]] = dict(row)
-                return metadata
-        finally:
-            conn.close()
+        logger.info(f"L1: compiled {compiled}/{len(rows)} log rules for provider={self.provider}")
+        return compiled
 
-    def _evaluate_rules(self, rules: List[Dict], metadata: Dict) -> List[Dict]:
-        """Evaluate rules against log_events using batch strategy.
+    # ── Per-event evaluation ──────────────────────────────────────────────────
 
-        Performance: instead of 1 SQL per rule (17K queries), we:
-          1. Pre-load all distinct (service, operation) pairs from log_events
-          2. Match simple rules (service=X AND operation=Y) in Python
-          3. Batch-query events for matched (service, operation) pairs
-          4. Only run individual SQL for complex rules (contains, starts_with)
-        """
-        conn = self._get_log_conn()
-        findings = []
-        rules_matched = 0
+    def evaluate_event(self, event: NormalizedEvent) -> List[Dict]:
+        """Evaluate all compiled rules against one event. Returns list of findings."""
+        results = []
+        for rule, matcher in self._matchers:
+            try:
+                if matcher(event):
+                    results.append(self._make_finding(rule, event))
+            except Exception:
+                pass  # never let a bad rule crash the stream
+        return results
 
-        try:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                # Step 1: Get all (service, operation) pairs in current events
-                cur.execute("""
-                    SELECT DISTINCT service, operation
-                    FROM log_events WHERE tenant_id = %s
-                """, (self.tenant_id,))
-                event_pairs = {(r["service"], r["operation"]) for r in cur.fetchall()}
-                logger.info(f"Found {len(event_pairs)} distinct (service, operation) pairs in log_events")
-
-                # Step 2: Classify rules as simple or complex
-                simple_rules = {}  # (service, operation) → [rules]
-                complex_rules = []
-
-                for rule in rules:
-                    config = rule.get("check_config", {})
-                    if isinstance(config, str):
-                        config = json.loads(config)
-                    conditions = config.get("conditions", {})
-                    if not conditions:
-                        continue
-
-                    svc_op = self._extract_simple_match(conditions)
-                    if svc_op:
-                        svc, op = svc_op
-                        if (svc, op) in event_pairs:
-                            simple_rules.setdefault((svc, op), []).append(rule)
-                    else:
-                        complex_rules.append(rule)
-
-                logger.info(
-                    f"Rule classification: {sum(len(v) for v in simple_rules.values())} simple "
-                    f"({len(simple_rules)} groups), {len(complex_rules)} complex"
-                )
-
-                # Step 3: Batch-query for simple rules grouped by (service, operation)
-                event_cols = """event_id, event_time, service, operation, outcome,
-                               actor_principal, actor_principal_type, actor_ip,
-                               resource_uid, resource_type, resource_name,
-                               account_id, resource_region AS region,
-                               severity AS event_severity, risk_indicators"""
-
-                for (svc, op), group_rules in simple_rules.items():
-                    cur.execute(f"""
-                        SELECT {event_cols} FROM log_events
-                        WHERE tenant_id = %s AND service = %s AND operation = %s
-                        LIMIT 1000
-                    """, (self.tenant_id, svc, op))
-                    rows = cur.fetchall()
-                    if not rows:
-                        continue
-
-                    for rule in group_rules:
-                        rules_matched += 1
-                        meta = metadata.get(rule["rule_id"], {})
-                        for row in rows:
-                            findings.append(self._create_finding(rule, meta, dict(row)))
-
-                # Step 4: Individual SQL for complex rules
-                for rule in complex_rules:
-                    config = rule.get("check_config", {})
-                    if isinstance(config, str):
-                        config = json.loads(config)
-                    conditions = config.get("conditions", {})
-
-                    where_clause, params = self._build_where(conditions)
-                    if not where_clause:
-                        continue
-
-                    sql = f"""
-                        SELECT {event_cols} FROM log_events
-                        WHERE tenant_id = %s AND {where_clause}
-                        LIMIT 1000
-                    """
-                    try:
-                        cur.execute(sql, [self.tenant_id] + params)
-                        rows = cur.fetchall()
-                    except Exception as exc:
-                        logger.debug(f"Rule {rule['rule_id']} query failed: {exc}")
-                        continue
-
-                    if not rows:
-                        continue
-
-                    rules_matched += 1
-                    meta = metadata.get(rule["rule_id"], {})
-                    for row in rows:
-                        findings.append(self._create_finding(rule, meta, dict(row)))
-
-            logger.info(f"Rules matched: {rules_matched}/{len(rules)}, findings: {len(findings)}")
-        finally:
-            conn.close()
-
-        return findings
-
-    def _extract_simple_match(self, conditions: Dict) -> Optional[tuple]:
-        """Check if rule is a simple service+operation equals match.
-
-        Returns (service, operation) tuple if simple, None if complex.
-        """
-        conds = conditions.get("all", [conditions] if "field" in conditions else [])
-        svc = None
-        op = None
-        for c in conds:
-            if c.get("op") != "equals":
-                return None  # complex operator
-            field = c.get("field", "")
-            if field == "service":
-                svc = c.get("value")
-            elif field == "operation":
-                op = c.get("value")
-            else:
-                return None  # extra field condition = complex
-        if svc and op:
-            return (svc, op)
-        return None
-
-    def _build_where(self, conditions: Dict) -> tuple:
-        """Convert rule conditions to SQL WHERE clause.
-
-        Supports: {all: [{field, op, value}]}, {field, op, value}
-        """
-        if "all" in conditions:
-            parts = []
-            params = []
-            for cond in conditions["all"]:
-                clause, p = self._single_condition(cond)
-                if clause:
-                    parts.append(clause)
-                    params.extend(p)
-            if parts:
-                return " AND ".join(parts), params
-            return "", []
-
-        return self._single_condition(conditions)
-
-    def _single_condition(self, cond: Dict) -> tuple:
-        """Convert single {field, op, value} to SQL."""
-        field = cond.get("field", "")
-        op = cond.get("op", "")
-        value = cond.get("value", "")
-
-        # Map rule field names to DB column names
-        col_map = {
-            "service": "service",
-            "operation": "operation",
-            "outcome": "outcome",
-            "error_code": "error_code",
-            "source_type": "source_type",
-            "actor.principal": "actor_principal",
-            "actor.principal_type": "actor_principal_type",
-            "actor.ip_address": "actor_ip",
-            "actor.account_id": "actor_account_id",
-            "resource.uid": "resource_uid",
-            "resource.type": "resource_type",
-            "resource.name": "resource_name",
-            "resource.region": "resource_region",
-            "severity": "severity",
-            # Network fields (VPC Flow)
-            "network.src_ip": "src_ip",
-            "network.dst_ip": "dst_ip",
-            "network.src_port": "src_port",
-            "network.dst_port": "dst_port",
-            "network.protocol": "protocol",
-            "network.flow_action": "flow_action",
-        }
-
-        col = col_map.get(field, field)
-        # Security: only allow known columns
-        if col not in col_map.values():
-            return "", []
-
-        if op == "equals":
-            return f"{col} = %s", [value]
-        elif op == "not_equals":
-            return f"{col} != %s", [value]
-        elif op == "in":
-            if isinstance(value, list):
-                placeholders = ",".join(["%s"] * len(value))
-                return f"{col} IN ({placeholders})", value
-            return "", []
-        elif op == "contains":
-            return f"{col} LIKE %s", [f"%{value}%"]
-        elif op == "starts_with":
-            return f"{col} LIKE %s", [f"{value}%"]
-        elif op == "starts_with_any":
-            if isinstance(value, list) and value:
-                clauses = [f"{col} LIKE %s" for _ in value]
-                params = [f"{v}%" for v in value]
-                return f"({' OR '.join(clauses)})", params
-            return "", []
-
-        return "", []
-
-    def _create_finding(self, rule: Dict, meta: Dict, event: Dict) -> Dict:
-        """Create a ciem_finding from a matched rule + event."""
+    def _make_finding(self, rule: Dict, event: NormalizedEvent) -> Dict:
         rule_id = rule["rule_id"]
-        event_id = event.get("event_id", "")
+        event_id = event.event_id or ""
 
         finding_id = hashlib.sha256(
-            f"{rule_id}|{event_id}|{self.scan_run_id}".encode()
+            f"{rule_id}|{event_id}".encode()
         ).hexdigest()[:20]
-        finding_id = f"ciem_{finding_id}"
+
+        actor = event.actor
+        resource = event.resource
+        outcome_val = event.outcome.value if hasattr(event.outcome, "value") else str(event.outcome or "")
 
         return {
-            "finding_id": finding_id,
-            "scan_run_id": self.scan_run_id,
-            "tenant_id": self.tenant_id,
-            "rule_id": rule_id,
-            "rule_source": rule.get("check_type", "log"),
-            "severity": meta.get("severity", event.get("event_severity", "medium")),
-            "status": "OPEN",
-            "primary_engine": "ciem",
-            "engines": ["ciem"],
-            "action_category": meta.get("subcategory", meta.get("threat_category", "")),
-            "resource_uid": event.get("resource_uid", ""),
-            "resource_type": event.get("resource_type", ""),
-            "resource_name": event.get("resource_name", ""),
-            "account_id": event.get("account_id", ""),
-            "region": event.get("region", ""),
-            "provider": self.provider,
-            "actor_principal": event.get("actor_principal", ""),
-            "actor_principal_type": event.get("actor_principal_type", ""),
-            "actor_ip": event.get("actor_ip", ""),
-            "event_id": event_id,
-            "event_time": event.get("event_time"),
-            "service": event.get("service", ""),
-            "operation": event.get("operation", ""),
-            "title": meta.get("title", f"Detection: {rule_id}"),
-            "description": meta.get("description", ""),
-            "remediation": meta.get("remediation", ""),
-            "mitre_tactics": json.dumps(meta.get("mitre_tactics") or []),
-            "mitre_techniques": json.dumps(meta.get("mitre_techniques") or []),
-            "risk_indicators": event.get("risk_indicators", []),
-            "compliance_frameworks": json.dumps(meta.get("compliance_frameworks") or {}),
-            "finding_data": json.dumps({
-                "event_operation": event.get("operation"),
-                "event_outcome": event.get("outcome"),
-                "event_severity": event.get("event_severity"),
-                "matched_rule": rule_id,
+            "finding_id":          f"ciem_{finding_id}",
+            "scan_run_id":         self.scan_run_id,
+            "tenant_id":           self.tenant_id,
+            "rule_id":             rule_id,
+            "rule_source":         "log",
+            "severity":            rule.get("severity") or "medium",
+            "status":              "OPEN",
+            "primary_engine":      "ciem",
+            "engines":             ["ciem"],
+            "action_category":     rule.get("subcategory") or rule.get("threat_category") or "",
+            "resource_uid":        (resource.uid if resource else "") or "",
+            "resource_type":       (resource.resource_type if resource else "") or "",
+            "resource_name":       (resource.name if resource else "") or "",
+            "account_id":          (actor.account_id if actor else "") or "",
+            "region":              (resource.region if resource else "") or "",
+            "provider":            self.provider,
+            "actor_principal":     (actor.principal if actor else "") or "",
+            "actor_principal_type":(actor.principal_type if actor else "") or "",
+            "actor_ip":            (actor.ip_address if actor else "") or "",
+            "event_id":            event_id,
+            "event_time":          event.event_time,
+            "service":             event.service or "",
+            "operation":           event.operation or "",
+            "title":               rule.get("title") or f"Detection: {rule_id}",
+            "description":         rule.get("description") or "",
+            "remediation":         rule.get("remediation") or "",
+            "mitre_tactics":       json.dumps(rule.get("mitre_tactics") or []),
+            "mitre_techniques":    json.dumps(rule.get("mitre_techniques") or []),
+            "risk_indicators":     [],
+            "compliance_frameworks": json.dumps(rule.get("compliance_frameworks") or {}),
+            "finding_data":        json.dumps({
+                "event_operation": event.operation,
+                "event_outcome":   outcome_val,
+                "matched_rule":    rule_id,
             }),
         }
 
+    # ── Batch write (once per scan) ───────────────────────────────────────────
+
+    def flush(self, findings: List[Dict], started: datetime, completed: datetime) -> Dict:
+        """Write all findings + report to DB. Called once at end of scan."""
+        self._write_findings(findings)
+        return self._write_report(findings, started, completed)
+
     def _write_findings(self, findings: List[Dict]):
-        """Write findings to ciem_findings table."""
         if not findings:
             return
-
         conn = self._get_ciem_conn()
         try:
-            # Ensure tenant
             with conn.cursor() as cur:
                 cur.execute(
                     "INSERT INTO tenants (tenant_id, tenant_name) VALUES (%s, %s) ON CONFLICT DO NOTHING",
                     (self.tenant_id, self.tenant_id),
                 )
-
-            values = []
-            for f in findings:
-                values.append((
+            values = [
+                (
                     f["finding_id"], f["scan_run_id"], f["tenant_id"],
                     f["rule_id"], f["rule_source"],
                     f["severity"], f["status"],
@@ -419,14 +306,14 @@ class CIEMRuleEvaluator:
                     f["mitre_tactics"], f["mitre_techniques"],
                     f["risk_indicators"], f["compliance_frameworks"],
                     f["finding_data"],
-                ))
-
+                )
+                for f in findings
+            ]
             with conn.cursor() as cur:
                 execute_values(cur, """
                     INSERT INTO ciem_findings (
                         finding_id, scan_run_id, tenant_id,
-                        rule_id, rule_source,
-                        severity, status,
+                        rule_id, rule_source, severity, status,
                         primary_engine, engines, action_category,
                         resource_uid, resource_type, resource_name,
                         account_id, region, provider,
@@ -440,27 +327,22 @@ class CIEMRuleEvaluator:
                     ON CONFLICT (finding_id) DO NOTHING
                 """, values, page_size=500)
             conn.commit()
-            logger.info(f"Wrote {len(findings)} findings to ciem_findings")
+            logger.info(f"L1: wrote {len(findings)} findings to ciem_findings")
         finally:
             conn.close()
 
     def _write_report(self, findings: List[Dict], started: datetime, completed: datetime) -> Dict:
-        """Write scan summary to ciem_report."""
         by_severity = defaultdict(int)
-        by_engine = defaultdict(int)
         by_category = defaultdict(int)
-
         for f in findings:
             by_severity[f["severity"]] += 1
-            by_engine[f["primary_engine"]] += 1
             by_category[f["action_category"]] += 1
 
         stats = {
-            "scan_run_id": self.scan_run_id,
+            "scan_run_id":    self.scan_run_id,
             "total_findings": len(findings),
-            "by_severity": dict(by_severity),
-            "by_engine": dict(by_engine),
-            "by_category": dict(by_category),
+            "by_severity":    dict(by_severity),
+            "by_category":    dict(by_category),
             "duration_seconds": (completed - started).total_seconds(),
         }
 
@@ -485,7 +367,7 @@ class CIEMRuleEvaluator:
                     self.scan_run_id, self.tenant_id, self.provider,
                     started, completed, len(findings),
                     json.dumps(dict(by_severity)),
-                    json.dumps(dict(by_engine)),
+                    json.dumps({"ciem": len(findings)}),
                     json.dumps(dict(by_category)),
                 ))
             conn.commit()

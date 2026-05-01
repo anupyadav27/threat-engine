@@ -25,26 +25,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
 from engine_common.logger import setup_logger
 from engine_common.orchestration import get_orchestration_metadata
-from engine_common.retention import cleanup_old_scans
+from engine_common.db_connections import get_container_sec_conn
 
 logger = setup_logger(__name__, engine_name="container-sec-scanner")
 
 
-def _get_csec_conn():
-    import psycopg2
-    return psycopg2.connect(
-        host=os.getenv("CSEC_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("CSEC_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("CSEC_DB_NAME", "threat_engine_container_security"),
-        user=os.getenv("CSEC_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("CSEC_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-    )
-
-
 def _update_report_status(scan_run_id: str, status: str, error: str = None):
     try:
-        conn = _get_csec_conn()
+        conn = get_container_sec_conn()
         with conn.cursor() as cur:
             if error:
                 cur.execute(
@@ -64,7 +52,7 @@ def _update_report_status(scan_run_id: str, status: str, error: str = None):
 
 def _create_report_row(scan_run_id: str, tenant_id: str, provider: str):
     try:
-        conn = _get_csec_conn()
+        conn = get_container_sec_conn()
         with conn.cursor() as cur:
             cur.execute(
                 "INSERT INTO tenants (tenant_id, tenant_name) VALUES (%s, %s) ON CONFLICT DO NOTHING",
@@ -110,6 +98,17 @@ def main():
         logger.info(f"Resolved: tenant={tenant_id} provider={provider} account={account_id}")
 
         _create_report_row(scan_run_id, tenant_id, provider)
+
+        # Provider guard — routes to the appropriate CSP provider module
+        from container_security_engine.providers import get_provider as get_container_provider
+        container_provider = get_container_provider(provider)
+        if not container_provider.is_supported():
+            logger.info(
+                f"Container-security: provider='{provider}' not yet supported — completing with 0 findings"
+            )
+            _update_report_status(scan_run_id, "completed")
+            return
+
         start = datetime.now(timezone.utc)
 
         # 1. Load data
@@ -121,10 +120,22 @@ def main():
 
         try:
             discovery_resources = disc_reader.load_all_container_resources(
-                scan_run_id, tenant_id, account_id or None
+                scan_run_id, tenant_id, account_id or None, services=container_provider.discovery_services
             )
             total_disc = sum(len(v) for v in discovery_resources.values())
             logger.info(f"Discovery: {total_disc} resources across {len(discovery_resources)} services")
+            if total_disc == 0:
+                logger.warning(
+                    f"[DIAGNOSTIC] 0 container resources found for scan_run_id={scan_run_id} "
+                    f"tenant={tenant_id} account={account_id}. "
+                    "Likely causes: (1) EKS/ECS/ECR/Fargate not present in scanned regions, "
+                    "(2) discovery failed — check service_scan_attempts for status=failed/access_denied "
+                    "on eks/ecs/ecr/lambda services."
+                )
+            else:
+                for svc, items in discovery_resources.items():
+                    if items:
+                        logger.info(f"  {svc}: {len(items)} resources")
 
             check_findings = check_reader.load_container_check_findings(scan_run_id, tenant_id)
             rule_metadata = check_reader.load_rule_metadata()
@@ -241,7 +252,8 @@ def main():
         logger.info(f"Categorized {len(findings)} findings (incl. {len(ciem_check_findings)} from CIEM)")
 
         # 4. Build inventory
-        container_inventory = build_container_inventory(discovery_resources, findings)
+        flat_resources = [r for items in discovery_resources.values() for r in items]
+        container_inventory = build_container_inventory(flat_resources, findings)
         logger.info(f"Inventory: {len(container_inventory)} resources")
 
         # 5. Posture scores
@@ -314,9 +326,46 @@ def main():
             "attack_surface_count": len(attack_surface),
         }
 
-        # 8. Write
+        # 8. Write legacy findings
         save_findings_to_db(scan_run_id, tenant_id, provider, findings, summary)
         save_container_inventory(scan_run_id, tenant_id, container_inventory)
+
+        # 8b. CIS 7-layer analysis (writes directly to container_sec_findings)
+        try:
+            from container_security_engine.analyzer.cis_analyzer import run_cis_analysis
+            from container_security_engine.storage.container_db_writer import save_cis_findings_to_db
+            from engine_common.db_connections import get_discoveries_conn
+
+            discoveries_conn = get_discoveries_conn()
+            try:
+                cis_findings = run_cis_analysis(
+                    provider=provider,
+                    scan_run_id=scan_run_id,
+                    tenant_id=tenant_id,
+                    account_id=account_id,
+                    discoveries_conn=discoveries_conn,
+                )
+                if cis_findings:
+                    cis_count = save_cis_findings_to_db(
+                        scan_run_id=scan_run_id,
+                        tenant_id=tenant_id,
+                        provider=provider,
+                        cis_findings=cis_findings,
+                        credential_ref=metadata.get("credential_ref"),
+                        credential_type=metadata.get("credential_type"),
+                    )
+                    logger.info(
+                        f"CIS 7-layer analysis: {len(cis_findings)} findings ({cis_count} written) "
+                        f"for provider={provider}"
+                    )
+                    fail_cis = sum(1 for f in cis_findings if f.get("status") == "FAIL")
+                    logger.info(f"CIS FAIL count: {fail_cis} / {len(cis_findings)}")
+                else:
+                    logger.info(f"CIS 7-layer analysis: 0 findings for provider={provider}")
+            finally:
+                discoveries_conn.close()
+        except Exception as cis_err:
+            logger.error(f"CIS 7-layer analysis failed (non-fatal): {cis_err}", exc_info=True)
 
         # 9. Report JSON
         try:
@@ -338,10 +387,13 @@ def main():
             f"{len(container_inventory)} resources in {duration:.1f}s"
         )
 
+        # Retention: archive old scans to S3, keep last 5 in DB
         try:
-            cleanup_old_scans("container_security", tenant_id, keep=3)
-        except Exception as e:
-            logger.warning(f"Retention cleanup failed: {e}")
+            from engine_common.retention import run_retention
+            run_retention("container", scan_run_id)
+        except Exception as _ret_err:
+            logger.warning("Retention cleanup skipped: %s", _ret_err)
+
 
     except Exception as e:
         logger.error(f"Container security scan FAILED: {e}", exc_info=True)

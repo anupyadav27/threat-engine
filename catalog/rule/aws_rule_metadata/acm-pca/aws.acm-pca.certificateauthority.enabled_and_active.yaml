@@ -1,0 +1,38 @@
+rule_id: aws.acm-pca.certificateauthority.enabled_and_active
+service: acm-pca
+resource: certificateauthority
+requirement: ACM Private CA Is Active
+title: 'ACM-PCA certificateauthority: Enabled and Active'
+scope: acm-pca.certificateauthority.status
+domain: configuration_and_change_management
+subcategory: configuration
+posture_category: key_management
+rationale: Private CAs that are not in ACTIVE status cannot issue certificates, which
+  may disrupt internal PKI workflows or indicate abandoned CAs that should be deleted
+  to reduce attack surface.
+severity: high
+assertion_id: key_management.acm_pca_certificateauthority_enabled_and_active
+source: default
+description: Checks that all AWS Certificate Manager Private Certificate Authority
+  (ACM PCA) instances have a Status of ACTIVE. CAs in CREATING, PENDING_CERTIFICATE,
+  DISABLED, DELETED, or FAILED states indicate misconfiguration, incomplete setup,
+  or abandoned CAs. Disabled or failed CAs may represent gaps in the PKI trust chain
+  used for internal TLS, code signing, or device authentication.
+references:
+- https://docs.aws.amazon.com/privateca/latest/userguide/PcaWelcome.html
+- https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+remediation: "Ensure ACM Private CAs are in ACTIVE status:\n\n1. Open the AWS Certificate\
+  \ Manager console and navigate to Private CAs\n2. Review CAs with non-ACTIVE status:\n\
+  \   - PENDING_CERTIFICATE: Complete CA installation by importing the signed CA certificate\n\
+  \   - DISABLED: Re-enable the CA if it is still required\n   - CREATING/FAILED:\
+  \ Investigate creation errors and recreate if needed\n   - DELETED: Remove references\
+  \ and recreate if the CA is needed\n3. Delete CAs that are no longer required to\
+  \ minimize attack surface\n\nAWS CLI:\n  aws acm-pca describe-certificate-authority\
+  \ --certificate-authority-arn <arn>\n  # To re-enable a disabled CA:\n  aws acm-pca\
+  \ update-certificate-authority --certificate-authority-arn <arn> --status ACTIVE\n\
+  \nBest Practices:\n• Regularly audit all Private CAs and remove unused ones\n• Monitor\
+  \ CA status changes via CloudTrail and EventBridge\n• Implement certificate lifecycle\
+  \ automation to prevent expiry-related failures"
+metadata_source: default
+generated_by: fix_disc_only_services
+compliance: []

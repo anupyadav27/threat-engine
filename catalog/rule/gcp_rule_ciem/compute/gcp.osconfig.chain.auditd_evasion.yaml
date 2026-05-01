@@ -1,0 +1,87 @@
+rule_id: gcp.osconfig.chain.auditd_evasion
+service: compute
+provider: gcp
+check_type: log
+severity: high
+title: Detect Compute Engine auditd service manipulation and OS Config patch deployments
+  that modify or disable auditd
+description: Detects auditd service manipulation and patch deployment events.
+rationale: Monitoring this activity is essential for detecting adversary defense evasion
+  against GCP resources. Unauthorized or unexpected API calls may indicate account
+  compromise, privilege escalation, or an active attack chain.
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1562.001
+risk_score: 80
+resource: cloud_compute_instance
+source: csv_generated
+is_active: true
+domain: logging_monitoring_and_alerting
+action_category: audit_activity
+log_source_type: gcp_audit_log
+posture_category: threat_posture
+threat_tags:
+- T1562.001
+- T1562
+- defense_evasion
+- ciem_detection
+- attack_chain
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: read
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: high
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_controls_v8:
+  - 5.7.2
+remediation: '1. Immediately investigate the principal that performed this action
+  — treat as potentially compromised.
+
+  2. Restore any disabled/deleted security controls (logging, agents, scanning).
+
+  3. Review the full session context for lateral movement or data exfiltration following
+  this action.
+
+  4. Restrict the ability to disable security tools to break-glass roles with MFA
+  enforcement.
+
+  5. Add SCPs/Organization Policies to prevent non-authorized disablement of security
+  controls.'
+references:
+- https://attack.mitre.org/techniques/T1562.001/
+- https://cloud.google.com/iam/docs/
+check_config:
+  events:
+  - conditions:
+      all:
+      - field: source_type
+        op: equals
+        value: gcp_audit_log
+      - field: service
+        op: equals
+        value: osconfig.googleapis.com
+      - field: operation
+        op: equals
+        value: compute.instances.setMetadata
+  - conditions:
+      all:
+      - field: source_type
+        op: equals
+        value: gcp_audit_log
+      - field: service
+        op: equals
+        value: osconfig.googleapis.com
+      - field: operation
+        op: equals
+        value: osconfig.patchDeployments.delete
+  type: sequence
+  window_seconds: 600
+  version: '1.0'

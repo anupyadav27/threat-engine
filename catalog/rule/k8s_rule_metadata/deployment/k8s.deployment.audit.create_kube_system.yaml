@@ -1,0 +1,62 @@
+rule_id: k8s.deployment.audit.create_kube_system
+rule_type: ciem
+title: 'Deployment: Created in kube-system Namespace'
+scope: deployment.audit
+domain: container_and_kubernetes_security
+subcategory: container_security
+severity: critical
+service: deployment
+resource: audit
+requirement: Create Kube System
+description: Deployment created in kube-system by a non-cluster-admin — may install
+  malicious components alongside cluster management infrastructure.
+rationale: 'Adversaries deploy containers into environments using Docker APIs or Kubernetes
+  control planes to facilitate execution or evade defenses by running malicious images
+  outside standard deployment processes. Deployed containers can host C2 infrastructure,
+  cryptomining workloads, or data exfiltration tools. Detected via: container create
+  + start by non-admin principals, images not on an allowlist or using ''latest''
+  tag, privileged mode or host namespace mount at runtime, and unauthenticated Docker
+  API access.'
+remediation: '1. Delete the unauthorized DaemonSet, CronJob, or ServiceAccount immediately.
+
+  2. Audit all resources in kube-system: `kubectl get all -n kube-system`
+
+  3. Enable admission control policies restricting resource creation to known CI/CD
+  identities.
+
+  4. Use RBAC least-privilege: restrict create verbs on DaemonSets/CronJobs to dedicated
+  service accounts.
+
+  5. Monitor for new ServiceAccount creation via Falco or audit log alerting.
+
+  '
+references:
+- https://attack.mitre.org/techniques/T1610/
+- https://kubernetes.io/docs/concepts/security/pod-security-admission/
+compliance:
+  cis_k8s_v1:
+  - 5.1.1
+  - 5.1.4
+  - 5.4.1
+  nist_800_53_r5:
+  - AC-2
+  - AC-6
+  - CM-7
+  pci_dss_v4:
+  - 7.1
+  - 8.2
+  - 6.4
+  iso_27001_2022:
+  - A.5.18
+  - A.8.19
+threat_category: persistence
+mitre_tactics:
+- persistence
+- privilege_escalation
+mitre_techniques:
+- T1610
+risk_score: 90
+action_category: create
+source: default
+metadata_source: auto_generated
+generated_by: k8s_ciem_generator

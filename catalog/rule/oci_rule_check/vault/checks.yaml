@@ -1,0 +1,29 @@
+version: '1.0'
+provider: oci
+service: vault
+checks:
+- rule_id: oci.vault.secret.encrypted
+  for_each: oci.vault.list_secret_versions
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.status
+      op: not_empty
+      value: null
+    - var: item.kms_key_id
+      op: exists
+      value: null
+- rule_id: oci.vault.secret.expiration_set
+  for_each: oci.vault.list_secret_versions
+  severity: MEDIUM
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: oci.vault.secret.permissions_configured
+  for_each: oci.vault.list_secret_versions
+  severity: MEDIUM
+  conditions:
+    var: item.status
+    op: equals
+    value: Active

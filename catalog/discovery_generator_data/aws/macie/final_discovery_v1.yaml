@@ -1,0 +1,50 @@
+# ==========================================================
+# Discovery YAML — macie (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 3 | ops: 1 independent, 0 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: macie
+
+services:
+  client: macie
+  module: "boto3.client('macie')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: finding
+    identifier_op: aws.macie.list_findings
+    identifier_field: archived
+    item_var_path: item.archived
+    identifier_template: '{archived}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.macie.list_findings  ──
+  - discovery_id: aws.macie.list_findings
+    calls:
+      - action: list_findings
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        archived: '{{ item.archived }}'
+        classificationDetails: '{{ item.classificationDetails }}'
+        classificationDetails.result.sensitiveDataOccurrences.retentionDays: '{{ item.classificationDetails.result.sensitiveDataOccurrences.retentionDays }}'
+        findings: '{{ item.findings }}'
+        partition: '{{ item.partition }}'
+        policyDetails: '{{ item.policyDetails }}'
+        resourcesAffected: '{{ item.resourcesAffected }}'
+        resourcesAffected.s3BucketDetails.defaultServerSideEncryption: '{{ item.resourcesAffected.s3BucketDetails.defaultServerSideEncryption }}'
+        sample: '{{ item.sample }}'
+        schemaVersion: '{{ item.schemaVersion }}'
+        severity: '{{ item.severity }}'
+        status: '{{ item.status }}'
+        title: '{{ item.title }}'
+

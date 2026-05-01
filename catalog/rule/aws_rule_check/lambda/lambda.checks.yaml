@@ -1,0 +1,314 @@
+version: '1.0'
+provider: aws
+service: lambda
+checks:
+- rule_id: aws.lambda.event_source_mapping.permissions_least_privilege
+  for_each: aws.lambda.get_function_configuration
+  severity: HIGH
+  conditions:
+    var: item.EventSourceMappings[].EventSourceArn
+    op: exists
+    value: null
+- rule_id: aws.lambda.event_source_mapping.source_authenticated_configured
+  for_each: aws.lambda.get_function
+  severity: MEDIUM
+  conditions:
+    var: item.EventSourceMappings[].EventSourceArn
+    op: not_empty
+    value: null
+- rule_id: aws.lambda.function.artifacts_encrypted_and_private
+  for_each: aws.lambda.get_function
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.KMSKeyArn
+      op: exists
+      value: null
+    - var: item.Code.RepositoryType
+      op: not_equals
+      value: S3
+- rule_id: aws.lambda.function.change_audit_logging_enabled
+  for_each: aws.lambda.get_function_configuration
+  severity: MEDIUM
+  conditions:
+    var: item.LoggingConfig
+    op: exists
+    value: null
+- rule_id: aws.lambda.function.cloudwatch_lambda_insights_enabled
+  for_each: aws.lambda.get_function_configuration
+  severity: MEDIUM
+  conditions:
+    var: item.Layers[].Arn
+    op: contains
+    value: LambdaInsightsExtension
+- rule_id: aws.lambda.function.code_signing_config_present
+  for_each: aws.lambda.get_function
+  severity: MEDIUM
+  conditions:
+    var: item.CodeSigningConfigArn
+    op: exists
+    value: null
+- rule_id: aws.lambda.function.dead_letter_queue_configured
+  for_each: aws.lambda.get_function
+  severity: MEDIUM
+  conditions:
+    var: item.DeadLetterConfig
+    op: exists
+    value: null
+- rule_id: aws.lambda.function.env_no_plaintext_secrets_configured
+  for_each: aws.lambda.get_function
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Environment.Variables
+      op: exists
+      value: null
+    - var: item.Environment.Variables
+      op: is_empty
+      value: null
+- rule_id: aws.lambda.function.environment_variables_kms_encryption_enabled
+  for_each: aws.lambda.get_function
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Environment
+      op: exists
+      value: null
+    - var: item.KMSKeyArn
+      op: exists
+      value: null
+- rule_id: aws.lambda.function.execution_role_existence_configured
+  for_each: aws.lambda.get_function_configuration
+  severity: HIGH
+  conditions:
+    var: item.Role
+    op: exists
+    value: null
+- rule_id: aws.lambda.function.execution_role_no_admin_privileges_configured
+  for_each: aws.lambda.get_function_configuration
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.Role
+      op: not_exists
+      value: null
+    - all:
+      - var: item.Role
+        op: exists
+        value: null
+      - var: item.Role
+        op: not_equals
+        value: arn:aws:iam::*:role/*Admin*
+      - var: item.Role
+        op: not_contains
+        value: AdministratorAccess
+- rule_id: aws.lambda.function.inside_vpc_configured
+  for_each: aws.lambda.get_function_configuration
+  severity: HIGH
+  conditions:
+    var: item.VpcConfig.SubnetIds
+    op: not_empty
+    value: null
+- rule_id: aws.lambda.function.invoke_api_operations_cloudtrail_logging_enabled
+  for_each: aws.lambda.get_function_configuration
+  severity: MEDIUM
+  conditions:
+    var: item.LoggingConfig
+    op: exists
+    value: null
+- rule_id: aws.lambda.function.jobs_private_networking_configured
+  for_each: aws.lambda.get_function
+  severity: HIGH
+  conditions:
+    var: item.VpcConfig.SubnetIds
+    op: not_empty
+    value: null
+- rule_id: aws.lambda.function.logging_and_tracing_enabled
+  for_each: aws.lambda.get_function_configuration
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.LoggingConfig
+      op: exists
+      value: null
+    - var: item.LoggingConfig.LogFormat
+      op: exists
+      value: null
+    - var: item.TracingConfig
+      op: exists
+      value: null
+    - var: item.TracingConfig.Mode
+      op: equals
+      value: Active
+- rule_id: aws.lambda.function.not_publicly_accessible_configured
+  for_each: aws.lambda.get_function_url_config
+  severity: HIGH
+  conditions:
+    var: item.AuthType
+    op: equals
+    value: AWS_IAM
+- rule_id: aws.lambda.function.outputs_encrypted
+  for_each: aws.lambda.get_function_configuration
+  severity: HIGH
+  conditions:
+    var: item.KMSKeyArn
+    op: exists
+    value: null
+- rule_id: aws.lambda.function.policies_present_for_sensitive_fields_configured
+  for_each: aws.lambda.get_function_configuration
+  severity: MEDIUM
+  conditions:
+    any:
+    - all:
+      - var: item.KMSKeyArn
+        op: exists
+        value: null
+      - var: item.Environment
+        op: exists
+        value: null
+    - all:
+      - var: item.KMSKeyArn
+        op: exists
+        value: null
+      - var: item.DeadLetterConfig
+        op: exists
+        value: null
+    - all:
+      - var: item.Environment
+        op: exists
+        value: null
+      - var: item.DeadLetterConfig
+        op: exists
+        value: null
+- rule_id: aws.lambda.function.remediation_roles_least_privilege
+  for_each: aws.lambda.get_function_configuration
+  severity: HIGH
+  conditions:
+    var: item.Role
+    op: exists
+    value: null
+- rule_id: aws.lambda.function.reserved_concurrency_configured
+  for_each: aws.lambda.get_function_concurrency
+  severity: MEDIUM
+  conditions:
+    var: item.ReservedConcurrentExecutions
+    op: exists
+    value: null
+- rule_id: aws.lambda.function.resource_policy_cross_account_access_configured
+  for_each: aws.lambda.get_function
+  severity: HIGH
+  conditions:
+    var: item.Policy
+    op: exists
+    value: null
+- rule_id: aws.lambda.function.restrict_public_access_configured
+  for_each: aws.lambda.get_function_url_config
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.AuthType
+      op: not_equals
+      value: NONE
+    - var: item.AuthType
+      op: not_exists
+      value: null
+- rule_id: aws.lambda.function.role_least_privilege
+  for_each: aws.lambda.get_function_configuration
+  severity: HIGH
+  conditions:
+    var: item.Role
+    op: exists
+    value: null
+- rule_id: aws.lambda.function.runtime_support_configured
+  for_each: aws.lambda.get_function_configuration
+  severity: MEDIUM
+  conditions:
+    var: item.Runtime
+    op: exists
+    value: null
+- rule_id: aws.lambda.function.unique_iam_role_configured
+  for_each: aws.lambda.get_function_configuration
+  severity: HIGH
+  conditions:
+    var: item.Role
+    op: exists
+    value: null
+- rule_id: aws.lambda.function.url_authentication_configured
+  for_each: aws.lambda.get_function_url_config
+  severity: CRITICAL
+  conditions:
+    var: item.AuthType
+    op: equals
+    value: AWS_IAM
+- rule_id: aws.lambda.function.url_cors_policy_configured
+  for_each: aws.lambda.get_function_url_config
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Cors
+      op: exists
+      value: null
+    - var: item.Cors.AllowOrigins
+      op: not_empty
+      value: null
+- rule_id: aws.lambda.function.url_public_configured
+  for_each: aws.lambda.get_function_url_config
+  severity: HIGH
+  conditions:
+    var: item.AuthType
+    op: equals
+    value: AWS_IAM
+- rule_id: aws.lambda.function.vpc_multi_az_configured
+  for_each: aws.lambda.get_function
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.VpcConfig.SubnetIds
+      op: not_empty
+      value: null
+    - var: item.VpcConfig.SubnetIds
+      op: length_gte
+      value: 2
+- rule_id: aws.lambda.function.vpc_private_networking_enabled
+  for_each: aws.lambda.get_function_configuration
+  severity: HIGH
+  conditions:
+    var: item.VpcConfig.SubnetIds
+    op: exists
+    value: null
+- rule_id: aws.lambda.layer.source_trusted_configured
+  for_each: aws.lambda.get_function_configuration
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Layers
+      op: not_empty
+      value: null
+    - var: item.Layers[].LayerArn
+      op: contains
+      value: arn:aws:lambda:*:*:layer:*:*:*
+- rule_id: aws.lambda.layer.version_immutable_configured
+  for_each: aws.lambda.get_function_configuration
+  severity: LOW
+  conditions:
+    var: item.Layers[].LayerVersionArn
+    op: exists
+    value: null
+- rule_id: aws.lambda.version.published_and_immutable_configured
+  for_each: aws.lambda.get_function_configuration
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Version
+      op: exists
+      value: null
+    - var: item.Version
+      op: not_equals
+      value: $LATEST
+- rule_id: aws.lambda.version.rollforward_rollback_controls_present
+  for_each: aws.lambda.get_function
+  severity: MEDIUM
+  conditions:
+    var: item.Version
+    op: exists
+    value: null

@@ -1,0 +1,64 @@
+version: '1.0'
+provider: azure
+service: iam
+checks:
+- rule_id: azure.iam.policy.cis_2_4_needs_development
+  for_each: azure.authorization.roledefinitions.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.type
+    op: equals
+    value: BuiltIn
+- rule_id: azure.iam.policy.cis_5_18_needs_development
+  for_each: azure.authorization.roledefinitions.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.permissions[].actions
+    op: not_contains
+    value: '*'
+- rule_id: azure.iam.policy.cis_5_25_needs_development
+  for_each: azure.authorization.roledefinitions.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.permissions[].actions
+    op: not_contains
+    value: '*'
+- rule_id: azure.iam.policy.cis_5_3_7_needs_development
+  for_each: azure.authorization.roledefinitions.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.permissions[].actions
+    op: not_contains
+    value: '*'
+- rule_id: azure.iam.role.assignment.privileged.review
+  for_each: azure.authorization.roleassignments.list
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.Principal.Properties.AssignmentState
+    op: equals
+    value: Active
+- rule_id: azure.iam.role.has_permissions_to_administer_resource_locks
+  for_each: azure.authorization.roledefinitions.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.permissions[].actions
+      op: not_contains
+      value: Microsoft.Authorization/locks/*
+    - var: item.permissions[].actions
+      op: not_contains
+      value: '*'
+- rule_id: azure.iam.user.access.admin.check
+  for_each: azure.iam.list_users
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.assignedRoles[].roleName
+      op: not_contains
+      value: Owner
+    - var: item.assignedRoles[].roleName
+      op: not_contains
+      value: Contributor
+    - var: item.assignedRoles[].roleName
+      op: not_contains
+      value: User Access Administrator

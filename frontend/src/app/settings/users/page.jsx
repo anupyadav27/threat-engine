@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getFromEngine, fetchFromCspm } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 import { Users, UserPlus, Edit2, Trash2, ShieldCheck } from 'lucide-react';
 import KpiCard from '@/components/shared/KpiCard';
 import DataTable from '@/components/shared/DataTable';
@@ -51,6 +52,7 @@ const FILTERS = [
 export default function UsersPage() {
   const router = useRouter();
   const toast = useToast();
+  const { selectedTenant } = useAuth();
   const [search, setSearch] = useState('');
   const [activeFilters, setActiveFilters] = useState({ role: '', status: '' });
   const [users, setUsers] = useState([]);
@@ -63,9 +65,10 @@ export default function UsersPage() {
       setError(null);
       try {
         // Try Django CSPM backend first (has real users with roles and auth)
-        const cspmRes = await fetchFromCspm('/api/users/');
+        const tenantParam = selectedTenant ? `?tenant_id=${encodeURIComponent(selectedTenant)}` : '';
+        const cspmRes = await fetchFromCspm(`/api/users/${tenantParam}`);
         if (cspmRes && !cspmRes.error) {
-          const rawList = cspmRes.results || (Array.isArray(cspmRes) ? cspmRes : []);
+          const rawList = cspmRes.users || cspmRes.results || (Array.isArray(cspmRes) ? cspmRes : []);
           if (rawList.length > 0) {
             setUsers(rawList.map(u => ({
               id: u.id || u.pk,
@@ -94,7 +97,7 @@ export default function UsersPage() {
       }
     };
     fetchUsers();
-  }, []);
+  }, [selectedTenant]);
 
   const totalUsers = users.length;
   const adminUsers = users.filter((u) => u.role === 'admin' || u.role === 'super_admin').length;

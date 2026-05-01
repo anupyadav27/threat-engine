@@ -1,0 +1,55 @@
+tech_type: nginx
+category: web_server
+cis_benchmark: CIS NGINX v2.1.0
+cis_section: '3'
+
+rules:
+
+  - rule_id: nginx.cis.3.error_logging_is_enabled_and_set_to_the_info
+    title: "Ensure error logging is enabled and set to the info logging level"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: nginx.section_3.error_logging_is_enabled_and_set_to_the_info
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "no"
+    remediation: >
+      Edit /etc/nginx/nginx.conf so the error_log directive is present and not
+      commented out. The error_log should be configured to the logging location of
+      your choice. The configuration should look similar to the below: error_log
+      /var/log/nginx/error_log.log info;
+    compliance:
+      - cis_nginx_v2_1_0_3_3
+
+  - rule_id: nginx.cis.3.log_files_are_rotated
+    title: "Ensure log files are rotated"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: nginx.section_3.log_files_are_rotated
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Follow the below procedure to change the default configuration to the
+      recommended log rotation configuration. You may need to manually edit or
+      change the below command if the configuration is not the default. To change
+      log compression from daily to weekly: sed -i 's/daily/weekly/'
+      /etc/logrotate.d/nginx To change log rotation from every year to every 13
+      weeks: sed -i 's/rotate 52/rotate 13/' /etc/logrotate.d/nginx Default Value:
+      cat /etc/logrotate.d/nginx /var/log/nginx/*.log { daily missingok rotate 52
+      compress delaycompress notifempty create 640 nginx adm sharedscripts
+      postrotate if [ -f /var/run/nginx.pid ]; then kill -USR1 `cat
+      /var/run/nginx.pid` fi endscript } Additional Information: You should always
+      comply with your organizational log retention policy.
+    compliance:
+      - cis_nginx_v2_1_0_3_4
+
+

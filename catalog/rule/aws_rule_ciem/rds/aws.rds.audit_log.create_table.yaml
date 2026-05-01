@@ -1,0 +1,84 @@
+rule_id: aws.rds.audit_log.create_table
+service: rds
+provider: aws
+check_type: log
+severity: low
+title: 'RDS: Create Table'
+description: CREATE TABLE executed — new database table created.
+rationale: JavaScript-based execution via cloud functions or Lambda can run malicious code without requiring server-level access or traditional deploy pipelines.
+threat_category: execution
+mitre_tactics:
+- execution
+mitre_techniques:
+- T1059.007
+risk_score: 25
+resource: rds_instance
+source: default
+is_active: true
+domain: data_protection_and_privacy
+action_category: execute
+log_source_type: 
+posture_category: workload_posture
+threat_tags:
+- T1059.007
+- T1059
+- remote_execution
+- cloud_exec
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: execution
+  target_type: database
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - database_security
+  categories:
+  - sensitive_data_access
+  priority: low
+  impact:
+    pci: PCI DSS Requirement 7 — Restrict access to cardholder data by business need
+    gdpr: GDPR Article 25 — Data protection by design and by default
+    hipaa: §164.312(a)(1) — Access control for ePHI data systems
+  sensitive_data_context: |
+  Unauthorized execution on rds resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks:
+  cis_aws_v3:
+  - 3.1
+  - 5.1
+  cis_azure_v2:
+  - 5.1
+  - 6.1
+  nist_800_53_r5:
+  - CM-7
+  - SI-3
+  - AU-12
+  pci_dss_v4:
+  - 6.3
+  - 10.2
+  iso_27001_2022:
+  - A.8.19
+  - A.8.8
+remediation: |
+  1. Restrict Lambda/Function App deployment permissions to authorized principals.
+  2. Enable static analysis and code signing for function deployments.
+  3. Monitor function invocation patterns for behavioral anomalies.
+references:
+- https://attack.mitre.org/techniques/T1059/007/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: rds_audit
+    - field: operation
+      op: equals
+      value: CREATE
+version: '1.0'

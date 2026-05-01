@@ -1,0 +1,77 @@
+rule_id: alicloud.database.actiontrail.create_db_account
+service: database
+provider: alicloud
+check_type: log
+severity: high
+title: 'AliCloud RDS: DB Master Account Created'
+description: A new database account was created with elevated privileges. Adversaries
+  create admin DB accounts for persistent data access.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: persistence
+mitre_tactics:
+- persistence
+- credential_access
+mitre_techniques:
+- T1136
+- T1098
+risk_score: 78
+resource: alicloud_rds_account
+source: alicloud_ciem_generator
+is_active: true
+domain: storage_and_database_security
+action_category: create
+log_source_type: alicloud_actiontrail
+posture_category: data_security_posture
+threat_tags:
+- T1136
+- T1098
+- persistence
+- credential_access
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '6.1'
+  - '6.2'
+  nist_800_53_r5:
+  - SC-28
+  - AC-3
+  - AU-9
+  pci_dss_v4:
+  - '3.4'
+  - '6.2'
+  - '10.2'
+  iso_27001_2022:
+  - A.8.10
+  - A.8.24
+remediation: '1. Verify the account creation was authorized.
+
+  2. Review the account type — high-privilege accounts require additional justification.
+
+  3. Alert on creation of super-admin DB accounts.'
+references:
+- https://attack.mitre.org/techniques/T1136/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: rds
+    - field: operation
+      op: equals
+      value: CreateAccount
+version: '1.0'

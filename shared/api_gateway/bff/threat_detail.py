@@ -7,7 +7,7 @@ UI-ready response.
 
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
 from ._shared import fetch_many, safe_get
 from ._transforms import normalize_threat, _safe_lower
@@ -228,6 +228,7 @@ def _build_timeline(threat: dict, normalized: dict, analysis: dict) -> list:
 
 @router.get("/threats/{threat_id}")
 async def view_threat_detail(
+    request: Request,
     threat_id: str,
     tenant_id: str = Query(...),
 ):
@@ -239,13 +240,16 @@ async def view_threat_detail(
     blast radius, risk breakdown, evidence, remediation, and timeline.
     """
 
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
     results = await fetch_many([
         ("threat", f"/api/v1/threat/threats/{threat_id}", {"tenant_id": tenant_id}),
         ("threat", f"/api/v1/threat/analysis/{threat_id}", {"tenant_id": tenant_id}),
         # Use the new detection-aware endpoint that cross-queries the check DB
         ("threat", f"/api/v1/threat/detections/{threat_id}/check-findings", {"tenant_id": tenant_id}),
         ("threat", f"/api/v1/threat/{threat_id}/remediation", {"tenant_id": tenant_id}),
-    ])
+    ], auth_headers=fwd_headers)
 
     threat_raw, analysis_raw, misconfig_raw, remediation_raw = results
 

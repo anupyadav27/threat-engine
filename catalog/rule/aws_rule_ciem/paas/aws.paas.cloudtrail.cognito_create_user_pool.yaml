@@ -1,0 +1,83 @@
+rule_id: aws.paas.cloudtrail.cognito_create_user_pool
+service: paas
+provider: aws
+check_type: log
+severity: medium
+title: 'PaaS: Cognito Create User Pool'
+description: Cognito user pool created — managed user directory provisioned.
+rationale: 'Adversaries create cloud accounts (IAM users, Entra ID users, service principals) to maintain access to victim systems without deploying persistent remote access tools. Such accounts establish secondary credentialed access that survives password resets of the initially compromised account. Detected via: IAM CreateUser + AttachUserPolicy from non-standard sources, Add User events from unusual IPs, and SaaS account provisioning outside business hours.'
+threat_category: persistence
+mitre_tactics:
+- persistence
+mitre_techniques:
+- T1136.003
+risk_score: 50
+resource: aws_service
+source: default
+is_active: true
+domain: compute_and_workload_security
+action_category: create
+posture_category: iam_posture
+threat_tags:
+- T1136.003
+- T1136
+- persistence
+- backdoor
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.1
+  - 1.4
+  - 1.16
+  cis_azure_v2:
+  - 1.1
+  - 2.1
+  - 2.9
+  nist_800_53_r5:
+  - AC-2
+  - AC-6
+  - IA-2
+  - SC-7
+  pci_dss_v4:
+  - 7.1
+  - 8.2
+  - 10.2
+  iso_27001_2022:
+  - A.8.2
+  - A.9.2
+  - A.5.18
+detection_events:
+- 'iam:CreateUser'
+- microsoft.directory/users/create
+- 'organizations:CreateAccount'
+- New-MsolUser (PowerShell)
+remediation: |
+  1. Disable and investigate the new cloud account immediately.
+  2. Require MFA and business justification for all cloud account creation.
+  3. Integrate account provisioning with HR/ITSM systems for lifecycle control.
+  4. Enable alerts for account creation across all cloud tenants and sub-accounts.
+references:
+- https://attack.mitre.org/techniques/T1136/003/
+- https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_accounts.html
+- https://learn.microsoft.com/en-us/azure/active-directory/fundamentals/add-users-azure-active-directory
+check_config:
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: cognito-idp
+    - field: operation
+      op: equals
+      value: CreateUserPool
+version: '1.0'

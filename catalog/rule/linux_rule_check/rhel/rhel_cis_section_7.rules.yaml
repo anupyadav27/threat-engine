@@ -1,0 +1,360 @@
+tech_type: rhel
+category: linux
+cis_benchmark: CIS Red Hat Enterprise Linux 9 v2.0.0
+cis_section: '7'
+
+rules:
+
+  - rule_id: rhel.cis.7.permissions_on_etc_passwd_are_configured
+    title: "Ensure permissions on /etc/passwd are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '7.1.1'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: rhel.section_7.permissions_on_etc_passwd_are_configured
+    assertion:
+      field: row_count
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following commands to remove excess permissions, set owner, and set
+      group on /etc/passwd: # chmod u-x,go-wx /etc/passwd # chown root:root
+      /etc/passwd Default Value: Access: (0644/-rw-r--r--) Uid: ( 0/ root) Gid: ( 0/
+      root) References: 1. NIST SP 800-53 Rev. 5: AC-3, MP-2
+    compliance:
+      - cis_rhel_9_v2_0_0_7_1_1
+
+  - rule_id: rhel.cis.7.permissions_on_etc_shadow_are_configured
+    title: "Ensure permissions on /etc/shadow are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '7.1.5'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: rhel.section_7.permissions_on_etc_shadow_are_configured
+    assertion:
+      field: row_count
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following commands to set mode, owner, and group on /etc/shadow: #
+      chown root:root /etc/shadow # chmod 0000 /etc/shadow Default Value: Access:
+      (0/----------) Uid: ( 0/ root) Gid: ( 0/ root) References: 1. NIST SP 800-53
+      Rev. 5: AC-3, MP-2
+    compliance:
+      - cis_rhel_9_v2_0_0_7_1_5
+
+  - rule_id: rhel.cis.7.permissions_on_etc_gshadow_are_configured
+    title: "Ensure permissions on /etc/gshadow are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '7.1.7'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: rhel.section_7.permissions_on_etc_gshadow_are_configured
+    assertion:
+      field: row_count
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following commands to set mode, owner, and group on /etc/gshadow: #
+      chown root:root /etc/gshadow # chmod 0000 /etc/gshadow Default Value: Access:
+      (0/----------) Uid: ( 0/ root) Gid: ( 0/ root) References: 1. NIST SP 800-53
+      Rev. 5: AC-3, MP-2
+    compliance:
+      - cis_rhel_9_v2_0_0_7_1_7
+
+  - rule_id: rhel.cis.7.permissions_on_etc_security_opasswd_are_configured
+    title: "Ensure permissions on /etc/security/opasswd are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '7.1.10'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: rhel.section_7.permissions_on_etc_security_opasswd_are_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following commands to remove excess permissions, set owner, and set
+      group on /etc/security/opasswd and /etc/security/opasswd.old is they exist: #
+      [ -e '/etc/security/opasswd' ] && chmod u-x,go-rwx /etc/security/opasswd # [
+      -e '/etc/security/opasswd' ] && chown root:root /etc/security/opasswd # [ -e
+      '/etc/security/opasswd.old' ] && chmod u-x,go-rwx /etc/security/opasswd.old #
+      [ -e '/etc/security/opasswd.old' ] && chown root:root
+      /etc/security/opasswd.old Default Value: /etc/security/opasswd Access:
+      (0600/-rw-------) Uid: ( 0/ root) Gid: ( 0/ root) References: 1. NIST SP
+      800-53 Rev. 5: AC-3, MP-2
+    compliance:
+      - cis_rhel_9_v2_0_0_7_1_10
+
+  - rule_id: rhel.cis.7.world_writable_files_and_directories_are_secured
+    title: "Ensure world writable files and directories are secured"
+    severity: high
+    automation_type: automated
+    cis_control: '7.1.11'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: rhel.section_7.world_writable_files_and_directories_are_secured
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      • World Writable Files: o It is recommended that write access is removed from
+      other with the command ( chmod o-w <filename> ), but always consult relevant
+      vendor documentation to avoid breaking any application dependencies on a given
+      file. • World Writable Directories: o Set the sticky bit on all world writable
+      directories with the command ( chmod a+t <directory_name> ) Run the following
+      script to: • Remove other write permission from any world writable files • Add
+      the sticky bit to all world writable directories #!/usr/bin/env bash {
+      l_smask='01000' a_file=(); a_dir=() # Initialize arrays a_path=(! -path
+      '/run/user/*' -a ! -path '/proc/*' -a ! -path '*/containerd/*' -a ! -path
+      '*/kubelet/pods/*' -a ! -path '*/kubelet/plugins/*' -a ! -path '/sys/*' -a !
+      -path '/snap/*') while IFS= read -r l_mount; do while IFS= read -r -d $'\0'
+      l_file; do if [ -e '$l_file' ]; then l_mode='$(stat -Lc '%#a' '$l_file')' if [
+      -f '$l_file' ]; then # Remove excess permissions from WW files echo -e ' -
+      File: \'$l_file\' is mode: \'$l_mode\'\n - removing write permission on
+      \'$l_file\' from \'other\'' chmod o-w '$l_file' fi if [ -d '$l_file' ]; then #
+      Add sticky bit if [ ! $(( $l_mode & $l_smask )) -gt 0 ]; then echo -e ' -
+      Directory: \'$l_file\' is mode: \'$l_mode\' and doesn't have the sticky bit
+      set\n - Adding the sticky bit' chmod a+t '$l_file' fi fi fi done < <(find
+      '$l_mount' -xdev \( '${a_path[@]}' \) \( -type f -o -type d \) -perm -0002
+      -print0 2> /dev/null) done < <(findmnt -Dkerno fstype,target | awk '($1 !~
+      /^\s*(nfs|proc|smb|vfat|iso9660|efivarfs|selinuxfs)/ && $2 !~
+      /^(\/run\/user\/|\/tmp|\/var\/tmp)/){print $2}') } References: 1. NIST SP
+      800-53 Rev. 5: AC-3. MP-2
+    compliance:
+      - cis_rhel_9_v2_0_0_7_1_11
+
+  - rule_id: rhel.cis.7.no_files_or_directories_without_an_owner_and_a
+    title: "Ensure no files or directories without an owner and a group exist"
+    severity: high
+    automation_type: automated
+    cis_control: '7.1.12'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: rhel.section_7.no_files_or_directories_without_an_owner_and_a
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Remove or set ownership and group ownership of these files and/or directories
+      to an active user on the system as appropriate. References: 1. NIST SP 800-53
+      Rev. 5: AC-3. MP-2
+    compliance:
+      - cis_rhel_9_v2_0_0_7_1_12
+
+  - rule_id: rhel.cis.7.accounts_in_etc_passwd_use_shadowed_passwords
+    title: "Ensure accounts in /etc/passwd use shadowed passwords"
+    severity: high
+    automation_type: automated
+    cis_control: '7.2.1'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: rhel.section_7.accounts_in_etc_passwd_use_shadowed_passwords
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "no"
+    remediation: >
+      Run the following command to set accounts to use shadowed passwords and
+      migrate passwords in /etc/passwd to /etc/shadow: # pwconv Investigate to
+      determine if the account is logged in and what it is being used for, to
+      determine if it needs to be forced off. References: 1. NIST SP 800-53 Rev. 5:
+      IA-5 2. PWCONV(8) Additional Information: The pwconv command creates shadow
+      from passwd and an optionally existing shadow. • The pwunconv command creates
+      passwd from passwd and shadow and then removes shadow. • The grpconv command
+      creates gshadow from group and an optionally existing gshadow. • The grpunconv
+      command creates group from group and gshadow and then removes gshadow. These
+      four programs all operate on the normal and shadow password and group files:
+      /etc/passwd, /etc/group, /etc/shadow, and /etc/gshadow. Each program acquires
+      the necessary locks before conversion. pwconv and grpconv are similar. First,
+      entries in the shadowed file which don't exist in the main file are removed.
+      Then, shadowed entries which don't have x' as the password in the main file
+      are updated. Any missing shadowed entries are added. Finally, passwords in the
+      main file are replaced with x'. These programs can be used for initial
+      conversion as well to update the shadowed file if the main file is edited by
+      hand. pwconv will use the values of PASS_MIN_DAYS, PASS_MAX_DAYS, and
+      PASS_WARN_AGE from /etc/login.defs when adding new entries to /etc/shadow.
+      pwunconv and grpunconv are similar. Passwords in the main file are updated
+      from the shadowed file. Entries which exist in the main file but not in the
+      shadowed file are left alone. Finally, the shadowed file is removed. Some
+      password aging information is lost by pwunconv. It will convert what it can.
+    compliance:
+      - cis_rhel_9_v2_0_0_7_2_1
+
+  - rule_id: rhel.cis.7.etc_shadow_password_fields_are_not_empty
+    title: "Ensure /etc/shadow password fields are not empty"
+    severity: high
+    automation_type: automated
+    cis_control: '7.2.2'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: rhel.section_7.etc_shadow_password_fields_are_not_empty
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "no"
+    remediation: >
+      If any accounts in the /etc/shadow file do not have a password, run the
+      following command to lock the account until it can be determined why it does
+      not have a password: # passwd -l <username> Also, check to see if the account
+      is logged in and investigate what it is being used for to determine if it
+      needs to be forced off. References: 1. NIST SP 800-53 Rev. 5: IA-5
+    compliance:
+      - cis_rhel_9_v2_0_0_7_2_2
+
+  - rule_id: rhel.cis.7.all_groups_in_etc_passwd_exist_in_etc_group
+    title: "Ensure all groups in /etc/passwd exist in /etc/group"
+    severity: high
+    automation_type: automated
+    cis_control: '7.2.3'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: rhel.section_7.all_groups_in_etc_passwd_exist_in_etc_group
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Analyze the output of the Audit step above and perform the appropriate action
+      to correct any discrepancies found. References: 1. NIST SP 800-53 Rev. 5:
+      CM-1, CM-2, CM-6, CM-7, IA-5
+    compliance:
+      - cis_rhel_9_v2_0_0_7_2_3
+
+  - rule_id: rhel.cis.7.no_duplicate_uids_exist
+    title: "Ensure no duplicate UIDs exist"
+    severity: high
+    automation_type: automated
+    cis_control: '7.2.4'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: rhel.section_7.no_duplicate_uids_exist
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Based on the results of the audit script, establish unique UIDs and review all
+      files owned by the shared UIDs to determine which UID they are supposed to
+      belong to. References: 1. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5
+      MITRE ATT&CK Mappings: Techniques / Sub- techniques Tactics Mitigations T1078,
+      T1078.001, T1078.003 TA0005 M1027
+    compliance:
+      - cis_rhel_9_v2_0_0_7_2_4
+
+  - rule_id: rhel.cis.7.no_duplicate_gids_exist
+    title: "Ensure no duplicate GIDs exist"
+    severity: high
+    automation_type: automated
+    cis_control: '7.2.5'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: rhel.section_7.no_duplicate_gids_exist
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Based on the results of the audit script, establish unique GIDs and review all
+      files owned by the shared GID to determine which group they are supposed to
+      belong to. References: 1. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5
+      Additional Information: You can also use the grpck command to check for other
+      inconsistencies in the /etc/group file. MITRE ATT&CK Mappings: Techniques /
+      Sub- techniques Tactics Mitigations T1078, T1078.001, T1078.003 TA0005 M1027
+    compliance:
+      - cis_rhel_9_v2_0_0_7_2_5
+
+  - rule_id: rhel.cis.7.no_duplicate_user_names_exist
+    title: "Ensure no duplicate user names exist"
+    severity: high
+    automation_type: automated
+    cis_control: '7.2.6'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: rhel.section_7.no_duplicate_user_names_exist
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Based on the results of the audit script, establish unique user names for the
+      users. File ownerships will automatically reflect the change as long as the
+      users have unique UIDs. References: 1. NIST SP 800-53 Rev. 5: CM-1, CM-2,
+      CM-6, CM-7, IA-5 MITRE ATT&CK Mappings: Techniques / Sub- techniques Tactics
+      Mitigations T1078, T1078.001, T1078.003 TA0004 M1027
+    compliance:
+      - cis_rhel_9_v2_0_0_7_2_6
+
+  - rule_id: rhel.cis.7.no_duplicate_group_names_exist
+    title: "Ensure no duplicate group names exist"
+    severity: high
+    automation_type: automated
+    cis_control: '7.2.7'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: rhel.section_7.no_duplicate_group_names_exist
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Based on the results of the audit script, establish unique names for the user
+      groups. File group ownerships will automatically reflect the change as long as
+      the groups have unique GIDs. References: 1. NIST SP 800-53 Rev. 5: CM-1, CM-2,
+      CM-6, CM-7, IA-5 MITRE ATT&CK Mappings: Techniques / Sub- techniques Tactics
+      Mitigations T1078, T1078.001, T1078.003 TA0004 M1027
+    compliance:
+      - cis_rhel_9_v2_0_0_7_2_7
+
+  - rule_id: rhel.cis.7.local_interactive_user_home_directories_are
+    title: "Ensure local interactive user home directories are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '7.2.8'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: rhel.section_7.local_interactive_user_home_directories_are
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      If a local interactive users' home directory is undefined and/or doesn't
+      exist, follow local site policy and perform one of the following: • Lock the
+      user account • Remove the user from the system • create a directory for the
+      user. If undefined, edit /etc/passwd and add the absolute path to the
+      directory to the last field of the user. Run the following script to: • Remove
+      excessive permissions from local interactive users home directories • Update
+      the home directory's owner #!/usr/bin/env bash { l_output2=''
+      l_valid_shells='^($( awk -F\/ '$NF != 'nologin' {print}' /etc/shells | sed -rn
+      '/^\//{s,/,\\\\/,g;p}' | paste -s -d '|' - ))$' unset a_uarr && a_uarr=() #
+      Clear and initialize array while read -r l_epu l_eph; do # Populate array with
+      users and user home location a_uarr+=('$l_epu $l_eph') done <<< '$(awk -v
+      pat='$l_valid_shells' -F: '$(NF) ~ pat { print $1 ' ' $(NF-1) }' /etc/passwd)'
+      l_asize='${#a_uarr[@]}' # Here if we want to look at number of users before
+      proceeding [ '$l_asize ' -gt '10000' ] && echo -e '\n ** INFO **\n -
+      \'$l_asize\' Local interactive users found on the system\n - This may be a
+      long running process\n' while read -r l_user l_home; do if [ -d '$l_home' ];
+      then l_mask='0027' l_max='$( printf '%o' $(( 0777 & ~$l_mask)) )' while read
+      -r l_own l_mode; do if [ '$l_user' != '$l_own' ]; then l_output2='$l_output2\n
+      - User: \'$l_user\' Home \'$l_home\' is owned by: \'$l_own\'\n - changing
+      ownership to: \'$l_user\'\n' chown '$l_user' '$l_home' fi if [ $(( $l_mode &
+      $l_mask )) -gt 0 ]; then l_output2='$l_output2\n - User: \'$l_user\' Home
+      \'$l_home\' is mode: \'$l_mode\' should be mode: \'$l_max\' or more
+      restrictive\n - removing excess permissions\n' chmod g-w,o-rwx '$l_home' fi
+      done <<< '$(stat -Lc '%U %#a' '$l_home')' else l_output2='$l_output2\n - User:
+      \'$l_user\' Home \'$l_home\' Doesn't exist\n - Please create a home in
+      accordance with local site policy' fi done <<< '$(printf '%s\n'
+      '${a_uarr[@]}')' if [ -z '$l_output2' ]; then # If l_output2 is empty, we pass
+      echo -e ' - No modification needed to local interactive users home
+      directories' else echo -e '\n$l_output2' fi }
+    compliance:
+      - cis_rhel_9_v2_0_0_7_2_8
+
+

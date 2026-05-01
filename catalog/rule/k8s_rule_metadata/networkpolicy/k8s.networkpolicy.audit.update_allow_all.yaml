@@ -1,0 +1,50 @@
+rule_id: k8s.networkpolicy.audit.update_allow_all
+rule_type: ciem
+title: 'NetworkPolicy: Updated to Allow All Traffic'
+scope: networkpolicy.audit
+domain: container_and_kubernetes_security
+subcategory: container_security
+severity: high
+service: networkpolicy
+resource: audit
+requirement: Update Allow All
+description: Existing NetworkPolicy updated to allow all ingress/egress — network
+  isolation controls weakened, enabling lateral movement between pods.
+rationale: Adversaries use kubectl port-forward to establish encrypted tunnels to
+  pods running internal services — exposing cluster-internal databases, APIs, or management
+  interfaces to attacker-controlled endpoints. Port-forward activity by non-operator
+  users outside maintenance windows indicates unauthorized access. Detected via K8s
+  audit logs.
+remediation: '1. Terminate the unauthorized kubectl exec or port-forward session immediately.
+
+  2. Audit RBAC permissions: restrict pods/exec and pods/portforward to specific service
+  accounts.
+
+  3. Apply NetworkPolicies to prevent unauthorized pod-to-pod communication.
+
+  4. Enable audit log alerting for exec/portforward operations by non-CI/CD users.
+
+  5. Use Falco rules to detect and alert on interactive exec sessions in production
+  namespaces.
+
+  '
+references:
+- https://attack.mitre.org/techniques/T1572/
+- https://kubernetes.io/docs/tasks/access-application-cluster/port-forward-access-application-cluster/
+compliance:
+- canada_pbmm_moderate_CCCS_RA_5_1
+- canada_pbmm_moderate_CCCS_RA_5_3
+- canada_pbmm_moderate_CCCS_RA_5_5
+- canada_pbmm_moderate_CCCS_RA_5_6
+- canada_pbmm_moderate_CCCS_RA_5_8
+- cis_aws_10.3
+threat_category: lateral_movement
+mitre_tactics:
+- lateral_movement
+mitre_techniques:
+- T1572
+risk_score: 78
+action_category: network
+source: default
+metadata_source: auto_generated
+generated_by: k8s_ciem_generator

@@ -1,0 +1,348 @@
+version: '1.0'
+provider: linux
+engine: debian
+category: section_4
+cis_section: '4'
+description: >
+  debian CIS Section 4 — a single firewall configuration utility is in use
+
+discovery:
+
+  - discovery_id: debian.section_4.a_single_firewall_configuration_utility_is_in_use
+    description: Ensure a single firewall configuration utility is in use
+    calls:
+      - action: run_command
+        command: "Run the following script to verify that a single firewall utility is in use on the system: #!/usr/bin/env bash { active_firewall=() firewalls=(\u0027ufw\u0027 \u0027nftables\u0027 \u0027iptables\u0027) # Determine which firewall is in use for firewall in \u0027${firewalls[@]}\u0027; do case $firewall in nftables) cmd=\u0027nft\u0027 ;; *) cmd=$firewall ;; esac if command -v $cmd \u0026\u003e /dev/null \u0026\u0026 systemctl is-enabled --quiet $firewall \u0026\u0026 systemctl is-active --quiet $firewall; then active_firewall+=(\u0027$firewall\u0027) fi done # Display audit results if [ ${#active_firewall[@]} -eq 1 ]; then printf \u0027%s\\n\u0027 \u0027\u0027 \u0027Audit Results:\u0027 \u0027 ** PASS **\u0027 \u0027 - A single firewall is in use follow the recommendation in ${active_firewall[0]} subsection ONLY\u0027 elif [ ${#active_firewall[@]} -eq 0 ]; then printf \u0027%s\\n\u0027 \u0027\u0027 \u0027 Audit Results:\u0027 \u0027 ** FAIL **\u0027 \u0027- No firewall in use or unable to determine firewall status\u0027 else printf \u0027%s\\n\u0027 \u0027\u0027 \u0027 Audit Results:\u0027 \u0027 ** FAIL **\u0027 \u0027 - Multiple firewalls are in use: ${active_firewall[*]}\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: a_single_firewall_configuration_utility_is_in_use
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_4.ufw_is_installed
+    description: Ensure ufw is installed
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that Uncomplicated Firewall (UFW) is installed: # dpkg-query -s ufw \u0026\u003e/dev/null \u0026\u0026 echo \u0027ufw is installed\u0027 ufw is installed"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ufw_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_4.iptables_persistent_is_not_installed_with_ufw
+    description: Ensure iptables-persistent is not installed with ufw
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that the iptables-persistent package is not installed: # dpkg-query -s iptables-persistent \u0026\u003e/dev/null \u0026\u0026 echo \u0027iptables-persistent is installed\u0027 Nothing should be returned"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: iptables_persistent_is_not_installed_with_ufw
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_4.ufw_service_is_enabled
+    description: Ensure ufw service is enabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that the ufw daemon is enabled: # systemctl is-enabled ufw.service enabled Run the following command to verify that the ufw daemon is active: # systemctl is-active ufw active Run the following command to verify ufw is active # ufw status Status: active"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ufw_service_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_4.ufw_loopback_traffic_is_configured
+    description: Ensure ufw loopback traffic is configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify loopback interface to accept traffic: # grep -P -- \u0027lo|127.0.0.0\u0027 /etc/ufw/before.rules Output includes: # allow all on loopback -A ufw-before-input -i lo -j ACCEPT -A ufw-before-output -o lo -j ACCEPT Run the following command and verify all other interfaces deny traffic to the loopback network (127.0.0.0/8 for IPv4 and ::1/128 for IPv6) # ufw status verbose To Action From -- ------ ---- Anywhere DENY IN 127.0.0.0/8 Anywhere (v6) DENY IN ::1 Note: ufw status only shows rules added with ufw and not the rules found in the /etc/ufw rules files where allow all on loopback is configured by default."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ufw_loopback_traffic_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_4.ufw_firewall_rules_exist_for_all_open_ports
+    description: Ensure ufw firewall rules exist for all open ports
+    calls:
+      - action: run_command
+        command: "Run the following script to verify a firewall rule exists for all open ports: #!/usr/bin/env bash { unset a_ufwout;unset a_openports while read -r l_ufwport; do [ -n \u0027$l_ufwport\u0027 ] \u0026\u0026 a_ufwout+=(\u0027$l_ufwport\u0027) done \u003c \u003c(ufw status verbose | grep -Po \u0027^\\h*\\d+\\b\u0027 | sort -u) while read -r l_openport; do [ -n \u0027$l_openport\u0027 ] \u0026\u0026 a_openports+=(\u0027$l_openport\u0027) done \u003c \u003c(ss -tuln | awk \u0027($5!~/%lo:/ \u0026\u0026 $5!~/127.0.0.1:/ \u0026\u0026 $5!~/\\[?::1\\]?:/) {split($5, a, \u0027:\u0027); print a[2]}\u0027 | sort -u) a_diff=(\u0027$(printf \u0027%s\\n\u0027 \u0027${a_openports[@]}\u0027 \u0027${a_ufwout[@]}\u0027 \u0027${a_ufwout[@]}\u0027 | sort | uniq -u)\u0027) if [[ -n \u0027${a_diff[*]}\u0027 ]]; then echo -e \u0027\\n- Audit Result:\\n ** FAIL **\\n- The following port(s) don\u0027t have a rule in UFW: $(printf \u0027%s\\n\u0027 \\\\n\u0027${a_diff[*]}\u0027)\\n- End List\u0027 else echo -e \u0027\\n - Audit Passed -\\n- All open ports have a rule in UFW\\n\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ufw_firewall_rules_exist_for_all_open_ports
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_4.ufw_default_deny_firewall_policy
+    description: Ensure ufw default deny firewall policy
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that the default policy for incoming , outgoing , and routed directions is deny , reject , or disabled : # ufw status verbose | grep Default: Example output: Default: deny (incoming), deny (outgoing), disabled (routed)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ufw_default_deny_firewall_policy
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_4.nftables_is_installed
+    description: Ensure nftables is installed
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that nftables is installed: # dpkg-query -s nftables \u0026\u003e/dev/null \u0026\u0026 echo \u0027nftables is installed\u0027 nftables is installed"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: nftables_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_4.ufw_is_uninstalled_or_disabled_with_nftables
+    description: Ensure ufw is uninstalled or disabled with nftables
+    calls:
+      - action: run_command
+        command: "Run the following commands to verify that ufw is either not installed or inactive. Only one of the following needs to pass. Run the following command to verify that ufw is not installed: # dpkg-query -s ufw \u0026\u003e/dev/null \u0026\u0026 echo \u0027ufw is installed\u0027 Nothing should be returned -OR- Run the following commands to verify ufw is disabled and ufw.service is not enabled: # ufw status Status: inactive # systemctl is-enabled ufw.service masked"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ufw_is_uninstalled_or_disabled_with_nftables
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_4.a_nftables_table_exists
+    description: Ensure a nftables table exists
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that a nftables table exists: # nft list tables Return should include a list of nftables: Example: table inet filter"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: a_nftables_table_exists
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_4.nftables_base_chains_exist
+    description: Ensure nftables base chains exist
+    calls:
+      - action: run_command
+        command: "Run the following commands and verify that base chains exist for INPUT. # nft list ruleset | grep \u0027hook input\u0027 type filter hook input priority 0; Run the following commands and verify that base chains exist for FORWARD. # nft list ruleset | grep \u0027hook forward\u0027 type filter hook forward priority 0; Run the following commands and verify that base chains exist for OUTPUT. # nft list ruleset | grep \u0027hook output\u0027 type filter hook output priority 0;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: nftables_base_chains_exist
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_4.nftables_loopback_traffic_is_configured
+    description: Ensure nftables loopback traffic is configured
+    calls:
+      - action: run_command
+        command: "Run the following commands to verify that the loopback interface is configured: Run the following command to verify the loopback interface is configured to accept network traffic: # nft list ruleset | awk \u0027/hook input/,/}/\u0027 | grep \u0027iif \u0027lo\u0027 accept\u0027 Example output: iif \u0027lo\u0027 accept Run the following command to verify network traffic from an iPv4 loopback interface is configured to drop: # nft list ruleset | awk \u0027/hook input/,/}/\u0027 | grep \u0027ip saddr\u0027 Example output: ip saddr 127.0.0.0/8 counter packets 0 bytes 0 drop - IF - IPv6 is enabled on the system: Run the following command to verify network traffic from an iPv6 loopback interface is configured to drop: # nft list ruleset | awk \u0027/hook input/,/}/\u0027 | grep \u0027ip6 saddr\u0027 Example output: ip6 saddr ::1 counter packets 0 bytes 0 drop"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: nftables_loopback_traffic_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_4.nftables_default_deny_firewall_policy
+    description: Ensure nftables default deny firewall policy
+    calls:
+      - action: run_command
+        command: "Run the following commands and verify that base chains contain a policy of DROP. # nft list ruleset | grep \u0027hook input\u0027 type filter hook input priority 0; policy drop; # nft list ruleset | grep \u0027hook forward\u0027 type filter hook forward priority 0; policy drop; # nft list ruleset | grep \u0027hook output\u0027 type filter hook output priority 0; policy drop;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: nftables_default_deny_firewall_policy
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_4.nftables_service_is_enabled
+    description: Ensure nftables service is enabled
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that the nftables service is enabled: # systemctl is-enabled nftables enabled"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: nftables_service_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_4.nftables_rules_are_permanent
+    description: Ensure nftables rules are permanent
+    calls:
+      - action: run_command
+        command: "Run the following commands to verify that input, forward, and output base chains are configured to be applied to a nftables ruleset on boot: Run the following command to verify the input base chain: # [ -n \u0027$(grep -E \u0027^\\s*include\u0027 /etc/nftables.conf)\u0027 ] \u0026\u0026 awk \u0027/hook input/,/}/\u0027 $(awk \u0027$1 ~ /^\\s*include/ { gsub(\u0027\\\u0027\u0027,\u0027\u0027,$2);print $2 }\u0027 /etc/nftables.conf) Output should be similar to: type filter hook input priority 0; policy drop; # Ensure loopback traffic is configured iif \u0027lo\u0027 accept ip saddr 127.0.0.0/8 counter packets 0 bytes 0 drop ip6 saddr ::1 counter packets 0 bytes 0 drop # Ensure established connections are configured ip protocol tcp ct state established accept ip protocol udp ct state established accept # Accept port 22(SSH) traffic from anywhere tcp dport ssh accept Review the input base chain to ensure that it follows local site policy Run the following command to verify the forward base chain: # [ -n \u0027$(grep -E \u0027^\\s*include\u0027 /etc/nftables.conf)\u0027 ] \u0026\u0026 awk \u0027/hook forward/,/}/\u0027 $(awk \u0027$1 ~ /^\\s*include/ { gsub(\u0027\\\u0027\u0027,\u0027\u0027,$2);print $2 }\u0027 /etc/nftables.conf) Output should be similar to: # Base chain for hook forward named forward (Filters forwarded network packets) chain forward { type filter hook forward priority 0; policy drop; } Review the forward base chain to ensure that it follows local site policy. Run the following command to verify the forward base chain: # [ -n \u0027$(grep -E \u0027^\\s*include\u0027 /etc/nftables.conf)\u0027 ] \u0026\u0026 awk \u0027/hook output/,/}/\u0027 $(awk \u0027$1 ~ /^\\s*include/ { gsub(\u0027\\\u0027\u0027,\u0027\u0027,$2);print $2 }\u0027 /etc/nftables.conf) Output should be similar to: # Base chain for hook output named output (Filters outbound network packets) chain output { type filter hook output priority 0; policy drop; # Ensure outbound and established connections are configured ip protocol tcp ct state established,related,new accept ip protocol udp ct state established,related,new accept } Review the output base chain to ensure that it follows local site policy."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: nftables_rules_are_permanent
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_4.iptables_packages_are_installed
+    description: Ensure iptables packages are installed
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that iptables is installed: # dpkg-query -s iptables \u0026\u003e/dev/null \u0026\u0026 echo \u0027iptables is installed\u0027 iptables is installed Run the following command to verify that iptables-persistent is installed: # dpkg-query -s iptables-persistent \u0026\u003e/dev/null \u0026\u0026 echo \u0027iptables-persistent is installed\u0027 iptables-persistent is installed"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: iptables_packages_are_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_4.nftables_is_not_in_use_with_iptables
+    description: Ensure nftables is not in use with iptables
+    calls:
+      - action: run_command
+        command: "Run the following commend to verify that nftables is not installed: # dpkg-query -s nftables \u0026\u003e/dev/null \u0026\u0026 echo \u0027nftables is installed\u0027 Nothing should be returned - OR - Run the following command to verify nftables.service is not enabled: # systemctl is-enabled nftables.service 2\u003e/dev/null | grep \u0027^enabled\u0027 Nothing should be returned Run the following command to verify nftables.service is not active: # systemctl is-active nftables.service 2\u003e/dev/null | grep \u0027^active\u0027 Nothing should be returned"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: nftables_is_not_in_use_with_iptables
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_4.ufw_is_not_in_use_with_iptables
+    description: Ensure ufw is not in use with iptables
+    calls:
+      - action: run_command
+        command: "Run the following commands to verify that ufw is either not installed or disabled. Only one of the following needs to pass . Run the following command to verify that ufw is not installed: # dpkg-query -s ufw \u0026\u003e/dev/null \u0026\u0026 echo \u0027ufw is installed\u0027 Nothing should be returned. - OR - Run the following command to verify ufw is disabled: # ufw status Status: inactive Run the following commands to verify that the ufw.service is not enabled: # systemctl is-enabled ufw 2\u003edev/null | grep \u0027^enabled\u0027 Nothing should be returned Run the following command to verify ufw.service is not active: # systemctl is-active ufw.service 2\u003e/dev/null | grep \u0027^active\u0027 Nothing should be returned"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ufw_is_not_in_use_with_iptables
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_4.iptables_default_deny_firewall_policy
+    description: Ensure iptables default deny firewall policy
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that the policy for the INPUT , OUTPUT , and FORWARD chains is DROP or REJECT : # iptables -L Chain INPUT (policy DROP) Chain FORWARD (policy DROP) Chain OUTPUT (policy DROP)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: iptables_default_deny_firewall_policy
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_4.iptables_loopback_traffic_is_configured
+    description: Ensure iptables loopback traffic is configured
+    calls:
+      - action: run_command
+        command: "Run the following commands and verify output includes the listed rules in order (pkts and bytes counts may differ, prot may be all or 0): # iptables -L INPUT -v -n Chain INPUT (policy DROP 0 packets, 0 bytes) pkts bytes target prot opt in out source destination 0 0 ACCEPT all -- lo * 0.0.0.0/0 0.0.0.0/0 0 0 DROP all -- * * 127.0.0.0/8 0.0.0.0/0 # iptables -L OUTPUT -v -n Chain OUTPUT (policy DROP 0 packets, 0 bytes) pkts bytes target prot opt in out source destination 0 0 ACCEPT all -- * lo 0.0.0.0/0 0.0.0.0/0"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: iptables_loopback_traffic_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_4.iptables_firewall_rules_exist_for_all_open_ports
+    description: Ensure iptables firewall rules exist for all open ports
+    calls:
+      - action: run_command
+        command: "Run the following command to determine open ports: # ss -4tuln Netid State Recv-Q Send-Q Local Address:Port Peer Address:Port udp UNCONN 0 0 *:68 *:* udp UNCONN 0 0 *:123 *:* tcp LISTEN 0 128 *:22 *:* Run the following command to determine firewall rules: # iptables -L INPUT -v -n Chain INPUT (policy DROP 0 packets, 0 bytes) pkts bytes target prot opt in out source destination 0 0 ACCEPT all -- lo * 0.0.0.0/0 0.0.0.0/0 0 0 DROP all -- * * 127.0.0.0/8 0.0.0.0/0 0 0 ACCEPT tcp -- * * 0.0.0.0/0 0.0.0.0/0 tcp dpt:22 state NEW Verify all open ports listening on non-localhost addresses have at least one firewall rule. The last line identified by the tcp dpt:22 state NEW identifies it as a firewall rule for new connections on tcp port 22."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: iptables_firewall_rules_exist_for_all_open_ports
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_4.ip6tables_default_deny_firewall_policy
+    description: Ensure ip6tables default deny firewall policy
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that the policy for the INPUT, OUTPUT, and FORWARD chains is DROP or REJECT: # ip6tables -L Chain INPUT (policy DROP) Chain FORWARD (policy DROP) Chain OUTPUT (policy DROP) - OR - Verify IPv6 is disabled: Run the following script. Output will confirm if IPv6 is enabled on the system. #!/usr/bin/env bash { l_ipv6_enabled=\u0027is\u0027 ! grep -Pqs -- \u0027^\\h*0\\b\u0027 /sys/module/ipv6/parameters/disable \u0026\u0026 l_ipv6_enabled=\u0027is not\u0027 if sysctl net.ipv6.conf.all.disable_ipv6 | grep -Pqs -- \u0027^\\h*net\\.ipv6\\.conf\\.all\\.disable_ipv6\\h*=\\h*1\\b\u0027 \u0026\u0026 \\ sysctl net.ipv6.conf.default.disable_ipv6 | grep -Pqs -- \u0027^\\h*net\\.ipv6\\.conf\\.default\\.disable_ipv6\\h*=\\h*1\\b\u0027; then l_ipv6_enabled=\u0027is not\u0027 fi echo -e \u0027 - IPv6 $l_ipv6_enabled enabled on the system\u0027 }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ip6tables_default_deny_firewall_policy
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_4.ip6tables_loopback_traffic_is_configured
+    description: Ensure ip6tables loopback traffic is configured
+    calls:
+      - action: run_command
+        command: "Run the following commands and verify output includes the listed rules in order (packet and byte counts may differ): # ip6tables -L INPUT -v -n Chain INPUT (policy DROP 0 packets, 0 bytes) pkts bytes target prot opt in out source destination 0 0 ACCEPT all lo * ::/0 ::/0 0 0 DROP all * * ::1 ::/0 # ip6tables -L OUTPUT -v -n Chain OUTPUT (policy DROP 0 packets, 0 bytes) pkts bytes target prot opt in out source destination 0 0 ACCEPT all * lo ::/0 ::/0 - OR - Verify IPv6 is disabled: Run the following script. Output will confirm if IPv6 is enabled on the system. #!/usr/bin/env bash { l_ipv6_enabled=\u0027is\u0027 ! grep -Pqs -- \u0027^\\h*0\\b\u0027 /sys/module/ipv6/parameters/disable \u0026\u0026 l_ipv6_enabled=\u0027is not\u0027 if sysctl net.ipv6.conf.all.disable_ipv6 | grep -Pqs -- \u0027^\\h*net\\.ipv6\\.conf\\.all\\.disable_ipv6\\h*=\\h*1\\b\u0027 \u0026\u0026 \\ sysctl net.ipv6.conf.default.disable_ipv6 | grep -Pqs -- \u0027^\\h*net\\.ipv6\\.conf\\.default\\.disable_ipv6\\h*=\\h*1\\b\u0027; then l_ipv6_enabled=\u0027is not\u0027 fi echo -e \u0027 - IPv6 $l_ipv6_enabled enabled on the system\u0027 }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ip6tables_loopback_traffic_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_4.ip6tables_firewall_rules_exist_for_all_open_ports
+    description: Ensure ip6tables firewall rules exist for all open ports
+    calls:
+      - action: run_command
+        command: "Run the following command to determine open ports: # ss -6tuln Netid State Recv-Q Send-Q Local Address:Port Peer Address:Port udp UNCONN 0 0 ::1:123 :::* udp UNCONN 0 0 :::123 :::* tcp LISTEN 0 128 :::22 :::* tcp LISTEN 0 20 ::1:25 :::* Run the following command to determine firewall rules: # ip6tables -L INPUT -v -n Chain INPUT (policy DROP 0 packets, 0 bytes) pkts bytes target prot opt in out source destination 0 0 ACCEPT all lo * ::/0 ::/0 0 0 DROP all * * ::1 ::/0 0 0 ACCEPT tcp * * ::/0 ::/0 tcp dpt:22 state NEW Verify all open ports listening on non-localhost addresses have at least one firewall rule. The last line identified by the \u0027tcp dpt:22 state NEW\u0027 identifies it as a firewall rule for new connections on tcp port 22. - OR - verify IPv6 is not enabled: Run the following script. Output will confirm if IPv6 is enabled on the system: #!/usr/bin/env bash { l_ipv6_enabled=\u0027is\u0027 ! grep -Pqs -- \u0027^\\h*0\\b\u0027 /sys/module/ipv6/parameters/disable \u0026\u0026 l_ipv6_enabled=\u0027is not\u0027 if sysctl net.ipv6.conf.all.disable_ipv6 | grep -Pqs -- \u0027^\\h*net\\.ipv6\\.conf\\.all\\.disable_ipv6\\h*=\\h*1\\b\u0027 \u0026\u0026 \\ sysctl net.ipv6.conf.default.disable_ipv6 | grep -Pqs -- \u0027^\\h*net\\.ipv6\\.conf\\.default\\.disable_ipv6\\h*=\\h*1\\b\u0027; then l_ipv6_enabled=\u0027is not\u0027 fi echo -e \u0027 - IPv6 $l_ipv6_enabled enabled on the system\u0027 }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ip6tables_firewall_rules_exist_for_all_open_ports
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_4.nftables_is_not_installed_with_iptables
+    description: Ensure nftables is not installed with iptables
+    calls:
+      - action: run_command
+        command: "Run the following commend to verify that nftables is not installed: # dpkg-query -s nftables \u0026\u003e/dev/null \u0026\u0026 echo \u0027nftables is installed\u0027 nftables is installed"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: nftables_is_not_installed_with_iptables
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_4.ufw_is_uninstalled_or_disabled_with_iptables
+    description: Ensure ufw is uninstalled or disabled with iptables
+    calls:
+      - action: run_command
+        command: "Run the following commands to verify that ufw is either not installed or disabled. Only one of the following needs to pass . Run the following command to verify that ufw is not installed: # dpkg-query -s ufw \u0026\u003e/dev/null \u0026\u0026 echo \u0027ufw is installed\u0027 Nothing should be returned. - OR - Run the following command to verify ufw is disabled: # ufw status Status: inactive Run the following commands to verify that the ufw service is masked: # systemctl is-enabled ufw masked"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ufw_is_uninstalled_or_disabled_with_iptables
+        value: "{{ result.stdout }}"
+        expected: ""
+

@@ -1,0 +1,59 @@
+version: '1.0'
+provider: k8s
+service: storage
+checks:
+- rule_id: k8s.storage.backup.enabled
+  for_each: k8s.storage.list_storage_class
+  severity: LOW
+  conditions:
+    any:
+    - var: item.metadata.annotations.cspm.k8s.io/backup-enabled
+      op: is_true
+      value: null
+    - var: item.metadata.annotations.cspm.k8s.io/volume-backup-enabled
+      op: is_true
+      value: null
+    - var: item.metadata.annotations.cspm.k8s.io/volume-backup-policy-defined
+      op: exists
+      value: null
+- rule_id: k8s.storage.volume.backup_enabled
+  for_each: k8s.storage.list_storage_class
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.metadata.annotations.cspm.k8s.io/backup-enabled
+      op: is_true
+      value: null
+    - var: item.metadata.annotations.cspm.k8s.io/volume-backup-enabled
+      op: is_true
+      value: null
+    - var: item.metadata.annotations.cspm.k8s.io/volume-backup-policy-defined
+      op: exists
+      value: null
+    - var: item.annotations.snapshot
+      op: exists
+      value: null
+- rule_id: k8s.storage.volume.backup_policy_defined
+  for_each: k8s.storage.list_storage_class
+  severity: MEDIUM
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/volume-backup-policy-defined
+    op: exists
+    value: null
+- rule_id: k8s.storage.volume.snapshot_enabled
+  for_each: k8s.storage.list_storage_class
+  severity: LOW
+  conditions:
+    any:
+    - var: item.annotations.snapshot
+      op: exists
+      value: null
+    - var: item.metadata.annotations.cspm.k8s.io/backup-enabled
+      op: is_true
+      value: null
+    - var: item.metadata.annotations.cspm.k8s.io/volume-backup-enabled
+      op: is_true
+      value: null
+    - var: item.metadata.annotations.cspm.k8s.io/volume-backup-policy-defined
+      op: exists
+      value: null

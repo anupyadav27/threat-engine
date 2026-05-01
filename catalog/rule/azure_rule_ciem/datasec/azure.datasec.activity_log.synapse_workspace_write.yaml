@@ -1,0 +1,80 @@
+rule_id: azure.datasec.activity_log.synapse_workspace_write
+service: datasec
+provider: azure
+check_type: log
+severity: medium
+title: 'DataSec: Synapse Workspace Write'
+description: Synapse Analytics workspace created or modified — analytics platform configuration changed.
+rationale: Public-facing application exploitation can provide initial foothold in cloud environments; early detection limits attacker dwell time significantly.
+threat_category: initial_access
+mitre_tactics:
+- initial_access
+mitre_techniques:
+- T1190
+risk_score: 50
+resource: azure_synapse
+source: default
+is_active: true
+domain: data_protection_and_privacy
+action_category: create
+log_source_type: activity_log
+posture_category: threat_posture
+threat_tags:
+- T1190
+- data_security
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: data_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - data_access_governance
+  categories:
+  - sensitive_data_access
+  priority: medium
+  impact:
+    pci: PCI DSS Requirement 12.3 — Implement security awareness program and protect systems
+    gdpr: GDPR Article 32 — Appropriate technical and organizational measures for data security
+    hipaa: §164.306(a) — Ensure confidentiality, integrity, and availability of ePHI
+  sensitive_data_context: |
+  Unauthorized initial access on datasec resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.14
+  - 2.1
+  cis_azure_v2:
+  - 1.2
+  - 2.1
+  nist_800_53_r5:
+  - AC-17
+  - IA-2
+  - SI-3
+  pci_dss_v4:
+  - 8.3
+  - 11.5
+  iso_27001_2022:
+  - A.8.5
+  - A.9.4
+remediation: |
+  1. Apply WAF rules to detect and block exploitation attempts.
+  2. Enable vulnerability scanning for all public-facing services.
+  3. Apply security patches promptly for all known CVEs.
+references:
+- https://attack.mitre.org/techniques/T1190/
+check_config:
+  conditions:
+    all:
+    - field: operation
+      op: equals
+      value: Microsoft.Synapse/workspaces/write
+  log_source_type: activity_log
+version: '1.0'

@@ -1,0 +1,198 @@
+tech_type: mysql
+category: database
+cis_benchmark: CIS MySQL 8.4 enterprise v1.0.0
+cis_section: '4'
+
+rules:
+
+  - rule_id: mysql.cis.4.example_or_test_databases_are_not_installed_on
+    title: "Ensure Example or Test Databases are Not Installed on Production Servers"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: mysql.section_4.example_or_test_databases_are_not_installed_on
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Execute the following SQL statement to drop an example database: DROP DATABASE
+      <database name>; Default Value: By default, MySQL 8.0 does not contain any
+      example or test databases. References: 1.
+      http://dev.mysql.com/doc/refman/8.4/en/mysql-secure-installation.html
+    compliance:
+      - cis_mysql_8_4_enterprise_v1_0_0_4_2
+
+  - rule_id: mysql.cis.4.allow_suspicious_udfs_is_set_to_off
+    title: "Ensure 'allow-suspicious-udfs' is Set to 'OFF'"
+    severity: medium
+    automation_type: automated
+    cis_control: '4.3'
+    cis_section: '4'
+    profile_applicability: "Level 2"
+    scope: mysql.section_4.allow_suspicious_udfs_is_set_to_off
+    assertion:
+      field: value
+      operator: gte
+      expected: "off"
+    remediation: >
+      Perform the following to establish the recommended state: • Remove --allow-
+      suspicious-udfs from the mysqld start up command line. • Remove allow-
+      suspicious-udfs from the MySQL option file. Default Value: OFF References: 1.
+      https://dev.mysql.com/doc/extending-mysql/8.4/en/adding-loadable-
+      function.html#loadable-function-security 2.
+      http://dev.mysql.com/doc/refman/8.4/en/server-
+      options.html#option_mysqld_allow-suspicious-udfs Additional Information: This
+      option has no corresponding state in SHOW VARIABLES.
+    compliance:
+      - cis_mysql_8_4_enterprise_v1_0_0_4_3
+
+  - rule_id: mysql.cis.4.harden_usage_for_local_infile_on_mysql_clients
+    title: "Harden Usage for 'local_infile' on MySQL Clients"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: mysql.section_4.harden_usage_for_local_infile_on_mysql_clients
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Upgrade all MySQL clients and connectors to 8.0.21 or higher. In the case
+      where using local_infile is needed, the following changes further harden
+      security: On client side, secure by: Limiting the location from where data can
+      be read using --load-data-local-dir. mysql --local-infile=0 --load-data-local-
+      dir=/my/local/data Adding TLS connection to assure server identity by
+      requiring verification. mysql --local-infile=0 --load-data-local-
+      dir=/my/local/data --ssl- mode=VERIFY_IDENTITY If local_infile is not in use
+      or if clients are not upgraded - add the following line to the [mysqld]
+      section of the MySQL configuration file and restart the MySQL service: local-
+      infile=0 Default Value: 0 (OFF) References: 1.
+      https://dev.mysql.com/doc/refman/8.4/en/string-functions.html#function_load-
+      file 2. https://dev.mysql.com/doc/refman/8.4/en/load-data.html
+    compliance:
+      - cis_mysql_8_4_enterprise_v1_0_0_4_4
+
+  - rule_id: mysql.cis.4.symbolic_links_are_disabled
+    title: "Ensure Symbolic Links are Disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '4.6'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: mysql.section_4.symbolic_links_are_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Perform the following actions to remediate this setting: • Open the MySQL
+      configuration file (my.cnf) • Locate skip-symbolic-links in the configuration
+      • Set the skip-symbolic-links to YES Note: If skip-symbolic-links does not
+      exist, add it to the configuration file in the mysqld section. References: 1.
+      http://dev.mysql.com/doc/refman/8.4/en/symbolic-links.html 2.
+      http://dev.mysql.com/doc/refman/8.4/en/server-
+      options.html#option_mysqld_symbolic-links
+    compliance:
+      - cis_mysql_8_4_enterprise_v1_0_0_4_6
+
+  - rule_id: mysql.cis.4.secure_file_priv_is_configured_correctly
+    title: "Ensure the 'secure_file_priv' is Configured Correctly"
+    severity: high
+    automation_type: automated
+    cis_control: '4.8'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: mysql.section_4.secure_file_priv_is_configured_correctly
+    assertion:
+      field: enabled
+      operator: exists
+      expected: "false"
+    remediation: >
+      If you are not going to use this feature, remove secure_file_priv from the
+      [mysqld] section of the MySQL configuration file and restart the MySQL
+      service. If you need this feature add the following line to the [mysqld]
+      section of the MySQL configuration file and restart the MySQL service:
+      secure_file_priv=<path_to_load_directory> Default Value: No value set.
+      References: 1. http://dev.mysql.com/doc/refman/8.4/en/server-system-
+      variables.html#sysvar_secure_file_priv
+    compliance:
+      - cis_mysql_8_4_enterprise_v1_0_0_4_8
+
+  - rule_id: mysql.cis.4.sql_mode_contains_strict_all_tables
+    title: "Ensure 'sql_mode' Contains 'STRICT_ALL_TABLES'"
+    severity: medium
+    automation_type: automated
+    cis_control: '4.9'
+    cis_section: '4'
+    profile_applicability: "Level 2"
+    scope: mysql.section_4.sql_mode_contains_strict_all_tables
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Set STRICT_ALL_TABLES to the sql_mode in the server's global configuration,
+      for example: SET GLOBAL sql_mode
+      ='STRICT_ALL_TABLES,ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO
+      _ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'; Default Value:
+      ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ER
+      ROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION References: 1.
+      https://dev.mysql.com/doc/refman/8.4/en/sql-mode.html Additional Information:
+      The sql_mode is a set and might contain more elements than just
+      STRICT_ALL_TABLES. There is a global sql_mode and a per session sql_mode. The
+      per session sql_mode is based on the global sql_mode on initialization and
+      might be changed by the application.
+    compliance:
+      - cis_mysql_8_4_enterprise_v1_0_0_4_9
+
+  - rule_id: mysql.cis.4.use_mysql_tde_for_at_rest_data_encryption
+    title: "Use MySQL TDE for At-Rest Data Encryption"
+    severity: medium
+    automation_type: automated
+    cis_control: '4.10'
+    cis_section: '4'
+    profile_applicability: "Level 2"
+    scope: mysql.section_4.use_mysql_tde_for_at_rest_data_encryption
+    assertion:
+      field: value
+      operator: equals
+      expected: "off"
+    remediation: >
+      Edit my.cnf: # AUDIT LOG sudo vi /etc/my.cnf [mysqld] audit-
+      log=FORCE_PLUS_PERMANENT audit-log-format=JSON audit-log-encryption=AES
+      Execute these commands: #### Table Encryption >set persist
+      table_encryption_privilege_check=ON; #### BINLOG >set persist
+      binlog_encryption=ON; ##### REDO and UNDO >set persist
+      innodb_redo_log_encrypt=ON; >set persist innodb_undo_log_encrypt=ON; # DO NOT
+      USE GENERAL LOG OR SLOW LOGS - USE AUDIT AND PERFORMANCE_SCHEMA. >SET PERSIST
+      general_log = 'OFF'; Run ALTER to enable encryption ( Note: This will lock the
+      table as table is encrypted). # TABLESPACES, TABLES ALTER TABLESPACE
+      <tablespacename> ENCRYPTION = 'Y'; // if innodb file per table (indicated by
+      schemaname/tablename in report) ALTER TABLE <tablename> ENCRYPTION = 'Y';
+      #Encrypt the system tablespace ALTER TABLESPACE mysql ENCRYPTION = 'Y'; Run
+      MySQL Enterprise Backup with encryption. For example: $ mysqlbackup
+      --defaults-file=/home/dbadmin/my.cnf --backup-
+      image=/home/admin/backups/my.mbi \ --backup-dir=/home/admin/backup-tmp
+      --encrypt-password backup-to-image Default Value: At rest encryption is off by
+      default. Administrators can force tables or tablespaces to be encrypted for
+      all schemas by default by setting in my.cnf. default-table-encryption=ON or
+      Per schema by defining DEFAULT ENCRYPTION: CREATE {DATABASE | SCHEMA} ... |
+      DEFAULT ENCRYPTION [=] {'Y' | 'N'} References: 1.
+      https://dev.mysql.com/doc/refman/8.4/en/innodb-data-encryption.html 2.
+      https://dev.mysql.com/doc/refman/8.4/en/server-system-
+      variables.html#sysvar_table_encryption_privilege_check 3.
+      https://dev.mysql.com/doc/refman/8.4/en/create-database.html 4.
+      https://dev.mysql.com/doc/refman/8.4/en/replication-binlog-encryption.html 5.
+      https://dev.mysql.com/doc/refman/8.4/en/audit-log-logging-
+      configuration.html#audit-log-file-encryption 6.
+      https://dev.mysql.com/doc/mysql-enterprise-backup/8.4/en/meb-encrypted-
+      innodb.html
+    compliance:
+      - cis_mysql_8_4_enterprise_v1_0_0_4_10
+
+

@@ -1,0 +1,62 @@
+rule_id: k8s.pod.audit.run_as_root_create
+rule_type: ciem
+title: 'Pod: Created Without Non-Root Enforcement'
+scope: pod.audit
+domain: container_and_kubernetes_security
+subcategory: container_security
+severity: high
+service: pod
+resource: audit
+requirement: Run As Root Create
+description: Pod created without setting securityContext.runAsNonRoot=true, allowing
+  container processes to run as UID 0 (root). Root containers have elevated filesystem
+  and capability access within the container namespace.
+rationale: 'Adversaries abuse Linux privilege escalation mechanisms within Kubernetes
+  containers — including setuid/setgid binaries, Linux capabilities, and missing allowPrivilegeEscalation
+  controls. Without explicit securityContext restrictions, a process inside a container
+  can call execve() on a setuid binary to gain root (UID 0), directly enabling container
+  escape chains (T1611). CIS Kubernetes Benchmark 5.2.5/5.2.6 require these controls
+  to be explicitly set. Detected via: pods created without runAsNonRoot=true, pods
+  created with allowPrivilegeEscalation unset or true, and setuid binary execution.'
+remediation: '1. Set securityContext.runAsNonRoot: true in the pod spec.
+
+  2. Set runAsUser to a non-zero UID (e.g., 1000).
+
+  3. Apply a Kyverno or OPA Gatekeeper policy enforcing non-root containers cluster-wide.
+
+  4. Use Pod Security Admission with ''restricted'' or ''baseline'' profile to block
+  root containers at the namespace level.
+
+  5. Audit existing pods: `kubectl get pods -A -o jsonpath=''{range .items[*]}{.metadata.name}{"\t"}{.spec.securityContext.runAsNonRoot}{"\n"}{end}''`
+
+  '
+references:
+- https://attack.mitre.org/techniques/T1548/
+- https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted
+- https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+- https://www.cisa.gov/sites/default/files/2022-03/kubernetes-hardening-guidance-1.2-508c.pdf
+compliance:
+  cis_k8s_v1:
+  - 5.2.6
+  - 5.2.1
+  nist_800_53_r5:
+  - AC-3
+  - AC-6
+  - CM-6
+  pci_dss_v4:
+  - 7.1
+  - 7.2
+  iso_27001_2022:
+  - A.5.18
+  - A.8.2
+threat_category: privilege_escalation
+mitre_tactics:
+- privilege_escalation
+- execution
+mitre_techniques:
+- T1548
+risk_score: 72
+action_category: create
+source: default
+metadata_source: auto_generated
+generated_by: k8s_ciem_generator

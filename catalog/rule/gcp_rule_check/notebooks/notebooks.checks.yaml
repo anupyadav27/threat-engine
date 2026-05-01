@@ -1,0 +1,104 @@
+version: '1.0'
+provider: gcp
+service: notebooks
+checks:
+- rule_id: gcp.notebooks.instance.gov_ai_notebook_encrypted
+  for_each: gcp.notebooks.projects.locations.instances.list
+  severity: MEDIUM
+  conditions:
+    var: item.diskEncryption
+    op: equals
+    value: CMEK
+- rule_id: gcp.notebooks.instance.gov_ai_notebook_execution_role_least_privilege
+  for_each: gcp.notebooks.projects.locations.instances.list
+  severity: HIGH
+  conditions:
+    var: item.labels['ai-notebook-execution-role']
+    op: exists
+    value: null
+- rule_id: gcp.notebooks.instance.gov_ai_notebook_idle_shutdown_configured
+  for_each: gcp.notebooks.projects.locations.instances.list
+  severity: MEDIUM
+  conditions:
+    var: item.idleShutdownConfig.idleShutdownTimeout
+    op: exists
+    value: null
+- rule_id: gcp.notebooks.instance.gov_ai_notebook_no_public_access
+  for_each: gcp.notebooks.projects.locations.instances.list
+  severity: HIGH
+  conditions:
+    var: item.instanceMigrationEligibility
+    op: exists
+    value: null
+- rule_id: gcp.notebooks.instance.ml_notebook_encrypted
+  for_each: gcp.notebooks.projects.locations.instances.list
+  severity: MEDIUM
+  conditions:
+    var: item.diskEncryption
+    op: exists
+    value: null
+- rule_id: gcp.notebooks.instance.ml_notebook_execution_role_least_privilege
+  for_each: gcp.notebooks.projects.locations.instances.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.instanceOwners
+      op: exists
+      value: null
+    - var: item.instanceOwners
+      op: not_contains
+      value: '*'
+- rule_id: gcp.notebooks.instance.ml_notebook_idle_shutdown_configured
+  for_each: gcp.notebooks.projects.locations.instances.list
+  severity: MEDIUM
+  conditions:
+    var: item.idleShutdownConfig.idleShutdownTimeout
+    op: exists
+    value: null
+- rule_id: gcp.notebooks.instance.ml_notebook_no_public_access
+  for_each: gcp.notebooks.projects.locations.instances.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.networkAccess
+      op: exists
+      value: null
+    - var: item.networkAccess
+      op: equals
+      value: PRIVATE
+- rule_id: gcp.notebooks.instance.privacy_ai_notebook_encrypted
+  for_each: gcp.notebooks.projects.locations.instances.list
+  severity: HIGH
+  conditions:
+    var: item.diskEncryption
+    op: exists
+    value: null
+- rule_id: gcp.notebooks.instance.privacy_ai_notebook_execution_role_least_privilege
+  for_each: gcp.notebooks.projects.locations.instances.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.instanceOwners
+      op: exists
+      value: null
+    - var: item.instanceOwners
+      op: not_contains
+      value: serviceAccount:cloud-ai-platform@system.gserviceaccount.com
+- rule_id: gcp.notebooks.instance.privacy_ai_notebook_idle_shutdown_configured
+  for_each: gcp.notebooks.projects.locations.instances.list
+  severity: HIGH
+  conditions:
+    var: item.idleShutdownConfig.idleShutdownTimeout
+    op: exists
+    value: null
+- rule_id: gcp.notebooks.instance.privacy_ai_notebook_no_public_access
+  for_each: gcp.notebooks.projects.locations.instances.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.instanceOwners
+      op: not_contains
+      value: allUsers
+    - var: item.instanceOwners
+      op: not_contains
+      value: allAuthenticatedUsers

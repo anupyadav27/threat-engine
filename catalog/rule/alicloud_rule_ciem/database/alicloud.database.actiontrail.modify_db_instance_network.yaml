@@ -1,0 +1,73 @@
+rule_id: alicloud.database.actiontrail.modify_db_instance_network
+service: database
+provider: alicloud
+check_type: log
+severity: high
+title: 'AliCloud RDS: DB Instance Network Type Changed to Public'
+description: An RDS instance was switched to a public network endpoint. Publicly accessible
+  databases are directly reachable from the internet, increasing attack surface.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: initial_access
+mitre_tactics:
+- initial_access
+mitre_techniques:
+- T1190
+risk_score: 85
+resource: alicloud_rds_instance
+source: alicloud_ciem_generator
+is_active: true
+domain: storage_and_database_security
+action_category: modify
+log_source_type: alicloud_actiontrail
+posture_category: data_security_posture
+threat_tags:
+- T1190
+- initial_access
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '6.1'
+  - '6.2'
+  nist_800_53_r5:
+  - SC-28
+  - AC-3
+  - AU-9
+  pci_dss_v4:
+  - '3.4'
+  - '6.2'
+  - '10.2'
+  iso_27001_2022:
+  - A.8.10
+  - A.8.24
+remediation: '1. Remove the public endpoint immediately.
+
+  2. Use VPC-only access with security group restrictions.
+
+  3. Alert on any RDS network type change to public.'
+references:
+- https://attack.mitre.org/techniques/T1190/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: rds
+    - field: operation
+      op: equals
+      value: SwitchDBInstanceNetType
+version: '1.0'

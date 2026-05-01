@@ -12,9 +12,46 @@ from typing import Any, Dict, List, Optional
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
 logger = logging.getLogger(__name__)
+
+# ── Auth imports (engine_auth is COPY shared/auth/ ./engine_auth/ in Dockerfile) ──
+try:
+    from engine_auth.fastapi.dependencies import require_permission
+    from engine_auth.core.models import AuthContext
+    _AUTH_AVAILABLE = True
+except ImportError:
+    _AUTH_AVAILABLE = False
+    AuthContext = None  # type: ignore[assignment,misc]
+
+
+def strip_sensitive_fields(data: List[Dict[str, Any]], auth: Any) -> List[Dict[str, Any]]:
+    """Remove credential and engine-internal fields based on caller's auth level.
+
+    For IAM engine:
+    - level > 1: strip credential_ref, credential_type
+    - level >= 4: also strip policy_document (raw IAM policy JSON)
+
+    Args:
+        data: List of finding dicts.
+        auth: AuthContext instance (or None when auth is unavailable).
+
+    Returns:
+        New list with sensitive fields removed; original dicts are not mutated.
+    """
+    if not isinstance(data, list):
+        return data
+    stripped = []
+    for row in data:
+        r = dict(row) if not isinstance(row, dict) else row.copy()
+        if auth is not None and auth.level > 1:
+            r.pop("credential_ref", None)
+            r.pop("credential_type", None)
+        if auth is not None and auth.level >= 4:
+            r.pop("policy_document", None)
+        stripped.append(r)
+    return stripped
 
 router = APIRouter(tags=["ui-data"])
 
@@ -55,8 +92,8 @@ def _resolve_latest_scan_run_id(
         """
         SELECT scan_run_id
         FROM iam_report
-        WHERE tenant_id = %s AND total_findings > 0
-        ORDER BY created_at DESC
+        WHERE tenant_id = %s AND status = 'completed'
+        ORDER BY generated_at DESC NULLS LAST
         LIMIT 1
         """,
         (tenant_id,),
@@ -102,6 +139,7 @@ async def get_iam_ui_data(
     tenant_id: str = Query(..., description="Tenant ID"),
     scan_id: str = Query(default="latest", description="IAM scan ID or 'latest'"),
     limit: int = Query(default=10000, ge=1, le=50000, description="Max findings to return"),
+    auth: Any = Depends(require_permission("iam:read") if _AUTH_AVAILABLE else (lambda: None)),
 ) -> Dict[str, Any]:
     """Return aggregated IAM data for the frontend UI page.
 
@@ -349,11 +387,11 @@ async def get_iam_ui_data(
                 "report_insights": report_data_insights,
             },
             "modules": modules_list,
-            "findings": findings,
-            "roles": roles,
-            "access_keys": access_keys,
-            "privilege_escalation": privilege_escalation,
-            "service_accounts": service_accounts,
+            "findings": strip_sensitive_fields(findings, auth),
+            "roles": strip_sensitive_fields(roles, auth),
+            "access_keys": strip_sensitive_fields(access_keys, auth),
+            "privilege_escalation": strip_sensitive_fields(privilege_escalation, auth),
+            "service_accounts": strip_sensitive_fields(service_accounts, auth),
             "total_findings": report_total,
             "scan_id": scan_run_id,
             "scan_trend": scan_trend,

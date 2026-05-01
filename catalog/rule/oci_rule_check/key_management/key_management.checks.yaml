@@ -1,0 +1,299 @@
+version: '1.0'
+provider: oci
+service: key_management
+checks:
+- rule_id: oci.key_management.key.cmk_rotation_enabled
+  for_each: oci.key_management.list_keys
+  severity: MEDIUM
+  conditions:
+    var: item.rotation_interval_in_days
+    op: exists
+    value: null
+- rule_id: oci.key_management.key.hsm_client_cert_key_length_minimum
+  for_each: oci.key_management.list_keys
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.protection_mode
+      op: equals
+      value: HSM
+    - var: item.algorithm
+      op: in
+      value:
+      - AES_256
+      - RSA_2048
+      - RSA_3072
+      - RSA_4096
+      - ECDSA_P256
+      - ECDSA_P384
+      - ECDSA_P521
+- rule_id: oci.key_management.key.hsm_keys_in_only
+  for_each: oci.key_management.list_keys
+  severity: HIGH
+  conditions:
+    var: item.protection_mode
+    op: equals
+    value: HSM
+- rule_id: oci.key_management.key.key_cmk_rotation_annual_compliance
+  for_each: oci.key_management.list_keys
+  severity: HIGH
+  conditions:
+    var: item.algorithm
+    op: equals
+    value: aws:kms
+- rule_id: oci.key_management.key.key_not_scheduled_for_deletion
+  for_each: oci.key_management.list_keys
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: not_equals
+    value: PENDING_DELETION
+- rule_id: oci.key_management.key.key_public_access_blocked
+  for_each: oci.key_management.list_keys
+  severity: CRITICAL
+  conditions:
+    var: item.protection_mode
+    op: equals
+    value: HSM
+- rule_id: oci.key_management.key.key_rotation_enabled
+  for_each: oci.key_management.list_keys
+  severity: HIGH
+  conditions:
+    var: item.rotation_interval_in_days
+    op: exists
+    value: null
+- rule_id: oci.key_management.key.secrets_security_alias_key_has
+  for_each: oci.key_management.list_keys
+  severity: HIGH
+  conditions:
+    var: item.protection_mode
+    op: equals
+    value: HSM
+- rule_id: oci.key_management.key.secrets_security_alias_points_to_active_key
+  for_each: oci.key_management.list_keys
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.key_management.key.secrets_security_cmk_deletion_requires_waiting_period_enabled
+  for_each: oci.key_management.list_keys
+  severity: HIGH
+  conditions:
+    var: item.protection_mode
+    op: equals
+    value: HSM
+- rule_id: oci.key_management.key.secrets_security_cmk_not_publicly_accessible_enabled
+  for_each: oci.key_management.list_keys
+  severity: CRITICAL
+  conditions:
+    var: item.protection_mode
+    op: equals
+    value: HSM
+- rule_id: oci.key_management.key.secrets_security_cmk_policy_least_privilege_enabled_enforced
+  for_each: oci.key_management.list_keys
+  severity: HIGH
+  conditions:
+    var: item.protection_mode
+    op: equals
+    value: HSM
+- rule_id: oci.key_management.key.secrets_security_kms_grant_constraints_enabled
+  for_each: oci.key_management.list_keys
+  severity: HIGH
+  conditions:
+    var: item.grants[].constraints
+    op: exists
+    value: null
+- rule_id: oci.key_management.key.secrets_security_kms_grant_grantee_principal_valid_enabled
+  for_each: oci.key_management.list_keys
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.key_management.key.secrets_security_kms_grant_lessthan_wildcard_permissions_enabled
+  for_each: oci.key_management.list_keys
+  severity: HIGH
+  conditions:
+    var: item.algorithm
+    op: not_equals
+    value: aws:kms
+- rule_id: oci.key_management.key.secrets_security_secret_cmk_enabled
+  for_each: oci.key_management.list_keys
+  severity: HIGH
+  conditions:
+    var: item.protection_mode
+    op: equals
+    value: HSM
+- rule_id: oci.key_management.key.secrets_security_secret_no_plaintext_exposed_tags
+  for_each: oci.key_management.list_keys
+  severity: CRITICAL
+  conditions:
+    var: item.freeform_tags
+    op: not_contains
+    value: secret
+- rule_id: oci.key_management.key.secrets_security_secret_rotation_configured_where_applicable
+  for_each: oci.key_management.list_keys
+  severity: HIGH
+  conditions:
+    var: item.algorithm
+    op: not_equals
+    value: aws:kms
+- rule_id: oci.key_management.key.secrets_security_store_access_rbac_least_privilege_required
+  for_each: oci.key_management.list_keys
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.protection_mode
+      op: equals
+      value: HSM
+- rule_id: oci.key_management.vault.cmk_are_used
+  for_each: oci.key_management.list_keys
+  severity: MEDIUM
+  conditions:
+    var: item.algorithm
+    op: not_equals
+    value: aws:kms
+- rule_id: oci.key_management.vault.cmk_not_multi_region
+  for_each: oci.key_management.list_vaults
+  severity: MEDIUM
+  conditions:
+    var: item.vault_type
+    op: equals
+    value: VIRTUAL_PRIVATE
+- rule_id: oci.key_management.vault.cmk_rotation_enabled
+  for_each: oci.key_management.list_keys
+  severity: MEDIUM
+  conditions:
+    var: item.algorithm
+    op: not_equals
+    value: aws:kms
+- rule_id: oci.key_management.vault.encryption_cmek_enabled
+  for_each: oci.key_management.list_vaults
+  severity: HIGH
+  conditions:
+    var: item.vault_type
+    op: equals
+    value: VIRTUAL_PRIVATE
+- rule_id: oci.key_management.vault.hsm_client_cert_not_expired
+  for_each: oci.key_management.list_vaults
+  severity: MEDIUM
+  conditions:
+    var: item.hsm_client_certificate_not_expired
+    op: is_true
+    value: null
+- rule_id: oci.key_management.vault.hsm_client_cert_trusted_issuer
+  for_each: oci.key_management.list_vaults
+  severity: MEDIUM
+  conditions:
+    var: item.vault_type
+    op: equals
+    value: EXTERNAL
+- rule_id: oci.key_management.vault.hsm_configuration_present
+  for_each: oci.key_management.list_vaults
+  severity: MEDIUM
+  conditions:
+    var: item.vault_type
+    op: equals
+    value: VIRTUAL_PRIVATE
+- rule_id: oci.key_management.vault.hsm_only_approved_endpoints
+  for_each: oci.key_management.list_vaults
+  severity: MEDIUM
+  conditions:
+    var: item.vault_type
+    op: equals
+    value: VIRTUAL_PRIVATE
+- rule_id: oci.key_management.vault.key_expiration_set
+  for_each: oci.key_management.list_keys
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: not_equals
+    value: PENDING_DELETION
+- rule_id: oci.key_management.vault.key_lifecycle_policy
+  for_each: oci.key_management.list_keys
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: not_equals
+    value: PENDING_DELETION
+- rule_id: oci.key_management.vault.key_public_access_blocked
+  for_each: oci.key_management.list_vaults
+  severity: CRITICAL
+  conditions:
+    var: item.vault_type
+    op: equals
+    value: VIRTUAL_PRIVATE
+- rule_id: oci.key_management.vault.key_rotation_enabled
+  for_each: oci.key_management.list_keys
+  severity: HIGH
+  conditions:
+    var: item.rotation_interval_in_days
+    op: exists
+    value: null
+- rule_id: oci.key_management.vault.logging_enabled
+  for_each: oci.key_management.list_vaults
+  severity: MEDIUM
+  conditions:
+    var: item.logging
+    op: exists
+    value: null
+- rule_id: oci.key_management.vault.private_endpoints
+  for_each: oci.key_management.list_vaults
+  severity: LOW
+  conditions:
+    var: item.vault_type
+    op: equals
+    value: VIRTUAL_PRIVATE
+- rule_id: oci.key_management.vault.secret_rotation_enabled
+  for_each: oci.key_management.list_vaults
+  severity: HIGH
+  conditions:
+    var: item.management_endpoint
+    op: exists
+    value: null
+- rule_id: oci.key_management.vault.secrets_security_cmk_rotation_enabled
+  for_each: oci.key_management.list_keys
+  severity: HIGH
+  conditions:
+    var: item.algorithm
+    op: equals
+    value: aws:kms
+- rule_id: oci.key_management.vault.secrets_security_kms_default_keys_disabled_required
+  for_each: oci.key_management.list_keys
+  severity: HIGH
+  conditions:
+    var: item.protection_mode
+    op: equals
+    value: HSM
+- rule_id: oci.key_management.vault.secrets_security_kms_logging_enabled
+  for_each: oci.key_management.list_vaults
+  severity: HIGH
+  conditions:
+    var: item.management_endpoint
+    op: exists
+    value: null
+- rule_id: oci.key_management.vault.secrets_security_store_kms_encryption_enabled
+  for_each: oci.key_management.list_vaults
+  severity: HIGH
+  conditions:
+    var: item.vault_type
+    op: equals
+    value: VIRTUAL_PRIVATE
+- rule_id: oci.key_management.vault.secrets_security_store_rotation_enabled_for_rotatable
+  for_each: oci.key_management.list_vaults
+  severity: HIGH
+  conditions:
+    var: item.vault_type
+    op: equals
+    value: DEFAULT
+- rule_id: oci.key_management.vault.tls_min_1_2_enabled
+  for_each: oci.key_management.list_vaults
+  severity: MEDIUM
+  conditions:
+    var: item.tls_min_version
+    op: equals
+    value: TLSv1.2

@@ -1,0 +1,24 @@
+version: '1.0'
+rule_id: oci.compute.instance.instance_port_cifs_exposed_to_internet
+for_each: oci.compute.list_instances
+severity: CRITICAL
+conditions:
+  all:
+  - var: item.status
+    op: equals
+    value: ACTIVE
+  - any:
+    - var: item.metadata
+      op: not_exists
+    - var: item.metadata
+      op: is_empty
+    - all:
+      - var: item.metadata
+        op: contains
+        value: CIFS
+      - var: item.metadata
+        op: not_contains
+        value: 0.0.0.0/0
+fixture_validated: false
+fixture_note: 'PASS fixture returned FAIL — wrong field or operator (pass_fixture keys: [''ocid'', ''compartment_id'', ''name'',
+  ''status'', ''time_created'', ''freeform_tags'', ''defined_tags'', ''availability_domain''])'

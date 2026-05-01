@@ -1,0 +1,50 @@
+rule_id: oci.networking.audit.nat_gateway_change
+service: networking
+provider: oci
+check_type: log
+severity: medium
+title: 'OCI Networking: NAT Gateway Modified'
+description: A NAT Gateway was created, updated, or deleted. Deleting NAT gateways breaks outbound internet access for private subnets.
+threat_category: impact
+mitre_tactics:
+- impact
+mitre_techniques:
+- T1498
+risk_score: 62
+resource: oci_core_nat_gateway
+domain: impact
+action_category: modify
+log_source_type: 
+posture_category: workload_posture
+threat_tags:
+- T1498
+- impact
+- availability
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: low
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: Review and investigate this activity in the OCI Console and take corrective action.
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.networking
+    - field: operation
+      op: in
+      value:
+      - CreateNatGateway
+      - UpdateNatGateway
+      - DeleteNatGateway

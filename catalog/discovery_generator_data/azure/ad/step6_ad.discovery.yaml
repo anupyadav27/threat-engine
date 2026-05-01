@@ -1,0 +1,137 @@
+version: '1.0'
+provider: azure
+service: ad
+discovery:
+- discovery_id: azure.ad.get_authentication_methods_policy
+  calls:
+  - action: authentication_methods_policies.get
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+    item:
+      AuthenticationMethodsRegistrationCampaign: '{{ item.AuthenticationMethodsRegistrationCampaign
+        }}'
+      authenticationMethodsConfigurations: '{{ item.authenticationMethodsConfigurations
+        }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.ad.get_security_lockout_policy
+  calls:
+  - action: security_lockout_policies.get
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+    item:
+      lockoutThreshold: '{{ item.lockoutThreshold }}'
+      observationWindow: '{{ item.observationWindow }}'
+      notificationOnLockout: '{{ item.notificationOnLockout }}'
+      lockoutDurationSeconds: '{{ item.lockoutDurationSeconds }}'
+- discovery_id: azure.ad.list_conditional_access_policies
+  calls:
+  - action: conditional_access_policies.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      state: '{{ item.state }}'
+      conditions: '{{ item.conditions }}'
+      grantControls: '{{ item.grantControls }}'
+      sessionControls: '{{ item.sessionControls }}'
+      id: '{{ item.id }}'
+      displayName: '{{ item.displayName }}'
+- discovery_id: azure.ad.list_groups
+  calls:
+  - action: groups.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      IsAssignableToRole: '{{ item.IsAssignableToRole }}'
+      displayName: '{{ item.displayName }}'
+      id: '{{ item.id }}'
+      members: '{{ item.members }}'
+      securityEnabled: '{{ item.securityEnabled }}'
+      groupTypes: '{{ item.groupTypes }}'
+- discovery_id: azure.ad.list_guest_users
+  calls:
+  - action: users.list_guest
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      UserType: '{{ item.UserType }}'
+      AccountEnabled: '{{ item.AccountEnabled }}'
+      id: '{{ item.id }}'
+      displayName: '{{ item.displayName }}'
+      userPrincipalName: '{{ item.userPrincipalName }}'
+      createdDateTime: '{{ item.createdDateTime }}'
+- discovery_id: azure.ad.list_password_reset_notification_settings
+  calls:
+  - action: password_reset_notification_settings.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      NotificationEnabled: '{{ item.NotificationEnabled }}'
+      NotifyOnAdminPasswordReset: '{{ item.NotifyOnAdminPasswordReset }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.ad.list_role_assignments
+  calls:
+  - action: role_assignments.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      principalId: '{{ item.principalId }}'
+      roleDefinitionId: '{{ item.roleDefinitionId }}'
+      Properties: '{{ item.Properties }}'
+      assignedRoles: '{{ item.assignedRoles }}'
+      id: '{{ item.id }}'
+      roleName: '{{ item.roleName }}'
+      principalType: '{{ item.principalType }}'
+- discovery_id: azure.ad.list_role_definitions
+  calls:
+  - action: role_definitions.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      isBuiltIn: '{{ item.isBuiltIn }}'
+      permissions: '{{ item.permissions }}'
+      assignableScopes: '{{ item.assignableScopes }}'
+      roleName: '{{ item.roleName }}'
+      id: '{{ item.id }}'
+      displayName: '{{ item.displayName }}'
+- discovery_id: azure.ad.list_users
+  calls:
+  - action: users.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      AccountEnabled: '{{ item.AccountEnabled }}'
+      UserType: '{{ item.UserType }}'
+      lastSignInDateTime: '{{ item.lastSignInDateTime }}'
+      assignedRoles: '{{ item.assignedRoles }}'
+      mfaEnabled: '{{ item.mfaEnabled }}'
+      userPrincipalName: '{{ item.userPrincipalName }}'
+      id: '{{ item.id }}'
+      accountEnabled: '{{ item.accountEnabled }}'
+      isPrivileged: '{{ item.isPrivileged }}'

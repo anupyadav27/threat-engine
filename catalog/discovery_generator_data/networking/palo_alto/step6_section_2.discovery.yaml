@@ -1,0 +1,62 @@
+version: '1.0'
+provider: networking
+engine: palo_alto
+category: section_2
+cis_section: '2'
+description: >
+  palo_alto CIS Section 2 — IP addresses are mapped to usernames
+
+discovery:
+
+  - discovery_id: palo_alto.section_2.ip_addresses_are_mapped_to_usernames
+    description: Ensure that IP addresses are mapped to usernames
+    calls:
+      - action: run_command
+        command: "To validate if this recommendation has been met, look at the Source User column in the URL Filtering or Traffic logs (Monitor \u003e Logs \u003e URL Filtering and Logs \u003e Traffic Logs, respectively.) User traffic originating from a trusted zone should identify a username."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ip_addresses_are_mapped_to_usernames
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_2.wmi_probing_is_disabled
+    description: Ensure that WMI probing is disabled
+    calls:
+      - action: run_command
+        command: "Navigate to Device \u003e User Identification \u003e User Mapping \u003e Palo Alto Networks User ID Agent Setup. Verify that Enable Probing is not checked."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: wmi_probing_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_2.include_exclude_networks_is_used_if_user_id_is
+    description: Ensure that 'Include/Exclude Networks' is used if User-ID is enabled
+    calls:
+      - action: run_command
+        command: "Navigate to Device \u003e User Identification \u003e User Mapping \u003e Include/Exclude Networks. Verify that all trusted internal networks have a Discovery value of Include. Verify that all untrusted external networks have a Discovery value of Exclude. Note that any value in the trusted networks list implies that all other networks are untrusted."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: include_exclude_networks_is_used_if_user_id_is
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_2.security_policies_restrict_user_id_agent_traffic
+    description: Ensure that security policies restrict User-ID Agent traffic from crossing into untrusted zones
+    calls:
+      - action: run_command
+        command: "Navigate to Device \u003e Setup \u003e Services \u003e Services Features \u003e Service Route Configuration \u003e Customize. Click on the protocol in use (IPv4 and/or IPv6). Click UID Agent. Click on the address object for the UID Agent\u0027s IP address. Verify SOURCE/NAME is set to \u0027Deny msrpc to untrusted\u0027. Verify SOURCE/ZONE is set to \u0027INSIDE\u0027. Verify SOURCE/Address is set to the Address object for the UID Agent. Verify DESTINATION/ZONE is set to \u0027GUEST\u0027 and \u0027OUTSIDE\u0027. Verify DESTINATION/Address is set to \u0027any\u0027. Verify DESTINATION/Application is set to \u0027msrpc\u0027. Verify DESTINATION/Service is set to \u0027application-default\u0027. Verify DESTINATION/Action is set to \u0027Block\u0027 (red circle with diagonal line)."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: security_policies_restrict_user_id_agent_traffic
+        value: "{{ result.stdout }}"
+        expected: ""
+

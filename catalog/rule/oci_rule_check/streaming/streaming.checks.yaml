@@ -1,0 +1,145 @@
+version: '1.0'
+provider: oci
+service: streaming
+checks:
+- rule_id: oci.streaming.stream.broker_active_deployment_mode
+  for_each: oci.streaming.list_streams
+  severity: LOW
+  conditions:
+    var: item.lifecycleState
+    op: equals
+    value: ACTIVE
+- rule_id: oci.streaming.stream.broker_cluster_deployment_mode
+  for_each: oci.streaming.list_streams
+  severity: LOW
+  conditions:
+    var: item.BrokerClusterDeploymentMode
+    op: equals
+    value: DEDICATED
+- rule_id: oci.streaming.stream.broker_logging_enabled
+  for_each: oci.streaming.list_streams
+  severity: MEDIUM
+  conditions:
+    var: item.loggingEnabled
+    op: is_true
+    value: null
+- rule_id: oci.streaming.stream.cluster_encryption_uses_cmk
+  for_each: oci.streaming.list_streams
+  severity: HIGH
+  conditions:
+    var: item.KmsKeyId
+    op: exists
+    value: null
+- rule_id: oci.streaming.stream.cluster_in_transit_encryption_enabled
+  for_each: oci.streaming.list_streams
+  severity: HIGH
+  conditions:
+    var: item.KmsKeyId
+    op: exists
+    value: null
+- rule_id: oci.streaming.stream.connector_in_transit_encryption_enabled
+  for_each: oci.streaming.list_streams
+  severity: HIGH
+  conditions:
+    var: item.kmsKeyId
+    op: exists
+    value: null
+- rule_id: oci.streaming.stream.stream_consumer_auth_required
+  for_each: oci.streaming.list_streams
+  severity: LOW
+  conditions:
+    var: item.isAuthRequired
+    op: is_true
+    value: null
+- rule_id: oci.streaming.stream.stream_data_retention_period
+  for_each: oci.streaming.list_streams
+  severity: MEDIUM
+  conditions:
+    var: item.retentionPeriodInHours
+    op: gte
+    value: 24
+- rule_id: oci.streaming.stream.stream_encrypted_at_rest
+  for_each: oci.streaming.list_streams
+  severity: MEDIUM
+  conditions:
+    var: item.KmsKeyId
+    op: exists
+    value: null
+- rule_id: oci.streaming.stream.stream_encryption_enabled
+  for_each: oci.streaming.list_streams
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.streaming.stream.stream_private_network_only_where_supported_enforced
+  for_each: oci.streaming.list_streams
+  severity: MEDIUM
+  conditions:
+    var: item.isPrivate
+    op: is_true
+    value: null
+- rule_id: oci.streaming.stream.streaming_security_consumer_access_least_privilege_required
+  for_each: oci.streaming.list_streams
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.compartmentId
+      op: exists
+      value: null
+    - var: item.rules[].action
+      op: not_contains
+      value: ALLOW
+    - var: item.rules[].condition
+      op: not_contains
+      value: ANY
+- rule_id: oci.streaming.stream.streaming_security_consumer_auth_required
+  for_each: oci.streaming.list_streams
+  severity: LOW
+  conditions:
+    var: item.StreamSecurityConfig.ConsumerAuthenticationRequired
+    op: is_true
+    value: null
+- rule_id: oci.streaming.stream.streaming_security_stream_consumer_auth_required
+  for_each: oci.streaming.list_streams
+  severity: LOW
+  conditions:
+    var: item.is_public
+    op: is_false
+    value: null
+- rule_id: oci.streaming.stream.streaming_security_stream_encryption_enabled
+  for_each: oci.streaming.list_streams
+  severity: HIGH
+  conditions:
+    var: item.KmsKeyId
+    op: exists
+    value: null
+- rule_id: oci.streaming.stream.streaming_security_stream_private_network_only_enforced
+  for_each: oci.streaming.list_streams
+  severity: MEDIUM
+  conditions:
+    var: item.isPrivate
+    op: is_true
+    value: null
+- rule_id: oci.streaming.stream.streaming_security_video_encryption_enabled
+  for_each: oci.streaming.list_streams
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.streaming.stream.streaming_security_video_retention_days_minimum_configured
+  for_each: oci.streaming.stream.list
+  severity: LOW
+  conditions:
+    all:
+    - var: item.retention_in_hours
+      op: gte
+      value: '168'
+- rule_id: oci.streaming.stream.streaming_security_video_tls_required
+  for_each: oci.streaming.list_streams
+  severity: MEDIUM
+  conditions:
+    var: item.tlsEnabled
+    op: is_true
+    value: null

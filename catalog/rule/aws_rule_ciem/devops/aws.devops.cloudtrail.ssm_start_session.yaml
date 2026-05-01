@@ -1,0 +1,74 @@
+rule_id: aws.devops.cloudtrail.ssm_start_session
+service: devops
+provider: aws
+check_type: log
+severity: high
+title: 'DevOps: SSM Start Session'
+description: SSM Session Manager session started — interactive shell to EC2 instance via cloud service.
+rationale: Cloud service lateral movement via VPC peering, service-to-service calls, or shared credentials enables attackers to pivot between cloud accounts and regions.
+threat_category: execution
+mitre_tactics:
+- execution
+mitre_techniques:
+- T1021.007
+risk_score: 80
+resource: codepipeline
+source: default
+is_active: true
+domain: configuration_and_change_management
+action_category: audit_activity
+log_source_type: 
+posture_category: workload_posture
+threat_tags:
+- T1021.007
+- T1021
+- remote_execution
+- cloud_exec
+- cicd
+- devops_security
+risk_indicators:
+  actor_type: cicd_service_principal
+  action_type: write
+  target_type: cicd_pipeline
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 3.1
+  - 5.1
+  cis_azure_v2:
+  - 5.1
+  - 6.1
+  nist_800_53_r5:
+  - CM-7
+  - SI-3
+  - AU-12
+  pci_dss_v4:
+  - 6.3
+  - 10.2
+  iso_27001_2022:
+  - A.8.19
+  - A.8.8
+remediation: |
+  1. Review all VPC/VNet peering connections and remove unauthorized peerings.
+  2. Apply network ACLs to restrict cross-VPC traffic to required flows only.
+  3. Use AWS Transit Gateway / Azure Virtual WAN with strict routing policies.
+  4. Enable VPC Flow Logs / NSG Flow Logs to detect lateral movement patterns.
+references:
+- https://attack.mitre.org/techniques/T1021/007/
+- https://docs.aws.amazon.com/vpc/latest/peering/what-is-vpc-peering.html
+check_config:
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ssm
+    - field: operation
+      op: equals
+      value: StartSession
+version: '1.0'

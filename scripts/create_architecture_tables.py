@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 """
-Create and seed architecture tables from resource_inventory_identifier.
-
-1. Creates architecture_resource_placement + architecture_relationship_rules
-2. Seeds placement from resource_inventory_identifier (all CSPs)
-3. Seeds relationship rules for AWS (extendable to other CSPs)
+Create and seed architecture_resource_placement from resource_inventory_identifier.
 
 Usage:
     python scripts/create_architecture_tables.py [--dry-run]
@@ -45,32 +41,6 @@ CREATE INDEX IF NOT EXISTS idx_arp_csp_zone     ON architecture_resource_placeme
 CREATE INDEX IF NOT EXISTS idx_arp_csp_layer    ON architecture_resource_placement(csp, arch_layer);
 CREATE INDEX IF NOT EXISTS idx_arp_visual_group ON architecture_resource_placement(csp, visual_group);
 CREATE INDEX IF NOT EXISTS idx_arp_priority     ON architecture_resource_placement(csp, display_priority);
-"""
-
-DDL_RELATIONSHIPS = """
-CREATE TABLE IF NOT EXISTS architecture_relationship_rules (
-    id SERIAL PRIMARY KEY,
-    csp VARCHAR(20) NOT NULL,
-    rel_category VARCHAR(50) NOT NULL,
-    rel_type VARCHAR(100) NOT NULL,
-    from_resource_type VARCHAR(200) NOT NULL,
-    to_resource_type VARCHAR(200) NOT NULL,
-    source_field VARCHAR(200),
-    source_field_item VARCHAR(200),
-    target_uid_pattern VARCHAR(500),
-    arch_layer INTEGER NOT NULL DEFAULT 3,
-    line_style VARCHAR(50) DEFAULT 'solid',
-    line_color VARCHAR(50),
-    line_label VARCHAR(100),
-    bidirectional BOOLEAN DEFAULT FALSE,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(csp, rel_category, from_resource_type, to_resource_type, rel_type)
-);
-CREATE INDEX IF NOT EXISTS idx_arr_csp_category ON architecture_relationship_rules(csp, rel_category);
-CREATE INDEX IF NOT EXISTS idx_arr_from_type ON architecture_relationship_rules(csp, from_resource_type);
-CREATE INDEX IF NOT EXISTS idx_arr_layer ON architecture_relationship_rules(csp, arch_layer);
 """
 
 # ── Visual group mapping from category/service ──────────────────────────
@@ -620,35 +590,6 @@ def seed_placement(conn, dry_run=False):
     print(f"Inserted {len(values)} placement rows")
 
 
-def seed_relationships(conn, dry_run=False):
-    """Seed architecture_relationship_rules for AWS."""
-    cur = conn.cursor()
-
-    values = []
-    for r in AWS_RELATIONSHIPS:
-        cat, rtype, from_rt, to_rt, src_field, src_item, target_pat, layer, style = r
-        values.append((
-            "aws", cat, rtype, from_rt, to_rt,
-            src_field, src_item, target_pat, layer, style,
-            None, None, False, True,
-        ))
-
-    if dry_run:
-        print(f"[DRY RUN] Would insert {len(values)} AWS relationship rules")
-        return
-
-    cur.execute("DELETE FROM architecture_relationship_rules WHERE csp = 'aws'")
-    execute_values(cur, """
-        INSERT INTO architecture_relationship_rules (
-            csp, rel_category, rel_type, from_resource_type, to_resource_type,
-            source_field, source_field_item, target_uid_pattern, arch_layer, line_style,
-            line_color, line_label, bidirectional, is_active
-        ) VALUES %s
-    """, values, page_size=100)
-    conn.commit()
-    print(f"Inserted {len(values)} AWS relationship rules")
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
@@ -659,25 +600,16 @@ def main():
 
     print("Creating tables...")
     cur.execute(DDL_PLACEMENT)
-    cur.execute(DDL_RELATIONSHIPS)
     conn.commit()
     print("Tables created.")
 
     print("\nSeeding placement data...")
     seed_placement(conn, dry_run=args.dry_run)
 
-    print("\nSeeding AWS relationship rules...")
-    seed_relationships(conn, dry_run=args.dry_run)
-
     # Verify
     if not args.dry_run:
         cur.execute("SELECT csp, count(*) FROM architecture_resource_placement GROUP BY csp ORDER BY csp")
         print("\nPlacement counts:")
-        for r in cur.fetchall():
-            print(f"  {r[0]}: {r[1]}")
-
-        cur.execute("SELECT rel_category, count(*) FROM architecture_relationship_rules WHERE csp='aws' GROUP BY rel_category ORDER BY rel_category")
-        print("\nAWS relationship rules by category:")
         for r in cur.fetchall():
             print(f"  {r[0]}: {r[1]}")
 

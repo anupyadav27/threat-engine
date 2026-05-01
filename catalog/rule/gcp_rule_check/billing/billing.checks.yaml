@@ -1,0 +1,181 @@
+version: '1.0'
+provider: gcp
+service: billing
+checks:
+- rule_id: gcp.billing.allocation.allocation_cost_tag_policy_enforced
+  for_each: gcp.billing.list_allocation_tags
+  severity: LOW
+  conditions:
+    var: item.costAllocationTagsEnabled
+    op: is_true
+    value: null
+- rule_id: gcp.billing.allocation.allocation_required_cost_tags_present
+  for_each: gcp.billing.list_budgets
+  severity: LOW
+  conditions:
+    all:
+    - var: item.budgetFilter.projects
+      op: exists
+      value: null
+    - var: item.budgetFilter.labels
+      op: exists
+      value: null
+- rule_id: gcp.billing.allocation.allocation_untagged_resource_alerts_enabled
+  for_each: gcp.billing.list_allocation_untagged_resource_alerts
+  severity: LOW
+  conditions:
+    var: item.enabled
+    op: is_true
+    value: null
+- rule_id: gcp.billing.anomaly.anomaly_alert_destinations_configured
+  for_each: gcp.billing.anomaly.list
+  severity: LOW
+  conditions:
+    var: item.alertDestinations
+    op: not_empty
+    value: null
+- rule_id: gcp.billing.anomaly.anomaly_detectors_enabled
+  for_each: gcp.billing.list_anomaly_detectors
+  severity: LOW
+  conditions:
+    var: item.Enabled
+    op: is_true
+    value: null
+- rule_id: gcp.billing.anomaly.anomaly_severity_thresholds_configured
+  for_each: gcp.billing.anomaly.list
+  severity: LOW
+  conditions:
+    all:
+    - var: item.alertThresholds
+      op: not_empty
+      value: null
+    - var: item.alertThresholds[].severity
+      op: in
+      value:
+      - LOW
+      - MEDIUM
+      - HIGH
+- rule_id: gcp.billing.budget.budget_alert_destinations_configured
+  for_each: gcp.billing.budgets.list
+  severity: LOW
+  conditions:
+    var: item.budget.notification_rules[].notifications[].pubsub_topic
+    op: not_empty
+    value: null
+- rule_id: gcp.billing.budget.budget_alert_thresholds_configured
+  for_each: gcp.billing.budgets.list
+  severity: LOW
+  conditions:
+    all:
+    - var: item.amount.threshold_rules[].threshold_percent
+      op: not_empty
+      value: null
+    - var: item.amount.threshold_rules[].spend_basis
+      op: not_empty
+      value: null
+- rule_id: gcp.billing.budget.budget_budgets_defined_for_accounts_or_projects
+  for_each: gcp.billing.budgets.list
+  severity: LOW
+  conditions:
+    var: item.budget
+    op: not_empty
+    value: null
+- rule_id: gcp.billing.budget.budget_modify_permissions_restricted
+  for_each: gcp.billing.budgets.list
+  severity: LOW
+  conditions:
+    all:
+    - var: item.budgetFilter.projects
+      op: exists
+      value: null
+    - var: item.amount.specifiedAmount.units
+      op: exists
+      value: null
+    - var: item.allUpdatesRule.budgetManagementNotificationsEnabled
+      op: is_false
+      value: null
+    - var: item.allUpdatesRule.pubsubTopic
+      op: not_exists
+      value: null
+- rule_id: gcp.billing.budget.cost_budgets_defined_for_accounts_or_projects
+  for_each: gcp.billing.budgets.list
+  severity: MEDIUM
+  conditions:
+    var: item.budget
+    op: exists
+    value: null
+- rule_id: gcp.billing.category.access_billing_admins_mfa_required
+  for_each: gcp.billing.list_iam_policies
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.bindings[].role
+      op: contains
+      value: roles/billing.admin
+    - var: item.bindings[].condition
+      op: exists
+      value: null
+    - var: item.bindings[].condition.expression
+      op: contains
+      value: is_mfa_verified
+- rule_id: gcp.billing.category.access_billing_console_rbac_least_privilege
+  for_each: gcp.iam.list_roles
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.name
+      op: not_equals
+      value: roles/billing.admin
+    - var: item.includedPermissions[]
+      op: not_contains
+      value: billing.accounts.get
+    - var: item.includedPermissions[]
+      op: not_contains
+      value: billing.accounts.list
+- rule_id: gcp.billing.category.access_cost_data_exports_private_and_encrypted
+  for_each: gcp.billing.list_cost_data_exports
+  severity: LOW
+  conditions:
+    all:
+    - var: item.encryptionSpec.kmsKeyName
+      op: exists
+      value: null
+    - var: item.destination.datasetId
+      op: not_contains
+      value: public
+- rule_id: gcp.billing.category.access_cost_export_destinations_least_privilege
+  for_each: gcp.billing.list_cost_export_destinations
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.permissions[]
+      op: not_contains
+      value: billing.admin
+    - var: item.permissions[]
+      op: not_contains
+      value: billing.owner
+- rule_id: gcp.billing.commitment.savings_plan_approval_workflow_required
+  for_each: gcp.billing.list_commitments
+  severity: LOW
+  conditions:
+    var: item.savingsPlanApprovalWorkflowRequired
+    op: is_true
+    value: null
+- rule_id: gcp.billing.commitment.savings_plan_billing_admins_mfa_required
+  for_each: gcp.billing.list_commitments
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.billingAdmins
+      op: exists
+      value: null
+    - var: item.billingAdmins[].mfaEnabled
+      op: is_true
+      value: null
+- rule_id: gcp.billing.commitment.savings_plan_purchase_permissions_restricted
+  for_each: gcp.billing.commitments.list
+  severity: LOW
+  conditions:
+    var: item.plan
+    op: not_equals
+    value: FLEXIBLE

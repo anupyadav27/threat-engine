@@ -2480,22 +2480,22 @@ class Issue(Exception):
 
 # Auto-generated function for metadata creation
 def test_skip_reason(node):
-    """Auto-generated STUB for a_reason_should_be_provided_when_skipping_a_test. Implement detection logic here."""
-    # TODO: implement detection that returns True when vulnerability exists
+    """Stub: detect tests skipped without a reason. Not yet implemented."""
+    import logging as _l; _l.getLogger(__name__).debug("STUB: test_skip_reason not implemented")
     return False
 
 
 # Auto-generated function for metadata creation
 def is_mixed_http_methods(node):
-    """Auto-generated STUB for allowing_both_safe_and_unsafe_http_methods_is_securitysensitive. Implement detection logic here."""
-    # TODO: implement detection that returns True when vulnerability exists
+    """Stub: detect mixed safe/unsafe HTTP methods. Not yet implemented."""
+    import logging as _l; _l.getLogger(__name__).debug("STUB: is_mixed_http_methods not implemented")
     return False
 
 
 # Auto-generated function for metadata creation
 def is_unrestricted_outbound_communication(node):
-    """Auto-generated STUB for allowing_unrestricted_outbound_communications_is_securitysensitive. Implement detection logic here."""
-    # TODO: implement detection that returns True when vulnerability exists
+    """Stub: detect unrestricted outbound communication. Not yet implemented."""
+    import logging as _l; _l.getLogger(__name__).debug("STUB: is_unrestricted_outbound_communication not implemented")
     return False
 
 
@@ -2538,8 +2538,8 @@ def check_async_function_for_sync_http_calls(node):
 
 # Auto-generated function for metadata creation
 def is_os_call_in_async_function(node):
-    """Auto-generated STUB for async_functions_should_not_contain_synchronous_os_calls. Implement detection logic here."""
-    # TODO: implement detection that returns True when vulnerability exists
+    """Stub: detect synchronous os calls inside async functions. Not yet implemented."""
+    import logging as _l; _l.getLogger(__name__).debug("STUB: is_os_call_in_async_function not implemented")
     return False
 
 
@@ -2627,10 +2627,8 @@ def all_except_blocks_should_be_able_to_catch_exceptions_check(node):
 
 # Auto-generated function for metadata creation
 def is_async_function(node):
-    """
-    Stub function for is_async_function. Implement detection logic here.
-    """
-    pass
+    """Returns True if node is an async function definition."""
+    return node.get('node_type') == 'AsyncFunctionDef'
 
 
 # Auto-generated function for metadata creation

@@ -9,9 +9,10 @@ existing group_iam_findings_to_identities() transform.
 
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
-from ._shared import fetch_many, fetch_all_check_findings, safe_get, mock_fallback, is_empty_or_health
+from ._shared import fetch_many, fetch_all_check_findings, safe_get, is_empty_or_health
+from ._cache import cache_key, cached_view, TTL_IAM, auth_level_from_header
 from ._transforms import (
     group_iam_findings_to_identities, normalize_iam_role,
     normalize_access_key, normalize_privilege_escalation,
@@ -24,6 +25,7 @@ router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
 @router.get("/iam")
 async def view_iam(
+    request: Request,
     tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
@@ -33,11 +35,20 @@ async def view_iam(
 ):
     effective_csp = csp or (provider.lower() if provider else "aws")
 
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+    role_level = auth_level_from_header(auth_ctx_header)
+
+    ck = cache_key("iam", tenant_id, scan_id, effective_csp, provider or "", account or "", region or "", role_level=role_level)
+    cached = cached_view(ck)
+    if cached is not None:
+        return cached
+
     results = await fetch_many([
         ("iam", "/api/v1/iam-security/ui-data", {
             "tenant_id": tenant_id, "csp": effective_csp, "scan_id": scan_id,
         }),
-    ])
+    ], auth_headers=fwd_headers)
 
     data = results[0] or {}
 
@@ -46,14 +57,10 @@ async def view_iam(
         check_raw = await fetch_all_check_findings({
             "tenant_id": tenant_id,
             "domain": "identity_and_access_management",
-        })
+        }, auth_headers=fwd_headers)
         if check_raw:
             # check findings feed straight into the same grouping transform
             data = {"findings": check_raw, "summary": {}}
-        else:
-            m = mock_fallback("iam")
-            if m is not None:
-                return m
 
     summary = safe_get(data, "summary", {})
     by_module = safe_get(summary, "by_module", {})
@@ -69,25 +76,63 @@ async def view_iam(
     priv_esc     = [normalize_privilege_escalation(p)    for p in safe_get(data, "privilege_escalation", [])]
     svc_accounts = [normalize_service_account(s)         for s in safe_get(data, "service_accounts",     [])]
 
-    # When falling back from check engine, derive roles/keys/privesc from raw findings
+    # Derive roles/keys/privesc from raw findings when engine sections are empty.
+    # Check iam_modules array first (set by the IAM engine), then fall back to
+    # keyword matching on resource_type / rule_id.
     if not roles and raw_findings:
         role_findings = [f for f in raw_findings
-                         if 'role' in (f.get('resource_type') or '').lower()
-                         or 'role' in (f.get('resource_uid')  or '').lower()]
+                         if 'role_management' in (f.get('iam_modules') or [])
+                         or 'role' in (f.get('resource_type') or '').lower()
+                         or 'role' in (f.get('resource_uid')  or '').lower()
+                         or 'role' in (f.get('rule_id') or '').lower()]
         roles = [normalize_iam_role(f) for f in role_findings]
 
     if not access_keys and raw_findings:
         key_findings = [f for f in raw_findings
-                        if 'access' in (f.get('rule_id') or '').lower()
-                        or 'key'    in (f.get('rule_id') or '').lower()]
+                        if 'access_control' in (f.get('iam_modules') or [])
+                        or 'access_key' in (f.get('rule_id') or '').lower()
+                        or 'key_rotation' in (f.get('rule_id') or '').lower()
+                        or ('access' in (f.get('rule_id') or '').lower()
+                            and 'key' in (f.get('rule_id') or '').lower())]
         access_keys = [normalize_access_key(f) for f in key_findings]
 
     if not priv_esc and raw_findings:
         pe_findings = [f for f in raw_findings
-                       if 'priv' in (f.get('rule_id') or '').lower()
-                       or 'escalat' in (f.get('rule_id') or '').lower()
-                       or 'passrole' in (f.get('rule_id') or '').lower()]
+                       if 'least_privilege' in (f.get('iam_modules') or [])
+                       or 'priv'     in (f.get('rule_id') or '').lower()
+                       or 'escalat'  in (f.get('rule_id') or '').lower()
+                       or 'passrole' in (f.get('rule_id') or '').lower()
+                       or 'assume'   in (f.get('rule_id') or '').lower()]
         priv_esc = [normalize_privilege_escalation(f) for f in pe_findings]
+
+    # If sections are still empty (IAM engine may have non-IAM data in DB),
+    # supplement with check engine findings filtered to IAM domain.
+    if not any([roles, access_keys, priv_esc]):
+        _chk = await fetch_all_check_findings(
+            {"tenant_id": tenant_id, "domain": "identity_and_access_management"},
+            auth_headers=fwd_headers,
+        )
+        if _chk:
+            _role_r = [f for f in _chk if 'role' in (f.get('rule_id') or '').lower()]
+            _key_r  = [f for f in _chk if 'access_key' in (f.get('rule_id') or '').lower()
+                                          or 'key_rotation' in (f.get('rule_id') or '').lower()
+                                          or ('access' in (f.get('rule_id') or '').lower()
+                                              and 'key' in (f.get('rule_id') or '').lower())]
+            _pe_r   = [f for f in _chk if 'priv'     in (f.get('rule_id') or '').lower()
+                                          or 'escalat' in (f.get('rule_id') or '').lower()
+                                          or 'passrole' in (f.get('rule_id') or '').lower()
+                                          or 'assume'  in (f.get('rule_id') or '').lower()]
+            if _role_r:
+                roles = [normalize_iam_role(f) for f in _role_r]
+            if _key_r:
+                access_keys = [normalize_access_key(f) for f in _key_r]
+            if _pe_r:
+                priv_esc = [normalize_privilege_escalation(f) for f in _pe_r]
+            # Use check findings as main findings list if IAM engine had no usable data
+            if not raw_findings or not any(f.get('resource_uid') for f in raw_findings[:20]):
+                raw_findings = _chk
+                identities = group_iam_findings_to_identities(raw_findings)
+                filtered = apply_global_filters(identities, provider, account, region)
 
     # ── Derived metrics ──
     posture_score = safe_get(summary, "posture_score", 0) or safe_get(summary, "risk_score", 0)
@@ -121,7 +166,7 @@ async def view_iam(
         {"id": "privilege_escalation",  "label": "Privilege Escalation",  "count": len(priv_esc)     },
     ]
 
-    return {
+    result = {
         "pageContext":       page_ctx,
         "filterSchema":     iam_filter_schema(list(by_module.keys())),
         "kpiGroups": [
@@ -159,3 +204,5 @@ async def view_iam(
         "serviceAccounts":     svc_accounts,
         "scanTrend":           safe_get(data, "scan_trend",            []),
     }
+    cached_view(ck, result, ttl=TTL_IAM)
+    return result

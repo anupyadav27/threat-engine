@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Activity, RefreshCw, AlertTriangle, AlertOctagon, Info, TrendingUp } from 'lucide-react';
 import {
   AreaChart, Area,
@@ -8,8 +8,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip as RechartsTip,
   ResponsiveContainer, ReferenceLine,
 } from 'recharts';
-import { fetchView } from '@/lib/api';
-import { useGlobalFilter } from '@/lib/global-filter-context';
+import { useViewFetch } from '@/lib/use-view-fetch';
 import PageLayout from '@/components/shared/PageLayout';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
@@ -251,33 +250,8 @@ function DomainPieChart({ domainBreakdown = [], riskScore = 0 }) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 export default function RiskPage() {
-  const { provider, account, region } = useGlobalFilter();
-  const [loading, setLoading] = useState(true);
-  const [riskData, setRiskData] = useState(null);
-  const [scenariosData, setScenariosData] = useState([]);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const data = await fetchView('risk', {
-          provider: provider || undefined,
-          account:  account  || undefined,
-          region:   region   || undefined,
-        });
-        if (data.error) { setError(data.error); return; }
-        setRiskData(data);
-        if (data.scenarios) setScenariosData(data.scenarios);
-      } catch (err) {
-        console.warn('Error fetching risk data:', err);
-        setError('Failed to load risk data');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [provider, account, region]);
+  const { data: riskData, loading, error } = useViewFetch('risk');
+  const scenariosData = riskData?.scenarios || [];
 
   // ── BFF data extraction ─────────────────────────────────────────────────────
   const rawRiskRegister      = riskData?.riskRegister      ?? riskData?.risk_register      ?? [];

@@ -1,0 +1,62 @@
+rule_id: gcp.sql.audit.instance_public_ip_enabled
+service: sql
+provider: gcp
+check_type: log
+severity: critical
+title: 'Cloud SQL: Public IP Enabled on Instance'
+description: A Cloud SQL instance was configured with a public IP address. Publicly accessible databases should always require SSL and authorised networks.
+rationale: Adversaries abuse sql operations to achieve initial access in GCP environments. Detected via Cloud Admin Activity or Data Access audit logs.
+threat_category: initial_access
+mitre_tactics:
+- initial_access
+mitre_techniques:
+- T1190
+risk_score: 88
+resource: gcp_sql_instance
+source: default
+is_active: true
+domain: threat_detection
+action_category: create
+log_source_type: 
+posture_category: threat_posture
+threat_tags:
+- T1190
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: |
+  1. Immediately restore the deleted or modified logging/security configuration.
+  2. Apply Org Policy to prevent log sink deletion: `logging.restrictSinkCreation`.
+  3. Use Cloud Storage Bucket Lock on log export buckets to prevent deletion.
+  4. Configure out-of-band alerting via Pub/Sub → Cloud Functions for audit log changes.
+  5. Enable Security Command Center Premium for threat detection on defense evasion events.
+references:
+- https://attack.mitre.org/techniques/T1190/
+- https://cloud.google.com/logging/docs/audit
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: cloudsql.googleapis.com
+    - field: operation
+      op: in
+      value:
+      - cloudsql.instances.create
+      - cloudsql.instances.update
+    - field: request.ipConfiguration.ipv4Enabled
+      op: equals
+      value: true
+version: '1.0'

@@ -1,0 +1,52 @@
+# ==========================================================
+# Discovery YAML — fis (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 2 | ops: 0 independent, 1 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: fis
+
+services:
+  client: fis
+  module: "boto3.client('fis')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  []
+
+checks: []
+
+discovery:
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.fis.get_experiment_template [dependent] ──
+  - discovery_id: aws.fis.get_experiment_template
+    for_each: aws.fis.list_actions
+    calls:
+      - action: get_experiment_template
+        params:
+          id: "{{ item.id }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        LogConfiguration: '{{ item.LogConfiguration }}'
+        Tags: '{{ item.Tags }}'
+        actions: '{{ item.actions }}'
+        arn: '{{ item.arn }}'
+        creationTime: '{{ item.creationTime }}'
+        description: '{{ item.description }}'
+        experimentOptions: '{{ item.experimentOptions }}'
+        experimentReportConfiguration: '{{ item.experimentReportConfiguration }}'
+        id: '{{ item.id }}'
+        lastUpdateTime: '{{ item.lastUpdateTime }}'
+        logConfiguration: '{{ item.logConfiguration }}'
+        roleArn: '{{ item.roleArn }}'
+        stopConditions: '{{ item.stopConditions }}'
+        tags: '{{ item.tags }}'
+        targetAccountConfigurationsCount: '{{ item.targetAccountConfigurationsCount }}'
+        targets: '{{ item.targets }}'
+

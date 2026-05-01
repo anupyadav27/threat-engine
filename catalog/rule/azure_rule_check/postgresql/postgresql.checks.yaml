@@ -1,0 +1,54 @@
+version: '1.0'
+provider: azure
+service: postgresql
+checks:
+- rule_id: azure.postgresql.flexibleserver.access_services_disabled
+  for_each: azure.rdbms_postgresql.servers.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.publicNetworkAccess
+    op: equals
+    value: Disabled
+- rule_id: azure.postgresql.flexibleserver.log_checkpoints_enabled
+  for_each: azure.rdbms_postgresql.servers.list
+  severity: MEDIUM
+  conditions:
+    var: item.configuration.log_checkpoints
+    op: is_true
+    value: null
+- rule_id: azure.postgresql.flexibleserver.log_connections_enabled
+  for_each: azure.rdbms_postgresql.servers.list
+  severity: MEDIUM
+  conditions:
+    var: item.configurations[?(@.name == 'log_connections')].properties.value
+    op: equals
+    value: 'on'
+- rule_id: azure.postgresql.flexibleserver.log_disconnections_enabled
+  for_each: azure.rdbms_postgresql.servers.list
+  severity: MEDIUM
+  conditions:
+    var: item.configurations[?name == 'log_disconnections'].value
+    op: equals
+    value: 'on'
+- rule_id: azure.postgresql.flexibleserver.log_retention_days_greater_3
+  for_each: azure.rdbms_postgresql.servers.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.logRetentionDays
+      op: gte
+      value: '3'
+- rule_id: azure.postgresql.flexibleserver.ssl_enabled
+  for_each: azure.rdbms_postgresql.servers.list
+  severity: MEDIUM
+  conditions:
+    var: item.ssl_enforcement
+    op: is_true
+    value: null
+- rule_id: azure.postgresql.server.geo_redundant_backup
+  for_each: azure.postgresql.servers.servers_list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.storageProfile.geoRedundantBackup
+    op: equals
+    value: Enabled

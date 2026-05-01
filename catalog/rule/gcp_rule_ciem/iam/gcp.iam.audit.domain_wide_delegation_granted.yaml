@@ -1,0 +1,83 @@
+rule_id: gcp.iam.audit.domain_wide_delegation_granted
+service: iam
+provider: gcp
+check_type: log
+severity: critical
+title: 'GCP IAM: Domain-Wide Delegation Granted to Service Account'
+description: Domain-wide delegation was granted to a service account, allowing it to impersonate any user in the Google Workspace domain.
+rationale: Adversaries abuse iam operations to achieve privilege escalation in GCP environments. Detected via Cloud Admin Activity or Data Access audit logs.
+threat_category: privilege_escalation
+mitre_tactics:
+- privilege_escalation
+- credential_access
+mitre_techniques:
+- T1098
+risk_score: 97
+resource: gcp_iam_service_account
+source: default
+is_active: true
+domain: identity_and_access_management
+action_category: privilege_escalation
+log_source_type: 
+posture_category: iam_posture
+threat_tags:
+- T1098
+- cloud_iam
+- privilege_escalation
+- identity
+risk_indicators:
+  actor_type: iam_user_or_role
+  action_type: privilege_change
+  target_type: iam_identity
+  blast_radius: account
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_gcp_v2:
+  - 1.1
+  - 1.4
+  - 1.7
+  - 2.4
+  nist_800_53_r5:
+  - AC-2
+  - AC-3
+  - AC-6
+  - IA-2
+  pci_dss_v4:
+  - 7.1
+  - 7.2
+  - 8.2
+  iso_27001_2022:
+  - A.5.18
+  - A.8.2
+  - A.8.3
+remediation: |
+  1. Immediately audit the modified IAM policy and revoke unauthorized role grants.
+  2. Enable Cloud Asset Inventory change notifications for IAM policy updates.
+  3. Apply Org Policy constraints to restrict role assignment to approved principals.
+  4. Require two-person approval for Owner/Editor role grants via Cloud Identity workflows.
+  5. Configure VPC Service Controls to prevent cross-project privilege escalation.
+references:
+- https://attack.mitre.org/techniques/T1098/
+- https://cloud.google.com/logging/docs/audit
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: iam.googleapis.com
+    - field: operation
+      op: equals
+      value: google.iam.admin.v1.UpdateServiceAccount
+    - field: request.updateMask
+      op: contains
+      value: oauth2ClientId
+version: '1.0'

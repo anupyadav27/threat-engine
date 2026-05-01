@@ -1,0 +1,27 @@
+version: '1.0'
+rule_id: oci.monitoring.alarm.notification_no_public_webhooks_blocked
+for_each: oci.monitoring.list_alarms
+severity: CRITICAL
+conditions:
+  all:
+  - var: item.status
+    op: equals
+    value: ACTIVE
+  - any:
+    - var: item.metric_compartment_id_in_subtree
+      op: is_false
+    - var: item.metric_compartment_id_in_subtree
+      op: not_exists
+  - var: item.destinations
+    op: exists
+  - var: item.destinations[].topic_id
+    op: exists
+  - var: item.destinations[].topic_id
+    op: not_contains
+    value: public_webhook
+  - var: item.destinations[].topic_id
+    op: not_contains
+    value: webhook_public
+fixture_validated: false
+fixture_note: 'PASS fixture returned FAIL — wrong field or operator (pass_fixture keys: [''ocid'', ''compartment_id'', ''name'',
+  ''status'', ''time_created'', ''freeform_tags'', ''defined_tags''])'

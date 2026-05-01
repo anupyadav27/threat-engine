@@ -1,0 +1,75 @@
+rule_id: alicloud.container.actiontrail.delete_cluster
+service: container
+provider: alicloud
+check_type: log
+severity: critical
+title: 'AliCloud ACK: Kubernetes Cluster Deleted'
+description: An ACK Kubernetes cluster was deleted. Cluster deletion destroys all
+  workloads, persistent volumes, and configurations — a high-impact denial of service
+  technique.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: impact
+mitre_tactics:
+- impact
+mitre_techniques:
+- T1485
+- T1489
+risk_score: 95
+resource: alicloud_ack_cluster
+source: alicloud_ciem_generator
+is_active: true
+domain: container_and_kubernetes_security
+action_category: delete
+log_source_type: alicloud_actiontrail
+posture_category: workload_posture
+threat_tags:
+- T1485
+- T1489
+- impact
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '7.1'
+  - '7.2'
+  nist_800_53_r5:
+  - CM-7
+  - AC-3
+  - SC-28
+  pci_dss_v4:
+  - '6.3'
+  - '6.4'
+  iso_27001_2022:
+  - A.8.9
+  - A.8.25
+remediation: '1. Confirm the deletion was authorized.
+
+  2. Restore from cluster configuration backups in IaC.
+
+  3. Alert on cluster deletion — require out-of-band approval for production clusters.'
+references:
+- https://attack.mitre.org/techniques/T1485/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: cs
+    - field: operation
+      op: equals
+      value: DeleteCluster
+version: '1.0'

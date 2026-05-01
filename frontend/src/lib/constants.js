@@ -30,10 +30,11 @@ export const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low', 'info'];
 export const CLOUD_PROVIDERS = {
   aws:      { name: 'AWS',      color: '#FF9900', bgColor: 'rgba(255,153,0,0.15)',  textColor: '#FF9900'  },
   azure:    { name: 'Azure',    color: '#0078D4', bgColor: 'rgba(0,120,212,0.15)',  textColor: '#0078D4'  },
-  gcp:      { name: 'GCP',     color: '#4285F4', bgColor: 'rgba(66,133,244,0.15)', textColor: '#4285F4'  },
-  oci:      { name: 'OCI',     color: '#F80000', bgColor: 'rgba(248,0,0,0.15)',    textColor: '#F80000'  },
-  alicloud: { name: 'AliCloud',color: '#FF6A00', bgColor: 'rgba(255,106,0,0.15)',  textColor: '#FF6A00'  },
-  ibm:      { name: 'IBM',     color: '#1F70C1', bgColor: 'rgba(31,112,193,0.15)', textColor: '#1F70C1'  },
+  gcp:      { name: 'GCP',      color: '#4285F4', bgColor: 'rgba(66,133,244,0.15)', textColor: '#4285F4'  },
+  oci:      { name: 'OCI',      color: '#F80000', bgColor: 'rgba(248,0,0,0.15)',    textColor: '#F80000'  },
+  alicloud: { name: 'AliCloud', color: '#FF6A00', bgColor: 'rgba(255,106,0,0.15)',  textColor: '#FF6A00'  },
+  ibm:      { name: 'IBM',      color: '#1F70C1', bgColor: 'rgba(31,112,193,0.15)', textColor: '#1F70C1'  },
+  k8s:      { name: 'K8S',      color: '#326CE5', bgColor: 'rgba(50,108,229,0.15)', textColor: '#326CE5'  },
 };
 
 // SLA thresholds by severity (days until breach)
@@ -45,13 +46,28 @@ export const SLA_THRESHOLDS = {
 };
 
 export const FRAMEWORKS = [
-  { id: 'cis', name: 'CIS Benchmarks', color: '#10b981' },
-  { id: 'nist', name: 'NIST 800-53', color: '#3b82f6' },
-  { id: 'pci_dss', name: 'PCI DSS', color: '#f97316' },
-  { id: 'hipaa', name: 'HIPAA', color: '#ef4444' },
-  { id: 'gdpr', name: 'GDPR', color: '#8b5cf6' },
-  { id: 'iso_27001', name: 'ISO 27001', color: '#06b6d4' },
-  { id: 'soc2', name: 'SOC 2', color: '#ec4899' }
+  // CIS per-provider benchmarks
+  { id: 'CIS_AWS',          name: 'CIS AWS',          shortName: 'CIS AWS',    color: '#FF9900', group: 'CIS' },
+  { id: 'CIS_AZURE',        name: 'CIS Azure',         shortName: 'CIS Azure',  color: '#0078D4', group: 'CIS' },
+  { id: 'CIS_GCP',          name: 'CIS GCP',           shortName: 'CIS GCP',    color: '#4285F4', group: 'CIS' },
+  { id: 'CIS_K8S',          name: 'CIS Kubernetes',    shortName: 'CIS K8S',    color: '#326CE5', group: 'CIS' },
+  { id: 'CIS_IBM',          name: 'CIS IBM Cloud',     shortName: 'CIS IBM',    color: '#1F70C1', group: 'CIS' },
+  { id: 'CIS_ALICLOUD',     name: 'CIS AliCloud',      shortName: 'CIS Ali',    color: '#FF6A00', group: 'CIS' },
+  { id: 'CIS_OCI',          name: 'CIS Oracle Cloud',  shortName: 'CIS OCI',    color: '#F80000', group: 'CIS' },
+  // Regulatory
+  { id: 'PCI_DSS',          name: 'PCI DSS v4.0.1',    shortName: 'PCI DSS',    color: '#f97316', group: 'Regulatory' },
+  { id: 'HIPAA',            name: 'HIPAA',             shortName: 'HIPAA',      color: '#ef4444', group: 'Regulatory' },
+  { id: 'GDPR',             name: 'GDPR',              shortName: 'GDPR',       color: '#8b5cf6', group: 'Regulatory' },
+  { id: 'SOC2',             name: 'SOC 2',             shortName: 'SOC 2',      color: '#ec4899', group: 'Regulatory' },
+  { id: 'ISO27001_2022',    name: 'ISO 27001:2022',    shortName: 'ISO 27001',  color: '#06b6d4', group: 'Regulatory' },
+  { id: 'CANADA_PBMM',      name: 'Canada PBMM',       shortName: 'PBMM',       color: '#dc2626', group: 'Regulatory' },
+  { id: 'RBI_BANK',         name: 'RBI Bank',          shortName: 'RBI Bank',   color: '#f59e0b', group: 'Regulatory' },
+  { id: 'RBI_NBFC',         name: 'RBI NBFC',          shortName: 'RBI NBFC',   color: '#d97706', group: 'Regulatory' },
+  // US Government
+  { id: 'NIST_800_53',      name: 'NIST 800-53',       shortName: 'NIST 800-53',color: '#3b82f6', group: 'US Gov' },
+  { id: 'NIST_800_171',     name: 'NIST 800-171',      shortName: 'NIST 171',   color: '#2563eb', group: 'US Gov' },
+  { id: 'FedRAMP_Moderate', name: 'FedRAMP Moderate',  shortName: 'FedRAMP',    color: '#1d4ed8', group: 'US Gov' },
+  { id: 'CISA_CE',          name: 'CISA CE',           shortName: 'CISA CE',    color: '#1e3a8a', group: 'US Gov' },
 ];
 
 export const NAV_ITEMS = [
@@ -94,6 +110,8 @@ export const NAV_ITEMS = [
     icon: 'ClipboardCheck',
     children: [
       { label: 'Frameworks', href: '/compliance' },
+      { label: 'Multi-Cloud Matrix', href: '/compliance/matrix' },
+      { label: 'Remediation Queue', href: '/compliance/remediation' },
     ],
   },
   {
@@ -112,6 +130,15 @@ export const NAV_ITEMS = [
     ],
   },
   { label: 'CIEM', href: '/ciem', icon: 'Eye' },
+  {
+    label: 'CNAPP',
+    href: '/cnapp',
+    icon: 'Shield',
+    children: [
+      { label: 'Unified View', href: '/cnapp', icon: 'Shield' },
+      { label: 'CWPP', href: '/cwpp', icon: 'Container' },
+    ],
+  },
   {
     label: 'Code Security',
     href: '/secops',
@@ -172,4 +199,6 @@ export const ENGINE_ENDPOINTS = {
   gateway: '/gateway',
   rule: '/rule',
   vulnerability: '/vulnerability',
+  cnapp: '/cnapp',
+  cwpp: '/cwpp',
 };

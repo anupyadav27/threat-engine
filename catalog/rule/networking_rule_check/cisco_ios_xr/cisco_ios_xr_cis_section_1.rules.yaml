@@ -1,0 +1,498 @@
+tech_type: cisco_ios_xr
+category: networking
+cis_benchmark: CIS Cisco IOS XR 7.x v1.0.1
+cis_section: '1'
+
+rules:
+
+  - rule_id: cisco_ios_xr.cis.1.tacacs
+    title: "TACACS+"
+    severity: medium
+    automation_type: automated
+    cis_control: '1.1.1.1'
+    cis_section: '1'
+    profile_applicability: "Level 2"
+    scope: cisco_ios_xr.section_1.tacacs
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "on"
+    remediation: >
+      For complete instructions how to configure AAA please refer to the
+      configuration guide. Below you can find some minimum config snippets to
+      implement a radius or tacacs+ server group. IOSXR(config)#tacacs-server host
+      {tacacs_ip_address} port 49 IOSXR(config-tacacs-host)#key {tacacs_key}
+      IOSXR(config)#aaa group server tacacs+ {tacacs_group_name} IOSXR(config-sg-
+      tacacs)#server {tacacs_ip_address} Default Value: By default no aaa groups are
+      implemented. References: 1.
+      https://www.cisco.com/c/en/us/td/docs/routers/asr9000/software/asr9k-r7-
+      5/system-security/configuration/guide/b-system-security-cg-asr9000-
+      75x/configuring-aaa-services.html
+    compliance:
+      - cis_cisco_ios_xr_7_x_v1_0_1_1_1_1_1
+
+  - rule_id: cisco_ios_xr.cis.1.radius
+    title: "RADIUS"
+    severity: medium
+    automation_type: automated
+    cis_control: '1.1.1.2'
+    cis_section: '1'
+    profile_applicability: "Level 2"
+    scope: cisco_ios_xr.section_1.radius
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "on"
+    remediation: >
+      For complete instructions how to configure AAA please refer to the
+      configuration guide. Below you can find some minimum config snippets to
+      implement a radius or tacacs+ server group. radius-server host
+      {radius_ip_address} key {radius_key} aaa group server radius
+      {radius_group_name} server radius_ip_address} Default Value: By default no aaa
+      groups are implemented. References: 1.
+      https://www.cisco.com/c/en/us/td/docs/routers/asr9000/software/asr9k-r7-
+      5/system-security/configuration/guide/b-system-security-cg-asr9000-
+      75x/configuring-aaa-services.html
+    compliance:
+      - cis_cisco_ios_xr_7_x_v1_0_1_1_1_1_2
+
+  - rule_id: cisco_ios_xr.cis.1.configure_authorization
+    title: "Configure Authorization"
+    severity: medium
+    automation_type: automated
+    cis_control: '1.1.3.1'
+    cis_section: '1'
+    profile_applicability: "Level 2"
+    scope: cisco_ios_xr.section_1.configure_authorization
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Currently CIS makes no recommendations how to implement command authorization.
+      Roles and access-privileges should be defined in collaboration with your
+      operations and security teams. Default Value: By default command authorization
+      is not enabled. References: 1.
+      https://www.cisco.com/c/en/us/td/docs/routers/asr9000/software/asr9k-r7-
+      5/system-security/configuration/guide/b-system-security-cg-asr9000-
+      75x/configuring-aaa-services.html Additional Information: Commands
+      authorization—Applies to the EXEC mode mode commands a user issues. Command
+      authorization attempts authorization for all EXEC mode mode commands. Note
+      “Command” authorization is distinct from “task-based” authorization, which is
+      based on the task profile established during authentication. EXEC mode
+      authorization—Applies authorization for starting EXEC mode session. So either
+      a user is allowed to start an 'exec' session (usually this is equivalent to
+      opening a vty line) or not. The Cisco IOS XR software supports the following
+      methods for authorization: • none : The router does not request authorization
+      information; authorization is not performed over this line or interface. •
+      local : Uses local database for authorization; Authorizes any command if user
+      is authenticated locally. • group [radius|tacacs+] : use all configured radius
+      or tacacs servers 1.1.4 Accounting The AAA accounting feature allows the
+      services that users are accessing and the amount of network resources that
+      users are consuming to be tracked. When AAA accounting is enabled, the network
+      access server reports user activity to the TACACS+ or RADIUS security server
+      (depending on which security method is implemented) in the form of accounting
+      records. Each accounting record contains accounting attribute-value (AV) pairs
+      and is stored on the security server. This data can then be analyzed for
+      network management, client billing, and auditing.
+    compliance:
+      - cis_cisco_ios_xr_7_x_v1_0_1_1_1_3_1
+
+  - rule_id: cisco_ios_xr.cis.1.exec_accounting
+    title: "exec accounting"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.4.1'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: cisco_ios_xr.section_1.exec_accounting
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "true"
+    remediation: >
+      Configure an accounting list which for example includes the tacacs+ or radius
+      server group, which was defined in the prerequisites or local or both:
+      IOSXR(config)#aaa accounting exec default start-stop group
+      {tacacs_group|radius_group} IOSXR(config)#line console accounting exec default
+      IOSXR(config)#line default accounting exec default Note: exec accounting
+      doesn't support the 'local' / syslog target. Default Value: No accounting is
+      configured. References: 1.
+      https://www.cisco.com/c/en/us/td/docs/routers/asr9000/software/asr9k-r7-
+      5/system-security/configuration/guide/b-system-security-cg-asr9000-
+      75x/configuring-aaa-services.html Additional Information: For minimal
+      accounting, include the stop-only keyword to send a “stop accounting” notice
+      at the end of the requested user process. For more accounting, you can include
+      the start-stop keyword, so that the external AAA server sends a “start
+      accounting” notice at the beginning of the requested process and a “stop
+      accounting” notice at the end of the process. Command accounting with a method
+      as local, enables the logging of commands executed by all users as syslog
+      messages. This feature can be enabled or disabled only by users who have AAA
+      write permissions. Once enabled, all the commands that are executed by all
+      users can be viewed from the output of the show logging command.
+    compliance:
+      - cis_cisco_ios_xr_7_x_v1_0_1_1_1_4_1
+
+  - rule_id: cisco_ios_xr.cis.1.command_accounting
+    title: "command accounting"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.4.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: cisco_ios_xr.section_1.command_accounting
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "true"
+    remediation: >
+      Configure an accounting list which for example includes the tacacs+ or radius
+      server group, which was defined in the prerequisites or local or both:
+      IOSXR(config)#aaa accounting commands default start-stop group
+      {tacacs_group|radius_group} local IOSXR(config)#line console accounting
+      commands default IOSXR(config)#line default accounting commands default
+      Default Value: No accounting is configured. References: 1.
+      https://www.cisco.com/c/en/us/td/docs/routers/asr9000/software/asr9k-r7-
+      5/system-security/configuration/guide/b-system-security-cg-asr9000-
+      75x/configuring-aaa-services.html Additional Information: For minimal
+      accounting, include the stop-only keyword to send a “stop accounting” notice
+      at the end of the requested user process. For more accounting, you can include
+      the start-stop keyword, so that the external AAA server sends a “start
+      accounting” notice at the beginning of the requested process and a “stop
+      accounting” notice at the end of the process. Command accounting with a method
+      as local, enables the logging of commands executed by all users as syslog
+      messages. This feature can be enabled or disabled only by users who have AAA
+      write permissions. Once enabled, all the commands that are executed by all
+      users can be viewed from the output of the show logging command.
+    compliance:
+      - cis_cisco_ios_xr_7_x_v1_0_1_1_1_4_2
+
+  - rule_id: cisco_ios_xr.cis.1.network_accounting
+    title: "network accounting"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.4.3'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: cisco_ios_xr.section_1.network_accounting
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "true"
+    remediation: >
+      Configure an accounting list which includes the tacacs+ or radius server
+      group, that was defined in the prerequisites or local or both: aaa accounting
+      network default start-stop group {tacacs_group|radius_group} Default Value: No
+      accounting is configured. References: 1.
+      https://www.cisco.com/c/en/us/td/docs/routers/asr9000/software/asr9k-r7-
+      5/system-security/configuration/guide/b-system-security-cg-asr9000-
+      75x/configuring-aaa-services.html 2.
+      https://www.cisco.com/c/en/us/td/docs/routers/asr9000/software/security/comma
+      nd/reference/b-system-security-cr-asr9k/b-system-security-cr-71x-
+      asr9k_chapter_01.html#wp1912054943 Additional Information: For minimal
+      accounting, include the stop-only keyword to send a “stop accounting” notice
+      at the end of the requested user process. For more accounting, you can include
+      the start-stop keyword, so that the external AAA server sends a “start
+      accounting” notice at the beginning of the requested process and a “stop
+      accounting” notice at the end of the process. Command accounting with a method
+      as local, enables the logging of commands executed by all users as syslog
+      messages. This feature can be enabled or disabled only by users who have AAA
+      write permissions. Once enabled, all the commands that are executed by all
+      users can be viewed from the output of the show logging command.
+    compliance:
+      - cis_cisco_ios_xr_7_x_v1_0_1_1_1_4_3
+
+  - rule_id: cisco_ios_xr.cis.1.system_accounting
+    title: "system accounting"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.4.4'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: cisco_ios_xr.section_1.system_accounting
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "true"
+    remediation: >
+      Configure an accounting list which includes the tacacs+ or radius server
+      group, that was defined in the prerequisites or local or both: aaa accounting
+      system default start-stop group {tacacs_group|radius_group} Default Value: No
+      accounting is configured. References: 1.
+      https://www.cisco.com/c/en/us/td/docs/routers/asr9000/software/asr9k-r7-
+      5/system-security/configuration/guide/b-system-security-cg-asr9000-
+      75x/configuring-aaa-services.html 2.
+      https://www.cisco.com/c/en/us/td/docs/routers/asr9000/software/security/comma
+      nd/reference/b-system-security-cr-asr9k/b-system-security-cr-71x-
+      asr9k_chapter_01.html#wp1912054943 Additional Information: For minimal
+      accounting, include the stop-only keyword to send a “stop accounting” notice
+      at the end of the requested user process. For more accounting, you can include
+      the start-stop keyword, so that the external AAA server sends a “start
+      accounting” notice at the beginning of the requested process and a “stop
+      accounting” notice at the end of the process. Command accounting with a method
+      as local, enables the logging of commands executed by all users as syslog
+      messages. This feature can be enabled or disabled only by users who have AAA
+      write permissions. Once enabled, all the commands that are executed by all
+      users can be viewed from the output of the show logging command.
+    compliance:
+      - cis_cisco_ios_xr_7_x_v1_0_1_1_1_4_4
+
+  - rule_id: cisco_ios_xr.cis.1.set_the_hostname
+    title: "Set the 'hostname'"
+    severity: high
+    automation_type: automated
+    cis_control: '1.2.1'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: cisco_ios_xr.section_1.set_the_hostname
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Configure an appropriate host name for the router. IOSXR(config)#hostname
+      {hostname} Default Value: The default hostname is Router. References: 1.
+      https://www.cisco.com/c/en/us/td/docs/routers/crs/software/crs_r6-
+      1/security/configuration/guide/b-syssec-cg-crs-61x.html
+    compliance:
+      - cis_cisco_ios_xr_7_x_v1_0_1_1_2_1
+
+  - rule_id: cisco_ios_xr.cis.1.enable_logging
+    title: "Enable logging"
+    severity: high
+    automation_type: automated
+    cis_control: '1.4.1'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: cisco_ios_xr.section_1.enable_logging
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Enable system logging. IOSXR(config)#logging trap {severity_level} Default
+      Value: Logging is not enabled/ References: 1.
+      https://www.cisco.com/c/en/us/td/docs/routers/asr9000/software/asr9k-r6-
+      4/system-monitoring/configuration/guide/b-system-monitoring-cg-asr9000-64x/b-
+      system-monitoring-cg-asr9000-64x_chapter_0101.html
+    compliance:
+      - cis_cisco_ios_xr_7_x_v1_0_1_1_4_1
+
+  - rule_id: cisco_ios_xr.cis.1.set_buffer_size
+    title: "Set 'buffer size'"
+    severity: high
+    automation_type: automated
+    cis_control: '1.4.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: cisco_ios_xr.section_1.set_buffer_size
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Configure buffered logging (with minimum size). Recommended size is 64000.
+      IOSXR(config)#logging buffered {logging_buffer_size} Default Value: No logging
+      buffer is set by default References: 1.
+      https://www.cisco.com/c/en/us/td/docs/routers/asr9000/software/asr9k-r6-
+      4/system-monitoring/configuration/guide/b-system-monitoring-cg-asr9000-64x/b-
+      system-monitoring-cg-asr9000-64x_chapter_0101.html
+    compliance:
+      - cis_cisco_ios_xr_7_x_v1_0_1_1_4_2
+
+  - rule_id: cisco_ios_xr.cis.1.set_ip_address_for_logging_host
+    title: "Set IP address for 'logging host'"
+    severity: high
+    automation_type: automated
+    cis_control: '1.4.4'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: cisco_ios_xr.section_1.set_ip_address_for_logging_host
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Designate one or more syslog servers by IP address. hostname(config)#logging
+      host {syslog_server} Default Value: System logging messages are not sent to
+      any remote host. References: 1.
+      https://www.cisco.com/c/en/us/td/docs/routers/asr9000/software/asr9k-r6-
+      4/system-monitoring/configuration/guide/b-system-monitoring-cg-asr9000-64x/b-
+      system-monitoring-cg-asr9000-64x_chapter_0101.html
+    compliance:
+      - cis_cisco_ios_xr_7_x_v1_0_1_1_4_4
+
+  - rule_id: cisco_ios_xr.cis.1.set_logging_trap_informational
+    title: "Set 'logging trap informational'"
+    severity: high
+    automation_type: automated
+    cis_control: '1.4.5'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: cisco_ios_xr.section_1.set_logging_trap_informational
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Configure SNMP trap and syslog logging level. IOSXR(config)#logging trap
+      informational Default Value: Disabled References: 1.
+      https://www.cisco.com/c/en/us/td/docs/routers/asr9000/software/asr9k-r6-
+      4/system-monitoring/configuration/guide/b-system-monitoring-cg-asr9000-64x/b-
+      system-monitoring-cg-asr9000-64x_chapter_0101.html
+    compliance:
+      - cis_cisco_ios_xr_7_x_v1_0_1_1_4_5
+
+  - rule_id: cisco_ios_xr.cis.1.set_logging_timestamps
+    title: "Set logging timestamps"
+    severity: high
+    automation_type: automated
+    cis_control: '1.4.6'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: cisco_ios_xr.section_1.set_logging_timestamps
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Configure debug messages to include timestamps. IOSXR(config)#service
+      timestamps log datetime msec Default Value: Time stamps are applied to debug
+      and logging messages. References: 1.
+      https://www.cisco.com/c/en/us/td/docs/routers/asr9000/software/asr9k-r6-
+      4/system-monitoring/configuration/guide/b-system-monitoring-cg-asr9000-64x/b-
+      system-monitoring-cg-asr9000-64x_chapter_0101.html
+    compliance:
+      - cis_cisco_ios_xr_7_x_v1_0_1_1_4_6
+
+  - rule_id: cisco_ios_xr.cis.1.set_logging_source_interface
+    title: "Set 'logging source interface'"
+    severity: high
+    automation_type: automated
+    cis_control: '1.4.7'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: cisco_ios_xr.section_1.set_logging_source_interface
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Bind logging to the loopback interface. IOSXR(config)#logging source-interface
+      {logging_source_interface} Default Value: The wildcard interface address is
+      used. References: 1.
+      https://www.cisco.com/c/en/us/td/docs/routers/asr9000/software/asr9k-r6-
+      4/system-monitoring/configuration/guide/b-system-monitoring-cg-asr9000-64x/b-
+      system-monitoring-cg-asr9000-64x_chapter_0101.html
+    compliance:
+      - cis_cisco_ios_xr_7_x_v1_0_1_1_4_7
+
+  - rule_id: cisco_ios_xr.cis.1.set_snmp_server_enable_traps_snmp
+    title: "Set 'snmp-server enable traps snmp'"
+    severity: high
+    automation_type: automated
+    cis_control: '1.5.6'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: cisco_ios_xr.section_1.set_snmp_server_enable_traps_snmp
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Enable SNMP traps. IOSXR(config)#snmp-server traps snmp authentication Default
+      Value: SNMP notifications are disabled. References: 1.
+      http://www.cisco.com/en/US/docs/ios-xml/ios/snmp/command/nm-snmp-cr-
+      s3.html#GUID-EB3EB677-A355-42C6-A139-85BA30810C54
+    compliance:
+      - cis_cisco_ios_xr_7_x_v1_0_1_1_5_6
+
+  - rule_id: cisco_ios_xr.cis.1.set_priv_for_each_snmp_server_group_using_snmpv3
+    title: "Set 'priv' for each 'snmp-server group' using SNMPv3"
+    severity: medium
+    automation_type: automated
+    cis_control: '1.5.7'
+    cis_section: '1'
+    profile_applicability: "Level 2"
+    scope: cisco_ios_xr.section_1.set_priv_for_each_snmp_server_group_using_snmpv3
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      For each SNMPv3 group created on your router add privacy options by issuing
+      the following command... IOSXR(config)#snmp-server group {snmp_group_name} v3
+      priv IPv4 {snmp_access- list} Default Value: No SNMP server groups are
+      configured. References: 1. http://www.cisco.com/en/US/docs/ios-
+      xml/ios/snmp/command/nm-snmp-cr-
+      s5.html#GUID-56E87D02-C56F-4E2D-A5C8-617E31740C3F
+    compliance:
+      - cis_cisco_ios_xr_7_x_v1_0_1_1_5_7
+
+  - rule_id: cisco_ios_xr.cis.1.require_aes_128_as_minimum_for_snmp_server_user
+    title: "Require 'aes 128' as minimum for 'snmp-server user' when using SNMPv3"
+    severity: medium
+    automation_type: automated
+    cis_control: '1.5.8'
+    cis_section: '1'
+    profile_applicability: "Level 2"
+    scope: cisco_ios_xr.section_1.require_aes_128_as_minimum_for_snmp_server_user
+    assertion:
+      field: length
+      operator: gte
+      expected: "true"
+    remediation: >
+      For each SNMPv3 user created on your router add privacy options by issuing the
+      following command. hostname(config)#snmp-server user {snmp_user_name}
+      {snmp_group_name} v3 auth sha {snmp_auth_password} priv aes 128
+      {snmp_priv_password} ipv4 {snmp_access- list} Default Value: SNMP username as
+      not set by default. References: 1. http://www.cisco.com/en/US/docs/ios-
+      xml/ios/snmp/command/nm-snmp-cr-
+      s5.html#GUID-4EED4031-E723-4B84-9BBF-610C3CF60E31
+    compliance:
+      - cis_cisco_ios_xr_7_x_v1_0_1_1_5_8
+
+  - rule_id: cisco_ios_xr.cis.1.management_plane_protection
+    title: "Management plane protection"
+    severity: medium
+    automation_type: automated
+    cis_control: '1.9'
+    cis_section: '1'
+    profile_applicability: "Level 2"
+    scope: cisco_ios_xr.section_1.management_plane_protection
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Configure the management plane so that only certain protocols connectced to
+      certain interfaces can access this IOS-XR device. IOSXR(config)#control-plane
+      IOSXR(config-ctrl)#management-plane IOSXR(config-mpp)#inband IOSXR(config-mpp-
+      inband)#interface {interface} allow {protocol} peer address ipv4 {IP_address}
+      IOSXR(config-mpp)#out-of-band IOSXR(config-mpp-outband)#interface {interface}
+      allow {protocol} peer address ipv4 {IP_address} Default Value: Not set
+      References: 1.
+      https://www.cisco.com/c/en/us/td/docs/routers/crs/software/crs_r5-
+      3/security/configuration/guide/b-syssec-cg53x-crs/b-syssec-cg53x-
+      crs_chapter_0110.html 2 Control Plane The control plane covers monitoring,
+      route table updates, and generally the dynamic operation of the router.
+      Services, settings, and data streams that support and document the operation,
+      traffic handling, and dynamic status of the router. Examples of control plane
+      services include: logging (e.g. Syslog), routing protocols, status protocols
+      like CDP and HSRP, network topology protocols like STP, and traffic security
+      control protocols like IKE. Network control protocols like ICMP, NTP, ARP, and
+      IGMP directed to or sent by the router itself also fall into this area. 2.1
+      Routing protocols A routing protocol specifies how routers communicate with
+      each other to distribute information that enables them to select routes
+      between nodes on a computer network. Enable routing authentication so that
+      they only accept updates from trusted systems. 2.1.1 EIGRP The Enhanced
+      Interior Gateway Routing Protocol (EIGRP) is an enhanced version of IGRP
+      developed by Cisco. EIGRP uses distance vector routing technology, which
+      specifies that a router need not know all the router and link relationships
+      for the entire network. Each router advertises destinations with a
+      corresponding distance and upon receiving routes, adjusts the distance and
+      propagates the information to neighboring routes.
+    compliance:
+      - cis_cisco_ios_xr_7_x_v1_0_1_1_9
+
+

@@ -1,0 +1,530 @@
+version: '1.0'
+provider: azure
+service: policy
+checks:
+- rule_id: azure.policy.assignment.asc_enforcement_enabled
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.EnforcementMode
+      op: equals
+      value: Default
+- rule_id: azure.policy.assignment.check.disabled.effect
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.Parameters.effect.value
+    op: not_equals
+    value: Disabled
+- rule_id: azure.policy.assignment.configuration_management_config_aggregation_auto_enroll_new_accounts
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.Scope
+      op: contains
+      value: /providers/Microsoft.Management/managementGroups/
+    - var: item.Properties.Parameters.configurationManagement.enabled
+      op: is_true
+      value: null
+    - var: item.Properties.Parameters.configurationManagement.autoEnrollNewAccounts
+      op: is_true
+      value: null
+- rule_id: azure.policy.assignment.configuration_management_config_aggregation_org_aggregator_enabled
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.PolicyDefinitionId
+      op: equals
+      value: /providers/Microsoft.Authorization/policyDefinitions/1f8ca95f-56de-4c8c-b7b0-2b2b9c7c1c7c
+    - var: item.Properties.Parameters.policyEffect
+      op: equals
+      value: AuditIfNotExists
+- rule_id: azure.policy.assignment.configuration_management_config_delivery_secure_destination_configured
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.details.scope
+    op: exists
+    value: null
+- rule_id: azure.policy.assignment.configuration_management_config_recorder_enabled
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.policyDefinitionId
+      op: contains
+      value: /providers/Microsoft.Authorization/policyDefinitions/1e208063-7641-4b8c-b05c-64b7755d1dac
+    - var: item.properties.enforcementMode
+      op: equals
+      value: Default
+- rule_id: azure.policy.assignment.configuration_management_config_recorder_global_resource_types_tracked
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.policyDefinitionId
+      op: equals
+      value: /providers/Microsoft.Authorization/policyDefinitions/34c877ad-507e-4c82-993e-3452a6e0ad3c
+    - var: item.properties.parameters.resourceTypes.value
+      op: contains
+      value: All
+- rule_id: azure.policy.assignment.enabled
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.enforcementMode
+    op: equals
+    value: Default
+- rule_id: azure.policy.assignment.governance_aggregation_authorization_not_expired_or_revoked
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.Metadata.expirationDate
+      op: exists
+      value: null
+    - var: item.Properties.Metadata.expirationDate
+      op: gt
+      value: '{{now}}'
+- rule_id: azure.policy.assignment.governance_aggregation_authorization_target_accounts_correct
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.metadata.category
+      op: equals
+      value: Governance
+    - var: item.properties.metadata.aggregationAuthorizationTargetAccounts
+      op: exists
+      value: null
+- rule_id: azure.policy.assignment.governance_aggregation_authorization_trusts_least_privilege
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.PolicyDefinitionId
+      op: contains
+      value: leastprivilege
+    - var: item.Properties.EnforcementMode
+      op: equals
+      value: Default
+- rule_id: azure.policy.assignment.governance_config_recorder_enabled
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.PolicyDefinitionId
+      op: contains
+      value: /providers/Microsoft.Authorization/policyDefinitions/1f25e1d3-4d5f-48d4-9a5c-47d6a8b8470f
+    - var: item.Properties.Parameters.logAnalytics.value
+      op: exists
+      value: null
+    - var: item.Properties.Parameters.logAnalytics_1.value
+      op: exists
+      value: null
+- rule_id: azure.policy.assignment.governance_config_recorder_global_resource_types_tracked
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.metadata.category
+      op: equals
+      value: Governance
+    - var: item.properties.parameters.resourceTypes.value
+      op: contains
+      value: '*'
+- rule_id: azure.policy.assignment.governance_delivery_channel_destination_access_least_privilege
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.parameters.policyEffect.value
+      op: equals
+      value: Deny
+    - var: item.properties.parameters.roleDefinitionIds.value
+      op: contains
+      value: /providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635
+- rule_id: azure.policy.assignment.governance_delivery_channel_kms_encryption_enabled
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.parameters.kmsEncryptionEnabled.value
+      op: is_true
+      value: null
+    - var: item.properties.parameters.kmsEncryptionEnabled.value
+      op: exists
+      value: null
+- rule_id: azure.policy.assignment.governance_delivery_channel_secure_destination_configured
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.deliveryChannel.destination
+    op: exists
+    value: null
+- rule_id: azure.policy.assignment.recorder_all_regions_enabled
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.parameters.logCollectionRegions.value
+      op: exists
+      value: null
+    - var: item.properties.parameters.logCollectionRegions.value
+      op: contains
+      value: '*'
+- rule_id: azure.policy.compliance.configuration_management_config_drift_alerts_configured
+  for_each: azure.policyinsights.policystates.list_query_results_for_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.alerts
+    op: not_empty
+    value: null
+- rule_id: azure.policy.compliance.configuration_management_config_drift_critical_resources_drift_detection_enabled
+  for_each: azure.policyinsights.policystates.list_query_results_for_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.enforcementMode
+    op: equals
+    value: Default
+- rule_id: azure.policy.compliance_assessment.configuration_management_config_compliance_evidence_export_configured
+  for_each: azure.policyinsights.policystates.list_query_results_for_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.complianceState
+    op: equals
+    value: Compliant
+- rule_id: azure.policy.compliance_assessment.configuration_management_config_compliance_reporting_dashboards_enabled
+  for_each: azure.policyinsights.policystates.list_query_results_for_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.additionalData.configurationComplianceReportingEnabled
+      op: exists
+      value: null
+    - var: item.properties.additionalData.configurationComplianceReportingEnabled
+      op: is_true
+      value: null
+- rule_id: azure.policy.definition.configuration_management_config_delivery_destination_access_least_privilege
+  for_each: azure.resources.policydefinitions.policydefinitions_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.parameters.destinationAccessPolicy.permissions
+      op: exists
+      value: null
+    - var: item.properties.parameters.destinationAccessPolicy.permissions[]
+      op: not_contains
+      value: '*'
+- rule_id: azure.policy.definition.configuration_management_config_delivery_kms_encryption_enabled
+  for_each: azure.resources.policydefinitions.policydefinitions_list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.parameters.kmsEncryptionEnabled.defaultValue
+    op: is_true
+    value: null
+- rule_id: azure.policy.definition.governance_editors_rbac_least_privilege
+  for_each: azure.authorization.roleassignments.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.roleDefinitionName
+      op: not_equals
+      value: Owner
+    - var: item.roleDefinitionName
+      op: not_equals
+      value: Contributor
+    - var: item.roleDefinitionName
+      op: not_equals
+      value: User Access Administrator
+- rule_id: azure.policy.definition.governance_no_wildcard_admin_actions
+  for_each: azure.resources.policydefinitions.policydefinitions_list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.parameters[].allowedValues
+    op: not_contains
+    value: '*'
+- rule_id: azure.policy.definition.governance_scp_mandatory_block_disabling_guardrail_services
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.policyDefinitionId
+      op: contains
+      value: /providers/Microsoft.Authorization/policyDefinitions/1e241614-5dfb-4e67-9f8b-49f7c1548c6d
+    - var: item.properties.enforcementMode
+      op: equals
+      value: Default
+- rule_id: azure.policy.definition.governance_scp_mandatory_deny_iam_star_admin
+  for_each: azure.authorization.roleassignments.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.roleDefinitionName
+      op: not_equals
+      value: Owner
+    - var: item.roleDefinitionName
+      op: not_equals
+      value: Contributor
+    - var: item.roleDefinitionName
+      op: not_equals
+      value: User Access Administrator
+- rule_id: azure.policy.definition.governance_scp_mandatory_require_mfa_for_console_where_supported
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.Parameters.requireMFAForConsole.value
+      op: equals
+      value: true
+    - var: item.Properties.Scope
+      op: contains
+      value: /subscriptions/
+- rule_id: azure.policy.definition.governance_scp_no_allow_star_on_star_resources
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.parameters.effect.value
+      op: not_equals
+      value: Deny
+    - var: item.properties.policyDefinitionId
+      op: contains
+      value: no-star-on-star
+- rule_id: azure.policy.definition.governance_versioning_and_change_audit_enabled
+  for_each: azure.resources.policydefinitions.policydefinitions_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.mode
+      op: equals
+      value: All
+    - var: item.properties.policyRule.then.effect
+      op: in
+      value:
+      - audit
+      - Audit
+      - Deny
+      - deployIfNotExists
+- rule_id: azure.policy.definition.identity_access_rbac_conditions_used_where_applicable
+  for_each: azure.authorization.roleassignments.list
+  severity: MEDIUM
+  conditions:
+    var: item.Condition
+    op: exists
+    value: null
+- rule_id: azure.policy.definition.identity_access_rbac_no_action_star_on_resource_star
+  for_each: azure.authorization.roledefinitions.list
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.Permissions[].Actions
+      op: not_contains
+      value: '*'
+    - var: item.Permissions[].NotActions
+      op: contains
+      value: '*'
+- rule_id: azure.policy.definition.identity_access_rbac_no_policy_allows_without_constraints
+  for_each: azure.resources.policydefinitions.policydefinitions_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.policyRule.then.effect
+      op: not_equals
+      value: Allow
+    - var: item.properties.policyRule.conditions
+      op: exists
+      value: null
+- rule_id: azure.policy.definition.identity_access_rbac_resource_constraints_present
+  for_each: azure.resources.policydefinitions.policydefinitions_list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.roleManagementPolicy.ruleTargetScopes
+    op: not_empty
+    value: null
+- rule_id: azure.policy.registry_lifecycle_policy.supply_chain_lifecycle_policy_policy_storage_encrypted
+  for_each: azure.containerregistry.root.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.policies.trustPolicy.status
+    op: equals
+    value: enabled
+- rule_id: azure.policy.registry_lifecycle_policy.supply_chain_lifecycle_policy_unused_or_old_tags_expire
+  for_each: azure.policyinsights.policystates.list_query_results_for_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.policy.expirationRules[].tag
+      op: exists
+      value: null
+    - var: item.policy.expirationRules[].enabled
+      op: is_true
+      value: null
+- rule_id: azure.policy.registry_policy.supply_chain_no_public_pull_push
+  for_each: azure.containerregistry.root.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.policies.trustPolicy.status
+      op: equals
+      value: enabled
+    - var: item.properties.policies.quarantinePolicy.status
+      op: equals
+      value: enabled
+    - var: item.properties.policies.retentionPolicy.status
+      op: equals
+      value: enabled
+    - var: item.properties.policies.exportPolicy.status
+      op: equals
+      value: disabled
+    - var: item.properties.policies.trustPolicy.type
+      op: equals
+      value: Notary
+    - var: item.properties.networkRuleSet.defaultAction
+      op: equals
+      value: Deny
+- rule_id: azure.policy.registry_policy.supply_chain_no_wildcard_admin
+  for_each: azure.policyinsights.policystates.list_query_results_for_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.policyDefinitions[].policyRule.then.details.roleDefinitionIds[]
+    op: not_contains
+    value: '*'
+- rule_id: azure.policy.remediation_task.configuration_management_config_remediation_auto_remediation_enabled_for_high
+  for_each: azure.policyinsights.policystates.list_query_results_for_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.filters.scopes[]
+      op: contains
+      value: /providers/Microsoft.Management/managementGroups/High
+    - var: item.Properties.remediationSettings.autoRemediate
+      op: is_true
+      value: null
+- rule_id: azure.policy.remediation_task.configuration_management_config_remediation_manual_runbooks_attached
+  for_each: azure.policyinsights.policystates.list_query_results_for_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.ManualRunbooksAttached
+    op: is_false
+    value: null
+- rule_id: azure.policy.rule.configuration_management_config_remediation_targets_bound
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.PolicyDefinitionId
+      op: exists
+      value: null
+    - var: item.Properties.Parameters
+      op: exists
+      value: null
+- rule_id: azure.policy.rule.configuration_management_config_required_rules_present
+  for_each: azure.resources.policydefinitions.policydefinitions_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.mode
+      op: equals
+      value: All
+    - var: item.properties.policyRule.then.effect
+      op: equals
+      value: deployIfNotExists
+- rule_id: azure.policy.rule.configuration_management_config_rules_enabled
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.Parameters.configurationManagementEnabled.value
+      op: is_true
+      value: null
+    - var: item.Properties.Parameters.configurationRulesEnabled.value
+      op: is_true
+      value: null
+- rule_id: azure.policy.rule.governance_config_remediation_targets_bound
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.PolicyDefinitionId
+      op: exists
+      value: null
+    - var: item.Properties.Scope
+      op: exists
+      value: null
+- rule_id: azure.policy.rule.governance_config_required_rules_present
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.parameters.requiredRulesEffect.value
+      op: exists
+      value: null
+    - var: item.properties.parameters.requiredRulesEffect.value
+      op: equals
+      value: Audit
+- rule_id: azure.policy.rule.governance_config_rules_enabled
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.PolicyDefinitionId
+      op: contains
+      value: /providers/Microsoft.Authorization/policySetDefinitions/
+    - var: item.Properties.Parameters.policyEffect
+      op: exists
+      value: null
+- rule_id: azure.policy.set_definition.configuration_management_config_baseline_conformance_pack_deployed
+  for_each: azure.resources.policyassignments.policyassignments_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.PolicyDefinitionId
+      op: contains
+      value: /providers/Microsoft.Authorization/policySetDefinitions/configuration_management_config_baseline_conformance_pack
+    - var: item.Properties.ProvisioningState
+      op: equals
+      value: Succeeded
+- rule_id: azure.policy.set_definition.configuration_management_config_baseline_parameters_set
+  for_each: azure.resources.policysetdefinitions.policysetdefinitions_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.parameters
+      op: exists
+      value: null
+    - var: item.properties.parameters.configuration_management_config_baseline
+      op: exists
+      value: null
+- rule_id: azure.policy.set_definition.governance_aggregation_authorization_present_and_valid
+  for_each: azure.resources.policysetdefinitions.policysetdefinitions_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.policyDefinitions
+      op: not_empty
+      value: null
+    - var: item.properties.policyDefinitions[].policyDefinitionId
+      op: contains
+      value: Microsoft.Authorization/policyDefinitions
+- rule_id: azure.policy.set_definition.governance_aggregator_auto_enroll_new_accounts
+  for_each: azure.resources.policysetdefinitions.policysetdefinitions_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.metadata.category
+      op: equals
+      value: Governance
+    - var: item.properties.policyDefinitions[].policyDefinitionId
+      op: contains
+      value: /providers/Microsoft.Authorization/policyDefinitions/c1177502-4a6e-47d5-ae0c-9e5c0eaa58e1
+- rule_id: azure.policy.set_definition.governance_aggregator_org_aggregator_enabled
+  for_each: azure.resources.policysetdefinitions.policysetdefinitions_list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.metadata.category
+    op: equals
+    value: Governance

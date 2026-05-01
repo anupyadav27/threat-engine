@@ -1,0 +1,68 @@
+rule_id: aws.s3.access_log.no_such_key
+service: s3
+provider: aws
+check_type: log
+severity: low
+title: 'S3: No Such Key'
+description: S3 access failure (NoSuchKey) — may indicate object enumeration attempt.
+rationale: File and directory discovery operations map available data stores, identifying high-value targets for subsequent collection and exfiltration.
+threat_category: discovery
+mitre_tactics:
+- discovery
+mitre_techniques:
+- T1083
+risk_score: 20
+resource: s3_bucket
+source: default
+is_active: true
+domain: data_protection_and_privacy
+action_category: create
+log_source_type: 
+posture_category: threat_posture
+threat_tags:
+- T1083
+- storage_access
+- s3_data
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: s3_bucket
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - secrets_management
+  - data_access_governance
+  categories:
+  - sensitive_data_access
+  priority: low
+  impact:
+    pci: PCI DSS Requirement 3.1 — Minimize cardholder data storage
+    gdpr: GDPR Article 25 — Data protection by design; minimize data exposure
+    hipaa: §164.312(a)(1) — Access controls on data repositories containing ePHI
+  sensitive_data_context: |
+  Unauthorized discovery on s3 resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks: {}
+remediation: |
+  1. Apply least-privilege RBAC on all storage access.
+  2. Enable storage access logging and alert on unusual enumeration patterns.
+  3. Use bucket/container policies to restrict list operations to authorized roles.
+references:
+- https://attack.mitre.org/techniques/T1083/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: s3_access
+    - field: error_code
+      op: equals
+      value: NoSuchKey
+version: '1.0'

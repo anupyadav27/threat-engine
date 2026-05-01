@@ -20,6 +20,10 @@ from uuid import uuid4
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "shared"))
+# engine_common may be at /app/engine_common (Job pod) or shared/common (local)
+_app_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if _app_dir not in sys.path:
+    sys.path.insert(0, _app_dir)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,41 +31,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger("risk_quantification.run_scan")
 
-
-def _get_risk_conn():
-    import psycopg2
-    return psycopg2.connect(
-        host=os.getenv("RISK_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("RISK_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("RISK_DB_NAME", "threat_engine_risk"),
-        user=os.getenv("RISK_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("RISK_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-        connect_timeout=10,
-    )
-
-
-def _get_onboarding_conn():
-    import psycopg2
-    return psycopg2.connect(
-        host=os.getenv("ONBOARDING_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("ONBOARDING_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("ONBOARDING_DB_NAME", "threat_engine_onboarding"),
-        user=os.getenv("ONBOARDING_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("ONBOARDING_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-        connect_timeout=10,
-    )
+from engine_common.db_connections import get_risk_conn, get_onboarding_conn
 
 
 def get_orchestration_metadata(scan_run_id: str) -> dict:
-    """Read scan metadata from scan_orchestration table."""
-    import psycopg2
+    """Read scan metadata from scan_runs table."""
     from psycopg2.extras import RealDictCursor
-    conn = _get_onboarding_conn()
+    conn = get_onboarding_conn()
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT * FROM scan_orchestration WHERE scan_run_id = %s", (scan_run_id,))
+            cur.execute("SELECT * FROM scan_runs WHERE scan_run_id = %s", (scan_run_id,))
             row = cur.fetchone()
             return dict(row) if row else {}
     finally:
@@ -84,10 +63,15 @@ def run_risk_scan(scan_run_id: str) -> dict:
 
     logger.info("Tenant: %s, Account: %s, Provider: %s", tenant_id, account_id, provider)
 
-    risk_conn = _get_risk_conn()
+    # Risk engine is CSP-agnostic (reads from all engine DBs by scan_run_id)
+    # For non-AWS CSPs with 0 CRITICAL/HIGH findings, ETL returns 0 and creates empty report
+    if provider not in {"aws", "azure", "gcp", "k8s", "alicloud", "oci", "ibm"}:
+        logger.warning("Risk: unrecognized provider='%s' — proceeding anyway", provider)
+
+    risk_conn = get_risk_conn()
     onboarding_conn = None
     try:
-        onboarding_conn = _get_onboarding_conn()
+        onboarding_conn = get_onboarding_conn()
     except Exception:
         logger.warning("Onboarding DB not available — using defaults for tenant config")
 
@@ -172,6 +156,13 @@ def run_risk_scan(scan_run_id: str) -> dict:
         logger.info("=== Risk Quantification COMPLETE: %d scenarios, $%s exposure in %dms ===",
                      scenario_count, report.get("total_exposure_likely", 0), elapsed_ms)
 
+        # Retention: archive old scans to S3, keep last 5 in DB
+        try:
+            from engine_common.retention import run_retention
+            run_retention("risk", scan_run_id)
+        except Exception as _ret_err:
+            logger.warning("Retention cleanup skipped: %s", _ret_err)
+
         return {
             "status": "completed",
             "risk_scan_id": risk_scan_id,
@@ -220,11 +211,35 @@ def _create_empty_report(conn, risk_scan_id, scan_run_id, tenant_id, provider):
     })
 
 
+def _write_failed_report(scan_run_id: str, error: str) -> None:
+    """Best-effort: write a failed row to risk_report so polling doesn't hang forever."""
+    try:
+        from uuid import uuid4 as _uuid4
+        conn = get_risk_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO risk_report (risk_scan_id, scan_run_id, status, error_message, created_at)
+                VALUES (gen_random_uuid(), %s, 'failed', %s, NOW())
+                ON CONFLICT DO NOTHING
+            """, (scan_run_id, error[:500]))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not write failed risk_report row: %s", e)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Risk Quantification Engine Scanner (FAIR model)")
     parser.add_argument("--scan-run-id", required=True, help="Pipeline scan_run_id")
     args = parser.parse_args()
 
-    result = run_risk_scan(args.scan_run_id)
-    logger.info("Result: %s", result)
-    sys.exit(0 if result.get("status") == "completed" else 1)
+    try:
+        result = run_risk_scan(args.scan_run_id)
+        logger.info("Result: %s", result)
+        if result.get("status") != "completed":
+            _write_failed_report(args.scan_run_id, result.get("error", "Unknown error"))
+            sys.exit(1)
+    except Exception as exc:
+        logger.exception("Unhandled error in risk scan: %s", exc)
+        _write_failed_report(args.scan_run_id, str(exc))
+        sys.exit(1)

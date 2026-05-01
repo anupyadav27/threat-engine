@@ -1,0 +1,88 @@
+version: '1.0'
+provider: aws
+service: shield
+checks:
+- rule_id: aws.shield.advanced.shield_protection_in_internet_facing_load_balancers_configured
+  for_each: aws.shield.list_protections
+  severity: MEDIUM
+  conditions:
+    var: item.ResourceArn
+    op: contains
+    value: loadbalancer
+- rule_id: aws.shield.protection.logging_enabled
+  for_each: aws.shield.describe_drt_access
+  severity: MEDIUM
+  conditions:
+    var: item.LogBucketList
+    op: exists
+    value: null
+- rule_id: aws.shield.protection.shield_block_actions_not_count_only_configured
+  for_each: aws.shield.list_protections
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.ApplicationLayerAutomaticResponseConfiguration
+      op: exists
+      value: null
+    - var: item.ApplicationLayerAutomaticResponseConfiguration.Status
+      op: equals
+      value: ENABLED
+    - var: item.ApplicationLayerAutomaticResponseConfiguration.Action
+      op: not_equals
+      value: COUNT
+- rule_id: aws.shield.protection.shield_ip_rate_limit_rules_configured_if_supported
+  for_each: aws.shield.list_protections
+  severity: MEDIUM
+  conditions:
+    var: item.ApplicationLayerAutomaticResponseConfiguration
+    op: exists
+    value: null
+- rule_id: aws.shield.protection.shield_managed_rule_sets_enabled
+  for_each: aws.shield.list_protections
+  severity: MEDIUM
+  conditions:
+    var: item.ApplicationLayerAutomaticResponseConfiguration
+    op: exists
+    value: null
+- rule_id: aws.shield.protection.shield_web_acl_attached_to_cdn_configured
+  for_each: aws.shield.list_protections
+  severity: MEDIUM
+  conditions:
+    var: item.ApplicationLayerAutomaticResponseConfiguration
+    op: exists
+    value: null
+- rule_id: aws.shield.subscription.logging_enabled
+  for_each: aws.shield.describe_drt_access
+  severity: MEDIUM
+  conditions:
+    var: item.LogBucketList
+    op: exists
+    value: null
+- rule_id: aws.shield.subscription.shield_block_actions_not_count_only_configured
+  for_each: aws.shield.list_protections
+  severity: MEDIUM
+  conditions:
+    var: item.ApplicationLayerAutomaticResponseConfiguration
+    op: exists
+    value: null
+- rule_id: aws.shield.subscription.shield_ip_rate_limit_rules_configured_if_supported
+  for_each: aws.shield.describe_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.Limits
+    op: not_empty
+    value: null
+- rule_id: aws.shield.subscription.shield_managed_rule_sets_enabled
+  for_each: aws.shield.describe_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.ProactiveEngagementStatus
+    op: equals
+    value: ACTIVE
+- rule_id: aws.shield.subscription.shield_web_acl_attached_to_cdn_configured
+  for_each: aws.shield.list_protections
+  severity: MEDIUM
+  conditions:
+    var: item.ApplicationLayerAutomaticResponseConfiguration
+    op: exists
+    value: null

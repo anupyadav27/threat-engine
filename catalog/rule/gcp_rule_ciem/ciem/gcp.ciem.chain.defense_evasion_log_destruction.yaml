@@ -1,0 +1,94 @@
+rule_id: gcp.ciem.chain.defense_evasion_log_destruction
+service: ciem
+provider: gcp
+check_type: log_correlation
+severity: critical
+title: 'GCP CIEM: Defense Evasion via Log Sink and Bucket Deletion'
+description: 'Detect a defensive evasion pattern: log sink deleted + log bucket deleted within a short window, indicating an attempt to destroy audit evidence.'
+rationale: Adversaries abuse ciem operations to achieve defense evasion in GCP environments. Detected via Cloud Admin Activity or Data Access audit logs.
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1070
+risk_score: 99
+resource: gcp_logging_sink
+source: default
+is_active: true
+domain: logging_monitoring_and_alerting
+action_category: modify
+log_source_type: 
+posture_category: security_posture
+threat_tags:
+- T1070
+- defense_evasion
+- log_tampering
+- ciem_correlation
+- attack_chain
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: tenant_or_account
+  stealth_risk: critical
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_gcp_v2:
+  - 2.1
+  - 2.2
+  - 2.4
+  - 2.5
+  nist_800_53_r5:
+  - AU-2
+  - AU-6
+  - AU-12
+  - SI-4
+  pci_dss_v4:
+  - 10.1
+  - 10.2
+  - 10.3
+  iso_27001_2022:
+  - A.8.15
+  - A.8.16
+  - A.5.28
+remediation: |
+  1. Immediately restore the deleted or modified logging/security configuration.
+  2. Apply Org Policy to prevent log sink deletion: `logging.restrictSinkCreation`.
+  3. Use Cloud Storage Bucket Lock on log export buckets to prevent deletion.
+  4. Configure out-of-band alerting via Pub/Sub → Cloud Functions for audit log changes.
+  5. Enable Security Command Center Premium for threat detection on defense evasion events.
+references:
+- https://attack.mitre.org/techniques/T1070/
+- https://cloud.google.com/logging/docs/audit
+check_config:
+  events:
+  - conditions:
+      all:
+      - field: source_type
+        op: equals
+        value: gcp_audit
+      - field: service
+        op: equals
+        value: logging.googleapis.com
+      - field: operation
+        op: equals
+        value: google.logging.v2.ConfigServiceV2.DeleteSink
+  - conditions:
+      all:
+      - field: source_type
+        op: equals
+        value: gcp_audit
+      - field: service
+        op: equals
+        value: logging.googleapis.com
+      - field: operation
+        op: equals
+        value: google.logging.v2.ConfigServiceV2.DeleteBucket
+  type: sequence
+  window_seconds: 300
+version: '1.0'

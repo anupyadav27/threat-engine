@@ -11,7 +11,7 @@ Uses:
 
 from typing import Dict
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
 from ._shared import fetch_many, safe_get
 from ._transforms import normalize_report, normalize_scheduled_report, _safe_upper
@@ -21,14 +21,18 @@ router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
 @router.get("/reports")
 async def view_reports(
+    request: Request,
     tenant_id: str = Query(...),
 ):
     """Single endpoint returning everything the reports page needs."""
 
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
     results = await fetch_many([
         ("compliance", "/api/v1/compliance/ui-data", {"tenant_id": tenant_id, "scan_id": "latest"}),
         ("onboarding", "/api/v1/cloud-accounts", {"tenant_id": tenant_id}),
-    ])
+    ], auth_headers=fwd_headers)
 
     compliance_data, onboarding_data = results
 

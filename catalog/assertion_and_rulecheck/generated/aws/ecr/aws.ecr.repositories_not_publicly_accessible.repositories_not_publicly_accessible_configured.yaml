@@ -1,0 +1,19 @@
+version: '1.0'
+rule_id: aws.ecr.repositories_not_publicly_accessible.repositories_not_publicly_accessible_configured
+for_each: aws.ecr.describe_repositories
+severity: HIGH
+conditions:
+  all:
+  - var: item.repositories[].repositoryPolicyText
+    op: not_exists
+  - any:
+    - var: item.repositories[].repositoryPolicyText
+      op: exists
+      conditions:
+        not_contains:
+          var: item.repositories[].repositoryPolicyText
+        value: '"Effect":"Allow","Principal":"*"'
+fixture_validated: false
+fixture_note: 'PASS fixture returned FAIL — wrong field or operator (pass_fixture keys: [''createdAt'', ''encryptionConfiguration'',
+  ''imageScanningConfiguration'', ''imageTagMutability'', ''imageTagMutabilityExclusionFilters'', ''registryId'', ''repositories'',
+  ''repositoryArn''])'

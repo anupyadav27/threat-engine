@@ -1,0 +1,350 @@
+version: '1.0'
+provider: gcp
+service: resourcemanager
+checks:
+- rule_id: gcp.resourcemanager.folder.ou_auto_tag_policies_enabled_where_supported
+  for_each: gcp.resourcemanager.list_folders
+  severity: MEDIUM
+  conditions:
+    var: item.IamPolicy.Bindings[].Role
+    op: contains
+    value: roles/resourcemanager.tagUser
+- rule_id: gcp.resourcemanager.folder.ou_no_overly_permissive_exceptions
+  for_each: gcp.resourcemanager.list_folders
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IamPolicy.Bindings[].Members[]
+      op: not_contains
+      value: allUsers
+    - var: item.IamPolicy.Bindings[].Members[]
+      op: not_contains
+      value: allAuthenticatedUsers
+- rule_id: gcp.resourcemanager.folder.ou_required_scps_attached
+  for_each: gcp.resourcemanager.list_folders
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.PolicyIds
+      op: exists
+      value: null
+    - var: item.PolicyIds[]
+      op: contains
+      value: gcp:policy:organizations
+- rule_id: gcp.resourcemanager.organization.org_all_accounts_enrolled_in_org
+  for_each: gcp.resourcemanager.organizations.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.accounts[]
+      op: not_empty
+      value: null
+- rule_id: gcp.resourcemanager.organization.org_block_leave_org_by_policy
+  for_each: gcp.resourcemanager.list_organizations
+  severity: MEDIUM
+  conditions:
+    var: item.IAMPolicy.Bindings[].Condition.Expression
+    op: contains
+    value: resourcemanager.projects.delete
+- rule_id: gcp.resourcemanager.organization.org_restrict_region_usage_by_policy_where_required
+  for_each: gcp.resourcemanager.list_organization_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.constraint
+      op: equals
+      value: constraints/gcp.resourceLocations
+    - var: item.booleanPolicy.enforced
+      op: is_true
+      value: null
+- rule_id: gcp.resourcemanager.organization.org_scps_enabled
+  for_each: gcp.resourcemanager.list_organizations
+  severity: MEDIUM
+  conditions:
+    var: item.OrgPolicyConstraints.Constraint
+    op: contains
+    value: constraints/compute.requireShieldedVm
+- rule_id: gcp.resourcemanager.organization.password_policy_lockout_threshold_defined
+  for_each: gcp.resourcemanager.organization_password_policy.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.passwordPolicy.lockoutThreshold
+      op: exists
+      value: null
+    - var: item.passwordPolicy.lockoutThreshold
+      op: gt
+      value: '0'
+- rule_id: gcp.resourcemanager.organization.password_policy_max_age_90_days_or_less
+  for_each: gcp.resourcemanager.get_organization_password_policy
+  severity: HIGH
+  conditions:
+    var: item.password_policy_max_age_days
+    op: lte
+    value: '90'
+- rule_id: gcp.resourcemanager.organization.password_policy_min_length_14
+  for_each: gcp.resourcemanager.get_organization_iam_policy
+  severity: HIGH
+  conditions:
+    var: item.passwordPolicy.minimumLength
+    op: gte
+    value: '14'
+- rule_id: gcp.resourcemanager.organization.password_policy_prevent_reuse_last_24
+  for_each: gcp.resourcemanager.get_organization_password_policy
+  severity: HIGH
+  conditions:
+    var: item.PasswordReusePrevention
+    op: gte
+    value: 24
+- rule_id: gcp.resourcemanager.organization.password_policy_require_upper_lower_number_special
+  for_each: gcp.resourcemanager.get_organization_password_policy
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.RequireUppercase
+      op: is_true
+      value: null
+    - var: item.RequireLowercase
+      op: is_true
+      value: null
+    - var: item.RequireNumeric
+      op: is_true
+      value: null
+    - var: item.RequireSymbols
+      op: is_true
+      value: null
+- rule_id: gcp.resourcemanager.organization.tenant_api_access_keys_root_or_owner_disallowed
+  for_each: gcp.resourcemanager.list_organizations
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.IAMPolicy.Bindings[].Members[]
+      op: not_contains
+      value: user:owner@example.com
+    - var: item.IAMPolicy.Bindings[].Members[]
+      op: not_contains
+      value: user:root@example.com
+- rule_id: gcp.resourcemanager.organization.tenant_break_glass_accounts_mfa_enforced
+  for_each: gcp.resourcemanager.list_organizations
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.breakGlassAccounts[].mfaEnabled
+      op: is_true
+      value: null
+- rule_id: gcp.resourcemanager.organization.tenant_console_mfa_required_org_wide
+  for_each: gcp.resourcemanager.list_organizations
+  severity: HIGH
+  conditions:
+    var: item.MFARequired
+    op: is_true
+    value: null
+- rule_id: gcp.resourcemanager.organization.tenant_inactive_user_disable_threshold_configured
+  for_each: gcp.resourcemanager.organization.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.tenant_inactive_user_disable_threshold
+      op: exists
+      value: null
+    - var: item.tenant_inactive_user_disable_threshold
+      op: gt
+      value: '0'
+- rule_id: gcp.resourcemanager.organization.tenant_password_policy_compliant
+  for_each: gcp.resourcemanager.organizations.get_iam_policy
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.passwordPolicy.minimumLength
+      op: gte
+      value: '8'
+    - var: item.passwordPolicy.requireSymbols
+      op: is_true
+      value: null
+    - var: item.passwordPolicy.requireNumbers
+      op: is_true
+      value: null
+    - var: item.passwordPolicy.requireUppercaseCharacters
+      op: is_true
+      value: null
+    - var: item.passwordPolicy.requireLowercaseCharacters
+      op: is_true
+      value: null
+    - var: item.passwordPolicy.maxPasswordAge
+      op: lte
+      value: '90'
+    - var: item.passwordPolicy.passwordReusePrevention
+      op: gte
+      value: '5'
+- rule_id: gcp.resourcemanager.organization.tenant_sso_federation_configured_where_supported
+  for_each: gcp.resourcemanager.organization.list
+  severity: HIGH
+  conditions:
+    var: item.tenantSsoFederationConfig
+    op: exists
+    value: null
+- rule_id: gcp.resourcemanager.policy.config_rule_remediation_targets_bound
+  for_each: gcp.resourcemanager.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.bindings[].members[]
+    op: not_contains
+    value: allUsers
+- rule_id: gcp.resourcemanager.policy.config_rule_required_rules_present
+  for_each: gcp.resourcemanager.list_organization_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.rules[].enforce
+      op: exists
+      value: null
+    - var: item.rules[].enforce
+      op: is_true
+      value: null
+- rule_id: gcp.resourcemanager.policy.config_rule_rules_enabled
+  for_each: gcp.resourcemanager.list_organizations
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.AuditConfigs[].Service
+      op: contains
+      value: allServices
+    - var: item.AuditConfigs[].AuditLogConfigs[].LogType
+      op: contains
+      value: DATA_READ
+    - var: item.AuditConfigs[].AuditLogConfigs[].LogType
+      op: contains
+      value: DATA_WRITE
+    - var: item.AuditConfigs[].AuditLogConfigs[].LogType
+      op: contains
+      value: ADMIN_READ
+- rule_id: gcp.resourcemanager.policy.policy_editors_rbac_least_privilege
+  for_each: gcp.resourcemanager.list_policies
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.bindings[].role
+      op: not_in
+      value:
+      - roles/editor
+      - roles/owner
+    - var: item.bindings[].members[].member
+      op: not_contains
+      value: allUsers
+    - var: item.bindings[].members[].member
+      op: not_contains
+      value: allAuthenticatedUsers
+- rule_id: gcp.resourcemanager.policy.policy_no_wildcard_admin_actions
+  for_each: gcp.resourcemanager.policy.get_iam_policy
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.bindings[].role
+      op: not_contains
+      value: roles/owner
+    - var: item.bindings[].role
+      op: not_contains
+      value: roles/editor
+    - var: item.bindings[].role
+      op: not_contains
+      value: roles/viewer
+- rule_id: gcp.resourcemanager.policy.policy_versioning_and_change_audit_enabled
+  for_each: gcp.resourcemanager.projects.get_iam_policy
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.auditConfigs
+      op: exists
+      value: null
+    - var: item.auditConfigs[].auditLogConfigs[].logType
+      op: contains
+      value: DATA_WRITE
+    - var: item.auditConfigs[].auditLogConfigs[].logType
+      op: contains
+      value: DATA_READ
+    - var: item.version
+      op: exists
+      value: null
+- rule_id: gcp.resourcemanager.policy.scp_mandatory_block_disabling_guardrail_services
+  for_each: gcp.resourcemanager.list_organization_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.constraint
+      op: equals
+      value: constraints/servicemanagement.blockDisablingGuardrailServices
+    - var: item.booleanPolicy.enforced
+      op: is_true
+      value: null
+- rule_id: gcp.resourcemanager.policy.scp_mandatory_deny_iam_star_admin
+  for_each: gcp.resourcemanager.list_organization_policies
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.bindings[].role
+      op: not_contains
+      value: roles/owner
+    - var: item.bindings[].role
+      op: not_contains
+      value: roles/editor
+- rule_id: gcp.resourcemanager.policy.scp_mandatory_require_mfa_for_console_where_supported
+  for_each: gcp.resourcemanager.list_organization_policies
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.boolean_policy.enforced
+      op: is_true
+      value: null
+    - var: item.constraint
+      op: equals
+      value: constraints/iam.requireMFAForConsole
+- rule_id: gcp.resourcemanager.policy.scp_no_allow_star_on_star_resources
+  for_each: gcp.resourcemanager.list_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.bindings[].members[]
+      op: not_contains
+      value: '*'
+    - var: item.bindings[].resources[]
+      op: not_contains
+      value: '*'
+- rule_id: gcp.resourcemanager.project.project_no_public_admin_roles
+  for_each: gcp.resourcemanager.list_projects
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.IAMPolicy.Bindings[].Role
+      op: not_contains
+      value: roles/owner
+    - var: item.IAMPolicy.Bindings[].Role
+      op: not_contains
+      value: roles/resourcemanager.projectIamAdmin
+- rule_id: gcp.resourcemanager.project.project_required_guardrail_policies_attached
+  for_each: gcp.resourcemanager.list_projects
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.iamPolicy.bindings[].role
+      op: contains
+      value: roles/resourcemanager.projectRequiredGuardrailPoliciesAdmin
+    - var: item.iamPolicy.bindings[].members[]
+      op: contains
+      value: group:guardrail-admins@example.com
+- rule_id: gcp.resourcemanager.project.project_security_services_mandatory_enabled
+  for_each: gcp.resourcemanager.list_projects
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.SecurityServices.CloudArmor
+      op: is_true
+      value: null
+    - var: item.SecurityServices.CloudIDS
+      op: is_true
+      value: null
+    - var: item.SecurityServices.CloudDLP
+      op: is_true
+      value: null
+    - var: item.SecurityServices.CloudIAM
+      op: is_true
+      value: null

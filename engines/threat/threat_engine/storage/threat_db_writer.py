@@ -285,15 +285,16 @@ def save_report_to_db(report: ThreatReport) -> str:
                         rule_id, threat_category,
                         severity, status,
                         resource_type, resource_id, resource_uid,
-                        account_id, region,
+                        account_id, region, provider,
                         mitre_tactics, mitre_techniques,
                         evidence, finding_data,
                         first_seen_at, last_seen_at
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (finding_id) DO UPDATE SET
                         scan_run_id = EXCLUDED.scan_run_id,
                         tenant_id = EXCLUDED.tenant_id,
+                        provider = EXCLUDED.provider,
                         status = EXCLUDED.status,
                         last_seen_at = EXCLUDED.last_seen_at,
                         mitre_tactics = EXCLUDED.mitre_tactics,
@@ -313,6 +314,7 @@ def save_report_to_db(report: ThreatReport) -> str:
                     finding.resource.get('resource_uid') or finding.resource.get('resource_arn'),
                     finding.account,
                     finding.region,
+                    cloud,
                     Json(mitre_tactics),
                     Json(mitre_techniques),
                     Json(evidence_data, dumps=lambda o: json.dumps(o, default=_default_json)),

@@ -1,0 +1,85 @@
+# CSPM Single Engine Runner
+#
+# PURPOSE:
+#   Ad-hoc / debug tool for running a single engine against an existing scan_run_id.
+#   Does not create orchestration records — scan_run_id must already exist.
+#
+# USAGE:
+#   bash trigger-scan.sh --engine <name> <scan-run-id>
+#
+# ENGINES:
+#   discovery, check, inventory, threat, compliance, iam, datasec,
+#   encryption, database-security, container-security, ciem,
+#   ai-security, network-security, risk, secops
+#
+# DEPLOYMENT:
+#   kubectl apply -f deployment/aws/eks/argo/cspm-templates-primitives.yaml
+#   kubectl apply -f deployment/aws/eks/argo/cspm-single-engine.yaml
+#
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: cspm-single-engine
+  namespace: threat-engine-engines
+  labels:
+    app: cspm-pipeline
+spec:
+  serviceAccountName: default
+  entrypoint: run-engine
+
+  arguments:
+    parameters:
+    - name: engine
+      description: "Engine to run"
+    - name: scan-run-id
+      description: "Pipeline-wide UUID (must already exist in scan_runs)"
+    - name: tenant-id
+      value: "test-tenant-002"
+    - name: account-id
+      value: "588989875114"
+    - name: provider
+      value: "aws"
+    - name: include-services
+      value: ""
+      description: "Comma-separated services (empty = all)"
+    - name: include-regions
+      value: ""
+      description: "Comma-separated regions (empty = all)"
+
+  tolerations:
+  - key: spot-scanner
+    operator: Equal
+    value: "true"
+    effect: NoSchedule
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: eks.amazonaws.com/nodegroup
+            operator: In
+            values: [vulnerability-spot-scanners]
+
+  templates:
+  - name: run-engine
+    steps:
+    - - name: trigger
+        templateRef:
+          name: cspm-templates-primitives
+          template: trigger-engine-direct
+        arguments:
+          parameters:
+          - name: engine
+            value: "{{workflow.parameters.engine}}"
+          - name: scan-run-id
+            value: "{{workflow.parameters.scan-run-id}}"
+          - name: tenant-id
+            value: "{{workflow.parameters.tenant-id}}"
+          - name: account-id
+            value: "{{workflow.parameters.account-id}}"
+          - name: provider
+            value: "{{workflow.parameters.provider}}"
+          - name: include-services
+            value: "{{workflow.parameters.include-services}}"
+          - name: include-regions
+            value: "{{workflow.parameters.include-regions}}"

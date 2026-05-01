@@ -50,6 +50,9 @@ CREATE TABLE IF NOT EXISTS dbsec_report (
     findings_by_service     JSONB DEFAULT '{}'::jsonb,
     findings_by_domain      JSONB DEFAULT '{}'::jsonb,
     coverage_by_service     JSONB DEFAULT '{}'::jsonb,
+    severity_breakdown      JSONB DEFAULT '{}'::jsonb,
+    service_breakdown       JSONB DEFAULT '{}'::jsonb,
+    domain_breakdown        JSONB DEFAULT '{}'::jsonb,
     report_data             JSONB DEFAULT '{}'::jsonb,
 
     -- Timing
@@ -114,11 +117,16 @@ CREATE TABLE IF NOT EXISTS dbsec_inventory (
 
     -- Database identification
     resource_uid            TEXT NOT NULL,
+    resource_type           VARCHAR(100),
     resource_name           VARCHAR(500),
+    db_identifier           VARCHAR(255),
     db_service              VARCHAR(50) NOT NULL,   -- rds, dynamodb, redshift, etc.
     db_engine               VARCHAR(50),            -- mysql, postgres, aurora-mysql, redis, etc.
     db_engine_version       VARCHAR(50),
     instance_class          VARCHAR(100),
+    storage_type            VARCHAR(50),
+    storage_encrypted       BOOLEAN,
+    kms_key_id              VARCHAR(255),
 
     -- Security posture summary
     posture_score           INTEGER DEFAULT 0,
@@ -129,9 +137,14 @@ CREATE TABLE IF NOT EXISTS dbsec_inventory (
     audit_logging_enabled   BOOLEAN,
     backup_enabled          BOOLEAN,
     backup_retention_days   INTEGER,
+    auto_minor_upgrade      BOOLEAN,
     deletion_protection     BOOLEAN,
     multi_az                BOOLEAN,
+    ssl_enforced            BOOLEAN,
+    tls_version             VARCHAR(20),
     vpc_id                  VARCHAR(100),
+    subnet_group            VARCHAR(100),
+    security_groups         JSONB DEFAULT '[]'::jsonb,
 
     -- Counts
     total_checks            INTEGER DEFAULT 0,
@@ -141,6 +154,7 @@ CREATE TABLE IF NOT EXISTS dbsec_inventory (
 
     -- Data sensitivity (from datasec cross-ref)
     data_classification     VARCHAR(50),
+    sensitivity_score       INTEGER,
     has_sensitive_data      BOOLEAN DEFAULT FALSE,
 
     -- Metadata

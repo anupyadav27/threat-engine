@@ -11,42 +11,11 @@ total_findings, recent_scans from orchestration, and scan_stats KPIs.
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
-import os
-import psycopg2
-from psycopg2.extras import RealDictCursor
-
-from ._shared import fetch_many, safe_get, mock_fallback, is_empty_or_health
+from ._shared import fetch_many, safe_get
 from ._transforms import _safe_upper
 from ._page_context import scans_page_context
-
-
-def _get_scan_history(tenant_id: str, limit: int = 50):
-    """Query scan_orchestration directly for scan history."""
-    try:
-        conn = psycopg2.connect(
-            host=os.getenv("ONBOARDING_DB_HOST", ""),
-            port=os.getenv("ONBOARDING_DB_PORT", "5432"),
-            dbname=os.getenv("ONBOARDING_DB_NAME", "threat_engine_onboarding"),
-            user=os.getenv("ONBOARDING_DB_USER", "postgres"),
-            password=os.getenv("ONBOARDING_DB_PASSWORD", ""),
-            connect_timeout=5,
-        )
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("""
-                SELECT scan_run_id, tenant_id, account_id, provider, overall_status,
-                       scan_type, trigger_type, engines_requested, engines_completed,
-                       started_at, completed_at, created_at, results_summary
-                FROM scan_orchestration
-                WHERE tenant_id = %s
-                ORDER BY created_at DESC
-                LIMIT %s
-            """, (tenant_id, limit))
-            return [dict(r) for r in cur.fetchall()]
-        conn.close()
-    except Exception:
-        return []
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
@@ -95,6 +64,7 @@ def _cron_to_frequency(cron):
 
 @router.get("/scans")
 async def view_scans(
+    request: Request,
     tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
@@ -102,17 +72,16 @@ async def view_scans(
 ):
     """Scan history, scheduled scans, and coverage -- built from onboarding/ui-data."""
 
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
     results = await fetch_many([
         ("onboarding", "/api/v1/cloud-accounts", {"tenant_id": tenant_id}),
-    ])
+        ("onboarding", "/api/v1/scan-runs", {"tenant_id": tenant_id, "limit": str(limit)}),
+    ], auth_headers=fwd_headers)
 
     onboarding_data = results[0]
-
-    # Mock fallback when engine data is empty
-    if is_empty_or_health(onboarding_data):
-        m = mock_fallback("scans")
-        if m is not None:
-            return m
+    scan_runs_resp = results[1]
 
     raw_accounts = safe_get(onboarding_data, "accounts", []) if isinstance(onboarding_data, dict) else []
     scan_stats = safe_get(onboarding_data, "scan_stats", {}) if isinstance(onboarding_data, dict) else {}
@@ -124,8 +93,8 @@ async def view_scans(
     if account:
         raw_accounts = [a for a in raw_accounts if a.get("account_id") == account or a.get("account_name") == account]
 
-    # ── Build scans from scan_orchestration (primary source) ──
-    orch_rows = _get_scan_history(tenant_id, limit)
+    # ── Build scans from scan_runs (primary source) ──
+    orch_rows = (scan_runs_resp or {}).get("scan_runs", [])
     scans = []
     for i, row in enumerate(orch_rows):
         prov = _safe_upper(row.get("provider") or "aws")

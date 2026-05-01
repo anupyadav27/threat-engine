@@ -1,0 +1,62 @@
+version: '1.0'
+provider: web_server
+engine: apache_http
+category: section_6
+cis_section: '6'
+description: >
+  apache_http CIS Section 6 — Error Log Filename and Severity Level Are Configured Correctly
+
+discovery:
+
+  - discovery_id: apache_http.section_6.error_log_filename_and_severity_level_are
+    description: Ensure the Error Log Filename and Severity Level Are Configured Correctly
+    calls:
+      - action: run_command
+        command: "Perform the following steps to determine if the recommended state is implemented: 1. Verify the LogLevel in the Apache server configuration has a value of info or lower for the core module and notice or lower for other modules. Note that it is also compliant to have a value of info or debug if there is a need for a more verbose log and the storage and monitoring processes are capable of handling the extra load. The recommended value is notice core:info. 2. Verify the ErrorLog directive is configured to an appropriate log file or syslog facility. 3. Verify there is a similar ErrorLog directive for each virtual host configured if the virtual host will have different people responsible for the web site."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: error_log_filename_and_severity_level_are
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_6.a_syslog_facility_is_configured_for_error_logging
+    description: Ensure a Syslog Facility Is Configured for Error Logging
+    calls:
+      - action: run_command
+        command: "Perform the following steps to determine if the recommended state is implemented: 1. Verify that the ErrorLog in the Apache server configuration has a value of syslog:facility where facility can be any of the syslog facility values such as local1. 2. Verify there is a similar ErrorLog directive which is either configured or inherited for each virtual host."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: a_syslog_facility_is_configured_for_error_logging
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_6.log_storage_and_rotation_is_configured_correctly
+    description: Ensure Log Storage and Rotation Is Configured Correctly
+    calls:
+      - action: run_command
+        command: "Perform the following steps to determine if the recommended state is implemented: 1. Verify the web log rotation configuration matches the Apache configured log files. 2. Verify the rotation period and number of logs to retain is at least 13 weeks or 3 months. 3. For each virtual host configured with its own log files ensure that those log files are also included in a similar log rotation."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: log_storage_and_rotation_is_configured_correctly
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_6.applicable_patches_are_applied
+    description: Ensure Applicable Patches Are Applied
+    calls:
+      - action: run_command
+        command: "Perform the following steps to determine if the recommended state is implemented: 1. When Apache was built from source: o Check the Apache web site for latest versions, date of releases and any security patches. https://httpd.apache.org/security/vulnerabilities_24.html Apache patches are available https://www.apache.org/dist/httpd/patches o If newer versions with security patches more than 1 month old and are not installed, then the installation is not sufficiently up-to-date. 2. When using platform packages o Check for vendor supplied updates from the vendor web site. o If newer versions with security patches more than 1 month old are not installed, then the installation is not sufficiently up-to-date."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: applicable_patches_are_applied
+        value: "{{ result.stdout }}"
+        expected: ""
+

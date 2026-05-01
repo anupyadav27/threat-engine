@@ -1,0 +1,48 @@
+# discoveries_only_check: 2 kept / 18 removed from 20 total
+# generated_from: step6_codebuild.discovery.yaml
+# purpose: only discoveries needed by codebuild.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: codebuild
+services:
+  client: codebuild
+  module: boto3.client
+discovery:
+- discovery_id: aws.codebuild.list_projects
+  calls:
+  - action: list_projects
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.projects }}'
+- discovery_id: aws.codebuild.batch_get_projects
+  for_each: aws.codebuild.list_projects
+  calls:
+  - action: batch_get_projects
+    params:
+      names:
+      - '{{ item }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.projects }}'
+    item:
+      name: '{{ item.name }}'
+      arn: '{{ item.arn }}'
+      description: '{{ item.description }}'
+      source: '{{ item.source }}'
+      artifacts: '{{ item.artifacts }}'
+      secondaryArtifacts: '{{ item.secondaryArtifacts }}'
+      cache: '{{ item.cache }}'
+      environment: '{{ item.environment }}'
+      serviceRole: '{{ item.serviceRole }}'
+      timeoutInMinutes: '{{ item.timeoutInMinutes }}'
+      encryptionKey: '{{ item.encryptionKey }}'
+      tags: '{{ item.tags }}'
+      created: '{{ item.created }}'
+      lastModified: '{{ item.lastModified }}'
+      logsConfig: '{{ item.logsConfig }}'
+      vpcConfig: '{{ item.vpcConfig }}'
+      projectVisibility: '{{ item.projectVisibility }}'

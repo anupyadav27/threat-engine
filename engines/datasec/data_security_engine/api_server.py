@@ -9,7 +9,7 @@ import os
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 from datetime import datetime
 
 # Add common to path for logger import
@@ -19,6 +19,50 @@ from engine_common.telemetry import configure_telemetry
 from engine_common.middleware import RequestLoggingMiddleware, CorrelationIDMiddleware
 from engine_common.orchestration import get_orchestration_metadata
 from engine_common.job_creator import create_engine_job
+from engine_common.db_connections import get_datasec_conn
+
+# ── Auth imports (engine_auth is COPY shared/auth/ ./engine_auth/ in Dockerfile) ──
+try:
+    from engine_auth.fastapi.middleware import AuthMiddleware
+    from engine_auth.fastapi.dependencies import require_permission
+    from engine_auth.core.models import AuthContext
+    _AUTH_AVAILABLE = True
+except ImportError:
+    _AUTH_AVAILABLE = False
+    AuthContext = None  # type: ignore[assignment,misc]
+
+
+def strip_sensitive_fields(data: List[Dict[str, Any]], auth: Any) -> List[Dict[str, Any]]:
+    """Remove credential and sensitive finding fields based on caller's auth level.
+
+    For DataSec engine:
+    - level > 1: strip credential_ref, credential_type
+    - level >= 4 and missing datasec:sensitive: strip finding_data, raw_data
+
+    Args:
+        data: List of finding dicts.
+        auth: AuthContext instance (or None when auth is unavailable).
+
+    Returns:
+        New list with sensitive fields removed; original dicts are not mutated.
+    """
+    if not isinstance(data, list):
+        return data
+    stripped = []
+    for row in data:
+        r = dict(row) if not isinstance(row, dict) else row.copy()
+        if auth is not None and hasattr(auth, "level"):
+            if auth.level > 1:
+                r.pop("credential_ref", None)
+                r.pop("credential_type", None)
+            if auth.level >= 4:
+                # Analyst has datasec:read but not datasec:sensitive
+                perms = getattr(auth, "permissions", None) or []
+                if "datasec:sensitive" not in perms:
+                    r.pop("finding_data", None)
+                    r.pop("raw_data", None)
+        stripped.append(r)
+    return stripped
 
 from .input.threat_db_reader import ThreatDBReader
 from .input.rule_db_reader import RuleDBReader
@@ -56,6 +100,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# AuthMiddleware validates access_token / X-Auth-Context for every non-health path
+if _AUTH_AVAILABLE:
+    app.add_middleware(AuthMiddleware)
 
 
 # Request/Response Models
@@ -155,19 +203,6 @@ async def api_health():
         return {"status": "degraded", "database": "disconnected", "error": str(e), "service": "engine-datasec", "version": "1.0.0"}
 
 
-def _get_datasec_conn():
-    """Get psycopg2 connection to the DataSec database for status queries."""
-    import psycopg2
-    return psycopg2.connect(
-        host=os.getenv("DATASEC_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("DATASEC_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("DATASEC_DB_NAME", "threat_engine_datasec"),
-        user=os.getenv("DATASEC_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("DATASEC_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-    )
-
-
 @app.post("/api/v1/data-security/scan")
 async def generate_report(request: ScanRequest):
     """
@@ -202,15 +237,17 @@ async def generate_report(request: ScanRequest):
         raise HTTPException(status_code=400, detail="scan_run_id is required for Job-based execution")
 
     # Pre-create datasec_report row in DB (so status endpoint works immediately)
+    # Note: datasec_scan_id is PK; scan_run_id is a plain column with no unique constraint.
     try:
-        conn = _get_datasec_conn()
+        conn = get_datasec_conn()
         with conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO datasec_report
-                   (scan_run_id, tenant_id, provider, threat_scan_id, status, generated_at, metadata)
-                   VALUES (%s, %s, %s, %s, 'running', NOW(), %s)
-                   ON CONFLICT (scan_run_id) DO UPDATE SET status = 'running'""",
-                (datasec_scan_id, tenant_id, csp, orch_id,
+                   (datasec_scan_id, scan_run_id, tenant_id, cloud, provider,
+                    threat_scan_id, status, report_data, generated_at)
+                   VALUES (%s, %s, %s, %s, %s, %s, 'running', %s, NOW())
+                   ON CONFLICT (datasec_scan_id) DO UPDATE SET status = 'running'""",
+                (datasec_scan_id, datasec_scan_id, tenant_id, csp, csp, orch_id,
                  json.dumps({"scan_run_id": orch_id, "mode": "job"})),
             )
         conn.commit()
@@ -248,10 +285,10 @@ async def get_datasec_status(datasec_scan_id: str):
     """Get DataSec scan status from datasec_report DB table."""
     from psycopg2.extras import RealDictCursor
     try:
-        conn = _get_datasec_conn()
+        conn = get_datasec_conn()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
-                "SELECT scan_run_id, status, provider, threat_scan_id, generated_at, metadata "
+                "SELECT scan_run_id, status, provider, threat_scan_id, generated_at "
                 "FROM datasec_report WHERE scan_run_id = %s",
                 (datasec_scan_id,),
             )

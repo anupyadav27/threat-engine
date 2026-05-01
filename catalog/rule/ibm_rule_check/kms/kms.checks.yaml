@@ -1,0 +1,29 @@
+# Auto-generated: check rules for IBM kms from test-rulecheck_python_code
+version: '1.0'
+provider: ibm
+service: kms
+checks:
+- rule_id: ibm.kms.activity.key_protect_key_accessed
+  for_each: ibm.kms.list_keys
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.state
+      op: equals
+      value: enabled
+    - var: item.activity_events.key_access[].timestamp
+      op: not_exists
+- rule_id: ibm.kms.activity.key_protect_key_delete
+  for_each: ibm.kms.list_keys
+  severity: CRITICAL
+  conditions:
+    var: item.state
+    op: not_equals
+    value: destroyed
+- rule_id: ibm.kms.activity.key_protect_key_disable
+  for_each: ibm.kms.list_keys
+  severity: HIGH
+  conditions:
+    var: item.state
+    op: not_equals
+    value: 5

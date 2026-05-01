@@ -18,9 +18,9 @@ the datasec engine returns no data for those.
 import asyncio
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
-from ._shared import fetch_many, fetch_all_check_findings, safe_get, mock_fallback, is_empty_or_health
+from ._shared import fetch_many, fetch_all_check_findings, safe_get, is_empty_or_health
 from ._transforms import (
     normalize_datastore, normalize_classification, normalize_dlp_violation,
     normalize_residency, normalize_access_activity, apply_global_filters,
@@ -60,6 +60,7 @@ def _split_by_module(check_findings: List[dict]) -> Dict[str, list]:
 
 @router.get("/datasec")
 async def view_datasec(
+    request: Request,
     tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
@@ -76,22 +77,25 @@ async def view_datasec(
 
     effective_csp = csp or (provider.lower() if provider else "aws")
 
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
     # ── Three parallel calls: datasec engine + paginated check (all + DLP) ──
     datasec_resp, check_findings, dlp_check_findings = await asyncio.gather(
         fetch_many([("datasec", "/api/v1/data-security/ui-data", {
             "tenant_id": tenant_id,
             "csp": effective_csp,
             "scan_id": scan_id,
-        })]),
+        })], auth_headers=fwd_headers),
         fetch_all_check_findings({
             "tenant_id": tenant_id,
             "domain": "data_protection_and_privacy",
-        }),
+        }, auth_headers=fwd_headers),
         fetch_all_check_findings({
             "tenant_id": tenant_id,
             "domain": "data_protection_and_privacy",
             "posture_category": "data_protection",
-        }),
+        }, auth_headers=fwd_headers),
     )
 
     datasec_data = (datasec_resp[0] if datasec_resp else None)
@@ -124,10 +128,6 @@ async def view_datasec(
                 "lineage": {},
                 "summary": split["summary"],
             }
-        else:
-            m = mock_fallback("datasec")
-            if m is not None:
-                return m
 
     summary = safe_get(datasec_data, "summary", {})
 

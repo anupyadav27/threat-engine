@@ -1,0 +1,81 @@
+rule_id: alicloud.iam.actiontrail.assume_role_saml
+service: iam
+provider: alicloud
+check_type: log
+severity: high
+title: 'AliCloud STS: Role Assumed via SAML Federation'
+description: A role was assumed via SAML federation (AssumeRoleWithSAML). Adversaries
+  forge SAML assertions (Golden SAML) to gain access to any role in the account.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: credential_access
+mitre_tactics:
+- credential_access
+- lateral_movement
+mitre_techniques:
+- T1606.002
+- T1550.001
+risk_score: 88
+resource: alicloud_ram_role
+source: alicloud_ciem_generator
+is_active: true
+domain: identity_and_access_management
+action_category: audit_activity
+log_source_type: alicloud_actiontrail
+posture_category: iam_posture
+threat_tags:
+- T1606.002
+- T1550.001
+- credential_access
+- lateral_movement
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: true
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '2.1'
+  - '2.2'
+  - '2.3'
+  nist_800_53_r5:
+  - AC-2
+  - AC-3
+  - AC-6
+  - IA-2
+  - IA-5
+  pci_dss_v4:
+  - '7.1'
+  - '8.2'
+  - '10.2'
+  iso_27001_2022:
+  - A.5.18
+  - A.8.2
+  - A.9.2
+remediation: '1. Validate SAML IdP certificates and signing settings.
+
+  2. Alert on AssumeRoleWithSAML calls from unexpected source IPs.
+
+  3. Restrict SAML-trusted roles to minimum required permissions.'
+references:
+- https://attack.mitre.org/techniques/T1606/002/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: sts
+    - field: operation
+      op: equals
+      value: AssumeRoleWithSAML
+version: '1.0'

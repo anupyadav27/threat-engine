@@ -20,13 +20,20 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
-import psycopg2
 from psycopg2.extras import RealDictCursor
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "shared"))
 
 from api.ui_data_router import router as ui_data_router
+from engine_common.db_connections import get_network_conn, get_onboarding_conn
+
+# ── Auth imports (engine_auth is COPY shared/auth/ ./engine_auth/ in Dockerfile) ──
+try:
+    from engine_auth.fastapi.middleware import AuthMiddleware
+    _AUTH_AVAILABLE = True
+except ImportError:
+    _AUTH_AVAILABLE = False
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger("network_security.api_server")
@@ -38,35 +45,15 @@ app = FastAPI(
 )
 app.include_router(ui_data_router)
 
+# AuthMiddleware validates access_token / X-Auth-Context for every non-health path
+if _AUTH_AVAILABLE:
+    app.add_middleware(AuthMiddleware)
+
 SCANNER_IMAGE = os.getenv("NETWORK_SCANNER_IMAGE", "yadavanup84/engine-network:v-std-cols")
 SCANNER_CPU_REQUEST = "100m"
 SCANNER_MEM_REQUEST = "512Mi"
 SCANNER_CPU_LIMIT = "250m"
 SCANNER_MEM_LIMIT = "1Gi"
-
-
-def _get_network_conn():
-    return psycopg2.connect(
-        host=os.getenv("NETWORK_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("NETWORK_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("NETWORK_DB_NAME", "threat_engine_network"),
-        user=os.getenv("NETWORK_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("NETWORK_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-        connect_timeout=10,
-    )
-
-
-def _get_onboarding_conn():
-    return psycopg2.connect(
-        host=os.getenv("ONBOARDING_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("ONBOARDING_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("ONBOARDING_DB_NAME", "threat_engine_onboarding"),
-        user=os.getenv("ONBOARDING_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("ONBOARDING_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-        connect_timeout=10,
-    )
 
 
 # ── Health Checks ─────────────────────────────────────────────────────────────
@@ -85,7 +72,7 @@ async def health_live():
 @app.get("/api/v1/health/ready")
 async def health_ready():
     try:
-        conn = _get_network_conn()
+        conn = get_network_conn()
         with conn.cursor() as cur:
             cur.execute("SELECT 1")
         conn.close()
@@ -113,9 +100,9 @@ async def trigger_scan(request: ScanRequest):
     tenant_id = request.tenant_id
     provider = "aws"
     try:
-        conn = _get_onboarding_conn()
+        conn = get_onboarding_conn()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT * FROM scan_orchestration WHERE scan_run_id = %s", (orch_id,))
+            cur.execute("SELECT * FROM scan_runs WHERE scan_run_id = %s", (orch_id,))
             row = cur.fetchone()
             if row:
                 tenant_id = tenant_id or row.get("tenant_id", "default-tenant")
@@ -128,7 +115,7 @@ async def trigger_scan(request: ScanRequest):
 
     # Pre-create report row
     try:
-        conn = _get_network_conn()
+        conn = get_network_conn()
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO tenants (tenant_id, tenant_name) VALUES (%s, %s)
@@ -147,7 +134,7 @@ async def trigger_scan(request: ScanRequest):
     # Create K8s Job
     job_name = None
     try:
-        from common.orchestration import create_engine_job
+        from engine_common.job_creator import create_engine_job
         job_name = create_engine_job(
             engine_name="network",
             scan_id=orch_id,
@@ -176,7 +163,7 @@ async def trigger_scan(request: ScanRequest):
 
 @app.get("/api/v1/network-security/{scan_id}/status")
 async def get_scan_status(scan_id: str):
-    conn = _get_network_conn()
+    conn = get_network_conn()
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
@@ -208,7 +195,7 @@ async def query_findings(
     limit: int = Query(1000),
     offset: int = Query(0),
 ):
-    conn = _get_network_conn()
+    conn = get_network_conn()
     try:
         # Resolve latest
         if scan_id == "latest":
@@ -266,7 +253,7 @@ async def get_topology(
     tenant_id: str = Query(...),
     scan_id: str = Query("latest"),
 ):
-    conn = _get_network_conn()
+    conn = get_network_conn()
     try:
         if scan_id == "latest":
             with conn.cursor() as cur:

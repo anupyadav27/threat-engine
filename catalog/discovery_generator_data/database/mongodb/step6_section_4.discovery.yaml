@@ -1,0 +1,49 @@
+version: '1.0'
+provider: database
+engine: mongodb
+category: section_4
+cis_section: '4'
+description: >
+  mongodb CIS Section 4 — legacy TLS protocols are disabled
+
+discovery:
+
+  - discovery_id: mongodb.section_4.legacy_tls_protocols_are_disabled
+    description: Ensure legacy TLS protocols are disabled
+    calls:
+      - action: run_command
+        command: "To verify that the server uses disables legacy TLS protocols you should check the disabledProtocols directive, run the following commands: mongod --config /etc/mongod.conf Review for disabledProtocols as part of the output shown below: net: tls: mode: requireTLS certificateKeyFile: /etc/ssl/mongodb.pem CAFile: /etc/ssl/caToValidateClientCertificates.pem disabledProtocols: TLS1_0,TLS1_1"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: legacy_tls_protocols_are_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: mongodb.section_4.weak_protocols_are_disabled
+    description: Ensure Weak Protocols are Disabled
+    calls:
+      - action: run_command
+        command: "To verify that the server disable TLS v1.0 and v1.1, run one of the following commands: • On Ubuntu: cat /etc/mongod.conf | grep –A20 ‘net’ | grep –A10 ‘ssl’ | grep ‘disabledProtocols’ • On Windows: type mongod.conf | findstr –A20 ‘net’ | findstr –A10 ‘ssl’ | findstr ‘disabledProtocols’ If TLS1_0,TLS1_1 is not included in the string returned by either of these commands this is a fail."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: weak_protocols_are_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: mongodb.section_4.encryption_of_data_in_transit_tls_or_ssl
+    description: Ensure Encryption of Data in Transit TLS or SSL (Transport Encryption)
+    calls:
+      - action: run_command
+        command: "To verify that the server requires SSL or TLS (net.tls.mode value set to requireTLS), run one of the following commands: On Ubuntu: cat /etc/mongod.conf | grep –A20 ‘net’ | grep –A10 ‘tls’ | grep ‘mode’ On Windows: type mongod.conf | findstr –A20 ‘net’ | findstr –A10 ‘tls’ | findstr ‘mode’"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: encryption_of_data_in_transit_tls_or_ssl
+        value: "{{ result.stdout }}"
+        expected: ""
+

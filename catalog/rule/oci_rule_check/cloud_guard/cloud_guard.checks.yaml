@@ -1,0 +1,628 @@
+version: '1.0'
+provider: oci
+service: cloud_guard
+checks:
+- rule_id: oci.cloud_guard.target.additional_email_configured_with_a_security_contact
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.additional_email_addresses
+    op: not_empty
+    value: null
+- rule_id: oci.cloud_guard.target.advanced_protection_in_internet_facing_load_balancers
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.aggregation_authorization_not_expired_or_revoked
+  for_each: oci.cloud_guard.list_targets
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.aggregation_authorization_present_and_valid
+  for_each: oci.cloud_guard.list_targets
+  severity: MEDIUM
+  conditions:
+    var: item.ocid
+    op: exists
+    value: null
+- rule_id: oci.cloud_guard.target.aggregation_authorization_target_accounts_correct
+  for_each: oci.cloud_guard.list_targets
+  severity: MEDIUM
+  conditions:
+    var: item.freeform_tags.Environment
+    op: exists
+    value: null
+- rule_id: oci.cloud_guard.target.aggregation_authorization_trusts_least_privilege_required
+  for_each: oci.cloud_guard.list_targets
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.cloud_guard.target.aggregator_auto_enroll_new_accounts
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.auto_enroll_new_accounts
+    op: is_true
+    value: null
+- rule_id: oci.cloud_guard.target.aggregator_org_enabled
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.assessment_policy_store_encrypted
+  for_each: oci.cloud_guard.list_targets
+  severity: MEDIUM
+  conditions:
+    var: item.defined_tags.Environment
+    op: exists
+    value: null
+- rule_id: oci.cloud_guard.target.assessment_roles_least_privilege_required
+  for_each: oci.cloud_guard.list_targets
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.auto_provisioning_log_analytics_agent_vms_on
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.auto_provision_log_analytics_agent_vms
+    op: is_true
+    value: null
+- rule_id: oci.cloud_guard.target.auto_provisioning_vulnerabilty_assessments_machines_on
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.automation_artifacts_encrypted_and_private
+  for_each: oci.cloud_guard.list_targets
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.target_resource_type
+      op: equals
+      value: AUTOMATION
+    - var: item.target_detector_recipes[].detector_rules[].details.condition.metadata.encryption_state
+      op: equals
+      value: ENCRYPTED
+    - var: item.target_detector_recipes[].detector_rules[].details.condition.metadata.is_private
+      op: is_true
+      value: null
+- rule_id: oci.cloud_guard.target.automation_change_audit_logging_enabled
+  for_each: oci.cloud_guard.list_targets
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.automation_execution_roles_least_privilege_required
+  for_each: oci.cloud_guard.list_targets
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.target_resource_type
+      op: not_contains
+      value: AUTOMATION_EXECUTION_ROLE
+- rule_id: oci.cloud_guard.target.baseline_exemptions_have_expiry_and_owner
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    all:
+    - var: item.baseline_exemptions[].expiry_date
+      op: exists
+      value: null
+    - var: item.baseline_exemptions[].owner
+      op: exists
+      value: null
+- rule_id: oci.cloud_guard.target.baseline_required_controls_present
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.breach_detection_alert_destinations_enabled
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.breach_detection_integrations_authenticated
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.compliance_access_rbac_least_privilege_required
+  for_each: oci.cloud_guard.list_targets
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.compliance_export_destinations_private_enforced
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.compartment_id
+    op: exists
+    value: null
+- rule_id: oci.cloud_guard.target.compliance_reports_storage_encrypted
+  for_each: oci.cloud_guard.list_targets
+  severity: MEDIUM
+  conditions:
+    var: item.freeform_tags.Environment
+    op: exists
+    value: null
+- rule_id: oci.cloud_guard.target.config_aggregation_auto_enroll_new_accounts
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.config_aggregation_auto_enroll_new_accounts
+    op: is_true
+    value: null
+- rule_id: oci.cloud_guard.target.config_aggregation_org_aggregator_enabled
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.target_resource_type
+    op: equals
+    value: COMPARTMENT
+- rule_id: oci.cloud_guard.target.config_baseline_conformance_pack_deployed
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.config_baseline_conformance_pack_deployed
+    op: is_true
+    value: null
+- rule_id: oci.cloud_guard.target.config_baseline_parameters_set
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.config_baseline_parameters
+    op: exists
+    value: null
+- rule_id: oci.cloud_guard.target.config_compliance_evidence_export_configured
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.config_compliance_evidence_export_configured
+    op: is_true
+    value: null
+- rule_id: oci.cloud_guard.target.config_compliance_reporting_dashboards_enabled
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.config_compliance_reporting_dashboards_enabled
+    op: is_true
+    value: null
+- rule_id: oci.cloud_guard.target.config_drift_alerts_enabled
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.config_drift_critical_resources_detection_enabled
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.config_drift_config.is_enabled
+    op: is_true
+    value: null
+- rule_id: oci.cloud_guard.target.config_remediation_auto_enabled_for_high
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.config_remediation_auto_enabled_for_high
+    op: is_true
+    value: null
+- rule_id: oci.cloud_guard.target.config_remediation_manual_runbooks_attached
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.config_remediation_manual_runbooks_attached
+    op: exists
+    value: null
+- rule_id: oci.cloud_guard.target.config_rule_remediation_targets_bound
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.config_rule_remediation_targets_bound
+    op: is_true
+    value: null
+- rule_id: oci.cloud_guard.target.config_rule_required_rules_present
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.config_rule_rules_enabled
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.config_rule_rules_enabled
+    op: is_true
+    value: null
+- rule_id: oci.cloud_guard.target.container_images_resolved_vulnerabilities
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.container_images_scan_enabled
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.target_resource_type
+    op: equals
+    value: COMPARTMENT
+- rule_id: oci.cloud_guard.target.custom_identifier_source_trusted
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.freeform_tags.Environment
+    op: exists
+    value: null
+- rule_id: oci.cloud_guard.target.custom_identifier_storage_encrypted
+  for_each: oci.cloud_guard.list_targets
+  severity: MEDIUM
+  conditions:
+    var: item.freeform_tags.custom_identifier_storage_encrypted
+    op: exists
+    value: null
+- rule_id: oci.cloud_guard.target.detector_enabled_in_all_regions
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.detector_finding_export_encrypted_destination
+  for_each: oci.cloud_guard.list_targets
+  severity: MEDIUM
+  conditions:
+    var: item.detector_finding_export_encrypted_destination
+    op: exists
+    value: null
+- rule_id: oci.cloud_guard.target.enabled
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.enabled_without_findings
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.ensure_defender_for_app_services_is_on
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.ensure_defender_for_arm_is_on
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.ensure_defender_for_containers_is_on
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.ensure_defender_for_cosmosdb_is_on
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.name
+    op: contains
+    value: cosmosdb
+- rule_id: oci.cloud_guard.target.ensure_defender_for_databases_is_on
+  for_each: oci.cloud_guard.list_targets
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.ensure_defender_for_dns_is_on
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.target_resource_type
+    op: equals
+    value: DNS
+- rule_id: oci.cloud_guard.target.ensure_defender_for_keyvault_is_on
+  for_each: oci.cloud_guard.list_targets
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.ensure_defender_for_oracle_sql_databases_is_on
+  for_each: oci.cloud_guard.list_targets
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.ensure_defender_for_os_relational_databases_is_on
+  for_each: oci.cloud_guard.list_targets
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.ensure_defender_for_server_is_on
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.ensure_defender_for_sql_servers_is_on
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.ensure_defender_for_storage_is_on
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.ensure_iot_hub_defender_is_on
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.ensure_mcas_is_enabled
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.ensure_notify_alerts_severity_is_high
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.notify_alerts_severity
+    op: equals
+    value: HIGH
+- rule_id: oci.cloud_guard.target.ensure_notify_emails_to_owners
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.notify_emails_to_owners
+    op: is_false
+    value: null
+- rule_id: oci.cloud_guard.target.ensure_system_updates_are_applied
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.ensure_wdatp_is_enabled
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.detector_recipes[].detector_rules[].detector
+    op: contains
+    value: WDATP
+- rule_id: oci.cloud_guard.target.finding_alert_destinations_enabled
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.finding_archival_export_encrypted
+  for_each: oci.cloud_guard.list_targets
+  severity: MEDIUM
+  conditions:
+    var: item.finding_archival_export_encrypted
+    op: is_true
+    value: null
+- rule_id: oci.cloud_guard.target.high_severity_findings_blocked
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.hub_auto_enroll_new_accounts
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.freeform_tags.Environment
+    op: exists
+    value: null
+- rule_id: oci.cloud_guard.target.hub_master_member_configured
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.ocid
+    op: exists
+    value: null
+- rule_id: oci.cloud_guard.target.is_enabled
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.policy_admin_change_audit_logging_enabled
+  for_each: oci.cloud_guard.list_targets
+  severity: CRITICAL
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.policy_admin_mfa_required
+  for_each: oci.cloud_guard.list_targets
+  severity: CRITICAL
+  conditions:
+    var: item.freeform_tags.PolicyAdminMFA
+    op: equals
+    value: required
+- rule_id: oci.cloud_guard.target.policy_admin_rbac_least_privilege_required
+  for_each: oci.cloud_guard.list_targets
+  severity: CRITICAL
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.recorder_all_regions_enabled
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.response_access_rbac_least_privilege_required
+  for_each: oci.cloud_guard.list_targets
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.cloud_guard.target.response_storage_encrypted_and_private
+  for_each: oci.cloud_guard.list_targets
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.response_storage_encrypted
+      op: is_true
+      value: null
+    - var: item.response_storage_private
+      op: is_true
+      value: null
+- rule_id: oci.cloud_guard.target.response_versioning_and_immutability_enabled
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.response_versioning_and_immutability_enabled
+    op: is_true
+    value: null
+- rule_id: oci.cloud_guard.target.scan_agents_or_scanners_deployed
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.scan_results_export_destination_encrypted
+  for_each: oci.cloud_guard.list_targets
+  severity: MEDIUM
+  conditions:
+    var: item.scan_results_export_destination_encrypted
+    op: is_true
+    value: null
+- rule_id: oci.cloud_guard.target.scan_scope_includes_all_asset_groups
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.target_detector_recipes[].detector_rules[].detector
+    op: contains
+    value: CONFIGURATION_FINDING
+- rule_id: oci.cloud_guard.target.scp_mandatory_block_disabling_guardrail_services
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.target_resource_type
+      op: equals
+      value: COMPARTMENT
+    - var: item.target_detector_recipes[].detector_rules[].detector
+      op: contains
+      value: CONFIGURATION_DETECTOR
+    - var: item.target_detector_recipes[].detector_rules[].detector_rule_id
+      op: contains
+      value: DISABLE_GUARDRAIL_SERVICES_BLOCK
+- rule_id: oci.cloud_guard.target.scp_mandatory_deny_iam_star_admin_enforced
+  for_each: oci.cloud_guard.list_targets
+  severity: CRITICAL
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.scp_mandatory_require_mfa_for_console_where_supported
+  for_each: oci.cloud_guard.list_targets
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.scp_no_allow_star_on_resources
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.target_resource_type
+    op: equals
+    value: COMPARTMENT
+- rule_id: oci.cloud_guard.target.vm_endpoint_protection_installed
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.cloud_guard.target.workload_no_high_or_medium_risks
+  for_each: oci.cloud_guard.list_targets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE

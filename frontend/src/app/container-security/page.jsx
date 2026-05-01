@@ -9,8 +9,7 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
-import { fetchView } from '@/lib/api';
-import { useGlobalFilter } from '@/lib/global-filter-context';
+import { useViewFetch } from '@/lib/use-view-fetch';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import PageLayout from '@/components/shared/PageLayout';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
@@ -39,28 +38,6 @@ const DOMAIN_META = {
   runtime_audit:     { label: 'Runtime Audit',     icon: Lock,          color: '#eab308' },
 };
 
-// ── Enriched scan trend ───────────────────────────────────────────────────────
-const CTR_SCAN_TREND = [
-  { date: 'Jan 13', passRate: 38, critical: 14, high: 38, medium: 42, total: 108 },
-  { date: 'Jan 20', passRate: 40, critical: 13, high: 36, medium: 40, total: 103 },
-  { date: 'Jan 27', passRate: 39, critical: 14, high: 37, medium: 41, total: 106 },
-  { date: 'Feb 3',  passRate: 43, critical: 12, high: 33, medium: 37, total: 97  },
-  { date: 'Feb 10', passRate: 46, critical: 11, high: 31, medium: 34, total: 91  },
-  { date: 'Feb 17', passRate: 49, critical: 10, high: 28, medium: 31, total: 84  },
-  { date: 'Feb 24', passRate: 51, critical: 9,  high: 26, medium: 29, total: 79  },
-  { date: 'Mar 3',  passRate: 53, critical: 9,  high: 25, medium: 28, total: 76  },
-];
-
-// ── Module scores ─────────────────────────────────────────────────────────────
-const CTR_MODULE_SCORES = [
-  { module: 'Cluster Security',  pass: 11, total: 22, color: '#8b5cf6' },
-  { module: 'Workload Security', pass:  8, total: 18, color: '#3b82f6' },
-  { module: 'Image Security',    pass:  6, total: 15, color: '#06b6d4' },
-  { module: 'Network Exposure',  pass:  5, total: 14, color: '#f97316' },
-  { module: 'RBAC Access',       pass: 13, total: 17, color: '#22c55e' },
-  { module: 'Runtime Audit',     pass:  7, total: 13, color: '#eab308' },
-];
-
 const CTR_DOMAIN_MAP = {
   cluster_security:  { label: 'Cluster Security',  color: '#8b5cf6' },
   workload_security: { label: 'Workload Security', color: '#3b82f6' },
@@ -68,20 +45,6 @@ const CTR_DOMAIN_MAP = {
   network_exposure:  { label: 'Network Exposure',  color: '#f97316' },
   rbac_access:       { label: 'RBAC Access',       color: '#22c55e' },
   runtime_audit:     { label: 'Runtime Audit',     color: '#eab308' },
-};
-
-// ── KPI fallback ──────────────────────────────────────────────────────────────
-const CTR_KPI_FALLBACK = {
-  posture_score: 53, total_findings: 313,
-  critical: 9, high: 25, medium: 28, low: 251,
-  clusters: 12, vulnerable_images: 34, privileged_containers: 18, exposed_services: 7,
-};
-
-const CS_SPARKLINES = {
-  posture_score:         [35, 37, 36, 39, 41, 43, 44, 46],
-  total_findings:        [178, 173, 176, 169, 164, 160, 157, 154],
-  vulnerable_images:     [28, 26, 27, 24, 22, 21, 20, 19],
-  privileged_containers: [12, 11, 12, 10, 9, 9, 8, 7],
 };
 
 // ── Pure-SVG severity donut ───────────────────────────────────────────────────
@@ -129,64 +92,18 @@ function CtrDonut({ slices, size = 160 }) {
 }
 
 
-// ── Demo / fallback data ──────────────────────────────────────────────────────
-const DEMO_CTR_CLUSTERS = [
-  { id: 'cl-001', cluster_name: 'prod-eks-us-east-1',      provider: 'aws', region: 'us-east-1',      version: '1.29', node_count: 12, pods_running: 148, security_domain: 'cluster_security', risk_score: 32, status: 'healthy',  public_endpoint: false },
-  { id: 'cl-002', cluster_name: 'prod-eks-eu-west-1',      provider: 'aws', region: 'eu-west-1',      version: '1.28', node_count: 8,  pods_running: 92,  security_domain: 'cluster_security', risk_score: 47, status: 'warning',  public_endpoint: false },
-  { id: 'cl-003', cluster_name: 'staging-eks-us-west-2',   provider: 'aws', region: 'us-west-2',      version: '1.27', node_count: 4,  pods_running: 38,  security_domain: 'cluster_security', risk_score: 74, status: 'at_risk',  public_endpoint: true  },
-  { id: 'cl-004', cluster_name: 'dev-eks-us-east-2',       provider: 'aws', region: 'us-east-2',      version: '1.26', node_count: 3,  pods_running: 21,  security_domain: 'cluster_security', risk_score: 81, status: 'at_risk',  public_endpoint: true  },
-  { id: 'cl-005', cluster_name: 'prod-eks-ap-southeast-1', provider: 'aws', region: 'ap-southeast-1', version: '1.29', node_count: 6,  pods_running: 74,  security_domain: 'cluster_security', risk_score: 28, status: 'healthy',  public_endpoint: false },
-];
-
-const DEMO_CTR_FINDINGS = [
-  { id: 'cf-001', title: 'EKS cluster endpoint publicly accessible',               severity: 'critical', resource_name: 'staging-eks-us-west-2',   resource_type: 'EKSCluster',  provider: 'aws', region: 'us-west-2',      security_domain: 'cluster_security',  category: 'network',     status: 'FAIL', description: 'Kubernetes API server endpoint is publicly accessible without IP whitelist restrictions.'  },
-  { id: 'cf-002', title: 'Container running with privileged mode enabled',          severity: 'critical', resource_name: 'payment-service',          resource_type: 'Pod',         provider: 'aws', region: 'us-east-1',      security_domain: 'workload_security', category: 'runtime',     status: 'FAIL', description: 'Pod spec sets securityContext.privileged=true, granting host-level access.'                },
-  { id: 'cf-003', title: 'Container image with critical CVEs deployed',             severity: 'critical', resource_name: 'nginx:1.18.0',             resource_type: 'ContainerImage', provider: 'aws', region: 'us-east-1',   security_domain: 'image_security',    category: 'vulnerability', status: 'FAIL', description: 'Image contains 3 critical and 11 high CVEs; last scanned 2024-02-28.'                     },
-  { id: 'cf-004', title: 'Cluster RBAC allows wildcard verb on core resources',     severity: 'high',     resource_name: 'cluster-admin-binding',    resource_type: 'ClusterRoleBinding', provider: 'aws', region: 'us-east-1', security_domain: 'rbac_access',      category: 'iam',         status: 'FAIL', description: 'ClusterRoleBinding grants wildcard (*) verbs on all core API resources to a service account.' },
-  { id: 'cf-005', title: 'Container image not scanned before deployment',           severity: 'high',     resource_name: 'api-gateway:latest',       resource_type: 'ContainerImage', provider: 'aws', region: 'eu-west-1',   security_domain: 'image_security',    category: 'compliance',  status: 'FAIL', description: 'No ECR image scan result found for this image tag at deployment time.'                    },
-  { id: 'cf-006', title: 'EKS node group uses outdated AMI',                        severity: 'high',     resource_name: 'prod-eks-eu-west-1',       resource_type: 'EKSNodeGroup', provider: 'aws', region: 'eu-west-1',     security_domain: 'cluster_security',  category: 'patching',    status: 'FAIL', description: 'Node group AMI is 90 days behind current EKS-optimized AMI release.'                     },
-  { id: 'cf-007', title: 'Pod security policy not enforced',                        severity: 'medium',   resource_name: 'dev-eks-us-east-2',        resource_type: 'EKSCluster',  provider: 'aws', region: 'us-east-2',      security_domain: 'workload_security', category: 'policy',      status: 'FAIL', description: 'Pod Security Admission is not configured in enforce mode for any namespace.'              },
-  { id: 'cf-008', title: 'Service account token auto-mounted on all pods',          severity: 'medium',   resource_name: 'default/default',          resource_type: 'ServiceAccount', provider: 'aws', region: 'us-east-1',  security_domain: 'rbac_access',       category: 'iam',         status: 'FAIL', description: 'Default service account has automountServiceAccountToken=true in all namespaces.'         },
-  { id: 'cf-009', title: 'Container resource limits not defined',                   severity: 'medium',   resource_name: 'worker-service',           resource_type: 'Deployment',  provider: 'aws', region: 'us-west-2',      security_domain: 'workload_security', category: 'configuration', status: 'FAIL', description: 'No CPU or memory limits set; potential DoS via resource exhaustion.'                     },
-  { id: 'cf-010', title: 'EKS control plane logging enabled for all log types',     severity: 'low',      resource_name: 'prod-eks-us-east-1',       resource_type: 'EKSCluster',  provider: 'aws', region: 'us-east-1',      security_domain: 'cluster_security',  category: 'logging',     status: 'PASS', description: 'All control plane log types (api, audit, authenticator, controllerManager, scheduler) are enabled.' },
-];
 
 export default function ContainerSecurityPage() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState(null);
-  const [data, setData]       = useState({});
+  const { data, loading, error } = useViewFetch('container-security');
   const [selectedFinding, setSelectedFinding] = useState(null);
   const handleRowClick = (row) => { const f = row?.original || row; if (f) setSelectedFinding(f); };
 
-  const { provider, account, region } = useGlobalFilter();
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const result = await fetchView('container-security', {
-          provider: provider || undefined,
-          account: account || undefined,
-          region: region || undefined,
-        });
-        if (result.error) { setError(result.error); return; }
-        setData(result);
-      } catch (err) {
-        setError(err?.message || 'Failed to load container security data');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [provider, account, region]);
-
   const pageContext   = data.pageContext || {};
-  const rawClusters = (data.data || {}).clusters || [];
-  const rawFindings = (data.data || {}).findings || [];
-  const clusters = rawClusters.length ? rawClusters : DEMO_CTR_CLUSTERS;
-  const findings = rawFindings.length ? rawFindings : DEMO_CTR_FINDINGS;
-  const domainScores  = (data.data || {}).domain_scores || {};
+  const rawClusters = data.clusters     || [];
+  const rawFindings = data.findings     || [];
+  const clusters = rawClusters;
+  const findings = rawFindings;
+  const domainScores  = data.domain_scores || {};
 
   // ── Derive KPI numbers ──────────────────────────────────────────────────
   const kpiNums = useMemo(() => {
@@ -195,39 +112,39 @@ export default function ContainerSecurityPage() {
     const vulnImages = findings.filter(f => f.security_domain === 'image_security' && f.status === 'FAIL').length;
     const privCont   = findings.filter(f => f.security_domain === 'workload_security' && f.status === 'FAIL').length;
     return {
-      posture_score:         get(g0, 'Posture Score')   ?? CTR_KPI_FALLBACK.posture_score,
-      total_findings:        findings.length             || CTR_KPI_FALLBACK.total_findings,
-      critical:              get(g0, 'Critical')         ?? CTR_KPI_FALLBACK.critical,
-      high:                  get(g0, 'High')             ?? CTR_KPI_FALLBACK.high,
-      medium:                get(g0, 'Medium')           ?? CTR_KPI_FALLBACK.medium,
-      low:                   get(g0, 'Low')              ?? CTR_KPI_FALLBACK.low,
-      clusters:              clusters.length             || CTR_KPI_FALLBACK.clusters,
-      vulnerable_images:     vulnImages                  || CTR_KPI_FALLBACK.vulnerable_images,
-      privileged_containers: privCont                    || CTR_KPI_FALLBACK.privileged_containers,
-      exposed_services:      CTR_KPI_FALLBACK.exposed_services,
+      posture_score:         get(g0, 'Posture Score')   ?? 0,
+      total_findings:        findings.length,
+      critical:              get(g0, 'Critical')         ?? 0,
+      high:                  get(g0, 'High')             ?? 0,
+      medium:                get(g0, 'Medium')           ?? 0,
+      low:                   get(g0, 'Low')              ?? 0,
+      clusters:              clusters.length,
+      vulnerable_images:     vulnImages,
+      privileged_containers: privCont,
+      exposed_services:      0,
     };
   }, [data.kpiGroups, clusters, findings]);
 
   // ── Active scan trend: live from BFF or static fallback ──────────────
   const activeScanTrend = useMemo(
     () => {
-      if (data.scanTrend?.length >= 2) {
+      if (data.scanTrend?.length >= 1) {
         return data.scanTrend.map(d => ({ ...d, passRate: d.pass_rate ?? d.passRate ?? 0 }));
       }
-      return CTR_SCAN_TREND;
+      return [];
     },
     [data.scanTrend],
   );
 
   const activeModuleScores = useMemo(() => {
     const db = data.domainBreakdown;
-    if (db?.length >= 3) {
+    if (db?.length >= 1) {
       return db.map(d => {
         const meta = CTR_DOMAIN_MAP[d.security_domain] ?? { label: d.security_domain, color: '#64748b' };
         return { module: meta.label, pass: d.pass_count ?? 0, total: d.total ?? 0, color: meta.color };
       });
     }
-    return CTR_MODULE_SCORES;
+    return [];
   }, [data.domainBreakdown]);
 
   // ── Insight strip ───────────────────────────────────────────────────────
@@ -271,12 +188,12 @@ export default function ContainerSecurityPage() {
     ];
 
     // ── Trend deltas ──
-    const first  = activeScanTrend[0];
-    const last   = activeScanTrend[activeScanTrend.length - 1];
-    const rateΔ  = last.passRate  - first.passRate;
-    const critΔ  = last.critical  - first.critical;
-    const highΔ  = last.high      - first.high;
-    const totalΔ = last.total     - first.total;
+    const first  = activeScanTrend[0] || {};
+    const last   = activeScanTrend[activeScanTrend.length - 1] || {};
+    const rateΔ  = (last.passRate  ?? 0) - (first.passRate  ?? 0);
+    const critΔ  = (last.critical  ?? 0) - (first.critical  ?? 0);
+    const highΔ  = (last.high      ?? 0) - (first.high      ?? 0);
+    const totalΔ = (last.total     ?? 0) - (first.total     ?? 0);
 
     const statPill = (label, value, delta, goodDir) => {
       const improved = goodDir === 'up' ? delta >= 0 : delta <= 0;
@@ -476,7 +393,7 @@ export default function ContainerSecurityPage() {
                   Container Posture Trend
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
-                  {first.date} – {last.date} · {CTR_SCAN_TREND.length} scans
+                  {first.date && last.date ? `${first.date} – ${last.date} · ` : ''}{activeScanTrend.length} scans
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -499,10 +416,10 @@ export default function ContainerSecurityPage() {
 
             {/* 4-stat summary strip */}
             <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-              {statPill('Pass Rate', `${last.passRate}%`, rateΔ,  'up'  )}
-              {statPill('Critical',  last.critical,       critΔ,  'down')}
-              {statPill('High',      last.high,           highΔ,  'down')}
-              {statPill('Total',     last.total,          totalΔ, 'down')}
+              {statPill('Pass Rate', `${last.passRate ?? 0}%`, rateΔ,  'up'  )}
+              {statPill('Critical',  last.critical ?? 0,    critΔ,  'down')}
+              {statPill('High',      last.high ?? 0,        highΔ,  'down')}
+              {statPill('Total',     last.total ?? 0,       totalΔ, 'down')}
             </div>
 
             {/* Composed chart — fills remaining height */}

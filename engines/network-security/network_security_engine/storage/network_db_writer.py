@@ -9,27 +9,14 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-import psycopg2
 from psycopg2.extras import execute_values
 
+from engine_common.db_connections import get_network_conn
+
 logger = logging.getLogger(__name__)
-
-
-def _get_network_conn():
-    """Return a fresh psycopg2 connection to the network DB."""
-    return psycopg2.connect(
-        host=os.getenv("NETWORK_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("NETWORK_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("NETWORK_DB_NAME", "threat_engine_network"),
-        user=os.getenv("NETWORK_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("NETWORK_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-        connect_timeout=10,
-    )
 
 
 def _ensure_tenant(conn, tenant_id: str) -> None:
@@ -46,7 +33,7 @@ def _ensure_tenant(conn, tenant_id: str) -> None:
 
 def save_network_report(report: Dict[str, Any]) -> None:
     """Upsert network_report row."""
-    conn = _get_network_conn()
+    conn = get_network_conn()
     try:
         _ensure_tenant(conn, report["tenant_id"])
         with conn.cursor() as cur:
@@ -115,7 +102,7 @@ def save_network_findings(findings: List[Dict[str, Any]]) -> int:
     if not findings:
         return 0
 
-    conn = _get_network_conn()
+    conn = get_network_conn()
     try:
         with conn.cursor() as cur:
             sql = """
@@ -160,47 +147,56 @@ def save_network_findings(findings: List[Dict[str, Any]]) -> int:
 
 
 def save_topology_snapshots(snapshots: List[Dict[str, Any]]) -> None:
-    """Save VPC topology snapshots."""
+    """Bulk-save VPC topology snapshots in a single round-trip.
+
+    Previously this used a per-VPC execute() loop — 100 VPCs = 100 DB round-trips.
+    execute_values() batches all rows into one INSERT, reducing wall time to ~1 DB call.
+    """
     if not snapshots:
         return
 
-    conn = _get_network_conn()
+    from psycopg2.extras import execute_values
+
+    conn = get_network_conn()
     try:
         with conn.cursor() as cur:
-            for snap in snapshots:
-                cur.execute("""
-                    INSERT INTO network_topology_snapshot (
-                        scan_run_id, tenant_id, account_id, provider, region,
-                        vpc_id, vpc_cidr_blocks, is_default_vpc, flow_log_enabled,
-                        subnets, route_tables, peering_connections, tgw_attachments,
-                        igw_id, nat_gateways, vpc_endpoints, network_firewalls,
-                        isolation_score, public_subnet_count, private_subnet_count,
-                        has_internet_path
-                    ) VALUES (
-                        %(scan_run_id)s, %(tenant_id)s, %(account_id)s, %(provider)s, %(region)s,
-                        %(vpc_id)s, %(vpc_cidr_blocks)s, %(is_default_vpc)s, %(flow_log_enabled)s,
-                        %(subnets)s, %(route_tables)s, %(peering_connections)s, %(tgw_attachments)s,
-                        %(igw_id)s, %(nat_gateways)s, %(vpc_endpoints)s, %(network_firewalls)s,
-                        %(isolation_score)s, %(public_subnet_count)s, %(private_subnet_count)s,
-                        %(has_internet_path)s
-                    )
-                    ON CONFLICT (scan_run_id, vpc_id) DO UPDATE SET
-                        subnets = EXCLUDED.subnets,
-                        route_tables = EXCLUDED.route_tables,
-                        flow_log_enabled = EXCLUDED.flow_log_enabled,
-                        isolation_score = EXCLUDED.isolation_score,
-                        public_subnet_count = EXCLUDED.public_subnet_count,
-                        private_subnet_count = EXCLUDED.private_subnet_count
-                """, {
-                    **snap,
-                    "subnets": json.dumps(snap.get("subnets", [])),
-                    "route_tables": json.dumps(snap.get("route_tables", [])),
-                    "peering_connections": json.dumps(snap.get("peering_connections", [])),
-                    "tgw_attachments": json.dumps(snap.get("tgw_attachments", [])),
-                    "nat_gateways": json.dumps(snap.get("nat_gateways", [])),
-                    "vpc_endpoints": json.dumps(snap.get("vpc_endpoints", [])),
-                    "network_firewalls": json.dumps(snap.get("network_firewalls", [])),
-                })
+            sql = """
+                INSERT INTO network_topology_snapshot (
+                    scan_run_id, tenant_id, account_id, provider, region,
+                    vpc_id, vpc_cidr_blocks, is_default_vpc, flow_log_enabled,
+                    subnets, route_tables, peering_connections, tgw_attachments,
+                    igw_id, nat_gateways, vpc_endpoints, network_firewalls,
+                    isolation_score, public_subnet_count, private_subnet_count,
+                    has_internet_path
+                ) VALUES %s
+                ON CONFLICT (scan_run_id, vpc_id) DO UPDATE SET
+                    subnets = EXCLUDED.subnets,
+                    route_tables = EXCLUDED.route_tables,
+                    flow_log_enabled = EXCLUDED.flow_log_enabled,
+                    isolation_score = EXCLUDED.isolation_score,
+                    public_subnet_count = EXCLUDED.public_subnet_count,
+                    private_subnet_count = EXCLUDED.private_subnet_count
+            """
+            values = [
+                (
+                    s["scan_run_id"], s["tenant_id"], s.get("account_id", ""),
+                    s.get("provider", "aws"), s.get("region", ""),
+                    s["vpc_id"], s.get("vpc_cidr_blocks", []),  # TEXT[] — pass list, not json.dumps
+                    s.get("is_default_vpc", False), s.get("flow_log_enabled", False),
+                    json.dumps(s.get("subnets", [])),
+                    json.dumps(s.get("route_tables", [])),
+                    json.dumps(s.get("peering_connections", [])),
+                    json.dumps(s.get("tgw_attachments", [])),
+                    s.get("igw_id"), json.dumps(s.get("nat_gateways", [])),
+                    json.dumps(s.get("vpc_endpoints", [])),
+                    json.dumps(s.get("network_firewalls", [])),
+                    s.get("isolation_score", 0),
+                    s.get("public_subnet_count", 0), s.get("private_subnet_count", 0),
+                    s.get("has_internet_path", False),
+                )
+                for s in snapshots
+            ]
+            execute_values(cur, sql, values, page_size=200)
         conn.commit()
         logger.info("Saved %d topology snapshots", len(snapshots))
     finally:
@@ -212,7 +208,7 @@ def save_exposure_paths(paths: List[Dict[str, Any]]) -> None:
     if not paths:
         return
 
-    conn = _get_network_conn()
+    conn = get_network_conn()
     try:
         with conn.cursor() as cur:
             for path in paths:
@@ -249,26 +245,33 @@ def update_report_status(
     status: str,
     error_message: Optional[str] = None,
 ) -> None:
-    """Update the status of an existing network_report row."""
-    conn = _get_network_conn()
+    """Update the status of an existing network_report row.
+
+    Never raises — status update failures are logged but must not mask the
+    original error that triggered this call.
+    """
     try:
-        with conn.cursor() as cur:
-            cur.execute("""
-                UPDATE network_report
-                SET status = %s,
-                    error_message = %s,
-                    completed_at = CASE WHEN %s IN ('completed', 'failed')
-                                        THEN NOW() ELSE completed_at END
-                WHERE scan_run_id = %s
-            """, (status, error_message, status, scan_run_id))
-        conn.commit()
-    finally:
-        conn.close()
+        conn = get_network_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE network_report
+                    SET status = %s,
+                        error_message = %s,
+                        completed_at = CASE WHEN %s IN ('completed', 'failed')
+                                            THEN NOW() ELSE completed_at END
+                    WHERE scan_run_id = %s
+                """, (status, error_message, status, scan_run_id))
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as exc:
+        logger.error("update_report_status failed for %s → %s: %s", scan_run_id, status, exc)
 
 
-def cleanup_old_scans(tenant_id: str, keep: int = 3) -> int:
+def cleanup_old_scans(tenant_id: str, keep: int = 5) -> int:
     """Delete old network scan data, keeping the most recent N scans."""
-    conn = _get_network_conn()
+    conn = get_network_conn()
     try:
         with conn.cursor() as cur:
             cur.execute("""

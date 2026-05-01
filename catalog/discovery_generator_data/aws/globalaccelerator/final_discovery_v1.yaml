@@ -1,0 +1,98 @@
+# ==========================================================
+# Discovery YAML — globalaccelerator (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 4 | ops: 1 independent, 2 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: globalaccelerator
+
+services:
+  client: globalaccelerator
+  module: "boto3.client('globalaccelerator')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: accelerator
+    identifier_op: aws.globalaccelerator.list_accelerators
+    identifier_field: AcceleratorArn
+    item_var_path: item.AcceleratorArn
+    identifier_template: '{acceleratorarn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.globalaccelerator.list_accelerators  ──
+  - discovery_id: aws.globalaccelerator.list_accelerators
+    calls:
+      - action: list_accelerators
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Accelerators }}'
+      item:
+        Accelerator: '{{ item.Accelerator }}'
+        AcceleratorArn: '{{ item.AcceleratorArn }}'
+        AcceleratorAttributes: '{{ item.AcceleratorAttributes }}'
+        AcceleratorPort: '{{ item.AcceleratorPort }}'
+        ClientAffinity: '{{ item.ClientAffinity }}'
+        CreatedTime: '{{ item.CreatedTime }}'
+        DestinationSocketAddress: '{{ item.DestinationSocketAddress }}'
+        DestinationTrafficState: '{{ item.DestinationTrafficState }}'
+        DnsName: '{{ item.DnsName }}'
+        DualStackDnsName: '{{ item.DualStackDnsName }}'
+        Enabled: '{{ item.Enabled }}'
+        Events: '{{ item.Events }}'
+        FlowLogsEnabled: '{{ item.FlowLogsEnabled }}'
+        FlowLogsS3Bucket: '{{ item.FlowLogsS3Bucket }}'
+        FlowLogsS3Prefix: '{{ item.FlowLogsS3Prefix }}'
+        IpAddressType: '{{ item.IpAddressType }}'
+        IpSets: '{{ item.IpSets }}'
+        LastModifiedTime: '{{ item.LastModifiedTime }}'
+        Name: '{{ item.Name }}'
+        PortRanges: '{{ item.PortRanges }}'
+        Protocol: '{{ item.Protocol }}'
+        Protocols: '{{ item.Protocols }}'
+        Status: '{{ item.Status }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.globalaccelerator.describe_accelerator_attributes [dependent] ──
+  - discovery_id: aws.globalaccelerator.describe_accelerator_attributes
+    for_each: aws.globalaccelerator.list_accelerators
+    calls:
+      - action: describe_accelerator_attributes
+        params:
+          AcceleratorArn: "{{ item.AcceleratorArn }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        AcceleratorAttributes: '{{ item.AcceleratorAttributes }}'
+        FlowLogsEnabled: '{{ item.FlowLogsEnabled }}'
+        FlowLogsS3Bucket: '{{ item.FlowLogsS3Bucket }}'
+        FlowLogsS3Prefix: '{{ item.FlowLogsS3Prefix }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.globalaccelerator.list_listeners [dependent] ──
+  - discovery_id: aws.globalaccelerator.list_listeners
+    for_each: aws.globalaccelerator.list_accelerators
+    calls:
+      - action: list_listeners
+        params:
+          AcceleratorArn: "{{ item.AcceleratorArn }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Listeners }}'
+      item:
+        ClientAffinity: '{{ item.ClientAffinity }}'
+        ListenerArn: '{{ item.ListenerArn }}'
+        PortRanges: '{{ item.PortRanges }}'
+        Protocol: '{{ item.Protocol }}'
+

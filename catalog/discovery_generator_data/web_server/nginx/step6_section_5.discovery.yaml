@@ -1,0 +1,75 @@
+version: '1.0'
+provider: web_server
+engine: nginx
+category: section_5
+cis_section: '5'
+description: >
+  nginx CIS Section 5 — timeout values for reading the client header and body are set correctly
+
+discovery:
+
+  - discovery_id: nginx.section_5.timeout_values_for_reading_the_client_header_and
+    description: Ensure timeout values for reading the client header and body are set correctly
+    calls:
+      - action: run_command
+        command: "To verify the current settings for the client_body_timeout and client_header_timeout directives, issue the below command. You should also manually check your nginx configuration for include statements that may be located outside of the /etc/nginx directory. If this is not present, the value is set at the default. grep -ir timeout /etc/nginx The output should contain the following: client_body_timeout 10; client_header_timeout 10;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: timeout_values_for_reading_the_client_header_and
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: nginx.section_5.maximum_request_body_size_is_set_correctly
+    description: Ensure the maximum request body size is set correctly
+    calls:
+      - action: run_command
+        command: "To verify the current setting for the client_max_body_size directive, issue the below command. You should also manually check your nginx configuration for include statements that may be located outside of the /etc/nginx directory. If this is not present, the value is set at the default. grep -ir client_max_body_size /etc/nginx"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: maximum_request_body_size_is_set_correctly
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: nginx.section_5.maximum_buffer_size_for_uris_is_defined
+    description: Ensure the maximum buffer size for URIs is defined
+    calls:
+      - action: run_command
+        command: "Run this command to verify that the large_client_header_buffers directive is configured properly: grep -ir large_client_header_buffers /etc/nginx/ The output should be similar to the below: large_client_header_buffers 2 1k;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: maximum_buffer_size_for_uris_is_defined
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: nginx.section_5.x_frame_options_header_is_configured_and_enabled
+    description: Ensure X-Frame-Options header is configured and enabled
+    calls:
+      - action: run_command
+        command: "Run the following to verify this header is implemented on your site: grep -ir X-Frame-Options /etc/nginx The output should look similar to the below, but customized to your use case. If there is no output from this command, this recommendation is not implemented. add_header X-Frame-Options \u0027SAMEORIGIN\u0027 always;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: x_frame_options_header_is_configured_and_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: nginx.section_5.x_content_type_options_header_is_configured_and
+    description: Ensure X-Content-Type-Options header is configured and enabled
+    calls:
+      - action: run_command
+        command: "Run this command to verify the X-Content-Type-Options Header is enabled and set to not allow content type sniffing: grep -ir X-Content-Type-Options /etc/nginx The below should be part of the output. If it is not, this recommendation is not implemented. This should be implemented on every server block. If there are multiple server blocks on the system, each should be checked. add_header X-Content-Type-Options \u0027nosniff\u0027 always;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: x_content_type_options_header_is_configured_and
+        value: "{{ result.stdout }}"
+        expected: ""
+

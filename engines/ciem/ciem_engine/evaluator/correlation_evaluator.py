@@ -18,10 +18,8 @@ import hashlib
 import json
 import logging
 import os
-import yaml
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import psycopg2
@@ -56,6 +54,15 @@ class CorrelationEvaluator:
                      os.getenv("DB_PASSWORD", ""))),
         )
 
+    def _get_check_conn(self):
+        return psycopg2.connect(
+            host=os.getenv("CHECK_DB_HOST", os.getenv("DB_HOST", "localhost")),
+            port=int(os.getenv("CHECK_DB_PORT", os.getenv("DB_PORT", "5432"))),
+            database=os.getenv("CHECK_DB_NAME", "threat_engine_check"),
+            user=os.getenv("CHECK_DB_USER", os.getenv("DB_USER", "postgres")),
+            password=os.getenv("CHECK_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
+        )
+
     def _get_log_conn(self):
         return psycopg2.connect(
             host=os.getenv("INVENTORY_DB_HOST", os.getenv("DB_HOST", "localhost")),
@@ -66,23 +73,43 @@ class CorrelationEvaluator:
         )
 
     def load_scenarios(self) -> List[Dict]:
-        """Load L2 scenarios from YAML + DB."""
-        scenarios = []
-        # Load from YAML files in rules/ directory
-        rules_dir = Path(__file__).parent.parent.parent / "rules"
-        for f in rules_dir.glob("l2_*.yaml"):
-            try:
-                data = yaml.safe_load(f.read_text()) or []
-                if isinstance(data, dict):
-                    data = data.get("scenarios", data.get("rules", []))
-                for s in data:
-                    if s.get("scenario_id"):
-                        scenarios.append(s)
-            except Exception as exc:
-                logger.warning(f"Failed to load {f}: {exc}")
+        """Load L2 log_correlation scenarios from rule_checks (check_type='log_correlation')."""
+        conn = self._get_check_conn()
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT rule_id, service, check_config
+                    FROM rule_checks
+                    WHERE check_type = 'log_correlation'
+                    AND is_active = true
+                    AND (provider = %s OR provider IS NULL)
+                """, (self.provider,))
+                rows = cur.fetchall()
 
-        logger.info(f"Loaded {len(scenarios)} L2 correlation scenarios")
-        return scenarios
+            scenarios = []
+            for row in rows:
+                cfg = row["check_config"]
+                if isinstance(cfg, str):
+                    cfg = json.loads(cfg)
+                scenario = {
+                    "scenario_id":         row["rule_id"],
+                    "sequence":            cfg.get("sequence", []),
+                    "match_by":            cfg.get("match_by", "actor.principal"),
+                    "time_window_minutes": cfg.get("time_window_minutes", 60),
+                    "min_events":          cfg.get("min_events", 2),
+                    "severity":            cfg.get("severity", "high"),
+                    "title":               cfg.get("title", row["rule_id"]),
+                    "description":         cfg.get("description", ""),
+                    "mitre_tactics":       cfg.get("mitre_tactics", []),
+                    "mitre_techniques":    cfg.get("mitre_techniques", []),
+                    "engine":              cfg.get("engine", "ciem"),
+                }
+                scenarios.append(scenario)
+
+            logger.info(f"Loaded {len(scenarios)} L2 log_correlation scenarios from DB")
+            return scenarios
+        finally:
+            conn.close()
 
     def evaluate(self) -> Dict[str, Any]:
         """Run L2 correlation on L1 findings. Returns stats."""
@@ -143,7 +170,7 @@ class CorrelationEvaluator:
                            severity, title
                     FROM ciem_findings
                     WHERE scan_run_id = %s AND tenant_id = %s
-                    AND rule_source != 'correlation'
+                    AND rule_source != 'log_correlation'
                     ORDER BY event_time
                 """, (self.scan_run_id, self.tenant_id))
                 rows = cur.fetchall()
@@ -268,7 +295,7 @@ class CorrelationEvaluator:
         """Create a correlation finding from a matched scenario."""
         scenario_id = scenario["scenario_id"]
         finding_id = hashlib.sha256(
-            f"corr|{scenario_id}|{group_key}|{self.scan_run_id}".encode()
+            f"corr|{scenario_id}|{group_key}".encode()
         ).hexdigest()[:20]
         finding_id = f"corr_{finding_id}"
 
@@ -291,12 +318,12 @@ class CorrelationEvaluator:
             "scan_run_id": self.scan_run_id,
             "tenant_id": self.tenant_id,
             "rule_id": scenario_id,
-            "rule_source": "correlation",
+            "rule_source": "log_correlation",
             "severity": scenario.get("severity", "high"),
             "status": "OPEN",
-            "primary_engine": scenario.get("engine", "threat_engine"),
-            "engines": [scenario.get("engine", "threat_engine")],
-            "action_category": "correlation",
+            "primary_engine": scenario.get("engine", "ciem"),
+            "engines": [scenario.get("engine", "ciem")],
+            "action_category": "log_correlation",
             "resource_uid": first.get("resource_uid", ""),
             "resource_type": first.get("resource_type", ""),
             "resource_name": first.get("resource_name", ""),

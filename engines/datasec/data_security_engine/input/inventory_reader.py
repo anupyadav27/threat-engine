@@ -15,8 +15,8 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
-import psycopg2
 from psycopg2.extras import RealDictCursor
+from engine_common.db_connections import get_inventory_conn
 
 logger = logging.getLogger(__name__)
 
@@ -44,18 +44,6 @@ DATA_STORE_RESOURCE_TYPES = {
 }
 
 
-def _get_inventory_conn():
-    return psycopg2.connect(
-        host=os.getenv("INVENTORY_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("INVENTORY_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("INVENTORY_DB_NAME", "threat_engine_inventory"),
-        user=os.getenv("INVENTORY_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("INVENTORY_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-        connect_timeout=10,
-    )
-
-
 class DataStoreInventoryReader:
     """Read data store relationships from inventory for lineage building."""
 
@@ -69,24 +57,24 @@ class DataStoreInventoryReader:
 
         Returns list of dicts with source_uid, target_uid, relationship_type, etc.
         """
-        conn = _get_inventory_conn()
+        conn = get_inventory_conn()
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
                     SELECT
-                        source_resource_uid,
-                        source_resource_type,
-                        target_resource_uid,
-                        target_resource_type,
-                        relationship_type,
-                        relationship_data
+                        from_uid          AS source_resource_uid,
+                        from_resource_type AS source_resource_type,
+                        to_uid            AS target_resource_uid,
+                        to_resource_type  AS target_resource_type,
+                        relation_type     AS relationship_type,
+                        properties        AS relationship_data
                     FROM inventory_relationships
                     WHERE scan_run_id = %s
                       AND tenant_id = %s
                       AND (
-                          relationship_type = ANY(%s)
-                          OR source_resource_type = ANY(%s)
-                          OR target_resource_type = ANY(%s)
+                          relation_type = ANY(%s)
+                          OR from_resource_type = ANY(%s)
+                          OR to_resource_type = ANY(%s)
                       )
                 """, [
                     scan_run_id, tenant_id,

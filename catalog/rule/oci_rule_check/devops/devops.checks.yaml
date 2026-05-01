@@ -1,0 +1,121 @@
+version: '1.0'
+provider: oci
+service: devops
+checks:
+- rule_id: oci.devops.project.app_version_artifact_encrypted
+  for_each: oci.devops.list_work_request_logs
+  severity: MEDIUM
+  conditions:
+    var: item.defined_tags.Environment
+    op: exists
+    value: null
+- rule_id: oci.devops.project.app_version_immutable_required
+  for_each: oci.devops.list_work_request_logs
+  severity: LOW
+  conditions:
+    var: item.freeform_tags.app_version_immutable
+    op: exists
+    value: null
+- rule_id: oci.devops.project.no_secrets_in_variables
+  for_each: oci.devops.list_work_request_logs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.freeform_tags
+      op: not_contains
+      value: secret
+    - var: item.defined_tags
+      op: not_contains
+      value: secret
+- rule_id: oci.devops.project.project_artifact_encryption
+  for_each: oci.devops.list_work_request_logs
+  severity: HIGH
+  conditions:
+    var: item.defined_tags.Environment
+    op: exists
+    value: null
+- rule_id: oci.devops.project.project_envvar_awscred
+  for_each: oci.devops.list_work_request_logs
+  severity: LOW
+  conditions:
+    var: item.freeform_tags.Environment
+    op: exists
+    value: null
+- rule_id: oci.devops.project.project_logging_enabled
+  for_each: oci.devops.list_work_request_logs
+  severity: MEDIUM
+  conditions:
+    var: item.ocid
+    op: exists
+    value: null
+- rule_id: oci.devops.project.project_no_public_admin_roles_blocked
+  for_each: oci.devops.list_work_request_logs
+  severity: CRITICAL
+  conditions:
+    var: item.freeform_tags.Environment
+    op: exists
+    value: null
+- rule_id: oci.devops.project.project_object_storage_logs_encrypted
+  for_each: oci.devops.list_work_request_logs
+  severity: MEDIUM
+  conditions:
+    var: item.encryption
+    op: exists
+    value: null
+- rule_id: oci.devops.project.project_older_90_days
+  for_each: oci.devops.list_work_request_logs
+  severity: LOW
+  conditions:
+    all:
+    - var: item.time_created
+      op: exists
+      value: null
+    - var: item.time_created
+      op: gte
+      value: -90d
+- rule_id: oci.devops.project.project_required_guardrail_policies_attached
+  for_each: oci.devops.list_work_request_logs
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.devops.project.project_security_services_mandatory_enabled
+  for_each: oci.devops.list_work_request_logs
+  severity: LOW
+  conditions:
+    all:
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.devops.project.project_source_repo_url
+  for_each: oci.devops.list_work_request_logs
+  severity: LOW
+  conditions:
+    var: item.source_repository_url
+    op: exists
+    value: null
+- rule_id: oci.devops.project.project_user_controlled_buildspec
+  for_each: oci.devops.list_work_request_logs
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.devops.project.source_repo_url_no_sensitive_credentials
+  for_each: oci.devops.list_work_request_logs
+  severity: HIGH
+  conditions:
+    var: item.source_repo_url
+    op: not_contains
+    value: password
+- rule_id: oci.devops.repository.report_group_export_encrypted
+  for_each: oci.devops.list_work_request_logs
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE

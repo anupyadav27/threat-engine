@@ -104,6 +104,29 @@ logger = logging.getLogger('compliance-boto3')
 
 _PLACEHOLDER_SYNC_REMOVED = True  # marker for grep to confirm removal
 
+# ── boto3 client name aliases ─────────────────────────────────────────────────
+# Some discovery_id prefixes (aws.<client>.<action>) are logical names that do
+# NOT map directly to valid boto3 service identifiers.  This dict normalises them
+# before any boto3.client() call — both independent and dependent discoveries.
+#
+# Add new entries here whenever a new discovery_id prefix is introduced that
+# doesn't match the boto3 service name (e.g. aws.newservice.describe_foo →
+# boto3 client name might be "new-service-alias").
+_DISC_CLIENT_ALIASES: Dict[str, str] = {
+    "eip":               "ec2",          # Elastic IPs are an EC2 feature
+    "parameterstore":    "ssm",          # SSM Parameter Store
+    "kinesisfirehose":   "firehose",     # Kinesis Data Firehose
+    "kinesisvideostreams": "kinesisvideo",
+    "identitycenter":    "sso-admin",    # AWS IAM Identity Center
+    "workflows":         "stepfunctions",
+    "cognito":           "cognito-idp",  # Cognito User Pools
+    "edr":               "security-ir",  # AWS Security Incident Response
+    "vpc":               "ec2",          # VPC is an EC2 feature
+    "vpcflowlogs":       "ec2",          # VPC Flow Logs use EC2 client
+    "fargate":           "ecs",          # Fargate uses ECS API
+    "access-analyzer":   "accessanalyzer",  # IAM Access Analyzer (hyphenated in discovery_id)
+}
+
 
 def run_service(
     service_name: str,
@@ -183,8 +206,11 @@ def run_service(
             execution_region = region
             logger.info(f"[UNIFIED] {service_name}: Using provided region={execution_region}")
 
-        # Get boto3 client name from database (replaces hardcoded discovery_helper mapping)
+        # Get boto3 client name from database (fallback only — per-discovery client is
+        # resolved from discovery_id prefix: aws.<client>.<action>)
         boto3_client_name = config_loader.get_boto3_client_name(service_name)
+        # Apply alias: some DB values are logical names, not valid boto3 client ids
+        boto3_client_name = _DISC_CLIENT_ALIASES.get(boto3_client_name, boto3_client_name)
         logger.info(f"[UNIFIED] {service_name}: boto3_client_name={boto3_client_name} (from database)")
 
         # Load service rules
@@ -192,7 +218,9 @@ def run_service(
 
         # Create session with execution region
         session = session_override or get_boto3_session(default_region=execution_region)
-        client = session.client(boto3_client_name, region_name=execution_region, config=BOTO_CONFIG)
+        # client is unused directly — each discovery creates its own local_client from discovery_id.
+        # Kept for backwards-compat; suppress errors from stale boto3_client_name column values.
+        client = None
 
         # Extract account_id for resource identifier generation
         account_id = None
@@ -243,8 +271,13 @@ def run_service(
                 disc_start = time.time()
                 logger.info(f"Processing discovery: {discovery_id}")
 
+                # Resolve boto3 client from discovery_id: aws.<client>.<action>
+                # Uses module-level _DISC_CLIENT_ALIASES to map logical names → real boto3 clients.
+                _disc_parts = discovery_id.split('.')
+                _disc_client_raw = _disc_parts[1] if len(_disc_parts) >= 3 and _disc_parts[0] == 'aws' else service_name
+                _disc_client = _DISC_CLIENT_ALIASES.get(_disc_client_raw, _disc_client_raw)
                 # Create thread-local client for this discovery
-                local_client = session.client(boto3_client_name, region_name=execution_region, config=BOTO_CONFIG)
+                local_client = session.client(_disc_client, region_name=execution_region, config=BOTO_CONFIG)
 
                 # LOCAL response storage — prevents race conditions with parallel discoveries
                 local_saved: Dict[str, Any] = {}
@@ -277,8 +310,8 @@ def run_service(
                         else:
                             # Regular call - thread-safe access to saved_data
                             call_client = local_client
-                            specified_client = call.get('client', service_name)
-                            if specified_client != service_name:
+                            specified_client = call.get('client', _disc_client)
+                            if specified_client != _disc_client:
                                 call_client = session.client(specified_client, region_name=execution_region, config=BOTO_CONFIG)
 
                             # Thread-safe read of saved_data
@@ -1029,6 +1062,7 @@ async def run_service_async(
             logger.info(f"[ASYNC] {service_name}: Using provided region={execution_region}")
 
         boto3_client_name = config_loader.get_boto3_client_name(service_name)
+        boto3_client_name = _DISC_CLIENT_ALIASES.get(boto3_client_name, boto3_client_name)
         logger.info(f"[ASYNC] {service_name}: boto3_client_name={boto3_client_name}")
 
         service_rules = service_rules_override or load_service_rules(service_name)
@@ -2050,6 +2084,96 @@ class AWSDiscoveryScanner:
                 self.account_id = 'unknown'
 
         return self.account_id
+
+    async def list_org_accounts(self) -> List[Dict[str, str]]:
+        """
+        Return all active accounts in the AWS Organization.
+
+        Uses organizations:ListAccounts with the current session's credentials.
+        The session must belong to the management account (or a delegated admin)
+        with organizations:ListAccounts permission.
+
+        Requires env var SCAN_ORG_ENABLED=true to activate — returns [] otherwise
+        so the engine falls back to single-account mode.
+
+        Returns:
+            List of {'id': account_id, 'name': account_name} dicts for ACTIVE accounts.
+        """
+        if os.getenv('SCAN_ORG_ENABLED', 'false').lower() != 'true':
+            return []
+
+        if not self.session:
+            self.authenticate()
+
+        def _list_accounts() -> List[Dict[str, str]]:
+            org = self.session.client('organizations', region_name='us-east-1', config=BOTO_CONFIG)
+            accounts: List[Dict[str, str]] = []
+            paginator = org.get_paginator('list_accounts')
+            for page in paginator.paginate():
+                for acct in page.get('Accounts', []):
+                    if acct.get('Status') == 'ACTIVE':
+                        accounts.append({'id': acct['Id'], 'name': acct.get('Name', acct['Id'])})
+            return accounts
+
+        loop = asyncio.get_event_loop()
+        try:
+            accounts = await loop.run_in_executor(None, _list_accounts)
+            logger.info(f"[ORG] Discovered {len(accounts)} active accounts in organization")
+            return accounts
+        except Exception as e:
+            logger.warning(f"[ORG] list_org_accounts() failed — falling back to single account: {e}")
+            return []
+
+    def clone_for_account(self, account_id: str) -> 'AWSDiscoveryScanner':
+        """
+        Return a new AWSDiscoveryScanner authenticated to the given sub-account.
+
+        Assumes arn:aws:iam::<account_id>:role/<ORG_ROLE_NAME> using the current
+        session as the base. The role name is read from env var ORG_ROLE_NAME
+        (default: ThreatEngineScanRole).
+
+        Args:
+            account_id: Target AWS account ID (12-digit)
+
+        Returns:
+            New AWSDiscoveryScanner with a session scoped to account_id
+        """
+        if not self.session:
+            self.authenticate()
+
+        role_name = os.getenv('ORG_ROLE_NAME', 'ThreatEngineScanRole')
+        external_id = os.getenv('AWS_EXTERNAL_ID')
+        role_arn = f"arn:aws:iam::{account_id}:role/{role_name}"
+
+        try:
+            sts = self.session.client('sts', region_name='us-east-1', config=BOTO_CONFIG)
+            creds = sts.assume_role(
+                RoleArn=role_arn,
+                RoleSessionName=os.getenv('AWS_ROLE_SESSION_NAME', 'ThreatEngineScan'),
+                DurationSeconds=int(os.getenv('ASSUMED_ROLE_DURATION', '3600')),
+                **({'ExternalId': external_id} if external_id else {}),
+            )['Credentials']
+
+            cloned = AWSDiscoveryScanner(
+                credentials={
+                    'access_key_id': creds['AccessKeyId'],
+                    'secret_access_key': creds['SecretAccessKey'],
+                    'session_token': creds['SessionToken'],
+                },
+                provider='aws',
+                default_region=self.default_region,
+            )
+            cloned.authenticate()
+            logger.info(f"[ORG] Cloned scanner for account {account_id} (role={role_name})")
+            return cloned
+
+        except Exception as e:
+            logger.warning(
+                f"[ORG] clone_for_account({account_id}) failed ({e}) — using base session"
+            )
+            # Fall back to this same scanner — may produce access-denied errors for
+            # resources in the target account, but won't abort the whole scan.
+            return self
 
 
 # ============================================================================

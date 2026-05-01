@@ -7,7 +7,7 @@ resources with multiple overlapping threats. Orca-style view.
 from collections import defaultdict
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
 from ._shared import fetch_many, safe_get
 
@@ -43,6 +43,7 @@ def _build_cooccurrence_matrix(combos: List[dict]) -> dict:
 
 @router.get("/threats/toxic-combinations")
 async def view_threat_toxic_combos(
+    request: Request,
     tenant_id: str = Query(...),
     scan_run_id: Optional[str] = Query(None),
     min_threats: int = Query(2, ge=2),
@@ -52,6 +53,9 @@ async def view_threat_toxic_combos(
     Reads from PostgreSQL: groups threat_detections by resource_uid
     to find resources with 2+ overlapping threats.
     """
+
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 
     params: Dict[str, str] = {
         "tenant_id": tenant_id,
@@ -63,7 +67,7 @@ async def view_threat_toxic_combos(
 
     results = await fetch_many([
         ("threat", "/api/v1/threat/analysis/toxic-combinations", params),
-    ])
+    ], auth_headers=fwd_headers)
 
     raw = results[0]
     if not isinstance(raw, dict):

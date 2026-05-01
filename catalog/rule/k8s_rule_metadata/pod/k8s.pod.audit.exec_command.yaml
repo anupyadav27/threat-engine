@@ -1,0 +1,46 @@
+rule_id: k8s.pod.audit.exec_command
+rule_type: ciem
+title: 'Pod: Exec Command in Running Container'
+scope: pod.audit
+domain: container_and_kubernetes_security
+subcategory: container_security
+severity: high
+service: pod
+resource: audit
+requirement: Exec Command
+description: kubectl exec used to run commands in a running pod — interactive shell
+  access by a non-CI/CD user, especially in production namespaces, indicates active
+  intrusion.
+rationale: Adversaries execute commands inside running Kubernetes pods via the kubectl
+  exec API — achieving interactive shell access without SSH or network access to the
+  pod. Pod exec by non-CI/CD users or service accounts, especially in production namespaces,
+  indicates unauthorized access or post-exploitation activity. Detected via K8s audit
+  logs for pods/exec subresource with create verb.
+remediation: '1. Audit the created pod or container for malicious images or startup
+  commands.
+
+  2. Enforce Binary Authorization or Cosign image signing via admission webhooks.
+
+  3. Apply Pod Security Standards (Restricted profile) to prevent privileged execution.
+
+  4. Restrict pod creation to specific service accounts in production namespaces.
+
+  5. Enable runtime threat detection (Falco, Tetragon) for anomalous container behavior.
+
+  '
+references:
+- https://attack.mitre.org/techniques/T1609/
+- https://kubernetes.io/docs/tasks/debug/debug-application/get-shell-running-container/
+compliance:
+- nist_800_171_r2_3_1_10
+- nist_800_171_r2_3_1_15
+threat_category: execution
+mitre_tactics:
+- execution
+mitre_techniques:
+- T1609
+risk_score: 82
+action_category: execute
+source: default
+metadata_source: auto_generated
+generated_by: k8s_ciem_generator

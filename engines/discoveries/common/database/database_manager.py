@@ -11,13 +11,8 @@ from psycopg2.pool import SimpleConnectionPool
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 from urllib.parse import urlparse
-import sys
 import logging
 
-# Import local database config
-_engine_path = os.path.join(os.path.dirname(__file__), "..", "..")
-sys.path.insert(0, _engine_path)
-from consolidated_services.database.config import get_database_config
 
 logger = logging.getLogger(__name__)
 
@@ -43,26 +38,23 @@ class DatabaseManager:
     def __init__(self, db_config: Optional[Dict] = None):
         """
         Initialize database connection for discoveries engine.
-        
+
         Args:
-            db_config: Optional override (for testing). Normally uses consolidated DB config.
+            db_config: Optional override (for testing). Normally reads env vars.
         """
-        # Get consolidated database config (required - no fallback)
-        try:
-            db_config_obj = get_database_config("discoveries")
-            # Convert to dict format for compatibility
-            self.db_config = {
-                "host": db_config_obj.host,
-                "port": db_config_obj.port,
-                "database": db_config_obj.database,
-                "user": db_config_obj.username,
-                "password": db_config_obj.password,
-            }
-            logger.info(f"Using consolidated discoveries database: {db_config_obj.database} on {db_config_obj.host}")
-        except Exception as e:
-            logger.error(f"Failed to get consolidated DB config: {e}")
-            raise RuntimeError("Consolidated database configuration is required. Cannot proceed without it.") from e
-        
+        self.db_config = {
+            "host": os.getenv("DISCOVERIES_DB_HOST", os.getenv("DB_HOST", "localhost")),
+            "port": int(os.getenv("DISCOVERIES_DB_PORT", os.getenv("DB_PORT", "5432"))),
+            "database": os.getenv("DISCOVERIES_DB_NAME", "threat_engine_discoveries"),
+            "user": os.getenv("DISCOVERIES_DB_USER", os.getenv("DB_USER", "postgres")),
+            "password": (
+                os.getenv("DISCOVERIES_DB_PASSWORD")
+                or os.getenv("DB_PASSWORD")
+                or ""
+            ),
+        }
+        logger.info(f"Using discoveries database: {self.db_config['database']} on {self.db_config['host']}")
+
         # Allow override for testing
         if db_config is not None:
             self.db_config.update(db_config)
@@ -194,7 +186,37 @@ class DatabaseManager:
             conn.commit()
         finally:
             self._return_connection(conn)
-    
+
+    def update_scan_metadata(self, scan_id: str, metadata: Dict) -> None:
+        """
+        Merge extra key/value pairs into discovery_report.metadata JSONB.
+
+        Used to persist the timing report at the end of a scan so it can be
+        queried later without parsing pod logs.
+
+        Args:
+            scan_id:  The scan_run_id to update.
+            metadata: Dict to merge (uses jsonb || operator — existing keys kept,
+                      new/changed keys from metadata take precedence).
+        """
+        conn = self._get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE discovery_report
+                    SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+                    WHERE scan_run_id = %s
+                """, (json.dumps(metadata), scan_id))
+            conn.commit()
+        except Exception as e:
+            logger.warning(f"update_scan_metadata failed for {scan_id} (non-critical): {e}")
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+        finally:
+            self._return_connection(conn)
+
     # Discovery Storage
     def _calculate_config_hash(self, item: Dict) -> str:
         """Calculate SHA256 hash of configuration"""
@@ -408,7 +430,7 @@ class DatabaseManager:
                              discovery_id, resource_uid, scan_run_id, config_hash,
                              raw_response, emitted_fields, version, change_type,
                              previous_hash, diff_summary)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            VALUES (COALESCE(%s, 'default'), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """, history_batch)
                         conn.commit()
                     except Exception as hist_err:

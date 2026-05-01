@@ -1,0 +1,97 @@
+version: '1.0'
+provider: gcp
+service: artifactregistry
+checks:
+- rule_id: gcp.artifactregistry.lifecycle_policy.lifecycle_policy_policy_storage_encrypted
+  for_each: gcp.artifactregistry.projects.locations.repositories.list
+  severity: HIGH
+  conditions:
+    var: item.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.artifactregistry.lifecycle_policy.lifecycle_policy_unused_or_old_tags_expire
+  for_each: gcp.artifactregistry.projects.locations.repositories.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.cleanupPolicies
+      op: exists
+      value: null
+    - var: item.cleanupPolicies[].action.type
+      op: contains
+      value: DELETE
+- rule_id: gcp.artifactregistry.policy.registry_policy_no_public_pull_push
+  for_each: gcp.artifactregistry.projects.locations.repositories.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.iamPolicy.bindings[].members[]
+      op: not_contains
+      value: allUsers
+    - var: item.iamPolicy.bindings[].members[]
+      op: not_contains
+      value: allAuthenticatedUsers
+- rule_id: gcp.artifactregistry.policy.registry_policy_no_wildcard_admin
+  for_each: gcp.artifactregistry.projects.locations.repositories.list
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.iamPolicy.bindings[].role
+      op: not_contains
+      value: roles/artifactregistry.admin
+    - var: item.iamPolicy.bindings[].members[]
+      op: not_contains
+      value: '*'
+- rule_id: gcp.artifactregistry.replication_config.registry_replication_cross_region_encrypted
+  for_each: gcp.artifactregistry.projects.locations.repositories.list
+  severity: HIGH
+  conditions:
+    var: item.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.artifactregistry.replication_config.registry_replication_destinations_least_privilege
+  for_each: gcp.artifactregistry.projects.locations.repositories.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.remoteRepositoryConfig
+      op: exists
+      value: null
+    - var: item.remoteRepositoryConfig.upstreamCredentials
+      op: not_exists
+      value: null
+- rule_id: gcp.artifactregistry.repo.registry_image_scanning_enabled
+  for_each: gcp.artifactregistry.projects.locations.repositories.list
+  severity: HIGH
+  conditions:
+    var: item.dockerConfig.imageScanningEnabled
+    op: is_true
+    value: null
+- rule_id: gcp.artifactregistry.repo.registry_immutable_tags_or_signing_enforced
+  for_each: gcp.artifactregistry.projects.locations.repositories.list
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.cleanupPolicies[].action.type
+      op: equals
+      value: DELETE
+    - var: item.cleanupPolicies[].action.type
+      op: equals
+      value: KEEP
+    - var: item.cleanupPolicies[].action.type
+      op: equals
+      value: KEEP_ONLY_URIS
+    - var: item.cleanupPolicies[].action.type
+      op: equals
+      value: DELETE_ONLY_URIS
+- rule_id: gcp.artifactregistry.repo.registry_repo_private_or_access_restricted
+  for_each: gcp.artifactregistry.projects.locations.repositories.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.mode
+      op: equals
+      value: STANDARD_REPOSITORY
+    - var: item.remoteRepositoryConfig
+      op: not_exists
+      value: null

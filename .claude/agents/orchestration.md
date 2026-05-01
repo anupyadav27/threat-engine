@@ -42,7 +42,7 @@ Each engine is triggered via HTTP POST to its scan endpoint. The engine then:
 ### Engine Trigger Endpoints
 | Engine | Trigger URL | Status URL | Timeout |
 |--------|-------------|------------|---------|
-| Discovery | `POST /api/v1/discovery` | `GET /api/v1/discovery/{id}` | 7200s |
+| Discovery | `POST /api/v1/scan` | `GET /api/v1/discovery/{id}/status` | 7200s |
 | Check | `POST /api/v1/scan` | `GET /api/v1/check/{id}/status` | 3600s |
 | Inventory | `POST /api/v1/scan` | `GET /api/v1/inventory/scan/{id}/status` | 3600s |
 | Threat | `POST /api/v1/scan` | `GET /api/v1/threat/{id}/status` | 3600s |

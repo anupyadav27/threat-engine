@@ -9,7 +9,8 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements and install dependencies
 COPY engines/discoveries/requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+COPY engines/discoveries/providers/azure/requirements.txt ./requirements-azure.txt
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-azure.txt
 
 # Copy multi-cloud provider code
 COPY engines/discoveries/providers/ ./providers/
@@ -26,8 +27,8 @@ COPY engines/discoveries/run_scan.py ./run_scan.py
 # Shared utilities (destination matches Python imports: engine_common.*)
 COPY shared/common/ ./engine_common/
 
-# Shared database (orchestration_client, schemas — import as consolidated_services.*)
-COPY shared/database/ ./consolidated_services/
+# Auth module (destination matches Python imports: engine_auth.*)
+COPY shared/auth/ ./engine_auth/
 
 # Onboarding storage + config (credential fetcher needs config.settings)
 COPY engines/onboarding/storage/ ./engine_onboarding/storage/

@@ -47,6 +47,8 @@ import re
 import logging
 from typing import Dict, Any, Optional, List
 
+from engine_common.db_connections import get_inventory_conn
+
 logger = logging.getLogger(__name__)
 
 
@@ -180,18 +182,11 @@ class ResourceCatalogLoader:
         Returns None on connection failure.
         """
         try:
-            import psycopg2
-
             if self._db_url:
+                import psycopg2
                 return psycopg2.connect(self._db_url)
 
-            return psycopg2.connect(
-                host=os.getenv("INVENTORY_DB_HOST", os.getenv("DB_HOST", "localhost")),
-                port=int(os.getenv("INVENTORY_DB_PORT", os.getenv("DB_PORT", "5432"))),
-                dbname=os.getenv("INVENTORY_DB_NAME", "threat_engine_inventory"),
-                user=os.getenv("INVENTORY_DB_USER", os.getenv("DB_USER", "postgres")),
-                password=os.getenv("INVENTORY_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-            )
+            return get_inventory_conn()
         except Exception as exc:
             logger.warning(f"ResourceCatalogLoader: cannot connect to inventory DB: {exc}")
             return None

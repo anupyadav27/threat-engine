@@ -1,0 +1,26 @@
+version: '1.0'
+provider: gcp
+service: app
+discovery:
+- discovery_id: gcp.appengine.apps.authorizedCertificates.list
+  calls:
+  - action: apps.authorizedCertificates.list
+    params:
+      appsId: '{{ item.name }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.authorizedCertificates }}'
+    item:
+      certificateRawData: '{{ item.certificateRawData }}'
+      displayName: '{{ item.displayName }}'
+      domainMappingsCount: '{{ item.domainMappingsCount }}'
+      domainNames: '{{ item.domainNames }}'
+      expireTime: '{{ item.expireTime }}'
+      id: '{{ item.id }}'
+      managedCertificate: '{{ item.managedCertificate }}'
+      name: '{{ item.name }}'
+      visibleDomainMappings: '{{ item.visibleDomainMappings }}'
+  _used_by_rules:
+  - gcp.app.engine.managed_updates_enabled

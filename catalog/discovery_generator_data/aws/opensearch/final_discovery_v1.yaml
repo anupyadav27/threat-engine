@@ -1,0 +1,98 @@
+# ==========================================================
+# Discovery YAML — opensearch (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 14 | ops: 1 independent, 1 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: opensearch
+
+services:
+  client: opensearch
+  module: "boto3.client('opensearch')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: domain_name
+    identifier_op: aws.opensearch.list_domain_names
+    identifier_field: DomainName
+    item_var_path: item.DomainName
+    identifier_template: '{domainname}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.opensearch.list_domain_names  ──
+  - discovery_id: aws.opensearch.list_domain_names
+    calls:
+      - action: list_domain_names
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.DomainNames }}'
+      item:
+        DomainName: '{{ item.DomainName }}'
+        EngineType: '{{ item.EngineType }}'
+        item: '{{ item }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.opensearch.describe_domain [dependent] ──
+  - discovery_id: aws.opensearch.describe_domain
+    for_each: aws.opensearch.list_domain_names
+    calls:
+      - action: describe_domain
+        params:
+          DomainName: "{{ item.DomainName }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        AIMLOptions: '{{ item.AIMLOptions }}'
+        ARN: '{{ item.ARN }}'
+        AccessPolicies: '{{ item.AccessPolicies }}'
+        AdvancedOptions: '{{ item.AdvancedOptions }}'
+        AdvancedSecurityOptions: '{{ item.AdvancedSecurityOptions }}'
+        AdvancedSecurityOptions.InternalUserDatabaseEnabled: '{{ item.AdvancedSecurityOptions.InternalUserDatabaseEnabled }}'
+        AutoTuneOptions: '{{ item.AutoTuneOptions }}'
+        ChangeProgressDetails: '{{ item.ChangeProgressDetails }}'
+        ClusterConfig: '{{ item.ClusterConfig }}'
+        ClusterConfig.DedicatedMasterEnabled: '{{ item.ClusterConfig.DedicatedMasterEnabled }}'
+        ClusterConfig.InstanceCount: '{{ item.ClusterConfig.InstanceCount }}'
+        CognitoOptions: '{{ item.CognitoOptions }}'
+        Created: '{{ item.Created }}'
+        Deleted: '{{ item.Deleted }}'
+        DomainEndpointOptions: '{{ item.DomainEndpointOptions }}'
+        DomainEndpointV2HostedZoneId: '{{ item.DomainEndpointV2HostedZoneId }}'
+        DomainId: '{{ item.DomainId }}'
+        DomainName: '{{ item.DomainName }}'
+        DomainProcessingStatus: '{{ item.DomainProcessingStatus }}'
+        EBSOptions: '{{ item.EBSOptions }}'
+        EncryptionAtRestOptions: '{{ item.EncryptionAtRestOptions }}'
+        EncryptionAtRestOptions.Enabled: '{{ item.EncryptionAtRestOptions.Enabled }}'
+        Endpoint: '{{ item.Endpoint }}'
+        EndpointOptions: '{{ item.EndpointOptions }}'
+        EndpointOptions.EnforceHTTPS: '{{ item.EndpointOptions.EnforceHTTPS }}'
+        EndpointV2: '{{ item.EndpointV2 }}'
+        Endpoints: '{{ item.Endpoints }}'
+        EngineVersion: '{{ item.EngineVersion }}'
+        IPAddressType: '{{ item.IPAddressType }}'
+        IdentityCenterOptions: '{{ item.IdentityCenterOptions }}'
+        LogPublishingOptions: '{{ item.LogPublishingOptions }}'
+        LogPublishingOptions.AUDIT_LOGS.Enabled: '{{ item.LogPublishingOptions.AUDIT_LOGS.Enabled }}'
+        LogPublishingOptions.ES_APPLICATION_LOGS.Enabled: '{{ item.LogPublishingOptions.ES_APPLICATION_LOGS.Enabled }}'
+        ModifyingProperties: '{{ item.ModifyingProperties }}'
+        NodeToNodeEncryptionOptions: '{{ item.NodeToNodeEncryptionOptions }}'
+        NodeToNodeEncryptionOptions.Enabled: '{{ item.NodeToNodeEncryptionOptions.Enabled }}'
+        OffPeakWindowOptions: '{{ item.OffPeakWindowOptions }}'
+        Processing: '{{ item.Processing }}'
+        ServiceSoftwareOptions: '{{ item.ServiceSoftwareOptions }}'
+        SnapshotOptions: '{{ item.SnapshotOptions }}'
+        SoftwareUpdateOptions: '{{ item.SoftwareUpdateOptions }}'
+        UpgradeProcessing: '{{ item.UpgradeProcessing }}'
+        VPCOptions: '{{ item.VPCOptions }}'
+

@@ -27,33 +27,25 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
 from engine_common.logger import setup_logger
 from engine_common.orchestration import get_orchestration_metadata
-from engine_common.retention import cleanup_old_scans
+from engine_common.db_connections import get_iam_conn
 
 logger = setup_logger(__name__, engine_name="iam-scanner")
-
-
-def _get_iam_conn():
-    """Get psycopg2 connection to the IAM database."""
-    import psycopg2
-    return psycopg2.connect(
-        host=os.getenv("IAM_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("IAM_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("IAM_DB_NAME", "threat_engine_iam"),
-        user=os.getenv("IAM_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("IAM_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-    )
 
 
 def _update_report_status(scan_run_id: str, status: str, error: str = None):
     """Update iam_report status in DB."""
     try:
-        conn = _get_iam_conn()
+        conn = get_iam_conn()
         with conn.cursor() as cur:
             if error:
                 cur.execute(
                     "UPDATE iam_report SET status = %s, report_data = %s::jsonb WHERE scan_run_id = %s",
                     (status, __import__('json').dumps({"error": error}), scan_run_id),
+                )
+            elif status == "completed":
+                cur.execute(
+                    "UPDATE iam_report SET status = %s, generated_at = NOW() WHERE scan_run_id = %s",
+                    (status, scan_run_id),
                 )
             else:
                 cur.execute(
@@ -70,7 +62,7 @@ def _create_report_row(scan_run_id: str, tenant_id: str, provider: str,
                        threat_scan_id: str, metadata: dict):
     """Pre-create iam_report row with status='running'."""
     try:
-        conn = _get_iam_conn()
+        conn = get_iam_conn()
         with conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO iam_report
@@ -141,88 +133,25 @@ def main():
             tenant_id=tenant_id,
         )
 
-        # 4.5 NEW: Policy analysis from discovery data
-        discovery_scan_id = scan_run_id
+        # 4.5: Provider-specific IAM analysis (policy parsing, trust analysis, detectors)
         account_id = metadata.get("account_id", "")
-        policy_findings = []
-        managed_policies = []
-        inline_policies = []
-        trust_relationships = []
-        discovery_roles = []
-        discovery_users = []
-        discovery_groups = []
-        discovery_instance_profiles = []
 
-        if discovery_scan_id:
-            try:
-                from iam_engine.parsers.policy_parser import (
-                    extract_managed_policies, extract_inline_policies,
-                    extract_trust_policies, policies_to_db_rows,
-                )
-                from iam_engine.parsers.trust_analyzer import TrustAnalyzer
-                from iam_engine.detectors.policy_detector import run_all_detectors
-
-                data_source = os.getenv("IAM_DATA_SOURCE", "discovery").lower()
-                if data_source == "inventory":
-                    from iam_engine.input.inventory_reader import IAMInventoryReader
-                    logger.info(f"Loading IAM data from inventory_findings: scan={discovery_scan_id}")
-                    reader = IAMInventoryReader()
-                else:
-                    from iam_engine.input.discovery_db_reader import IAMDiscoveryReader
-                    logger.info(f"Loading IAM discovery data: scan={discovery_scan_id}")
-                    reader = IAMDiscoveryReader()
-                resources = reader.load_iam_resources(discovery_scan_id, tenant_id, account_id or None)
-                reader.close()
-
-                # Extract structured data
-                discovery_roles = reader.get_roles(resources)
-                discovery_users = reader.get_users(resources)
-                discovery_groups = reader.get_groups(resources)
-                discovery_instance_profiles = reader.get_instance_profiles(resources)
-                discovery_policies = reader.get_policies(resources)
-
-                # Parse policies
-                managed_policies = extract_managed_policies(discovery_policies, account_id)
-                logger.info(f"Parsed {len(managed_policies)} managed policies")
-
-                for role in discovery_roles:
-                    inline_policies.extend(extract_inline_policies(role, "role"))
-                for user in discovery_users:
-                    inline_policies.extend(extract_inline_policies(user, "user"))
-                logger.info(f"Parsed {len(inline_policies)} inline policies")
-
-                trust_policies = extract_trust_policies(discovery_roles)
-                logger.info(f"Parsed {len(trust_policies)} trust policies")
-
-                # Analyze trust relationships
-                trust_analyzer = TrustAnalyzer()
-                trust_relationships = trust_analyzer.analyze_trust_policies(discovery_roles, account_id)
-                risky_trusts = trust_analyzer.find_risky_trusts(trust_relationships)
-                logger.info(f"Found {len(risky_trusts)} risky trust relationships")
-
-                # Save policy statements to DB
-                all_parsed = managed_policies + inline_policies + trust_policies
-                db_rows = policies_to_db_rows(all_parsed, scan_run_id, tenant_id, account_id)
-                try:
-                    from iam_engine.storage.iam_db_writer import save_policy_statements
-                    stmt_count = save_policy_statements(scan_run_id, tenant_id, db_rows)
-                    logger.info(f"Saved {stmt_count} policy statements to iam_policy_statements")
-                except Exception as e:
-                    logger.error(f"Error saving policy statements: {e}", exc_info=True)
-
-                # Run policy-based detectors
-                policy_findings = run_all_detectors(
-                    managed_policies=managed_policies,
-                    inline_policies=inline_policies,
-                    trust_relationships=trust_relationships,
-                    account_id=account_id,
-                )
-                logger.info(f"Policy detectors generated {len(policy_findings)} findings")
-
-            except Exception as e:
-                logger.error(f"Policy analysis failed (non-fatal): {e}", exc_info=True)
-        else:
-            logger.warning("No scan_run_id in orchestration — skipping policy analysis")
+        from iam_engine.providers import get_provider as get_iam_provider
+        logger.info(f"Running IAM provider analysis for provider={provider}")
+        iam_provider = get_iam_provider(provider)
+        iam_result = iam_provider.analyze(
+            scan_run_id=scan_run_id,
+            tenant_id=tenant_id,
+            account_id=account_id,
+        )
+        policy_findings = iam_result["policy_findings"]
+        managed_policies = iam_result.get("managed_policies", [])
+        inline_policies = iam_result.get("inline_policies", [])
+        trust_relationships = iam_result.get("trust_relationships", [])
+        discovery_roles = iam_result.get("roles", [])
+        discovery_users = iam_result.get("users", [])
+        discovery_groups = iam_result.get("groups", [])
+        discovery_instance_profiles = iam_result.get("instance_profiles", [])
 
         # ── CIEM Enrichment: actual usage from CloudTrail logs ──
         try:
@@ -258,11 +187,30 @@ def main():
             if cross_account:
                 logger.info(f"CIEM: {len(cross_account)} cross-account access patterns")
 
+            # Map CIEM action_category → IAM module tabs so findings surface
+            # in the correct section of the IAM page (roles / access_keys /
+            # privilege_escalation) rather than landing in a catch-all list.
+            _CIEM_MODULE_MAP = {
+                "overprivilege":     ["least_privilege"],
+                "least_privilege":   ["least_privilege"],
+                "policy_management": ["role_management"],
+                "identity_hygiene":  ["role_management"],
+                "anomaly":           ["role_management"],
+                "cross_account":     ["access_control"],
+                "defense_evasion":   ["access_control"],
+                "data_access":       ["access_control"],
+                "compute_access":    ["access_control"],
+                "credential":        ["access_control"],
+                "log_correlation":   ["access_control"],
+            }
+
             # Get CIEM findings for IAM and merge into policy_findings
             ciem_findings = ciem.get_ciem_findings(engine_filter="ciem")
             if ciem_findings:
                 logger.info(f"CIEM: {len(ciem_findings)} IAM-relevant findings from CIEM")
                 for cf in ciem_findings:
+                    action_cat = cf.get("action_category", "")
+                    iam_modules = _CIEM_MODULE_MAP.get(action_cat, ["role_management"])
                     policy_findings.append({
                         "finding_id": cf.get("finding_id", ""),
                         "rule_id": cf.get("rule_id", ""),
@@ -274,6 +222,7 @@ def main():
                         "account_id": cf.get("account_id", account_id or ""),
                         "region": cf.get("region", "global"),
                         "provider": provider or "aws",
+                        "iam_security_modules": iam_modules,
                         "finding_data": {
                             "source": "ciem",
                             "title": cf.get("title", ""),
@@ -286,7 +235,7 @@ def main():
                             "domain": cf.get("domain", ""),
                             "actor_principal": cf.get("actor_principal", ""),
                             "operation": cf.get("operation", ""),
-                            "action_category": cf.get("action_category", ""),
+                            "action_category": action_cat,
                             "event_time": str(cf.get("event_time", "")),
                         },
                     })
@@ -305,8 +254,10 @@ def main():
                         "resource_uid": role.get("_resource_uid", role.get("Arn", "")),
                         "resource_type": "iam.role",
                         "account_id": account_id,
-                        "provider": "aws",
+                        "provider": provider,
+                        "iam_security_modules": ["role_management"],
                         "finding_data": {
+                            "source": "ciem",
                             "module": "ciem_usage_analysis",
                             "role_name": role.get("RoleName"),
                             "last_activity": None,
@@ -344,7 +295,7 @@ def main():
             logger.error(f"Error saving IAM report to database: {e}", exc_info=True)
 
         # 4.7 NEW: Create Neo4j graph edges
-        if discovery_scan_id and (discovery_roles or discovery_users):
+        if discovery_roles or discovery_users:
             try:
                 from iam_engine.graph.neo4j_writer import IAMGraphWriter
                 neo4j_password = os.getenv("NEO4J_PASSWORD", "")
@@ -386,11 +337,13 @@ def main():
         findings_count = len(report.get("findings", []))
         logger.info(f"IAM scan completed: {scan_run_id} — {findings_count} findings in {duration:.1f}s")
 
-        # 6. Retention cleanup (keep last 3 scans per tenant)
+        # Retention: archive old scans to S3, keep last 5 in DB
         try:
-            cleanup_old_scans("iam", tenant_id, keep=3)
-        except Exception as e:
-            logger.warning(f"Retention cleanup failed: {e}")
+            from engine_common.retention import run_retention
+            run_retention("iam", scan_run_id)
+        except Exception as _ret_err:
+            logger.warning("Retention cleanup skipped: %s", _ret_err)
+
 
     except Exception as e:
         logger.error(f"IAM scan FAILED: {e}", exc_info=True)

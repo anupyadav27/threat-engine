@@ -1,0 +1,141 @@
+# Discovery YAML — imagebuilder (Azure)
+# Generated: 2026-04-15T10:39:30Z
+# Source: step1b_operation_registry.json (qualified ops + dependency chains)
+# Actions use {category}.{method} format for SDK method resolution
+version: '1.0'
+provider: azure
+service: imagebuilder
+services:
+  client: imagebuilder
+  module: azure.mgmt.imagebuilder
+discovery:
+  # ── virtualmachineimagetemplates.list [root] ──
+  - discovery_id: azure.imagebuilder.virtualmachineimagetemplates.list
+    calls:
+      - action: virtualmachineimagetemplates.list
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        type: '{{ item.type }}'
+        location: '{{ item.location }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+        auto_run: '{{ item.auto_run }}'
+        build_timeout_in_minutes: '{{ item.build_timeout_in_minutes }}'
+        customize: '{{ item.customize }}'
+        distribute: '{{ item.distribute }}'
+        error_handling: '{{ item.error_handling }}'
+        exact_staging_resource_group: '{{ item.exact_staging_resource_group }}'
+        last_run_status: '{{ item.last_run_status }}'
+        managed_resource_tags: '{{ item.managed_resource_tags }}'
+        optimize: '{{ item.optimize }}'
+        provisioning_error: '{{ item.provisioning_error }}'
+        source: '{{ item.source }}'
+        staging_resource_group: '{{ item.staging_resource_group }}'
+        system_data: '{{ item.system_data }}'
+        validate: '{{ item.validate }}'
+        vm_profile: '{{ item.vm_profile }}'
+  # ── virtualmachineimagetemplates.list_by_resource_group [root] ──
+  - discovery_id: azure.imagebuilder.virtualmachineimagetemplates.list_by_resource_group
+    calls:
+      - action: virtualmachineimagetemplates.list_by_resource_group
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        type: '{{ item.type }}'
+        location: '{{ item.location }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+        auto_run: '{{ item.auto_run }}'
+        build_timeout_in_minutes: '{{ item.build_timeout_in_minutes }}'
+        customize: '{{ item.customize }}'
+        distribute: '{{ item.distribute }}'
+        error_handling: '{{ item.error_handling }}'
+        exact_staging_resource_group: '{{ item.exact_staging_resource_group }}'
+        last_run_status: '{{ item.last_run_status }}'
+        managed_resource_tags: '{{ item.managed_resource_tags }}'
+        optimize: '{{ item.optimize }}'
+        provisioning_error: '{{ item.provisioning_error }}'
+        source: '{{ item.source }}'
+        staging_resource_group: '{{ item.staging_resource_group }}'
+        system_data: '{{ item.system_data }}'
+        validate: '{{ item.validate }}'
+        vm_profile: '{{ item.vm_profile }}'
+  # ════════════════════════════════════════
+  # Dependent operations (for_each + params)
+  # ════════════════════════════════════════
+  # ── triggers.list_by_image_template [dependent] ──
+  - discovery_id: azure.imagebuilder.triggers.list_by_image_template
+    for_each: azure.imagebuilder.virtualmachineimagetemplates.list
+    calls:
+      - action: triggers.list_by_image_template
+        save_as: response
+        on_error: continue
+        params:
+          image_template_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        status: '{{ item.status }}'
+        kind: '{{ item.kind }}'
+        id: '{{ item.id }}'
+        system_data: '{{ item.system_data }}'
+  # ── virtualmachineimagetemplates.get_run_output [dependent] ──
+  - discovery_id: azure.imagebuilder.virtualmachineimagetemplates.get_run_output
+    for_each: azure.imagebuilder.virtualmachineimagetemplates.list
+    calls:
+      - action: virtualmachineimagetemplates.get_run_output
+        save_as: response
+        on_error: continue
+        params:
+          image_template_name: '{{ item.name }}'
+    emit:
+      as: item
+      item:
+        identity: '{{ response.identity }}'
+        type: '{{ response.type }}'
+        properties: '{{ response.properties }}'
+        location: '{{ response.location }}'
+        sku: '{{ response.sku }}'
+        name: '{{ response.name }}'
+        provisioning_state: '{{ response.provisioning_state }}'
+        zones: '{{ response.zones }}'
+        kind: '{{ response.kind }}'
+        id: '{{ response.id }}'
+        tags: '{{ response.tags }}'
+  # ── virtualmachineimagetemplates.list_run_outputs [dependent] ──
+  - discovery_id: azure.imagebuilder.virtualmachineimagetemplates.list_run_outputs
+    for_each: azure.imagebuilder.virtualmachineimagetemplates.list
+    calls:
+      - action: virtualmachineimagetemplates.list_run_outputs
+        save_as: response
+        on_error: continue
+        params:
+          image_template_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        artifact_id: '{{ item.artifact_id }}'
+        artifact_uri: '{{ item.artifact_uri }}'
+        system_data: '{{ item.system_data }}'

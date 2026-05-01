@@ -1,0 +1,515 @@
+version: '1.0'
+provider: k8s
+service: pod
+checks:
+- rule_id: k8s.pod.backup.annotation_present
+  for_each: k8s.pod.list
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations.backup
+    op: exists
+    value: null
+- rule_id: k8s.pod.backup.annotations_configured
+  for_each: k8s.pod.list
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations
+    op: not_empty
+    value: null
+- rule_id: k8s.pod.configuration.compliance_check
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    all:
+    - var: item.spec.containers[].securityContext.privileged
+      op: is_false
+      value: null
+    - var: item.spec.containers[].securityContext.readOnlyRootFilesystem
+      op: is_true
+      value: null
+    - var: item.spec.containers[].securityContext.runAsNonRoot
+      op: is_true
+      value: null
+- rule_id: k8s.pod.container.config_enforced
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    var: item.spec.containers[].securityContext
+    op: exists
+    value: null
+- rule_id: k8s.pod.container.horizontal_autoscaler_enabled
+  for_each: k8s.apps.list_deployments
+  severity: LOW
+  conditions:
+    var: item.spec.template.metadata.annotations['autoscaling.alpha.kubernetes.io/enabled']
+    op: is_true
+    value: null
+- rule_id: k8s.pod.container.host_network_disabled
+  for_each: k8s.pods.list
+  severity: MEDIUM
+  conditions:
+    var: item.spec.hostNetwork
+    op: is_false
+    value: null
+- rule_id: k8s.pod.container.image_signing_verified_enforced
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    var: item.spec.containers[].imagePullPolicy
+    op: equals
+    value: Always
+- rule_id: k8s.pod.container.sbom_management_enabled
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    var: item.spec.containers[].imageSbom
+    op: exists
+    value: null
+- rule_id: k8s.pod.container.seccomp_profile_docker_default
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    var: item.spec.containers[].securityContext.seccompProfile.type
+    op: not_equals
+    value: RuntimeDefault
+- rule_id: k8s.pod.container.security_context_memory_protection_enabled
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    all:
+    - var: item.spec.containers[].securityContext
+      op: exists
+      value: null
+    - var: item.spec.containers[].securityContext.allowPrivilegeEscalation
+      op: is_false
+      value: null
+    - var: item.spec.containers[].securityContext.capabilities.drop
+      op: contains
+      value: ALL
+- rule_id: k8s.pod.container.signed_images_required_enforced
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    all:
+    - var: item.spec.containers[].imagePullPolicy
+      op: equals
+      value: Always
+    - var: item.spec.containers[].image
+      op: not_contains
+      value: :latest
+- rule_id: k8s.pod.container.vulnerability_scanning_enabled_enforced
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    var: item.spec.containers[].securityContext.allowPrivilegeEscalation
+    op: is_false
+    value: null
+- rule_id: k8s.pod.deployment.anomaly_detection_enabled
+  for_each: k8s.pod.list_pods
+  severity: MEDIUM
+  conditions:
+    var: item.metadata.annotations['admission.gardener.cloud/pod-security']
+    op: exists
+    value: null
+- rule_id: k8s.pod.disruption.budget_configured
+  for_each: k8s.pod.disruption.budget.list
+  severity: LOW
+  conditions:
+    var: item
+    op: not_empty
+    value: null
+- rule_id: k8s.pod.horizontal.autoscaler_enabled
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations['autoscaling.alpha.kubernetes.io/enabled']
+    op: is_true
+    value: null
+- rule_id: k8s.pod.host.network_disabled
+  for_each: k8s.pods.list
+  severity: MEDIUM
+  conditions:
+    var: item.spec.hostNetwork
+    op: is_false
+    value: null
+- rule_id: k8s.pod.labeling.for_inventory_tracking
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    var: item.metadata.labels
+    op: exists
+    value: null
+- rule_id: k8s.pod.labeling.standard
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    all:
+    - var: item.metadata.labels.app
+      op: exists
+      value: null
+    - var: item.metadata.labels.version
+      op: exists
+      value: null
+    - var: item.metadata.labels.environment
+      op: exists
+      value: null
+- rule_id: k8s.pod.node.host_pid_disabled_enforced
+  for_each: k8s.pod.list
+  severity: LOW
+  conditions:
+    var: item.spec.hostPID
+    op: is_false
+    value: null
+- rule_id: k8s.pod.persistentvolume.backup_configured
+  for_each: k8s.pod.list
+  severity: MEDIUM
+  conditions:
+    var: item.spec.volumes[].persistentVolumeClaim
+    op: not_empty
+    value: null
+- rule_id: k8s.pod.pod.annotation_standard_configured
+  for_each: k8s.pod.list
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations
+    op: exists
+    value: null
+- rule_id: k8s.pod.pod.annotations_for_inventory_metadata_configured
+  for_each: k8s.pod.list
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations
+    op: not_empty
+    value: null
+- rule_id: k8s.pod.pod.disruption_budget_configured
+  for_each: k8s.pod.disruption_budget.list
+  severity: LOW
+  conditions:
+    var: item
+    op: not_empty
+    value: null
+- rule_id: k8s.pod.pod.ebpf_monitoring_enabled
+  for_each: k8s.pod.list_pods
+  severity: MEDIUM
+  conditions:
+    var: item.spec.containers[].securityContext.capabilities.add[]
+    op: contains
+    value: BPF
+- rule_id: k8s.pod.pod.falco_enabled_enforced
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    all:
+    - var: item.metadata.annotations.falco.org/enabled
+      op: exists
+      value: null
+    - var: item.metadata.annotations.falco.org/enabled
+      op: equals
+      value: 'true'
+- rule_id: k8s.pod.pod.labeling_standard_configured
+  for_each: k8s.pod.list
+  severity: LOW
+  conditions:
+    var: item.metadata.labels
+    op: not_empty
+    value: null
+- rule_id: k8s.pod.pod.patch_management_enabled
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations['k8s.kubernetes.io/restartedAt']
+    op: exists
+    value: null
+- rule_id: k8s.pod.pod.psa_enforced
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations['pod-security.kubernetes.io/enforce']
+    op: exists
+    value: null
+- rule_id: k8s.pod.pod.resource_limits_configured
+  for_each: k8s.pod.list
+  severity: LOW
+  conditions:
+    var: item.spec.containers[].resources.limits
+    op: not_empty
+    value: null
+- rule_id: k8s.pod.pod.security_standard_review_scheduled
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations['kubernetes.io/psp']
+    op: exists
+    value: null
+- rule_id: k8s.pod.pod.termination_grace_period_configured
+  for_each: k8s.pod.list
+  severity: LOW
+  conditions:
+    var: item.spec.terminationGracePeriodSeconds
+    op: exists
+    value: null
+- rule_id: k8s.pod.resource.limits_set
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    all:
+    - var: item.spec.containers[].resources.limits.cpu
+      op: exists
+      value: null
+    - var: item.spec.containers[].resources.limits.memory
+      op: exists
+      value: null
+- rule_id: k8s.pod.resource.requests_and_limits_set
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    all:
+    - var: item.spec.containers[].resources.requests.cpu
+      op: exists
+      value: null
+    - var: item.spec.containers[].resources.requests.memory
+      op: exists
+      value: null
+    - var: item.spec.containers[].resources.limits.cpu
+      op: exists
+      value: null
+    - var: item.spec.containers[].resources.limits.memory
+      op: exists
+      value: null
+- rule_id: k8s.pod.seccomp.profile_runtime_default_check
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    var: item.spec.securityContext.seccompProfile.type
+    op: equals
+    value: RuntimeDefault
+- rule_id: k8s.pod.security.admission_hostpid_restrictions
+  for_each: k8s.pod.list_pods
+  severity: MEDIUM
+  conditions:
+    var: item.spec.hostPID
+    op: is_false
+    value: null
+- rule_id: k8s.pod.security.allow_privilege_escalation_restricted
+  for_each: k8s.pods.list
+  severity: HIGH
+  conditions:
+    var: item.spec.containers[].securityContext.allowPrivilegeEscalation
+    op: is_false
+    value: null
+- rule_id: k8s.pod.security.capabilities_enforcement
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    all:
+    - var: item.spec.containers[].securityContext.capabilities.drop[]
+      op: contains
+      value: ALL
+    - var: item.spec.containers[].securityContext.capabilities.add
+      op: is_empty
+      value: null
+- rule_id: k8s.pod.security.host_network_policy_check
+  for_each: k8s.pod.list_pods
+  severity: MEDIUM
+  conditions:
+    var: item.spec.hostNetwork
+    op: is_false
+    value: null
+- rule_id: k8s.pod.security.patches_applied
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    var: item.status.containerStatuses[].restartCount
+    op: equals
+    value: 0
+- rule_id: k8s.pod.security.policy_configuration_check
+  for_each: k8s.pod.list_pods
+  severity: MEDIUM
+  conditions:
+    var: item.spec.securityContext
+    op: exists
+    value: null
+- rule_id: k8s.pod.security.privileged_containers_check
+  for_each: k8s.pod.list_pods
+  severity: CRITICAL
+  conditions:
+    var: item.spec.containers[].securityContext.privileged
+    op: is_false
+    value: null
+- rule_id: k8s.pod.security.security_context_verification
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    var: item.spec.securityContext
+    op: exists
+    value: null
+- rule_id: k8s.pod.security.standard_restricted
+  for_each: k8s.pods.list
+  severity: LOW
+  conditions:
+    all:
+    - var: item.spec.containers[].securityContext.privileged
+      op: not_equals
+      value: true
+    - var: item.spec.containers[].securityContext.capabilities.add[].contains
+      op: not_contains
+      value: NET_RAW
+    - var: item.spec.containers[].securityContext.runAsNonRoot
+      op: is_true
+      value: null
+    - var: item.spec.containers[].securityContext.seLinuxOptions.type
+      op: exists
+      value: null
+- rule_id: k8s.pod.security.standard_review_scheduled
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations['scheduled.standard.review']
+    op: exists
+    value: null
+- rule_id: k8s.pod.security.standard_vulnerability_checks
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    all:
+    - var: item.spec.containers[].securityContext.privileged
+      op: is_false
+      value: null
+    - var: item.spec.containers[].securityContext.capabilities.add[]
+      op: not_contains
+      value: NET_RAW
+    - var: item.spec.containers[].securityContext.runAsNonRoot
+      op: is_true
+      value: null
+    - var: item.spec.containers[].securityContext.readOnlyRootFilesystem
+      op: is_true
+      value: null
+    - var: item.spec.containers[].securityContext.allowPrivilegeEscalation
+      op: is_false
+      value: null
+- rule_id: k8s.pod.securitycontext.capabilities_restricted_enforced
+  for_each: k8s.pods.list
+  severity: LOW
+  conditions:
+    all:
+    - var: item.spec.securityContext.capabilities.drop
+      op: contains
+      value: ALL
+    - var: item.spec.containers[].securityContext.capabilities.add
+      op: is_empty
+      value: null
+- rule_id: k8s.pod.securitycontext.dangerous_capabilities_dropped_enforced
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    all:
+    - var: item.spec.securityContext.capabilities.drop
+      op: contains
+      value: ALL
+    - var: item.spec.containers[].securityContext.capabilities.drop
+      op: contains
+      value: ALL
+- rule_id: k8s.pod.securitycontext.defined
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    var: item.spec.securityContext
+    op: exists
+    value: null
+- rule_id: k8s.pod.securitycontext.memory_protection_enabled
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    all:
+    - var: item.spec.securityContext
+      op: exists
+      value: null
+    - var: item.spec.securityContext.memoryProtection
+      op: exists
+      value: null
+    - var: item.spec.securityContext.memoryProtection.enabled
+      op: is_true
+      value: null
+- rule_id: k8s.pod.securitycontext.net_raw_capability_dropped_enforced
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    all:
+    - var: item.spec.securityContext.capabilities.drop[]
+      op: contains
+      value: NET_RAW
+- rule_id: k8s.pod.securitycontext.non_root
+  for_each: k8s.pod.list_pods
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.spec.securityContext.runAsNonRoot
+      op: is_true
+      value: null
+    - var: item.spec.containers[].securityContext.runAsNonRoot
+      op: not_contains
+      value: false
+- rule_id: k8s.pod.securitycontext.privilege_escalation_disabled_enforced
+  for_each: k8s.pods.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.spec.containers[].securityContext.allowPrivilegeEscalation
+      op: is_false
+      value: null
+    - var: item.spec.initContainers[].securityContext.allowPrivilegeEscalation
+      op: is_false
+      value: null
+- rule_id: k8s.pod.securitycontext.privileged_containers_prohibited_enforced
+  for_each: k8s.pod.list_pods
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.spec.containers[].securityContext.privileged
+      op: is_false
+      value: null
+    - var: item.spec.initContainers[].securityContext.privileged
+      op: is_false
+      value: null
+- rule_id: k8s.pod.securitycontext.readonly_rootfs
+  for_each: k8s.pod.list_pods
+  severity: CRITICAL
+  conditions:
+    var: item.spec.securityContext.readOnlyRootFilesystem
+    op: is_true
+    value: null
+- rule_id: k8s.pod.securitycontext.seccomp_profile_enforced_enabled
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    var: item.spec.securityContext.seccompProfile.type
+    op: exists
+    value: null
+- rule_id: k8s.pod.securitycontext.verification
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    var: item.spec.securityContext
+    op: exists
+    value: null
+- rule_id: k8s.pod.service.account_automount_configured
+  for_each: k8s.pod.list
+  severity: LOW
+  conditions:
+    var: item.spec.automountServiceAccountToken
+    op: is_false
+    value: null
+- rule_id: k8s.pod.serviceaccount.automount_check
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    var: item.Spec.AutomountServiceAccountToken
+    op: is_false
+    value: null
+- rule_id: k8s.pod.termination.grace_period_set
+  for_each: k8s.pod.list_pods
+  severity: LOW
+  conditions:
+    var: item.spec.terminationGracePeriodSeconds
+    op: exists
+    value: null

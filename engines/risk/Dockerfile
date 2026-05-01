@@ -15,11 +15,16 @@ FROM python:3.11-slim
 WORKDIR /app
 COPY --from=builder /install /usr/local
 
-# Copy shared utilities
+# Copy shared utilities (available as both shared/common/ and engine_common/)
 COPY shared/common/ shared/common/
+COPY shared/common/ engine_common/
+COPY shared/auth/ engine_auth/
 
 # Copy engine code
 COPY engines/risk/ engines/risk/
+
+# Copy run_scan entry point to root so `python -m run_scan` works for K8s Jobs
+COPY engines/risk/run_scan.py ./run_scan.py
 
 # Non-root user
 RUN useradd -r -s /bin/false appuser

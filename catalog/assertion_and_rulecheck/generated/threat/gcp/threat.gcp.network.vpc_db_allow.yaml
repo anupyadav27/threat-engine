@@ -1,0 +1,24 @@
+version: '1.0'
+rule_id: threat.gcp.network.vpc_db_allow
+for_each: gcp.compute.list_firewalls
+severity: MEDIUM
+conditions:
+  all:
+  - var: item.direction
+    op: equals
+    value: INGRESS
+  - var: item.allowed[].ports[]
+    op: contains
+    value: '5432'
+  - var: item.sourceRanges[]
+    op: contains
+    value: 0.0.0.0/0
+  - any:
+    - var: item.disabled
+      op: is_true
+    - var: item.targetTags[]
+      op: not_contains
+      value: database
+    - var: item.targetServiceAccounts[]
+      op: not_contains
+      value: database

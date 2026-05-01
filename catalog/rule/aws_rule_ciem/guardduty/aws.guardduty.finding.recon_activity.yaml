@@ -1,0 +1,54 @@
+rule_id: aws.guardduty.finding.recon_activity
+service: guardduty
+provider: aws
+check_type: log
+severity: medium
+title: 'GuardDuty: Recon Activity'
+description: GuardDuty detected reconnaissance activity — environment being probed.
+rationale: Cloud infrastructure discovery enumerates running resources, network configurations, and security controls to plan further attacks within the cloud environment.
+threat_category: discovery
+mitre_tactics:
+- discovery
+mitre_techniques:
+- T1580
+risk_score: 55
+resource: guardduty_finding
+source: default
+is_active: true
+domain: threat_detection
+action_category: create
+log_source_type: 
+posture_category: threat_posture
+threat_tags:
+- T1580
+- threat_detection
+- guardduty
+risk_indicators:
+  actor_type: external_threat_actor
+  action_type: write
+  target_type: cloud_workload
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: |
+  1. Restrict describe/list API permissions to only authorized roles.
+  2. Monitor for unusual enumeration activity in CloudTrail / Activity Log.
+  3. Apply resource-level permissions to prevent unauthorized resource discovery.
+references:
+- https://attack.mitre.org/techniques/T1580/
+- https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_actions-resources-contextkeys.html
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: guardduty
+    - field: operation
+      op: contains
+      value: Recon
+version: '1.0'

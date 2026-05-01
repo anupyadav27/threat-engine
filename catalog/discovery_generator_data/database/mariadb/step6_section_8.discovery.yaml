@@ -1,0 +1,44 @@
+version: '1.0'
+provider: database
+engine: mariadb
+category: section_8
+cis_section: '8'
+description: >
+  mariadb CIS Section 8 — 'require_secure_transport' is Set to 'ON' and 'have_ssl' is Set to 'YES'
+
+discovery:
+
+  - discovery_id: mariadb.section_8.require_secure_transport_is_set_to_on_and_have
+    description: Ensure 'require_secure_transport' is Set to 'ON' and 'have_ssl' is Set to 'YES'
+    calls:
+
+
+      - action: query_setting
+        query: "select @@require_secure_transport;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: require_secure_transport_is_set_to_on_and_have
+        setting_name: "have_ssl"
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: mariadb.section_8.ssl_type_is_set_to_any_x509_or_specified_for_all
+    description: Ensure 'ssl_type' is Set to 'ANY', 'X509', or 'SPECIFIED' for All Remote Users
+    calls:
+
+
+      - action: query_table
+        query: "SELECT user, host, ssl_type FROM mysql.user WHERE NOT HOST IN ('::1', '127.0.0.1', 'localhost');"
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        check: ssl_type_is_set_to_any_x509_or_specified_for_all
+        value: "{{ item.value }}"
+        expected: ""
+
+

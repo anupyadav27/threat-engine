@@ -1,0 +1,94 @@
+# ==========================================================
+# Discovery YAML — kinesis (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 7 | ops: 2 independent, 1 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: kinesis
+
+services:
+  client: kinesis
+  module: "boto3.client('kinesis')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: stream
+    identifier_op: aws.kinesis.describe_stream_summary
+    identifier_field: StreamARN
+    item_var_path: item.StreamARN
+    identifier_template: '{streamarn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.kinesis.describe_stream  ──
+  - discovery_id: aws.kinesis.describe_stream
+    calls:
+      - action: describe_stream
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        EncryptionType: '{{ item.EncryptionType }}'
+        EnhancedMonitoring: '{{ item.EnhancedMonitoring }}'
+        HasMoreShards: '{{ item.HasMoreShards }}'
+        KeyId: '{{ item.KeyId }}'
+        RetentionPeriodHours: '{{ item.RetentionPeriodHours }}'
+        Shards: '{{ item.Shards }}'
+        StreamARN: '{{ item.StreamARN }}'
+        StreamCreationTimestamp: '{{ item.StreamCreationTimestamp }}'
+        StreamDescription: '{{ item.StreamDescription }}'
+        StreamModeDetails: '{{ item.StreamModeDetails }}'
+        StreamName: '{{ item.StreamName }}'
+        StreamStatus: '{{ item.StreamStatus }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.kinesis.describe_stream_summary  ──
+  - discovery_id: aws.kinesis.describe_stream_summary
+    calls:
+      - action: describe_stream_summary
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        ConsumerCount: '{{ item.ConsumerCount }}'
+        EncryptionType: '{{ item.EncryptionType }}'
+        EnhancedMonitoring: '{{ item.EnhancedMonitoring }}'
+        KeyId: '{{ item.KeyId }}'
+        MaxRecordSizeInKiB: '{{ item.MaxRecordSizeInKiB }}'
+        OpenShardCount: '{{ item.OpenShardCount }}'
+        RetentionPeriodHours: '{{ item.RetentionPeriodHours }}'
+        StreamARN: '{{ item.StreamARN }}'
+        StreamCreationTimestamp: '{{ item.StreamCreationTimestamp }}'
+        StreamDescriptionSummary: '{{ item.StreamDescriptionSummary }}'
+        StreamModeDetails: '{{ item.StreamModeDetails }}'
+        StreamName: '{{ item.StreamName }}'
+        StreamStatus: '{{ item.StreamStatus }}'
+        WarmThroughput: '{{ item.WarmThroughput }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.kinesis.list_stream_consumers [dependent] ──
+  - discovery_id: aws.kinesis.list_stream_consumers
+    for_each: aws.kinesis.describe_stream
+    calls:
+      - action: list_stream_consumers
+        params:
+          StreamARN: "{{ item.StreamARN }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Consumers }}'
+      item:
+        ConsumerARN: '{{ item.ConsumerARN }}'
+        ConsumerCreationTimestamp: '{{ item.ConsumerCreationTimestamp }}'
+        ConsumerName: '{{ item.ConsumerName }}'
+        ConsumerStatus: '{{ item.ConsumerStatus }}'
+

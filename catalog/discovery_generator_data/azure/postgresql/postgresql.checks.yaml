@@ -1,0 +1,46 @@
+version: '1.0'
+provider: azure
+service: postgresql
+checks:
+# ═══════════════════════════════════════════
+# PostgreSQL Servers — azure.postgresql.servers.servers_list
+# Fields: id, name, type, location, tags, sku, identity, properties, provisioning_state, kind, zones
+# Note: Security config (ssl_enforcement, geo_redundant_backup, public_network_access,
+#       minimal_tls_version, infrastructure_encryption) is inside the properties blob
+# ═══════════════════════════════════════════
+- rule_id: azure.postgresql.server.sku_configured
+  for_each: azure.postgresql.servers.servers_list
+  conditions:
+    var: item.sku
+    op: not_empty
+
+- rule_id: azure.postgresql.server.properties_configured
+  for_each: azure.postgresql.servers.servers_list
+  conditions:
+    var: item.properties
+    op: not_empty
+
+- rule_id: azure.postgresql.server.managed_identity_enabled
+  for_each: azure.postgresql.servers.servers_list
+  conditions:
+    var: item.identity
+    op: not_empty
+
+- rule_id: azure.postgresql.server.availability_zones_configured
+  for_each: azure.postgresql.servers.servers_list
+  conditions:
+    var: item.zones
+    op: not_empty
+
+- rule_id: azure.postgresql.server.provisioning_succeeded
+  for_each: azure.postgresql.servers.servers_list
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.postgresql.server.tags_configured
+  for_each: azure.postgresql.servers.servers_list
+  conditions:
+    var: item.tags
+    op: not_empty

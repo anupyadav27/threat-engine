@@ -1,0 +1,39 @@
+version: '1.0'
+provider: azure
+service: cosmosdb
+checks:
+- rule_id: azure.cosmosdb.account.firewall_use_selected_networks
+  for_each: azure.cosmosdb.databaseaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.publicNetworkAccess
+    op: equals
+    value: Disabled
+- rule_id: azure.cosmosdb.account.private.endpoint.approved
+  for_each: azure.cosmosdb.databaseaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.resource.properties.privateEndpointConnections[].properties.privateLinkServiceConnectionState.status
+    op: equals
+    value: Approved
+- rule_id: azure.cosmosdb.account.use_private_endpoints
+  for_each: azure.cosmosdb.databaseaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.resource.properties.privateEndpointConnections
+    op: exists
+    value: null
+- rule_id: azure.cosmosdb.defender.status.check
+  for_each: azure.cosmosdb.databaseaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.resource
+    op: exists
+    value: null
+- rule_id: azure.cosmosdb.network.restriction.enabled
+  for_each: azure.cosmosdb.databaseaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.resource
+    op: exists
+    value: null

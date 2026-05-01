@@ -1,0 +1,59 @@
+version: '1.0'
+provider: gcp
+service: ciem
+checks:
+- rule_id: gcp.ciem.correlation.data_exfiltration_chain
+  for_each: gcp.ciem.correlation.data_exfiltration_chain
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.risk_level
+      op: not_equals
+      value: HIGH
+    - var: item.activities[].activity_type
+      op: not_contains
+      value: data_exfiltration
+- rule_id: gcp.ciem.correlation.defense_evasion_chain
+  for_each: gcp.ciem.list_correlated_events
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.defense_evasion_chain
+      op: is_false
+      value: null
+    - var: item.correlation_confidence
+      op: gte
+      value: 0.7
+- rule_id: gcp.ciem.correlation.lateral_movement_chain
+  for_each: gcp.ciem.list_identities
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.roles[].name
+      op: not_contains
+      value: roles/owner
+    - var: item.roles[].name
+      op: not_contains
+      value: roles/editor
+    - var: item.roles[].name
+      op: not_contains
+      value: roles/viewer
+- rule_id: gcp.ciem.correlation.privilege_escalation_chain
+  for_each: gcp.ciem.list_privilege_escalation_chains
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.chain
+      op: is_empty
+      value: null
+- rule_id: gcp.ciem.correlation.supply_chain_attack
+  for_each: gcp.ciem.list_correlated_identities
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.supply_chain_attack_risk
+      op: is_false
+      value: null
+    - var: item.privilege_escalation_paths
+      op: is_empty
+      value: null

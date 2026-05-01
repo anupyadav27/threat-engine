@@ -1,0 +1,49 @@
+version: '1.0'
+provider: azure
+service: eventhub
+checks:
+# ═══════════════════════════════════════════
+# Event Hub Namespaces — azure.eventhub.namespaces.list_by_resource_group
+# Fields: id, name, type, location, tags, sku, identity, provisioning_state, status,
+#         encryption, public_network_access (via cluster fields in emit), zone_redundant,
+#         cluster_arm_id, created_at, is_auto_inflate_enabled, kafka_enabled,
+#         maximum_throughput_units, metric_id, service_bus_endpoint, updated_at
+# ═══════════════════════════════════════════
+- rule_id: azure.eventhub.namespace.encryption_configured
+  for_each: azure.eventhub.namespaces.list_by_resource_group
+  conditions:
+    var: item.encryption
+    op: not_empty
+
+- rule_id: azure.eventhub.namespace.managed_identity_enabled
+  for_each: azure.eventhub.namespaces.list_by_resource_group
+  conditions:
+    var: item.identity
+    op: not_empty
+
+- rule_id: azure.eventhub.namespace.zone_redundant
+  for_each: azure.eventhub.namespaces.list_by_resource_group
+  conditions:
+    var: item.zone_redundant
+    op: equals
+    value: 'true'
+
+- rule_id: azure.eventhub.namespace.provisioning_succeeded
+  for_each: azure.eventhub.namespaces.list_by_resource_group
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.eventhub.namespace.kafka_enabled
+  for_each: azure.eventhub.namespaces.list_by_resource_group
+  conditions:
+    var: item.kafka_enabled
+    op: equals
+    value: 'true'
+
+- rule_id: azure.eventhub.namespace.tags_configured
+  for_each: azure.eventhub.namespaces.list_by_resource_group
+  conditions:
+    var: item.tags
+    op: not_empty

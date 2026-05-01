@@ -1,0 +1,2335 @@
+# IBM_DB2 — CIEM Detection Rules
+# Real-time authentication & access event analysis
+# Log source: db2audit, db2diag
+
+tech_type: ibm_db2
+category: database
+log_source: db2audit, db2diag
+
+rules:
+
+  - rule_id: tciem.ibm_db2.require_explicit_authorization_for_cataloging
+    title: "Require Explicit Authorization for Cataloging (CATALOG_NOAUTH)"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.1.1'
+    cis_section: '3'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to require explicit authorization to catalog and
+      uncatalog databases and nodes. 1. Attach to the Db2 instance db2 => attach to
+      <db2instance> 2. Run the following command: db2 => update database manager
+      configuration using catalog_noauth no References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=parameters-catalog-noauth-
+      cataloging-allowed-without-authority
+
+  - rule_id: tciem.ibm_db2.secure_permissions_for_default_database_file_path
+    title: "Secure Permissions for Default Database File Path (DFTDBPATH)"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.1.2'
+    cis_section: '3'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      For Windows and Linux: 1. Attach to the Db2 instance. db2 => attach to
+      <db2instance> 2. Run the following command to change the default file path, if
+      necessary: db2 => update database manager configuration using dftdbpath <valid
+      directory> Additional steps for Windows: 1. Connect to the Db2 host 2. Right-
+      click over the directory used as the default file path 3. Choose Properties 4.
+      Select the Security tab 5. Assign ownership of the directory to the Db2
+      Administrator 6. Grant all Db2 administrator accounts the Full Control
+      authority 7. Grant only read and execute privileges to all other users (revoke
+      all other privileges) Additional steps for Linux: 1. Connect to the Db2 host
+      2. Change to the directory used as the default file path 3. Assign the Db2
+      Administrator to be the owner of the directory using the chown command 4.
+      Change the permissions for the directory $ chmod -R 755
+
+  - rule_id: tciem.ibm_db2.secure_permissions_for_all_diagnostic_logs
+    title: "Secure Permissions for All Diagnostic Logs (DIAGPATH)"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '3.1.4'
+    cis_section: '3'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      For Windows and Linux To change the directory for the diagnostic logs: 1.
+      Attach to the Db2 instance db2 => attach to <db2instance> 2. Run the following
+      command: db2 => update database manager configuration using diagpath <valid
+      directory> Additional steps for Windows: 1. Connect to the Db2 host 2. Right-
+      click over the diagnostic log directory 3. Choose Properties 4. Select the
+      Security tab 5. Grant the Full Control authority to all Db2 administrator
+      accounts 6. Grant only read and execute privileges to all other accounts
+      (revoke any other privileges) Additional steps for Linux: 1. Connect to the
+      Db2 host 2. Change to the diagnostic log directory 3. Change the permissions
+      of the directory $ chmod -R 3777 .
+
+  - rule_id: tciem.ibm_db2.secure_permissions_for_alternate_diagnostic_log
+    title: "Secure Permissions for Alternate Diagnostic Log Path (ALT_DIAGPATH)"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '3.1.5'
+    cis_section: '3'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      For Windows and Linux To change the directory for the diagnostic logs: 1.
+      Attach to the Db2 instance db2 => attach to <db2instance> 2. Run the following
+      command: db2 => update database manager configuration using diagpath <valid
+      directory> Additional steps for Windows: 1. Connect to the Db2 host 2. Right-
+      click over the diagnostic log directory 3. Choose Properties 4. Select the
+      Security tab 5. Grant the Full Control authority to all Db2 administrator
+      accounts 6. Grant only read and execute privileges to all other accounts
+      (revoke any other privileges) Additional steps for Linux: 1. Connect to the
+      Db2 host 2. Change to the diagnostic log directory 3. Change the permissions
+      of the directory $ chmod -R 3777 .
+
+  - rule_id: tciem.ibm_db2.secure_the_communication_buffer_exit_library_comm
+    title: "Secure the Communication Buffer Exit Library (COMM_EXIT_LIST)"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '3.1.13'
+    cis_section: '3'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To change permissions of a file on Linux: chmod 755 <file> To change
+      permissions of a file on Windows: 1. Right-click on the file 2. Choose
+      properties 3. Select the Security tab 4. Grant the Full Control authority to
+      all Db2 administrator accounts 5. Grant only read and execute privileges to
+      all other accounts (revoke any other privileges)
+
+  - rule_id: tciem.ibm_db2.disable_grants_during_restore_db2_restore_grant
+    title: "Disable Grants During Restore (DB2_RESTORE_GRANT_ADMIN_AUTHORITIES)"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '3.2.3'
+    cis_section: '3'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Run the following command to set the DB2_RESTORE_GRANT_ADMIN_AUTHORITIES
+      registry variable to OFF: db2set DB2_RESTORE_GRANT_ADMIN_AUTHORITIES=OFF
+      Default Value: The default value of DB2_RESTORE_GRANT_ADMIN_AUTHORITIES is
+      OFF. References: 1. https://www.ibm.com/docs/en/db2/11.5?topic=variables-
+      system- environment#r0005658_\_S_DB2_RESTORE_GRANT_ADMIN_AUTHORITIES
+
+  - rule_id: tciem.ibm_db2.enable_extended_security_db2_extsecurity
+    title: "Enable Extended Security (DB2_EXTSECURITY)"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.2.4'
+    cis_section: '3'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Run the following command to enable extended security (consult documentation
+      for additional options as appropriate): db2extsec References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=variables-
+      miscellaneous#r0005669__M_DB2_EXTSECURITY 2.
+      https://www.ibm.com/docs/en/db2/11.5?topic=security-extended-windows-using-
+      db2admns-db2users-groups 3.
+      https://www.ibm.com/docs/en/db2/11.5?topic=commands-db2extsec-set-
+      permissions-db2-objects
+
+  - rule_id: tciem.ibm_db2.limit_os_privileges_of_fenced_mode_process_db2
+    title: "Limit OS Privileges of Fenced Mode Process (DB2_LIMIT_FENCED_GROUP)"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '3.2.5'
+    cis_section: '3'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Run the following command to set the DB2_LIMIT_FENCED_GROUP registry variable
+      to ON: db2set DB2_LIMIT_FENCED_GROUP=ON Default Value: The default value of
+      DB2_LIMIT_FENCED_GROUP is OFF. References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=variables-
+      miscellaneous#r0005669__M_DB2_LIMIT_FENCED_GROUP 2.
+      https://www.ibm.com/docs/en/db2/11.5?topic=windows-restricting-operating-
+      system-privileges-db2fmp-process
+
+  - rule_id: tciem.ibm_db2.creating_the_database_without_public_grants
+    title: "Creating the Database Without PUBLIC Grants (RESTRICTIVE)"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.1.1'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      There is no remediation for this parameter due to the fact that the placement
+      of the RESTRICTIVE clause happens within the CREATE DATABASE statement. Unless
+      your backup strategies allow for a complete overhaul of your environment where
+      you are able to recreate the database with the RESTRICTIVE clause, we do not
+      recommend changing this parameter. However, if you would like to align your
+      database configuration to that which the RESTRICTIVE clause would provide,
+      please ensure the following: 1. SYSCAT.DBAUTH – Ensure PUBLIC is NOT granted
+      the following authorities: o CREATETAB o BINDADD o CONNECT o IMPLICIT_SCHEMA
+      2. SYSCAT.TABAUTH – Ensure PUBLIC is NOT granted the following privileges: o
+      SELECT on all SYSCAT and SYSIBM tables o SELECT and UPDATE on all SYSSTAT
+      tables o SELECT on the following views in schema SYSIBMADM: ▪ ALL_* ▪ USER_* ▪
+      ROLE_* ▪ SESSION_* ▪ DICTIONARY ▪ TAB 3. SYSCAT.ROUTINEAUTH – Ensure PUBLIC is
+      NOT granted the following privileges: o EXECUTE with GRANT on all procedures
+      in schema SQLJ o EXECUTE with GRANT on all functions and procedures in schema
+      SYSFUN o EXECUTE with GRANT on all functions and procedures in schema SYSPROC
+      o EXECUTE on all table functions in schema SYSIBM o EXECUTE on all other
+      procedures in schema SYSIBM 4. SYSCAT.MODULEAUTH – Ensure PUBLIC is NOT
+      granted the following privileges: o EXECUTE on the following modules in schema
+      SYSIBMADM: ▪ DBMS_DDL ▪ DBMS_JOB ▪ DBMS_LOB ▪ DBMS_OUTPUT ▪ DBMS_SQL ▪
+      DBMS_STANDARD ▪ DBMS_UTILITY 5. SYSCAT.PACKAGEAUTH – Ensure PUBLIC is NOT
+      granted the following privileges: o BIND on all packages created in the NULLID
+      schema o EXECUTE on all packages created in the NULLID schema 6.
+      SYSCAT.SCHEMAAUTH – Ensure PUBLIC` is NOT granted the following privileges: o
+      CREATEIN on schema SQLJ o CREATEIN on schema NULLID 7. SYSCAT.TBSPACEAUTH –
+      Ensure PUBLIC is NOT granted the USE privilege on table space USERSPACE1. 8.
+      SYSCAT.WORKLOADAUTH – Ensure PUBLIC is NOT granted the USAGE privilege on
+      SYSDEFAULTUSERWORKLOAD. 9. SYSCAT.VARIABLEAUTH – Ensure PUBLIC is NOT granted
+      the READ privilege on schema global variables in the SYSIBM schema.
+      References: 1. https://www.ibm.com/docs/en/db2/11.5?topic=commands-create-
+      database 2. https://www.ibm.com/docs/en/db2/11.5?topic=ownership-default-
+      privileges- granted-creating-database
+
+  - rule_id: tciem.ibm_db2.secure_permissions_for_the_primary_archive_log
+    title: "Secure Permissions for the Primary Archive Log Location (LOGARCHMETH1)"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.1.5'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      For Windows and Linux: 1. Attach to the Db2 instance. 2. Run the following
+      command to change the primary archive log directory, if necessary: db2 =>
+      update database configuration using logarchmeth1 <valid directory> Additional
+      steps for Windows (assuming that the logarchmeth1 parameter includes DISK): 1.
+      Connect to the Db2 host 2. Right-click on the primary archive log directory 3.
+      Choose Properties 4. Select the Security tab 5. Grant all Db2 administrator
+      accounts the Full Control authority 6. Grant all other accounts read and
+      execute privileges only (revoke all other privileges) Additional steps for
+      Linux (assuming that the logarchmeth1 parameter includes DISK): 1. Connect to
+      the Db2 host 2. Change to the primary archive log directory 3. Change the
+      permissions for the directory $ chmod -R 755
+
+  - rule_id: tciem.ibm_db2.secure_permissions_for_the_secondary_archive_log
+    title: "Secure Permissions for the Secondary Archive Log Location (LOGARCHMETH2)"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.1.6'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      For Windows and Linux: 1. Attach to the Db2 instance. 2. Run the following
+      command to change the secondary archive log directory, if necessary: db2 =>
+      update database configuration using logarchmeth2 <valid directory> Additional
+      steps for Windows (assuming that the logarchmeth2 parameter includes DISK): 1.
+      Connect to the Db2 host 2. Right-click on the secondary archive log directory
+      3. Choose Properties 4. Select the Security tab 5. Grant all Db2 administrator
+      accounts the Full Control authority 6. Grant all other accounts read and
+      execute privileges only (revoke all other privileges) Additional steps for
+      Linux (assuming that the logarchmeth2 parameter includes DISK): 1. Connect to
+      the Db2 host 2. Change to the secondary archive log directory 3. Change the
+      permissions for the directory $ chmod -R 755
+
+  - rule_id: tciem.ibm_db2.secure_permissions_for_the_tertiary_archive_log
+    title: "Secure Permissions for the Tertiary Archive Log Location (FAILARCHPATH)"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.1.7'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      For Windows and Linux: 1. Attach to the Db2 instance. 2. Run the following
+      command to change the tertiary archive log directory, if necessary: db2 =>
+      update database configuration using failarchpath Additional steps for Windows
+      (assuming that the failarchpath parameter includes DISK): 1. Connect to the
+      Db2 host 2. Right-click on the tertiary archive log directory 3. Choose
+      Properties 4. Select the Security tab 5. Grant all Db2 administrator accounts
+      the Full Control authority 6. Grant all other accounts read and execute
+      privileges only (revoke all other privileges) For Linux (assuming that the
+      failarchpath parameter includes DISK): 1. Connect to the Db2 host 2. Change to
+      the tertiary archive log directory 3. Change the permissions for the directory
+      $ chmod -R 755
+
+  - rule_id: tciem.ibm_db2.secure_permissions_for_the_log_mirror_location
+    title: "Secure Permissions for the Log Mirror Location (MIRRORLOGPATH)"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.1.8'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      For Windows and Linux: 1. Connect to the Db2 database db2 => connect to
+      <dbname> 2. Run the following command to change the mirror log directory, if
+      necessary: db2 => update database configuration using mirrorlogpath <valid
+      directory> Additional steps for Windows: 1. Connect to the Db2 host 2. Right-
+      click on the mirror log directory 3. Choose Properties 4. Select the Security
+      tab 5. Grant all Db2 administrator accounts the Full Control authority 6.
+      Grant all other accounts read and execute privileges only (revoke all other
+      privileges) Additional steps for Linux: 1. Connect to the Db2 host 2. Change
+      to the mirror log directory 3. Change the permissions for the directory $
+      chmod -R 755
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_auditpolicies
+    title: "Restrict Access to SYSCAT.AUDITPOLICIES"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '4.2.1'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.AUDITPOLICIES FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatauditpolicies
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_audituse
+    title: "Restrict Access to SYSCAT.AUDITUSE"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '4.2.2'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Revoke access from PUBLIC. 1. Connect to the Db2 database. db2 => connect to
+      <dbname> 2. Run the following command: db2 => REVOKE SELECT ON SYSCAT.AUDITUSE
+      FROM PUBLIC References: 1. https://www.ibm.com/docs/en/db2/11.5?topic=views-
+      syscataudituse
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_colauth
+    title: "Restrict Access to SYSCAT.COLAUTH"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.2.3'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.COLAUTH FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatcolauth
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_coldist
+    title: "Restrict Access to SYSCAT.COLDIST"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.4'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.COLDIST FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatcoldist
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_colgroupdist
+    title: "Restrict Access to SYSCAT.COLGROUPDIST"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.5'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.COLGROUPDIST FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatcolgroupdist
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_columns
+    title: "Restrict Access to SYSCAT.COLUMNS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.6'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.COLUMNS FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatcolumns
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_contextattributes
+    title: "Restrict Access to SYSCAT.CONTEXTATTRIBUTES"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.7'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.CONTEXTATTRIBUTES FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatcontextattributes
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_contexts
+    title: "Restrict Access to SYSCAT.CONTEXTS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.8'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.CONTEXTS FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatcontexts
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_controldep
+    title: "Restrict Access to SYSCAT.CONTROLDEP"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.9'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.CONTROLDEP FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatcontroldep
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_controls
+    title: "Restrict Access to SYSCAT.CONTROLS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.10'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.CONTROLS FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatcontrols
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_dbauth
+    title: "Restrict Access to SYSCAT.DBAUTH"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.2.11'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.DBAUTH FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatdbauth
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_events
+    title: "Restrict Access to SYSCAT.EVENTS"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '4.2.12'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.EVENTS FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatevents
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_eventtables
+    title: "Restrict Access to SYSCAT.EVENTTABLES"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '4.2.13'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.EVENTTABLES FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscateventtables
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_externaltableoptions
+    title: "Restrict Access to SYSCAT.EXTERNALTABLEOPTIONS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.14'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.EXTERNALTABLEOPTIONS FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatexternaltableoptions
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_indexauth
+    title: "Restrict Access to SYSCAT.INDEXAUTH"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.15'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Revoke access from PUBLIC. 1. Connect to the Db2 database. db2 => connect to
+      <dbname> 2. Run the following command: db2 => REVOKE SELECT ON
+      SYSCAT.INDEXAUTH FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatindexauth
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_moduleauth
+    title: "Restrict Access to SYSCAT.MODULEAUTH"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.2.16'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.MODULEAUTH FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatmoduleauth
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_packageauth
+    title: "Restrict Access to SYSCAT.PACKAGEAUTH"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.2.17'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.PACKAGEAUTH FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatpackageauth
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_packages
+    title: "Restrict Access to SYSCAT.PACKAGES"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.18'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.PACKAGES FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatpackages
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_passthruauth
+    title: "Restrict Access to SYSCAT.PASSTHRUAUTH"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.19'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.PASSTHRUAUTH FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatpassthruauth
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_roleauth
+    title: "Restrict Access to SYSCAT.ROLEAUTH"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.20'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.ROLEAUTH FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatroleauth
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_roles
+    title: "Restrict Access to SYSCAT.ROLES"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.21'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.ROLES FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatroles
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_routineauth
+    title: "Restrict Access to SYSCAT.ROUTINEAUTH"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.2.22'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.ROUTINEAUTH FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatroutineauth
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_routines
+    title: "Restrict Access to SYSCAT.ROUTINES"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.23'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.ROUTINES FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatroutines
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_securitylabelaccess
+    title: "Restrict Access to SYSCAT.SECURITYLABELACCESS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.24'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.SECURITYLABELACCESS FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatsecuritylabelaccess
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat
+    title: "Restrict Access to SYSCAT.SECURITYLABELCOMPONENTELEMENTS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.25'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.SECURITYLABELCOMPONENTELEMENTS FROM PUBLIC References:
+      1. https://www.ibm.com/docs/en/db2/11.5?topic=views-
+      syscatsecuritylabelcomponentelements
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_securitylabelcomponents
+    title: "Restrict Access to SYSCAT.SECURITYLABELCOMPONENTS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.26'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.SECURITYLABELCOMPONENTELEMENTS FROM PUBLIC References:
+      1. https://www.ibm.com/docs/en/db2/11.5?topic=views-
+      syscatsecuritylabelcomponents
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_securitylabels
+    title: "Restrict Access to SYSCAT.SECURITYLABELS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.27'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.SECURITYLABELS FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatsecuritylabels
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_securitypolicies
+    title: "Restrict Access to SYSCAT.SECURITYPOLICIES"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.28'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.SECURITYPOLICIES FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatsecuritypolicies
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_securitypolicyexemptions
+    title: "Restrict Access to SYSCAT.SECURITYPOLICYEXEMPTIONS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.30'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.SECURITYPOLICYEXEMPTIONS FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-
+      syscatsecuritypolicyexemptions
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_serveroptions
+    title: "Restrict Access to SYSCAT.SERVEROPTIONS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.31'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.SERVEROPTIONS FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatserveroptions
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_schemaauth
+    title: "Restrict Access to SYSCAT.SCHEMAAUTH"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.2.32'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.SCHEMAAUTH FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatschemaauth
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_schemata
+    title: "Restrict Access to SYSCAT.SCHEMATA"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.33'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.SCHEMATA FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatschemata
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_sequenceauth
+    title: "Restrict Access to SYSCAT.SEQUENCEAUTH"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.2.34'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.SEQUENCEAUTH FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatsequenceauth
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_statements
+    title: "Restrict Access to SYSCAT.STATEMENTS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.35'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.STATEMENTS FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatstatements
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_statementtexts
+    title: "Restrict Access to SYSCAT.STATEMENTTEXTS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.36'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.STATEMENTTEXTS FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatstatementtexts
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_surrogateauthids
+    title: "Restrict Access to SYSCAT.SURROGATEAUTHIDS"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.2.37'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.SURROGATEAUTHIDS FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatsurrogateauthids
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_tabauth
+    title: "Restrict Access to SYSCAT.TABAUTH"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.2.38'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.TABAUTH FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscattabauth
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_tbspaceauth
+    title: "Restrict Access to SYSCAT.TBSPACEAUTH"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.2.39'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.TBSPACEAUTH FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscattbspaceauth
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_useroptions
+    title: "Restrict Access to SYSCAT.USEROPTIONS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.40'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.USEROPTIONS FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatuseroptions
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_variableauth
+    title: "Restrict Access to SYSCAT.VARIABLEAUTH"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.2.41'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.VARIABLEAUTH FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatvariableauth
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_variables
+    title: "Restrict Access to SYSCAT.VARIABLES"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.42'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.VARIABLES FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatvariables
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_workloadauth
+    title: "Restrict Access to SYSCAT.WORKLOADAUTH"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.2.43'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.WORKLOADAUTH FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatworkloadauth
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_wrapoptions
+    title: "Restrict Access to SYSCAT.WRAPOPTIONS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.44'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.WRAPOPTIONS FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatwrapoptions
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_syscat_xsrobjectauth
+    title: "Restrict Access to SYSCAT.XSROBJECTAUTH"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.2.45'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSCAT.XSROBJECTAUTH FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscatxsrobjectauth
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysstat_coldist
+    title: "Restrict Access to SYSSTAT.COLDIST"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.46'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSSTAT.COLDIST FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-sysstatcoldist
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysstat_colgroupdist
+    title: "Restrict Access to SYSSTAT.COLGROUPDIST"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.47'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSSTAT.COLGROUPDIST FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-sysstatcolgroupdist
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysstat_columns
+    title: "Restrict Access to SYSSTAT.COLUMNS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.48'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSSTAT.COLUMNS FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-sysstatcolumns
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_sysauditpolicies
+    title: "Restrict Access to SYSIBM.SYSAUDITPOLICIES"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '4.3.1'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSAUDITPOLICIES FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_sysaudituse
+    title: "Restrict Access to SYSIBM.SYSAUDITUSE"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '4.3.2'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Revoke access from PUBLIC. 1. Connect to the Db2 database. db2 => connect to
+      <dbname> 2. Run the following command: db2 => REVOKE SELECT ON
+      SYSIBM.SYSAUDITUSE FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_syscolauth
+    title: "Restrict Access to SYSIBM.SYSCOLAUTH"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.3.3'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSCOLAUTH FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_syscoldist
+    title: "Restrict Access to SYSIBM.SYSCOLDIST"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.4'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSCOLDIST FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_syscolgroupdist
+    title: "Restrict Access to SYSIBM.SYSCOLGROUPDIST"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.5'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSCOLGROUPDIST FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_syscolumns
+    title: "Restrict Access to SYSIBM.SYSCOLUMNS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.6'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSCOLUMNS FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_syscontextattributes
+    title: "Restrict Access to SYSIBM.SYSCONTEXTATTRIBUTES"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.7'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSCONTEXTATTRIBUTES FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_syscontexts
+    title: "Restrict Access to SYSIBM.SYSCONTEXTS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.8'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSCONTEXTS FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_sysdependencies
+    title: "Restrict Access to SYSIBM.SYSDEPENDENCIES"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.9'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSDEPENDENCIES FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_syscontrols
+    title: "Restrict Access to SYSIBM.SYSCONTROLS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.10'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSCONTROLS FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_sysdbauth
+    title: "Restrict Access to SYSIBM.SYSDBAUTH"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.3.11'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSDBAUTH FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_sysevents
+    title: "Restrict Access to SYSIBM.SYSEVENTS"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '4.3.12'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSEVENTS FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_syseventtables
+    title: "Restrict Access to SYSIBM.SYSEVENTTABLES"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '4.3.13'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSEVENTTABLES FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_sysexttab
+    title: "Restrict Access to SYSIBM.SYSEXTTAB"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.14'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSEXTTAB FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_sysindexauth
+    title: "Restrict Access to SYSIBM.SYSINDEXAUTH"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.15'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Revoke access from PUBLIC. 1. Connect to the Db2 database. db2 => connect to
+      <dbname> 2. Run the following command: db2 => REVOKE SELECT ON
+      SYSIBM.SYSINDEXAUTH FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_sysmoduleauth
+    title: "Restrict Access to SYSIBM.SYSMODULEAUTH"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.3.16'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSMODULEAUTH FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_syspassthruauth
+    title: "Restrict Access to SYSIBM.SYSPASSTHRUAUTH"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.17'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSPASSTHRUAUTH FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_sysplanauth
+    title: "Restrict Access to SYSIBM.SYSPLANAUTH"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.3.18'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSPLANAUTH FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_sysplan
+    title: "Restrict Access to SYSIBM.SYSPLAN"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.19'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSPLAN FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_sysroleauth
+    title: "Restrict Access to SYSIBM.SYSROLEAUTH"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.20'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSROLEAUTH FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_sysroles
+    title: "Restrict Access to SYSIBM.SYSROLES"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.21'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      erform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSROLES FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_sysroutineauth
+    title: "Restrict Access to SYSIBM.SYSROUTINEAUTH"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.3.22'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSROUTINEAUTH FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_sysroutines
+    title: "Restrict Access to SYSIBM.SYSROUTINES"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.23'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSROUTINES FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_routines_s
+    title: "Restrict Access to SYSIBM.ROUTINES_S"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.24'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.ROUTINES_S FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_sysschemaauth
+    title: "Restrict Access to SYSIBM.SYSSCHEMAAUTH"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.3.25'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSSCHEMAAUTH FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_sysschemata
+    title: "Restrict Access to SYSIBM.SYSSCHEMATA"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.26'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSSCHEMATA FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_syssecuritylabelaccess
+    title: "Restrict Access to SYSIBM.SYSSECURITYLABELACCESS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.27'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSSECURITYLABELACCESS FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm
+    title: "Restrict Access to SYSIBM.SYSSECURITYLABELCOMPONENTELEMENTS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.28'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSSECURITYLABELCOMPONENTELEMENTS FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_syssecuritylabels
+    title: "Restrict Access to SYSIBM.SYSSECURITYLABELS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.30'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSSECURITYLABELS FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_syssecuritypolicies
+    title: "Restrict Access to SYSIBM.SYSSECURITYPOLICIES"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.31'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSSECURITYPOLICIES FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_sysserveroptions
+    title: "Restrict Access to SYSIBM.SYSSERVEROPTIONS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.34'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSSERVEROPTIONS FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_syssequenceauth
+    title: "Restrict Access to SYSIBM.SYSSEQUENCEAUTH"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.3.35'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSSEQUENCEAUTH FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_sysstatementtexts
+    title: "Restrict Access to SYSIBM.SYSSTATEMENTTEXTS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.36'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSSTATEMENTTEXTS FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_sysstmt
+    title: "Restrict Access to SYSIBM.SYSSTMT"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.37'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSSTMT FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_syssurrogateauthids
+    title: "Restrict Access to SYSIBM.SYSSURROGATEAUTHIDS"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.3.38'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSSURROGATEAUTHIDS FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_systabauth
+    title: "Restrict Access to SYSIBM.SYSTABAUTH"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.3.39'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSTABAUTH FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_systbspaceauth
+    title: "Restrict Access to SYSIBM.SYSTBSPACEAUTH"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.3.40'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSTBSPACEAUTH FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_sysuseroptions
+    title: "Restrict Access to SYSIBM.SYSUSEROPTIONS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.41'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSUSEROPTIONS FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_sysvariableauth
+    title: "Restrict Access to SYSIBM.SYSVARIABLEAUTH"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.3.42'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSVARIABLEAUTH FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_sysvariables
+    title: "Restrict Access to SYSIBM.SYSVARIABLES"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.43'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSVARIABLES FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_sysworkloadauth
+    title: "Restrict Access to SYSIBM.SYSWORKLOADAUTH"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.3.44'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSWORKLOADAUTH FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_syswrapoptions
+    title: "Restrict Access to SYSIBM.SYSWRAPOPTIONS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.45'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBM.SYSWRAPOPTIONS FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibm_sysxsrobjectauth
+    title: "Restrict Access to SYSIBM.SYSXSROBJECTAUTH"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.3.46'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBMADM.AUTHORIZATIONIDS FROM PUBLIC
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibmadm_authorizationids
+    title: "Restrict Access to SYSIBMADM.AUTHORIZATIONIDS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.4.1'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE SELECT ON SYSIBMADM.AUTHORIZATIONIDS FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-authorizationids-
+      authorization-ids-types
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibmadm_objectowners
+    title: "Restrict Access to SYSIBMADM.OBJECTOWNERS"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.4.2'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      revoke select on SYSIBMADM.OBJECTOWNERS from public References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-objectowners-object-
+      ownership-information
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysibmadm_privileges
+    title: "Restrict Access to SYSIBMADM.PRIVILEGES"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.4.3'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      revoke select on SYSIBMADM.PRIVILEGES from public References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-privileges-privilege-
+      information
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysproc_auth_list_authorities
+    title: "Restrict Access to SYSPROC.AUTH_LIST_AUTHORITIES_FOR_AUTHID"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.4.4'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      revoke EXECUTE on function SYSPROC.AUTH_LIST_AUTHORITIES_FOR_AUTHID from
+      public RESTRICT References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-auth-list-authorities-authid-
+      returns-list-agents
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysproc_auth_list_roles_for
+    title: "Restrict Access to SYSPROC.AUTH_LIST_ROLES_FOR_AUTHID"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.4.5'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      revoke EXECUTE on function SYSPROC.AUTH_LIST_ROLES_FOR_AUTHID from public
+      RESTRICT References: 1. https://www.ibm.com/docs/en/db2/11.5?topic=views-auth-
+      list-roles-authid- returns-roles-list
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_sysproc_auth_list_groups_for
+    title: "Restrict Access to SYSPROC.AUTH_LIST_GROUPS_FOR_AUTHID"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.4.6'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      revoke EXECUTE on function SYSPROC.AUTH_GROUPS_FOR_AUTHID from public RESTRICT
+      References: 1. https://www.ibm.com/docs/en/db2/11.5?topic=srv-auth-list-
+      groups-authid-group- membership-authorization-ids
+
+  - rule_id: tciem.ibm_db2.restrict_access_to_tablespaces
+    title: "Restrict Access to Tablespaces"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.5.1'
+    cis_section: '4'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to revoke access from PUBLIC. 1. Connect to the Db2
+      database. db2 => connect to <dbname> 2. Run the following command: db2 =>
+      REVOKE USE OF TABLESPACE [$tablespace_name\] FROM PUBLIC References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=views-syscattablespaces
+
+  - rule_id: tciem.ibm_db2.disable_the_audit_buffer
+    title: "Disable the Audit Buffer"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '7.1.1'
+    cis_section: '7'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to disable the audit buffer: 1. Attach to the Db2
+      instance db2 => attach to <db2instance> 2. Run the following command: db2 =>
+      update database manager configuration using audit_buf_sz 0 References: 1.
+      https://www.ibm.com/docs/en/db2/11.5?topic=parameters-audit-buf-sz-audit-
+      buffer-size
+
+  - rule_id: tciem.ibm_db2.audit_is_enabled_within_the_instance
+    title: "Ensure Audit is Enabled Within the Instance"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '7.1.4'
+    cis_section: '7'
+    log_source: "db2audit, db2diag"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Issue the following command to activate instance level auditing: $ db2audit
+      start References: 1. https://www.ibm.com/docs/en/db2/11.5?topic=commands-
+      db2audit-audit-facility- administrator-tool
+

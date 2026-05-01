@@ -265,7 +265,7 @@ def cleanup_old_scans(engine: str, tenant_id: str, keep: int = 3) -> int:
 
 
 def cleanup_old_orchestrations(tenant_id: str, keep: int = 3) -> int:
-    """Delete old scan_orchestration rows beyond the latest `keep` per tenant."""
+    """Delete old scan_runs rows beyond the latest `keep` per tenant."""
     try:
         host = os.getenv("ONBOARDING_DB_HOST", os.getenv("DB_HOST", "localhost"))
         port = os.getenv("ONBOARDING_DB_PORT", os.getenv("DB_PORT", "5432"))
@@ -278,9 +278,9 @@ def cleanup_old_orchestrations(tenant_id: str, keep: int = 3) -> int:
         cur = conn.cursor()
 
         cur.execute(
-            "DELETE FROM scan_orchestration WHERE tenant_id = %s "
+            "DELETE FROM scan_runs WHERE tenant_id = %s "
             "AND scan_run_id NOT IN ("
-            "  SELECT scan_run_id FROM scan_orchestration "
+            "  SELECT scan_run_id FROM scan_runs "
             "  WHERE tenant_id = %s ORDER BY created_at DESC LIMIT %s"
             ")",
             (tenant_id, tenant_id, keep),

@@ -1,0 +1,81 @@
+rule_id: k8s.pod.audit.image_pull_never
+service: pod
+provider: k8s
+check_type: log
+severity: medium
+title: 'Pod: imagePullPolicy=Never Allows Stale/Tampered Images'
+description: Pod created with imagePullPolicy=Never — bypasses registry pull, allowing pre-loaded malicious or modified images to run without network checks.
+rationale: 'Adversaries deploy containers into environments using Docker APIs or Kubernetes control planes to facilitate execution or evade defenses by running malicious images outside standard deployment processes. Deployed containers can host C2 infrastructure, cryptomining workloads, or data exfiltration tools. Detected via: container create + start by non-admin principals, images not on an allowlist or using ''latest'' tag, privileged mode or host namespace mount at runtime, and unauthenticated Docker API access.'
+threat_category: supply_chain_compromise
+mitre_tactics:
+- execution
+mitre_techniques:
+- T1610
+risk_score: 62
+resource: k8s_pod
+source: default
+is_active: true
+domain: configuration_and_change_management
+action_category: create
+posture_category: workload_posture
+threat_tags:
+- T1610
+- supply_chain
+- container_compromise
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_k8s_v1:
+  - 5.2.1
+  - 5.5.1
+  - 5.6.4
+  nist_800_53_r5:
+  - SA-12
+  - SI-3
+  - CM-7
+  pci_dss_v4:
+  - 6.3
+  - 12.8
+  iso_27001_2022:
+  - A.5.19
+  - A.5.20
+  - A.8.30
+detection_events:
+- pods/create (Kubernetes audit)
+- 'containers:create via Docker API'
+- 'aks:CreatePod by non-CI/CD principal'
+- Admission controller deny events (missing context = bypass attempt)
+remediation: |
+  1. Remove the unauthorized workload and quarantine the image for forensic analysis.
+  2. Enable Binary Authorization or Kyverno policy to allowlist approved registries.
+  3. Scan all cluster images with Trivy or Snyk for vulnerabilities and malicious code.
+  4. Restrict image pull sources to internal registries via OPA/Kyverno admission policies.
+  5. Enable Sigstore/Cosign image signing verification for all production deployments.
+references:
+- https://attack.mitre.org/techniques/T1610/
+- https://kubernetes.io/docs/concepts/security/pod-security-admission/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: k8s_audit
+    - field: resource
+      op: equals
+      value: pods
+    - field: verb
+      op: equals
+      value: create
+    - field: image_pull_policy
+      op: equals
+      value: Never
+version: '1.0'

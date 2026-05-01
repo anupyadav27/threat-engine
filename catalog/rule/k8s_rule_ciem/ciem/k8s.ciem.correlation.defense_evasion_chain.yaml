@@ -1,0 +1,106 @@
+rule_id: k8s.ciem.correlation.defense_evasion_chain
+service: ciem
+provider: k8s
+check_type: log_correlation
+severity: critical
+title: 'K8s: Defense Evasion Chain — Webhook Delete + Privileged Pod'
+description: 'Correlated defense evasion: admission webhook deleted (removing policy enforcement) followed by privileged pod creation — exploiting the enforcement gap to deploy unrestricted workload.'
+rationale: 'Adversaries modify or disable security tools to avoid detection of their activities — including killing security software processes, disabling GuardDuty detectors, deleting Microsoft Defender plans, or tampering with cloud monitoring agents. Once defenses are disabled, subsequent attack phases proceed without generating alerts. Detected via: security process/service termination, cloud monitoring agent disable API calls, and container admission controller tampering.'
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+- privilege_escalation
+mitre_techniques:
+- T1562.001
+- T1611
+risk_score: 98
+resource: k8s_admission_webhook
+source: default
+is_active: true
+domain: logging_monitoring_and_alerting
+action_category: modify
+posture_category: security_posture
+threat_tags:
+- T1562.001
+- T1611
+- T1562
+- defense_evasion
+- log_tampering
+- ciem_correlation
+- attack_chain
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: tenant_or_account
+  stealth_risk: critical
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_k8s_v1:
+  - 3.2.1
+  - 3.2.2
+  - 4.2.1
+  nist_800_53_r5:
+  - AU-2
+  - AU-6
+  - AU-12
+  - SI-4
+  pci_dss_v4:
+  - 10.1
+  - 10.2
+  - 10.3
+  iso_27001_2022:
+  - A.8.15
+  - A.8.16
+  - A.5.28
+detection_events:
+- 'guardduty:DeleteDetector'
+- 'securityhub:DisableSecurityHub'
+- Microsoft.Security/pricings/write (Standard → Free)
+- Set-MpPreference -DisableRealtimeMonitoring
+remediation: |
+  1. Immediately restore the deleted webhook configuration or network policy.
+  2. Apply RBAC to restrict deletion of admission webhooks and audit policies to cluster-admin only.
+  3. Enable Falco rules to alert on webhook configuration deletion and network policy removal.
+  4. Use GitOps (ArgoCD/Flux) to detect and restore unauthorized configuration drift.
+  5. Configure out-of-band audit log export before admission webhook changes take effect.
+references:
+- https://attack.mitre.org/techniques/T1562/001/
+- https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/
+check_config:
+  events:
+  - conditions:
+      all:
+      - field: source_type
+        op: equals
+        value: k8s_audit
+      - field: resource
+        op: in
+        value:
+        - validatingwebhookconfigurations
+        - mutatingwebhookconfigurations
+      - field: verb
+        op: equals
+        value: delete
+  - conditions:
+      all:
+      - field: source_type
+        op: equals
+        value: k8s_audit
+      - field: resource
+        op: equals
+        value: pods
+      - field: verb
+        op: equals
+        value: create
+      - field: privileged_container
+        op: equals
+        value: true
+  type: sequence
+  window_seconds: 300
+version: '1.0'

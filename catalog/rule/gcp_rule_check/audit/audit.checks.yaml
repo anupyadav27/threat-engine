@@ -1,0 +1,64 @@
+version: '1.0'
+provider: gcp
+service: audit
+checks:
+- rule_id: gcp.audit.access_context_manager_change
+  for_each: gcp.accesscontextmanager.list_access_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.auditConfigs[].auditLogConfigs[].logType
+      op: contains
+      value: DATA_WRITE
+    - var: item.auditConfigs[].auditLogConfigs[].exemptedMembers
+      op: is_empty
+      value: null
+- rule_id: gcp.audit.audit_config_change
+  for_each: gcp.audit.get_audit_config
+  severity: MEDIUM
+  conditions:
+    var: item.auditLogConfigs[].logType
+    op: contains
+    value: ADMIN_READ
+- rule_id: gcp.audit.cloudsql_instance_change
+  for_each: gcp.cloudsql.list_instances
+  severity: MEDIUM
+  conditions:
+    var: item.settings.activationPolicy
+    op: not_equals
+    value: ALWAYS
+- rule_id: gcp.audit.gke_cluster_create
+  for_each: gcp.container.list_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.auditConfigs[].auditLogConfigs[].logType
+    op: contains
+    value: ADMIN_READ
+- rule_id: gcp.audit.gke_cluster_update
+  for_each: gcp.container.list_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.auditConfigs[].auditLogConfigs[].logType
+    op: contains
+    value: ADMIN_READ
+- rule_id: gcp.audit.iam_sa_impersonate
+  for_each: gcp.iam.list_service_accounts
+  severity: MEDIUM
+  conditions:
+    var: item.iam_policy.bindings[].role
+    op: not_contains
+    value: roles/iam.serviceAccountTokenCreator
+- rule_id: gcp.audit.iam_set_policy
+  for_each: gcp.iam.get_iam_policy
+  severity: MEDIUM
+  conditions:
+    var: item.bindings[].role
+    op: not_contains
+    value: roles/iam.serviceAccountAdmin
+- rule_id: gcp.audit.vpc_service_controls_change
+  for_each: gcp.audit.list_log_entries
+  severity: MEDIUM
+  conditions:
+    var: item.protoPayload.methodName
+    op: not_contains
+    value: setIamPolicy

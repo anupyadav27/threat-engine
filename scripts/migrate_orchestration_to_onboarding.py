@@ -1,19 +1,15 @@
 #!/usr/bin/env python3
 """
-Migrate scan_orchestration table from threat_engine_shared to threat_engine_onboarding.
+DEPRECATED — Historical migration script. Do not use.
 
-This consolidates all orchestration logic under the onboarding engine, eliminating
-the need for a separate shared database.
+This script was used to migrate the old scan_orchestration table from
+threat_engine_shared to threat_engine_onboarding. The scan_orchestration
+table has since been renamed to scan_runs. This file is retained for
+historical reference only.
 
-Steps:
-1. Create scan_orchestration table in threat_engine_onboarding (if not exists)
-2. Migrate all data from threat_engine_shared.scan_orchestration
-3. Verify data integrity
-4. Report migration results
-
-Usage:
-    export RDS_PASSWORD='your_password'  # or set PGPASSWORD
-    python3 scripts/migrate_orchestration_to_onboarding.py --host your-rds-host --user postgres
+Original purpose:
+    Migrate scan_orchestration table between databases.
+    The table is now called scan_runs and lives in threat_engine_onboarding.
 """
 
 import argparse

@@ -7,7 +7,8 @@ COPY engines/network-security/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy shared libraries
-COPY shared/common/ /app/common/
+COPY shared/common/ /app/engine_common/
+COPY shared/auth/ /app/engine_auth/
 COPY shared/database/ /app/database/
 
 # Copy engine code

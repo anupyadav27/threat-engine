@@ -1,0 +1,387 @@
+# SNOWFLAKE — CIEM Detection Rules
+# Real-time authentication & access event analysis
+# Log source: SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY
+
+tech_type: snowflake
+category: data
+log_source: SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY
+
+rules:
+
+  - rule_id: tciem.snowflake.single_sign_on_sso_is_configured_for_your_account
+    title: "Ensure single sign-on (SSO) is configured for your account / organization"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.1'
+    cis_section: '1'
+    log_source: "SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      The steps for configuring an IdP differ depending on whether you choose SAML2
+      or OAuth. They further differ depending on what identity provider you choose:
+      Okta, AD FS, Ping Identity, Azure AD, or custom. For specific instructions,
+      see Snowflake documentation on SAML and External OAuth. Note: If your SAML
+      integration is configured using the deprecated account parameter
+      SAML_IDENTITY_PROVIDER, you should migrate to creating a security integration
+      using the system$migrate_saml_idp_registration function. For more information,
+      see the Migrating to a SAML2 Security Integration documentation. Default
+      Value: By default, Snowflake is not configured to use SSO-based
+      authentication. References: 1. https://docs.snowflake.com/en/user-guide/admin-
+      security-fed-auth.html 2. https://docs.snowflake.com/en/user-guide/admin-
+      security-fed-auth-configure- idp.html 3. https://docs.snowflake.com/en/user-
+      guide/oauth-external.html 4. https://docs.snowflake.com/en/user-guide/admin-
+      security-fed-auth- advanced.html 5. https://docs.snowflake.com/en/sql-
+      reference/parameters#saml-identity-provider 6.
+      https://docs.snowflake.com/en/user-guide/admin-security-fed-auth-configure-
+      snowflake
+
+  - rule_id: tciem.snowflake.multi_factor_authentication_mfa_is_turned_on_for
+    title: "Ensure multi-factor authentication (MFA) is turned on for all human users with password-based authentication"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.4'
+    cis_section: '1'
+    log_source: "SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Users have to individually enroll into MFA using the Snowflake web UI. From
+      the UI: 1. Each user with a password should go to https://app.snowflake.com/
+      and sign into their Snowflake account. 2. Click on the username on the top
+      left side. 3. Click on Profile. 4. Next to Multi-factor authentication click
+      Enroll. 5. Click Start setup. 6. Select the type of device and click Continue.
+      7. Follow the steps to finish the enrollment. If MFA needs to be enabled for a
+      large population of users, consider prioritizing users with ACCOUNTADMIN,
+      SECURITYADMIN or other highly privileged roles. For specific instructions, see
+      the documentation page Enrolling in MFA (Multi-Factor Authentication). Note :
+      If you use SSO authentication, you will have to check and configure MFA with
+      your Identity Provider. Default Value: By default MFA is not enabled for
+      Snowflake users. References: 1. https://docs.snowflake.com/en/user-
+      guide/security-access-control-configure.html 2.
+      https://docs.snowflake.com/en/user-guide/security-mfa.html
+
+  - rule_id: tciem.snowflake.minimum_password_length_is_set_to_14_characters
+    title: "Ensure minimum password length is set to 14 characters or more"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.5'
+    cis_section: '1'
+    log_source: "SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Follow the following steps to set and enforce a password policy: 1. Create the
+      password policy if it does not exist: CREATE PASSWORD POLICY <password_policy>
+      PASSWORD_MIN_LENGTH = 14 PASSWORD_MAX_AGE_DAYS = 0; 2. Set password policy on
+      the account level: ALTER ACCOUNT SET PASSWORD POLICY <password_policy>; Note:
+      It may take up to 2 hours for the password policies created to show up in the
+      account usage view. For more information on latency, see the Data latency for
+      Account Usage documentation. Default Value: The default value for minimum
+      password length is 8 characters. References: 1.
+      https://docs.snowflake.com/en/user-guide/admin-user-management#password-
+      policies Additional Information: Snowflake password policies are effective
+      only for Snowflake users authenticating with Snowflake-managed passwords. For
+      users accessing Snowflake accounts integrated with an SSO provider, password
+      policy should be set on the SSO provider side.
+
+  - rule_id: tciem.snowflake.users_who_did_not_log_in_for_90_days_are_disabled
+    title: "Ensure that users who did not log in for 90 days are disabled"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.8'
+    cis_section: '1'
+    log_source: "SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Programmatically: In a Snowsight worksheet or through the SnowSQL CLI: For
+      each user <user_name> that has not logged in in the last 90 days, run the
+      following query to disable their account: ALTER USER <user_name> SET DISABLED
+      = true; If there is a need for re-enabling an account, a user must contact one
+      of the Snowflake account administrative users. Default Value: By default
+      Snowflake users are not disabled due to inactivity. An ACCOUNTADMIN must
+      explicitly disable an inactive user. References: 1.
+      https://docs.snowflake.com/en/user-guide/admin-user-
+      management.html#disabling-enabling-a-user
+
+  - rule_id: tciem.snowflake.limit_the_number_of_users_with_accountadmin_and
+    title: "Limit the number of users with ACCOUNTADMIN and SECURITYADMIN"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.10'
+    cis_section: '1'
+    log_source: "SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Programmatically: In a Snowsight worksheet or through the SnowSQL CLI: 1. For
+      each user <username> that does not need all the privileges a role provides to
+      fulfill their job responsibilities, revoke the ACCOUNTADMIN or all
+      equivalently privileged roles. REVOKE ROLE ACCOUNTADMIN FROM USER <username>
+      2. For each user <username> that does not need all the privileges a role
+      provides to fulfill their job responsibilities, revoke the SECURITYADMIN or
+      all equivalently privileged roles. REVOKE ROLE SECURITYADMIN FROM USER
+      <username> Default Value: By default, only the user who creates a Snowflake
+      account is assigned the ACCOUNTADMIN role. References: 1.
+      https://docs.snowflake.com/en/user-guide/security-access-control-
+      considerations.html
+
+  - rule_id: tciem.snowflake.all_users_granted_the_accountadmin_role_have_an
+    title: "Ensure that all users granted the ACCOUNTADMIN role have an email address assigned"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.11'
+    cis_section: '1'
+    log_source: "SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Programmatically: In a Snowsight worksheet or through the SnowSQL CLI: 1. For
+      every ACCOUNTADMIN user <username> that does not have email assigned run the
+      following command to assign it: ALTER USER <username> SET EMAIL =
+      <email_address>; Default Value: The trial account creation form requires an
+      email address. The first user of a newly created trial account is assigned
+      that email address by default. All other users created in a Snowflake account
+      must be assigned email addresses explicitly. References: 1.
+      https://docs.snowflake.com/en/user-guide/admin-user-
+      management.html#resetting-the-password-for-an-administrator
+
+  - rule_id: tciem.snowflake.no_users_have_accountadmin_or_securityadmin_as
+    title: "Ensure that no users have ACCOUNTADMIN or SECURITYADMIN as the default role"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '1.12'
+    cis_section: '1'
+    log_source: "SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Programmatically: In a Snowsight worksheet or through the SnowSQL CLI: 1. For
+      each user <user_name> who has ACCOUNTADMIN or SECURITYADMIN as their default
+      role, choose a less privileged role <job_appropriate_role> appropriate for
+      their daily job responsibilities and run the following query: ALTER USER
+      <user_name> SET DEFAULT_ROLE = <job_appropriate_role>; Note: You could also
+      unset the default role, thus forcing users to explicitly assume a role every
+      time they log in. Default Value: By default, only the user who creates a
+      Snowflake account is assigned the ACCOUNTADMIN role as the default role.
+      References: 1. https://docs.snowflake.com/en/user-guide/security-access-
+      control-configure.html
+
+  - rule_id: tciem.snowflake.the_accountadmin_or_securityadmin_role_is_not
+    title: "Ensure that the ACCOUNTADMIN or SECURITYADMIN role is not granted to any custom role"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '1.13'
+    cis_section: '1'
+    log_source: "SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Programmatically: In a Snowsight worksheet or through the SnowSQL CLI, find
+      all custom roles that are granted ACCOUNTADMIN role and revoke that grant.
+      REVOKE SECURITYADMIN ON ACCOUNT FROM ROLE <custom_role>; REVOKE ACCOUNTADMIN
+      ON ACCOUNT FROM ROLE <custom_role>; Default Value: By default no custom roles
+      are granted the ACCOUNTADMIN role. References: 1.
+      https://docs.snowflake.com/en/user-guide/security-access-control-
+      configure.html
+
+  - rule_id: tciem.snowflake.snowflake_tasks_are_not_owned_by_the_accountadmin
+    title: "Ensure that Snowflake tasks are not owned by the ACCOUNTADMIN or SECURITYADMIN roles"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '1.14'
+    cis_section: '1'
+    log_source: "SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Programmatically: In a Snowsight worksheet or through the SnowSQL CLI: 1. For
+      each task <task_name> that runs with ACCOUNTADMIN or SECURITYADMIN privileges,
+      create a new role <task_specific_role> and assign it to the tasks: CREATE ROLE
+      <task_specific_role>; GRANT OWNERSHIP ON TASK <task_name> TO ROLE
+      <task_specific_role>; 2. After creating a new role and granting ownership of
+      each task to it, for each task <task_name> that is owned by ACCOUNTADMIN or
+      SECURITYADMIN roles, ensure all privileges on the tasks are revoked from the
+      roles: REVOKE ALL PRIVILEGES ON TASK <task_name> FROM ROLE ACCOUNTADMIN;
+      REVOKE ALL PRIVILEGES ON TASK <task_name> FROM ROLE SECURITYADMIN; Default
+      Value: By default new tasks are granted permissions of the role that was used
+      to create them. References: 1. https://docs.snowflake.com/en/user-
+      guide/security-access-control- considerations.html 2.
+      https://docs.snowflake.com/en/user-guide/security-access-control-
+      configure.html 3. https://docs.snowflake.com/en/user-guide/tasks-
+      intro.html#task-security
+
+  - rule_id: tciem.snowflake.snowflake_tasks_do_not_run_with_the_accountadmin
+    title: "Ensure that Snowflake tasks do not run with the ACCOUNTADMIN or SECURITYADMIN role privileges"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '1.15'
+    cis_section: '1'
+    log_source: "SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Programmatically: In a Snowsight worksheet or through the SnowSQL CLI: 1. For
+      each task <task_name> that runs with ACCOUNTADMIN or SECURITYADMIN privileges,
+      create a new role <task_specific_role> and assign it to the tasks: CREATE ROLE
+      <task_specific_role>; GRANT OWNERSHIP ON TASK <task_name> TO ROLE
+      <task_specific_role>; 2. After creating a new role and granting privileges to
+      each task, ensure all privileges on the tasks are revoked from the
+      ACCOUNTADMIN and SECURITYADMIN roles: REVOKE ALL PRIVILEGES ON TASK
+      <task_name> FROM ROLE ACCOUNTADMIN; REVOKE ALL PRIVILEGES ON TASK <task_name>
+      FROM ROLE SECURITYADMIN; Default Value: By default new tasks are granted
+      permissions of the role that was used to create them. References: 1.
+      https://docs.snowflake.com/en/user-guide/security-access-control-
+      considerations.html 2. https://docs.snowflake.com/en/user-guide/security-
+      access-control-configure.html 3. https://docs.snowflake.com/en/user-
+      guide/tasks-intro.html#task-security
+
+  - rule_id: tciem.snowflake.snowflake_stored_procedures_are_not_owned_by_the
+    title: "Ensure that Snowflake stored procedures are not owned by the ACCOUNTADMIN or SECURITYADMIN roles"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '1.16'
+    cis_section: '1'
+    log_source: "SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Programmatically: In a Snowsight worksheet or through the SnowSQL CLI: 1. For
+      each stored procedure <procedure_name> that runs with ACCOUNTADMIN or
+      SECURITYADMIN privileges, create a new role <procedure_specific_role> and
+      assign it to the stored procedure: CREATE ROLE <procedure_specific_role>;
+      GRANT OWNERSHIP ON PROCEDURE <procedure_name> TO ROLE
+      <procedure_specific_role>; 2. After creating a new role and granting ownership
+      of each stored procedure to it, for each stored procedure that is owned by
+      ACCOUNTADMIN or SECURITYADMIN roles, ensure all privileges on the stored
+      procedure are revoked from the roles: REVOKE ALL PRIVILEGES ON PROCEDURE
+      <procedure_name> FROM ROLE ACCOUNTADMIN; REVOKE ALL PRIVILEGES ON PROCEDURE
+      <procedure_name> FROM ROLE SECURITYADMIN; Default Value: By default stored
+      procedures that run as owner are granted permissions of the role that was used
+      to create them. References: 1. https://docs.snowflake.com/en/user-
+      guide/security-access-control- considerations.html 2.
+      https://docs.snowflake.com/en/user-guide/security-access-control-
+      configure.html 3. https://docs.snowflake.com/en/sql-reference/stored-
+      procedures-rights
+
+  - rule_id: tciem.snowflake.snowflake_stored_procedures_do_not_run_with
+    title: "Ensure Snowflake stored procedures do not run with ACCOUNTADMIN or SECURITYADMIN role privileges"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '1.17'
+    cis_section: '1'
+    log_source: "SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Programmatically: In a Snowsight worksheet or using the SnowSQL CLI: 1. For
+      each stored procedure <procedure_name> that runs with ACCOUNTADMIN or
+      SECURITYADMIN privileges, create a new role <procedure_specific_role> and
+      assign it to the stored procedure: CREATE ROLE <procedure_specific_role>;
+      GRANT OWNERSHIP ON PROCEDURE <procedure_name> TO ROLE
+      <procedure_specific_role>; 2. After creating a new role and granting
+      privileges to each stored procedure, ensure all privileges on the stored
+      procedure <procedure_name> are revoked from the ACCOUNTADMIN and SECURITYADMIN
+      roles: REVOKE ALL PRIVILEGES ON PROCEDURE <procedure_name> FROM ROLE
+      ACCOUNTADMIN; REVOKE ALL PRIVILEGES ON PROCEDURE <procedure_name> FROM ROLE
+      SECURITYADMIN; Default Value: By default stored procedures that run as owner
+      are granted permissions of the role that was used to create them. References:
+      1. https://docs.snowflake.com/en/user-guide/security-access-control-
+      considerations.html 2. https://docs.snowflake.com/en/user-guide/security-
+      access-control-configure.html 3. https://docs.snowflake.com/en/sql-
+      reference/stored-procedures-rights
+
+  - rule_id: tciem.snowflake.the_require_storage_integration_for_stage_creatio
+    title: "Ensure that the REQUIRE_STORAGE_INTEGRATION_FOR_STAGE_CREATIO N account parameter is set to true"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.5'
+    cis_section: '4'
+    log_source: "SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Programmatically: In a Snowsight worksheet or from the SNOWSQL cli, run the
+      following command to set the parameter value to true: ALTER ACCOUNT SET
+      REQUIRE_STORAGE_INTEGRATION_FOR_STAGE_CREATION=true; Note: To avoid disruption
+      of existing workflow relying on creation of external stages not referencing a
+      storage integration, all such workflows should be identified and migrated to
+      creation of external stages referencing storage integrations. Default Value:
+      By default, the REQUIRE_STORAGE_INTEGRATION_FOR_STAGE_CREATION account level
+      parameters is set to false. References: 1. https://docs.snowflake.com/en/sql-
+      reference/parameters#require-storage- integration-for-stage-creation 2.
+      https://www.snowflake.com/blog/how-to-configure-a-snowflake-account-to-
+      prevent-data-exfiltration/
+

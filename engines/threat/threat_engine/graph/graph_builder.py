@@ -460,12 +460,14 @@ class SecurityGraphBuilder:
         neo4j_user: Optional[str] = None,
         neo4j_password: Optional[str] = None,
     ):
-        self._uri = neo4j_uri or os.getenv("NEO4J_URI", "neo4j+s://17ec5cbb.databases.neo4j.io")
+        self._uri = neo4j_uri or os.getenv("NEO4J_URI")
         self._user = neo4j_user or os.getenv("NEO4J_USER", "neo4j")
         self._password = neo4j_password or os.getenv("NEO4J_PASSWORD", "")
         self._driver = None
 
     def _get_driver(self):
+        if not self._uri:
+            raise RuntimeError("NEO4J_URI env var is required but not set")
         if self._driver is None:
             from neo4j import GraphDatabase
             self._driver = GraphDatabase.driver(
@@ -574,7 +576,7 @@ class SecurityGraphBuilder:
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
-                    SELECT cf.id AS finding_id, cf.scan_run_id, cf.rule_id,
+                    SELECT cf.finding_id, cf.scan_run_id, cf.rule_id,
                            cf.resource_uid, cf.resource_type,
                            cf.status,
                            rm.severity, rm.title, rm.service, rm.domain,
@@ -696,8 +698,8 @@ class SecurityGraphBuilder:
                         f"UNWIND $uids AS uid MATCH (r:Resource {{uid: uid}}) SET r:`{label}`",
                         uids=chunk,
                     )
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.warning("graph_builder: failed to set label %s on chunk: %s", label, _e)
 
         return count
 
@@ -976,8 +978,8 @@ class SecurityGraphBuilder:
                         MERGE (r)-[a:AFFECTED_BY]->(f)
                         SET a.edge_kind = 'association'
                     """, links=link_params)
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.warning("graph_builder: failed to write HAS_FINDING edges for batch: %s", _e)
 
             count += len(batch)
 
@@ -1043,8 +1045,8 @@ class SecurityGraphBuilder:
                         r.action = p.action
                 """, batch=chunk)
                 count += len(chunk)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.warning("graph_builder: failed to write ATTACK_PATH edges for batch: %s", _e)
 
         return count
 

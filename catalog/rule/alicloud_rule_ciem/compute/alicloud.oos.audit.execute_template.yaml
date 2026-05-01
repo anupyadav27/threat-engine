@@ -1,0 +1,73 @@
+rule_id: alicloud.oos.audit.execute_template
+service: compute
+provider: alicloud
+check_type: log
+severity: medium
+title: Detect ECS instance launches and OOS template executions to enforce software
+  whitelisting/blacklisting policies.
+description: Detects ECS launches and OOS executions for software whitelisting enforcement.
+rationale: Monitoring this activity is essential for detecting adversary execution
+  against ALICLOUD resources. Unauthorized or unexpected API calls may indicate account
+  compromise, privilege escalation, or an active attack chain.
+threat_category: execution
+mitre_tactics:
+- execution
+mitre_techniques:
+- T1059
+- T1648
+risk_score: 60
+resource: cloud_compute_instance
+source: csv_generated
+is_active: true
+domain: logging_monitoring_and_alerting
+action_category: create
+log_source_type: alicloud_actiontrail
+posture_category: threat_posture
+threat_tags:
+- T1059
+- T1648
+- execution
+- ciem_detection
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  nist_800_171:
+  - 3.4.8
+remediation: '1. Terminate the suspicious workload or execution immediately.
+
+  2. Audit the code/template deployed for malicious payloads.
+
+  3. Enforce code signing and image verification before deployment.
+
+  4. Restrict template/workspace execution to approved pipelines.
+
+  5. Implement mandatory peer review for infrastructure-as-code changes.'
+references:
+- https://attack.mitre.org/techniques/T1059/
+- https://attack.mitre.org/techniques/T1648/
+- https://www.alibabacloud.com/help/en/ram/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: oos
+    - field: operation
+      op: in
+      value:
+      - ExecuteTemplate
+      - StartExecution
+  type: log
+  version: '1.0'

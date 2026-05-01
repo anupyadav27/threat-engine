@@ -12,6 +12,7 @@ Functions:
 
 import re
 import logging
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
@@ -82,9 +83,76 @@ def extract_value(obj: Any, path: str) -> Any:
     return current
 
 
+def field_exists(obj: Any, path: str) -> bool:
+    """
+    Return True if the terminal key in *path* is present in the nested object,
+    regardless of its value — including when the value is None.
+
+    Unlike extract_value(), which returns None for BOTH "key missing" and
+    "key present with None value", this function distinguishes the two cases:
+
+      field_exists({"Email": None}, "Email")        → True   (key present)
+      field_exists({},              "Email")        → False  (key absent)
+      field_exists({"a": {}},      "a.b")           → False  (terminal missing)
+      field_exists({"a": {"b": None}}, "a.b")       → True   (terminal present)
+
+    Used by check_engine to decide whether NOT_APPLICABLE is warranted.
+    """
+    if obj is None or not path:
+        return False
+
+    parts = path.split(".")
+    terminal_key = parts[-1]
+
+    if len(parts) == 1:
+        if isinstance(obj, dict):
+            return terminal_key in obj
+        if isinstance(obj, list):
+            return any(isinstance(i, dict) and terminal_key in i for i in obj)
+        return False
+
+    # Navigate to the parent of the terminal key using extract_value.
+    # extract_value returns None when any intermediate key is missing OR when
+    # an intermediate value is None — both cases correctly mean "terminal can't exist".
+    parent = extract_value(obj, ".".join(parts[:-1]))
+
+    if parent is None:
+        return False
+    if isinstance(parent, dict):
+        return terminal_key in parent
+    if isinstance(parent, list):
+        return any(isinstance(i, dict) and terminal_key in i for i in parent)
+    return False
+
+
 # ---------------------------------------------------------------------------
 # evaluate_condition
 # ---------------------------------------------------------------------------
+
+def _parse_datetime(value: Any) -> datetime | None:
+    """Parse a datetime string or epoch into a timezone-aware datetime. Returns None on failure."""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(float(value), tz=timezone.utc)
+    s = str(value).strip()
+    for fmt in (
+        "%Y-%m-%dT%H:%M:%S%z",
+        "%Y-%m-%dT%H:%M:%S.%f%z",
+        "%Y-%m-%dT%H:%M:%SZ",
+        "%Y-%m-%dT%H:%M:%S.%fZ",
+        "%Y-%m-%d %H:%M:%S%z",
+        "%Y-%m-%d",
+    ):
+        try:
+            dt = datetime.strptime(s, fmt)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+        except ValueError:
+            continue
+    return None
+
 
 def evaluate_condition(value: Any, operator: str, expected: Any = None) -> bool:
     """
@@ -97,6 +165,7 @@ def evaluate_condition(value: Any, operator: str, expected: Any = None) -> bool:
       contains / not_contains
       in / not_in
       length_gte / length_gt / length_lt / length_lte
+      age_days / within_days  (date-age operators: compare days since timestamp)
     """
     if operator == "exists":
         return value is not None and value != "" and value != []
@@ -106,11 +175,22 @@ def evaluate_condition(value: Any, operator: str, expected: Any = None) -> bool:
         return value is None or value == "" or value == []
     if operator in ("not_empty", "is_not_empty"):
         return value is not None and value != "" and value != []
+    if operator in ("is_true", "is_truthy"):
+        return bool(value) if value is not None else False
+    if operator in ("is_false", "is_falsy"):
+        # None is falsy → not bool(None) = True → PASS for absent boolean fields.
+        # This correctly handles cases like spec.hostNetwork absent (= disabled = safe).
+        return not bool(value)
 
-    if operator == "equals":
-        return value == expected
-    if operator == "not_equals":
-        return value != expected
+    if operator in ("equals", "not_equals"):
+        # Normalize bool/string mismatch: 'true'/'false' strings ↔ booleans
+        # Check rules often store value: 'true' (YAML string); DB returns Python bool True
+        v, e = value, expected
+        if isinstance(e, str) and e.lower() in ("true", "false"):
+            e = e.lower() == "true"
+        if isinstance(v, str) and v.lower() in ("true", "false"):
+            v = v.lower() == "true"
+        return (v == e) if operator == "equals" else (v != e)
 
     # Numeric comparisons
     def _num(a, b):
@@ -162,6 +242,35 @@ def evaluate_condition(value: Any, operator: str, expected: Any = None) -> bool:
         return isinstance(value, str) and value.startswith(str(expected))
     if operator in ("ends_with",):
         return isinstance(value, str) and value.endswith(str(expected))
+
+    # Multi-prefix operators (CIEM log rules)
+    # starts_with_any: True if value starts with ANY prefix in expected list
+    if operator == "starts_with_any":
+        if not isinstance(value, str):
+            return False
+        prefixes = expected if isinstance(expected, list) else [str(expected)]
+        return any(value.startswith(str(p)) for p in prefixes)
+
+    # not_starts_with: True if value does NOT start with expected (string or any in list)
+    if operator == "not_starts_with":
+        if not isinstance(value, str):
+            return True
+        prefixes = expected if isinstance(expected, list) else [str(expected)]
+        return not any(value.startswith(str(p)) for p in prefixes)
+
+    # Date-age operators: compare days elapsed since the timestamp in value
+    # age_days: True if age (days since timestamp) <= expected  (i.e. rotated recently enough)
+    # within_days: synonym for age_days
+    if operator in ("age_days", "within_days"):
+        dt = _parse_datetime(value)
+        if dt is None:
+            return False
+        try:
+            threshold = int(expected)
+        except (ValueError, TypeError):
+            return False
+        age = (datetime.now(tz=timezone.utc) - dt).days
+        return age <= threshold
 
     logger.warning("Unknown operator: %s", operator)
     return False

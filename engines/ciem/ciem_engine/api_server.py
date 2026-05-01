@@ -1,14 +1,12 @@
 """
 CIEM Engine API Server
 
-FastAPI server for log collection, detection findings, and identity analytics.
+FastAPI server for CIEM log collection and detection findings.
 Port: 8025
 
 Endpoints:
-  POST /api/v1/scan                       — Start log collection (K8s Job)
-  GET  /api/v1/log-collection/events      — Query normalized events
-  GET  /api/v1/log-collection/sources     — List discovered log sources
-  GET  /api/v1/log-collection/stats       — Event statistics
+  POST /api/v1/scan                       — Start log collection for one account (K8s Job)
+  POST /api/v1/scan/all                   — Start log collection for all accounts (hourly CronWorkflow)
 
   GET  /api/v1/ciem/findings              — Query CIEM detection findings
   GET  /api/v1/ciem/findings/{finding_id} — Get single finding detail
@@ -24,20 +22,58 @@ Endpoints:
 import os
 import sys
 import json
-import time
-from typing import Optional, List
-from datetime import datetime, timezone
-from fastapi import FastAPI, HTTPException, Query
+import uuid
+from typing import Any, Dict, List, Optional
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
+from engine_common.db_connections import get_ciem_conn, get_onboarding_conn
 from engine_common.logger import setup_logger
 from engine_common.telemetry import configure_telemetry
 from engine_common.middleware import RequestLoggingMiddleware, CorrelationIDMiddleware
 from engine_common.orchestration import get_orchestration_metadata
 from engine_common.job_creator import create_engine_job
+
+# ── Auth imports (engine_auth is COPY shared/auth/ ./engine_auth/ in Dockerfile) ──
+try:
+    from engine_auth.fastapi.middleware import AuthMiddleware
+    from engine_auth.fastapi.dependencies import require_permission
+    from engine_auth.core.models import AuthContext
+    _AUTH_AVAILABLE = True
+except ImportError:
+    _AUTH_AVAILABLE = False
+    AuthContext = None  # type: ignore[assignment,misc]
+
+
+def strip_sensitive_fields(data: List[Dict[str, Any]], auth: Any) -> List[Dict[str, Any]]:
+    """Remove credential and raw audit-log fields based on caller's auth level.
+
+    For CIEM engine:
+    - level > 1: strip credential_ref, credential_type
+    - level >= 4: also strip event_raw (raw CloudTrail / audit log line)
+
+    Args:
+        data: List of finding dicts.
+        auth: AuthContext instance (or None when auth is unavailable).
+
+    Returns:
+        New list with sensitive fields removed; original dicts are not mutated.
+    """
+    if not isinstance(data, list):
+        return data
+    stripped = []
+    for row in data:
+        r = dict(row) if not isinstance(row, dict) else row.copy()
+        if auth is not None and auth.level > 1:
+            r.pop("credential_ref", None)
+            r.pop("credential_type", None)
+        if auth is not None and auth.level >= 4:
+            r.pop("event_raw", None)
+        stripped.append(r)
+    return stripped
 
 logger = setup_logger(__name__, engine_name="engine-ciem")
 
@@ -57,10 +93,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# AuthMiddleware validates access_token / X-Auth-Context for every non-health path
+if _AUTH_AVAILABLE:
+    app.add_middleware(AuthMiddleware)
+
 # Scanner job config
 SCANNER_IMAGE = os.getenv("CIEM_SCANNER_IMAGE", "yadavanup84/engine-ciem:v-std-cols")
-SCANNER_CPU = os.getenv("SCANNER_CPU_REQUEST", "500m")
-SCANNER_MEM = os.getenv("SCANNER_MEM_REQUEST", "2Gi")
+SCANNER_CPU = os.getenv("SCANNER_CPU_REQUEST", "250m")
+SCANNER_MEM = os.getenv("SCANNER_MEM_REQUEST", "512Mi")
+SCANNER_MEM_LIMIT = os.getenv("SCANNER_MEM_LIMIT", "4Gi")
 
 
 # ── Models ──
@@ -105,21 +146,19 @@ async def start_log_collection(request: ScanRequest):
     """Start log collection by creating a K8s Job."""
     scan_run_id = request.scan_run_id
 
-    try:
-        meta = get_orchestration_metadata(scan_run_id)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    meta = get_orchestration_metadata(scan_run_id)
+    if not meta:
+        raise HTTPException(status_code=404, detail=f"Scan run {scan_run_id} not found in scan_runs")
 
-    tenant_id = meta.get("tenant_id") or request.tenant_id
-    provider = (meta.get("provider") or request.provider).lower()
-
-    extra_env = []
-    if request.lookback_hours != 24:
-        from kubernetes import client as k8s_client
-        extra_env.append(k8s_client.V1EnvVar(name="LOG_LOOKBACK_HOURS", value=str(request.lookback_hours)))
-    if request.max_events != 100000:
-        from kubernetes import client as k8s_client
-        extra_env.append(k8s_client.V1EnvVar(name="LOG_MAX_EVENTS", value=str(request.max_events)))
+    from kubernetes import client as k8s_client
+    # Always forward lookback/max_events so scanner Job gets the right value.
+    # If caller didn't specify, fall back to this pod's own env (set via deployment).
+    _lookback = str(request.lookback_hours) if request.lookback_hours else os.getenv("LOG_LOOKBACK_HOURS", "1")
+    _max_ev   = str(request.max_events)    if request.max_events    else os.getenv("LOG_MAX_EVENTS", "500000")
+    extra_env = [
+        k8s_client.V1EnvVar(name="LOG_LOOKBACK_HOURS", value=_lookback),
+        k8s_client.V1EnvVar(name="LOG_MAX_EVENTS",     value=_max_ev),
+    ]
 
     try:
         job_name = create_engine_job(
@@ -129,8 +168,10 @@ async def start_log_collection(request: ScanRequest):
             image=SCANNER_IMAGE,
             cpu_request=SCANNER_CPU,
             mem_request=SCANNER_MEM,
-            active_deadline_seconds=3600,
+            mem_limit=SCANNER_MEM_LIMIT,
+            active_deadline_seconds=7200,
             extra_env=extra_env or None,
+            use_spot=True,  # TODO: switch to dedicated on-demand node group when provisioned
         )
     except Exception as e:
         logger.error(f"Failed to create log collection Job: {e}", exc_info=True)
@@ -143,196 +184,167 @@ async def start_log_collection(request: ScanRequest):
     )
 
 
-# ── Query Events ──
-
-def _get_db_conn():
-    import psycopg2
-    return psycopg2.connect(
-        host=os.getenv("LOG_DB_HOST", os.getenv("INVENTORY_DB_HOST", os.getenv("DB_HOST", "localhost"))),
-        port=int(os.getenv("LOG_DB_PORT", os.getenv("INVENTORY_DB_PORT", os.getenv("DB_PORT", "5432")))),
-        database=os.getenv("LOG_DB_NAME", os.getenv("INVENTORY_DB_NAME", "threat_engine_inventory")),
-        user=os.getenv("LOG_DB_USER", os.getenv("INVENTORY_DB_USER", os.getenv("DB_USER", "postgres"))),
-        password=os.getenv("LOG_DB_PASSWORD", os.getenv("INVENTORY_DB_PASSWORD", os.getenv("DB_PASSWORD", ""))),
-    )
+DISCOVERIES_API_URL = os.getenv("DISCOVERIES_API_URL", "http://engine-discoveries")
 
 
-@app.get("/api/v1/log-collection/events")
-async def query_events(
-    tenant_id: str = Query(...),
-    scan_run_id: Optional[str] = Query(None),
-    source_type: Optional[str] = Query(None),
-    category: Optional[str] = Query(None),
-    severity: Optional[str] = Query(None),
-    resource_uid: Optional[str] = Query(None),
-    actor_principal: Optional[str] = Query(None),
-    operation: Optional[str] = Query(None),
-    limit: int = Query(100, le=10000),
-    offset: int = Query(0),
-):
-    """Query normalized log events with filters."""
-    import psycopg2.extras
-    conn = _get_db_conn()
+def _fetch_all_accounts() -> List[dict]:
+    """Fetch all accounts (onboarded + discovered sub-accounts) from discoveries API.
+
+    The discoveries engine merges cloud_accounts (onboarding DB) with
+    sub-accounts found in discovery_findings, so CIEM gets the complete
+    account universe without needing its own DB queries.
+
+    Falls back to querying cloud_accounts directly if discoveries API is down.
+    """
+    import urllib.request as _req
+
+    # Get distinct tenant IDs from onboarding DB first
+    tenants: List[str] = []
     try:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            conditions = ["tenant_id = %s"]
-            params = [tenant_id]
-
-            if scan_run_id:
-                conditions.append("scan_run_id = %s")
-                params.append(scan_run_id)
-            if source_type:
-                conditions.append("source_type = %s")
-                params.append(source_type)
-            if category:
-                conditions.append("category = %s")
-                params.append(category)
-            if severity:
-                conditions.append("severity = %s")
-                params.append(severity)
-            if resource_uid:
-                conditions.append("resource_uid = %s")
-                params.append(resource_uid)
-            if actor_principal:
-                conditions.append("actor_principal LIKE %s")
-                params.append(f"%{actor_principal}%")
-            if operation:
-                conditions.append("operation = %s")
-                params.append(operation)
-
-            where = " AND ".join(conditions)
-            params.extend([limit, offset])
-
-            cur.execute(f"""
-                SELECT event_id, event_time, category, source_type, severity,
-                       service, operation, outcome, error_code,
-                       actor_principal, actor_ip, actor_user_agent,
-                       resource_uid, resource_type, resource_name, resource_region,
-                       risk_indicators, asset_matched
-                FROM log_events
-                WHERE {where}
-                ORDER BY event_time DESC
-                LIMIT %s OFFSET %s
-            """, params)
-            events = [dict(r) for r in cur.fetchall()]
-
-            # Get total count
-            cur.execute(f"SELECT count(*) FROM log_events WHERE {where}", params[:-2])
-            total = cur.fetchone()["count"]
-
-        return {"total": total, "events": events, "limit": limit, "offset": offset}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
+        import psycopg2.extras
+        conn = get_onboarding_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT tenant_id FROM cloud_accounts WHERE account_status = 'active'")
+            tenants = [row[0] for row in cur.fetchall()]
         conn.close()
-
-
-@app.get("/api/v1/log-collection/stats")
-async def event_stats(
-    tenant_id: str = Query(...),
-    scan_run_id: Optional[str] = Query(None),
-):
-    """Get event statistics by source type, category, severity."""
-    import psycopg2.extras
-    conn = _get_db_conn()
-    try:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            scan_filter = "AND scan_run_id = %s" if scan_run_id else ""
-            params = [tenant_id, scan_run_id] if scan_run_id else [tenant_id]
-
-            cur.execute(f"""
-                SELECT
-                    count(*) AS total_events,
-                    count(DISTINCT source_type) AS source_types,
-                    count(DISTINCT service) AS services,
-                    count(DISTINCT actor_principal) AS unique_actors,
-                    count(DISTINCT resource_uid) AS unique_resources,
-                    min(event_time) AS earliest,
-                    max(event_time) AS latest
-                FROM log_events
-                WHERE tenant_id = %s {scan_filter}
-            """, params)
-            summary = dict(cur.fetchone())
-
-            cur.execute(f"""
-                SELECT source_type, count(*) AS count
-                FROM log_events WHERE tenant_id = %s {scan_filter}
-                GROUP BY source_type ORDER BY count DESC
-            """, params)
-            by_source = [dict(r) for r in cur.fetchall()]
-
-            cur.execute(f"""
-                SELECT severity, count(*) AS count
-                FROM log_events WHERE tenant_id = %s {scan_filter}
-                GROUP BY severity ORDER BY count DESC
-            """, params)
-            by_severity = [dict(r) for r in cur.fetchall()]
-
-            cur.execute(f"""
-                SELECT operation, count(*) AS count
-                FROM log_events WHERE tenant_id = %s {scan_filter}
-                GROUP BY operation ORDER BY count DESC LIMIT 20
-            """, params)
-            top_operations = [dict(r) for r in cur.fetchall()]
-
-        return {
-            "summary": summary,
-            "by_source": by_source,
-            "by_severity": by_severity,
-            "top_operations": top_operations,
-        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        conn.close()
+        logger.warning(f"scan/all: could not fetch tenants from onboarding DB: {e}")
+
+    all_accounts: List[dict] = []
+    for tenant_id in tenants:
+        url = f"{DISCOVERIES_API_URL}/api/v1/accounts?tenant_id={tenant_id}&include_sub_accounts=true"
+        try:
+            with _req.urlopen(url, timeout=15) as resp:
+                data = json.loads(resp.read())
+                all_accounts.extend(data.get("accounts", []))
+                logger.info(
+                    f"scan/all: tenant={tenant_id} → "
+                    f"{data.get('onboarded', 0)} onboarded + {data.get('discovered', 0)} sub-accounts"
+                )
+        except Exception as e:
+            logger.warning(f"scan/all: discoveries API unavailable for tenant={tenant_id}: {e} — falling back to cloud_accounts")
+            # Fallback: query cloud_accounts directly for this tenant
+            try:
+                import psycopg2.extras
+                conn = get_onboarding_conn()
+                with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                    cur.execute(
+                        "SELECT account_number AS account_id, tenant_id, provider, credential_type, credential_ref FROM cloud_accounts WHERE account_status = 'active' AND tenant_id = %s",
+                        (tenant_id,),
+                    )
+                    for row in cur.fetchall():
+                        all_accounts.append({**dict(row), "is_onboarded": True, "regions": []})
+                conn.close()
+            except Exception as fb_err:
+                logger.error(f"scan/all: fallback also failed for tenant={tenant_id}: {fb_err}")
+
+    return all_accounts
 
 
-@app.get("/api/v1/log-collection/sources")
-async def list_log_sources(
-    tenant_id: str = Query(...),
-    scan_run_id: Optional[str] = Query(None),
-):
-    """List discovered log sources."""
-    import psycopg2.extras
-    conn = _get_db_conn()
-    try:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            scan_filter = "AND scan_run_id = %s" if scan_run_id else ""
-            params = [tenant_id, scan_run_id] if scan_run_id else [tenant_id]
+@app.post("/api/v1/scan/all")
+async def start_all_accounts_ciem():
+    """Start CIEM log collection for ALL active cloud accounts.
 
-            cur.execute(f"""
-                SELECT source_type, source_bucket, source_region,
-                       count(*) AS event_count,
-                       min(event_time) AS earliest,
-                       max(event_time) AS latest
-                FROM log_events
-                WHERE tenant_id = %s {scan_filter}
-                GROUP BY source_type, source_bucket, source_region
-                ORDER BY event_count DESC
-            """, params)
-            sources = [dict(r) for r in cur.fetchall()]
+    Called by the CIEM CronWorkflow every hour. Fetches all accounts
+    (onboarded + sub-accounts) from the discoveries engine, spawns one
+    K8s Job per account on on-demand nodes. Fire-and-forget — no polling.
+    Each Job handles all regions for that account via LogSourceFinder,
+    which reads region data from discovery_findings.
+    """
+    accounts = _fetch_all_accounts()
 
-        return {"sources": sources}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        conn.close()
+    if not accounts:
+        logger.warning("scan/all: no active cloud accounts found")
+        return {"jobs_created": 0, "accounts": []}
+
+    logger.info(f"scan/all: found {len(accounts)} active accounts — spawning CIEM Jobs")
+
+    jobs_created = []
+    skipped = []
+
+    for acct in accounts:
+        account_id  = acct.get("account_id") or acct.get("account_number") or ""
+        tenant_id   = acct.get("tenant_id") or "default-tenant"
+        provider    = (acct.get("provider") or "aws").lower()
+        cred_type   = acct.get("credential_type") or "access_key"
+        cred_ref    = acct.get("credential_ref") or acct.get("parent_credential_ref") or ""
+        scan_run_id = str(uuid.uuid4())
+
+        # Skip accounts with no usable account identifier — they can't be
+        # referenced in scan_runs (FK → cloud_accounts.account_id)
+        if not account_id:
+            logger.warning(f"scan/all: skipping account with empty account_id for tenant={tenant_id} provider={provider}")
+            skipped.append({"account_id": "", "error": "empty account_id"})
+            continue
+
+        # 2. Create scan record so run_scan.py can read metadata via get_orchestration_metadata
+        try:
+            conn_onb2 = get_onboarding_conn()
+            with conn_onb2.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO tenants (tenant_id, customer_id, tenant_name) VALUES (%s, %s, %s) ON CONFLICT (tenant_id) DO NOTHING",
+                    (tenant_id, tenant_id, tenant_id),
+                )
+                cur.execute("""
+                    INSERT INTO scan_runs
+                        (scan_run_id, tenant_id, account_id, provider,
+                         credential_type, credential_ref,
+                         overall_status, engines_requested, engines_completed,
+                         created_at, started_at)
+                    VALUES (%s, %s, %s, %s, %s, %s,
+                            'running', '["ciem"]'::jsonb, '{}'::jsonb,
+                            NOW(), NOW())
+                    ON CONFLICT (scan_run_id) DO NOTHING
+                """, (scan_run_id, tenant_id, account_id, provider, cred_type, cred_ref))
+            conn_onb2.commit()
+            conn_onb2.close()
+        except Exception as rec_err:
+            logger.warning(f"Could not create scan record for {account_id}: {rec_err}")
+            # Non-fatal — run_scan will fall back to params from meta or env
+
+        # 3. Spawn K8s Job for this account (on-demand node)
+        try:
+            from kubernetes import client as k8s_client
+            _lookback = os.getenv("LOG_LOOKBACK_HOURS", "1")
+            _max_events = os.getenv("LOG_MAX_EVENTS", "500000")
+            job_name = create_engine_job(
+                engine_name="log-collection",
+                scan_id=scan_run_id,
+                scan_run_id=scan_run_id,
+                image=SCANNER_IMAGE,
+                cpu_request=SCANNER_CPU,
+                mem_request=SCANNER_MEM,
+                mem_limit=SCANNER_MEM_LIMIT,
+                active_deadline_seconds=7200,
+                use_spot=True,  # TODO: switch to dedicated on-demand node group when provisioned
+                extra_env=[
+                    k8s_client.V1EnvVar(name="LOG_LOOKBACK_HOURS", value=_lookback),
+                    k8s_client.V1EnvVar(name="LOG_MAX_EVENTS", value=_max_events),
+                ],
+            )
+            jobs_created.append({
+                "scan_run_id": scan_run_id,
+                "account_id": account_id,
+                "tenant_id": tenant_id,
+                "provider": provider,
+                "job": job_name,
+            })
+            logger.info(f"scan/all: created Job {job_name} for account={account_id} provider={provider}")
+        except Exception as job_err:
+            logger.error(f"scan/all: failed to create Job for account={account_id}: {job_err}")
+            skipped.append({"account_id": account_id, "error": str(job_err)})
+
+    return {
+        "jobs_created": len(jobs_created),
+        "jobs_skipped": len(skipped),
+        "accounts": jobs_created,
+        "skipped": skipped,
+    }
 
 
 # ═══════════════════════════════════════════════════════════════
 # CIEM Findings & Dashboard
 # ═══════════════════════════════════════════════════════════════
-
-def _get_ciem_conn():
-    import psycopg2
-    return psycopg2.connect(
-        host=os.getenv("CIEM_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("CIEM_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        database=os.getenv("CIEM_DB_NAME", "threat_engine_ciem"),
-        user=os.getenv("CIEM_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("CIEM_DB_PASSWORD", os.getenv("INVENTORY_DB_PASSWORD",
-                 os.getenv("DB_PASSWORD", ""))),
-    )
-
 
 @app.get("/api/v1/ciem/findings")
 async def query_findings(
@@ -347,10 +359,11 @@ async def query_findings(
     service: Optional[str] = Query(None),
     limit: int = Query(100, le=10000),
     offset: int = Query(0),
+    auth: Any = Depends(require_permission("ciem:read") if _AUTH_AVAILABLE else (lambda: None)),
 ):
     """Query CIEM detection findings with filters."""
     import psycopg2.extras
-    conn = _get_ciem_conn()
+    conn = get_ciem_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             conditions = ["tenant_id = %s"]
@@ -410,7 +423,7 @@ async def query_findings(
             cur.execute(f"SELECT count(*) FROM ciem_findings WHERE {where}", params)
             total = cur.fetchone()["count"]
 
-        return {"total": total, "findings": findings, "limit": limit, "offset": offset}
+        return {"total": total, "findings": strip_sensitive_fields(findings, auth), "limit": limit, "offset": offset}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
@@ -421,7 +434,7 @@ async def query_findings(
 async def get_finding(finding_id: str):
     """Get detailed finding by ID."""
     import psycopg2.extras
-    conn = _get_ciem_conn()
+    conn = get_ciem_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute("SELECT * FROM ciem_findings WHERE finding_id = %s", (finding_id,))
@@ -498,7 +511,7 @@ async def ciem_dashboard(
 ):
     """CIEM dashboard — summary counts, severity breakdown, engine breakdown, trends."""
     import psycopg2.extras
-    conn = _get_ciem_conn()
+    conn = get_ciem_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             scan_filter = "AND scan_run_id = %s" if scan_run_id else ""
@@ -512,7 +525,7 @@ async def ciem_dashboard(
                     count(DISTINCT actor_principal) FILTER (WHERE actor_principal != '') AS unique_actors,
                     count(DISTINCT resource_uid) FILTER (WHERE resource_uid != '') AS unique_resources,
                     count(DISTINCT account_id) FILTER (WHERE account_id != '') AS accounts,
-                    count(*) FILTER (WHERE rule_source = 'correlation') AS l2_findings,
+                    count(*) FILTER (WHERE rule_source = 'log_correlation') AS l2_findings,
                     count(*) FILTER (WHERE rule_source = 'baseline') AS l3_findings
                 FROM ciem_findings
                 WHERE tenant_id = %s {scan_filter}
@@ -591,7 +604,7 @@ async def identity_summary(
 ):
     """Identity risk summary — top actors by finding count and severity."""
     import psycopg2.extras
-    conn = _get_ciem_conn()
+    conn = get_ciem_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             scan_filter = "AND scan_run_id = %s" if scan_run_id else ""
@@ -636,7 +649,7 @@ async def top_rules(
 ):
     """Top triggered detection rules by finding count."""
     import psycopg2.extras
-    conn = _get_ciem_conn()
+    conn = get_ciem_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             scan_filter = "AND scan_run_id = %s" if scan_run_id else ""
@@ -672,7 +685,7 @@ async def top_rules(
 async def scan_report(scan_run_id: str):
     """Get CIEM scan report with full summary."""
     import psycopg2.extras
-    conn = _get_ciem_conn()
+    conn = get_ciem_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute("SELECT * FROM ciem_report WHERE scan_run_id = %s", (scan_run_id,))

@@ -1,0 +1,127 @@
+version: '1.0'
+provider: azure
+service: web
+checks:
+# ═══════════════════════════════════════════
+# Web Apps — azure.web.webapps.list_by_resource_group
+# 63 fields including https_only, client_cert, public_network_access,
+# identity, site_config, ssh_enabled, virtual_network_subnet_id
+# ═══════════════════════════════════════════
+
+# --- Encryption & Transport ---
+- rule_id: azure.web.app.https_only_enforced
+  for_each: azure.web.webapps.list_by_resource_group
+  conditions:
+    var: item.https_only
+    op: equals
+    value: 'true'
+
+- rule_id: azure.web.app.end_to_end_encryption_enabled
+  for_each: azure.web.webapps.list_by_resource_group
+  conditions:
+    var: item.end_to_end_encryption_enabled
+    op: equals
+    value: 'true'
+
+# --- Authentication ---
+- rule_id: azure.web.app.client_cert_enabled
+  for_each: azure.web.webapps.list_by_resource_group
+  conditions:
+    var: item.client_cert_enabled
+    op: equals
+    value: 'true'
+
+- rule_id: azure.web.app.client_cert_mode_required
+  for_each: azure.web.webapps.list_by_resource_group
+  conditions:
+    var: item.client_cert_mode
+    op: equals
+    value: Required
+
+- rule_id: azure.web.app.managed_identity_enabled
+  for_each: azure.web.webapps.list_by_resource_group
+  conditions:
+    var: item.identity
+    op: not_empty
+
+# --- Network Access ---
+- rule_id: azure.web.app.public_network_access_disabled
+  for_each: azure.web.webapps.list_by_resource_group
+  conditions:
+    var: item.public_network_access
+    op: equals
+    value: Disabled
+
+- rule_id: azure.web.app.vnet_integrated
+  for_each: azure.web.webapps.list_by_resource_group
+  conditions:
+    var: item.virtual_network_subnet_id
+    op: not_empty
+
+- rule_id: azure.web.app.ssh_disabled
+  for_each: azure.web.webapps.list_by_resource_group
+  conditions:
+    var: item.ssh_enabled
+    op: equals
+    value: 'false'
+
+# --- Configuration ---
+- rule_id: azure.web.app.site_config_configured
+  for_each: azure.web.webapps.list_by_resource_group
+  conditions:
+    var: item.site_config
+    op: not_empty
+
+- rule_id: azure.web.app.host_name_ssl_configured
+  for_each: azure.web.webapps.list_by_resource_group
+  conditions:
+    var: item.host_name_ssl_states
+    op: not_empty
+
+- rule_id: azure.web.app.keyvault_reference_identity_configured
+  for_each: azure.web.webapps.list_by_resource_group
+  conditions:
+    var: item.key_vault_reference_identity
+    op: not_empty
+
+- rule_id: azure.web.app.scm_site_stopped
+  for_each: azure.web.webapps.list_by_resource_group
+  conditions:
+    var: item.scm_site_also_stopped
+    op: equals
+    value: 'true'
+
+- rule_id: azure.web.app.client_affinity_disabled
+  for_each: azure.web.webapps.list_by_resource_group
+  conditions:
+    var: item.client_affinity_enabled
+    op: equals
+    value: 'false'
+
+- rule_id: azure.web.app.storage_account_not_required
+  for_each: azure.web.webapps.list_by_resource_group
+  conditions:
+    var: item.storage_account_required
+    op: equals
+    value: 'false'
+
+# --- High Availability ---
+- rule_id: azure.web.app.redundancy_mode_configured
+  for_each: azure.web.webapps.list_by_resource_group
+  conditions:
+    var: item.redundancy_mode
+    op: not_empty
+
+# --- Inventory ---
+- rule_id: azure.web.app.enabled
+  for_each: azure.web.webapps.list_by_resource_group
+  conditions:
+    var: item.enabled
+    op: equals
+    value: 'true'
+
+- rule_id: azure.web.app.tags_configured
+  for_each: azure.web.webapps.list_by_resource_group
+  conditions:
+    var: item.tags
+    op: not_empty

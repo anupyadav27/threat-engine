@@ -1,0 +1,74 @@
+# discoveries_only_check: 3 kept / 19 removed from 22 total
+# generated_from: step6_globalaccelerator.discovery.yaml
+# purpose: only discoveries needed by globalaccelerator.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: globalaccelerator
+services:
+  client: globalaccelerator
+  module: boto3.client
+discovery:
+- discovery_id: aws.globalaccelerator.list_accelerators
+  calls:
+  - action: list_accelerators
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Accelerators }}'
+    item:
+      LastModifiedTime: '{{ item.LastModifiedTime }}'
+      Name: '{{ item.Name }}'
+      Status: '{{ item.Status }}'
+      Accelerator: '{{ item.Accelerator }}'
+      AcceleratorArn: '{{ item.AcceleratorArn }}'
+      AcceleratorAttributes: '{{ item.AcceleratorAttributes }}'
+      AcceleratorPort: '{{ item.AcceleratorPort }}'
+      ClientAffinity: '{{ item.ClientAffinity }}'
+      CreatedTime: '{{ item.CreatedTime }}'
+      DestinationSocketAddress: '{{ item.DestinationSocketAddress }}'
+      DestinationTrafficState: '{{ item.DestinationTrafficState }}'
+      DnsName: '{{ item.DnsName }}'
+      DualStackDnsName: '{{ item.DualStackDnsName }}'
+      Enabled: '{{ item.Enabled }}'
+      Events: '{{ item.Events }}'
+      FlowLogsEnabled: '{{ item.FlowLogsEnabled }}'
+      FlowLogsS3Bucket: '{{ item.FlowLogsS3Bucket }}'
+      FlowLogsS3Prefix: '{{ item.FlowLogsS3Prefix }}'
+      IpAddressType: '{{ item.IpAddressType }}'
+      IpSets: '{{ item.IpSets }}'
+      PortRanges: '{{ item.PortRanges }}'
+      Protocol: '{{ item.Protocol }}'
+      Protocols: '{{ item.Protocols }}'
+- discovery_id: aws.globalaccelerator.describe_accelerator_attributes
+  for_each: aws.globalaccelerator.list_accelerators
+  calls:
+  - action: describe_accelerator_attributes
+    params:
+      AcceleratorArn: '{{ item.AcceleratorArn }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      AcceleratorAttributes: '{{ response.AcceleratorAttributes.AcceleratorAttributes
+        }}'
+      FlowLogsEnabled: '{{ response.AcceleratorAttributes.FlowLogsEnabled }}'
+      FlowLogsS3Bucket: '{{ response.AcceleratorAttributes.FlowLogsS3Bucket }}'
+      FlowLogsS3Prefix: '{{ response.AcceleratorAttributes.FlowLogsS3Prefix }}'
+- discovery_id: aws.globalaccelerator.list_listeners
+  for_each: aws.globalaccelerator.list_accelerators
+  calls:
+  - action: list_listeners
+    params:
+      AcceleratorArn: '{{ item.AcceleratorArn }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Listeners }}'
+    item:
+      ClientAffinity: '{{ item.ClientAffinity }}'
+      ListenerArn: '{{ item.ListenerArn }}'
+      PortRanges: '{{ item.PortRanges }}'
+      Protocol: '{{ item.Protocol }}'

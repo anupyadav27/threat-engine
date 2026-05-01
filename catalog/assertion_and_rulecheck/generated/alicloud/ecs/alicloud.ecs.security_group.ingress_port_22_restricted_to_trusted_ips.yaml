@@ -1,0 +1,12 @@
+version: '1.0'
+rule_id: alicloud.ecs.security_group.ingress_port_22_restricted_to_trusted_ips
+for_each: alicloud.ecs.describe_security_groups
+severity: MEDIUM
+conditions:
+  all:
+  - var: item.Permissions.Permission[].PortRange
+    op: contains
+    value: 22/22
+  - var: item.Permissions.Permission[?(@.PortRange == '22/22')].SourceCidrIp
+    op: not_contains
+    value: 0.0.0.0/0

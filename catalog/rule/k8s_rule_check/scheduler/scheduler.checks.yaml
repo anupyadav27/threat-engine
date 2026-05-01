@@ -1,0 +1,25 @@
+version: '1.0'
+provider: k8s
+service: scheduler
+checks:
+- rule_id: k8s.scheduler.bind.address_check
+  for_each: k8s.scheduler.list_component_status
+  severity: LOW
+  conditions:
+    var: item.arguments.bind-address
+    op: equals
+    value: 127.0.0.1
+- rule_id: k8s.scheduler.conf.file_permissions_check
+  for_each: k8s.scheduler.list_component_status
+  severity: HIGH
+  conditions:
+    var: item.arguments.kubeconfig
+    op: exists
+    value: null
+- rule_id: k8s.scheduler.profiling.disabled
+  for_each: k8s.scheduler.list_component_status
+  severity: LOW
+  conditions:
+    var: item.arguments.profiling
+    op: equals
+    value: 'false'

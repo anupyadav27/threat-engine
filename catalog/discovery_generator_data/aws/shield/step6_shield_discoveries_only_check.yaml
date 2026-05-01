@@ -1,0 +1,55 @@
+# discoveries_only_check: 3 kept / 10 removed from 13 total
+# generated_from: step6_shield.discovery.yaml
+# purpose: only discoveries needed by shield.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: shield
+services:
+  client: shield
+  module: boto3.client
+discovery:
+- discovery_id: aws.shield.describe_drt_access
+  calls:
+  - action: describe_drt_access
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.LogBucketList }}'
+    item:
+      RoleArn: '{{ item.RoleArn }}'
+      LogBucketList: '{{ item.LogBucketList }}'
+- discovery_id: aws.shield.describe_subscription
+  calls:
+  - action: describe_subscription
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      AutoRenew: '{{ response.Subscription.AutoRenew }}'
+      EndTime: '{{ response.Subscription.EndTime }}'
+      Limits: '{{ response.Subscription.Limits }}'
+      ProactiveEngagementStatus: '{{ response.Subscription.ProactiveEngagementStatus
+        }}'
+      StartTime: '{{ response.Subscription.StartTime }}'
+      Subscription: '{{ response.Subscription.Subscription }}'
+      SubscriptionArn: '{{ response.Subscription.SubscriptionArn }}'
+      SubscriptionLimits: '{{ response.Subscription.SubscriptionLimits }}'
+      TimeCommitmentInSeconds: '{{ response.Subscription.TimeCommitmentInSeconds }}'
+- discovery_id: aws.shield.list_protections
+  calls:
+  - action: list_protections
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Protections }}'
+    item:
+      Id: '{{ item.Id }}'
+      Name: '{{ item.Name }}'
+      ResourceArn: '{{ item.ResourceArn }}'
+      ApplicationLayerAutomaticResponseConfiguration: '{{ item.ApplicationLayerAutomaticResponseConfiguration
+        }}'
+      HealthCheckIds: '{{ item.HealthCheckIds }}'
+      ProtectionArn: '{{ item.ProtectionArn }}'

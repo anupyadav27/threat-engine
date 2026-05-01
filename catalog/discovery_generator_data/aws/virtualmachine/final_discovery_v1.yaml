@@ -1,0 +1,44 @@
+# ==========================================================
+# Discovery YAML — virtualmachine (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 3 | ops: 1 independent, 0 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: virtualmachine
+
+services:
+  client: virtualmachine
+  module: "boto3.client('virtualmachine')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: virtual
+    identifier_op: aws.virtualmachine.list_virtual_machines
+    identifier_field: ResourceArn
+    item_var_path: item.ResourceArn
+    identifier_template: '{resourcearn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.virtualmachine.list_virtual_machines  ──
+  - discovery_id: aws.virtualmachine.list_virtual_machines
+    calls:
+      - action: list_virtual_machines
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.VirtualMachines }}'
+      item:
+        HostName: '{{ item.HostName }}'
+        HypervisorId: '{{ item.HypervisorId }}'
+        LastBackupDate: '{{ item.LastBackupDate }}'
+        Name: '{{ item.Name }}'
+        Path: '{{ item.Path }}'
+        ResourceArn: '{{ item.ResourceArn }}'
+        item: '{{ item }}'
+

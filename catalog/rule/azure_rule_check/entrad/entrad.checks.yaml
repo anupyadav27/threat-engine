@@ -1,0 +1,26 @@
+version: '1.0'
+provider: azure
+service: entrad
+checks:
+- rule_id: azure.entrad.device.mfa.check
+  for_each: azure.entrad.list_devices
+  severity: MEDIUM
+  conditions:
+    var: item.MFAEnabled
+    op: is_true
+    value: null
+- rule_id: azure.entrad.global.admin.role.check
+  for_each: azure.entrad.list_global_admin_roles
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IsGlobalAdmin
+      op: is_false
+      value: null
+- rule_id: azure.entrad.password.policy.custom.banned.list.enforced
+  for_each: azure.entrad.get_password_policy
+  severity: MEDIUM
+  conditions:
+    var: item.BannedPasswordList
+    op: exists
+    value: null

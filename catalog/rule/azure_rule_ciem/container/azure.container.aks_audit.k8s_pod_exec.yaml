@@ -1,0 +1,71 @@
+rule_id: azure.container.aks_audit.k8s_pod_exec
+service: container
+provider: azure
+check_type: log
+severity: high
+title: 'Container: K8s Pod Exec'
+description: kubectl exec in Kubernetes pod — interactive shell or command executed inside running container.
+rationale: Cloud API execution via CLIs (AWS CLI, Azure CLI, kubectl) can automate malicious operations at scale within cloud environments without requiring UI access.
+threat_category: execution
+mitre_tactics:
+- execution
+mitre_techniques:
+- T1059.013
+risk_score: 82
+resource: k8s_pod
+source: default
+is_active: true
+domain: container_and_kubernetes_security
+action_category: execute
+log_source_type: aks_audit
+posture_category: workload_posture
+threat_tags:
+- T1059.013
+- T1059
+- remote_execution
+- cloud_exec
+- kubernetes
+- container_security
+risk_indicators:
+  actor_type: service_account_or_workload
+  action_type: execution
+  target_type: kubernetes_workload
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 3.1
+  - 5.1
+  cis_azure_v2:
+  - 5.1
+  - 6.1
+  nist_800_53_r5:
+  - CM-7
+  - SI-3
+  - AU-12
+  pci_dss_v4:
+  - 6.3
+  - 10.2
+  iso_27001_2022:
+  - A.8.19
+  - A.8.8
+remediation: |
+  1. Enable CloudTrail / Activity Log monitoring for all API calls.
+  2. Apply RBAC restrictions to limit the scope of all API call permissions.
+  3. Alert on anomalous API usage patterns (unusual regions, APIs, or timing).
+references:
+- https://attack.mitre.org/techniques/T1059/013/
+- https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-concepts.html
+check_config:
+  conditions:
+    all:
+    - field: operation
+      op: equals
+      value: pods/exec
+  log_source_type: aks_audit
+version: '1.0'

@@ -8,8 +8,7 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
-import { fetchView } from '@/lib/api';
-import { useGlobalFilter } from '@/lib/global-filter-context';
+import { useViewFetch } from '@/lib/use-view-fetch';
 import PageLayout from '@/components/shared/PageLayout';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
@@ -39,27 +38,6 @@ const DOMAIN_META = {
 };
 
 // ── Enriched scan trend ───────────────────────────────────────────────────────
-const DB_SCAN_TREND = [
-  { date: 'Jan 13', passRate: 48, critical: 11, high: 31, medium: 38, total: 94 },
-  { date: 'Jan 20', passRate: 50, critical: 10, high: 29, medium: 35, total: 89 },
-  { date: 'Jan 27', passRate: 49, critical: 11, high: 30, medium: 36, total: 91 },
-  { date: 'Feb 3',  passRate: 53, critical: 9,  high: 27, medium: 32, total: 84 },
-  { date: 'Feb 10', passRate: 56, critical: 8,  high: 25, medium: 29, total: 79 },
-  { date: 'Feb 17', passRate: 58, critical: 7,  high: 23, medium: 27, total: 74 },
-  { date: 'Feb 24', passRate: 60, critical: 7,  high: 22, medium: 25, total: 71 },
-  { date: 'Mar 3',  passRate: 62, critical: 6,  high: 20, medium: 24, total: 68 },
-];
-
-// ── Module scores ─────────────────────────────────────────────────────────────
-const DB_MODULE_SCORES = [
-  { module: 'Access Control',    pass: 14, total: 22, color: '#8b5cf6' },
-  { module: 'Encryption',        pass:  9, total: 16, color: '#3b82f6' },
-  { module: 'Audit Logging',     pass: 11, total: 18, color: '#06b6d4' },
-  { module: 'Backup & Recovery', pass: 13, total: 17, color: '#22c55e' },
-  { module: 'Network Security',  pass:  7, total: 14, color: '#f97316' },
-  { module: 'Configuration',     pass:  8, total: 15, color: '#eab308' },
-];
-
 const DB_DOMAIN_MAP = {
   access_control:   { label: 'Access Control',    color: '#8b5cf6' },
   encryption:       { label: 'Encryption',        color: '#3b82f6' },
@@ -67,20 +45,6 @@ const DB_DOMAIN_MAP = {
   backup_recovery:  { label: 'Backup & Recovery', color: '#22c55e' },
   network_security: { label: 'Network Security',  color: '#f97316' },
   configuration:    { label: 'Configuration',     color: '#eab308' },
-};
-
-// ── KPI fallback ──────────────────────────────────────────────────────────────
-const DB_KPI_FALLBACK = {
-  posture_score: 62, total_findings: 257,
-  critical: 6, high: 20, medium: 24, low: 207,
-  db_instances: 38, public_dbs: 5, unencrypted_dbs: 9, no_backup: 7,
-};
-
-const DB_SPARKLINES = {
-  posture_score:    [38, 40, 39, 42, 44, 46, 47, 49],
-  total_findings:   [168, 163, 166, 160, 155, 151, 148, 145],
-  public_databases: [8, 7, 8, 6, 6, 5, 5, 4],
-  unencrypted_dbs:  [22, 21, 22, 20, 19, 18, 17, 16],
 };
 
 // ── Pure-SVG severity donut ───────────────────────────────────────────────────
@@ -128,63 +92,18 @@ function DbDonut({ slices, size = 160 }) {
 }
 
 
-// ── Demo / fallback data ──────────────────────────────────────────────────────
-const DEMO_DB_DATABASES = [
-  { id: 'db-001', db_name: 'prod-postgres-01',    engine: 'PostgreSQL', provider: 'aws', region: 'us-east-1',      account_id: '123456789012', encryption: 'encrypted',   public_access: false, backup_enabled: true,  mfa_enabled: true,  risk_score: 18, status: 'healthy'  },
-  { id: 'db-002', db_name: 'prod-mysql-orders',   engine: 'MySQL',      provider: 'aws', region: 'us-east-1',      account_id: '123456789012', encryption: 'encrypted',   public_access: false, backup_enabled: true,  mfa_enabled: true,  risk_score: 22, status: 'healthy'  },
-  { id: 'db-003', db_name: 'staging-rds-aurora',  engine: 'RDS',        provider: 'aws', region: 'us-west-2',      account_id: '123456789012', encryption: 'unencrypted', public_access: true,  backup_enabled: false, mfa_enabled: false, risk_score: 87, status: 'at_risk'  },
-  { id: 'db-004', db_name: 'analytics-redshift',  engine: 'Redshift',   provider: 'aws', region: 'eu-west-1',      account_id: '987654321098', encryption: 'encrypted',   public_access: false, backup_enabled: true,  mfa_enabled: false, risk_score: 41, status: 'warning'  },
-  { id: 'db-005', db_name: 'dev-postgres-test',   engine: 'PostgreSQL', provider: 'aws', region: 'us-east-2',      account_id: '123456789012', encryption: 'unencrypted', public_access: true,  backup_enabled: false, mfa_enabled: false, risk_score: 79, status: 'at_risk'  },
-  { id: 'db-006', db_name: 'prod-dynamodb-users', engine: 'DynamoDB',   provider: 'aws', region: 'ap-southeast-1', account_id: '123456789012', encryption: 'encrypted',   public_access: false, backup_enabled: true,  mfa_enabled: true,  risk_score: 12, status: 'healthy'  },
-];
-
-const DEMO_DB_FINDINGS = [
-  { id: 'dbf-001', title: 'RDS instance publicly accessible',                    severity: 'critical', db_name: 'staging-rds-aurora',  provider: 'aws', region: 'us-west-2',      category: 'access_control', status: 'FAIL', description: 'RDS instance has PubliclyAccessible=true, exposing it to the internet.',             recommendation: 'Set PubliclyAccessible=false and place in a private subnet.'     },
-  { id: 'dbf-002', title: 'RDS storage not encrypted at rest',                   severity: 'critical', db_name: 'staging-rds-aurora',  provider: 'aws', region: 'us-west-2',      category: 'encryption',     status: 'FAIL', description: 'RDS instance storage encryption is disabled.',                                     recommendation: 'Enable AES-256 storage encryption via AWS KMS.'                  },
-  { id: 'dbf-003', title: 'Database automated backups disabled',                 severity: 'high',     db_name: 'staging-rds-aurora',  provider: 'aws', region: 'us-west-2',      category: 'backup',         status: 'FAIL', description: 'Automated backup retention period is set to 0 days.',                              recommendation: 'Enable automated backups with at least 7 days retention.'        },
-  { id: 'dbf-004', title: 'PostgreSQL audit logging not enabled',                severity: 'high',     db_name: 'dev-postgres-test',   provider: 'aws', region: 'us-east-2',      category: 'audit_logging',  status: 'FAIL', description: 'pgaudit extension is not configured; DDL/DML actions are not logged.',              recommendation: 'Enable pgaudit and ship logs to CloudWatch Logs.'                },
-  { id: 'dbf-005', title: 'Database instance uses default master username',      severity: 'medium',   db_name: 'dev-postgres-test',   provider: 'aws', region: 'us-east-2',      category: 'access_control', status: 'FAIL', description: 'Master username is set to the default value "admin".',                             recommendation: 'Use a non-default username and rotate credentials via Secrets Manager.' },
-  { id: 'dbf-006', title: 'Redshift cluster not encrypted',                      severity: 'medium',   db_name: 'analytics-redshift',  provider: 'aws', region: 'eu-west-1',      category: 'encryption',     status: 'FAIL', description: 'Redshift cluster encryption is disabled.',                                         recommendation: 'Enable cluster encryption with an AWS KMS customer managed key.' },
-  { id: 'dbf-007', title: 'IAM database authentication disabled',                severity: 'medium',   db_name: 'prod-mysql-orders',   provider: 'aws', region: 'us-east-1',      category: 'access_control', status: 'FAIL', description: 'IAM authentication for RDS is not enabled; password-only auth in use.',             recommendation: 'Enable IAM database authentication and create IAM DB users.'     },
-  { id: 'dbf-008', title: 'Multi-AZ deployment not enabled',                     severity: 'low',      db_name: 'prod-postgres-01',    provider: 'aws', region: 'us-east-1',      category: 'backup',         status: 'PASS', description: 'RDS instance has Multi-AZ enabled for high availability.',                         recommendation: 'No action required.'                                             },
-];
 
 export default function DatabaseSecurityPage() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [data, setData] = useState({});
+  const { data, loading, error } = useViewFetch('database-security');
   const [selectedFinding, setSelectedFinding] = useState(null);
   const handleRowClick = (row) => { const f = row?.original || row; if (f) setSelectedFinding(f); };
 
-  const { provider, account, region } = useGlobalFilter();
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const result = await fetchView('database-security', {
-          provider: provider || undefined,
-          account: account || undefined,
-          region: region || undefined,
-        });
-        if (result.error) { setError(result.error); return; }
-        setData(result);
-      } catch (err) {
-        setError(err?.message || 'Failed to load database security data');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [provider, account, region]);
-
   const pageContext = data.pageContext || {};
-  const rawDatabases = (data.data || {}).databases || [];
-  const rawFindings  = (data.data || {}).findings  || [];
-  const databases = rawDatabases.length ? rawDatabases : DEMO_DB_DATABASES;
-  const findings  = rawFindings.length  ? rawFindings  : DEMO_DB_FINDINGS;
-  const domainScores = (data.data || {}).domain_scores || {};
+  const rawDatabases = data.databases     || [];
+  const rawFindings  = data.findings      || [];
+  const databases = rawDatabases;
+  const findings  = rawFindings;
+  const domainScores = data.domain_scores || {};
 
   // ── Helper: unique values from an array ──
   const uniqueVals = (arr, key) => [...new Set(arr.map(r => r[key]).filter(Boolean))].sort();
@@ -283,39 +202,39 @@ export default function DatabaseSecurityPage() {
     const g0 = data.kpiGroups?.[0]?.items || [];
     const get = (arr, lbl) => arr.find(x => x.label?.toLowerCase() === lbl.toLowerCase())?.value ?? null;
     return {
-      posture_score:   get(g0, 'Posture Score')    ?? DB_KPI_FALLBACK.posture_score,
-      total_findings:  get(g0, 'Total Findings')   ?? findings.length ?? DB_KPI_FALLBACK.total_findings,
-      critical:        get(g0, 'Critical')         ?? DB_KPI_FALLBACK.critical,
-      high:            get(g0, 'High')             ?? DB_KPI_FALLBACK.high,
-      medium:          get(g0, 'Medium')           ?? DB_KPI_FALLBACK.medium,
-      low:             get(g0, 'Low')              ?? DB_KPI_FALLBACK.low,
-      db_instances:    get(g0, 'Total Databases')  ?? DB_KPI_FALLBACK.db_instances,
-      public_dbs:      get(g0, 'Public Databases') ?? DB_KPI_FALLBACK.public_dbs,
-      unencrypted_dbs: DB_KPI_FALLBACK.unencrypted_dbs,
-      no_backup:       DB_KPI_FALLBACK.no_backup,
+      posture_score:   get(g0, 'Posture Score')    ?? 0,
+      total_findings:  get(g0, 'Total Findings')   ?? findings.length,
+      critical:        get(g0, 'Critical')         ?? 0,
+      high:            get(g0, 'High')             ?? 0,
+      medium:          get(g0, 'Medium')           ?? 0,
+      low:             get(g0, 'Low')              ?? 0,
+      db_instances:    get(g0, 'Total Databases')  ?? 0,
+      public_dbs:      get(g0, 'Public Databases') ?? 0,
+      unencrypted_dbs: 0,
+      no_backup:       0,
     };
   }, [data.kpiGroups, findings]);
 
   // ── Active scan trend: live from BFF or static fallback ──────────────
   const activeScanTrend = useMemo(
     () => {
-      if (data.scanTrend?.length >= 2) {
+      if (data.scanTrend?.length >= 1) {
         return data.scanTrend.map(d => ({ ...d, passRate: d.pass_rate ?? d.passRate ?? 0 }));
       }
-      return DB_SCAN_TREND;
+      return [];
     },
     [data.scanTrend],
   );
 
   const activeModuleScores = useMemo(() => {
     const db = data.domainBreakdown;
-    if (db?.length >= 3) {
+    if (db?.length >= 1) {
       return db.map(d => {
         const meta = DB_DOMAIN_MAP[d.security_domain] ?? { label: d.security_domain, color: '#64748b' };
         return { module: meta.label, pass: d.pass_count ?? 0, total: d.total ?? 0, color: meta.color };
       });
     }
-    return DB_MODULE_SCORES;
+    return [];
   }, [data.domainBreakdown]);
 
   // ── Insight strip ─────────────────────────────────────────────────────────
@@ -359,12 +278,12 @@ export default function DatabaseSecurityPage() {
     ];
 
     // ── Trend deltas ──
-    const first = activeScanTrend[0];
-    const last  = activeScanTrend[activeScanTrend.length - 1];
-    const rateΔ  = last.passRate  - first.passRate;
-    const critΔ  = last.critical  - first.critical;
-    const highΔ  = last.high      - first.high;
-    const totalΔ = last.total     - first.total;
+    const first = activeScanTrend[0] || {};
+    const last  = activeScanTrend[activeScanTrend.length - 1] || {};
+    const rateΔ  = (last.passRate  ?? 0) - (first.passRate  ?? 0);
+    const critΔ  = (last.critical  ?? 0) - (first.critical  ?? 0);
+    const highΔ  = (last.high      ?? 0) - (first.high      ?? 0);
+    const totalΔ = (last.total     ?? 0) - (first.total     ?? 0);
 
     const statPill = (label, value, delta, goodDir) => {
       const improved = goodDir === 'up' ? delta >= 0 : delta <= 0;
@@ -564,7 +483,7 @@ export default function DatabaseSecurityPage() {
                   Database Posture Trend
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
-                  {first.date} – {last.date} · {DB_SCAN_TREND.length} scans
+                  {first.date && last.date ? `${first.date} – ${last.date} · ` : ''}{activeScanTrend.length} scans
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -587,10 +506,10 @@ export default function DatabaseSecurityPage() {
 
             {/* 4-stat summary strip */}
             <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-              {statPill('Pass Rate', `${last.passRate}%`, rateΔ,  'up'  )}
-              {statPill('Critical',  last.critical,       critΔ,  'down')}
-              {statPill('High',      last.high,           highΔ,  'down')}
-              {statPill('Total',     last.total,          totalΔ, 'down')}
+              {statPill('Pass Rate', `${last.passRate ?? 0}%`, rateΔ,  'up'  )}
+              {statPill('Critical',  last.critical ?? 0,    critΔ,  'down')}
+              {statPill('High',      last.high ?? 0,        highΔ,  'down')}
+              {statPill('Total',     last.total ?? 0,       totalΔ, 'down')}
             </div>
 
             {/* Composed chart — fills remaining height */}

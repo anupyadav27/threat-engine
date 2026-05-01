@@ -24,6 +24,7 @@ from engine_common.telemetry import configure_telemetry
 from engine_common.middleware import RequestLoggingMiddleware, CorrelationIDMiddleware
 from engine_common.orchestration import get_orchestration_metadata
 from engine_common.job_creator import create_engine_job
+from engine_common.db_connections import get_threat_conn
 
 from .schemas.threat_report_schema import (
     ThreatReport,
@@ -55,6 +56,13 @@ from .schemas.threat_report_schema import ThreatStatus, ThreatType, Severity
 
 logger = setup_logger(__name__, engine_name="engine-threat")
 
+# ── Auth imports (engine_auth is COPY shared/auth/ ./engine_auth/ in Dockerfile) ──
+try:
+    from engine_auth.fastapi.middleware import AuthMiddleware as _AuthMiddleware
+    _AUTH_AVAILABLE = True
+except ImportError:
+    _AUTH_AVAILABLE = False
+
 app = FastAPI(
     title="Threat Engine API",
     description="Cloud Security Threat Detection and Reporting",
@@ -85,6 +93,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# AuthMiddleware validates access_token / X-Auth-Context for every non-health path
+if _AUTH_AVAILABLE:
+    app.add_middleware(_AuthMiddleware)
+
 # Initialize storage
 storage = ThreatStorage()
 
@@ -96,18 +108,6 @@ try:
     app.include_router(ui_data_router)
 except ImportError as e:
     logger.warning("UI data router not available", extra={"extra_fields": {"error": str(e)}})
-
-
-def _get_threat_conn():
-    """Get a psycopg2 connection to the threat DB."""
-    return psycopg2.connect(
-        host=os.getenv("THREAT_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("THREAT_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("THREAT_DB_NAME", "threat_engine_threat"),
-        user=os.getenv("THREAT_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("THREAT_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        connect_timeout=5,
-    )
 
 
 class ThreatReportRequest(BaseModel):
@@ -251,7 +251,7 @@ async def create_threat_scan(request: ThreatReportRequest):
 
     # Pre-create threat_report row (so status endpoint works immediately)
     try:
-        conn = _get_threat_conn()
+        conn = get_threat_conn()
         # Ensure tenant exists (FK requirement)
         with conn.cursor() as cur:
             cur.execute(
@@ -304,7 +304,7 @@ async def get_threat_scan_status(scan_run_id: str):
     """Get threat scan status from threat_report DB table."""
     from psycopg2.extras import RealDictCursor
     try:
-        conn = _get_threat_conn()
+        conn = get_threat_conn()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
                 "SELECT scan_run_id, status, provider, "
@@ -2169,9 +2169,9 @@ async def get_resource_posture(
         if not scan_id or scan_id == "latest":
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT DISTINCT scan_run_id FROM check_findings
+                    SELECT scan_run_id FROM check_findings
                     WHERE tenant_id = %s
-                    ORDER BY scan_run_id DESC LIMIT 1
+                    ORDER BY last_seen_at DESC LIMIT 1
                 """, (tenant_id,))
                 row = cur.fetchone()
                 scan_id = row[0] if row else None

@@ -18,12 +18,14 @@ import {
   Filter,
   ChevronDown,
   ChevronRight,
+  Wand2,
 } from 'lucide-react';
 import { fetchView, postToEngine } from '@/lib/api';
 import KpiCard from '@/components/shared/KpiCard';
 import FilterBar from '@/components/shared/FilterBar';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import DataTable from '@/components/shared/DataTable';
+import RuleBuilderWizard from '@/components/domain/RuleBuilderWizard';
 
 /**
  * Rule Management Page
@@ -43,6 +45,7 @@ export default function RulesPage() {
   const [showYamlEditor, setShowYamlEditor] = useState(false);
   const [groupBy, setGroupBy] = useState('');
   const [expandedGroups, setExpandedGroups] = useState({});
+  const [showRuleBuilder, setShowRuleBuilder] = useState(false);
 
   const [activeFilters, setActiveFilters] = useState({
     provider: '',
@@ -327,14 +330,34 @@ export default function RulesPage() {
 
   return (
     <div className="space-y-6">
+      {showRuleBuilder && (
+        <RuleBuilderWizard
+          onClose={() => setShowRuleBuilder(false)}
+          onSaved={(result) => {
+            setShowRuleBuilder(false);
+            // Optionally refresh rules list
+          }}
+        />
+      )}
+
       {/* Page Header */}
-      <div>
-        <h1 className="text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>
-          Rule Management & Control
-        </h1>
-        <p className="mt-1" style={{ color: 'var(--text-secondary)' }}>
-          Create, validate, and manage compliance rules across cloud environments
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>
+            Rule Management & Control
+          </h1>
+          <p className="mt-1" style={{ color: 'var(--text-secondary)' }}>
+            Create, validate, and manage compliance rules across cloud environments
+          </p>
+        </div>
+        <button
+          onClick={() => setShowRuleBuilder(true)}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all shadow-lg hover:shadow-xl"
+          style={{ backgroundColor: 'var(--accent-primary)' }}
+        >
+          <Wand2 className="w-4 h-4" />
+          Create Rule
+        </button>
       </div>
 
       {/* KPI Cards Grid */}

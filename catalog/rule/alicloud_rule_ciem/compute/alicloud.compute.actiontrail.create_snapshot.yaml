@@ -1,0 +1,76 @@
+rule_id: alicloud.compute.actiontrail.create_snapshot
+service: compute
+provider: alicloud
+check_type: log
+severity: medium
+title: 'AliCloud ECS: Disk Snapshot Created'
+description: A disk snapshot was created. Adversaries create snapshots of data volumes
+  to stage exfiltration — sharing the snapshot with an attacker-controlled account.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: collection
+mitre_tactics:
+- collection
+- exfiltration
+mitre_techniques:
+- T1530
+risk_score: 60
+resource: alicloud_ecs_snapshot
+source: alicloud_ciem_generator
+is_active: true
+domain: data_protection_and_privacy
+action_category: create
+log_source_type: alicloud_actiontrail
+posture_category: data_security_posture
+threat_tags:
+- T1530
+- collection
+- exfiltration
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '5.1'
+  - '5.2'
+  nist_800_53_r5:
+  - SC-28
+  - AC-3
+  - AU-9
+  pci_dss_v4:
+  - '3.4'
+  - '3.5'
+  - '6.3'
+  iso_27001_2022:
+  - A.8.10
+  - A.8.24
+remediation: '1. Verify the snapshot was created by an authorized process (backup
+  job).
+
+  2. Audit snapshot sharing settings — flag any shared with other accounts.
+
+  3. Alert on snapshot creation outside backup windows by non-automation principals.'
+references:
+- https://attack.mitre.org/techniques/T1530/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: ecs
+    - field: operation
+      op: equals
+      value: CreateSnapshot
+version: '1.0'

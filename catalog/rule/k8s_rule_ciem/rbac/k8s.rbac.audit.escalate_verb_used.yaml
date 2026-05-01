@@ -1,0 +1,79 @@
+rule_id: k8s.rbac.audit.escalate_verb_used
+service: rbac
+provider: k8s
+check_type: log
+severity: critical
+title: 'RBAC: escalate Verb Used'
+description: Request with verb=escalate detected — allows a principal to create roles with more permissions than they currently hold; bypasses RBAC privilege boundaries.
+rationale: 'Adversaries abuse Linux privilege escalation mechanisms within Kubernetes containers — including setuid/setgid binaries, Linux capabilities, and missing allowPrivilegeEscalation controls. Without explicit securityContext restrictions, a process inside a container can call execve() on a setuid binary to gain root (UID 0), directly enabling container escape chains (T1611). CIS Kubernetes Benchmark 5.2.5/5.2.6 require these controls to be explicitly set. Detected via: pods created without runAsNonRoot=true, pods created with allowPrivilegeEscalation unset or true, and setuid binary execution.'
+threat_category: privilege_escalation
+mitre_tactics:
+- privilege_escalation
+mitre_techniques:
+- T1548
+risk_score: 95
+resource: k8s_cluster_role
+source: default
+is_active: true
+domain: identity_and_access_management
+action_category: privilege_escalation
+posture_category: iam_posture
+threat_tags:
+- T1548
+- cloud_iam
+- privilege_escalation
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: privilege_change
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_k8s_v1:
+  - 5.1.1
+  - 5.1.2
+  - 5.1.3
+  - 5.1.5
+  nist_800_53_r5:
+  - AC-2
+  - AC-3
+  - AC-6
+  - IA-2
+  pci_dss_v4:
+  - 7.1
+  - 7.2
+  - 8.2
+  iso_27001_2022:
+  - A.5.18
+  - A.8.2
+  - A.8.3
+detection_events:
+- pods/create without securityContext.runAsNonRoot=true
+- pods/create with allowPrivilegeEscalation unset or true
+- pods/create with runAsUser=0
+- setuid binary execution inside container namespace
+remediation: |
+  1. Immediately delete the unauthorized ClusterRoleBinding or RoleBinding.
+  2. Audit all cluster-admin bindings: `kubectl get clusterrolebindings -o wide | grep cluster-admin`
+  3. Enable OPA Gatekeeper or Kyverno policy to prevent cluster-admin binding creation by non-admins.
+  4. Use just-in-time (JIT) access for privileged Kubernetes operations.
+  5. Configure Falco rules to alert on ClusterRoleBinding creation outside CI/CD service accounts.
+references:
+- https://attack.mitre.org/techniques/T1548/
+- https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: k8s_audit
+    - field: verb
+      op: equals
+      value: escalate
+version: '1.0'

@@ -1,0 +1,102 @@
+# ==========================================================
+# Discovery YAML — budgets (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 4 | ops: 3 independent, 0 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: budgets
+
+services:
+  client: budgets
+  module: "boto3.client('budgets')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: budget
+    identifier_op: aws.budgets.describe_budget
+    identifier_field: BillingViewArn
+    item_var_path: item.BillingViewArn
+    identifier_template: '{billingviewarn}'
+  - resource_type: budget_action
+    identifier_op: aws.budgets.describe_budget_action
+    identifier_field: ExecutionRoleArn
+    item_var_path: item.ExecutionRoleArn
+    identifier_template: '{executionrolearn}'
+  - resource_type: notifications_for_budget
+    identifier_op: aws.budgets.describe_notifications_for_budget
+    identifier_field: ComparisonOperator
+    item_var_path: item.ComparisonOperator
+    identifier_template: '{comparisonoperator}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.budgets.describe_budget  ──
+  - discovery_id: aws.budgets.describe_budget
+    calls:
+      - action: describe_budget
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        AutoAdjustData: '{{ item.AutoAdjustData }}'
+        BillingViewArn: '{{ item.BillingViewArn }}'
+        Budget: '{{ item.Budget }}'
+        BudgetLimit: '{{ item.BudgetLimit }}'
+        BudgetName: '{{ item.BudgetName }}'
+        BudgetType: '{{ item.BudgetType }}'
+        CalculatedSpend: '{{ item.CalculatedSpend }}'
+        CostFilters: '{{ item.CostFilters }}'
+        CostTypes: '{{ item.CostTypes }}'
+        FilterExpression: '{{ item.FilterExpression }}'
+        HealthStatus: '{{ item.HealthStatus }}'
+        LastUpdatedTime: '{{ item.LastUpdatedTime }}'
+        Metrics: '{{ item.Metrics }}'
+        PlannedBudgetLimits: '{{ item.PlannedBudgetLimits }}'
+        TimePeriod: '{{ item.TimePeriod }}'
+        TimeUnit: '{{ item.TimeUnit }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.budgets.describe_budget_action  ──
+  - discovery_id: aws.budgets.describe_budget_action
+    calls:
+      - action: describe_budget_action
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        ActionId: '{{ item.ActionId }}'
+        ActionThreshold: '{{ item.ActionThreshold }}'
+        ActionType: '{{ item.ActionType }}'
+        ApprovalModel: '{{ item.ApprovalModel }}'
+        BudgetName: '{{ item.BudgetName }}'
+        Definition: '{{ item.Definition }}'
+        ExecutionRoleArn: '{{ item.ExecutionRoleArn }}'
+        NotificationType: '{{ item.NotificationType }}'
+        Status: '{{ item.Status }}'
+        Subscribers: '{{ item.Subscribers }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.budgets.describe_notifications_for_budget  ──
+  - discovery_id: aws.budgets.describe_notifications_for_budget
+    calls:
+      - action: describe_notifications_for_budget
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Notifications }}'
+      item:
+        ComparisonOperator: '{{ item.ComparisonOperator }}'
+        NotificationState: '{{ item.NotificationState }}'
+        NotificationType: '{{ item.NotificationType }}'
+        Threshold: '{{ item.Threshold }}'
+        ThresholdType: '{{ item.ThresholdType }}'
+

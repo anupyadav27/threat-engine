@@ -1,0 +1,108 @@
+version: '1.0'
+provider: oci
+service: certificates
+checks:
+- rule_id: oci.certificates.certificate.certificate_expiration
+  for_each: oci.certificates.list_certificates
+  severity: MEDIUM
+  conditions:
+    var: item.Validity.NotAfter
+    op: gt
+    value: ${NOW + 30 days}
+- rule_id: oci.certificates.certificate.certificates_expiration_monitored
+  for_each: oci.certificates.list_certificates
+  severity: LOW
+  conditions:
+    var: item.ExpirationDate
+    op: lt
+    value: P90D
+- rule_id: oci.certificates.certificate.hsm_client_cert_key_length_minimum
+  for_each: oci.certificates.list_certificates
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.config.key_size
+      op: gte
+      value: '2048'
+- rule_id: oci.certificates.certificate.hsm_client_cert_not_expired
+  for_each: oci.certificates.list_certificates
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.HsmClientCertificate
+      op: exists
+      value: null
+    - var: item.HsmClientCertificate.ExpiryDate
+      op: gt
+      value: now
+- rule_id: oci.certificates.certificate.hsm_client_cert_trusted_issuer
+  for_each: oci.certificates.list_certificates
+  severity: MEDIUM
+  conditions:
+    var: item.HsmClientCertificateTrustedIssuer
+    op: exists
+    value: null
+- rule_id: oci.certificates.certificate.secrets_security_certificate_key_length_minimum
+  for_each: oci.certificates.list_certificates
+  severity: HIGH
+  conditions:
+    var: item.key_length
+    op: gte
+    value: '2048'
+- rule_id: oci.certificates.certificate.secrets_security_certificate_not_expired
+  for_each: oci.certificates.list_certificates
+  severity: HIGH
+  conditions:
+    var: item.Validity.NotAfter
+    op: gt
+    value: now
+- rule_id: oci.certificates.certificate.secrets_security_certificate_trusted_issuer
+  for_each: oci.certificates.list_certificates
+  severity: HIGH
+  conditions:
+    var: item.TrustedIssuer
+    op: is_true
+    value: null
+- rule_id: oci.certificates.certificate_authority.secrets_security_private_ca_access_rbac_required
+  for_each: oci.certificates.list_certificate_authorities
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycleState
+      op: equals
+      value: ACTIVE
+    - var: item.certificateAuthorityRules[].ruleType
+      op: contains
+      value: PRIVATE_CA_ACCESS_RBAC_REQUIRED
+- rule_id: oci.certificates.certificate_authority.secrets_security_private_ca_crl_or_enforced
+  for_each: oci.certificates.list_certificate_authorities
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.config.CrlConfiguration.enabled
+      op: is_true
+      value: null
+    - var: item.config.CrlConfiguration.customCname
+      op: exists
+      value: null
+- rule_id: oci.certificates.certificate_authority.secrets_security_private_ca_key_in_enforced
+  for_each: oci.certificates.list_certificate_authorities
+  severity: HIGH
+  conditions:
+    var: item.SecretsSecurityPrivateCaKeyInEnforced
+    op: is_true
+    value: null
+- rule_id: oci.certificates.certificate_authority.secrets_security_private_ca_path_length_enforced
+  for_each: oci.certificates.list_certificate_authorities
+  severity: HIGH
+  conditions:
+    var: item.CertificateAuthorityConfig.SubjectAlternativeNameConstraints.CertificateAuthorityPathLength
+    op: exists
+    value: null
+- rule_id: oci.certificates.certificates.expiration_check
+  for_each: oci.certificates.list_certificates
+  severity: MEDIUM
+  conditions:
+    var: item.Validity.NotAfter
+    op: gt
+    value: now + 30 days

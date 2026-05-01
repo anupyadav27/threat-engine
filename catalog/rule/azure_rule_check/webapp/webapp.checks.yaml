@@ -1,0 +1,22 @@
+version: '1.0'
+provider: azure
+service: webapp
+checks:
+- rule_id: azure.webapp.deployment.slot.python.version.supported
+  for_each: azure.web.webapps.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.site_config.linux_fx_version
+      op: contains
+      value: PYTHON
+    - var: item.site_config.linux_fx_version
+      op: not_contains
+      value: PYTHON|2
+- rule_id: azure.webapp.deployment.slot.vnet.configuration.enabled
+  for_each: azure.web.webapps.list_slots
+  severity: MEDIUM
+  conditions:
+    var: item.VirtualNetworkSubnetId
+    op: exists
+    value: null

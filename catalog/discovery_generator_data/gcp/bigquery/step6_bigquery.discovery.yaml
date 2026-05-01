@@ -1,0 +1,426 @@
+version: '1.0'
+provider: gcp
+service: bigquery
+services:
+  client: bigquery
+  module: googleapiclient.discovery.build('bigquery', 'v2')
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+checks: []
+discovery:
+- discovery_id: gcp.bigquery.datasets.list
+  calls:
+  - action: datasets.list
+    params: {}
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.datasets }}'
+    item:
+      datasetReference: '{{ item.datasetReference }}'
+      id: '{{ item.id }}'
+      location: '{{ item.location }}'
+      friendlyName: '{{ item.friendlyName }}'
+      labels: '{{ item.labels }}'
+- discovery_id: gcp.bigquery.jobs.list
+  calls:
+  - action: jobs.list
+    params: {}
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.jobs }}'
+    item:
+      id: '{{ item.id }}'
+      jobReference: '{{ item.jobReference }}'
+      status: '{{ item.status }}'
+      user_email: '{{ item.user_email }}'
+- discovery_id: gcp.bigquery.jobs.query
+  calls:
+  - action: jobs.query
+    params: {}
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.jobs }}'
+    item:
+      debugInfo: '{{ item.debugInfo }}'
+      message: '{{ item.message }}'
+      reason: '{{ item.reason }}'
+- discovery_id: gcp.bigquery.projects.getServiceAccount
+  calls:
+  - action: projects.getServiceAccount
+    params: {}
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      email: '{{ response.email }}'
+- discovery_id: gcp.bigquery.projects.list
+  calls:
+  - action: projects.list
+    params: {}
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.projects }}'
+- discovery_id: gcp.bigquery.datasets.get
+  for_each: gcp.bigquery.datasets.list
+  calls:
+  - action: datasets.get
+    params:
+      datasetId: '{{ item.datasetReference.datasetId }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      access: '{{ response.access }}'
+      creationTime: '{{ response.creationTime }}'
+      datasetReference: '{{ response.datasetReference }}'
+      defaultCollation: '{{ response.defaultCollation }}'
+      defaultEncryptionConfiguration: '{{ response.defaultEncryptionConfiguration
+        }}'
+      defaultPartitionExpirationMs: '{{ response.defaultPartitionExpirationMs }}'
+      defaultRoundingMode: '{{ response.defaultRoundingMode }}'
+      defaultTableExpirationMs: '{{ response.defaultTableExpirationMs }}'
+      description: '{{ response.description }}'
+      externalCatalogDatasetOptions: '{{ response.externalCatalogDatasetOptions }}'
+      externalDatasetReference: '{{ response.externalDatasetReference }}'
+      friendlyName: '{{ response.friendlyName }}'
+      id: '{{ response.id }}'
+      isCaseInsensitive: '{{ response.isCaseInsensitive }}'
+      labels: '{{ response.labels }}'
+      lastModifiedTime: '{{ response.lastModifiedTime }}'
+      linkedDatasetMetadata: '{{ response.linkedDatasetMetadata }}'
+      linkedDatasetSource: '{{ response.linkedDatasetSource }}'
+      location: '{{ response.location }}'
+      maxTimeTravelHours: '{{ response.maxTimeTravelHours }}'
+      resourceTags: '{{ response.resourceTags }}'
+      restrictions: '{{ response.restrictions }}'
+      satisfiesPzi: '{{ response.satisfiesPzi }}'
+      satisfiesPzs: '{{ response.satisfiesPzs }}'
+      storageBillingModel: '{{ response.storageBillingModel }}'
+      tags: '{{ response.tags }}'
+      type: '{{ response.type }}'
+- discovery_id: gcp.bigquery.jobs.get
+  for_each: gcp.bigquery.jobs.list
+  calls:
+  - action: jobs.get
+    params:
+      jobId: '{{ item.jobReference.jobId }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      configuration: '{{ response.configuration }}'
+      id: '{{ response.id }}'
+      jobCreationReason: '{{ response.jobCreationReason }}'
+      jobReference: '{{ response.jobReference }}'
+      principal_subject: '{{ response.principal_subject }}'
+      statistics: '{{ response.statistics }}'
+      status: '{{ response.status }}'
+      user_email: '{{ response.user_email }}'
+- discovery_id: gcp.bigquery.jobs.getQueryResults
+  for_each: gcp.bigquery.jobs.list
+  calls:
+  - action: jobs.getQueryResults
+    params:
+      jobId: '{{ item.jobReference.jobId }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      cacheHit: '{{ response.cacheHit }}'
+      errors: '{{ response.errors }}'
+      jobComplete: '{{ response.jobComplete }}'
+      jobReference: '{{ response.jobReference }}'
+      numDmlAffectedRows: '{{ response.numDmlAffectedRows }}'
+      rows: '{{ response.rows }}'
+      schema: '{{ response.schema }}'
+      totalBytesProcessed: '{{ response.totalBytesProcessed }}'
+      totalRows: '{{ response.totalRows }}'
+- discovery_id: gcp.bigquery.models.get
+  for_each: gcp.bigquery.models.list
+  calls:
+  - action: models.get
+    params:
+      datasetId: '{{ item.modelReference.datasetId }}'
+      modelId: '{{ item.modelReference.modelId }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      bestTrialId: '{{ response.bestTrialId }}'
+      creationTime: '{{ response.creationTime }}'
+      defaultTrialId: '{{ response.defaultTrialId }}'
+      description: '{{ response.description }}'
+      encryptionConfiguration: '{{ response.encryptionConfiguration }}'
+      expirationTime: '{{ response.expirationTime }}'
+      featureColumns: '{{ response.featureColumns }}'
+      friendlyName: '{{ response.friendlyName }}'
+      hparamSearchSpaces: '{{ response.hparamSearchSpaces }}'
+      hparamTrials: '{{ response.hparamTrials }}'
+      labelColumns: '{{ response.labelColumns }}'
+      labels: '{{ response.labels }}'
+      lastModifiedTime: '{{ response.lastModifiedTime }}'
+      location: '{{ response.location }}'
+      modelReference: '{{ response.modelReference }}'
+      modelType: '{{ response.modelType }}'
+      optimalTrialIds: '{{ response.optimalTrialIds }}'
+      remoteModelInfo: '{{ response.remoteModelInfo }}'
+      trainingRuns: '{{ response.trainingRuns }}'
+      transformColumns: '{{ response.transformColumns }}'
+- discovery_id: gcp.bigquery.models.list
+  for_each: gcp.bigquery.datasets.list
+  calls:
+  - action: models.list
+    params:
+      datasetId: '{{ item.datasetReference.datasetId }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.models }}'
+    item:
+      bestTrialId: '{{ item.bestTrialId }}'
+      creationTime: '{{ item.creationTime }}'
+      defaultTrialId: '{{ item.defaultTrialId }}'
+      description: '{{ item.description }}'
+      encryptionConfiguration: '{{ item.encryptionConfiguration }}'
+      expirationTime: '{{ item.expirationTime }}'
+      featureColumns: '{{ item.featureColumns }}'
+      friendlyName: '{{ item.friendlyName }}'
+      hparamSearchSpaces: '{{ item.hparamSearchSpaces }}'
+      hparamTrials: '{{ item.hparamTrials }}'
+      labelColumns: '{{ item.labelColumns }}'
+      labels: '{{ item.labels }}'
+      lastModifiedTime: '{{ item.lastModifiedTime }}'
+      location: '{{ item.location }}'
+      modelReference: '{{ item.modelReference }}'
+      modelType: '{{ item.modelType }}'
+      optimalTrialIds: '{{ item.optimalTrialIds }}'
+      remoteModelInfo: '{{ item.remoteModelInfo }}'
+      trainingRuns: '{{ item.trainingRuns }}'
+      transformColumns: '{{ item.transformColumns }}'
+- discovery_id: gcp.bigquery.routines.get
+  for_each: gcp.bigquery.routines.list
+  calls:
+  - action: routines.get
+    params:
+      datasetId: '{{ item.routineReference.datasetId }}'
+      routineId: '{{ item.routineReference.routineId }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      arguments: '{{ response.arguments }}'
+      creationTime: '{{ response.creationTime }}'
+      dataGovernanceType: '{{ response.dataGovernanceType }}'
+      definitionBody: '{{ response.definitionBody }}'
+      description: '{{ response.description }}'
+      determinismLevel: '{{ response.determinismLevel }}'
+      externalRuntimeOptions: '{{ response.externalRuntimeOptions }}'
+      importedLibraries: '{{ response.importedLibraries }}'
+      language: '{{ response.language }}'
+      lastModifiedTime: '{{ response.lastModifiedTime }}'
+      pythonOptions: '{{ response.pythonOptions }}'
+      remoteFunctionOptions: '{{ response.remoteFunctionOptions }}'
+      returnTableType: '{{ response.returnTableType }}'
+      returnType: '{{ response.returnType }}'
+      routineReference: '{{ response.routineReference }}'
+      routineType: '{{ response.routineType }}'
+      securityMode: '{{ response.securityMode }}'
+      sparkOptions: '{{ response.sparkOptions }}'
+      strictMode: '{{ response.strictMode }}'
+- discovery_id: gcp.bigquery.routines.list
+  for_each: gcp.bigquery.datasets.list
+  calls:
+  - action: routines.list
+    params:
+      datasetId: '{{ item.datasetReference.datasetId }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.routines }}'
+    item:
+      arguments: '{{ item.arguments }}'
+      creationTime: '{{ item.creationTime }}'
+      dataGovernanceType: '{{ item.dataGovernanceType }}'
+      definitionBody: '{{ item.definitionBody }}'
+      description: '{{ item.description }}'
+      determinismLevel: '{{ item.determinismLevel }}'
+      externalRuntimeOptions: '{{ item.externalRuntimeOptions }}'
+      importedLibraries: '{{ item.importedLibraries }}'
+      language: '{{ item.language }}'
+      lastModifiedTime: '{{ item.lastModifiedTime }}'
+      pythonOptions: '{{ item.pythonOptions }}'
+      remoteFunctionOptions: '{{ item.remoteFunctionOptions }}'
+      returnTableType: '{{ item.returnTableType }}'
+      returnType: '{{ item.returnType }}'
+      routineReference: '{{ item.routineReference }}'
+      routineType: '{{ item.routineType }}'
+      securityMode: '{{ item.securityMode }}'
+      sparkOptions: '{{ item.sparkOptions }}'
+      strictMode: '{{ item.strictMode }}'
+- discovery_id: gcp.bigquery.rowAccessPolicies.get
+  for_each: gcp.bigquery.rowAccessPolicies.list
+  calls:
+  - action: rowAccessPolicies.get
+    params:
+      datasetId: '{{ item.rowAccessPolicyReference.datasetId }}'
+      tableId: '{{ item.rowAccessPolicyReference.tableId }}'
+      policyId: '{{ item.rowAccessPolicyReference.policyId }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      creationTime: '{{ response.creationTime }}'
+      filterPredicate: '{{ response.filterPredicate }}'
+      grantees: '{{ response.grantees }}'
+      lastModifiedTime: '{{ response.lastModifiedTime }}'
+      rowAccessPolicyReference: '{{ response.rowAccessPolicyReference }}'
+- discovery_id: gcp.bigquery.rowAccessPolicies.list
+  for_each: gcp.bigquery.tables.list
+  calls:
+  - action: rowAccessPolicies.list
+    params:
+      datasetId: '{{ item.tableReference.datasetId }}'
+      tableId: '{{ item.tableReference.tableId }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.rowAccessPolicies }}'
+    item:
+      creationTime: '{{ item.creationTime }}'
+      filterPredicate: '{{ item.filterPredicate }}'
+      grantees: '{{ item.grantees }}'
+      lastModifiedTime: '{{ item.lastModifiedTime }}'
+      rowAccessPolicyReference: '{{ item.rowAccessPolicyReference }}'
+- discovery_id: gcp.bigquery.tabledata.list
+  for_each: gcp.bigquery.tables.list
+  calls:
+  - action: tabledata.list
+    params:
+      datasetId: '{{ item.tableReference.datasetId }}'
+      tableId: '{{ item.tableReference.tableId }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tabledata }}'
+    item:
+      f: '{{ item.f }}'
+- discovery_id: gcp.bigquery.tables.get
+  for_each: gcp.bigquery.tables.list
+  calls:
+  - action: tables.get
+    params:
+      datasetId: '{{ item.tableReference.datasetId }}'
+      tableId: '{{ item.tableReference.tableId }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      biglakeConfiguration: '{{ response.biglakeConfiguration }}'
+      cloneDefinition: '{{ response.cloneDefinition }}'
+      clustering: '{{ response.clustering }}'
+      creationTime: '{{ response.creationTime }}'
+      defaultCollation: '{{ response.defaultCollation }}'
+      defaultRoundingMode: '{{ response.defaultRoundingMode }}'
+      description: '{{ response.description }}'
+      encryptionConfiguration: '{{ response.encryptionConfiguration }}'
+      expirationTime: '{{ response.expirationTime }}'
+      externalCatalogTableOptions: '{{ response.externalCatalogTableOptions }}'
+      externalDataConfiguration: '{{ response.externalDataConfiguration }}'
+      friendlyName: '{{ response.friendlyName }}'
+      id: '{{ response.id }}'
+      labels: '{{ response.labels }}'
+      lastModifiedTime: '{{ response.lastModifiedTime }}'
+      location: '{{ response.location }}'
+      managedTableType: '{{ response.managedTableType }}'
+      materializedView: '{{ response.materializedView }}'
+      materializedViewStatus: '{{ response.materializedViewStatus }}'
+      maxStaleness: '{{ response.maxStaleness }}'
+      model: '{{ response.model }}'
+      numActiveLogicalBytes: '{{ response.numActiveLogicalBytes }}'
+      numActivePhysicalBytes: '{{ response.numActivePhysicalBytes }}'
+      numBytes: '{{ response.numBytes }}'
+      numCurrentPhysicalBytes: '{{ response.numCurrentPhysicalBytes }}'
+      numLongTermBytes: '{{ response.numLongTermBytes }}'
+      numLongTermLogicalBytes: '{{ response.numLongTermLogicalBytes }}'
+      numLongTermPhysicalBytes: '{{ response.numLongTermPhysicalBytes }}'
+      numPartitions: '{{ response.numPartitions }}'
+      numPhysicalBytes: '{{ response.numPhysicalBytes }}'
+      numRows: '{{ response.numRows }}'
+      numTimeTravelPhysicalBytes: '{{ response.numTimeTravelPhysicalBytes }}'
+      numTotalLogicalBytes: '{{ response.numTotalLogicalBytes }}'
+      numTotalPhysicalBytes: '{{ response.numTotalPhysicalBytes }}'
+      partitionDefinition: '{{ response.partitionDefinition }}'
+      rangePartitioning: '{{ response.rangePartitioning }}'
+      replicas: '{{ response.replicas }}'
+      requirePartitionFilter: '{{ response.requirePartitionFilter }}'
+      resourceTags: '{{ response.resourceTags }}'
+      restrictions: '{{ response.restrictions }}'
+      schema: '{{ response.schema }}'
+      snapshotDefinition: '{{ response.snapshotDefinition }}'
+      streamingBuffer: '{{ response.streamingBuffer }}'
+      tableConstraints: '{{ response.tableConstraints }}'
+      tableReference: '{{ response.tableReference }}'
+      tableReplicationInfo: '{{ response.tableReplicationInfo }}'
+      timePartitioning: '{{ response.timePartitioning }}'
+      type: '{{ response.type }}'
+      view: '{{ response.view }}'
+- discovery_id: gcp.bigquery.tables.list
+  for_each: gcp.bigquery.datasets.list
+  calls:
+  - action: tables.list
+    params:
+      datasetId: '{{ item.datasetReference.datasetId }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.tables }}'
+    item:
+      tableReference: '{{ item.tableReference }}'
+      id: '{{ item.id }}'
+      type: '{{ item.type }}'
+      friendlyName: '{{ item.friendlyName }}'
+- discovery_id: gcp.bigquery.connections.list
+  calls:
+  - action: projects.locations.connections.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      name: '{{ item.name }}'
+      friendlyName: '{{ item.friendlyName }}'
+      description: '{{ item.description }}'
+      hasCredential: '{{ item.hasCredential }}'
+      cloudSql: '{{ item.cloudSql }}'
+      bigLake: '{{ item.bigLake }}'
+      spark: '{{ item.spark }}'
+      aws: '{{ item.aws }}'
+      azure: '{{ item.azure }}'
+      cloudSpanner: '{{ item.cloudSpanner }}'

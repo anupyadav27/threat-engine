@@ -11,6 +11,7 @@ import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiCard from '@/components/shared/KpiCard';
 import GaugeChart from '@/components/charts/GaugeChart';
 import { TENANT_ID } from '@/lib/constants';
+import { fetchView } from '@/lib/api';
 
 /* ─── helpers ─────────────────────────────────────────────── */
 
@@ -278,9 +279,7 @@ export default function FrameworkDetailPage() {
     setLoading(true);
     setError(null);
 
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    fetch(`${origin}/gateway/api/v1/views/compliance/framework/${encodeURIComponent(frameworkId)}?tenant_id=${encodeURIComponent(TENANT_ID || 'default-tenant')}`)
-      .then((r) => r.json())
+    fetchView(`compliance/framework/${encodeURIComponent(frameworkId)}`, { tenant_id: TENANT_ID || 'default-tenant' })
       .then((d) => {
         if (d?.families) {
           // Transform families-based response to flat controls list

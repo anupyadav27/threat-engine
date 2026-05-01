@@ -301,7 +301,9 @@ class EventNormalizer:
 
     def _step4_type_convert(self, event: NormalizedEvent, raw: Dict):
         """Convert timestamps, IPs, ports to proper types."""
-        # Timestamp
+        # Timestamp — ensure it's a datetime (field mapping may set it as a string)
+        if isinstance(event.event_time, str):
+            event.event_time = _parse_timestamp(event.event_time)
         if not event.event_time:
             for ts_field in ["eventTime", "timestamp", "time", "start_time"]:
                 ts_val = raw.get(ts_field)

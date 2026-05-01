@@ -15,22 +15,10 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
-import psycopg2
 from psycopg2.extras import RealDictCursor
+from engine_common.db_connections import get_encryption_conn
 
 logger = logging.getLogger(__name__)
-
-
-def _get_encryption_conn():
-    return psycopg2.connect(
-        host=os.getenv("ENCRYPTION_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("ENCRYPTION_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("ENCRYPTION_DB_NAME", "threat_engine_encryption"),
-        user=os.getenv("ENCRYPTION_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("ENCRYPTION_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-        connect_timeout=10,
-    )
 
 
 class EncryptionCrossRefReader:
@@ -52,7 +40,7 @@ class EncryptionCrossRefReader:
             - rotation_compliant: bool
             - transit_enforced: bool
         """
-        conn = _get_encryption_conn()
+        conn = get_encryption_conn()
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
@@ -97,7 +85,7 @@ class EncryptionCrossRefReader:
         Returns:
             Dict keyed by key_arn with key metadata.
         """
-        conn = _get_encryption_conn()
+        conn = get_encryption_conn()
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""

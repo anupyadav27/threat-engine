@@ -17,10 +17,16 @@
  * Proxy calls:   http://NLB/vulnerability/api/v1/scans/?agent_id=xxx&api_key=xxx
  */
 
-const NLB_URL = 'http://a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com';
-const API_KEY = process.env.NEXT_PUBLIC_VULN_API_KEY || 'your-secret-api-key';
-
 export async function GET(request, { params }) {
+  const NLB_URL = process.env.NLB_URL || process.env.NEXT_PUBLIC_GATEWAY_URL;
+  const API_KEY = process.env.NEXT_PUBLIC_VULN_API_KEY;
+  if (!NLB_URL || !API_KEY) {
+    return new Response(JSON.stringify({ error: 'Vulnerability engine proxy not configured' }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   try {
     const pathParts = (await params).path; // e.g. ['v1', 'scans'] or ['v1', 'vulnerabilities', 'stats', 'severity']
     const { searchParams } = new URL(request.url);

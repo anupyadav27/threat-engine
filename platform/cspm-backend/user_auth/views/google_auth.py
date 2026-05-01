@@ -5,8 +5,8 @@ Flow:
   1. GET /api/auth/google/login/  → redirect to Google consent screen
   2. GET /api/auth/google/callback/?code=... → exchange code, upsert user, set cookies, redirect
 """
-import json
 import os
+import secrets
 import uuid
 import logging
 from datetime import timedelta
@@ -20,6 +20,7 @@ from rest_framework.views import APIView
 
 from user_auth.models import Users, UserSessions
 from user_auth.utils.auth_utils import generate_token, hash_token
+from user_auth.utils.audit_utils import log_auth_event
 from user_auth.utils.cookie_utils import set_auth_cookies
 from user_auth.utils.tenant_utils import provision_first_tenant
 
@@ -43,6 +44,8 @@ class GoogleLoginView(APIView):
         if not GOOGLE_CLIENT_ID:
             return JsonResponse({"message": "Google OAuth not configured"}, status=501)
 
+        state = secrets.token_urlsafe(32)
+        request.session['google_oauth_state'] = state
         params = {
             "client_id": GOOGLE_CLIENT_ID,
             "redirect_uri": GOOGLE_REDIRECT_URI,
@@ -50,7 +53,14 @@ class GoogleLoginView(APIView):
             "scope": "openid email profile",
             "access_type": "offline",
             "prompt": "select_account",
+            "state": state,
         }
+        # hd = hosted domain — routes SSO users directly to their Google Workspace
+        # or to whatever IDP their Workspace is federated with (Azure AD, Okta, etc.)
+        hd = request.GET.get("hd", "").strip()
+        if hd:
+            params["hd"] = hd
+
         return HttpResponseRedirect(f"{GOOGLE_AUTH_URL}?{urlencode(params)}")
 
 
@@ -59,6 +69,12 @@ class GoogleCallbackView(APIView):
 
     def get(self, request):
         frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:3000")
+
+        expected_state = request.session.pop('google_oauth_state', None)
+        if not expected_state or request.GET.get('state') != expected_state:
+            logger.warning("Google OAuth state mismatch — possible CSRF attempt")
+            return HttpResponseRedirect(f"{frontend_url}/auth/login?error=csrf_detected")
+
         error = request.GET.get("error")
         code = request.GET.get("code")
 
@@ -102,6 +118,7 @@ class GoogleCallbackView(APIView):
             return HttpResponseRedirect(f"{frontend_url}/auth/login?error=google_no_email")
 
         # Upsert user
+        is_new_user = False
         try:
             user = Users.objects.get(email=email)
             updated = False
@@ -114,6 +131,7 @@ class GoogleCallbackView(APIView):
             if updated:
                 user.save(update_fields=["sso_provider", "sso_id"])
         except Users.DoesNotExist:
+            is_new_user = True
             user = Users.objects.create_user(
                 email=email,
                 first_name=first_name,
@@ -126,6 +144,26 @@ class GoogleCallbackView(APIView):
 
         user.last_login = timezone.now()
         user.save(update_fields=["last_login"])
+
+        # Consume pending invite (set by InviteSSORedirectView)
+        pending_invite = request.session.pop("pending_invite_token", None)
+        if pending_invite:
+            try:
+                from user_auth.models import InviteTokens
+                invite = InviteTokens.objects.get(token=pending_invite, used=False)
+                if invite.expires_at >= timezone.now() and invite.email == email:
+                    from tenant_management.models import TenantMembership
+                    TenantMembership.objects.get_or_create(
+                        user=user, tenant_id=invite.tenant_id,
+                        defaults={"role": invite.role or "viewer"},
+                    )
+                    invite.used = True
+                    invite.save(update_fields=["used"])
+                    log_auth_event("invite.accept", request=request, user=user,
+                                   tenant_id=invite.tenant_id,
+                                   extra={"method": "google", "email": email})
+            except Exception as exc:
+                logger.warning("Invite consumption failed (google): %s", exc)
 
         # Issue session
         UserSessions.objects.filter(user=user).delete()
@@ -145,6 +183,16 @@ class GoogleCallbackView(APIView):
             user_agent=request.META.get("HTTP_USER_AGENT", ""),
         )
 
+        log_auth_event("login.google", request=request, user=user,
+                       extra={"email": email, "new_user": is_new_user})
+
         response = HttpResponseRedirect(f"{frontend_url}/dashboard")
         set_auth_cookies(response, access_token, refresh_token)
+
+        if is_new_user:
+            response.set_cookie(
+                "onboarding_pending", "1",
+                max_age=3600, httponly=False, samesite="Lax",
+            )
+
         return response

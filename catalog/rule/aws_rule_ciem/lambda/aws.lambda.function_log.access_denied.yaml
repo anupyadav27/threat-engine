@@ -1,0 +1,56 @@
+rule_id: aws.lambda.function_log.access_denied
+service: lambda
+provider: aws
+check_type: log
+severity: low
+title: 'Lambda: Access Denied'
+description: Access denied on S3 operation — unauthorized access attempt or permission misconfiguration.
+rationale: Cloud account enumeration identifies IAM users, service principals, and roles that can be targeted for credential attacks or privilege escalation.
+threat_category: discovery
+mitre_tactics:
+- discovery
+mitre_techniques:
+- T1087.004
+risk_score: 20
+resource: lambda_function
+source: default
+is_active: true
+domain: compute_and_workload_security
+action_category: execute
+log_source_type: 
+posture_category: threat_posture
+threat_tags:
+- T1087.004
+- T1087
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: execution
+  target_type: serverless_function
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: |
+  1. Apply IAM permission restrictions on ListUsers/ListRoles/ListServicePrincipals.
+  2. Alert on unexpected enumeration API call patterns.
+  3. Use AWS Organizations SCPs / Azure Policy to limit who can enumerate identities.
+references:
+- https://attack.mitre.org/techniques/T1087/004/
+- https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_examples_iam_limited-identities.html
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: lambda
+    - field: operation
+      op: equals
+      value: error
+    - field: error_code
+      op: contains
+      value: AccessDenied
+version: '1.0'

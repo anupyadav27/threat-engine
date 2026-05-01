@@ -1,0 +1,71 @@
+rule_id: alicloud.ram.activity_log.console_login_inactive_user
+service: iam
+provider: alicloud
+check_type: log
+severity: medium
+title: Detect console login by RAM user inactive >90 days, and chained policy attachment
+  to dormant account
+description: Detects console login by long-inactive user with policy attachment.
+rationale: Monitoring this activity is essential for detecting adversary initial access
+  against ALICLOUD resources. Unauthorized or unexpected API calls may indicate account
+  compromise, privilege escalation, or an active attack chain.
+threat_category: initial_access
+mitre_tactics:
+- initial_access
+- persistence
+mitre_techniques:
+- T1078
+- T1078.004
+risk_score: 72
+resource: cloud_iam_principal
+source: csv_generated
+is_active: true
+domain: identity_and_access_management
+action_category: audit_activity
+log_source_type: alicloud_actiontrail
+posture_category: threat_posture
+threat_tags:
+- T1078
+- T1078.004
+- initial_access
+- persistence
+- ciem_detection
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: read
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: true
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: '1. Disable the dormant/inactive account immediately after investigation.
+
+  2. Audit all actions taken during the re-activation session.
+
+  3. Enforce automatic account deactivation after 90 days of inactivity.
+
+  4. Require MFA and manager approval for account reactivation.
+
+  5. Alert on first login after extended inactivity periods.'
+references:
+- https://attack.mitre.org/techniques/T1078/
+- https://attack.mitre.org/techniques/T1078.004/
+- https://www.alibabacloud.com/help/en/ram/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: ram
+    - field: operation
+      op: equals
+      value: ConsoleLogin
+  type: log
+  version: '1.0'

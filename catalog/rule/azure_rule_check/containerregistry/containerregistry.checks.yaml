@@ -1,0 +1,58 @@
+version: '1.0'
+provider: azure
+service: containerregistry
+checks:
+- rule_id: azure.containerregistry.replication.supply_chain_registry_replication_cross_region_encrypted
+  for_each: azure.containerregistry.root.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Region
+      op: not_equals
+      value: item.RegistryLocation
+    - var: item.Encryption
+      op: exists
+      value: null
+- rule_id: azure.containerregistry.replication.supply_chain_registry_replication_destinations_least_privilege
+  for_each: azure.containerregistry.root.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.regionEndpointEnabled
+      op: is_true
+      value: null
+    - var: item.properties.zoneRedundancy
+      op: is_true
+      value: null
+    - var: item.properties.status.message
+      op: not_contains
+      value: Public
+- rule_id: azure.containerregistry.repository.supply_chain_private_or_access_restricted
+  for_each: azure.containerregistry.root.list
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.properties.policies.trustPolicy.status
+      op: equals
+      value: enabled
+    - var: item.properties.networkRuleSet.defaultAction
+      op: equals
+      value: Deny
+- rule_id: azure.containerregistry.repository.supply_chain_registry_image_scanning_enabled
+  for_each: azure.containerregistry.root.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.policies.trustPolicy.status
+    op: equals
+    value: enabled
+- rule_id: azure.containerregistry.repository.supply_chain_registry_immutable_tags_or_signing_enforced
+  for_each: azure.containerregistry.root.list
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.policies.trustPolicy.status
+      op: equals
+      value: enabled
+    - var: item.policies.quarantinePolicy.status
+      op: equals
+      value: enabled

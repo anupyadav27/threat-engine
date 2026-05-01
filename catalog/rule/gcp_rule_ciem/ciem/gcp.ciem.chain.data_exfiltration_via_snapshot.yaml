@@ -1,0 +1,108 @@
+rule_id: gcp.ciem.chain.data_exfiltration_via_snapshot
+service: ciem
+provider: gcp
+check_type: log_correlation
+severity: critical
+title: 'GCP CIEM: Data Exfiltration via Disk Snapshot Export'
+description: 'Detect data exfiltration pattern: disk snapshot created → snapshot IAM policy modified to external account → snapshot copy or image creation by external actor.'
+rationale: Adversaries abuse ciem operations to achieve data exfiltration in GCP environments. Detected via Cloud Admin Activity or Data Access audit logs.
+threat_category: data_exfiltration
+mitre_tactics:
+- exfiltration
+mitre_techniques:
+- T1537
+risk_score: 98
+resource: gcp_compute_snapshot
+source: default
+is_active: true
+domain: data_protection_and_privacy
+action_category: exfiltration
+log_source_type: 
+posture_category: data_security_posture
+threat_tags:
+- T1537
+- data_exfiltration
+- data_loss
+- ciem_correlation
+- attack_chain
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: data_transfer
+  target_type: cloud_resource
+  blast_radius: tenant_or_account
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: true
+  modules:
+  - backup_and_recovery
+  - data_loss_prevention
+  categories:
+  - data_exfiltration
+  - unauthorized_access
+  priority: critical
+  impact:
+    pci: PCI DSS Requirement 12.3 — Implement security awareness program and protect systems
+    gdpr: GDPR Article 32 — Appropriate technical and organizational measures for data security
+    hipaa: §164.306(a) — Ensure confidentiality, integrity, and availability of ePHI
+  sensitive_data_context: |
+  Unauthorized data exfiltration on ciem resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks:
+  cis_gcp_v2:
+  - 5.1
+  - 5.2
+  - 7.1
+  nist_800_53_r5:
+  - AC-4
+  - DM-2
+  - SI-4
+  pci_dss_v4:
+  - 3.1
+  - 4.1
+  - 7.1
+  iso_27001_2022:
+  - A.8.12
+  - A.5.12
+  - A.8.10
+remediation: |
+  1. Audit and revoke the IAM binding granting public or broad access to the resource.
+  2. Enable VPC Service Controls to restrict data exfiltration to approved perimeters.
+  3. Configure DLP inspection on Cloud Storage and BigQuery for sensitive data.
+  4. Set up Cloud Monitoring alerts on bulk data read operations by unexpected principals.
+  5. Enable CMEK for storage and BigQuery to prevent data use without key access.
+references:
+- https://attack.mitre.org/techniques/T1537/
+- https://cloud.google.com/logging/docs/audit
+check_config:
+  events:
+  - conditions:
+      all:
+      - field: source_type
+        op: equals
+        value: gcp_audit
+      - field: service
+        op: equals
+        value: compute.googleapis.com
+      - field: operation
+        op: equals
+        value: v1.compute.disks.createSnapshot
+  - conditions:
+      all:
+      - field: source_type
+        op: equals
+        value: gcp_audit
+      - field: service
+        op: equals
+        value: compute.googleapis.com
+      - field: operation
+        op: equals
+        value: v1.compute.snapshots.setIamPolicy
+  type: sequence
+  window_seconds: 900
+version: '1.0'

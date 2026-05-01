@@ -1,0 +1,78 @@
+version: '1.0'
+provider: database
+engine: sql_server
+category: section_3
+cis_section: '3'
+description: >
+  sql_server CIS Section 3 — 'Server Authentication' Property is set to 'Windows Authentication Mode'
+
+discovery:
+
+  - discovery_id: sql_server.section_3.server_authentication_property_is_set_to_windows
+    description: Ensure 'Server Authentication' Property is set to 'Windows Authentication Mode'
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT SERVERPROPERTY('IsIntegratedSecurityOnly') as [login_mode];"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: server_authentication_property_is_set_to_windows
+        setting_name: server_authentication_property_is_set_to_windows
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: sql_server.section_3.connect_permissions_on_the_guest_user_is_revoked
+    description: Ensure CONNECT permissions on the 'guest' user is Revoked within all SQL Server databases
+    calls:
+
+
+      - action: query_table
+        query: "SELECT DB_NAME() AS DatabaseName, 'guest' AS Database_User, [permission_name], [state_desc] FROM sys.database_permissions WHERE [grantee_principal_id] = DATABASE_PRINCIPAL_ID('guest') AND [state_desc] LIKE 'GRANT%' AND [permission_name] = 'CONNECT' AND DB_NAME() NOT IN ('master','tempdb','msdb');"
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        check: connect_permissions_on_the_guest_user_is_revoked
+        value: "{{ item.value }}"
+        expected: ""
+
+
+  - discovery_id: sql_server.section_3.sql_authentication_is_not_used_in_contained
+    description: Ensure SQL Authentication is not used in contained databases
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT name AS DBUser FROM sys.database_principals WHERE name NOT IN ('dbo','Information_Schema','sys','guest') AND type IN ('U','S','G') AND authentication_type = 2;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sql_authentication_is_not_used_in_contained
+        setting_name: sql_authentication_is_not_used_in_contained
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: sql_server.section_3.membership_in_admin_roles_in_msdb_database_is
+    description: Ensure membership in admin roles in MSDB database is limited
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT count(*) FROM sys.databases AS db, sys.database_role_members AS drm INNER JOIN sys.database_principals AS r ON drm.role_principal_id = r.principal_id INNER JOIN sys.database_principals AS m ON drm.member_principal_id = m.principal_id WHERE r.name in ('db_owner', 'db_securityadmin', 'db_ddladmin', 'db_datawriter') and m.name <>'dbo' and db.database_id=3;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: membership_in_admin_roles_in_msdb_database_is
+        setting_name: membership_in_admin_roles_in_msdb_database_is
+        value: "{{ result.value }}"
+        expected: ""
+
+

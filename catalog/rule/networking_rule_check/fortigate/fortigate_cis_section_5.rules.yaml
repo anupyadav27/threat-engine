@@ -1,0 +1,65 @@
+tech_type: fortigate
+category: networking
+cis_benchmark: CIS Fortinet FortiGate v1.1.0
+cis_section: '5'
+
+rules:
+
+  - rule_id: fortigate.cis.5.enable_compromised_host_quarantine
+    title: "Enable Compromised Host Quarantine"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.1'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: fortigate.section_5.enable_compromised_host_quarantine
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      GUI Security Fabric>Automation Edit and change Disabled to Enabled CLI config
+      system automation-action edit 'Quarantine on FortiSwitch + FortiAP' set
+      description 'Default automation action configuration for quarantining a MAC
+      address on FortiSwitches and FortiAPs.' set action-type quarantine next edit
+      'Quarantine FortiClient EMS Endpoint' set description 'Default automation
+      action configuration for quarantining a FortiClient EMS endpoint device.' set
+      action-type quarantine-forticlient next end config system automation-trigger
+      edit 'Compromised Host - High' set description 'Default automation trigger
+      configuration for when a high severity compromised host is detected.' next end
+      config system automation-stitch edit 'Compromised Host Quarantine' set
+      description 'Default automation stitch to quarantine a high severity
+      compromised host on FortiAPs, FortiSwitches, and FortiClient EMS.' set status
+      disable set trigger 'Compromised Host - High' config actions edit 1 set action
+      'Quarantine on FortiSwitch + FortiAP' next edit 2 set action 'Quarantine
+      FortiClient EMS Endpoint' next end next end Default Value: Not enabled 5.2
+      Fabric Connectors Security Fabric Connector Configuration 5.2.1 Configure Root
+      FortiGate for Security Fabric Configuring and identifying the root FortiGate
+      within the Security Fabric
+    compliance:
+      - cis_fortigate_v1_1_0_5_1_1
+
+  - rule_id: fortigate.cis.5.security_fabric_is_configured
+    title: "Ensure Security Fabric is Configured"
+    severity: medium
+    automation_type: automated
+    cis_control: '5.2.1.1'
+    cis_section: '5'
+    profile_applicability: "Level 2"
+    scope: fortigate.section_5.security_fabric_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Remediation through the GUI: To configure root FortiGate status go to
+      'Security Fabric' -> Fabric Connectors and then select 'Security Fabric Setup'
+      On the root FortiGate set the status to enabled and the Security Fabric Role
+      to 'Serve as Fabric Root' Configure FortiAnalyzer settings when prompted and
+      define a Fabric name as well as interfaces that will 'Allow other Security
+      Fabric Devices to Join'. Default Value: Disabled 6 VPN 6.1 SSL VPN SSL VPN
+      Best Practices
+    compliance:
+      - cis_fortigate_v1_1_0_5_2_1_1
+
+

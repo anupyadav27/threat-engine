@@ -1,0 +1,46 @@
+version: '1.0'
+provider: db
+engine: oracle
+category: network
+cis_section: '3'
+description: Oracle CIS Section 3 — Network Configuration
+
+discovery:
+  - discovery_id: db.oracle.network.sqlnet_encryption
+    calls:
+      - action: query_table
+        query: "SELECT value FROM v$parameter WHERE name = 'sqlnet.encryption_server';"
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        setting_name: sqlnet.encryption_server
+        value: "{{ item.VALUE }}"
+        expected_in: [REQUIRED, REQUESTED]
+
+  - discovery_id: db.oracle.network.remote_os_authent
+    calls:
+      - action: query_table
+        query: "SELECT value FROM v$parameter WHERE name = 'remote_os_authent';"
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        setting_name: remote_os_authent
+        value: "{{ item.VALUE }}"
+        expected: "FALSE"
+
+  - discovery_id: db.oracle.network.os_authent_prefix
+    calls:
+      - action: query_table
+        query: "SELECT value FROM v$parameter WHERE name = 'os_authent_prefix';"
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        setting_name: os_authent_prefix
+        value: "{{ item.VALUE }}"
+        expected: ""

@@ -1,0 +1,428 @@
+version: '1.0'
+provider: gcp
+service: bigquery
+checks:
+- rule_id: gcp.bigquery.connection.connection_credentials_in_secrets_manager
+  for_each: gcp.bigquery.projects.list
+  severity: HIGH
+  conditions:
+    var: item.arguments
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.connection.connection_private_networking_enforced
+  for_each: gcp.bigquery.connections.list
+  severity: HIGH
+  conditions:
+    var: item.cloudSpanner.usesOnPremises
+    op: is_false
+    value: null
+- rule_id: gcp.bigquery.connection.connection_role_least_privilege
+  for_each: gcp.bigquery.routines.list
+  severity: HIGH
+  conditions:
+    var: item.securityMode
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.connection.connection_tls_required
+  for_each: gcp.bigquery.connections.list
+  severity: HIGH
+  conditions:
+    var: item.properties.connectionProperties.cloudSql.properties.type
+    op: equals
+    value: CLOUD_SQL_POSTGRES
+- rule_id: gcp.bigquery.connection.endpoint_access_allowed_cidrs_minimized
+  for_each: gcp.bigquery.connections.list
+  severity: HIGH
+  conditions:
+    var: item.cloudSql.properties.endpoint.allowedCidrs
+    op: length_lte
+    value: 1
+- rule_id: gcp.bigquery.connection.endpoint_access_private_only
+  for_each: gcp.bigquery.connections.list
+  severity: HIGH
+  conditions:
+    var: item.cloudResource.endpoint
+    op: not_exists
+    value: null
+- rule_id: gcp.bigquery.connection.endpoint_access_tls_required
+  for_each: gcp.bigquery.projects.list
+  severity: HIGH
+  conditions:
+    var: item.arguments
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.connection.endpoint_authz_no_anonymous_access
+  for_each: gcp.bigquery.connections.list
+  severity: HIGH
+  conditions:
+    var: item.cloudResource.connectionProperties[].endpointProperties.authentication
+    op: not_equals
+    value: ANONYMOUS
+- rule_id: gcp.bigquery.connection.endpoint_authz_rbac_least_privilege
+  for_each: gcp.bigquery.tables.list
+  severity: HIGH
+  conditions:
+    var: item.securityMode
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.connection.hsm_client_cert_key_length_minimum
+  for_each: gcp.bigquery.routines.list
+  severity: HIGH
+  conditions:
+    var: item.arguments
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.connection.hsm_client_cert_not_expired
+  for_each: gcp.bigquery.routines.list
+  severity: HIGH
+  conditions:
+    var: item.arguments
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.connection.hsm_client_cert_trusted_issuer
+  for_each: gcp.bigquery.routines.list
+  severity: HIGH
+  conditions:
+    var: item.securityMode
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.connection.hsm_configuration_present
+  for_each: gcp.bigquery.connections.list
+  severity: HIGH
+  conditions:
+    var: item.hsmConfiguration
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.connection.hsm_keys_in_hsm_only
+  for_each: gcp.bigquery.routines.list
+  severity: HIGH
+  conditions:
+    var: item.securityMode
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.connection.hsm_only_approved_hsm_endpoints
+  for_each: gcp.bigquery.projects.list
+  severity: HIGH
+  conditions:
+    var: item.arguments
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.dataset.catalog_cross_account_sharing_restricted
+  for_each: gcp.bigquery.datasets.list
+  severity: MEDIUM
+  conditions:
+    var: item.securityMode
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.dataset.catalog_metadata_encryption_enabled
+  for_each: gcp.bigquery.datasets.list
+  severity: HIGH
+  conditions:
+    var: item.catalogMetadataEncryption
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.dataset.catalog_rbac_least_privilege
+  for_each: gcp.bigquery.datasets.list
+  severity: HIGH
+  conditions:
+    var: item.securityMode
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.dataset.cluster_admin_access_least_privilege
+  for_each: gcp.bigquery.datasets.list
+  severity: HIGH
+  conditions:
+    var: item.securityMode
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.dataset.cluster_audit_logging_enabled
+  for_each: gcp.bigquery.datasets.list
+  severity: HIGH
+  conditions:
+    var: item.auditLogConfigs
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.dataset.cluster_encryption_at_rest_cmek
+  for_each: gcp.bigquery.tables.list
+  severity: HIGH
+  conditions:
+    var: item.encryptionConfiguration.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.dataset.cluster_private_networking_enforced
+  for_each: gcp.bigquery.datasets.list
+  severity: HIGH
+  conditions:
+    var: item.securityMode
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.dataset.cluster_tls_min_1_2_enforced
+  for_each: gcp.bigquery.datasets.list
+  severity: HIGH
+  conditions:
+    var: item.securityMode
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.dataset.database_cross_account_sharing_restricted
+  for_each: gcp.bigquery.datasets.list
+  severity: HIGH
+  conditions:
+    var: item.access[].iamMember
+    op: not_contains
+    value: allUsers
+- rule_id: gcp.bigquery.dataset.database_encrypted
+  for_each: gcp.bigquery.datasets.list
+  severity: HIGH
+  conditions:
+    var: item.encryptionConfiguration.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.dataset.database_policy_least_privilege
+  for_each: gcp.bigquery.datasets.list
+  severity: HIGH
+  conditions:
+    var: item.access[].role
+    op: not_in
+    value:
+    - OWNER
+    - WRITER
+- rule_id: gcp.bigquery.dataset.dataset_access_policies_least_privilege
+  for_each: gcp.bigquery.datasets.list
+  severity: HIGH
+  conditions:
+    var: item.access[].role
+    op: not_in
+    value:
+    - OWNER
+    - WRITER
+- rule_id: gcp.bigquery.dataset.dataset_encrypted_at_rest_cmek
+  for_each: gcp.bigquery.datasets.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryptionConfiguration.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.dataset.dataset_public_sharing_disabled
+  for_each: gcp.bigquery.datasets.list
+  severity: HIGH
+  conditions:
+    var: item.access[].role
+    op: not_contains
+    value: allUsers
+- rule_id: gcp.bigquery.dataset.dataset_row_level_security_enabled
+  for_each: gcp.bigquery.tables.list
+  severity: MEDIUM
+  conditions:
+    var: item.securityMode
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.dataset.group_external_group_sharing_restricted
+  for_each: gcp.bigquery.datasets.list
+  severity: MEDIUM
+  conditions:
+    var: item.access[].groupByEmail
+    op: not_contains
+    value: allAuthenticatedUsers
+- rule_id: gcp.bigquery.dataset.group_roles_minimal
+  for_each: gcp.bigquery.datasets.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.access[].role
+      op: not_in
+      value:
+      - roles/bigquery.dataEditor
+      - roles/bigquery.dataOwner
+      - roles/bigquery.dataViewer
+      - roles/bigquery.admin
+    - var: item.access[].groupByEmail
+      op: not_exists
+      value: null
+- rule_id: gcp.bigquery.dataset.workgroup_allowed_data_sources_allowlist
+  for_each: gcp.bigquery.datasets.list
+  severity: MEDIUM
+  conditions:
+    var: item.securityMode
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.dataset.workgroup_network_access_private
+  for_each: gcp.bigquery.datasets.list
+  severity: MEDIUM
+  conditions:
+    var: item.securityMode
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.dataset.workgroup_query_result_encryption_enabled
+  for_each: gcp.bigquery.datasets.list
+  severity: HIGH
+  conditions:
+    var: item.defaultEncryptionConfiguration.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.parameter.analytics_parameter_group_logging_enabled_where_supported
+  for_each: gcp.bigquery.routines.list
+  severity: MEDIUM
+  conditions:
+    var: item.arguments
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.parameter.parameter_group_require_ssl
+  for_each: gcp.bigquery.routines.list
+  severity: HIGH
+  conditions:
+    var: item.arguments[].requireSsl
+    op: is_true
+    value: null
+- rule_id: gcp.bigquery.parameter.parameter_group_tls_required
+  for_each: gcp.bigquery.routines.list
+  severity: HIGH
+  conditions:
+    var: item.arguments[].dataType
+    op: not_contains
+    value: STRING
+- rule_id: gcp.bigquery.parameter.warehouse_parameter_group_logging_enabled_where_supported
+  for_each: gcp.bigquery.datasets.list
+  severity: HIGH
+  conditions:
+    var: item.arguments
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.schema.schema_encrypted
+  for_each: gcp.bigquery.tables.list
+  severity: HIGH
+  conditions:
+    var: item.encryptionConfiguration.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.schema.schema_rbac_least_privilege
+  for_each: gcp.bigquery.tables.list
+  severity: HIGH
+  conditions:
+    var: item.securityMode
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.schema.schema_version_immutability_enforced
+  for_each: gcp.bigquery.tables.list
+  severity: HIGH
+  conditions:
+    var: item.schema.schemaVersion
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.snapshot.analytics_snapshot_encrypted_at_rest_cmek
+  for_each: gcp.bigquery.tables.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryptionConfiguration.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.snapshot.analytics_snapshot_not_publicly_shared
+  for_each: gcp.bigquery.tables.list
+  severity: HIGH
+  conditions:
+    var: item.access[].role
+    op: not_contains
+    value: allUsers
+- rule_id: gcp.bigquery.snapshot.snapshot_cross_region_copy_encrypted
+  for_each: gcp.bigquery.tables.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.snapshotDefinition.baseTableReference.projectId
+      op: exists
+      value: null
+    - var: item.snapshotDefinition.baseTableReference.datasetId
+      op: exists
+      value: null
+    - var: item.snapshotDefinition.baseTableReference.tableId
+      op: exists
+      value: null
+    - var: item.snapshotDefinition.snapshotTime
+      op: exists
+      value: null
+    - any:
+      - var: item.encryptionConfiguration.kmsKeyName
+        op: exists
+        value: null
+      - var: item.encryptionConfiguration
+        op: is_empty
+        value: null
+- rule_id: gcp.bigquery.snapshot.snapshot_kms_key_policy_least_privilege
+  for_each: gcp.bigquery.tables.list
+  severity: HIGH
+  conditions:
+    var: item.encryptionConfiguration.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.snapshot.warehouse_snapshot_encrypted_at_rest_cmek
+  for_each: gcp.bigquery.tables.list
+  severity: HIGH
+  conditions:
+    var: item.encryptionConfiguration.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.snapshot.warehouse_snapshot_not_publicly_shared
+  for_each: gcp.bigquery.tables.list
+  severity: HIGH
+  conditions:
+    var: item.access[].role
+    op: not_contains
+    value: allUsers
+- rule_id: gcp.bigquery.table.partition_access_policies_least_privilege
+  for_each: gcp.bigquery.tables.list
+  severity: HIGH
+  conditions:
+    var: item.securityMode
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.table.partition_catalog_encrypted
+  for_each: gcp.bigquery.tables.list
+  severity: HIGH
+  conditions:
+    var: item.encryptionConfiguration.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.table.table_access_policies_least_privilege
+  for_each: gcp.bigquery.tables.list
+  severity: HIGH
+  conditions:
+    var: item.securityMode
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.table.table_column_level_access_controls_enabled
+  for_each: gcp.bigquery.tables.list
+  severity: HIGH
+  conditions:
+    var: item.securityMode
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.table.table_encrypted
+  for_each: gcp.bigquery.tables.list
+  severity: HIGH
+  conditions:
+    var: item.encryptionConfiguration.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.bigquery.table.table_public_sharing_disabled
+  for_each: gcp.bigquery.tables.list
+  severity: HIGH
+  conditions:
+    var: item.access[].role
+    op: not_contains
+    value: allUsers
+- rule_id: gcp.bigquery.user.user_roles_minimal
+  for_each: gcp.bigquery.datasets.list
+  severity: MEDIUM
+  conditions:
+    var: item.access[].role
+    op: not_in
+    value:
+    - roles/bigquery.dataOwner
+    - roles/bigquery.dataEditor
+    - roles/bigquery.admin
+- rule_id: gcp.bigquery.user.user_sso_required
+  for_each: gcp.bigquery.datasets.list
+  severity: MEDIUM
+  conditions:
+    var: item.securityMode
+    op: exists
+    value: null

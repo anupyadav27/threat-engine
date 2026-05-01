@@ -1,0 +1,91 @@
+rule_id: gcp.logging.audit.log_bucket_deleted
+service: logging
+provider: gcp
+check_type: log
+severity: critical
+title: 'GCP Logging: Log Bucket Deleted'
+description: A Cloud Logging log bucket was deleted, permanently removing stored log data. This may be evidence tampering.
+rationale: Adversaries abuse logging operations to achieve defense evasion in GCP environments. Detected via Cloud Admin Activity or Data Access audit logs.
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1070
+risk_score: 90
+resource: gcp_logging_bucket
+source: default
+is_active: true
+domain: logging_monitoring_and_alerting
+action_category: delete
+log_source_type: 
+posture_category: security_posture
+threat_tags:
+- T1070
+- defense_evasion
+- log_tampering
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: destructive
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: critical
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - data_access_governance
+  categories:
+  - sensitive_data_access
+  priority: critical
+  impact:
+    pci: PCI DSS Requirement 3.1 — Minimize cardholder data storage
+    gdpr: GDPR Article 25 — Data protection by design; minimize data exposure
+    hipaa: §164.312(a)(1) — Access controls on data repositories containing ePHI
+  sensitive_data_context: |
+  Unauthorized defense evasion on logging resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks:
+  cis_gcp_v2:
+  - 2.1
+  - 2.2
+  - 2.4
+  - 2.5
+  nist_800_53_r5:
+  - AU-2
+  - AU-6
+  - AU-12
+  - SI-4
+  pci_dss_v4:
+  - 10.1
+  - 10.2
+  - 10.3
+  iso_27001_2022:
+  - A.8.15
+  - A.8.16
+  - A.5.28
+remediation: |
+  1. Immediately restore the deleted or modified logging/security configuration.
+  2. Apply Org Policy to prevent log sink deletion: `logging.restrictSinkCreation`.
+  3. Use Cloud Storage Bucket Lock on log export buckets to prevent deletion.
+  4. Configure out-of-band alerting via Pub/Sub → Cloud Functions for audit log changes.
+  5. Enable Security Command Center Premium for threat detection on defense evasion events.
+references:
+- https://attack.mitre.org/techniques/T1070/
+- https://cloud.google.com/logging/docs/audit
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: logging.googleapis.com
+    - field: operation
+      op: equals
+      value: google.logging.v2.ConfigServiceV2.DeleteBucket
+version: '1.0'

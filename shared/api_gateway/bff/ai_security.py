@@ -9,9 +9,9 @@ Data Pipeline, AI Governance, Access Control.
 
 from typing import Optional, Dict, List
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
-from ._shared import fetch_many, safe_get, mock_fallback, is_empty_or_health
+from ._shared import fetch_many, safe_get
 from ._transforms import apply_global_filters
 from ._page_context import ai_security_page_context, ai_security_filter_schema
 
@@ -120,16 +120,20 @@ def _normalize_shadow_ai_item(item: dict) -> dict:
 
 @router.get("/ai-security")
 async def view_ai_security(
+    request: Request,
     tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
-    csp: str = Query("aws"),
+    csp: Optional[str] = Query(None),
     scan_id: str = Query("latest"),
 ):
     """Single endpoint returning everything the AI Security page needs."""
 
     effective_csp = csp or (provider.lower() if provider else "aws")
+
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 
     results = await fetch_many([
         ("ai_security", "/api/v1/ai-security/ui-data", {
@@ -137,25 +141,13 @@ async def view_ai_security(
             "csp": effective_csp,
             "scan_id": scan_id,
         }),
-    ])
+    ], auth_headers=fwd_headers)
 
     data = results[0]
     if not isinstance(data, dict):
         data = {}
 
-    # Mock fallback when engine data is empty or has no scan data
-    summary_check = safe_get(data, "summary", {})
-    no_scan_data = (
-        is_empty_or_health(data)
-        or summary_check.get("status") == "no_data"
-        or summary_check.get("scan_run_id") is None
-    )
-    if no_scan_data:
-        m = mock_fallback("ai_security")
-        if m is not None:
-            return m
-
-    summary = summary_check
+    summary = safe_get(data, "summary", {})
     # Engine returns critical_findings/high_findings etc., not by_severity dict
     by_severity = safe_get(summary, "by_severity", {})
     if not by_severity:

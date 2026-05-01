@@ -24,28 +24,15 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
 from engine_common.logger import setup_logger
 from engine_common.orchestration import get_orchestration_metadata
-from engine_common.retention import cleanup_old_scans
+from engine_common.db_connections import get_encryption_conn
 
 logger = setup_logger(__name__, engine_name="encryption-scanner")
-
-
-def _get_encryption_conn():
-    """Get psycopg2 connection to the Encryption database."""
-    import psycopg2
-    return psycopg2.connect(
-        host=os.getenv("ENCRYPTION_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("ENCRYPTION_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("ENCRYPTION_DB_NAME", "threat_engine_encryption"),
-        user=os.getenv("ENCRYPTION_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("ENCRYPTION_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-    )
 
 
 def _update_report_status(scan_run_id: str, status: str, error: str = None):
     """Update encryption_report status in DB."""
     try:
-        conn = _get_encryption_conn()
+        conn = get_encryption_conn()
         with conn.cursor() as cur:
             if error:
                 cur.execute(
@@ -66,7 +53,7 @@ def _update_report_status(scan_run_id: str, status: str, error: str = None):
 def _create_report_row(scan_run_id: str, tenant_id: str, provider: str):
     """Pre-create encryption_report row with status='running'."""
     try:
-        conn = _get_encryption_conn()
+        conn = get_encryption_conn()
         with conn.cursor() as cur:
             cur.execute(
                 "INSERT INTO tenants (tenant_id, tenant_name) VALUES (%s, %s) ON CONFLICT DO NOTHING",
@@ -114,8 +101,15 @@ def main():
 
         logger.info(f"Resolved: tenant={tenant_id} provider={provider} account={account_id}")
 
+        from encryption_security_engine.providers import get_provider as get_enc_provider
+        enc_provider = get_enc_provider(provider)
+
         # 2. Pre-create report row
         _create_report_row(scan_run_id, tenant_id, provider)
+
+        # All CSPs supported via providers/ factory; AWS has full KMS/ACM analysis.
+        # Azure/GCP/OCI/IBM use their respective key/cert/secrets services.
+        logger.info(f"Encryption-security: provider='{provider}' services={enc_provider.all_services} — running scan")
 
         start = datetime.now(timezone.utc)
 
@@ -131,18 +125,25 @@ def main():
         inv_reader = InventoryReader()
 
         try:
-            # Discovery: KMS, ACM, ACM-PCA, SecretsManager
-            discovery_resources = disc_reader.load_all_encryption_resources(scan_run_id, tenant_id, account_id or None)
+            # Discovery: key/cert/secrets services for this CSP (from providers/ factory)
+            discovery_resources = disc_reader.load_all_encryption_resources(scan_run_id, tenant_id, account_id or None, services=enc_provider.all_services)
             kms_resources = discovery_resources.get("kms", [])
             acm_resources = discovery_resources.get("acm", [])
             acm_pca_resources = discovery_resources.get("acm-pca", [])
             secrets_resources = discovery_resources.get("secretsmanager", [])
+            total_disc = len(kms_resources) + len(acm_resources) + len(acm_pca_resources) + len(secrets_resources)
             logger.info(f"Discovery: {len(kms_resources)} KMS, {len(acm_resources)} ACM, {len(secrets_resources)} secrets")
+            if total_disc == 0:
+                logger.warning(
+                    f"[DIAGNOSTIC] 0 encryption resources found for scan_run_id={scan_run_id} "
+                    f"tenant={tenant_id} account={account_id}. "
+                    "Likely causes: (1) KMS/ACM/SecretsManager not present in scanned regions, "
+                    "(2) discovery failed — check service_scan_attempts for status=failed/access_denied "
+                    "on kms/acm/acm-pca/secretsmanager services."
+                )
 
             # Check findings
-            check_findings = check_reader.load_encryption_check_findings(scan_run_id, tenant_id)
-            cross_svc_findings = check_reader.load_encryption_rule_findings(scan_run_id, tenant_id)
-            all_check_findings = check_findings + cross_svc_findings
+            all_check_findings = check_reader.load_encryption_check_findings(scan_run_id, tenant_id)
             logger.info(f"Check: {len(all_check_findings)} encryption findings")
 
             # DataSec
@@ -593,18 +594,19 @@ def main():
         duration = (datetime.now(timezone.utc) - start).total_seconds()
         _update_report_status(scan_run_id, "completed")
 
+        # Retention: archive old scans to S3, keep last 5 in DB
+        try:
+            from engine_common.retention import run_retention
+            run_retention("encryption", scan_run_id)
+        except Exception as _ret_err:
+            logger.warning("Retention cleanup skipped: %s", _ret_err)
+
         logger.info(
             f"Encryption scan completed: {scan_run_id} — "
             f"score={posture['posture_score']}, {len(findings)} findings, "
             f"{len(key_inventory)} keys, {len(cert_inventory)} certs, "
             f"{len(secrets_inventory)} secrets in {duration:.1f}s"
         )
-
-        # 8. Retention cleanup
-        try:
-            cleanup_old_scans("encryption", tenant_id, keep=3)
-        except Exception as e:
-            logger.warning(f"Retention cleanup failed: {e}")
 
     except Exception as e:
         logger.error(f"Encryption scan FAILED: {e}", exc_info=True)

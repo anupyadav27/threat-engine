@@ -1,0 +1,138 @@
+version: '1.0'
+provider: gcp
+service: gke_audit
+checks:
+- rule_id: gcp.gke_audit.clusterrole_create
+  for_each: gcp.gke_audit.list_clusterrole
+  severity: MEDIUM
+  conditions:
+    var: item.metadata.name
+    op: not_exists
+    value: null
+- rule_id: gcp.gke_audit.clusterrolebinding_create
+  for_each: gcp.gke_audit.list_clusterrolebindings
+  severity: MEDIUM
+  conditions:
+    var: item.roleRef.name
+    op: not_contains
+    value: cluster-admin
+- rule_id: gcp.gke_audit.daemonset_create
+  for_each: gcp.gke_audit.list_daemonsets
+  severity: MEDIUM
+  conditions:
+    var: item.metadata.name
+    op: not_exists
+    value: null
+- rule_id: gcp.gke_audit.deployment_create
+  for_each: gcp.gke_audit.list_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.auditConfigs[].auditLogConfigs[].logType
+    op: contains
+    value: ADMIN_READ
+- rule_id: gcp.gke_audit.namespace_create
+  for_each: gcp.gke_audit.list_log_entries
+  severity: MEDIUM
+  conditions:
+    var: item.protoPayload.methodName
+    op: not_equals
+    value: io.k8s.core.v1.namespaces.create
+- rule_id: gcp.gke_audit.namespace_delete
+  for_each: gcp.gke_audit.list_log_entries
+  severity: MEDIUM
+  conditions:
+    var: item.protoPayload.methodName
+    op: not_equals
+    value: io.k8s.core.v1.namespaces.delete
+- rule_id: gcp.gke_audit.networkpolicy_modify
+  for_each: gcp.gke_audit.list_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.NetworkPolicy.Enabled
+    op: is_true
+    value: null
+- rule_id: gcp.gke_audit.pod_exec
+  for_each: gcp.gke_audit.list_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.auditConfigs[].auditLogConfigs[].logType
+    op: contains
+    value: ADMIN_READ
+- rule_id: gcp.gke_audit.pod_portforward
+  for_each: gcp.gke_audit.list_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.auditConfigs[].auditLogConfigs[].logType
+    op: contains
+    value: ADMIN_READ
+- rule_id: gcp.gke_audit.privileged_pod
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.NodePools[].Config.SecurityContext.Privileged
+      op: is_false
+      value: null
+    - var: item.PodSecurityPolicyConfig.Enabled
+      op: is_true
+      value: null
+- rule_id: gcp.gke_audit.rolebinding_modify
+  for_each: gcp.gke_audit.list_rolebindings
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.operation
+      op: not_equals
+      value: create
+    - var: item.operation
+      op: not_equals
+      value: update
+    - var: item.operation
+      op: not_equals
+      value: delete
+- rule_id: gcp.gke_audit.secret_access
+  for_each: gcp.gke_audit.list_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.workloadIdentityConfig
+    op: exists
+    value: null
+- rule_id: gcp.gke_audit.secret_create
+  for_each: gcp.gke_audit.list_secrets
+  severity: MEDIUM
+  conditions:
+    var: item.metadata.name
+    op: exists
+    value: null
+- rule_id: gcp.gke_audit.secret_delete
+  for_each: gcp.gke_audit.list_log_entries
+  severity: MEDIUM
+  conditions:
+    var: item.protoPayload.methodName
+    op: not_equals
+    value: io.k8s.core.v1.secrets.delete
+- rule_id: gcp.gke_audit.serviceaccount_create
+  for_each: gcp.gke_audit.list_serviceaccounts
+  severity: MEDIUM
+  conditions:
+    var: item
+    op: not_exists
+    value: null
+- rule_id: gcp.gke_audit.token_request
+  for_each: gcp.gke_audit.list_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.MasterAuth.TokenRequestEnabled
+    op: is_false
+    value: null
+- rule_id: gcp.gke_audit.webhook_modify
+  for_each: gcp.gke_audit.list_clusters
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Cluster.MasterAuthorizedNetworksConfig.Enabled
+      op: is_true
+      value: null
+    - var: item.Cluster.MasterAuthorizedNetworksConfig.CidrBlocks[].CidrBlock
+      op: not_contains
+      value: 0.0.0.0/0

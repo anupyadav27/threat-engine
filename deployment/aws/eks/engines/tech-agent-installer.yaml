@@ -1,0 +1,114 @@
+---
+# Tech Scan Agent — DaemonSet for K8s host scanning
+# Runs one agent pod per node; each pod executes a one-shot scan and exits.
+# The DaemonSet restartPolicy is Always so the pod reschedules on next cron trigger.
+#
+# For on-premise / VM deployment use the Docker image directly:
+#   docker run --rm \
+#     -e CENTRAL_URL=https://tech-check.threat-engine.internal \
+#     -e AGENT_TOKEN=<jwt> \
+#     -e DB_HOST=127.0.0.1 \
+#     -e DB_USER=postgres \
+#     -e DB_PASSWORD=<secret> \
+#     yadavanup84/tech-scan-agent:v1 \
+#       --scan-run-id <uuid> \
+#       --account-id  acct_pg_prod_01 \
+#       --tech-type   postgresql
+
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: tech-scan-agent
+  namespace: threat-engine-engines
+  labels:
+    app: tech-scan-agent
+    component: technology-engine
+spec:
+  selector:
+    matchLabels:
+      app: tech-scan-agent
+  template:
+    metadata:
+      labels:
+        app: tech-scan-agent
+        component: technology-engine
+    spec:
+      serviceAccountName: threat-engine-sa
+      restartPolicy: Always
+
+      # Docker socket mount for docker tech_type scans
+      volumes:
+        - name: docker-sock
+          hostPath:
+            path: /var/run/docker.sock
+            type: Socket
+
+      containers:
+        - name: tech-scan-agent
+          image: yadavanup84/tech-scan-agent:v1
+          imagePullPolicy: Always
+
+          # Defaults — override per-host via ConfigMap or env injection
+          args:
+            - "--scan-run-id"
+            - "$(SCAN_RUN_ID)"
+            - "--account-id"
+            - "$(ACCOUNT_ID)"
+            - "--tech-type"
+            - "$(TECH_TYPE)"
+
+          env:
+            - name: CENTRAL_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: TECH_CHECK_URL
+                  optional: true
+            - name: AGENT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: tech-agent-token
+                  key: token
+                  optional: true
+            - name: TENANT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DEFAULT_TENANT_ID
+                  optional: true
+            - name: SCAN_RUN_ID
+              value: "default-scan"        # overridden by Argo at trigger time
+            - name: ACCOUNT_ID
+              value: "default-account"     # overridden per host at trigger time
+            - name: TECH_TYPE
+              value: "ubuntu"              # overridden per host at trigger time
+
+          volumeMounts:
+            - name: docker-sock
+              mountPath: /var/run/docker.sock
+              readOnly: true
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+
+      tolerations:
+        - key: "spot-scanner"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1

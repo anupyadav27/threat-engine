@@ -1,0 +1,77 @@
+rule_id: aws.container.eks_audit.anonymous_access
+service: container
+provider: aws
+check_type: log
+severity: critical
+title: 'Container: Anonymous Access'
+description: Anonymous access to Kubernetes API — unauthenticated request reached cluster API server.
+rationale: 'Cloud account compromise enables access to all resources within the account''s permission scope. Attackers leverage valid credentials to avoid detection and pivot across cloud services.'
+threat_category: initial_access
+mitre_tactics:
+- initial_access
+mitre_techniques:
+- T1078.004
+risk_score: 88
+resource: eks_cluster
+source: ciem_rule_generator
+is_active: true
+domain: container_and_kubernetes_security
+action_category: create
+log_source_type: eks_audit
+posture_category: threat_posture
+threat_tags:
+- T1078.004
+- T1078
+- kubernetes
+- container_security
+risk_indicators:
+  actor_type: service_account_or_workload
+  action_type: write
+  target_type: kubernetes_workload
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.14
+  - 2.1
+  cis_azure_v2:
+  - 1.2
+  - 2.1
+  nist_800_53_r5:
+  - AC-17
+  - IA-2
+  - SI-3
+  pci_dss_v4:
+  - 8.3
+  - 11.5
+  iso_27001_2022:
+  - A.8.5
+  - A.9.4
+remediation: |
+  1. Immediately suspend the compromised account and revoke active sessions.
+  2. Reset credentials and enforce MFA enrollment.
+  3. Review all API calls and resource accesses made by the account.
+  4. Investigate sign-in logs for source IP and geolocation anomalies.
+  5. Enable Microsoft Entra ID Protection / AWS GuardDuty credential anomaly alerts.
+references:
+- https://attack.mitre.org/techniques/T1078/004/
+- https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+- https://learn.microsoft.com/en-us/azure/active-directory/identity-protection/overview-identity-protection
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: actor_principal
+      op: equals
+      value: system:anonymous
+  for_each: log_events
+  log_source_type: eks_audit
+  type: log
+version: '1.0'

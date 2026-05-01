@@ -64,9 +64,17 @@ def main():
 
         logger.info(f"Resolved: tenant={tenant_id} provider={provider} account={account_id}")
 
+        from ai_security_engine.providers import get_provider as get_ai_provider
+        ai_provider = get_ai_provider(provider)
+
         # Pre-create report row
         db_writer.ensure_tenant(tenant_id)
         db_writer.create_report(scan_run_id, tenant_id, account_id, provider)
+
+        if not ai_provider.is_supported():
+            logger.warning(f"AI-security: provider='{provider}' has limited support — scan may return 0 findings")
+        logger.info(f"AI-security: provider='{provider}' — running scan")
+
         start = datetime.now(timezone.utc)
 
         # ── Phase 1: Load input data from 6 engines ─────────────────────
@@ -80,13 +88,27 @@ def main():
 
         try:
             # 1a. Discovery resources — AI/ML services (REQUIRED)
-            discovery_resources = disc_reader.load_ai_resources(scan_run_id, tenant_id, account_id or None)
+            discovery_resources = disc_reader.load_ai_resources(scan_run_id, tenant_id, account_id or None, services=ai_provider.discovery_services)
             logger.info(f"  [1a] Discovered {len(discovery_resources)} AI/ML resources")
+            if len(discovery_resources) == 0:
+                logger.warning(
+                    f"  [1a][DIAGNOSTIC] 0 AI/ML resources found for scan_run_id={scan_run_id} "
+                    f"tenant={tenant_id} account={account_id}. "
+                    "Likely causes: (1) SageMaker/Bedrock/Comprehend not present in scanned regions, "
+                    "(2) discovery service failed — check service_scan_attempts table for "
+                    "status=failed/access_denied on sagemaker/bedrock/comprehend/rekognition services, "
+                    "(3) scan_run_id mismatch between discovery and this engine."
+                )
 
             # 1b. Check findings — AI rules (REQUIRED)
             check_findings = check_reader.load_ai_check_findings(scan_run_id, tenant_id)
             rule_metadata = check_reader.load_ai_rule_metadata()
             logger.info(f"  [1b] Loaded {len(check_findings)} AI check findings, {len(rule_metadata)} rules")
+            if len(check_findings) == 0 and len(rule_metadata) > 0:
+                logger.warning(
+                    f"  [1b][DIAGNOSTIC] 0 check findings but {len(rule_metadata)} AI rules exist. "
+                    "Check engine may not have processed this scan_run_id, or all rules passed."
+                )
         finally:
             disc_reader.close()
             check_reader.close()
@@ -431,7 +453,41 @@ def main():
         db_writer.update_report(scan_run_id, scores, inventory, findings, status="completed")
         logger.info("  [5c] Report updated")
 
-        # 5d. Export JSON report
+        # ── Phase 5d: ATLAS direct analysis via provider.analyze() ──────
+        logger.info("[Phase 5d] Running MITRE ATLAS analyze() for provider=%s...", provider)
+        try:
+            from ai_security_engine.storage.ai_security_db_writer import save_atlas_findings
+            from engine_common.db_connections import get_discoveries_conn, get_ai_security_conn
+
+            disc_conn = get_discoveries_conn()
+            ai_sec_conn = get_ai_security_conn()
+            try:
+                atlas_findings = ai_provider.analyze(
+                    scan_run_id=scan_run_id,
+                    tenant_id=tenant_id,
+                    account_id=account_id,
+                    discoveries_conn=disc_conn,
+                    check_conn=None,
+                )
+                if atlas_findings:
+                    saved_atlas = save_atlas_findings(atlas_findings, ai_sec_conn)
+                    logger.info(
+                        "  [5d] ATLAS analyze(): %d findings produced, %d saved for %s",
+                        len(atlas_findings), saved_atlas, provider,
+                    )
+                else:
+                    logger.info(
+                        "  [5d] ATLAS analyze(): 0 findings for provider=%s "
+                        "(no AI/ML resources in discovery_findings or not yet enumerated)",
+                        provider,
+                    )
+            finally:
+                disc_conn.close()
+                ai_sec_conn.close()
+        except Exception as atlas_err:
+            logger.warning("[Phase 5d] ATLAS analyze() failed (non-fatal): %s", atlas_err)
+
+        # 5e. Export JSON report
         try:
             output_dir = os.getenv("OUTPUT_DIR", "/output")
             if output_dir and os.path.exists(output_dir):
@@ -449,9 +505,9 @@ def main():
                 }
                 with open(os.path.join(ai_dir, f"{scan_run_id}_report.json"), "w") as f:
                     json.dump(report_data, f, indent=2, default=str)
-                logger.info(f"  [5d] Report exported to {ai_dir}")
+                logger.info(f"  [5e] Report exported to {ai_dir}")
         except Exception as e:
-            logger.warning(f"  [5d] Report export failed (non-fatal): {e}")
+            logger.warning(f"  [5e] Report export failed (non-fatal): {e}")
 
         # ── Phase 6: Retention cleanup ───────────────────────────────────
         try:
@@ -467,6 +523,13 @@ def main():
             f"score={scores.get('risk_score', 0)}, {len(findings)} findings, "
             f"{len(inventory)} resources in {duration:.1f}s"
         )
+
+        # Retention: archive old scans to S3, keep last 5 in DB
+        try:
+            from engine_common.retention import run_retention
+            run_retention("ai_security", scan_run_id)
+        except Exception as _ret_err:
+            logger.warning("Retention cleanup skipped: %s", _ret_err)
 
     except Exception as e:
         logger.error(f"AI security scan FAILED: {e}", exc_info=True)

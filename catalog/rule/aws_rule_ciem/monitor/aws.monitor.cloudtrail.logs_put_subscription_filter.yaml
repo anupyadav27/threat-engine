@@ -1,0 +1,79 @@
+rule_id: aws.monitor.cloudtrail.logs_put_subscription_filter
+service: monitor
+provider: aws
+check_type: log
+severity: medium
+title: 'CloudWatch: Logs Put Subscription Filter'
+description: CloudWatch log subscription filter added — log events forwarded to external destination.
+rationale: Event-triggered execution via cloud automation rules can establish persistent code execution that activates on specific events, surviving credential rotation.
+threat_category: persistence
+mitre_tactics:
+- persistence
+- collection
+mitre_techniques:
+- T1546
+risk_score: 55
+resource: cloudwatch_alarm
+source: default
+is_active: true
+domain: logging_monitoring_and_alerting
+action_category: create
+log_source_type: 
+posture_category: iam_posture
+threat_tags:
+- T1546
+- persistence
+- backdoor
+- audit_log
+- monitoring
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: audit_log
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.1
+  - 1.4
+  - 1.16
+  cis_azure_v2:
+  - 1.1
+  - 2.1
+  - 2.9
+  nist_800_53_r5:
+  - AC-2
+  - AC-6
+  - IA-2
+  - SC-7
+  pci_dss_v4:
+  - 7.1
+  - 8.2
+  - 10.2
+  iso_27001_2022:
+  - A.8.2
+  - A.9.2
+  - A.5.18
+remediation: |
+  1. Review and remove unauthorized automation rules or event subscriptions.
+  2. Restrict creation of automation rules to authorized principals.
+  3. Audit all event-triggered execution configurations regularly.
+  4. Enable alerts on automation rule creation and modification.
+references:
+- https://attack.mitre.org/techniques/T1546/
+check_config:
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: logs
+    - field: operation
+      op: equals
+      value: PutSubscriptionFilter
+version: '1.0'

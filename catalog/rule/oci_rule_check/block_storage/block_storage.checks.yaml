@@ -1,0 +1,264 @@
+version: '1.0'
+provider: oci
+service: block_storage
+checks:
+- rule_id: oci.block_storage.volume.access_backup_admins_mfa_required
+  for_each: oci.block_storage.list_volume_backups
+  severity: CRITICAL
+  conditions:
+    var: item.defined_tags.Environment
+    op: exists
+    value: null
+- rule_id: oci.block_storage.volume.backup_encrypted_at_rest_cmek
+  for_each: oci.block_storage.list_volume_backups
+  severity: MEDIUM
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.block_storage.volume.backup_immutable_or_worm_enabled
+  for_each: oci.block_storage.list_volume_backups
+  severity: MEDIUM
+  conditions:
+    var: item.is_immutable
+    op: is_true
+    value: null
+- rule_id: oci.block_storage.volume.boot_volume_encryption_cmk_enabled
+  for_each: oci.block_storage.list_boot_volumes
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.block_storage.volume.disk_cmk_enabled
+  for_each: oci.block_storage.list_boot_volumes
+  severity: LOW
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.block_storage.volume.disk_encryption_enabled
+  for_each: oci.block_storage.list_boot_volumes
+  severity: HIGH
+  conditions:
+    var: item.is_hydrated
+    op: is_true
+    value: null
+- rule_id: oci.block_storage.volume.disk_snapshots_encrypted
+  for_each: oci.block_storage.list_volume_backups
+  severity: LOW
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: oci.block_storage.volume.monitoring_metrics_export_enabled
+  for_each: oci.block_storage.list_boot_volumes
+  severity: MEDIUM
+  conditions:
+    var: item.monitoring_metrics_export_enabled
+    op: is_true
+    value: null
+- rule_id: oci.block_storage.volume.replication_auth_roles_least_privilege_required
+  for_each: oci.block_storage.list_boot_volumes
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.block_storage.volume.replication_cross_region_encrypted
+  for_each: oci.block_storage.list_boot_volumes
+  severity: MEDIUM
+  conditions:
+    var: item.replica_encryption_key
+    op: exists
+    value: null
+- rule_id: oci.block_storage.volume.replication_lag_monitoring_alerts_enabled
+  for_each: oci.block_storage.list_boot_volumes
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.block_storage.volume.replication_tls_required
+  for_each: oci.block_storage.list_boot_volumes
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.block_storage.volume.snapshot_cross_region_copy_encrypted
+  for_each: oci.block_storage.list_volume_backups
+  severity: MEDIUM
+  conditions:
+    var: item.cross_region_copy_details.is_encrypted
+    op: is_true
+    value: null
+- rule_id: oci.block_storage.volume.snapshot_encrypted
+  for_each: oci.block_storage.list_volume_backups
+  severity: MEDIUM
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.block_storage.volume.snapshot_encryption
+  for_each: oci.block_storage.list_volume_backups
+  severity: HIGH
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: oci.block_storage.volume.volume_backup_configured
+  for_each: oci.block_storage.list_volume_backups
+  severity: MEDIUM
+  conditions:
+    var: item
+    op: not_empty
+    value: null
+- rule_id: oci.block_storage.volume.volume_cmk_enabled
+  for_each: oci.block_storage.list_boot_volumes
+  severity: MEDIUM
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.block_storage.volume.volume_encryption_cmk_enabled
+  for_each: oci.block_storage.list_boot_volumes
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.block_storage.volume.volume_encryption_enabled
+  for_each: oci.block_storage.list_boot_volumes
+  severity: HIGH
+  conditions:
+    var: item.is_hydrated
+    op: is_true
+    value: null
+- rule_id: oci.block_storage.volume.volume_snapshots_encrypted
+  for_each: oci.block_storage.list_volume_backups
+  severity: MEDIUM
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: oci.block_storage.volume_backup.access_backup_keys_least_privilege_required
+  for_each: oci.block_storage.list_volume_backups
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.block_storage.volume_backup.access_backup_vault_rbac_least_privilege_required
+  for_each: oci.block_storage.list_volume_backups
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.block_storage.volume_backup.access_no_public_to_backup_vault_blocked
+  for_each: oci.block_storage.list_volume_backups
+  severity: CRITICAL
+  conditions:
+    var: item.lifecycle_state
+    op: not_equals
+    value: ACTIVE
+- rule_id: oci.block_storage.volume_backup.backup_destination_private_only_enforced
+  for_each: oci.block_storage.list_volume_backups
+  severity: MEDIUM
+  conditions:
+    var: item.source_details.type
+    op: not_equals
+    value: objectStorageTuple
+- rule_id: oci.block_storage.volume_backup.backup_schedule_defined_min_frequency_required
+  for_each: oci.block_storage.list_volume_backups
+  severity: MEDIUM
+  conditions:
+    var: item.defined_tags.Environment
+    op: exists
+    value: null
+- rule_id: oci.block_storage.volume_backup.disk_snapshots_not_public_blocked
+  for_each: oci.block_storage.list_volume_backups
+  severity: CRITICAL
+  conditions:
+    var: item.lifecycle_state
+    op: not_equals
+    value: PUBLIC
+- rule_id: oci.block_storage.volume_backup.monitoring_alert_destinations_enabled
+  for_each: oci.block_storage.list_volume_backups
+  severity: MEDIUM
+  conditions:
+    var: item.monitoring_alert_destinations
+    op: not_empty
+    value: null
+- rule_id: oci.block_storage.volume_backup.monitoring_alert_rules_for_job_failures_enabled
+  for_each: oci.block_storage.list_volume_backups
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: AVAILABLE
+- rule_id: oci.block_storage.volume_backup.monitoring_alert_rules_for_sla_breach_enabled
+  for_each: oci.block_storage.list_volume_backups
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.block_storage.volume_backup.resilience_recovery_backup_coverage_policy_assignment_complete_enabled
+  for_each: oci.block_storage.list_volume_backups
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.block_storage.volume_backup.resilience_recovery_backup_coverage_unprotected_assets_alerting_enabled
+  for_each: oci.block_storage.list_volume_backups
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.block_storage.volume_backup.resilience_recovery_backup_health_failed_jobs_alerting_enabled
+  for_each: oci.block_storage.list_volume_backups
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: not_equals
+    value: FAILED
+- rule_id: oci.block_storage.volume_backup.resilience_recovery_backup_health_job_success_enabled
+  for_each: oci.block_storage.list_volume_backups
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: AVAILABLE
+- rule_id: oci.block_storage.volume_backup.resilience_recovery_backup_health_last_recency_enabled
+  for_each: oci.block_storage.list_volume_backups
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.block_storage.volume_backup.resilience_recovery_backup_inventory_resource_discovery_synced_enabled
+  for_each: oci.block_storage.list_volume_backups
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.block_storage.volume_backup.snapshot_not_public_blocked
+  for_each: oci.block_storage.list_volume_backups
+  severity: CRITICAL
+  conditions:
+    var: item.lifecycle_state
+    op: not_equals
+    value: PUBLIC

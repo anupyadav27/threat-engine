@@ -1,0 +1,87 @@
+version: '1.0'
+provider: azure
+service: sql
+checks:
+# ═══════════════════════════════════════════
+# SQL Servers — azure.sql.servers.list
+# Fields: id, name, type, location, tags, sku, identity, properties, provisioning_state, kind, zones
+# Note: Security config (minimalTlsVersion, publicNetworkAccess, administrators,
+#       restrictOutboundNetworkAccess, externalGovernanceStatus) is inside properties blob
+# ═══════════════════════════════════════════
+- rule_id: azure.sql.server.managed_identity_enabled
+  for_each: azure.sql.servers.list
+  conditions:
+    var: item.identity
+    op: not_empty
+
+- rule_id: azure.sql.server.properties_configured
+  for_each: azure.sql.servers.list
+  conditions:
+    var: item.properties
+    op: not_empty
+
+- rule_id: azure.sql.server.sku_configured
+  for_each: azure.sql.servers.list
+  conditions:
+    var: item.sku
+    op: not_empty
+
+- rule_id: azure.sql.server.availability_zones_configured
+  for_each: azure.sql.servers.list
+  conditions:
+    var: item.zones
+    op: not_empty
+
+- rule_id: azure.sql.server.provisioning_succeeded
+  for_each: azure.sql.servers.list
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.sql.server.tags_configured
+  for_each: azure.sql.servers.list
+  conditions:
+    var: item.tags
+    op: not_empty
+
+# ═══════════════════════════════════════════
+# Managed Instances — azure.sql.managedinstances.list
+# Fields: same as servers (id, name, type, location, tags, sku, identity, properties, provisioning_state, kind, zones)
+# ═══════════════════════════════════════════
+- rule_id: azure.sql.managed_instance.managed_identity_enabled
+  for_each: azure.sql.managedinstances.list
+  conditions:
+    var: item.identity
+    op: not_empty
+
+- rule_id: azure.sql.managed_instance.properties_configured
+  for_each: azure.sql.managedinstances.list
+  conditions:
+    var: item.properties
+    op: not_empty
+
+- rule_id: azure.sql.managed_instance.sku_configured
+  for_each: azure.sql.managedinstances.list
+  conditions:
+    var: item.sku
+    op: not_empty
+
+- rule_id: azure.sql.managed_instance.availability_zones_configured
+  for_each: azure.sql.managedinstances.list
+  conditions:
+    var: item.zones
+    op: not_empty
+
+- rule_id: azure.sql.managed_instance.provisioning_succeeded
+  for_each: azure.sql.managedinstances.list
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.sql.managed_instance.tags_configured
+  for_each: azure.sql.managedinstances.list
+  conditions:
+    var: item.tags
+    op: not_empty

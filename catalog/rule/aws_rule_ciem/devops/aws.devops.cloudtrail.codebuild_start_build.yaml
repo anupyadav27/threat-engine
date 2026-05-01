@@ -1,0 +1,71 @@
+rule_id: aws.devops.cloudtrail.codebuild_start_build
+service: devops
+provider: aws
+check_type: log
+severity: medium
+title: 'DevOps: Codebuild Start Build'
+description: CodeBuild build started — CI/CD build pipeline executed.
+rationale: Software deployment tool abuse enables attackers to deploy malicious software across multiple systems via CI/CD pipelines or deployment platforms.
+threat_category: execution
+mitre_tactics:
+- execution
+mitre_techniques:
+- T1072
+risk_score: 50
+resource: codepipeline
+source: default
+is_active: true
+domain: configuration_and_change_management
+action_category: audit_activity
+log_source_type: 
+posture_category: workload_posture
+threat_tags:
+- T1072
+- remote_execution
+- cloud_exec
+- cicd
+- devops_security
+risk_indicators:
+  actor_type: cicd_service_principal
+  action_type: write
+  target_type: cicd_pipeline
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 3.1
+  - 5.1
+  cis_azure_v2:
+  - 5.1
+  - 6.1
+  nist_800_53_r5:
+  - CM-7
+  - SI-3
+  - AU-12
+  pci_dss_v4:
+  - 6.3
+  - 10.2
+  iso_27001_2022:
+  - A.8.19
+  - A.8.8
+remediation: |
+  1. Restrict deployment tool access to authorized principals with MFA enforcement.
+  2. Require code signing and approval workflows for all deployments.
+  3. Enable audit logging for all software deployment operations.
+references:
+- https://attack.mitre.org/techniques/T1072/
+check_config:
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: codebuild
+    - field: operation
+      op: equals
+      value: StartBuild
+version: '1.0'

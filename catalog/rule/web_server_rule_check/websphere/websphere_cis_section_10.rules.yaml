@@ -1,0 +1,78 @@
+tech_type: websphere
+category: web_server
+cis_benchmark: CIS IBM WebSphere liberty v1.0.0
+cis_section: '10'
+
+rules:
+
+  - rule_id: websphere.cis.10.passwords_are_encrypted
+    title: "Ensure Passwords are Encrypted"
+    severity: high
+    automation_type: automated
+    cis_control: '10.2'
+    cis_section: '10'
+    profile_applicability: "Level 1"
+    scope: websphere.section_10.passwords_are_encrypted
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Use the Liberty provided securityUtility tool to encrypt the password. To
+      encrypt a password with Advanced Encryption Standard (AES) encryption:
+      securityUtility encode --encoding=aes --key=myKey passW0rd returns:
+      {aes}AE/PrLc9wshAKURioFvxb41SrVbsWjZTZ8lv72ioH3yMlJN4RQj3A9aT3ev396oYRw==
+      Replace the clear text password in the Liberty configuration with the
+      encrypted password created by the securityUtility tool. In this example, the
+      encrypted password
+      {aes}AE/PrLc9wshAKURioFvxb41SrVbsWjZTZ8lv72ioH3yMlJN4RQj3A9aT3ev396oYRw== was
+      returned by the securityUtility and used to update the bindPassword attribute
+      in the ldapRegistry element. <ldapRegistry ...
+      bindPassword='{aes}AE/PrLc9wshAKURioFvxb41SrVbsWjZTZ8lv72ioH3yMlJN4RQj3A9aT3e
+      v396oYRw==' </ldapRegistry> In WebSphere Liberty, the default key that is used
+      for encrypting and decrypting can be overridden by setting the
+      wlp.password.encryption.key property. Make sure that you do not set this
+      property in main Liberty configuration. Otherwise, the file that contains the
+      key might be included when you run the server dump or server package commands.
+      Instead, set the wlp.password.encryption.key property in a separate
+      configuration file and include it in the Liberty configuration, as shown in
+      the following example: Create a file named key.xml: <server> <variable
+      name='wlp.password.encryption.key' value='myKey' /> </server> Include it in
+      the main Liberty configuration file. <server> ... <include
+      location='/protected/key.xml' /> </server> Adjust the permissions on the
+      key.xml to only users that need to access the file. In a test or development
+      environment where a basic registry is used, the basic registry user passwords
+      can be hashed to be stored in the Liberty configuration securityUtility encode
+      --encoding=hash basicRegUserPassword Default Value: Passwords are not
+      encrypted by default in the Liberty configuration. References: 1.
+      https://openliberty.io/docs/latest/reference/command/securityUtility-
+      encode.html 2.
+      https://openliberty.io/docs/latest/reference/config/ldapRegistry.html
+    compliance:
+      - cis_websphere_liberty_v1_0_0_10_2
+
+  - rule_id: websphere.cis.10.keyspassword_is_set_to_a_custom_password_for_ltpa
+    title: "Ensure 'keysPassword' is set to a custom password for ltpa keys"
+    severity: high
+    automation_type: automated
+    cis_control: '10.4'
+    cis_section: '10'
+    profile_applicability: "Level 1"
+    scope: websphere.section_10.keyspassword_is_set_to_a_custom_password_for_ltpa
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Add a custom encrypted password to the keysPassword attribute on the ltpa
+      element in the Liberty configuration. <ltpa
+      keysPassword='{aes}AE/PrLc9wshAKURioFvxb41SrVbsWjZTZ8lv72ioH3yMlJN4RQj3A9aT3e
+      v396oYRw==' > Default Value: WebSphere Liberty provides a default password for
+      the LTPA keys. References: 1.
+      https://openliberty.io/docs/latest/reference/config/ltpa.html 2.
+      https://openliberty.io/docs/latest/reference/command/securityUtility-
+      encode.html
+    compliance:
+      - cis_websphere_liberty_v1_0_0_10_4
+
+

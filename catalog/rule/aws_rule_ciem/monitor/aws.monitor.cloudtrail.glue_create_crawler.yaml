@@ -1,0 +1,60 @@
+rule_id: aws.monitor.cloudtrail.glue_create_crawler
+service: monitor
+provider: aws
+check_type: log
+severity: low
+title: 'CloudWatch: Glue Create Crawler'
+description: Glue crawler created — data catalog discovery job configured.
+rationale: 'Adversaries access data from cloud object storage (S3, Azure Blob, GCS) which may be misconfigured with overly permissive policies exposing PII, medical records, financial data, or credentials. Bulk download followed by external transfer indicates active data theft. Detected via: unusual object access patterns from new IAM users or roles, OAuth token grants to external apps preceding high-volume downloads, and GetObject events from anomalous IPs or user agents.'
+threat_category: discovery
+mitre_tactics:
+- collection
+mitre_techniques:
+- T1530
+risk_score: 30
+resource: cloudwatch_alarm
+source: default
+is_active: true
+domain: logging_monitoring_and_alerting
+action_category: create
+posture_category: threat_posture
+threat_tags:
+- T1530
+- audit_log
+- monitoring
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: audit_log
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks: {}
+detection_events:
+- 's3:GetObject (high volume from single principal)'
+- Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read
+- ListObjects followed by bulk GetObject
+- Storage access from external/anonymous IP
+remediation: |
+  1. Enable server-side access logging for all storage buckets and containers.
+  2. Alert on high-volume GetObject/BlobRead operations by single principals.
+  3. Apply bucket policies to restrict GetObject to authorized principals only.
+  4. Enable Macie / Defender for Storage for sensitive data detection and alerting.
+references:
+- https://attack.mitre.org/techniques/T1530/
+- https://docs.aws.amazon.com/AmazonS3/latest/userguide/logging-with-S3.html
+- https://learn.microsoft.com/en-us/azure/storage/common/storage-analytics-logging
+check_config:
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: glue
+    - field: operation
+      op: equals
+      value: CreateCrawler
+version: '1.0'

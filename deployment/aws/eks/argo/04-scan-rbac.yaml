@@ -1,32 +1,9 @@
-# RBAC: allow Argo workflow pods (default SA in threat-engine-engines)
-# to scale engine Deployments up/down during scan lifecycle.
+# RBAC: no longer needed.
 #
-# Apply once:
-#   kubectl apply -f deployment/aws/eks/argo/04-scan-rbac.yaml
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: argo-engine-scaler
-  namespace: threat-engine-engines
-rules:
-- apiGroups: ["apps"]
-  resources: ["deployments", "deployments/scale"]
-  verbs: ["get", "list", "patch", "update"]
-- apiGroups: [""]
-  resources: ["pods"]
-  verbs: ["get", "list", "watch"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: argo-engine-scaler
-  namespace: threat-engine-engines
-subjects:
-- kind: ServiceAccount
-  name: default
-  namespace: threat-engine-engines
-roleRef:
-  kind: Role
-  name: argo-engine-scaler
-  apiGroup: rbac.authorization.k8s.io
+# Previously this granted Argo workflow pods permission to scale engine
+# Deployments up/down per scan. That pattern was removed — engine API pods
+# are always-on Deployments on on-demand nodes and must never be scaled to 0
+# (the UI BFF depends on them). Scanning work runs as ephemeral K8s Jobs on
+# spot nodes, created by each engine's API pod via job_creator.py.
+#
+# File kept as a placeholder so apply scripts don't break on missing file.

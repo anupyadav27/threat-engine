@@ -1,0 +1,155 @@
+# ==========================================================
+# Discovery YAML — cloudfront (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 29 | ops: 1 independent, 5 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: cloudfront
+
+services:
+  client: cloudfront
+  module: "boto3.client('cloudfront')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  []
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.cloudfront.list_origin_request_policies  ──
+  - discovery_id: aws.cloudfront.list_origin_request_policies
+    calls:
+      - action: list_origin_request_policies
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        item: '{{ item }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.cloudfront.get_cache_policy_config [dependent] ──
+  - discovery_id: aws.cloudfront.get_cache_policy_config
+    for_each: aws.cloudfront.list_connection_functions
+    calls:
+      - action: get_cache_policy_config
+        params:
+          Id: "{{ item.Id }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Comment: '{{ item.Comment }}'
+        DefaultTTL: '{{ item.DefaultTTL }}'
+        MaxTTL: '{{ item.MaxTTL }}'
+        MinTTL: '{{ item.MinTTL }}'
+        Name: '{{ item.Name }}'
+        ParametersInCacheKeyAndForwardedToOrigin: '{{ item.ParametersInCacheKeyAndForwardedToOrigin }}'
+        ParametersInCacheKeyAndForwardedToOrigin.HeadersConfig: '{{ item.ParametersInCacheKeyAndForwardedToOrigin.HeadersConfig }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.cloudfront.get_distribution_config [dependent] ──
+  - discovery_id: aws.cloudfront.get_distribution_config
+    for_each: aws.cloudfront.list_connection_functions
+    calls:
+      - action: get_distribution_config
+        params:
+          Id: "{{ item.Id }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Aliases: '{{ item.Aliases }}'
+        AnycastIpListId: '{{ item.AnycastIpListId }}'
+        CacheBehaviors: '{{ item.CacheBehaviors }}'
+        CallerReference: '{{ item.CallerReference }}'
+        Comment: '{{ item.Comment }}'
+        ConnectionFunctionAssociation: '{{ item.ConnectionFunctionAssociation }}'
+        ConnectionMode: '{{ item.ConnectionMode }}'
+        ContinuousDeploymentPolicyId: '{{ item.ContinuousDeploymentPolicyId }}'
+        CustomErrorResponses: '{{ item.CustomErrorResponses }}'
+        DefaultCacheBehavior: '{{ item.DefaultCacheBehavior }}'
+        DefaultCacheBehavior.CachePolicyId: '{{ item.DefaultCacheBehavior.CachePolicyId }}'
+        DefaultCacheBehavior.ForwardedValues.Headers: '{{ item.DefaultCacheBehavior.ForwardedValues.Headers }}'
+        DefaultCacheBehavior.ResponseHeadersPolicyId: '{{ item.DefaultCacheBehavior.ResponseHeadersPolicyId }}'
+        DefaultCacheBehavior.ViewerProtocolPolicy: '{{ item.DefaultCacheBehavior.ViewerProtocolPolicy }}'
+        DefaultRootObject: '{{ item.DefaultRootObject }}'
+        Enabled: '{{ item.Enabled }}'
+        HttpVersion: '{{ item.HttpVersion }}'
+        IsIPV6Enabled: '{{ item.IsIPV6Enabled }}'
+        Logging: '{{ item.Logging }}'
+        OriginGroups: '{{ item.OriginGroups }}'
+        Origins: '{{ item.Origins }}'
+        PriceClass: '{{ item.PriceClass }}'
+        Restrictions: '{{ item.Restrictions }}'
+        Staging: '{{ item.Staging }}'
+        TenantConfig: '{{ item.TenantConfig }}'
+        ViewerCertificate: '{{ item.ViewerCertificate }}'
+        ViewerCertificate.MinimumProtocolVersion: '{{ item.ViewerCertificate.MinimumProtocolVersion }}'
+        ViewerMtlsConfig: '{{ item.ViewerMtlsConfig }}'
+        WebACLId: '{{ item.WebACLId }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.cloudfront.get_field_level_encryption [dependent] ──
+  - discovery_id: aws.cloudfront.get_field_level_encryption
+    for_each: aws.cloudfront.list_connection_functions
+    calls:
+      - action: get_field_level_encryption
+        params:
+          Id: "{{ item.Id }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        FieldLevelEncryptionConfig: '{{ item.FieldLevelEncryptionConfig }}'
+        Id: '{{ item.Id }}'
+        LastModifiedTime: '{{ item.LastModifiedTime }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.cloudfront.get_origin_access_control [dependent] ──
+  - discovery_id: aws.cloudfront.get_origin_access_control
+    for_each: aws.cloudfront.list_connection_functions
+    calls:
+      - action: get_origin_access_control
+        params:
+          Id: "{{ item.Id }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Id: '{{ item.Id }}'
+        OriginAccessControlConfig: '{{ item.OriginAccessControlConfig }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.cloudfront.get_origin_request_policy_config [dependent] ──
+  - discovery_id: aws.cloudfront.get_origin_request_policy_config
+    for_each: aws.cloudfront.list_connection_functions
+    calls:
+      - action: get_origin_request_policy_config
+        params:
+          Id: "{{ item.Id }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Comment: '{{ item.Comment }}'
+        CookiesConfig: '{{ item.CookiesConfig }}'
+        HeadersConfig: '{{ item.HeadersConfig }}'
+        Name: '{{ item.Name }}'
+        QueryStringsConfig: '{{ item.QueryStringsConfig }}'
+

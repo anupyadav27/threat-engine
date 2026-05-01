@@ -1,0 +1,61 @@
+# discoveries_only_check: 3 kept / 13 removed from 16 total
+# generated_from: step6_sns.discovery.yaml
+# purpose: only discoveries needed by sns.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: sns
+services:
+  client: sns
+  module: boto3.client
+discovery:
+- discovery_id: aws.sns.list_subscriptions
+  calls:
+  - action: list_subscriptions
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Subscriptions }}'
+    item:
+      Endpoint: '{{ item.Endpoint }}'
+      Owner: '{{ item.Owner }}'
+      Protocol: '{{ item.Protocol }}'
+      SubscriptionArn: '{{ item.SubscriptionArn }}'
+      TopicArn: '{{ item.TopicArn }}'
+- discovery_id: aws.sns.get_subscription_attributes
+  for_each: aws.sns.list_subscriptions
+  calls:
+  - action: get_subscription_attributes
+    params:
+      SubscriptionArn: '{{ item.SubscriptionArn }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      Attributes: '{{ response.Attributes }}'
+      Policy: '{{ response.Attributes.Policy }}'
+      SubscriptionArn: '{{ response.Attributes.SubscriptionArn }}'
+      TopicArn: '{{ response.Attributes.TopicArn }}'
+      Owner: '{{ response.Attributes.Owner }}'
+      EffectiveDeliveryPolicy: '{{ response.Attributes.EffectiveDeliveryPolicy }}'
+- discovery_id: aws.sns.get_topic_attributes
+  for_each: aws.sns.list_subscriptions
+  calls:
+  - action: get_topic_attributes
+    params:
+      TopicArn: '{{ item.TopicArn }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      Attributes: '{{ response.Attributes }}'
+      Policy: '{{ response.Attributes.Policy }}'
+      KmsMasterKeyId: '{{ response.Attributes.KmsMasterKeyId }}'
+      TopicArn: '{{ response.Attributes.TopicArn }}'
+      DeliveryPolicy: '{{ response.Attributes.DeliveryPolicy }}'
+      EffectiveDeliveryPolicy: '{{ response.Attributes.EffectiveDeliveryPolicy }}'
+      Owner: '{{ response.Attributes.Owner }}'
+      SubscriptionsConfirmed: '{{ response.Attributes.SubscriptionsConfirmed }}'
+      SubscriptionsPending: '{{ response.Attributes.SubscriptionsPending }}'

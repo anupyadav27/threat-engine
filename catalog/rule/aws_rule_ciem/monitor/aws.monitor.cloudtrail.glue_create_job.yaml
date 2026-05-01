@@ -1,0 +1,72 @@
+rule_id: aws.monitor.cloudtrail.glue_create_job
+service: monitor
+provider: aws
+check_type: log
+severity: low
+title: 'CloudWatch: Glue Create Job'
+description: Glue ETL job created — data transformation workload defined.
+rationale: JavaScript-based execution via cloud functions or Lambda can run malicious code without requiring server-level access or traditional deploy pipelines.
+threat_category: execution
+mitre_tactics:
+- execution
+mitre_techniques:
+- T1059.007
+risk_score: 30
+resource: cloudwatch_alarm
+source: default
+is_active: true
+domain: logging_monitoring_and_alerting
+action_category: create
+log_source_type: 
+posture_category: workload_posture
+threat_tags:
+- T1059.007
+- T1059
+- remote_execution
+- cloud_exec
+- audit_log
+- monitoring
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: audit_log
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 3.1
+  - 5.1
+  cis_azure_v2:
+  - 5.1
+  - 6.1
+  nist_800_53_r5:
+  - CM-7
+  - SI-3
+  - AU-12
+  pci_dss_v4:
+  - 6.3
+  - 10.2
+  iso_27001_2022:
+  - A.8.19
+  - A.8.8
+remediation: |
+  1. Restrict Lambda/Function App deployment permissions to authorized principals.
+  2. Enable static analysis and code signing for function deployments.
+  3. Monitor function invocation patterns for behavioral anomalies.
+references:
+- https://attack.mitre.org/techniques/T1059/007/
+check_config:
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: glue
+    - field: operation
+      op: equals
+      value: CreateJob
+version: '1.0'

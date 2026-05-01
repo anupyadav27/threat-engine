@@ -1,0 +1,64 @@
+# ==========================================================
+# Discovery YAML — appintegrations (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 4 | ops: 0 independent, 2 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: appintegrations
+
+services:
+  client: appintegrations
+  module: "boto3.client('appintegrations')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  []
+
+checks: []
+
+discovery:
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.appintegrations.get_application [dependent] ──
+  - discovery_id: aws.appintegrations.get_application
+    for_each: aws.appintegrations.list_applications
+    calls:
+      - action: get_application
+        params:
+          Arn: "{{ item.Arn }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Subscriptions }}'
+      item:
+        ApplicationSourceConfig.ExternalUrlConfig.ApprovedOrigins: '{{ item.ApplicationSourceConfig.ExternalUrlConfig.ApprovedOrigins }}'
+        Description: '{{ item.Description }}'
+        Event: '{{ item.Event }}'
+        Permissions: '{{ item.Permissions }}'
+        Publications: '{{ item.Publications }}'
+        Tags: '{{ item.Tags }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.appintegrations.get_event_integration [dependent] ──
+  - discovery_id: aws.appintegrations.get_event_integration
+    for_each: aws.appintegrations.list_applications
+    calls:
+      - action: get_event_integration
+        params:
+          Name: "{{ item.Name }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Description: '{{ item.Description }}'
+        EventBridgeBus: '{{ item.EventBridgeBus }}'
+        EventFilter: '{{ item.EventFilter }}'
+        EventIntegrationArn: '{{ item.EventIntegrationArn }}'
+        Name: '{{ item.Name }}'
+        Source: '{{ item.Source }}'
+        Tags: '{{ item.Tags }}'
+

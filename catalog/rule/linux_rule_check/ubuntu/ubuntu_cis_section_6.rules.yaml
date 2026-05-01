@@ -1,0 +1,802 @@
+tech_type: ubuntu
+category: linux
+cis_benchmark: CIS Ubuntu 24.04 v1.0.0
+cis_section: '6'
+
+rules:
+
+  - rule_id: ubuntu.cis.6.journald_service_is_enabled_and_active
+    title: "Ensure journald service is enabled and active"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1.1.1'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.journald_service_is_enabled_and_active
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following commands to unmask and start systemd-journald.service #
+      systemctl unmask systemd-journald.service # systemctl start systemd-
+      journald.service References: 1. NIST SP 800-53 Rev. 5: AU-2, AU-7 AU-12
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_6_1_1_1
+
+  - rule_id: ubuntu.cis.6.only_one_logging_system_is_in_use
+    title: "Ensure only one logging system is in use"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1.1.4'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.only_one_logging_system_is_in_use
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      1. Determine whether to use journald - OR - rsyslog depending on site needs 2.
+      Configure systemd-jounald.service 3. Configure only ONE either journald - OR -
+      rsyslog and complete the recommendations in that subsection 4. Return to this
+      recommendation to ensure only one logging system is in use 6.1.2 Configure
+      journald Included in the systemd suite is a journaling service called systemd-
+      journald.service for the collection and storage of logging data. It creates
+      and maintains structured, indexed journals based on logging information that
+      is received from a variety of sources such as: Classic RFC3164 BSD syslog via
+      the /dev/log socket STDOUT/STDERR of programs via StandardOutput=journal +
+      StandardError=journal in service files (both of which are default settings)
+      Kernel log messages via the /dev/kmsg device node Audit records via the
+      kernel’s audit subsystem Structured log messages via journald’s native
+      protocol Any changes made to the systemd-journald configuration will require a
+      re-start of systemd- journald Note: - IF - rsyslog will be used for remote
+      logging on the system this subsection can be skipped 6.1.2.1 Configure
+      systemd-journal-remote The systemd-journal-remote package includes systemd-
+      journal-upload. systemd-journal-upload will upload journal entries to the URL
+      specified with --url=. This program reads journal entries from one or more
+      journal files, similarly to journalctl. systemd-journal-upload transfers the
+      raw content of journal file and uses HTTP as a transport protocol. systemd-
+      journal-upload.service is a system service that uses systemd-journal- upload
+      to upload journal entries to a server. It uses the configuration in journal-
+      upload.conf. Note: • - IF - rsyslog is in use this subsection can be skipped.
+      • systemd-journal-remote package is part of the universe component, this may
+      impact support and update frequency which should be considered when assessing
+      organizational risk.
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_6_1_1_4
+
+  - rule_id: ubuntu.cis.6.systemd_journal_remote_is_installed
+    title: "Ensure systemd-journal-remote is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1.2.1.1'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.systemd_journal_remote_is_installed
+    assertion:
+      field: port
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following command to install systemd-journal-remote: # apt install
+      systemd-journal-remote References: 1. NIST SP 800-53 Rev. 5: AU-2, AU-7 AU-12
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_6_1_2_1_1
+
+  - rule_id: ubuntu.cis.6.systemd_journal_upload_is_enabled_and_active
+    title: "Ensure systemd-journal-upload is enabled and active"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1.2.1.3'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.systemd_journal_upload_is_enabled_and_active
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following commands to unmask, enable and start systemd-journal-upload:
+      # systemctl unmask systemd-journal-upload.service # systemctl --now enable
+      systemd-journal-upload.service References: 1. NIST SP 800-53 Rev. 5: AU-2,
+      AU-12
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_6_1_2_1_3
+
+  - rule_id: ubuntu.cis.6.systemd_journal_remote_service_is_not_in_use
+    title: "Ensure systemd-journal-remote service is not in use"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1.2.1.4'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.systemd_journal_remote_service_is_not_in_use
+    assertion:
+      field: port
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following commands to stop and mask systemd-journal-remote.socket and
+      systemd-journal-remote.service: # systemctl stop systemd-journal-remote.socket
+      systemd-journal-remote.service # systemctl mask systemd-journal-remote.socket
+      systemd-journal-remote.service References: 1. NIST SP 800-53 Rev. 5: AU-2,
+      AU-7 AU-12
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_6_1_2_1_4
+
+  - rule_id: ubuntu.cis.6.journald_forwardtosyslog_is_disabled
+    title: "Ensure journald ForwardToSyslog is disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1.2.2'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.journald_forwardtosyslog_is_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      - IF - rsyslog is the preferred method for capturing logs, this section and
+      Recommendation should be skipped and the 'Configure rsyslog' section followed.
+      - IF - journald is the preferred method for capturing logs: Set the following
+      parameter in the [Journal] section in /etc/systemd/journald.conf or a file in
+      /etc/systemd/journald.conf.d/ ending in .conf: ForwardToSyslog=no Example
+      script to create systemd drop-in configuration file: #!/usr/bin/env bash {
+      a_settings=('ForwardToSyslog=no') [ ! -d /etc/systemd/journald.conf.d/ ] &&
+      mkdir /etc/systemd/journald.conf.d/ if grep -Psq -- '^\h*\[Journal\]'
+      /etc/systemd/journald.conf.d/60- journald.conf; then printf '%s\n' ''
+      '${a_settings[@]}' >> /etc/systemd/journald.conf.d/60- journald.conf else
+      printf '%s\n' '' '[Journal]' '${a_settings[@]}' >>
+      /etc/systemd/journald.conf.d/60-journald.conf fi } Note: If this setting
+      appears in a canonically later file, or later in the same file, the setting
+      will be overwritten Run to following command to update the parameters in the
+      service: # systemctl reload-or-restart systemd-journald Default Value:
+      ForwardToSyslog=no References: 1. NIST SP 800-53 Rev. 5: AU-2, AU-6, AU-7,
+      AU-12
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_6_1_2_2
+
+  - rule_id: ubuntu.cis.6.journald_compress_is_configured
+    title: "Ensure journald Compress is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1.2.3'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.journald_compress_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "yes"
+    remediation: >
+      - IF - rsyslog is the preferred method for capturing logs, this section and
+      Recommendation should be skipped and the 'Configure rsyslog' section followed.
+      - IF - journald is the preferred method for capturing logs: Set the following
+      parameter in the [Journal] section in /etc/systemd/journald.conf or a file in
+      /etc/systemd/journald.conf.d/ ending in .conf: Compress=yes Example script to
+      create systemd drop-in configuration file: #!/usr/bin/env bash {
+      a_settings=('Compress=yes') [ ! -d /etc/systemd/journald.conf.d/ ] && mkdir
+      /etc/systemd/journald.conf.d/ if grep -Psq -- '^\h*\[Journal\]'
+      /etc/systemd/journald.conf.d/60- journald.conf; then printf '%s\n' ''
+      '${a_settings[@]}' >> /etc/systemd/journald.conf.d/60- journald.conf else
+      printf '%s\n' '' '[Journal]' '${a_settings[@]}' >>
+      /etc/systemd/journald.conf.d/60-journald.conf fi } Note: If this setting
+      appears in a canonically later file, or later in the same file, the setting
+      will be overwritten Run to following command to update the parameters in the
+      service: # systemctl reload-or-restart systemd-journald Default Value:
+      Compress=yes References: 1. NIST SP 800-53 Rev. 5: AU-4
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_6_1_2_3
+
+  - rule_id: ubuntu.cis.6.journald_storage_is_configured
+    title: "Ensure journald Storage is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1.2.4'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.journald_storage_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      - IF - rsyslog is the preferred method for capturing logs, this section and
+      Recommendation should be skipped and the 'Configure rsyslog' section followed.
+      - IF - journald is the preferred method for capturing logs: Set the following
+      parameter in the [Journal] section in /etc/systemd/journald.conf or a file in
+      /etc/systemd/journald.conf.d/ ending in .conf: Storage=persistent Example
+      script to create systemd drop-in configuration file: #!/usr/bin/env bash {
+      a_settings=('Storage=persistent') [ ! -d /etc/systemd/journald.conf.d/ ] &&
+      mkdir /etc/systemd/journald.conf.d/ if grep -Psq -- '^\h*\[Journal\]'
+      /etc/systemd/journald.conf.d/60- journald.conf; then printf '%s\n' ''
+      '${a_settings[@]}' >> /etc/systemd/journald.conf.d/60- journald.conf else
+      printf '%s\n' '' '[Journal]' '${a_settings[@]}' >>
+      /etc/systemd/journald.conf.d/60-journald.conf fi } Note: If this setting
+      appears in a canonically later file, or later in the same file, the setting
+      will be overwritten Run to following command to update the parameters in the
+      service: # systemctl reload-or-restart systemd-journald Default Value:
+      Storage=persistent References: 1. NIST SP 800-53 Rev. 5: AU-3, AU-12
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_6_1_2_4
+
+  - rule_id: ubuntu.cis.6.rsyslog_is_installed
+    title: "Ensure rsyslog is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1.3.1'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.rsyslog_is_installed
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following command to install rsyslog: # apt install rsyslog Default
+      Value: Installed References: 1. NIST SP 800-53 Rev. 5: AU-2, AU-3, AU-12
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_6_1_3_1
+
+  - rule_id: ubuntu.cis.6.rsyslog_service_is_enabled_and_active
+    title: "Ensure rsyslog service is enabled and active"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1.3.2'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.rsyslog_service_is_enabled_and_active
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "on"
+    remediation: >
+      - IF - rsyslog is being used for logging on the system: Run the following
+      commands to unmask, enable, and start rsyslog.service: # systemctl unmask
+      rsyslog.service # systemctl enable rsyslog.service # systemctl start
+      rsyslog.service References: 1. NIST SP 800-53 Rev. 5: AU-2, AU-3, AU-12
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_6_1_3_2
+
+  - rule_id: ubuntu.cis.6.journald_is_configured_to_send_logs_to_rsyslog
+    title: "Ensure journald is configured to send logs to rsyslog"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1.3.3'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.journald_is_configured_to_send_logs_to_rsyslog
+    assertion:
+      field: port
+      operator: exists
+      expected: "yes"
+    remediation: >
+      - IF - Journald is the preferred method for capturing logs, this section and
+      Recommendation should be skipped and the 'Configure Journald' section
+      followed. - IF - rsyslog is the preferred method for capturing logs: Set the
+      following parameter in the [Journal] section in /etc/systemd/journald.conf or
+      a file in /etc/systemd/journald.conf.d/ ending in .conf: ForwardToSyslog=yes
+      Example script to create systemd drop-in configuration file: #!/usr/bin/env
+      bash { a_settings=('ForwardToSyslog=yes') [ ! -d /etc/systemd/journald.conf.d/
+      ] && mkdir /etc/systemd/journald.conf.d/ if grep -Psq -- '^\h*\[Journal\]'
+      /etc/systemd/journald.conf.d/60- journald.conf; then printf '%s\n' ''
+      '${a_settings[@]}' >> /etc/systemd/journald.conf.d/60- journald.conf else
+      printf '%s\n' '' '[Journal]' '${a_settings[@]}' >>
+      /etc/systemd/journald.conf.d/60-journald.conf fi } Note: If this setting
+      appears in a canonically later file, or later in the same file, the setting
+      will be overwritten Run to following command to update the parameters in the
+      service: Restart systemd-journald.service: # systemctl reload-or-restart
+      systemd-journald.service References: 1. NIST SP 800-53 Rev. 5: AC-3, AU-2,
+      AU-4, AU-12, MP-2 2. SYSTEMD-JOURNALD.SERVICE(8) 3. JOURNALD.CONF(5)
+      Additional Information: As noted in the systemd-journald man pages, systemd-
+      journald logs may be exported to rsyslog either through the process mentioned
+      here, or through a facility like systemd-journald.service. There are trade-
+      offs involved in each implementation, where ForwardToSyslog will immediately
+      capture all events (and forward to an external log server, if properly
+      configured), but may not capture all boot-up activities. Mechanisms such as
+      systemd-journald.service, on the other hand, will record bootup events, but
+      may delay sending the information to rsyslog, leading to the potential for log
+      manipulation prior to export. Be aware of the limitations of all tools
+      employed to secure a system.
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_6_1_3_3
+
+  - rule_id: ubuntu.cis.6.rsyslog_log_file_creation_mode_is_configured
+    title: "Ensure rsyslog log file creation mode is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1.3.4'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.rsyslog_log_file_creation_mode_is_configured
+    assertion:
+      field: port
+      operator: exists
+      expected: "true"
+    remediation: >
+      Edit either /etc/rsyslog.conf or a dedicated .conf file in /etc/rsyslog.d/ and
+      set $FileCreateMode to 0640 or more restrictive: $FileCreateMode 0640 Example
+      script to create a drop-in configuration file in the default include location:
+      #!/usr/bin/env bash { [ ! -d '/etc/rsyslog.d/' ] && mkdir /etc/rsyslog.d/
+      printf '%s\n' '' '\$FileCreateMode 0640' >> /etc/rsyslog.d/60-rsyslog.conf }
+      Reload the service: # systemctl reload-or-restart rsyslog References: 1.
+      RSYSLOG.CONF(5) 2. NIST SP 800-53 Rev. 5: AC-3, AC-6, MP-2 3.
+      https://www.rsyslog.com/doc/
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_6_1_3_4
+
+  - rule_id: ubuntu.cis.6.rsyslog_is_not_configured_to_receive_logs_from_a
+    title: "Ensure rsyslog is not configured to receive logs from a remote client"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1.3.7'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.rsyslog_is_not_configured_to_receive_logs_from_a
+    assertion:
+      field: port
+      operator: exists
+      expected: "no"
+    remediation: >
+      Unless the system's primary function is to serve as a logfile server , modify
+      the files returned by the Audit Procedure and remove the specific lines
+      highlighted by the audit. Verify none of the following entries are present in
+      the rsyslog configuration. advanced format module(load='imtcp')
+      input(type='imtcp' port='514') deprecated legacy format $ModLoad imtcp
+      $InputTCPServerRun Reload the service: # systemctl reload-or-restart rsyslog
+      References: 1. NIST SP 800-53 Rev. 5: AU-2, AU-7, AU-12, CM-6 2.
+      https://www.rsyslog.com/doc/index.html
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_6_1_3_7
+
+  - rule_id: ubuntu.cis.6.file_deletion_events_by_users_are_collected
+    title: "Ensure file deletion events by users are collected"
+    severity: medium
+    automation_type: automated
+    cis_control: '6.2.3.13'
+    cis_section: '6'
+    profile_applicability: "Level 2"
+    scope: ubuntu.section_6.file_deletion_events_by_users_are_collected
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Create audit rules Edit or create a file in the /etc/audit/rules.d/ directory,
+      ending in .rules extension, with the relevant rules to monitor file deletion
+      events by users. Example: # { UID_MIN=$(awk '/^\s*UID_MIN/{print $2}'
+      /etc/login.defs) [ -n '${UID_MIN}' ] && printf ' -a always,exit -F arch=b64 -S
+      rename,unlink,unlinkat,renameat -F auid>=${UID_MIN} -F auid!=unset -F
+      key=delete -a always,exit -F arch=b32 -S rename,unlink,unlinkat,renameat -F
+      auid>=${UID_MIN} -F auid!=unset -F key=delete ' >>
+      /etc/audit/rules.d/50-delete.rules || printf 'ERROR: Variable 'UID_MIN' is
+      unset.\n' } Load audit rules Merge and load the rules into active
+      configuration: # augenrules --load Check if reboot is required. # if [[
+      $(auditctl -s | grep 'enabled') =~ '2' ]]; then printf 'Reboot required to
+      load rules\n'; fi References: 1. NIST SP 800-53 Rev. 5: AU-12, SC-7 Additional
+      Information: Potential reboot required If the auditing configuration is locked
+      (-e 2), then augenrules will not warn in any way that rules could not be
+      loaded into the running configuration. A system reboot will be required to
+      load the rules into the running configuration. System call structure For
+      performance (man 7 audit.rules) reasons it is preferable to have all the
+      system calls on one line. However, your configuration may have them on one
+      line each or some other combination. This is important to understand for both
+      the auditing and remediation sections as the examples given are optimized for
+      performance as per the man page.
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_6_2_3_13
+
+  - rule_id: ubuntu.cis.6.aide_is_installed
+    title: "Ensure AIDE is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '6.3.1'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.aide_is_installed
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Install AIDE using the appropriate package manager or manual installation: #
+      apt install aide aide-common Configure AIDE as appropriate for your
+      environment. Consult the AIDE documentation for options. Run the following
+      commands to initialize AIDE: # aideinit # mv /var/lib/aide/aide.db.new
+      /var/lib/aide/aide.db References: 1. NIST SP 800-53 Rev. 5: AU-2 Additional
+      Information: The prelinking feature can interfere with AIDE because it alters
+      binaries to speed up their start up times. Run prelink -ua to restore the
+      binaries to their prelinked state, thus avoiding false positives from AIDE.
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_6_3_1
+
+  - rule_id: ubuntu.cis.6.filesystem_integrity_is_regularly_checked
+    title: "Ensure filesystem integrity is regularly checked"
+    severity: high
+    automation_type: automated
+    cis_control: '6.3.2'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.filesystem_integrity_is_regularly_checked
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to unmask dailyaidecheck.timer and
+      dailyaidecheck.service: # systemctl unmask dailyaidecheck.timer
+      dailyaidecheck.service Run the following command to enable and start
+      dailyaidecheck.timer: # systemctl --now enable dailyaidecheck.timer
+      References: 1.
+      https://github.com/konstruktoid/hardening/blob/master/config/aidecheck.service
+      2.
+      https://github.com/konstruktoid/hardening/blob/master/config/aidecheck.timer
+      3. NIST SP 800-53 Rev. 5: AU-2 Additional Information: The checking in this
+      recommendation occurs every day at 5am. Alter the frequency and time of the
+      checks in compliance with site policy systemd timers, timer file
+      aidecheck.timer and service file aidecheck.service, have been included as an
+      optional alternative to using cron Ubuntu advises using /usr/bin/aide.wrapper
+      rather than calling /usr/bin/aide directly in order to protect the database
+      and prevent conflicts
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_6_3_2
+
+  - rule_id: ubuntu.cis.6.permissions_on_etc_passwd_are_configured
+    title: "Ensure permissions on /etc/passwd are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1.1'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.permissions_on_etc_passwd_are_configured
+    assertion:
+      field: row_count
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following commands to remove excess permissions, set owner, and set
+      group on /etc/passwd: # chmod u-x,go-wx /etc/passwd # chown root:root
+      /etc/passwd Default Value: Access: (0644/-rw-r--r--) Uid: ( 0/ root) Gid: ( 0/
+      root) References: 1. NIST SP 800-53 Rev. 5: AC-3, MP-2
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_6_1_1
+
+  - rule_id: ubuntu.cis.6.permissions_on_etc_shadow_are_configured
+    title: "Ensure permissions on /etc/shadow are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1.5'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.permissions_on_etc_shadow_are_configured
+    assertion:
+      field: row_count
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run one of the following commands to set ownership of /etc/shadow to root and
+      group to either root or shadow: # chown root:shadow /etc/shadow -OR- # chown
+      root:root /etc/shadow Run the following command to remove excess permissions
+      form /etc/shadow: # chmod u-x,g-wx,o-rwx /etc/shadow Default Value: Access:
+      (0640/-rw-r-----) Uid: ( 0/ root) Gid: ( 42/ shadow) References: 1. NIST SP
+      800-53 Rev. 5: AC-3. MP-2
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_6_1_5
+
+  - rule_id: ubuntu.cis.6.permissions_on_etc_gshadow_are_configured
+    title: "Ensure permissions on /etc/gshadow are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1.7'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.permissions_on_etc_gshadow_are_configured
+    assertion:
+      field: row_count
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run one of the following commands to set ownership of /etc/gshadow to root and
+      group to either root or shadow: # chown root:shadow /etc/gshadow -OR- # chown
+      root:root /etc/gshadow Run the following command to remove excess permissions
+      form /etc/gshadow: # chmod u-x,g-wx,o-rwx /etc/gshadow Default Value: Access:
+      (0640/-rw-r-----) Uid: ( 0/ root) Gid: ( 42/ shadow) References: 1. NIST SP
+      800-53 Rev. 5: AC-3. MP-2
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_6_1_7
+
+  - rule_id: ubuntu.cis.6.permissions_on_etc_security_opasswd_are_configured
+    title: "Ensure permissions on /etc/security/opasswd are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1.9'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.permissions_on_etc_security_opasswd_are_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following commands to remove excess permissions, set owner, and set
+      group on /etc/security/opasswd and /etc/security/opasswd.old is they exist: #
+      [ -e '/etc/security/opasswd' ] && chmod u-x,go-rwx /etc/security/opasswd # [
+      -e '/etc/security/opasswd' ] && chown root:root /etc/security/opasswd # [ -e
+      '/etc/security/opasswd.old' ] && chmod u-x,go-rwx /etc/security/opasswd.old #
+      [ -e '/etc/security/opasswd.old' ] && chown root:root
+      /etc/security/opasswd.old Default Value: /etc/security/opasswd Access:
+      (0600/-rw-------) Uid: ( 0/ root) Gid: ( 0/ root) References: 1. NIST SP
+      800-53 Rev. 5: AC-3, MP-2
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_6_1_9
+
+  - rule_id: ubuntu.cis.6.world_writable_files_and_directories_are_secured
+    title: "Ensure world writable files and directories are secured"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1.10'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.world_writable_files_and_directories_are_secured
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      • World Writable Files: o It is recommended that write access is removed from
+      other with the command ( chmod o-w <filename> ), but always consult relevant
+      vendor documentation to avoid breaking any application dependencies on a given
+      file. • World Writable Directories: o Set the sticky bit on all world writable
+      directories with the command ( chmod a+t <directory_name> ) Run the following
+      script to: • Remove other write permission from any world writable files • Add
+      the sticky bit to all world writable directories #!/usr/bin/env bash {
+      l_smask='01000' a_file=(); a_dir=() # Initialize arrays a_path=(! -path
+      '/run/user/*' -a ! -path '/proc/*' -a ! -path '*/containerd/*' -a ! -path
+      '*/kubelet/pods/*' -a ! -path '*/kubelet/plugins/*' -a ! -path '/sys/*' -a !
+      -path '/snap/*') while IFS= read -r l_mount; do while IFS= read -r -d $'\0'
+      l_file; do if [ -e '$l_file' ]; then l_mode='$(stat -Lc '%#a' '$l_file')' if [
+      -f '$l_file' ]; then # Remove excess permissions from WW files echo -e ' -
+      File: \'$l_file\' is mode: \'$l_mode\'\n - removing write permission on
+      \'$l_file\' from \'other\'' chmod o-w '$l_file' fi if [ -d '$l_file' ]; then #
+      Add sticky bit if [ ! $(( $l_mode & $l_smask )) -gt 0 ]; then echo -e ' -
+      Directory: \'$l_file\' is mode: \'$l_mode\' and doesn't have the sticky bit
+      set\n - Adding the sticky bit' chmod a+t '$l_file' fi fi fi done < <(find
+      '$l_mount' -xdev \( '${a_path[@]}' \) \( -type f -o -type d \) -perm -0002
+      -print0 2> /dev/null) done < <(findmnt -Dkerno fstype,target | awk '($1 !~
+      /^\s*(nfs|proc|smb|vfat|iso9660|efivarfs|selinuxfs)/ && $2 !~
+      /^(\/run\/user\/|\/tmp|\/var\/tmp)/){print $2}') } References: 1. NIST SP
+      800-53 Rev. 5: AC-3. MP-2
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_6_1_10
+
+  - rule_id: ubuntu.cis.6.no_files_or_directories_without_an_owner_and_a
+    title: "Ensure no files or directories without an owner and a group exist"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1.11'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.no_files_or_directories_without_an_owner_and_a
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Remove or set ownership and group ownership of these files and/or directories
+      to an active user on the system as appropriate. References: 1. NIST SP 800-53
+      Rev. 5: AC-3. MP-2
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_6_1_11
+
+  - rule_id: ubuntu.cis.6.accounts_in_etc_passwd_use_shadowed_passwords
+    title: "Ensure accounts in /etc/passwd use shadowed passwords"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.1'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.accounts_in_etc_passwd_use_shadowed_passwords
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "no"
+    remediation: >
+      Run the following command to set accounts to use shadowed passwords and
+      migrate passwords in /etc/passwd to /etc/shadow: # pwconv Investigate to
+      determine if the account is logged in and what it is being used for, to
+      determine if it needs to be forced off. References: 1. NIST SP 800-53 Rev. 5:
+      IA-5 2. PWCONV(8) Additional Information: The pwconv command creates shadow
+      from passwd and an optionally existing shadow. • The pwunconv command creates
+      passwd from passwd and shadow and then removes shadow. • The grpconv command
+      creates gshadow from group and an optionally existing gshadow. • The grpunconv
+      command creates group from group and gshadow and then removes gshadow. These
+      four programs all operate on the normal and shadow password and group files:
+      /etc/passwd, /etc/group, /etc/shadow, and /etc/gshadow. Each program acquires
+      the necessary locks before conversion. pwconv and grpconv are similar. First,
+      entries in the shadowed file which don't exist in the main file are removed.
+      Then, shadowed entries which don't have x' as the password in the main file
+      are updated. Any missing shadowed entries are added. Finally, passwords in the
+      main file are replaced with x'. These programs can be used for initial
+      conversion as well to update the shadowed file if the main file is edited by
+      hand. pwconv will use the values of PASS_MIN_DAYS, PASS_MAX_DAYS, and
+      PASS_WARN_AGE from /etc/login.defs when adding new entries to /etc/shadow.
+      pwunconv and grpunconv are similar. Passwords in the main file are updated
+      from the shadowed file. Entries which exist in the main file but not in the
+      shadowed file are left alone. Finally, the shadowed file is removed. Some
+      password aging information is lost by pwunconv. It will convert what it can.
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_6_2_1
+
+  - rule_id: ubuntu.cis.6.etc_shadow_password_fields_are_not_empty
+    title: "Ensure /etc/shadow password fields are not empty"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.2'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.etc_shadow_password_fields_are_not_empty
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "no"
+    remediation: >
+      If any accounts in the /etc/shadow file do not have a password, run the
+      following command to lock the account until it can be determined why it does
+      not have a password: # passwd -l <username> Also, check to see if the account
+      is logged in and investigate what it is being used for to determine if it
+      needs to be forced off. References: 1. NIST SP 800-53 Rev. 5: IA-5
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_6_2_2
+
+  - rule_id: ubuntu.cis.6.all_groups_in_etc_passwd_exist_in_etc_group
+    title: "Ensure all groups in /etc/passwd exist in /etc/group"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.3'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.all_groups_in_etc_passwd_exist_in_etc_group
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Analyze the output of the Audit step above and perform the appropriate action
+      to correct any discrepancies found. References: 1. NIST SP 800-53 Rev. 5:
+      CM-1, CM-2, CM-6, CM-7, IA-5
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_6_2_3
+
+  - rule_id: ubuntu.cis.6.no_duplicate_uids_exist
+    title: "Ensure no duplicate UIDs exist"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.5'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.no_duplicate_uids_exist
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Based on the results of the audit script, establish unique UIDs and review all
+      files owned by the shared UIDs to determine which UID they are supposed to
+      belong to. References: 1. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5
+      MITRE ATT&CK Mappings: Techniques / Sub- techniques Tactics Mitigations T1078,
+      T1078.001, T1078.003 TA0005 M1027
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_6_2_5
+
+  - rule_id: ubuntu.cis.6.no_duplicate_gids_exist
+    title: "Ensure no duplicate GIDs exist"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.6'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.no_duplicate_gids_exist
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Based on the results of the audit script, establish unique GIDs and review all
+      files owned by the shared GID to determine which group they are supposed to
+      belong to. References: 1. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5
+      Additional Information: You can also use the grpck command to check for other
+      inconsistencies in the /etc/group file. MITRE ATT&CK Mappings: Techniques /
+      Sub- techniques Tactics Mitigations T1078, T1078.001, T1078.003 TA0005 M1027
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_6_2_6
+
+  - rule_id: ubuntu.cis.6.no_duplicate_user_names_exist
+    title: "Ensure no duplicate user names exist"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.7'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.no_duplicate_user_names_exist
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Based on the results of the audit script, establish unique user names for the
+      users. File ownerships will automatically reflect the change as long as the
+      users have unique UIDs. References: 1. NIST SP 800-53 Rev. 5: CM-1, CM-2,
+      CM-6, CM-7, IA-5 MITRE ATT&CK Mappings: Techniques / Sub- techniques Tactics
+      Mitigations T1078, T1078.001, T1078.003 TA0004 M1027
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_6_2_7
+
+  - rule_id: ubuntu.cis.6.no_duplicate_group_names_exist
+    title: "Ensure no duplicate group names exist"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.8'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.no_duplicate_group_names_exist
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Based on the results of the audit script, establish unique names for the user
+      groups. File group ownerships will automatically reflect the change as long as
+      the groups have unique GIDs. References: 1. NIST SP 800-53 Rev. 5: CM-1, CM-2,
+      CM-6, CM-7, IA-5 MITRE ATT&CK Mappings: Techniques / Sub- techniques Tactics
+      Mitigations T1078, T1078.001, T1078.003 TA0004 M1027
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_6_2_8
+
+  - rule_id: ubuntu.cis.6.local_interactive_user_home_directories_are
+    title: "Ensure local interactive user home directories are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.9'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_6.local_interactive_user_home_directories_are
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      If a local interactive users' home directory is undefined and/or doesn't
+      exist, follow local site policy and perform one of the following: • Lock the
+      user account • Remove the user from the system • create a directory for the
+      user. If undefined, edit /etc/passwd and add the absolute path to the
+      directory to the last field of the user. Run the following script to: • Remove
+      excessive permissions from local interactive users home directories • Update
+      the home directory's owner #!/usr/bin/env bash { l_output2=''
+      l_valid_shells='^($( awk -F\/ '$NF != 'nologin' {print}' /etc/shells | sed -rn
+      '/^\//{s,/,\\\\/,g;p}' | paste -s -d '|' - ))$' unset a_uarr && a_uarr=() #
+      Clear and initialize array while read -r l_epu l_eph; do # Populate array with
+      users and user home location a_uarr+=('$l_epu $l_eph') done <<< '$(awk -v
+      pat='$l_valid_shells' -F: '$(NF) ~ pat { print $1 ' ' $(NF-1) }' /etc/passwd)'
+      l_asize='${#a_uarr[@]}' # Here if we want to look at number of users before
+      proceeding [ '$l_asize ' -gt '10000' ] && echo -e '\n ** INFO **\n -
+      \'$l_asize\' Local interactive users found on the system\n - This may be a
+      long running process\n' while read -r l_user l_home; do if [ -d '$l_home' ];
+      then l_mask='0027' l_max='$( printf '%o' $(( 0777 & ~$l_mask)) )' while read
+      -r l_own l_mode; do if [ '$l_user' != '$l_own' ]; then l_output2='$l_output2\n
+      - User: \'$l_user\' Home \'$l_home\' is owned by: \'$l_own\'\n - changing
+      ownership to: \'$l_user\'\n' chown '$l_user' '$l_home' fi if [ $(( $l_mode &
+      $l_mask )) -gt 0 ]; then l_output2='$l_output2\n - User: \'$l_user\' Home
+      \'$l_home\' is mode: \'$l_mode\' should be mode: \'$l_max\' or more
+      restrictive\n - removing excess permissions\n' chmod g-w,o-rwx '$l_home' fi
+      done <<< '$(stat -Lc '%U %#a' '$l_home')' else l_output2='$l_output2\n - User:
+      \'$l_user\' Home \'$l_home\' Doesn't exist\n - Please create a home in
+      accordance with local site policy' fi done <<< '$(printf '%s\n'
+      '${a_uarr[@]}')' if [ -z '$l_output2' ]; then # If l_output2 is empty, we pass
+      echo -e ' - No modification needed to local interactive users home
+      directories' else echo -e '\n$l_output2' fi }
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_6_2_9
+
+

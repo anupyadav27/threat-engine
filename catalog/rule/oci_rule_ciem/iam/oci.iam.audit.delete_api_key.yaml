@@ -1,0 +1,64 @@
+rule_id: oci.iam.audit.delete_api_key
+service: iam
+provider: oci
+check_type: log
+severity: medium
+title: 'OCI IAM: API Signing Key Deleted'
+description: An API signing key was deleted from a user account. Attackers may delete keys to cover tracks after rotating to a newly created key.
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1070
+risk_score: 60
+resource: oci_identity_api_key
+domain: logging_monitoring_and_alerting
+action_category: modify
+log_source_type: 
+posture_category: security_posture
+threat_tags:
+- T1070
+- defense_evasion
+- log_tampering
+- cloud_iam
+- identity
+risk_indicators:
+  actor_type: iam_user_or_role
+  action_type: write
+  target_type: iam_identity
+  blast_radius: account
+  stealth_risk: critical
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: true
+  modules:
+  - secrets_management
+  categories:
+  - sensitive_data_access
+  priority: medium
+  impact:
+    pci: PCI DSS Requirement 12.3 — Implement security awareness program and protect systems
+    gdpr: GDPR Article 32 — Appropriate technical and organizational measures for data security
+    hipaa: §164.306(a) — Ensure confidentiality, integrity, and availability of ePHI
+  sensitive_data_context: |
+  Unauthorized defense evasion on iam resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks: {}
+remediation: Review and investigate this activity in the OCI Console and take corrective action.
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.identitycontrolplane
+    - field: operation
+      op: equals
+      value: DeleteApiKey

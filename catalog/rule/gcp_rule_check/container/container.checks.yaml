@@ -1,0 +1,60 @@
+version: '1.0'
+provider: gcp
+service: container
+checks:
+- rule_id: gcp.container.activity.cluster_create
+  for_each: gcp.container.projects.locations.clusters.list
+  severity: MEDIUM
+  conditions:
+    var: item.name
+    op: exists
+    value: null
+- rule_id: gcp.container.activity.cluster_delete
+  for_each: gcp.container.projects.locations.clusters.list
+  severity: MEDIUM
+  conditions:
+    var: item.name
+    op: exists
+    value: null
+- rule_id: gcp.container.activity.cluster_update_legacy_abac
+  for_each: gcp.container.projects.locations.clusters.list
+  severity: MEDIUM
+  conditions:
+    var: item.config.legacyAbac.enabled
+    op: is_false
+    value: null
+- rule_id: gcp.container.k8s.cluster_role_binding_create
+  for_each: gcp.container.projects.locations.clusters.list
+  severity: MEDIUM
+  conditions:
+    var: item.config.masterAuthorizedNetworksConfig.enabled
+    op: is_true
+    value: null
+- rule_id: gcp.container.k8s.pod_exec
+  for_each: gcp.container.projects.locations.clusters.list
+  severity: MEDIUM
+  conditions:
+    var: item.config.masterAuth.clientCertificate
+    op: not_exists
+    value: null
+- rule_id: gcp.container.k8s.privileged_pod_create
+  for_each: gcp.container.projects.locations.clusters.nodePools.list
+  severity: HIGH
+  conditions:
+    var: item.config.securityContext.privileged
+    op: is_false
+    value: null
+- rule_id: gcp.container.k8s.role_binding_create
+  for_each: gcp.container.projects.locations.clusters.list
+  severity: MEDIUM
+  conditions:
+    var: item.autopilotConfig
+    op: exists
+    value: null
+- rule_id: gcp.container.k8s.secret_access
+  for_each: gcp.container.projects.locations.clusters.list
+  severity: MEDIUM
+  conditions:
+    var: item.config.masterAuth.clientCertificateConfig.issueClientCertificate
+    op: is_false
+    value: null

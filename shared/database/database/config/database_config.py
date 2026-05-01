@@ -88,17 +88,17 @@ class ConsolidatedDatabaseSettings(BaseSettings):
     threat_username: str = Field(default="threat_user", validation_alias="THREAT_DB_USER")
     threat_password: str = Field(default="threat_password", validation_alias="THREAT_DB_PASSWORD")
 
-    # Onboarding Database (includes scan_orchestration table)
+    # Onboarding Database (includes scan_runs table)
     onboarding_host: str = Field(default="localhost", validation_alias="ONBOARDING_DB_HOST")
     onboarding_port: int = Field(default=5432, validation_alias="ONBOARDING_DB_PORT")
     onboarding_database: str = Field(default="threat_engine_onboarding", validation_alias="ONBOARDING_DB_NAME")
     onboarding_username: str = Field(default="onboarding_user", validation_alias="ONBOARDING_DB_USER")
     onboarding_password: str = Field(default="onboarding_password", validation_alias="ONBOARDING_DB_PASSWORD")
 
-    # Shared Database (for cross-engine data) - DEPRECATED: scan_orchestration moved to onboarding
+    # Shared Database (for cross-engine data) - DEPRECATED: scan_runs moved to onboarding
     shared_host: str = Field(default="localhost", validation_alias="SHARED_DB_HOST")
     shared_port: int = Field(default=5432, validation_alias="SHARED_DB_PORT")
-    shared_database: str = Field(default="threat_engine_shared", validation_alias="SHARED_DB_NAME")
+    shared_database: str = Field(default="threat_engine_onboarding", validation_alias="SHARED_DB_NAME")
     shared_username: str = Field(default="shared_user", validation_alias="SHARED_DB_USER")
     shared_password: str = Field(default="shared_password", validation_alias="SHARED_DB_PASSWORD")
 
@@ -280,12 +280,12 @@ def get_threat_config() -> DatabaseConnectionConfig:
 
 
 def get_onboarding_config() -> DatabaseConnectionConfig:
-    """Get Onboarding database configuration (includes scan_orchestration)"""
+    """Get Onboarding database configuration (includes scan_runs)"""
     return db_settings.get_engine_config("onboarding")
 
 
 def get_shared_config() -> DatabaseConnectionConfig:
-    """Get Shared database configuration - DEPRECATED: scan_orchestration moved to onboarding"""
+    """Get Shared database configuration - DEPRECATED: scan_runs moved to onboarding"""
     return db_settings.get_engine_config("shared")
 
 

@@ -1,0 +1,64 @@
+# discoveries_only_check: 3 kept / 11 removed from 14 total
+# generated_from: step6_controltower.discovery.yaml
+# purpose: only discoveries needed by controltower.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: controltower
+services:
+  client: controltower
+  module: boto3.client
+discovery:
+- discovery_id: aws.controltower.list_control_operations
+  calls:
+  - action: list_control_operations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.controlOperations }}'
+    item:
+      controlIdentifier: '{{ item.controlIdentifier }}'
+      enabledControlIdentifier: '{{ item.enabledControlIdentifier }}'
+      endTime: '{{ item.endTime }}'
+      operationIdentifier: '{{ item.operationIdentifier }}'
+      operationType: '{{ item.operationType }}'
+      startTime: '{{ item.startTime }}'
+      status: '{{ item.status }}'
+      statusMessage: '{{ item.statusMessage }}'
+      targetIdentifier: '{{ item.targetIdentifier }}'
+- discovery_id: aws.controltower.list_enabled_controls
+  calls:
+  - action: list_enabled_controls
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.enabledControls }}'
+    item:
+      arn: '{{ item.arn }}'
+      controlIdentifier: '{{ item.controlIdentifier }}'
+      driftStatusSummary: '{{ item.driftStatusSummary }}'
+      parentIdentifier: '{{ item.parentIdentifier }}'
+      statusSummary: '{{ item.statusSummary }}'
+      targetIdentifier: '{{ item.targetIdentifier }}'
+- discovery_id: aws.controltower.get_enabled_control
+  for_each: aws.controltower.list_control_operations
+  calls:
+  - action: get_enabled_control
+    params:
+      enabledControlIdentifier: '{{ item.enabledControlIdentifier }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      arn: '{{ response.enabledControlDetails.arn }}'
+      controlIdentifier: '{{ response.enabledControlDetails.controlIdentifier }}'
+      driftStatusSummary: '{{ response.enabledControlDetails.driftStatusSummary }}'
+      enabledControlDetails: '{{ response.enabledControlDetails.enabledControlDetails
+        }}'
+      parameters: '{{ response.enabledControlDetails.parameters }}'
+      parentIdentifier: '{{ response.enabledControlDetails.parentIdentifier }}'
+      statusSummary: '{{ response.enabledControlDetails.statusSummary }}'
+      targetIdentifier: '{{ response.enabledControlDetails.targetIdentifier }}'
+      targetRegions: '{{ response.enabledControlDetails.targetRegions }}'

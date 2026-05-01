@@ -1,0 +1,79 @@
+rule_id: aws.eks.audit_log.audit.crd_create
+service: eks
+provider: aws
+check_type: log
+severity: medium
+title: 'EKS: Crd Create'
+description: Kubernetes CRD created — custom resource type added to cluster.
+rationale: New account creation can establish persistence by creating backdoor accounts that survive credential rotation of existing accounts.
+threat_category: persistence
+mitre_tactics:
+- persistence
+mitre_techniques:
+- T1136
+risk_score: 50
+resource: eks_cluster
+source: default
+is_active: true
+domain: identity_and_access_management
+action_category: create
+log_source_type: 
+posture_category: iam_posture
+threat_tags:
+- T1136
+- persistence
+- backdoor
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.1
+  - 1.4
+  - 1.16
+  cis_azure_v2:
+  - 1.1
+  - 2.1
+  - 2.9
+  nist_800_53_r5:
+  - AC-2
+  - AC-6
+  - IA-2
+  - SC-7
+  pci_dss_v4:
+  - 7.1
+  - 8.2
+  - 10.2
+  iso_27001_2022:
+  - A.8.2
+  - A.9.2
+  - A.5.18
+remediation: |
+  1. Disable and review the newly created account immediately.
+  2. Verify business justification with the account requestor.
+  3. Enforce account creation approval processes.
+  4. Alert on all account creation events outside approved provisioning workflows.
+references:
+- https://attack.mitre.org/techniques/T1136/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource.type
+      op: equals
+      value: customresourcedefinitions
+version: '1.0'

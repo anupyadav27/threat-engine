@@ -28,8 +28,13 @@ Architecture:
         scans.py                -- /views/scans
         reports.py              -- /views/reports
         rules.py                -- /views/rules
+        secops.py               -- /views/secops  (SAST+DAST scan summary)
+        policies.py             -- /views/policies (rule engine proxy)
         ai_security.py          -- /views/ai-security
         container_security.py   -- /views/container-security
+        cnapp.py                -- /views/cnapp  (unified CNAPP dashboard)
+        cwpp.py                 -- /views/cwpp   (workload protection platform)
+        vulnerability.py        -- /views/vulnerability (agent scan overview)
 """
 
 from fastapi import APIRouter
@@ -52,12 +57,19 @@ from .network_security import router as network_security_router
 from .misconfig import router as misconfig_router
 from .risk import router as risk_router
 from .scans import router as scans_router
+from .scan_timing import router as scan_timing_router
+from .scan_status import router as scan_status_router
 from .reports import router as reports_router
 from .rules import router as rules_router
 from .scope import router as scope_router
 from .ciem import router as ciem_router
+from .secops import router as secops_router
+from .policies import router as policies_router
 from .ai_security import router as ai_security_router
 from .container_security import router as container_security_router
+from .cnapp import router as cnapp_router
+from .cwpp import router as cwpp_router
+from .vulnerability import router as vulnerability_router
 
 # Combined router — include this in main.py
 router = APIRouter()
@@ -84,11 +96,18 @@ for _sub in (
     misconfig_router,
     risk_router,
     scans_router,
+    scan_timing_router,
+    scan_status_router,
     reports_router,
     rules_router,
     scope_router,
     ciem_router,
+    secops_router,
+    policies_router,
     ai_security_router,
     container_security_router,
+    cnapp_router,
+    cwpp_router,
+    vulnerability_router,
 ):
     router.include_router(_sub)

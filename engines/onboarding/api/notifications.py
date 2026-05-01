@@ -27,7 +27,7 @@ async def get_notifications(
 ):
     """
     Generate notifications dynamically from:
-    - Recent scan_orchestration events (completed/failed scans)
+    - Recent scan_runs events (completed/failed scans)
     - cloud_accounts with credential validation failures
     """
     try:
@@ -39,7 +39,7 @@ async def get_notifications(
         now = datetime.now(timezone.utc)
         cutoff = now - timedelta(days=7)
 
-        # ── Scan orchestration events ─────────────────────────────────────────
+        # ── Scan run events ────────────────────────────────────────────────────
         try:
             shared_conn = psycopg2.connect(get_connection_string("shared"))
             try:
@@ -47,14 +47,14 @@ async def get_notifications(
                     cur.execute(
                         """
                         SELECT
-                            orchestration_id,
+                            scan_run_id,
                             provider,
                             account_id,
                             overall_status,
                             started_at,
                             completed_at,
                             trigger_type
-                        FROM scan_orchestration
+                        FROM scan_runs
                         WHERE tenant_id = %s
                           AND started_at >= %s
                         ORDER BY started_at DESC
@@ -72,7 +72,7 @@ async def get_notifications(
                 account = s.get("account_id") or "unknown"
                 ts = s.get("completed_at") or s.get("started_at")
                 ts_iso = ts.isoformat() if ts and hasattr(ts, "isoformat") else str(ts or now.isoformat())
-                orch_id = str(s.get("orchestration_id", ""))
+                orch_id = str(s.get("scan_run_id", ""))
 
                 if status in ("completed", "success"):
                     notifications.append({
@@ -80,7 +80,7 @@ async def get_notifications(
                         "title": "Scan Completed",
                         "message": f"{provider.upper()} scan for account {account} completed successfully.",
                         "severity": "info",
-                        "source": "scan_orchestration",
+                        "source": "scan_runs",
                         "timestamp": ts_iso,
                         "read": False,
                     })
@@ -90,7 +90,7 @@ async def get_notifications(
                         "title": "Scan Failed",
                         "message": f"{provider.upper()} scan for account {account} encountered an error.",
                         "severity": "high",
-                        "source": "scan_orchestration",
+                        "source": "scan_runs",
                         "timestamp": ts_iso,
                         "read": False,
                     })
@@ -100,12 +100,12 @@ async def get_notifications(
                         "title": "Scan In Progress",
                         "message": f"{provider.upper()} scan for account {account} is currently running.",
                         "severity": "info",
-                        "source": "scan_orchestration",
+                        "source": "scan_runs",
                         "timestamp": ts_iso,
                         "read": False,
                     })
         except Exception as exc:
-            logger.warning("notifications: scan_orchestration query failed: %s", exc)
+            logger.warning("notifications: scan_runs query failed: %s", exc)
 
         # ── Credential validation failures ────────────────────────────────────
         try:

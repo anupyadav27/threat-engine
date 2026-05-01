@@ -1,0 +1,1656 @@
+version: '1.0'
+provider: aws
+service: ec2
+checks:
+- rule_id: aws.ec2.account.block_public_access_configured
+  for_each: aws.ec2.describe_addresses
+  severity: HIGH
+  conditions:
+    var: item.Addresses
+    op: not_empty
+    value: null
+- rule_id: aws.ec2.ami.approved_image_allowlist_enforced
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    var: item.Tags.Environment
+    op: exists
+    value: null
+- rule_id: aws.ec2.ami.encryption_at_rest_enabled
+  for_each: aws.ec2.describe_images
+  severity: HIGH
+  conditions:
+    var: item.BlockDeviceMappings[].Ebs.Encrypted
+    op: is_true
+    value: null
+- rule_id: aws.ec2.ami.image_signed_and_verified
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    var: item.Addresses
+    op: exists
+    value: null
+- rule_id: aws.ec2.ami.not_publicly_shared_configured
+  for_each: aws.ec2.describe_images
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Public
+      op: is_false
+      value: null
+    - var: item.ImageOwnerAlias
+      op: not_equals
+      value: amazon
+- rule_id: aws.ec2.ami.vuln_scanned_no_critical_configured
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    var: item.Addresses
+    op: not_empty
+    value: null
+- rule_id: aws.ec2.amipublic.ami_public_configured
+  for_each: aws.ec2.describe_addresses
+  severity: HIGH
+  conditions:
+    var: item.Addresses[].Domain
+    op: not_equals
+    value: vpc
+- rule_id: aws.ec2.autoscalinggroup.no_public_ip_assigned_configured
+  for_each: aws.ec2.describe_addresses
+  severity: HIGH
+  conditions:
+    var: item.Addresses[].AssociationId
+    op: not_exists
+    value: null
+- rule_id: aws.ec2.autoscalinggroup.uses_approved_launch_template_configured
+  for_each: aws.autoscaling.describe_auto_scaling_groups
+  severity: MEDIUM
+  conditions:
+    var: item.LaunchTemplate.LaunchTemplateId
+    op: exists
+    value: null
+- rule_id: aws.ec2.autoscalinggroup.volumes_encrypted
+  for_each: aws.autoscaling.describe_auto_scaling_groups
+  severity: HIGH
+  conditions:
+    var: item.LaunchTemplate.LaunchTemplateData.BlockDeviceMappings[].Ebs.Encrypted
+    op: is_true
+    value: null
+- rule_id: aws.ec2.customergateway.api_ip_addresses_valid_and_owned_configured
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: MEDIUM
+  conditions:
+    var: item.CarrierGateways
+    op: not_empty
+    value: null
+- rule_id: aws.ec2.customergateway.no_public_management_interfaces_exposed_configured
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.CarrierGateways
+      op: not_empty
+      value: null
+    - var: item.CarrierGateways[].Tags.Environment
+      op: exists
+      value: null
+- rule_id: aws.ec2.dedicatedhost.host_sharing_restricted
+  for_each: aws.ec2.describe_capacity_reservations
+  severity: MEDIUM
+  conditions:
+    var: item.InstanceMatchCriteria
+    op: equals
+    value: targeted
+- rule_id: aws.ec2.dedicatedhost.instance_auto_placement_controlled_configured
+  for_each: aws.ec2.describe_capacity_reservations
+  severity: MEDIUM
+  conditions:
+    var: item.InstanceMatchCriteria
+    op: exists
+    value: null
+- rule_id: aws.ec2.ebs.default_encryption_configured
+  for_each: aws.ec2.describe_addresses
+  severity: HIGH
+  conditions:
+    var: item.Addresses[].Tags.Environment
+    op: exists
+    value: null
+- rule_id: aws.ec2.ebs.public_snapshot_configured
+  for_each: aws.ec2.describe_snapshots
+  severity: HIGH
+  conditions:
+    var: item.Public
+    op: is_false
+    value: null
+- rule_id: aws.ec2.ebs.volume_encryption_configured
+  for_each: aws.ec2.describe_volumes
+  severity: HIGH
+  conditions:
+    var: item.Encrypted
+    op: is_true
+    value: null
+- rule_id: aws.ec2.ebs_public_snapshot.ebs_public_snapshot_configured
+  for_each: aws.ec2.describe_snapshots
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Snapshots[].CreateVolumePermissions[].Group
+      op: not_contains
+      value: all
+- rule_id: aws.ec2.eip.not_in_use
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    var: item.InstanceId
+    op: exists
+    value: null
+- rule_id: aws.ec2.eip.shodan_exposure_detected
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    var: item.AssociationId
+    op: exists
+    value: null
+- rule_id: aws.ec2.group.cifs_access_restriction_tcp_port_445_configured
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissions[].FromPort
+      op: not_equals
+      value: 445
+    - var: item.IpPermissions[].ToPort
+      op: not_equals
+      value: 445
+    - var: item.IpPermissionsEgress[].FromPort
+      op: not_equals
+      value: 445
+    - var: item.IpPermissionsEgress[].ToPort
+      op: not_equals
+      value: 445
+- rule_id: aws.ec2.group.cifs_unrestricted_access_configured
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissions[].IpRanges[].CidrIp
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.IpPermissions[].FromPort
+      op: equals
+      value: 445
+    - var: item.IpPermissions[].ToPort
+      op: equals
+      value: 445
+    - var: item.IpPermissions[].IpProtocol
+      op: equals
+      value: tcp
+- rule_id: aws.ec2.group.ingress_ipv6_restriction_configured
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissions[].Ipv6Ranges
+      op: is_empty
+      value: null
+    - var: item.IpPermissionsEgress[].Ipv6Ranges
+      op: is_empty
+      value: null
+- rule_id: aws.ec2.instance.data_volumes_encrypted_cmek
+  for_each: aws.ec2.describe_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.BlockDeviceMappings[].Ebs.Encrypted
+      op: is_true
+      value: null
+    - var: item.BlockDeviceMappings[].Ebs.KmsKeyId
+      op: exists
+      value: null
+- rule_id: aws.ec2.instance.detailed_monitoring_enabled
+  for_each: aws.ec2.describe_instances
+  severity: MEDIUM
+  conditions:
+    var: item.Monitoring.State
+    op: equals
+    value: enabled
+- rule_id: aws.ec2.instance.iam_role_compliance_configured
+  for_each: aws.ec2.describe_addresses
+  severity: HIGH
+  conditions:
+    var: item.Addresses[].InstanceId
+    op: exists
+    value: null
+- rule_id: aws.ec2.instance.imds_hardened_configured
+  for_each: aws.ec2.describe_instances
+  severity: MEDIUM
+  conditions:
+    var: item.Instances[].MetadataOptions.HttpTokens
+    op: equals
+    value: required
+- rule_id: aws.ec2.instance.imdsv2_enabled
+  for_each: aws.ec2.describe_instances
+  severity: MEDIUM
+  conditions:
+    var: item.MetadataOptions.HttpTokens
+    op: equals
+    value: required
+- rule_id: aws.ec2.instance.internet_facing_with_instance_profile_configured
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.Addresses[].InstanceId
+      op: not_exists
+      value: null
+    - var: item.Addresses[].InstanceId
+      op: is_empty
+      value: null
+- rule_id: aws.ec2.instance.managed_by_ssm_configured
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    var: item.Addresses[].InstanceId
+    op: exists
+    value: null
+- rule_id: aws.ec2.instance.no_public_ip_assigned_configured
+  for_each: aws.ec2.describe_addresses
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Addresses
+      op: not_empty
+      value: null
+    - any:
+      - var: item.Addresses[].AssociationId
+        op: not_exists
+        value: null
+      - var: item.Addresses[].AssociationId
+        op: is_empty
+        value: null
+- rule_id: aws.ec2.instance.no_public_ip_configured
+  for_each: aws.ec2.describe_addresses
+  severity: HIGH
+  conditions:
+    var: item.Addresses[].AssociationId
+    op: not_exists
+    value: null
+- rule_id: aws.ec2.instance.older_than_specific_days_configured
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Addresses[].InstanceId
+      op: exists
+      value: null
+    - var: item.Addresses[].AssociationId
+      op: exists
+      value: null
+    - var: item.Addresses[].Tags.Environment
+      op: equals
+      value: production
+- rule_id: aws.ec2.instance.paravirtual_type_configured
+  for_each: aws.ec2.describe_instances
+  severity: MEDIUM
+  conditions:
+    var: item.Instances[].VirtualizationType
+    op: not_equals
+    value: paravirtual
+- rule_id: aws.ec2.instance.patch_compliance_status_check
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    var: item.Tags.PatchComplianceStatus
+    op: equals
+    value: COMPLIANT
+- rule_id: aws.ec2.instance.port_cassandra_exposed_to_internet_configured
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.Addresses[].Tags.Environment
+      op: equals
+      value: production
+    - var: item.Addresses[].InstanceId
+      op: exists
+      value: null
+- rule_id: aws.ec2.instance.port_cifs_exposed_to_internet_configured
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.Addresses[].Domain
+      op: not_equals
+      value: vpc
+    - var: item.Addresses[].AssociationId
+      op: not_exists
+      value: null
+- rule_id: aws.ec2.instance.port_elasticsearch_kibana_exposed_to_internet_configured
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Addresses[].AssociationId
+      op: exists
+      value: null
+    - var: item.Addresses[].InstanceId
+      op: exists
+      value: null
+    - any:
+      - var: item.Addresses[].Tags.Environment
+        op: equals
+        value: production
+      - var: item.Addresses[].Tags.Environment
+        op: exists
+        value: null
+- rule_id: aws.ec2.instance.port_ftp_exposed_to_internet_configured
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.Addresses[].Tags.Environment
+      op: equals
+      value: production
+    - var: item.Addresses[].Tags.Environment
+      op: exists
+      value: null
+- rule_id: aws.ec2.instance.port_kafka_exposed_to_internet_configured
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Addresses[].AssociationId
+      op: exists
+      value: null
+    - var: item.Addresses[].InstanceId
+      op: exists
+      value: null
+    - var: item.Addresses[].Tags.Environment
+      op: equals
+      value: production
+- rule_id: aws.ec2.instance.port_kerberos_exposed_to_internet_configured
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Addresses[].AssociationId
+      op: exists
+      value: null
+    - var: item.Addresses[].InstanceId
+      op: exists
+      value: null
+    - any:
+      - var: item.Addresses[].Domain
+        op: equals
+        value: vpc
+      - var: item.Addresses[].Domain
+        op: not_equals
+        value: standard
+- rule_id: aws.ec2.instance.port_ldap_exposed_to_internet_configured
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.Addresses[].Domain
+      op: not_equals
+      value: vpc
+    - var: item.Addresses[].AssociationId
+      op: not_exists
+      value: null
+- rule_id: aws.ec2.instance.port_memcached_exposed_to_internet_configured
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.Addresses[].AssociationId
+      op: not_exists
+      value: null
+    - var: item.Addresses[].InstanceId
+      op: not_exists
+      value: null
+- rule_id: aws.ec2.instance.port_mongodb_exposed_to_internet_configured
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Addresses[].AssociationId
+      op: exists
+      value: null
+    - var: item.Addresses[].InstanceId
+      op: exists
+      value: null
+    - any:
+      - var: item.Addresses[].Tags.Environment
+        op: equals
+        value: production
+      - var: item.Addresses[].Tags.Environment
+        op: not_equals
+        value: staging
+- rule_id: aws.ec2.instance.port_mysql_exposed_to_internet_configured
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.Addresses[].AssociationId
+      op: not_exists
+      value: null
+    - var: item.Addresses[].InstanceId
+      op: not_exists
+      value: null
+- rule_id: aws.ec2.instance.port_oracle_exposed_to_internet_configured
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.Addresses[].Domain
+      op: not_equals
+      value: vpc
+    - var: item.Addresses[].InstanceId
+      op: not_exists
+      value: null
+- rule_id: aws.ec2.instance.port_postgresql_exposed_to_internet_configured
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.Addresses[].AssociationId
+      op: not_exists
+      value: null
+    - var: item.Addresses[].AssociationId
+      op: exists
+      value: null
+- rule_id: aws.ec2.instance.port_rdp_exposed_to_internet_configured
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.Addresses[].Domain
+      op: not_equals
+      value: vpc
+    - var: item.Addresses[].InstanceId
+      op: not_exists
+      value: null
+- rule_id: aws.ec2.instance.port_redis_exposed_to_internet_configured
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Addresses[].AssociationId
+      op: exists
+      value: null
+    - var: item.Addresses[].InstanceId
+      op: exists
+      value: null
+    - any:
+      - var: item.Addresses[].Tags.Environment
+        op: equals
+        value: production
+      - var: item.Addresses[].Tags.Environment
+        op: not_equals
+        value: staging
+- rule_id: aws.ec2.instance.port_sqlserver_exposed_to_internet_configured
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Addresses[].AssociationId
+      op: not_exists
+      value: null
+- rule_id: aws.ec2.instance.port_ssh_exposed_to_internet_configured
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.Addresses[].AssociationId
+      op: not_exists
+      value: null
+    - var: item.Addresses[].InstanceId
+      op: not_exists
+      value: null
+- rule_id: aws.ec2.instance.port_telnet_exposed_to_internet_configured
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Addresses[].AssociationId
+      op: exists
+      value: null
+    - var: item.Addresses[].InstanceId
+      op: exists
+      value: null
+    - any:
+      - var: item.Addresses[].Tags.Environment
+        op: equals
+        value: production
+      - var: item.Addresses[].Tags.Environment
+        op: not_equals
+        value: staging
+- rule_id: aws.ec2.instance.profile_enabled
+  for_each: aws.ec2.describe_instances
+  severity: MEDIUM
+  conditions:
+    var: item.IamInstanceProfile
+    op: exists
+    value: null
+- rule_id: aws.ec2.instance.public_ip_configured
+  for_each: aws.ec2.describe_addresses
+  severity: HIGH
+  conditions:
+    var: item.Addresses[].InstanceId
+    op: not_exists
+    value: null
+- rule_id: aws.ec2.instance.root_volume_encrypted_cmek
+  for_each: aws.ec2.describe_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.BlockDeviceMappings[].Ebs.Encrypted
+      op: is_true
+      value: null
+    - var: item.BlockDeviceMappings[].Ebs.KmsKeyId
+      op: exists
+      value: null
+- rule_id: aws.ec2.instance.secrets_user_data_configured
+  for_each: aws.ec2.describe_instances
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Instances[].UserData
+      op: exists
+      value: null
+    - var: item.Instances[].UserData
+      op: not_contains
+      value: secret
+    - var: item.Instances[].UserData
+      op: not_contains
+      value: password
+    - var: item.Instances[].UserData
+      op: not_contains
+      value: key
+- rule_id: aws.ec2.instance.secure_boot_enabled
+  for_each: aws.ec2.describe_instances
+  severity: MEDIUM
+  conditions:
+    var: item.BootMode
+    op: equals
+    value: uefi
+- rule_id: aws.ec2.instance.security_group_inbound_restricted
+  for_each: aws.ec2.describe_security_groups
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.IpPermissions[].IpRanges[].CidrIp
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.IpPermissions[].Ipv6Ranges[].CidrIpv6
+      op: not_contains
+      value: ::/0
+- rule_id: aws.ec2.instance.serial_console_access_restricted
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    var: item.Addresses[].Domain
+    op: not_equals
+    value: vpc
+- rule_id: aws.ec2.instance.ssh_key_authentication_configured
+  for_each: aws.ec2.describe_addresses
+  severity: CRITICAL
+  conditions:
+    var: item.Addresses[].InstanceId
+    op: exists
+    value: null
+- rule_id: aws.ec2.instance.ssh_key_based_auth_required
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    var: item.Addresses[].InstanceId
+    op: exists
+    value: null
+- rule_id: aws.ec2.instance.ssh_password_auth_disabled
+  for_each: aws.ec2.describe_instances
+  severity: CRITICAL
+  conditions:
+    var: item.BlockDeviceMappings[].Ebs.Encrypted
+    op: is_true
+    value: null
+- rule_id: aws.ec2.instance.ssm_association_compliant
+  for_each: aws.ec2.describe_instances
+  severity: MEDIUM
+  conditions:
+    var: item.State.Name
+    op: equals
+    value: running
+- rule_id: aws.ec2.instance.user_data_no_secrets_configured
+  for_each: aws.ec2.describe_instances
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Instances[].UserData
+      op: not_exists
+      value: null
+- rule_id: aws.ec2.instance.uses_single_eni_configured
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    var: item.Addresses[].InstanceId
+    op: exists
+    value: null
+- rule_id: aws.ec2.instance.vtpm_enabled
+  for_each: aws.ec2.describe_instances
+  severity: MEDIUM
+  conditions:
+    var: item.EnclaveOptions.Enabled
+    op: is_true
+    value: null
+- rule_id: aws.ec2.keypair.disable_unused_keys_configured
+  for_each: aws.ec2.describe_key_pairs
+  severity: MEDIUM
+  conditions:
+    var: item.KeyPairs[].KeyName
+    op: exists
+    value: null
+- rule_id: aws.ec2.keypair.key_max_age_days_configured
+  for_each: aws.ec2.describe_key_pairs
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.KeyPairs[].CreateTime
+      op: exists
+      value: null
+    - var: item.KeyPairs[].CreateTime
+      op: lt
+      value: '90'
+- rule_id: aws.ec2.launch_template_no_public_ip.launch_template_no_public_ip_configured
+  for_each: aws.ec2.describe_launch_templates
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.LaunchTemplates[].LaunchTemplateData.NetworkInterfaces[].AssociatePublicIpAddress
+      op: is_false
+      value: null
+    - var: item.LaunchTemplates[].LaunchTemplateData.NetworkInterfaces[].AssociatePublicIpAddress
+      op: exists
+      value: null
+- rule_id: aws.ec2.launch_template_no_secrets.launch_template_no_secrets_configured
+  for_each: aws.ec2.describe_launch_templates
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.LaunchTemplates[].LaunchTemplateData.UserData
+      op: not_contains
+      value: AKIA
+    - var: item.LaunchTemplates[].LaunchTemplateData.UserData
+      op: not_contains
+      value: secret
+- rule_id: aws.ec2.launchtemplate.imds_hardened_configured
+  for_each: aws.ec2.describe_launch_templates
+  severity: MEDIUM
+  conditions:
+    var: item.LaunchTemplates[].LaunchTemplateData.MetadataOptions.HttpTokens
+    op: equals
+    value: required
+- rule_id: aws.ec2.launchtemplate.no_public_ip_assigned_configured
+  for_each: aws.ec2.describe_launch_templates
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.LaunchTemplates[].LaunchTemplateData.NetworkInterfaces[].AssociatePublicIpAddress
+      op: is_false
+      value: null
+    - var: item.LaunchTemplates[].LaunchTemplateData.NetworkInterfaces[].AssociatePublicIpAddress
+      op: exists
+      value: null
+- rule_id: aws.ec2.launchtemplate.no_public_ip_default_configured
+  for_each: aws.ec2.describe_launch_templates
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.LaunchTemplates[].LaunchTemplateData.NetworkInterfaces[].AssociatePublicIpAddress
+      op: is_false
+      value: null
+    - var: item.LaunchTemplates[].LaunchTemplateData.NetworkInterfaces[].AssociatePublicIpAddress
+      op: not_exists
+      value: null
+- rule_id: aws.ec2.launchtemplate.root_volume_encrypted_by_default
+  for_each: aws.ec2.describe_launch_templates
+  severity: HIGH
+  conditions:
+    var: item.LaunchTemplateData.BlockDeviceMappings[].Ebs.Encrypted
+    op: is_true
+    value: null
+- rule_id: aws.ec2.launchtemplate.security_groups_restrictive_configured
+  for_each: aws.ec2.describe_launch_templates
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.LaunchTemplates[].LaunchTemplateData.NetworkInterfaces[].Groups
+      op: not_empty
+      value: null
+    - var: item.LaunchTemplates[].LaunchTemplateData.NetworkInterfaces[].Groups[]
+      op: not_equals
+      value: sg-00000000000000000
+- rule_id: aws.ec2.launchtemplate.user_data_no_secrets_configured
+  for_each: aws.ec2.describe_launch_templates
+  severity: MEDIUM
+  conditions:
+    var: item.LaunchTemplates[].LaunchTemplateData.UserData
+    op: not_exists
+    value: null
+- rule_id: aws.ec2.launchtemplate.uses_approved_configured
+  for_each: aws.ec2.describe_launch_templates
+  severity: MEDIUM
+  conditions:
+    var: item.LaunchTemplates[].LaunchTemplateData.ImageId
+    op: exists
+    value: null
+- rule_id: aws.ec2.launchtemplate.volumes_encrypted
+  for_each: aws.ec2.describe_launch_templates
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.LaunchTemplateData.BlockDeviceMappings[].Ebs.Encrypted
+      op: is_true
+      value: null
+- rule_id: aws.ec2.network_interface.security_groups_present
+  for_each: aws.ec2.describe_network_interfaces
+  severity: HIGH
+  conditions:
+    var: item.Groups
+    op: not_empty
+    value: null
+- rule_id: aws.ec2.network_interface.security_groups_restrictive_configured
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: HIGH
+  conditions:
+    var: item.SecurityGroupForVpcs
+    op: exists
+    value: null
+- rule_id: aws.ec2.networkacl.endpoint_policies_applied_configured
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: MEDIUM
+  conditions:
+    var: item.CarrierGateways
+    op: not_empty
+    value: null
+- rule_id: aws.ec2.networkacl.ingress_restrict_all_traffic
+  for_each: aws.ec2.describe_network_acls
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Entries[].Egress
+      op: equals
+      value: false
+    - var: item.Entries[].CidrBlock
+      op: not_equals
+      value: 0.0.0.0/0
+    - var: item.Entries[].RuleAction
+      op: equals
+      value: deny
+- rule_id: aws.ec2.networkacl.network_allow_ingress_any_port_configured
+  for_each: aws.ec2.describe_network_acls
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.NetworkAcls[].Entries[]
+      op: not_empty
+      value: null
+    - any:
+      - var: item.NetworkAcls[].Entries[].Egress
+        op: is_true
+        value: null
+      - all:
+        - var: item.NetworkAcls[].Entries[].Egress
+          op: is_false
+          value: null
+        - var: item.NetworkAcls[].Entries[].CidrBlock
+          op: not_equals
+          value: 0.0.0.0/0
+        - var: item.NetworkAcls[].Entries[].Ipv6CidrBlock
+          op: not_equals
+          value: ::/0
+- rule_id: aws.ec2.networkacl.network_egress_restricted
+  for_each: aws.ec2.describe_network_acls
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Entries[].Egress
+      op: is_false
+      value: null
+    - var: item.Entries[].CidrBlock
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: aws.ec2.networkacl.network_identity_aware_policies_enabled
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: HIGH
+  conditions:
+    var: item.EnableNetworkAddressUsageMetrics
+    op: is_true
+    value: null
+- rule_id: aws.ec2.networkacl.network_no_allow_all_rules_configured
+  for_each: aws.ec2.describe_network_acls
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Entries[].CidrBlock
+      op: not_equals
+      value: 0.0.0.0/0
+    - var: item.Entries[].Ipv6CidrBlock
+      op: not_equals
+      value: ::/0
+- rule_id: aws.ec2.networkacl.network_no_unrestricted_ingress_configured
+  for_each: aws.ec2.describe_network_acls
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Entries[].CidrBlock
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.Entries[].RuleAction
+      op: equals
+      value: allow
+- rule_id: aws.ec2.networkacl.rdp_port_3389_restricted
+  for_each: aws.ec2.describe_network_acls
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Entries[].PortRange.From
+      op: not_contains
+      value: 3389
+    - var: item.Entries[].PortRange.To
+      op: not_contains
+      value: 3389
+- rule_id: aws.ec2.networkacl.ssh_port_22_restricted
+  for_each: aws.ec2.describe_network_acls
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Entries[].CidrBlock
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.Entries[].PortRange.From
+      op: lte
+      value: 22
+    - var: item.Entries[].PortRange.To
+      op: gte
+      value: 22
+    - var: item.Entries[].RuleAction
+      op: equals
+      value: deny
+- rule_id: aws.ec2.networkacl.unrestricted_ingress_blocked
+  for_each: aws.ec2.describe_network_acls
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Entries[].CidrBlock
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.Entries[].Ipv6CidrBlock
+      op: not_contains
+      value: ::/0
+- rule_id: aws.ec2.networkacl.unused_network_acl_configured
+  for_each: aws.ec2.describe_network_acls
+  severity: HIGH
+  conditions:
+    var: item.NetworkAcls[].Associations
+    op: not_empty
+    value: null
+- rule_id: aws.ec2.reserved_instance.billing_admins_mfa_required
+  for_each: aws.ec2.describe_capacity_reservations
+  severity: CRITICAL
+  conditions:
+    var: item.CommitmentInfo
+    op: exists
+    value: null
+- rule_id: aws.ec2.reserved_instance.instance_approval_workflow_required
+  for_each: aws.ec2.describe_capacity_reservations
+  severity: MEDIUM
+  conditions:
+    var: item.CommitmentInfo
+    op: exists
+    value: null
+- rule_id: aws.ec2.reserved_instance.purchase_permissions_restricted
+  for_each: aws.ec2.describe_capacity_reservations
+  severity: HIGH
+  conditions:
+    var: item.PurchaseState
+    op: equals
+    value: active
+- rule_id: aws.ec2.resource.ami_public_visibility_configured
+  for_each: aws.ec2.describe_images
+  severity: HIGH
+  conditions:
+    var: item.Public
+    op: is_false
+    value: null
+- rule_id: aws.ec2.resource.backup_enabled
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    var: item.Tags.BackupEnabled
+    op: equals
+    value: 'true'
+- rule_id: aws.ec2.resource.client_vpn_endpoint_connection_logging_enabled
+  for_each: aws.ec2.describe_client_vpn_endpoints
+  severity: MEDIUM
+  conditions:
+    var: item.ClientVpnEndpoint.ConnectionLogOptions.CloudwatchLogGroup
+    op: exists
+    value: null
+- rule_id: aws.ec2.resource.ebs_encryption_by_default_enabled
+  for_each: aws.ec2.describe_addresses
+  severity: HIGH
+  conditions:
+    var: item.Encrypted
+    op: is_true
+    value: null
+- rule_id: aws.ec2.resource.ebs_snapshots_encrypted
+  for_each: aws.ec2.describe_snapshots
+  severity: HIGH
+  conditions:
+    var: item.Encrypted
+    op: is_true
+    value: null
+- rule_id: aws.ec2.resource.launch_template_imdsv2_required
+  for_each: aws.ec2.describe_launch_templates
+  severity: MEDIUM
+  conditions:
+    var: item.LaunchTemplates[].LaunchTemplateData.MetadataOptions.HttpTokens
+    op: equals
+    value: required
+- rule_id: aws.ec2.resource.vpc_flow_logging_reject_enabled
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: MEDIUM
+  conditions:
+    var: item.VpcId
+    op: exists
+    value: null
+- rule_id: aws.ec2.resource.vpc_peering_route_table_least_access_configured
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: HIGH
+  conditions:
+    var: item.CarrierGateways
+    op: not_empty
+    value: null
+- rule_id: aws.ec2.routetable.no_0_from_private_subnets_configured
+  for_each: aws.ec2.describe_route_tables
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.RouteTables[].Routes[].DestinationCidrBlock
+      op: not_equals
+      value: 0.0.0.0/0
+    - var: item.RouteTables[].Routes[].GatewayId
+      op: not_contains
+      value: igw-
+- rule_id: aws.ec2.routetable.vpc_endpoints_used_for_saas_if_supported
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: HIGH
+  conditions:
+    var: item.CarrierGatewayId
+    op: exists
+    value: null
+- rule_id: aws.ec2.security_group.allow_ingress_from_internet_to_tcp_port_22_configured
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.IpPermissions[].FromPort
+      op: not_equals
+      value: 22
+    - var: item.IpPermissions[].ToPort
+      op: not_equals
+      value: 22
+    - var: item.IpPermissions[].IpRanges[].CidrIp
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.IpPermissions[].Ipv6Ranges[].CidrIpv6
+      op: not_contains
+      value: ::/0
+- rule_id: aws.ec2.security_group.default_deny_between_network_tiers_enforced
+  for_each: aws.ec2.describe_security_groups
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.IpPermissions[].IpRanges[].CidrIp
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.IpPermissionsEgress[].IpRanges[].CidrIp
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: aws.ec2.security_group.egress_access_restricted
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissionsEgress[].IpRanges[].CidrIp
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.IpPermissionsEgress[].Ipv6Ranges[].CidrIpv6
+      op: not_contains
+      value: ::/0
+- rule_id: aws.ec2.security_group.exception_approvals_required
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.StaleSecurityGroupSet
+      op: exists
+      value: null
+    - var: item.StaleSecurityGroupSet
+      op: not_empty
+      value: null
+- rule_id: aws.ec2.security_group.identity_aware_network_policies_enabled
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: HIGH
+  conditions:
+    var: item.SecurityGroupForVpcs
+    op: exists
+    value: null
+- rule_id: aws.ec2.security_group.network_policies_configured
+  for_each: aws.ec2.describe_security_groups
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.IpPermissions
+      op: is_empty
+      value: null
+    - var: item.IpPermissionsEgress
+      op: is_empty
+      value: null
+- rule_id: aws.ec2.security_group.only_required_ports_allowed
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissions[].IpRanges[].CidrIp
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.IpPermissionsEgress[].IpRanges[].CidrIp
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: aws.ec2.security_group.permit_all_egress_rules_blocked
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissionsEgress
+      op: not_empty
+      value: null
+    - all:
+      - var: item.IpPermissionsEgress[].IpRanges[].CidrIp
+        op: not_contains
+        value: 0.0.0.0/0
+      - var: item.IpPermissionsEgress[].Ipv6Ranges[].CidrIpv6
+        op: not_contains
+        value: ::/0
+- rule_id: aws.ec2.security_group.policy_store_encrypted_configured
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: HIGH
+  conditions:
+    var: item.SecurityGroupForVpcs
+    op: exists
+    value: null
+- rule_id: aws.ec2.security_group.tier_to_tier_policies_configured
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.SecurityGroupForVpcs
+      op: exists
+      value: null
+    - var: item.StaleSecurityGroupSet
+      op: is_empty
+      value: null
+- rule_id: aws.ec2.security_group.vpc_endpoint_policies_applied
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: HIGH
+  conditions:
+    var: item.SecurityGroupForVpcs
+    op: exists
+    value: null
+- rule_id: aws.ec2.security_group.zero_cidr_ingress_rules_blocked
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissions[].IpRanges[].CidrIp
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.IpPermissions[].Ipv6Ranges[].CidrIp
+      op: not_contains
+      value: ::/0
+- rule_id: aws.ec2.security_group_common_ports_restricted.common_ports_ingress_restricted
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissions[].IpRanges[].CidrIp
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.IpPermissions[].Ipv6Ranges[].CidrIpv6
+      op: not_contains
+      value: ::/0
+- rule_id: aws.ec2.security_group_default_restrict_traffic.default_deny_all_traffic_enforced
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissions
+      op: is_empty
+      value: null
+    - var: item.IpPermissionsEgress
+      op: is_empty
+      value: null
+- rule_id: aws.ec2.security_group_from_launch_wizard.launch_wizard_created_configured
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.GroupName
+      op: not_equals
+      value: launch-wizard-*
+    - all:
+      - var: item.IpPermissions
+        op: is_empty
+        value: null
+      - var: item.IpPermissionsEgress
+        op: is_empty
+        value: null
+- rule_id: aws.ec2.security_group_internet_ingress_all_ports.internet_ingress_all_ports_blocked
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissions[].IpRanges[].CidrIp
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.IpPermissions[].Ipv6Ranges[].CidrIpv6
+      op: not_contains
+      value: ::/0
+- rule_id: aws.ec2.security_group_internet_ingress_cassandra_7199_9160_8888.port_cassandra_7199_blocked
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissions[].FromPort
+      op: not_contains
+      value: 7199
+    - var: item.IpPermissions[].ToPort
+      op: not_contains
+      value: 7199
+    - var: item.IpPermissions[].FromPort
+      op: not_contains
+      value: 9160
+    - var: item.IpPermissions[].ToPort
+      op: not_contains
+      value: 9160
+    - var: item.IpPermissions[].FromPort
+      op: not_contains
+      value: 8888
+    - var: item.IpPermissions[].ToPort
+      op: not_contains
+      value: 8888
+- rule_id: aws.ec2.security_group_internet_ingress_elasticsearch_kibana_9200_9300_5601.port_elasticsearch_kibana_9200_blocked
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissions[].FromPort
+      op: not_contains
+      value: 9200
+    - var: item.IpPermissions[].FromPort
+      op: not_contains
+      value: 9300
+    - var: item.IpPermissions[].FromPort
+      op: not_contains
+      value: 5601
+    - var: item.IpPermissions[].IpRanges[].CidrIp
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: aws.ec2.security_group_internet_ingress_ftp_20_21.port_ftp_blocked
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissions[].FromPort
+      op: not_contains
+      value: 20
+    - var: item.IpPermissions[].FromPort
+      op: not_contains
+      value: 21
+- rule_id: aws.ec2.security_group_internet_ingress_high_risk_ports.internet_ingress_high_risk_ports_blocked
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissions[].IpRanges[].CidrIp
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.IpPermissions[].Ipv6Ranges[].CidrIpv6
+      op: not_contains
+      value: ::/0
+- rule_id: aws.ec2.security_group_internet_ingress_kafka_9092.port_kafka_blocked
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissions[].FromPort
+      op: not_contains
+      value: 9092
+    - var: item.IpPermissions[].IpRanges[].CidrIp
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: aws.ec2.security_group_internet_ingress_memcached_11211.port_memcached_blocked
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissions[].FromPort
+      op: not_equals
+      value: 11211
+    - var: item.IpPermissions[].ToPort
+      op: not_equals
+      value: 11211
+- rule_id: aws.ec2.security_group_internet_ingress_mongodb_27017_27018.port_mongodb_blocked
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissions[].FromPort
+      op: not_contains
+      value: 27017
+    - var: item.IpPermissions[].FromPort
+      op: not_contains
+      value: 27018
+    - var: item.IpPermissions[].IpRanges[].CidrIp
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: aws.ec2.security_group_internet_ingress_mysql_3306.port_mysql_blocked
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissions[].IpRanges[].CidrIp
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.IpPermissions[].FromPort
+      op: not_equals
+      value: 3306
+    - var: item.IpPermissions[].ToPort
+      op: not_equals
+      value: 3306
+- rule_id: aws.ec2.security_group_internet_ingress_oracle_1521_2483.port_oracle_blocked
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissions[].IpRanges[].CidrIp
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.IpPermissions[].Ipv6Ranges[].CidrIpv6
+      op: not_contains
+      value: ::/0
+- rule_id: aws.ec2.security_group_internet_ingress_postgres_5432.port_postgres_blocked
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissions[].FromPort
+      op: not_contains
+      value: 5432
+    - var: item.IpPermissions[].IpRanges[].CidrIp
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: aws.ec2.security_group_internet_ingress_redis_6379.port_redis_blocked
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissions[].FromPort
+      op: not_contains
+      value: 6379
+    - var: item.IpPermissions[].IpRanges[].CidrIp
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: aws.ec2.security_group_internet_ingress_sql_server_1433_1434.port_sql_server_blocked
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissions[].IpRanges[].CidrIp
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.IpPermissions[].Ipv6Ranges[].CidrIpv6
+      op: not_contains
+      value: ::/0
+- rule_id: aws.ec2.security_group_internet_ingress_telnet_23.port_telnet_blocked
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissions[].FromPort
+      op: not_contains
+      value: 23
+    - var: item.IpPermissions[].ToPort
+      op: not_contains
+      value: 23
+- rule_id: aws.ec2.security_group_rdp_restricted.rdp_access_restricted
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissions[].IpRanges[].CidrIp
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.IpPermissions[].IpProtocol
+      op: equals
+      value: tcp
+    - var: item.IpPermissions[].FromPort
+      op: lte
+      value: 3389
+    - var: item.IpPermissions[].ToPort
+      op: gte
+      value: 3389
+- rule_id: aws.ec2.security_group_ssh_restricted.ssh_access_restricted
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissions[].IpRanges[].CidrIp
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.IpPermissions[].IpProtocol
+      op: equals
+      value: tcp
+    - var: item.IpPermissions[].FromPort
+      op: lte
+      value: 22
+    - var: item.IpPermissions[].ToPort
+      op: gte
+      value: 22
+- rule_id: aws.ec2.security_group_with_many_ingress_egress_rules.ingress_egress_rules_limited_configured
+  for_each: aws.ec2.describe_security_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpPermissions
+      op: length_lte
+      value: 50
+    - var: item.IpPermissionsEgress
+      op: length_lte
+      value: 50
+- rule_id: aws.ec2.snapshot.cross_region_copy_encrypted
+  for_each: aws.ec2.describe_snapshots
+  severity: HIGH
+  conditions:
+    var: item.Encrypted
+    op: is_true
+    value: null
+- rule_id: aws.ec2.snapshot.encryption_at_rest_enabled
+  for_each: aws.ec2.describe_snapshots
+  severity: HIGH
+  conditions:
+    var: item.Encrypted
+    op: is_true
+    value: null
+- rule_id: aws.ec2.snapshot.not_public_configured
+  for_each: aws.ec2.describe_snapshots
+  severity: HIGH
+  conditions:
+    var: item.CreateVolumePermissions[].Group
+    op: not_contains
+    value: all
+- rule_id: aws.ec2.spotinstance.instance_uses_approved_launch_template_configured
+  for_each: aws.ec2.describe_spot_instance_requests
+  severity: MEDIUM
+  conditions:
+    var: item.LaunchSpecification.LaunchTemplate.LaunchTemplateId
+    op: exists
+    value: null
+- rule_id: aws.ec2.spotinstance.no_public_ip_assigned_configured
+  for_each: aws.ec2.describe_addresses
+  severity: HIGH
+  conditions:
+    var: item.Addresses[].InstanceId
+    op: not_exists
+    value: null
+- rule_id: aws.ec2.subnet.automated_isolation_supported_configured
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: MEDIUM
+  conditions:
+    var: item.CarrierGateways
+    op: not_empty
+    value: null
+- rule_id: aws.ec2.subnet.default_deny_between_tiers_configured
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: MEDIUM
+  conditions:
+    var: item.CarrierGateways
+    op: not_empty
+    value: null
+- rule_id: aws.ec2.subnet.exception_approvals_required
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    var: item.Tags.Environment
+    op: exists
+    value: null
+- rule_id: aws.ec2.subnet.private_s_no_igw_route_configured
+  for_each: aws.ec2.describe_route_tables
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.RouteTables[].Routes[].GatewayId
+      op: not_contains
+      value: igw-
+    - var: item.RouteTables[].Associations[].SubnetId
+      op: exists
+      value: null
+- rule_id: aws.ec2.subnet.public_s_use_nacl_restrictions_configured
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: HIGH
+  conditions:
+    var: item.CarrierGateways
+    op: not_empty
+    value: null
+- rule_id: aws.ec2.subnet.public_subnets_use_nacl_restrictions_configured
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: HIGH
+  conditions:
+    var: item.CarrierGateways
+    op: not_empty
+    value: null
+- rule_id: aws.ec2.subnet.quarantine_network_configured
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: HIGH
+  conditions:
+    var: item.CarrierGateways
+    op: not_empty
+    value: null
+- rule_id: aws.ec2.subnet.route_table_association_present
+  for_each: aws.ec2.describe_subnets
+  severity: MEDIUM
+  conditions:
+    var: item.Subnets[].RouteTableId
+    op: exists
+    value: null
+- rule_id: aws.ec2.subnet.tier_to_tier_policies_configured
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: MEDIUM
+  conditions:
+    var: item.CarrierGateways
+    op: not_empty
+    value: null
+- rule_id: aws.ec2.transitgateway.auto_cross_account_attachment_disabled
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: MEDIUM
+  conditions:
+    var: item.AutoAcceptSharedAttachments
+    op: is_false
+    value: null
+- rule_id: aws.ec2.volume.cmk_cmek_configured
+  for_each: aws.ec2.describe_volumes
+  severity: MEDIUM
+  conditions:
+    var: item.Volumes[].KmsKeyId
+    op: exists
+    value: null
+- rule_id: aws.ec2.volume.encryption_at_rest_enabled
+  for_each: aws.ec2.describe_volumes
+  severity: HIGH
+  conditions:
+    var: item.Encrypted
+    op: is_true
+    value: null
+- rule_id: aws.ec2.volume.in_use_configured
+  for_each: aws.ec2.describe_volumes
+  severity: MEDIUM
+  conditions:
+    var: item.Attachments[].InstanceId
+    op: exists
+    value: null
+- rule_id: aws.ec2.volume.protected_by_backup_plan_configured
+  for_each: aws.ec2.describe_volumes
+  severity: MEDIUM
+  conditions:
+    var: item.BackupPlanArn
+    op: exists
+    value: null
+- rule_id: aws.ec2.volume.snapshots_encrypted
+  for_each: aws.ec2.describe_snapshots
+  severity: HIGH
+  conditions:
+    var: item.Encrypted
+    op: is_true
+    value: null
+- rule_id: aws.ec2.volume.snapshots_exists_configured
+  for_each: aws.ec2.describe_addresses
+  severity: MEDIUM
+  conditions:
+    var: item.Addresses
+    op: not_empty
+    value: null
+- rule_id: aws.ec2.vpc.automated_isolation_supported_configured
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: MEDIUM
+  conditions:
+    var: item.CarrierGateways
+    op: not_empty
+    value: null
+- rule_id: aws.ec2.vpc.default_deny_between_tiers_configured
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: MEDIUM
+  conditions:
+    var: item.CarrierGateways
+    op: not_empty
+    value: null
+- rule_id: aws.ec2.vpc.dns_hostnames_and_support_configured
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.EnableDnsHostnames
+      op: is_true
+      value: null
+    - var: item.EnableDnsSupport
+      op: is_true
+      value: null
+- rule_id: aws.ec2.vpc.exception_approvals_required
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: MEDIUM
+  conditions:
+    var: item.Tags.Environment
+    op: exists
+    value: null
+- rule_id: aws.ec2.vpc.flow_logging_enabled
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: MEDIUM
+  conditions:
+    var: item.VpcId
+    op: exists
+    value: null
+- rule_id: aws.ec2.vpc.quarantine_network_configured
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: HIGH
+  conditions:
+    var: item.CarrierGateways
+    op: not_empty
+    value: null
+- rule_id: aws.ec2.vpc.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: MEDIUM
+  conditions:
+    var: item.CarrierGateways
+    op: not_empty
+    value: null
+- rule_id: aws.ec2.vpc.tier_to_tier_policies_configured
+  for_each: aws.ec2.describe_carrier_gateways
+  severity: MEDIUM
+  conditions:
+    var: item.CarrierGateways
+    op: not_empty
+    value: null
+- rule_id: aws.ec2.vpcendpoint.policy_least_privilege
+  for_each: aws.ec2.describe_vpc_endpoints
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.PolicyDocument.Statement[].Effect
+      op: not_equals
+      value: '*'
+    - var: item.PolicyDocument.Statement[].Action
+      op: not_equals
+      value: '*'
+    - var: item.PolicyDocument.Statement[].Resource
+      op: not_equals
+      value: '*'
+- rule_id: aws.ec2.vpcendpoint.private_dns_enabled_if_supported
+  for_each: aws.ec2.describe_vpc_endpoints
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.PrivateDnsEnabled
+      op: is_true
+      value: null
+    - var: item.VpcEndpointType
+      op: not_equals
+      value: GatewayLoadBalancer
+- rule_id: aws.ec2.vpnconnection.ike_phase_encryption_strong_configured
+  for_each: aws.ec2.describe_vpn_connections
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.VpnConnections[].Options.TunnelOptions[].IKEVersions[].Value
+      op: in
+      value:
+      - ikev2
+    - var: item.VpnConnections[].Options.TunnelOptions[].Phase1EncryptionAlgorithms[].Value
+      op: in
+      value:
+      - AES256
+      - AES256-GCM-16
+      - AES256-GCM-12
+      - AES128-GCM-16
+      - AES128-GCM-12
+- rule_id: aws.ec2.vpnconnection.pre_shared_keys_key_rotation_policy_configured
+  for_each: aws.ec2.describe_vpn_connections
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.VpnConnections[].Options.TunnelOptions[].PreSharedKey
+      op: exists
+      value: null
+    - var: item.VpnConnections[].Options.TunnelOptions[].PreSharedKey
+      op: not_empty
+      value: null
+- rule_id: aws.ec2.vpnconnection.tunnel_health_monitoring_enabled
+  for_each: aws.ec2.describe_vpn_connections
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.VgwTelemetry[].Status
+      op: equals
+      value: UP
+    - var: item.VgwTelemetry[].Status
+      op: not_equals
+      value: DOWN

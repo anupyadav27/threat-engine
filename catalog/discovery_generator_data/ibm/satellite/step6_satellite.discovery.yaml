@@ -1,0 +1,36 @@
+version: '1.0'
+provider: ibm
+service: satellite
+services:
+  client: satellite
+  module: boto3.client
+discovery:
+- discovery_id: ibm.satellite.list-locations
+  calls:
+  - action: list-locations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      region: '{{ item.region }}'
+      status: '{{ item.status }}'
+      description: '{{ item.description }}'
+      deployments: '{{ item.deployments }}'
+- discovery_id: ibm.satellite.list-clusters
+  calls:
+  - action: list-clusters
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      location: '{{ item.location }}'
+      state: '{{ item.state }}'
+      kubeVersion: '{{ item.kubeVersion }}'

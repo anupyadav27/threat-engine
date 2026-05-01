@@ -62,19 +62,21 @@ def get_orchestration_metadata(scan_run_id: str) -> Dict[str, Any]:
                 credential_type,
                 credential_ref,
                 include_services,
-                include_regions
+                include_regions,
+                customer_id
             FROM scan_runs
             WHERE scan_run_id = %s::uuid
         """, (scan_run_id,))
 
         row = cursor.fetchone()
         if not row:
-            raise ValueError(f"Scan run ID {scan_run_id} not found in scan_runs table")
+            return None
 
         sid = str(row[0])
+        tenant_id = row[1]
         return {
             "scan_run_id": sid,
-            "tenant_id": row[1],
+            "tenant_id": tenant_id,
             "account_id": row[2],
             "provider_type": row[3],   # alias kept for callers
             "provider": row[3],
@@ -86,6 +88,7 @@ def get_orchestration_metadata(scan_run_id: str) -> Dict[str, Any]:
             "credential_ref": row[8],
             "include_services": row[9],
             "include_regions": row[10],
+            "customer_id": row[11] or tenant_id,  # fall back to tenant_id if not set
         }
     finally:
         cursor.close()

@@ -1,0 +1,90 @@
+rule_id: aws.guardduty.finding.data_exfiltration
+service: guardduty
+provider: aws
+check_type: log
+severity: critical
+title: 'GuardDuty: Data Exfiltration'
+description: GuardDuty detected data exfiltration — sensitive data leaving account.
+rationale: Transferring data to an attacker-controlled cloud account bypasses traditional egress monitoring by using trusted cloud provider channels that appear legitimate.
+threat_category: data_exfiltration
+mitre_tactics:
+- exfiltration
+mitre_techniques:
+- T1537
+risk_score: 92
+resource: guardduty_finding
+source: default
+is_active: true
+domain: data_protection_and_privacy
+action_category: exfiltration
+log_source_type: 
+posture_category: data_security_posture
+threat_tags:
+- T1537
+- data_exfiltration
+- data_loss
+- threat_detection
+- guardduty
+risk_indicators:
+  actor_type: external_threat_actor
+  action_type: data_transfer
+  target_type: cloud_workload
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - data_loss_prevention
+  categories:
+  - data_exfiltration
+  - unauthorized_access
+  priority: critical
+  impact:
+    pci: PCI DSS Requirement 12.3 — Implement security awareness program and protect systems
+    gdpr: GDPR Article 32 — Appropriate technical and organizational measures for data security
+    hipaa: §164.306(a) — Ensure confidentiality, integrity, and availability of ePHI
+  sensitive_data_context: |
+  Unauthorized data exfiltration on guardduty resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks:
+  cis_aws_v3:
+  - 2.7
+  - 3.7
+  cis_azure_v2:
+  - 3.1
+  - 5.2
+  nist_800_53_r5:
+  - SC-7
+  - SC-28
+  - AC-4
+  pci_dss_v4:
+  - 3.2
+  - 4.1
+  - 10.2
+  iso_27001_2022:
+  - A.8.12
+  - A.8.20
+  - A.5.14
+remediation: |
+  1. Block cross-account data replication/copy operations via SCPs / Azure Policy.
+  2. Monitor for S3 replication rule changes or storage account copy operations.
+  3. Alert on cross-tenant storage access and replication events.
+  4. Apply data residency policies via Azure Policy / AWS Config.
+references:
+- https://attack.mitre.org/techniques/T1537/
+- https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication.html
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: guardduty
+    - field: operation
+      op: contains
+      value: Exfiltration
+version: '1.0'

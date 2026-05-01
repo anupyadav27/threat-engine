@@ -1,0 +1,110 @@
+version: '1.0'
+provider: azure
+service: key
+checks:
+- rule_id: azure.key.key.expiration_set
+  for_each: azure.keyvault.keys.list
+  severity: MEDIUM
+  conditions:
+    var: item.attributes.expires
+    op: exists
+    value: null
+- rule_id: azure.key.key.lifecycle_policy
+  for_each: azure.keyvault.keys.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.attributes.exp
+      op: exists
+      value: null
+    - var: item.properties.attributes.nbf
+      op: exists
+      value: null
+- rule_id: azure.key.vault.secrets_kms_deletion_requires_waiting_period
+  for_each: azure.keyvault.vaults.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enable_soft_delete
+      op: is_true
+      value: null
+    - var: item.enable_purge_protection
+      op: is_true
+      value: null
+- rule_id: azure.key.vault.secrets_kms_not_publicly_accessible
+  for_each: azure.keyvault.vaults.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enable_soft_delete
+      op: is_true
+      value: null
+    - var: item.enable_purge_protection
+      op: is_true
+      value: null
+    - var: item.network_rule_set.default_action
+      op: not_equals
+      value: Allow
+- rule_id: azure.key.vault.secrets_kms_policy_least_privilege
+  for_each: azure.keyvault.vaults.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.accessPolicies[].permissions.secrets[]
+      op: not_contains
+      value: all
+    - var: item.properties.accessPolicies[].permissions.keys[]
+      op: not_contains
+      value: all
+    - var: item.properties.accessPolicies[].permissions.certificates[]
+      op: not_contains
+      value: all
+- rule_id: azure.key.vault.secrets_kms_rotation_enabled
+  for_each: azure.keyvault.vaults.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.enableRbacAuthorization
+      op: is_true
+      value: null
+    - var: item.enable_soft_delete
+      op: is_true
+      value: null
+    - var: item.enable_purge_protection
+      op: is_true
+      value: null
+- rule_id: azure.key.vault_vault.secrets_kms_default_keys_disabled_where_cmek_required
+  for_each: azure.keyvault.vaults.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enable_soft_delete
+      op: is_true
+      value: null
+    - var: item.enable_purge_protection
+      op: is_true
+      value: null
+- rule_id: azure.key.vault_vault.secrets_kms_logging_enabled
+  for_each: azure.keyvault.vaults.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.diagnostics
+      op: exists
+      value: null
+    - var: item.properties.diagnostics.logs
+      op: not_empty
+      value: null
+    - any:
+      - var: item.properties.diagnostics.logs[].category
+        op: equals
+        value: AuditEvent
+      - var: item.properties.diagnostics.logs[].category
+        op: equals
+        value: AuditEvent
+      - var: item.properties.diagnostics.logs[].categoryGroup
+        op: contains
+        value: audit
+    - var: item.properties.diagnostics.logs[].enabled
+      op: is_true
+      value: null

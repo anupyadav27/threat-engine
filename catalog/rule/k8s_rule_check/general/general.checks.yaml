@@ -1,0 +1,15 @@
+version: '1.0'
+provider: k8s
+service: general
+checks:
+- rule_id: k8s.general.resource.secrets_as_env_vars_check
+  for_each: k8s.general.list_pods
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.spec.containers[].env[].valueFrom.secretKeyRef
+      op: not_exists
+      value: null
+    - var: item.spec.initContainers[].env[].valueFrom.secretKeyRef
+      op: not_exists
+      value: null

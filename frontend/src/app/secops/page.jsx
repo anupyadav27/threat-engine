@@ -9,7 +9,7 @@ import {
   TrendingUp, TrendingDown, Minus, Zap, ArrowRight,
   Maximize2,
 } from 'lucide-react';
-import { getFromEngine, fetchApi } from '@/lib/api';
+import { getFromEngine, fetchApi, fetchView } from '@/lib/api';
 import { useSecOpsFilters } from '@/lib/secops-filter-context';
 import KpiCard from '@/components/shared/KpiCard';
 import DataTable from '@/components/shared/DataTable';
@@ -21,9 +21,9 @@ import SeverityDonut from '@/components/charts/SeverityDonut';
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-const TENANT_ID = 'test-tenant';
+const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID || 'default-tenant';
 const SCA_API_KEY = 'sbom-api-key-2024';
-const SCA_BASE = '/secops/api/v1/secops/sca/api/v1/sbom';
+const SCA_BASE = '/sbom/api/v1/sbom';
 
 const SEV_ORDER = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
 
@@ -814,13 +814,12 @@ export default function SecOpsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [sast, dast, sca] = await Promise.all([
-        getFromEngine('secops', `/api/v1/secops/sast/scans?tenant_id=${TENANT_ID}`).catch(() => []),
-        getFromEngine('secops', `/api/v1/secops/dast/scans?tenant_id=${TENANT_ID}`).catch(() => []),
+      const [bff, sca] = await Promise.all([
+        fetchView('secops', { tenant_id: TENANT_ID }).catch(() => ({})),
         fetchApi(`${SCA_BASE}`, { headers: { 'X-API-Key': SCA_API_KEY } }).catch(() => []),
       ]);
-      setSastScans(Array.isArray(sast) ? sast : (sast?.scans || sast?.results || []));
-      setDastScans(Array.isArray(dast) ? dast : (dast?.scans || dast?.results || []));
+      setSastScans(bff?.sastScans || []);
+      setDastScans(bff?.dastScans || []);
       setScaScans(Array.isArray(sca)  ? sca  : (sca?.sboms  || sca?.results  || []));
     } catch (err) {
       setError(err?.message || 'Failed to load security data');
@@ -844,12 +843,12 @@ export default function SecOpsPage() {
 
       const [sastResults, dastResults, scaResults] = await Promise.all([
         Promise.all(completedSast.map(s =>
-          getFromEngine('secops', `/api/v1/secops/sast/scan/${s.secops_scan_id}/findings?limit=200`)
+          getFromEngine('secops', `/api/v1/secops/sast/scan/${s.scan_id}/findings?limit=200`)
             .then(r => ({ scan: s, findings: Array.isArray(r) ? r : (r?.findings || []) }))
             .catch(() => ({ scan: s, findings: [] }))
         )),
         Promise.all(completedDast.map(s =>
-          getFromEngine('secops', `/api/v1/secops/dast/scan/${s.dast_scan_id}/findings?limit=200`)
+          getFromEngine('secops', `/api/v1/secops/dast/scan/${s.scan_id}/findings?limit=200`)
             .then(r => ({ scan: s, findings: Array.isArray(r) ? r : (r?.findings || []) }))
             .catch(() => ({ scan: s, findings: [] }))
         )),
@@ -1174,13 +1173,13 @@ export default function SecOpsPage() {
 
     Promise.all(
       completedScans.map(scan =>
-        getFromEngine('secops', `/api/v1/secops/sast/scan/${scan.secops_scan_id}/findings?limit=200`)
+        getFromEngine('secops', `/api/v1/secops/sast/scan/${scan.scan_id}/findings?limit=200`)
           .then(r => {
             const raw = Array.isArray(r) ? r : (r?.findings || []);
             return raw.map(f => ({
               ...f,
               severity: normalizeSev(f.severity),
-              _scan: { repo_url: scan.repo_url, secops_scan_id: scan.secops_scan_id },
+              _scan: { repo_url: scan.project, scan_id: scan.scan_id },
             }));
           })
           .catch(() => [])

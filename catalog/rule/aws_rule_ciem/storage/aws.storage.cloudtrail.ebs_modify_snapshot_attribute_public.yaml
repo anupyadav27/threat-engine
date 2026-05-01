@@ -1,0 +1,92 @@
+rule_id: aws.storage.cloudtrail.ebs_modify_snapshot_attribute_public
+service: storage
+provider: aws
+check_type: log
+severity: critical
+title: 'Storage: EBS Modify Snapshot Attribute Public'
+description: EBS snapshot made public — volume data accessible to any AWS account.
+rationale: Transferring data to an attacker-controlled cloud account bypasses traditional egress monitoring by using trusted cloud provider channels that appear legitimate.
+threat_category: data_exfiltration
+mitre_tactics:
+- exfiltration
+mitre_techniques:
+- T1537
+risk_score: 90
+resource: storage_resource
+source: default
+is_active: true
+domain: data_protection_and_privacy
+action_category: modify
+log_source_type: 
+posture_category: data_security_posture
+threat_tags:
+- T1537
+- data_exfiltration
+- data_loss
+- storage_access
+- data
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: storage_account
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - data_access_governance
+  - backup_and_recovery
+  - data_loss_prevention
+  categories:
+  - data_exfiltration
+  - unauthorized_access
+  priority: critical
+  impact:
+    pci: PCI DSS Requirement 3.1 — Minimize cardholder data storage
+    gdpr: GDPR Article 25 — Data protection by design; minimize data exposure
+    hipaa: §164.312(a)(1) — Access controls on data repositories containing ePHI
+  sensitive_data_context: |
+  Unauthorized data exfiltration on storage resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks:
+  cis_aws_v3:
+  - 2.7
+  - 3.7
+  cis_azure_v2:
+  - 3.1
+  - 5.2
+  nist_800_53_r5:
+  - SC-7
+  - SC-28
+  - AC-4
+  pci_dss_v4:
+  - 3.2
+  - 4.1
+  - 10.2
+  iso_27001_2022:
+  - A.8.12
+  - A.8.20
+  - A.5.14
+remediation: |
+  1. Block cross-account data replication/copy operations via SCPs / Azure Policy.
+  2. Monitor for S3 replication rule changes or storage account copy operations.
+  3. Alert on cross-tenant storage access and replication events.
+  4. Apply data residency policies via Azure Policy / AWS Config.
+references:
+- https://attack.mitre.org/techniques/T1537/
+- https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication.html
+check_config:
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: ModifySnapshotAttribute
+version: '1.0'

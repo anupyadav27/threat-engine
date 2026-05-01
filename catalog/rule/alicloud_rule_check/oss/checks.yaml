@@ -1,0 +1,70 @@
+version: '1.0'
+provider: alicloud
+service: oss
+checks:
+- rule_id: alicloud.oss.bucket.anonymous_auth_disabled
+  for_each: alicloud.oss.GetBucketAccessMonitorResult
+  severity: MEDIUM
+  conditions:
+    var: item.logging_enabled
+    op: is_true
+- rule_id: alicloud.oss.bucket.cross_account_replication_disabled
+  for_each: alicloud.oss.GetBucketAccessMonitorResult
+  severity: MEDIUM
+  conditions:
+    var: item.logging_enabled
+    op: is_true
+- rule_id: alicloud.oss.bucket.encryption_enabled
+  for_each: alicloud.oss.GetBucketAccessMonitorResult
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.logging_enabled
+      op: not_empty
+      value: null
+    - var: item.kms_key_id
+      op: exists
+      value: null
+- rule_id: alicloud.oss.bucket.https_required
+  for_each: alicloud.oss.GetBucketAccessMonitorResult
+  severity: MEDIUM
+  conditions:
+    var: item.ssl_enabled
+    op: is_true
+- rule_id: alicloud.oss.bucket.kms_encryption_enabled
+  for_each: alicloud.oss.GetBucketAccessMonitorResult
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.logging_enabled
+      op: not_empty
+      value: null
+    - var: item.kms_key_id
+      op: exists
+      value: null
+- rule_id: alicloud.oss.bucket.policy_sas_linked_to_stored_access_policy_configured
+  for_each: alicloud.oss.GetAccessPointPolicyResult
+  severity: MEDIUM
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.oss.bucket.replication_enabled
+  for_each: alicloud.oss.GetBucketAccessMonitorResult
+  severity: MEDIUM
+  conditions:
+    var: item.logging_enabled
+    op: is_true
+- rule_id: alicloud.oss.bucket.versioning_enabled
+  for_each: alicloud.oss.GetBucketAccessMonitorResult
+  severity: MEDIUM
+  conditions:
+    var: item.versioning_enabled
+    op: is_true
+- rule_id: alicloud.oss.presigned.stored_policy_configured
+  for_each: alicloud.oss.GetAccessPointPolicyResult
+  severity: MEDIUM
+  conditions:
+    var: item.access_point_policy_result_status
+    op: equals
+    value: Active

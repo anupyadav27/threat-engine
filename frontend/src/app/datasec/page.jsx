@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Database,
   Lock,
@@ -15,8 +15,7 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
-import { fetchView } from '@/lib/api';
-import { useGlobalFilter } from '@/lib/global-filter-context';
+import { useViewFetch } from '@/lib/use-view-fetch';
 import PageLayout from '@/components/shared/PageLayout';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
@@ -36,27 +35,6 @@ const C = {
   teal:     '#14b8a6',
 };
 
-// ── Enriched scan trend (static fallback) ─────────────────────────────────────
-const DS_SCAN_TREND = [
-  { date: 'Jan 13', passRate: 44, critical: 9,  high: 28, medium: 35, total: 72 },
-  { date: 'Jan 20', passRate: 47, critical: 8,  high: 26, medium: 32, total: 66 },
-  { date: 'Jan 27', passRate: 46, critical: 9,  high: 27, medium: 33, total: 69 },
-  { date: 'Feb 3',  passRate: 51, critical: 7,  high: 24, medium: 30, total: 61 },
-  { date: 'Feb 10', passRate: 54, critical: 6,  high: 22, medium: 28, total: 56 },
-  { date: 'Feb 17', passRate: 57, critical: 6,  high: 21, medium: 26, total: 53 },
-  { date: 'Feb 24', passRate: 59, critical: 5,  high: 19, medium: 24, total: 48 },
-  { date: 'Mar 3',  passRate: 61, critical: 5,  high: 18, medium: 23, total: 46 },
-];
-
-// ── Module scores (domain-based, derived when possible) ──────────────────────
-const DS_MODULE_FALLBACK = [
-  { module: 'Data Classification', pass: 7,  total: 12, color: '#8b5cf6' },
-  { module: 'Encryption Coverage', pass: 9,  total: 16, color: '#3b82f6' },
-  { module: 'Public Access',       pass: 3,  total: 8,  color: '#ef4444' },
-  { module: 'DLP Rules',           pass: 11, total: 14, color: '#06b6d4' },
-  { module: 'Data Residency',      pass: 8,  total: 11, color: '#10b981' },
-  { module: 'Access Monitoring',   pass: 6,  total: 10, color: '#f59e0b' },
-];
 
 // ── Category badge ────────────────────────────────────────────────────────────
 function CategoryBadge({ value }) {
@@ -118,47 +96,16 @@ function DsDonut({ slices, size = 160 }) {
 }
 
 export default function DataSecurityPage() {
-  const [loading, setLoading]               = useState(true);
-  const [error, setError]                   = useState(null);
-  const [realCatalog, setRealCatalog]       = useState([]);
-  const [dlpViolations, setDlpViolations]   = useState([]);
-  const [dataResidency, setDataResidency]   = useState([]);
-  const [accessMonitoring, setAccessMonitoring] = useState([]);
-  const [realFindings, setRealFindings]     = useState([]);
-  const [scanTrendData, setScanTrendData]   = useState([]);
+  const { data, loading, error } = useViewFetch('datasec');
+  const realCatalog      = data.catalog          || [];
+  const dlpViolations    = data.dlp              || [];
+  const dataResidency    = data.residency        || [];
+  const accessMonitoring = data.accessMonitoring || [];
+  const realFindings     = data.findings         || [];
+  const scanTrendData    = data.scanTrend        || [];
   const [detailsOpen, setDetailsOpen]       = useState(false);
   const [selectedFinding, setSelectedFinding] = useState(null);
   const handleRowClick = (row) => { const f = row?.original || row; if (f) setSelectedFinding(f); };
-
-  const { provider, account, region } = useGlobalFilter();
-
-  // ── Data fetch ──────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await fetchView('datasec', {
-          provider: provider || undefined,
-          account:  account  || undefined,
-          region:   region   || undefined,
-        });
-        if (data.error) { setError(data.error); return; }
-        if (data.catalog)          setRealCatalog(data.catalog);
-        if (data.dlp)              setDlpViolations(data.dlp);
-        if (data.residency)        setDataResidency(data.residency);
-        if (data.accessMonitoring) setAccessMonitoring(data.accessMonitoring);
-        if (data.scanTrend)        setScanTrendData(data.scanTrend);
-        if (data.findings)         setRealFindings(data.findings);
-      } catch (err) {
-        console.warn('Error fetching data security data:', err);
-        setError(err?.message || 'Failed to load data security data');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [provider, account, region]);
 
   // ── Severity counts from real findings ──────────────────────────────────────
   const severityCount = useMemo(() => {
@@ -213,16 +160,16 @@ export default function DataSecurityPage() {
 
   // ── Scan trend ───────────────────────────────────────────────────────────────
   const activeScanTrend = useMemo(() => {
-    if (scanTrendData?.length >= 2) {
+    if (scanTrendData?.length >= 1) {
       return scanTrendData.map(d => ({ ...d, passRate: d.pass_rate ?? d.passRate ?? 0 }));
     }
-    return DS_SCAN_TREND;
+    return [];
   }, [scanTrendData]);
 
   // ── Module scores — derive from category split when available ────────────────
   const activeModuleScores = useMemo(() => {
     const total = realFindings.length;
-    if (!total) return DS_MODULE_FALLBACK;
+    if (!total) return [];
     const { encryption, data_protection } = categorySplit;
     return [
       { module: 'Encryption Coverage', pass: encryption,      total: Math.max(encryption, 1),      color: '#3b82f6' },
@@ -268,12 +215,12 @@ export default function DataSecurityPage() {
       { label: 'Low',      value: low,      color: C.low      },
     ];
 
-    const first  = activeScanTrend[0];
-    const last   = activeScanTrend[activeScanTrend.length - 1];
-    const rateΔ  = last.passRate  - first.passRate;
-    const critΔ  = (last.critical ?? 0) - (first.critical ?? 0);
-    const highΔ  = (last.high ?? 0)     - (first.high ?? 0);
-    const totalΔ = (last.total ?? 0)    - (first.total ?? 0);
+    const first  = activeScanTrend[0] || {};
+    const last   = activeScanTrend[activeScanTrend.length - 1] || {};
+    const rateΔ  = (last.passRate  ?? 0) - (first.passRate  ?? 0);
+    const critΔ  = (last.critical  ?? 0) - (first.critical  ?? 0);
+    const highΔ  = (last.high      ?? 0) - (first.high      ?? 0);
+    const totalΔ = (last.total     ?? 0) - (first.total     ?? 0);
 
     const statPill = (label, value, delta, goodDir) => {
       const improved = goodDir === 'up' ? delta >= 0 : delta <= 0;
@@ -471,7 +418,7 @@ export default function DataSecurityPage() {
                 Data Security Trend
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
-                {first.date} – {last.date} · {activeScanTrend.length} scans
+                {first.date && last.date ? `${first.date} – ${last.date} · ` : ''}{activeScanTrend.length} scans
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -493,10 +440,10 @@ export default function DataSecurityPage() {
           </div>
 
           <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-            {statPill('Pass Rate', `${last.passRate}%`, rateΔ, 'up'  )}
-            {statPill('Critical',  last.critical,       critΔ, 'down')}
-            {statPill('High',      last.high,           highΔ, 'down')}
-            {statPill('Total',     last.total,          totalΔ,'down')}
+            {statPill('Pass Rate', `${last.passRate ?? 0}%`, rateΔ, 'up'  )}
+            {statPill('Critical',  last.critical ?? 0,    critΔ, 'down')}
+            {statPill('High',      last.high ?? 0,        highΔ, 'down')}
+            {statPill('Total',     last.total ?? 0,       totalΔ,'down')}
           </div>
 
           <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>

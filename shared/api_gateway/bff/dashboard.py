@@ -24,9 +24,9 @@ Returns UI-ready JSON for every widget:
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, List
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
-from ._shared import fetch_many, safe_get, mock_fallback, is_empty_or_health
+from ._shared import fetch_many, safe_get
 from ._transforms import (
     normalize_threat, severity_chart, apply_global_filters, _safe_upper,
 )
@@ -105,6 +105,7 @@ def _extract_resource_from_threat(t: dict) -> dict:
 
 @router.get("/dashboard")
 async def view_dashboard(
+    request: Request,
     tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
@@ -112,6 +113,9 @@ async def view_dashboard(
     scan_run_id: str = Query("latest"),
 ):
     """Single endpoint returning everything the dashboard page needs."""
+
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 
     # ── 7 parallel calls instead of 14 ───────────────────────────────────
     iam_params: Dict[str, str] = {"tenant_id": tenant_id, "csp": provider.lower() if provider else "aws", "scan_id": "latest"}
@@ -124,7 +128,7 @@ async def view_dashboard(
         ("datasec",    "/api/v1/data-security/ui-data", {"tenant_id": tenant_id, "scan_id": "latest"}),
         ("risk",       "/api/v1/risk/ui-data",          {"tenant_id": tenant_id}),
         ("onboarding", "/api/v1/cloud-accounts",          {"tenant_id": tenant_id}),
-    ])
+    ], auth_headers=fwd_headers)
 
     (
         threat_data, compliance_data, inventory_data,
@@ -139,12 +143,6 @@ async def view_dashboard(
     datasec_data = datasec_data if isinstance(datasec_data, dict) else {}
     risk_data = risk_data if isinstance(risk_data, dict) else {}
     onboarding_data = onboarding_data if isinstance(onboarding_data, dict) else {}
-
-    # Mock fallback when all engine calls return empty
-    if all(is_empty_or_health(d) for d in [threat_data, compliance_data, inventory_data, iam_data, datasec_data, risk_data, onboarding_data]):
-        m = mock_fallback("dashboard")
-        if m is not None:
-            return m
 
     now = datetime.now(timezone.utc)
 

@@ -2158,3 +2158,53 @@ Host: postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
 - `risk_trends_pkey`
 
 **PK:** id
+
+---
+
+## Platform DB (Django — `cspm_platform`)
+
+Managed by Django ORM migrations in `platform/cspm-backend/user_auth/`.
+
+### Schema changes — RBAC sprint (migrations 0008 + 0009, applied 2026-05-01)
+
+#### `roles` table — 2 new columns
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `level` | INTEGER | NO | 4 | Hierarchy level: 1=platform, 2=org, 3=group, 4=tenant, 5=account |
+| `scope_level` | VARCHAR(50) | NO | `'tenant'` | One of: `platform`, `organization`, `tenant`, `account` |
+
+#### `user_sessions` table — 3 new columns
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| `token_hint` | VARCHAR(8) | YES | — | First 8 characters of the raw access token. Used for fast session lookup. |
+| `permissions_cache` | JSONB | YES | `'[]'` | Flat list of resolved permission keys, e.g. `["discoveries:read", "threat:read"]` |
+| `scope_cache` | JSONB | YES | `'{}'` | Resolved scope: `{"tenant_ids": ["t1", "t2"], "account_ids": null}`. `null` account_ids = all accounts under those tenants. |
+
+#### New index on `user_sessions`
+
+```sql
+CREATE INDEX idx_user_sessions_token_hint
+  ON user_sessions(token_hint)
+  WHERE revoked = false;
+```
+
+Partial index — only indexes active sessions. Enables O(1) session lookup without scanning
+expired/revoked rows.
+
+### Seeded data (migration 0009)
+
+5 roles with `level` and `scope_level`:
+
+| name | level | scope_level |
+|------|-------|-------------|
+| `platform_admin` | 1 | `platform` |
+| `org_admin` | 2 | `organization` |
+| `tenant_admin` | 4 | `tenant` |
+| `analyst` | 4 | `tenant` |
+| `viewer` | 4 | `tenant` |
+
+27 permissions seeded in `permissions` table (format: `feature:action`).
+Full permission-to-role mapping seeded in `role_permissions` table.
+See `.claude/documentation/RBAC.md` for the complete permission matrix.

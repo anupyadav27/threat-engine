@@ -1,0 +1,51 @@
+rule_id: k8s.pod.audit.privilege_escalation_allowed
+rule_type: ciem
+title: 'Pod: Privilege Escalation Not Restricted'
+scope: pod.audit
+domain: container_and_kubernetes_security
+subcategory: container_security
+severity: high
+service: pod
+resource: audit
+requirement: Privilege Escalation Allowed
+description: Pod created without explicitly setting securityContext.allowPrivilegeEscalation=false.
+  Without this control, a process inside the container may gain more privileges than
+  its parent process via setuid/setgid binaries or Linux capabilities.
+rationale: 'Adversaries abuse Linux privilege escalation mechanisms within Kubernetes
+  containers — including setuid/setgid binaries, Linux capabilities, and missing allowPrivilegeEscalation
+  controls. Without explicit securityContext restrictions, a process inside a container
+  can call execve() on a setuid binary to gain root (UID 0), directly enabling container
+  escape chains (T1611). CIS Kubernetes Benchmark 5.2.5/5.2.6 require these controls
+  to be explicitly set. Detected via: pods created without runAsNonRoot=true, pods
+  created with allowPrivilegeEscalation unset or true, and setuid binary execution.'
+remediation: '1. Explicitly set securityContext.allowPrivilegeEscalation: false in
+  every container spec.
+
+  2. Apply a Kyverno ClusterPolicy or OPA Gatekeeper constraint to enforce this cluster-wide.
+
+  3. Enable Pod Security Admission with ''restricted'' profile, which enforces this
+  field automatically.
+
+  4. Audit existing pods: `kubectl get pods -A -o jsonpath=''{range .items[*].spec.containers[*]}{.name}{"\t"}{.securityContext.allowPrivilegeEscalation}{"\n"}{end}''`
+
+  5. Drop capabilities (securityContext.capabilities.drop: ["ALL"]) for additional
+  hardening.
+
+  '
+references:
+- https://attack.mitre.org/techniques/T1548/
+- https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+- https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted
+- https://www.cisa.gov/sites/default/files/2022-03/kubernetes-hardening-guidance-1.2-508c.pdf
+compliance:
+- canada_pbmm_moderate_CCCS_SI_3_2
+threat_category: privilege_escalation
+mitre_tactics:
+- privilege_escalation
+mitre_techniques:
+- T1548
+risk_score: 74
+action_category: privilege_escalation
+source: default
+metadata_source: auto_generated
+generated_by: k8s_ciem_generator

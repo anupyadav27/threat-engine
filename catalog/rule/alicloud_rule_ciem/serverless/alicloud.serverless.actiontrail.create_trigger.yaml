@@ -1,0 +1,72 @@
+rule_id: alicloud.serverless.actiontrail.create_trigger
+service: serverless
+provider: alicloud
+check_type: log
+severity: medium
+title: 'AliCloud FC: Function Trigger Created'
+description: A new trigger (HTTP, OSS event, timer, MNS) was created for a Function
+  Compute function. Adversaries create triggers to schedule persistent malicious execution.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: persistence
+mitre_tactics:
+- persistence
+mitre_techniques:
+- T1546
+risk_score: 60
+resource: alicloud_fc_trigger
+source: alicloud_ciem_generator
+is_active: true
+domain: compute_and_workload_security
+action_category: create
+log_source_type: alicloud_actiontrail
+posture_category: workload_posture
+threat_tags:
+- T1546
+- persistence
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '8.1'
+  - '8.2'
+  nist_800_53_r5:
+  - CM-2
+  - CM-7
+  - SC-7
+  pci_dss_v4:
+  - '6.3'
+  - '6.4'
+  iso_27001_2022:
+  - A.8.9
+  - A.8.25
+remediation: '1. Review trigger type, source, and schedule.
+
+  2. Alert on timer triggers with high-frequency schedules.
+
+  3. Restrict CreateTrigger to approved deployment accounts.'
+references:
+- https://attack.mitre.org/techniques/T1546/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: fc
+    - field: operation
+      op: equals
+      value: CreateTrigger
+version: '1.0'

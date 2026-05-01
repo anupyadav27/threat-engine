@@ -1,0 +1,87 @@
+# ==========================================================
+# Discovery YAML — groundstation (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 3 | ops: 0 independent, 3 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: groundstation
+
+services:
+  client: groundstation
+  module: "boto3.client('groundstation')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  []
+
+checks: []
+
+discovery:
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.groundstation.get_config [dependent] ──
+  - discovery_id: aws.groundstation.get_config
+    for_each: aws.groundstation.list_configs
+    calls:
+      - action: get_config
+        params:
+          configId: "{{ item.configId }}"
+          configType: "{{ item.configType }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Tags: '{{ item.Tags }}'
+        antennaDownlinkConfig: '{{ item.antennaDownlinkConfig }}'
+        antennaDownlinkDemodDecodeConfig: '{{ item.antennaDownlinkDemodDecodeConfig }}'
+        antennaUplinkConfig: '{{ item.antennaUplinkConfig }}'
+        configData: '{{ item.configData }}'
+        dataflowEndpointConfig: '{{ item.dataflowEndpointConfig }}'
+        s3RecordingConfig: '{{ item.s3RecordingConfig }}'
+        trackingConfig: '{{ item.trackingConfig }}'
+        uplinkEchoConfig: '{{ item.uplinkEchoConfig }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.groundstation.get_dataflow_endpoint_group [dependent] ──
+  - discovery_id: aws.groundstation.get_dataflow_endpoint_group
+    for_each: aws.groundstation.list_dataflow_endpoint_groups
+    calls:
+      - action: get_dataflow_endpoint_group
+        params:
+          dataflowEndpointGroupId: "{{ item.dataflowEndpointGroupId }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.endpointsDetails }}'
+      item:
+        Tags: '{{ item.Tags }}'
+        awsGroundStationAgentEndpoint: '{{ item.awsGroundStationAgentEndpoint }}'
+        downlinkAwsGroundStationAgentEndpoint: '{{ item.downlinkAwsGroundStationAgentEndpoint }}'
+        endpoint: '{{ item.endpoint }}'
+        endpointsDetails: '{{ item.endpointsDetails }}'
+        healthReasons: '{{ item.healthReasons }}'
+        healthStatus: '{{ item.healthStatus }}'
+        securityDetails: '{{ item.securityDetails }}'
+        uplinkAwsGroundStationAgentEndpoint: '{{ item.uplinkAwsGroundStationAgentEndpoint }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.groundstation.get_mission_profile [dependent] ──
+  - discovery_id: aws.groundstation.get_mission_profile
+    for_each: aws.groundstation.list_mission_profiles
+    calls:
+      - action: get_mission_profile
+        params:
+          missionProfileId: "{{ item.missionProfileId }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.dataflowEdges }}'
+      item:
+        Tags: '{{ item.Tags }}'
+        trackingConfigArn: '{{ item.trackingConfigArn }}'
+

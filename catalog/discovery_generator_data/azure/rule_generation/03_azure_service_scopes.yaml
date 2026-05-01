@@ -1,0 +1,433 @@
+# Azure Service Scopes — Maps each Azure service+resource to its security-relevant fields
+# These are Azure-specific. The assertion_domain links to the CSP-agnostic assertion catalog.
+# Format: service.resource.security_area → discovery_id, field, op, value, assertion_domain
+
+scopes:
+
+  # ═══════════════════════════════════════════════════════════════
+  # STORAGE
+  # Discovery: azure.storage.storageaccounts.list_by_resource_group (53 fields)
+  # ═══════════════════════════════════════════════════════════════
+  storage.account.encryption_at_rest:
+    discovery_id: azure.storage.storageaccounts.list_by_resource_group
+    field: encryption
+    op: not_empty
+    assertion_domain: data_protection.encryption_rest
+
+  storage.account.https_enforced:
+    discovery_id: azure.storage.storageaccounts.list_by_resource_group
+    field: enable_https_traffic_only
+    op: equals
+    value: 'true'
+    assertion_domain: data_protection.encryption_transit
+
+  storage.account.tls_minimum_version:
+    discovery_id: azure.storage.storageaccounts.list_by_resource_group
+    field: minimum_tls_version
+    op: equals
+    value: TLS1_2
+    assertion_domain: data_protection.encryption_transit
+
+  storage.account.public_network_access:
+    discovery_id: azure.storage.storageaccounts.list_by_resource_group
+    field: public_network_access
+    op: equals
+    value: Disabled
+    assertion_domain: network_security.network_access
+
+  storage.account.public_blob_access:
+    discovery_id: azure.storage.storageaccounts.list_by_resource_group
+    field: allow_blob_public_access
+    op: equals
+    value: 'false'
+    assertion_domain: data_protection_storage.public_exposure
+
+  storage.account.network_rules:
+    discovery_id: azure.storage.storageaccounts.list_by_resource_group
+    field: network_rule_set
+    op: not_empty
+    assertion_domain: network_security.network_access
+
+  storage.account.private_endpoints:
+    discovery_id: azure.storage.storageaccounts.list_by_resource_group
+    field: private_endpoint_connections
+    op: not_empty
+    assertion_domain: network_security.network_access
+
+  storage.account.shared_key_disabled:
+    discovery_id: azure.storage.storageaccounts.list_by_resource_group
+    field: allow_shared_key_access
+    op: equals
+    value: 'false'
+    assertion_domain: identity_access.authentication
+
+  storage.account.oauth_default:
+    discovery_id: azure.storage.storageaccounts.list_by_resource_group
+    field: default_to_o_auth_authentication
+    op: equals
+    value: 'true'
+    assertion_domain: identity_access.authentication
+
+  storage.account.managed_identity:
+    discovery_id: azure.storage.storageaccounts.list_by_resource_group
+    field: identity
+    op: not_empty
+    assertion_domain: identity_access.least_privilege
+
+  storage.account.immutable_storage:
+    discovery_id: azure.storage.storageaccounts.list_by_resource_group
+    field: immutable_storage_with_versioning
+    op: not_empty
+    assertion_domain: resilience_recovery.ransomware_protection
+
+  storage.account.cross_tenant_replication:
+    discovery_id: azure.storage.storageaccounts.list_by_resource_group
+    field: allow_cross_tenant_replication
+    op: equals
+    value: 'false'
+    assertion_domain: data_protection.data_lifecycle
+
+  storage.account.sas_policy:
+    discovery_id: azure.storage.storageaccounts.list_by_resource_group
+    field: sas_policy
+    op: not_empty
+    assertion_domain: identity_access.authentication
+
+  storage.account.key_policy:
+    discovery_id: azure.storage.storageaccounts.list_by_resource_group
+    field: key_policy
+    op: not_empty
+    assertion_domain: secrets_key_mgmt.secret_storage
+
+  storage.account.sftp_disabled:
+    discovery_id: azure.storage.storageaccounts.list_by_resource_group
+    field: is_sftp_enabled
+    op: equals
+    value: 'false'
+    assertion_domain: network_security.network_access
+
+  storage.account.local_user_disabled:
+    discovery_id: azure.storage.storageaccounts.list_by_resource_group
+    field: is_local_user_enabled
+    op: equals
+    value: 'false'
+    assertion_domain: identity_access.least_privilege
+
+  storage.account.nfsv3_disabled:
+    discovery_id: azure.storage.storageaccounts.list_by_resource_group
+    field: enable_nfs_v3
+    op: equals
+    value: 'false'
+    assertion_domain: network_security.network_access
+
+  # ═══════════════════════════════════════════════════════════════
+  # COMPUTE
+  # Discovery: azure.compute.virtualmachines.list_all (42 fields)
+  # ═══════════════════════════════════════════════════════════════
+  compute.vm.security_profile:
+    discovery_id: azure.compute.virtualmachines.list_all
+    field: security_profile
+    op: not_empty
+    assertion_domain: security.configuration
+
+  compute.vm.managed_identity:
+    discovery_id: azure.compute.virtualmachines.list_all
+    field: identity
+    op: not_empty
+    assertion_domain: identity_access.least_privilege
+
+  compute.vm.network_profile:
+    discovery_id: azure.compute.virtualmachines.list_all
+    field: network_profile
+    op: not_empty
+    assertion_domain: network_security.network_access
+
+  compute.vm.diagnostics:
+    discovery_id: azure.compute.virtualmachines.list_all
+    field: diagnostics_profile
+    op: not_empty
+    assertion_domain: logging_monitoring.monitoring
+
+  compute.vm.os_profile:
+    discovery_id: azure.compute.virtualmachines.list_all
+    field: os_profile
+    op: not_empty
+    assertion_domain: security.configuration
+
+  compute.vm.storage_profile:
+    discovery_id: azure.compute.virtualmachines.list_all
+    field: storage_profile
+    op: not_empty
+    assertion_domain: data_protection.encryption_rest
+
+  compute.vm.availability_zones:
+    discovery_id: azure.compute.virtualmachines.list_all
+    field: zones
+    op: not_empty
+    assertion_domain: resilience.backup_recovery
+
+  # ═══════════════════════════════════════════════════════════════
+  # NETWORK
+  # ═══════════════════════════════════════════════════════════════
+  network.nsg.custom_rules:
+    discovery_id: azure.network.networksecuritygroups.list_all
+    field: custom_rules
+    op: not_empty
+    assertion_domain: network_security.network_access
+
+  network.waf.managed_rules:
+    discovery_id: azure.network.webapplicationfirewallpolicies.list_all
+    field: managed_rules
+    op: not_empty
+    assertion_domain: network_security.network_access
+
+  network.waf.policy_settings:
+    discovery_id: azure.network.webapplicationfirewallpolicies.list_all
+    field: policy_settings
+    op: not_empty
+    assertion_domain: network_security.network_access
+
+  network.waf.custom_rules:
+    discovery_id: azure.network.webapplicationfirewallpolicies.list_all
+    field: custom_rules
+    op: not_empty
+    assertion_domain: network_security.network_access
+
+  # ═══════════════════════════════════════════════════════════════
+  # SQL
+  # Discovery: azure.sql.servers.list (11 fields, properties blob)
+  # ═══════════════════════════════════════════════════════════════
+  sql.server.managed_identity:
+    discovery_id: azure.sql.servers.list
+    field: identity
+    op: not_empty
+    assertion_domain: identity_access.least_privilege
+
+  sql.server.properties:
+    discovery_id: azure.sql.servers.list
+    field: properties
+    op: not_empty
+    assertion_domain: security.configuration
+
+  # ═══════════════════════════════════════════════════════════════
+  # WEB (App Service)
+  # Discovery: azure.web.webapps.list_by_resource_group (63 fields)
+  # ═══════════════════════════════════════════════════════════════
+  web.app.https_only:
+    discovery_id: azure.web.webapps.list_by_resource_group
+    field: https_only
+    op: equals
+    value: 'true'
+    assertion_domain: data_protection.encryption_transit
+
+  web.app.client_cert:
+    discovery_id: azure.web.webapps.list_by_resource_group
+    field: client_cert_enabled
+    op: equals
+    value: 'true'
+    assertion_domain: identity_access.authentication
+
+  web.app.client_cert_mode:
+    discovery_id: azure.web.webapps.list_by_resource_group
+    field: client_cert_mode
+    op: equals
+    value: Required
+    assertion_domain: identity_access.authentication
+
+  web.app.public_network_access:
+    discovery_id: azure.web.webapps.list_by_resource_group
+    field: public_network_access
+    op: equals
+    value: Disabled
+    assertion_domain: network_security.network_access
+
+  web.app.managed_identity:
+    discovery_id: azure.web.webapps.list_by_resource_group
+    field: identity
+    op: not_empty
+    assertion_domain: identity_access.least_privilege
+
+  web.app.vnet_integration:
+    discovery_id: azure.web.webapps.list_by_resource_group
+    field: virtual_network_subnet_id
+    op: not_empty
+    assertion_domain: network_security.network_access
+
+  web.app.e2e_encryption:
+    discovery_id: azure.web.webapps.list_by_resource_group
+    field: end_to_end_encryption_enabled
+    op: equals
+    value: 'true'
+    assertion_domain: data_protection.encryption_transit
+
+  web.app.ssh_disabled:
+    discovery_id: azure.web.webapps.list_by_resource_group
+    field: ssh_enabled
+    op: equals
+    value: 'false'
+    assertion_domain: network_security.network_access
+
+  # ═══════════════════════════════════════════════════════════════
+  # KEYVAULT
+  # Discovery: azure.keyvault.vaults.list_by_subscription (properties blob)
+  # ═══════════════════════════════════════════════════════════════
+  keyvault.vault.properties:
+    discovery_id: azure.keyvault.vaults.list_by_subscription
+    field: properties
+    op: not_empty
+    assertion_domain: secrets_key_mgmt.secret_storage
+
+  keyvault.hsm.managed_identity:
+    discovery_id: azure.keyvault.managedhsms.list_by_subscription
+    field: identity
+    op: not_empty
+    assertion_domain: identity_access.least_privilege
+
+  # ═══════════════════════════════════════════════════════════════
+  # API MANAGEMENT
+  # Discovery: azure.apimanagement.apimanagementservice.list (43 fields)
+  # ═══════════════════════════════════════════════════════════════
+  apimanagement.service.public_network_access:
+    discovery_id: azure.apimanagement.apimanagementservice.list
+    field: public_network_access
+    op: equals
+    value: Disabled
+    assertion_domain: network_security.network_access
+
+  apimanagement.service.private_networking:
+    discovery_id: azure.apimanagement.apimanagementservice.list
+    field: virtual_network_type
+    op: equals
+    value: Internal
+    assertion_domain: network_security.network_access
+
+  apimanagement.service.client_cert:
+    discovery_id: azure.apimanagement.apimanagementservice.list
+    field: enable_client_certificate
+    op: equals
+    value: 'true'
+    assertion_domain: identity_access.authentication
+
+  apimanagement.service.managed_identity:
+    discovery_id: azure.apimanagement.apimanagementservice.list
+    field: identity
+    op: not_empty
+    assertion_domain: identity_access.least_privilege
+
+  # ═══════════════════════════════════════════════════════════════
+  # SERVICEBUS
+  # Discovery: azure.servicebus.namespaces.list_by_resource_group (21 fields)
+  # ═══════════════════════════════════════════════════════════════
+  servicebus.namespace.public_network_access:
+    discovery_id: azure.servicebus.namespaces.list_by_resource_group
+    field: public_network_access
+    op: equals
+    value: Disabled
+    assertion_domain: network_security.network_access
+
+  servicebus.namespace.encryption:
+    discovery_id: azure.servicebus.namespaces.list_by_resource_group
+    field: encryption
+    op: not_empty
+    assertion_domain: data_protection.encryption_rest
+
+  servicebus.namespace.tls:
+    discovery_id: azure.servicebus.namespaces.list_by_resource_group
+    field: minimum_tls_version
+    op: equals
+    value: '1.2'
+    assertion_domain: data_protection.encryption_transit
+
+  servicebus.namespace.local_auth:
+    discovery_id: azure.servicebus.namespaces.list_by_resource_group
+    field: disable_local_auth
+    op: equals
+    value: 'true'
+    assertion_domain: identity_access.authentication
+
+  # ═══════════════════════════════════════════════════════════════
+  # SIGNALR
+  # Discovery: azure.signalr.signalr.list_by_subscription (29 fields)
+  # ═══════════════════════════════════════════════════════════════
+  signalr.service.public_network_access:
+    discovery_id: azure.signalr.signalr.list_by_subscription
+    field: public_network_access
+    op: equals
+    value: Disabled
+    assertion_domain: network_security.network_access
+
+  signalr.service.local_auth_disabled:
+    discovery_id: azure.signalr.signalr.list_by_subscription
+    field: disable_local_auth
+    op: equals
+    value: 'true'
+    assertion_domain: identity_access.authentication
+
+  signalr.service.tls:
+    discovery_id: azure.signalr.signalr.list_by_subscription
+    field: tls
+    op: not_empty
+    assertion_domain: data_protection.encryption_transit
+
+  # ═══════════════════════════════════════════════════════════════
+  # KUSTO (Data Explorer)
+  # Discovery: azure.kusto.clusters.list_by_resource_group (32 fields)
+  # ═══════════════════════════════════════════════════════════════
+  kusto.cluster.public_network_access:
+    discovery_id: azure.kusto.clusters.list_by_resource_group
+    field: public_network_access
+    op: equals
+    value: Disabled
+    assertion_domain: network_security.network_access
+
+  kusto.cluster.disk_encryption:
+    discovery_id: azure.kusto.clusters.list_by_resource_group
+    field: enable_disk_encryption
+    op: equals
+    value: 'true'
+    assertion_domain: data_protection.encryption_rest
+
+  kusto.cluster.double_encryption:
+    discovery_id: azure.kusto.clusters.list_by_resource_group
+    field: enable_double_encryption
+    op: equals
+    value: 'true'
+    assertion_domain: data_protection.encryption_rest
+
+  kusto.cluster.cmk:
+    discovery_id: azure.kusto.clusters.list_by_resource_group
+    field: key_vault_properties
+    op: not_empty
+    assertion_domain: data_protection.encryption_rest
+
+  # ═══════════════════════════════════════════════════════════════
+  # LOG ANALYTICS
+  # Discovery: azure.loganalytics.workspaces.list (24 fields)
+  # ═══════════════════════════════════════════════════════════════
+  loganalytics.workspace.public_ingestion_disabled:
+    discovery_id: azure.loganalytics.workspaces.list
+    field: public_network_access_for_ingestion
+    op: equals
+    value: Disabled
+    assertion_domain: network_security.network_access
+
+  loganalytics.workspace.public_query_disabled:
+    discovery_id: azure.loganalytics.workspaces.list
+    field: public_network_access_for_query
+    op: equals
+    value: Disabled
+    assertion_domain: network_security.network_access
+
+  loganalytics.workspace.cmk_enforced:
+    discovery_id: azure.loganalytics.workspaces.list
+    field: force_cmk_for_query
+    op: equals
+    value: 'true'
+    assertion_domain: data_protection.encryption_rest
+
+  loganalytics.workspace.retention:
+    discovery_id: azure.loganalytics.workspaces.list
+    field: retention_in_days
+    op: gte
+    value: 90
+    assertion_domain: logging_monitoring.logging

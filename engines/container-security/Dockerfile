@@ -10,6 +10,8 @@ COPY engines/container-security/run_scan.py ./run_scan.py
 
 COPY shared/common/ ./engine_common/
 COPY shared/database/ ./consolidated_services/
+# Auth module (destination matches Python imports: engine_auth.*)
+COPY shared/auth/ ./engine_auth/
 
 ENV PYTHONPATH=/app
 ENV PORT=8008

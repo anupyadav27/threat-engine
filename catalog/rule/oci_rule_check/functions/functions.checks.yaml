@@ -1,0 +1,319 @@
+version: '1.0'
+provider: oci
+service: functions
+checks:
+- rule_id: oci.functions.application.app_env_secrets_from_vault_only
+  for_each: oci.functions.list_applications
+  severity: HIGH
+  conditions:
+    var: item.configuration.environmentVariables[].value
+    op: not_contains
+    value: ocid1.vaultsecret
+- rule_id: oci.functions.application.app_logging_enabled
+  for_each: oci.functions.list_applications
+  severity: MEDIUM
+  conditions:
+    var: item.application_log_config
+    op: exists
+    value: null
+- rule_id: oci.functions.application.app_private_networking_enforced
+  for_each: oci.functions.list_applications
+  severity: MEDIUM
+  conditions:
+    var: item.network_security_group_ids
+    op: exists
+    value: null
+- rule_id: oci.functions.application.app_tls_min_1_2_enforced
+  for_each: oci.functions.list_applications
+  severity: MEDIUM
+  conditions:
+    var: item.tls_config.minimum_tls_version
+    op: in
+    value:
+    - '1.2'
+    - '1.3'
+- rule_id: oci.functions.application.automation_artifacts_encrypted_and_private
+  for_each: oci.functions.list_applications
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.functions.application.automation_execution_roles_least_privilege_required
+  for_each: oci.functions.list_applications
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.ocid
+      op: exists
+      value: null
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+- rule_id: oci.functions.application.automation_remediation_roles_least_privilege_required
+  for_each: oci.functions.list_applications
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.ocid
+      op: exists
+      value: null
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+- rule_id: oci.functions.application.config_remediation_auto_enabled_for_high
+  for_each: oci.functions.list_applications
+  severity: LOW
+  conditions:
+    var: item.config_remediation_auto_enabled_for_high
+    op: is_true
+    value: null
+- rule_id: oci.functions.application.config_remediation_manual_runbooks_attached
+  for_each: oci.functions.list_applications
+  severity: LOW
+  conditions:
+    var: item.config.remediation_manual_runbooks_attached
+    op: exists
+    value: null
+- rule_id: oci.functions.application.function_access_keys_configured
+  for_each: oci.functions.list_applications
+  severity: HIGH
+  conditions:
+    var: item.function_access_keys
+    op: exists
+    value: null
+- rule_id: oci.functions.application.function_identity_without_admin_privileges
+  for_each: oci.functions.list_applications
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.functions.application.function_inside_vcn
+  for_each: oci.functions.list_applications
+  severity: LOW
+  conditions:
+    var: item.subnet_ids
+    op: exists
+    value: null
+- rule_id: oci.functions.application.function_invoke_api_operations_audit_logging_enabled
+  for_each: oci.functions.list_applications
+  severity: MEDIUM
+  conditions:
+    var: item.freeform_tags.Environment
+    op: exists
+    value: null
+- rule_id: oci.functions.application.function_logging_and_tracing_enabled
+  for_each: oci.functions.list_applications
+  severity: MEDIUM
+  conditions:
+    var: item.trace_config
+    op: exists
+    value: null
+- rule_id: oci.functions.application.function_public_access_blocked
+  for_each: oci.functions.list_applications
+  severity: CRITICAL
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: PRIVATE
+- rule_id: oci.functions.application.function_restrict_public_access
+  for_each: oci.functions.list_applications
+  severity: CRITICAL
+  conditions:
+    var: item.lifecycle_state
+    op: not_equals
+    value: PUBLIC
+- rule_id: oci.functions.application.function_url_authentication
+  for_each: oci.functions.list_applications
+  severity: HIGH
+  conditions:
+    var: item.function_url_authentication
+    op: is_true
+    value: null
+- rule_id: oci.functions.application.function_url_cors_policy
+  for_each: oci.functions.list_applications
+  severity: MEDIUM
+  conditions:
+    var: item.function_url_cors_policy
+    op: exists
+    value: null
+- rule_id: oci.functions.application.function_url_public
+  for_each: oci.functions.list_applications
+  severity: CRITICAL
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.functions.application.function_vcn_multi_az
+  for_each: oci.functions.list_applications
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.functions.application.function_vpc_private_networking_enabled
+  for_each: oci.functions.list_applications
+  severity: MEDIUM
+  conditions:
+    var: item.network_security_group_ids
+    op: exists
+    value: null
+- rule_id: oci.functions.application.http_logs_enabled
+  for_each: oci.functions.list_applications
+  severity: LOW
+  conditions:
+    var: item.trace_config.is_enabled
+    op: is_true
+    value: null
+- rule_id: oci.functions.application.invoke_api_operations_audit_logging_enabled
+  for_each: oci.functions.list_applications
+  severity: MEDIUM
+  conditions:
+    var: item.invoke_api_operations_audit_logging_enabled
+    op: is_true
+    value: null
+- rule_id: oci.functions.application.layer_source_trusted
+  for_each: oci.functions.list_applications
+  severity: LOW
+  conditions:
+    var: item.layer_source_trusted
+    op: is_true
+    value: null
+- rule_id: oci.functions.application.layer_version_immutable_required
+  for_each: oci.functions.list_applications
+  severity: LOW
+  conditions:
+    var: item.layer_version_immutable
+    op: is_true
+    value: null
+- rule_id: oci.functions.application.maintenance_execution_roles_least_privilege_required
+  for_each: oci.functions.list_applications
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.functions.application.maintenance_window_defined_required
+  for_each: oci.functions.list_applications
+  severity: LOW
+  conditions:
+    var: item.maintenance_window
+    op: exists
+    value: null
+- rule_id: oci.functions.application.minimum_tls_version_12
+  for_each: oci.functions.list_applications
+  severity: MEDIUM
+  conditions:
+    var: item.minimum_tls_version
+    op: in
+    value:
+    - '1.2'
+    - '1.3'
+- rule_id: oci.functions.application.prov_conc_execution_role_least_privilege_required
+  for_each: oci.functions.list_applications
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.ocid
+      op: exists
+      value: null
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+- rule_id: oci.functions.application.secrets_security_parameter_access_rbac_least_privilege_required
+  for_each: oci.functions.list_applications
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.configuration
+      op: exists
+      value: null
+    - var: item.configuration.kms_key_id
+      op: exists
+      value: null
+- rule_id: oci.functions.application.secrets_security_parameter_cmk_enabled
+  for_each: oci.functions.list_applications
+  severity: HIGH
+  conditions:
+    var: item.configuration.secrets.security_parameter.cmk_enabled
+    op: is_true
+    value: null
+- rule_id: oci.functions.application.secrets_security_parameter_secure_string_type_for_sensitive
+  for_each: oci.functions.list_applications
+  severity: HIGH
+  conditions:
+    var: item.configuration.secrets[].secret_type
+    op: equals
+    value: SECURE_STRING
+- rule_id: oci.functions.application.version_published_and_immutable_required
+  for_each: oci.functions.list_applications
+  severity: LOW
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.VersionPublished
+      op: exists
+      value: null
+    - var: item.freeform_tags.VersionPublished
+      op: equals
+      value: 'true'
+    - var: item.freeform_tags.Immutable
+      op: exists
+      value: null
+    - var: item.freeform_tags.Immutable
+      op: equals
+      value: 'true'
+- rule_id: oci.functions.application.version_rollforward_rollback_controls_present_required
+  for_each: oci.functions.list_applications
+  severity: LOW
+  conditions:
+    var: item.freeform_tags.VersionRollforwardRollbackControlsPresent
+    op: exists
+    value: null
+- rule_id: oci.functions.function.function_dead_letter_queue_configured
+  for_each: oci.functions.list_applications
+  severity: LOW
+  conditions:
+    var: item.freeform_tags.DeadLetterQueueConfigured
+    op: is_true
+    value: null
+- rule_id: oci.functions.function.function_env_no_plaintext_secrets
+  for_each: oci.functions.list_applications
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.freeform_tags
+      op: not_exists
+      value: null
+    - var: item.defined_tags
+      op: not_exists
+      value: null
+- rule_id: oci.functions.function.function_reserved_concurrency
+  for_each: oci.functions.list_applications
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.functions.function.function_role_least_privilege_required
+  for_each: oci.functions.list_applications
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE

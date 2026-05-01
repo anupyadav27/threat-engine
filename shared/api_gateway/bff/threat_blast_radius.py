@@ -6,7 +6,7 @@ Shows per-detection blast radius data (reachable resources, depth distribution).
 
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
 from ._shared import fetch_many, safe_get
 
@@ -29,6 +29,7 @@ def _fix_region(region: str, resource_uid: str) -> str:
 
 @router.get("/threats/blast-radius")
 async def view_threat_blast_radius(
+    request: Request,
     tenant_id: str = Query(...),
     scan_run_id: Optional[str] = Query(None),
     resource_uid: Optional[str] = Query(None),
@@ -39,13 +40,16 @@ async def view_threat_blast_radius(
     Optionally filters to a specific resource_uid.
     """
 
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
     params = {"tenant_id": tenant_id, "limit": "500"}
     if scan_run_id:
         params["scan_run_id"] = scan_run_id
 
     results = await fetch_many([
         ("threat", "/api/v1/threat/analysis/blast-radius", params),
-    ])
+    ], auth_headers=fwd_headers)
 
     raw = results[0]
     if not isinstance(raw, dict):

@@ -1,0 +1,62 @@
+version: '1.0'
+provider: k8s
+service: networkpolicy
+checks:
+- rule_id: k8s.networkpolicy.egress.default_deny_configured
+  for_each: k8s.networkpolicy.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.spec.policyTypes
+      op: contains
+      value: Egress
+    - var: item.spec.egress
+      op: is_empty
+      value: null
+- rule_id: k8s.networkpolicy.ingress.default_deny_configured
+  for_each: k8s.networkpolicy.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.spec.policyTypes
+      op: contains
+      value: Ingress
+    - var: item.spec.ingress
+      op: is_empty
+      value: null
+- rule_id: k8s.networkpolicy.rule.no_allow_all_egress
+  for_each: k8s.networkpolicies.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.spec.egress
+      op: exists
+      value: null
+    - var: item.spec.egress[].to
+      op: not_empty
+      value: null
+    - all:
+      - var: item.spec.egress[].to[].ipBlock
+        op: exists
+        value: null
+      - var: item.spec.egress[].to[].ipBlock.cidr
+        op: not_equals
+        value: 0.0.0.0/0
+- rule_id: k8s.networkpolicy.rule.no_allow_all_ingress
+  for_each: k8s.networkpolicies.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.spec.ingress
+      op: not_empty
+      value: null
+    - var: item.spec.ingress[].from
+      op: not_empty
+      value: null
+- rule_id: k8s.networkpolicy.spec.policy_types_configured
+  for_each: k8s.networkpolicy.list
+  severity: MEDIUM
+  conditions:
+    var: item.spec.policyTypes
+    op: not_empty
+    value: null

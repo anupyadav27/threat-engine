@@ -8,9 +8,10 @@ No check engine call needed.
 
 from typing import Optional, Dict
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
-from ._shared import fetch_many, safe_get, mock_fallback, is_empty_or_health
+from ._shared import fetch_many, safe_get
+from ._cache import cache_key, cached_view, TTL_MISCONFIG, auth_level_from_header
 from ._transforms import normalize_check_finding, build_misconfig_heatmap, apply_global_filters
 from ._page_context import misconfig_page_context, misconfig_filter_schema
 
@@ -47,6 +48,7 @@ def _extract_service(t: dict) -> str:
 
 @router.get("/misconfig")
 async def view_misconfig(
+    request: Request,
     tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
@@ -55,19 +57,22 @@ async def view_misconfig(
 ):
     """Single endpoint returning everything the misconfig page needs."""
 
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+    role_level = auth_level_from_header(auth_ctx_header)
+
+    ck = cache_key("misconfig", tenant_id, scan_run_id, provider or "", account or "", region or "", role_level=role_level)
+    cached = cached_view(ck)
+    if cached is not None:
+        return cached
+
     results = await fetch_many([
         ("threat", "/api/v1/threat/ui-data", {
             "tenant_id": tenant_id, "scan_run_id": scan_run_id, "limit": "500",
         }),
-    ])
+    ], auth_headers=fwd_headers)
 
     data = results[0] or {}
-
-    # Mock fallback when engine data is empty
-    if is_empty_or_health(data):
-        m = mock_fallback("misconfig")
-        if m is not None:
-            return m
 
     # threat_findings = enriched check findings (FAIL/WARN only)
     raw_threats = safe_get(data, "threats", [])
@@ -139,7 +144,7 @@ async def view_misconfig(
         {"id": "quick_wins", "label": "Quick Wins", "count": len(quick_wins)},
     ]
 
-    return {
+    result = {
         "pageContext": page_ctx,
         "filterSchema": misconfig_filter_schema(),
         "kpiGroups": [
@@ -182,3 +187,5 @@ async def view_misconfig(
         # scan_trend from threat engine (pass-through; engine must supply it)
         "scanTrend": safe_get(data, "scan_trend", []),
     }
+    cached_view(ck, result, ttl=TTL_MISCONFIG)
+    return result

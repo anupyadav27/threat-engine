@@ -1,0 +1,202 @@
+version: '1.0'
+provider: alicloud
+service: cdn
+checks:
+- rule_id: alicloud.cdn.cache_policy.no_sensitive_headers_cached
+  for_each: alicloud.cdn.cache_policy
+  severity: MEDIUM
+  conditions:
+    var: item.cache_policy_config[].header_operation[].header_name
+    op: not_contains
+    value: Authorization
+- rule_id: alicloud.cdn.cloudfront.https_enforced
+  for_each: alicloud.cdn.cloudfront
+  severity: MEDIUM
+  conditions:
+    var: item.ssl_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.cdn.dcdn.cdn_access_logging_enabled
+  for_each: alicloud.cdn.dcdn
+  severity: MEDIUM
+  conditions:
+    var: item.logging_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.cdn.dcdn.cdn_cache_key_excludes_sensitive_headers
+  for_each: alicloud.cdn.dcdn
+  severity: MEDIUM
+  conditions:
+    var: item.cache_key_excludes_sensitive_headers
+    op: is_true
+    value: null
+- rule_id: alicloud.cdn.dcdn.cdn_hsts_enabled
+  for_each: alicloud.cdn.dcdn
+  severity: MEDIUM
+  conditions:
+    var: item.ssl_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.cdn.dcdn.cdn_https_only_viewer_protocol
+  for_each: alicloud.cdn.dcdn
+  severity: MEDIUM
+  conditions:
+    var: item.ssl_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.cdn.dcdn.cdn_origin_access_restricted
+  for_each: alicloud.cdn.dcdn
+  severity: MEDIUM
+  conditions:
+    var: item.origin_access_restricted
+    op: is_true
+    value: null
+- rule_id: alicloud.cdn.dcdn.cdn_signed_urls_or_headers_required_for_private_content
+  for_each: alicloud.cdn.dcdn
+  severity: MEDIUM
+  conditions:
+    var: item.signed_urls_or_headers_required_for_private_content
+    op: is_true
+    value: null
+- rule_id: alicloud.cdn.dcdn.cdn_tls_min_1_2_enforced
+  for_each: alicloud.cdn.dcdn
+  severity: HIGH
+  conditions:
+    var: item.min_tls_version
+    op: in
+    value:
+    - '1.2'
+    - '1.3'
+- rule_id: alicloud.cdn.dcdn.cdn_valid_trusted_certificate_attached
+  for_each: alicloud.cdn.dcdn
+  severity: MEDIUM
+  conditions:
+    var: item.ssl_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.cdn.dcdn.cdn_waf_web_acl_attached
+  for_each: alicloud.cdn.dcdn
+  severity: MEDIUM
+  conditions:
+    var: item.waf_web_acl_attached
+    op: exists
+    value: null
+- rule_id: alicloud.cdn.distribution.custom_ssl_certificate_valid
+  for_each: alicloud.cdn.distribution
+  severity: MEDIUM
+  conditions:
+    var: item.ssl_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.cdn.distribution.logging_enabled_90_day_retention
+  for_each: alicloud.cdn.distribution
+  severity: MEDIUM
+  conditions:
+    var: item.logging_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.cdn.distribution.origin_traffic_encrypted_tls1_2_or_higher
+  for_each: alicloud.cdn.distribution
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.encrypted
+      op: is_true
+      value: null
+    - var: item.min_tls_version
+      op: gte
+      value: '1.2'
+- rule_id: alicloud.cdn.distribution.tls1_2_or_higher_enforced
+  for_each: alicloud.cdn.distribution
+  severity: HIGH
+  conditions:
+    var: item.min_tls_version
+    op: gte
+    value: '1.2'
+- rule_id: alicloud.cdn.domain.custom_ssl_certificate
+  for_each: alicloud.cdn.distribution
+  severity: MEDIUM
+  conditions:
+    var: item.ssl_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.cdn.domain.field_level_encryption_enabled
+  for_each: alicloud.cdn.distribution
+  severity: HIGH
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.cdn.domain.https_enabled
+  for_each: alicloud.cdn.distribution
+  severity: MEDIUM
+  conditions:
+    var: item.ssl_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.cdn.domain.logging_enabled
+  for_each: alicloud.cdn.distribution
+  severity: MEDIUM
+  conditions:
+    var: item.logging_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.cdn.domain.multiple_origin_failover_configured
+  for_each: alicloud.cdn.distribution
+  severity: MEDIUM
+  conditions:
+    var: item.origins
+    op: length_gte
+    value: 2
+- rule_id: alicloud.cdn.domain.origin_traffic_encrypted
+  for_each: alicloud.cdn.distribution
+  severity: HIGH
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.cdn.domain.using_deprecated_ssl_protocols
+  for_each: alicloud.cdn.distribution
+  severity: MEDIUM
+  conditions:
+    var: item.min_tls_version
+    op: gte
+    value: '1.2'
+- rule_id: alicloud.cdn.edge.cache_policy_no_sensitive_headers_cached
+  for_each: alicloud.cdn.cache_policy
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.cache_policy_config.cache_behavior[].header_behavior
+      op: not_contains
+      value: whitelist
+    - var: item.cache_policy_config.cache_behavior[].header_config[].header[]
+      op: not_contains
+      value: Authorization
+    - var: item.cache_policy_config.cache_behavior[].header_config[].header[]
+      op: not_contains
+      value: Cookie
+- rule_id: alicloud.cdn.edge.cache_policy_respects_cache_control_no_store_private
+  for_each: alicloud.cdn.cache_policy
+  severity: MEDIUM
+  conditions:
+    var: item.cache_behavior_policy.respect_cache_control_no_store_private
+    op: is_true
+    value: null
+- rule_id: alicloud.cdn.origin.origin_request_policy_no_secret_headers_forwarded
+  for_each: alicloud.cdn.distribution
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.OriginRequestPolicyId
+      op: exists
+      value: null
+    - var: item.OriginRequestPolicy.HeadersConfig.HeaderBehavior
+      op: not_equals
+      value: whitelist
+    - var: item.OriginRequestPolicy.HeadersConfig.Headers.WhitelistedItems[].Header
+      op: not_contains
+      value: Authorization
+    - var: item.OriginRequestPolicy.HeadersConfig.Headers.WhitelistedItems[].Header
+      op: not_contains
+      value: Proxy-Authorization

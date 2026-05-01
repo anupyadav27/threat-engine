@@ -9,48 +9,12 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
-import { fetchView } from '@/lib/api';
-import { useGlobalFilter } from '@/lib/global-filter-context';
+import { useViewFetch } from '@/lib/use-view-fetch';
 import PageLayout from '@/components/shared/PageLayout';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
 import FindingDetailPanel from '@/components/shared/FindingDetailPanel';
 
-// ── Demo fallback data (shown when backend returns no data) ───────────────────
-const DEMO_IAM_IDENTITIES = [
-  { username: 'admin-deploy-user',   type: 'User',            account: '123456789012', policies: 14, severity: 'critical', risk_score: 91, mfa: false },
-  { username: 'svc-data-pipeline',   type: 'Service Account', account: '123456789012', policies: 22, severity: 'critical', risk_score: 87, mfa: false },
-  { username: 'dev-lead-jsmith',     type: 'User',            account: '234567890123', policies: 9,  severity: 'high',     risk_score: 73, mfa: true  },
-  { username: 'ci-cd-automation',    type: 'Service Account', account: '123456789012', policies: 18, severity: 'high',     risk_score: 68, mfa: false },
-  { username: 'analytics-reader',    type: 'User',            account: '345678901234', policies: 4,  severity: 'medium',   risk_score: 44, mfa: true  },
-  { username: 'ops-oncall-role',     type: 'Role',            account: '123456789012', policies: 7,  severity: 'medium',   risk_score: 39, mfa: true  },
-  { username: 'backup-restore-svc',  type: 'Service Account', account: '234567890123', policies: 11, severity: 'low',      risk_score: 22, mfa: true  },
-  { username: 'readonly-auditor',    type: 'User',            account: '345678901234', policies: 2,  severity: 'low',      risk_score: 11, mfa: true  },
-];
-
-const DEMO_IAM_ROLES = [
-  { name: 'AdminFullAccess',       type: 'Role', rule_id: 'IAM-R-001', severity: 'critical', status: 'FAIL', account_id: '123456789012', region: 'us-east-1' },
-  { name: 'CrossAccountDeploy',    type: 'Role', rule_id: 'IAM-R-002', severity: 'critical', status: 'FAIL', account_id: '123456789012', region: 'us-east-1' },
-  { name: 'EC2InstanceProfileProd',type: 'Role', rule_id: 'IAM-R-003', severity: 'high',     status: 'FAIL', account_id: '234567890123', region: 'us-west-2' },
-  { name: 'LambdaExecutionRole',   type: 'Role', rule_id: 'IAM-R-004', severity: 'high',     status: 'FAIL', account_id: '123456789012', region: 'us-east-1' },
-  { name: 'DataScienceNotebook',   type: 'Role', rule_id: 'IAM-R-005', severity: 'medium',   status: 'FAIL', account_id: '345678901234', region: 'eu-west-1' },
-  { name: 'ReadOnlyReporting',     type: 'Role', rule_id: 'IAM-R-006', severity: 'low',      status: 'PASS', account_id: '345678901234', region: 'eu-west-1' },
-];
-
-const DEMO_IAM_ACCESS_KEYS = [
-  { user: 'admin-deploy-user', type: 'Access Key', rule_id: 'IAM-K-001', severity: 'critical', status: 'FAIL', account_id: '123456789012', region: 'global' },
-  { user: 'svc-data-pipeline', type: 'Access Key', rule_id: 'IAM-K-002', severity: 'high',     status: 'FAIL', account_id: '123456789012', region: 'global' },
-  { user: 'ci-cd-automation',  type: 'Access Key', rule_id: 'IAM-K-003', severity: 'high',     status: 'FAIL', account_id: '234567890123', region: 'global' },
-  { user: 'dev-lead-jsmith',   type: 'Access Key', rule_id: 'IAM-K-004', severity: 'medium',   status: 'FAIL', account_id: '234567890123', region: 'global' },
-  { user: 'analytics-reader',  type: 'Access Key', rule_id: 'IAM-K-005', severity: 'low',      status: 'PASS', account_id: '345678901234', region: 'global' },
-];
-
-const DEMO_IAM_PRIVESC = [
-  { name: 'User → AdminRole via iam:PassRole',          type: 'Attack Path', rule_id: 'IAM-P-001', severity: 'critical', status: 'FAIL', account_id: '123456789012', region: 'us-east-1' },
-  { name: 'SvcAccount → S3:* via inline policy attach', type: 'Attack Path', rule_id: 'IAM-P-002', severity: 'critical', status: 'FAIL', account_id: '123456789012', region: 'us-east-1' },
-  { name: 'Lambda → RDS admin via wildcard resource',   type: 'Attack Path', rule_id: 'IAM-P-003', severity: 'high',     status: 'FAIL', account_id: '234567890123', region: 'us-west-2' },
-  { name: 'CI/CD Role → secrets:GetSecretValue *',      type: 'Attack Path', rule_id: 'IAM-P-004', severity: 'high',     status: 'FAIL', account_id: '123456789012', region: 'us-east-1' },
-];
 
 // ── Color palette ──
 const C = {
@@ -64,36 +28,6 @@ const C = {
   indigo:   '#6366f1',
 };
 
-// ── Scan trend: total identities + risk subsets ──
-const IAM_SCAN_TREND = [
-  { date: 'Jan 13', total: 148, overprivileged: 47, no_mfa: 23 },
-  { date: 'Jan 20', total: 151, overprivileged: 44, no_mfa: 21 },
-  { date: 'Jan 27', total: 154, overprivileged: 42, no_mfa: 20 },
-  { date: 'Feb 3',  total: 156, overprivileged: 41, no_mfa: 18 },
-  { date: 'Feb 10', total: 158, overprivileged: 39, no_mfa: 17 },
-  { date: 'Feb 17', total: 159, overprivileged: 37, no_mfa: 16 },
-  { date: 'Feb 24', total: 160, overprivileged: 35, no_mfa: 14 },
-  { date: 'Mar 3',  total: 160, overprivileged: 34, no_mfa: 13 },
-].map(d => ({
-  ...d,
-  // "safe" = identities with no known risk (remainder after risk layers)
-  safe: Math.max(0, d.total - d.overprivileged - d.no_mfa),
-}));
-
-// ── KPI fallback ──
-const IAM_KPI_FALLBACK = {
-  critical: 3, high: 193, medium: 372, low: 0,
-  posture_score: 31, total_findings: 568,
-  identities: 160, keys_to_rotate: 34,
-  overprivileged: 34, no_mfa: 13,
-};
-
-const IAM_SPARKLINES = {
-  posture_score:  [22, 24, 25, 26, 27, 28, 29, 31],
-  total_findings: [620, 608, 598, 592, 585, 578, 572, 568],
-  identities:     [155, 156, 157, 158, 158, 159, 160, 160],
-  keys_to_rotate: [52, 49, 47, 44, 42, 39, 37, 34],
-};
 
 // ── Pure-SVG severity donut ──
 function IamDonut({ slices, size = 160 }) {
@@ -175,9 +109,7 @@ const IAM_REMEDIATION_MAP = {
 };
 
 export default function IamSecurityPage() {
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState(null);
-  const [data, setData]           = useState({});
+  const { data, loading, error } = useViewFetch('iam');
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedIdentity, setSelectedIdentity] = useState(null);
 
@@ -186,38 +118,16 @@ export default function IamSecurityPage() {
     if (identity) setSelectedIdentity(identity);
   };
 
-  const { provider, account, region } = useGlobalFilter();
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true); setError(null);
-      try {
-        const result = await fetchView('iam', {
-          provider: provider || undefined,
-          account:  account  || undefined,
-          region:   region   || undefined,
-        });
-        if (result.error) { setError(result.error); return; }
-        setData(result);
-      } catch (err) {
-        setError(err?.message || 'Failed to load IAM data');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [provider, account, region]);
-
   const rawIdentities          = data.identities          || [];
   const rawFindings            = data.findings            || [];
   const rawRoles               = data.roles               || [];
   const rawAccessKeys          = data.accessKeys          || [];
   const rawPrivilegeEscalation = data.privilegeEscalation || [];
 
-  const identities          = rawIdentities.length          ? rawIdentities          : DEMO_IAM_IDENTITIES;
-  const roles               = rawRoles.length               ? rawRoles               : DEMO_IAM_ROLES;
-  const accessKeys          = rawAccessKeys.length          ? rawAccessKeys          : DEMO_IAM_ACCESS_KEYS;
-  const privilegeEscalation = rawPrivilegeEscalation.length ? rawPrivilegeEscalation : DEMO_IAM_PRIVESC;
+  const identities          = rawIdentities;
+  const roles               = rawRoles;
+  const accessKeys          = rawAccessKeys;
+  const privilegeEscalation = rawPrivilegeEscalation;
 
   // ── Derive KPI numbers ──
   const kpiNums = useMemo(() => {
@@ -227,21 +137,20 @@ export default function IamSecurityPage() {
       arr.find(x => x.label?.toLowerCase() === lbl.toLowerCase())?.value ?? null;
 
     return {
-      critical:      get(g0, 'Critical')       ?? IAM_KPI_FALLBACK.critical,
-      high:          get(g0, 'High')            ?? IAM_KPI_FALLBACK.high,
-      medium:        get(g0, 'Medium')          ?? IAM_KPI_FALLBACK.medium,
+      critical:      get(g0, 'Critical')       ?? 0,
+      high:          get(g0, 'High')            ?? 0,
+      medium:        get(g0, 'Medium')          ?? 0,
       low:           0,
-      posture_score: get(g0, 'Posture Score')  ?? IAM_KPI_FALLBACK.posture_score,
-      total_findings:get(g0, 'Total Findings') ?? IAM_KPI_FALLBACK.total_findings,
-      identityCount: get(g1, 'Identities')     ?? (identities.length || IAM_KPI_FALLBACK.identities),
-      keys_to_rotate:get(g1, 'Keys to Rotate') ?? IAM_KPI_FALLBACK.keys_to_rotate,
+      posture_score: get(g0, 'Posture Score')  ?? 0,
+      total_findings:get(g0, 'Total Findings') ?? 0,
+      identityCount: get(g1, 'Identities')     ?? identities.length,
+      keys_to_rotate:get(g1, 'Keys to Rotate') ?? 0,
       mfa_adoption:  get(g1, 'MFA Adoption')   ?? 100,
     };
   }, [data.kpiGroups, identities]);
 
-  // ── Active scan trend: live from BFF or static fallback ──────────────
   const activeScanTrend = useMemo(
-    () => (data.scanTrend?.length >= 2 ? data.scanTrend : IAM_SCAN_TREND),
+    () => data.scanTrend || [],
     [data.scanTrend],
   );
 
@@ -267,7 +176,7 @@ export default function IamSecurityPage() {
       { label: 'Low',      value: low,      color: C.low      },
     ];
 
-    const chartLast = activeScanTrend[activeScanTrend.length - 1];
+    const chartLast = activeScanTrend[activeScanTrend.length - 1] || {};
 
     // KPI tile — KpiSparkCard with translucent border, glow, sparkline, delta
     const tile = (label, value, color, suffix = '', sub = '', sparkData = [], delta = null, deltaGood = 'down') => (
@@ -285,20 +194,20 @@ export default function IamSecurityPage() {
     );
 
     // ── Trend chart deltas ──
-    const chartFirst = activeScanTrend[0];
+    const chartFirst = activeScanTrend[0] || {};
     const noMfaΔ = (chartLast.no_mfa ?? 0) - (chartFirst.no_mfa ?? 0);
     const overΔ  = (chartLast.overprivileged ?? 0) - (chartFirst.overprivileged ?? 0);
-    const safeΔ  = chartLast.safe - chartFirst.safe;
-    const totalRiskΔ = (chartLast.no_mfa + chartLast.overprivileged) -
-                       (chartFirst.no_mfa + chartFirst.overprivileged);
+    const safeΔ  = (chartLast.safe ?? 0) - (chartFirst.safe ?? 0);
+    const totalRiskΔ = ((chartLast.no_mfa ?? 0) + (chartLast.overprivileged ?? 0)) -
+                       ((chartFirst.no_mfa ?? 0) + (chartFirst.overprivileged ?? 0));
 
     const chartSeries = [
       { key: 'no_mfa',         label: 'No MFA',           color: C.critical,
-        value: chartLast.no_mfa,         delta: noMfaΔ, good: 'down' },
+        value: chartLast.no_mfa         ?? 0, delta: noMfaΔ, good: 'down' },
       { key: 'overprivileged', label: 'Overprivileged',   color: C.high,
-        value: chartLast.overprivileged, delta: overΔ,  good: 'down' },
+        value: chartLast.overprivileged ?? 0, delta: overΔ,  good: 'down' },
       { key: 'safe',           label: 'Secure',           color: C.emerald,
-        value: chartLast.safe,           delta: safeΔ,  good: 'up'   },
+        value: chartLast.safe           ?? 0, delta: safeΔ,  good: 'up'   },
     ];
 
     const ChartTooltip = ({ active, payload, label }) => {
@@ -342,7 +251,7 @@ export default function IamSecurityPage() {
         }}>
           {tile('Posture Score',   posture_score,  scoreColor, '/100', `${medium} medium · ${low} low risk`,  sparkPS, sparkPS[sparkPS.length - 1] - sparkPS[0],  'up'  )}
           {tile('Total Findings', total_findings, C.high,    '',     `${critical} critical · ${high} high`,  sparkTF, sparkTF[sparkTF.length - 1] - sparkTF[0], 'down')}
-          {tile('Identities',     identityCount,  C.sky,     '',     `${chartLast.overprivileged} overprivileged · ${chartLast.no_mfa} no MFA`, sparkIR, sparkIR[sparkIR.length - 1] - sparkIR[0], 'up')}
+          {tile('Identities',     identityCount,  C.sky,     '',     `${chartLast.overprivileged ?? 0} overprivileged · ${chartLast.no_mfa ?? 0} no MFA`, sparkIR, sparkIR[sparkIR.length - 1] - sparkIR[0], 'up')}
           {tile('Keys to Rotate', keys_to_rotate, C.amber,  '',     'Exceed 90-day rotation policy', sparkKR, sparkKR[sparkKR.length - 1] - sparkKR[0], 'down')}
         </div>
 
@@ -426,7 +335,7 @@ export default function IamSecurityPage() {
                 Identity Risk Trend
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 1 }}>
-                {chartFirst.date} – {chartLast.date} · {activeScanTrend.length} scans
+                {chartFirst.date ?? '—'} – {chartLast.date ?? '—'} · {activeScanTrend.length} scans
               </div>
             </div>
             {/* Overall risk delta summary badge */}
@@ -502,9 +411,9 @@ export default function IamSecurityPage() {
             </span>
             <span style={{ fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums',
               color: C.emerald }}>
-              {chartLast.safe} / {chartLast.total}
+              {chartLast.safe ?? 0} / {chartLast.total ?? 0}
               <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 4 }}>
-                ({Math.round((chartLast.safe / chartLast.total) * 100)}%)
+                ({chartLast.total > 0 ? Math.round(((chartLast.safe ?? 0) / chartLast.total) * 100) : 0}%)
               </span>
             </span>
           </div>
@@ -631,18 +540,69 @@ export default function IamSecurityPage() {
         </span>
       ) : null,
     },
-    { accessorKey: 'rule_id',    header: 'Rule',     size: 100 },
+    { accessorKey: 'rule_id',    header: 'Rule',     size: 130,
+      cell: (info) => <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{info.getValue() || '—'}</span> },
     { accessorKey: 'severity',   header: 'Severity', size: 100,
       cell: (info) => <SeverityBadge severity={info.getValue()} /> },
     {
       accessorKey: 'status', header: 'Status', size: 80,
       cell: (info) => {
         const v = info.getValue(), fail = v === 'FAIL';
-        return <span className={`text-xs px-2 py-0.5 rounded ${fail ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{v}</span>;
+        return <span className={`text-xs px-2 py-0.5 rounded ${fail ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{v || '—'}</span>;
       },
     },
     { accessorKey: 'account_id', header: 'Account', size: 140 },
     { accessorKey: 'region',     header: 'Region',  size: 100 },
+  ];
+
+  const rolesColumns = [
+    { accessorKey: 'name', header: 'Role / Resource', size: 220,
+      cell: (info) => <span className="text-xs font-medium">{info.getValue() || info.row.original.resource_uid?.split('/').pop() || '—'}</span> },
+    { accessorKey: 'type', header: 'Type', size: 130,
+      cell: (info) => info.getValue() ? (
+        <span className="text-xs px-2 py-0.5 rounded"
+          style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
+          {info.getValue()}
+        </span>
+      ) : null },
+    { accessorKey: 'rule_id', header: 'Rule', size: 140,
+      cell: (info) => <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{info.getValue() || '—'}</span> },
+    { accessorKey: 'severity', header: 'Severity', size: 100,
+      cell: (info) => <SeverityBadge severity={info.getValue()} /> },
+    {
+      accessorKey: 'status', header: 'Status', size: 80,
+      cell: (info) => {
+        const v = info.getValue(), fail = v === 'FAIL';
+        return <span className={`text-xs px-2 py-0.5 rounded ${fail ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{v || '—'}</span>;
+      },
+    },
+    { accessorKey: 'account_id', header: 'Account', size: 140 },
+    { accessorKey: 'region',     header: 'Region',  size: 110 },
+  ];
+
+  const privEscColumns = [
+    { accessorKey: 'name', header: 'Resource', size: 220,
+      cell: (info) => <span className="text-xs font-medium">{info.getValue() || info.row.original.resource_uid?.split('/').pop() || '—'}</span> },
+    { accessorKey: 'type', header: 'Identity Type', size: 130,
+      cell: (info) => info.getValue() ? (
+        <span className="text-xs px-2 py-0.5 rounded"
+          style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
+          {info.getValue()}
+        </span>
+      ) : null },
+    { accessorKey: 'rule_id', header: 'Rule', size: 140,
+      cell: (info) => <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{info.getValue() || '—'}</span> },
+    { accessorKey: 'severity', header: 'Severity', size: 100,
+      cell: (info) => <SeverityBadge severity={info.getValue()} /> },
+    {
+      accessorKey: 'status', header: 'Status', size: 80,
+      cell: (info) => {
+        const v = info.getValue(), fail = v === 'FAIL';
+        return <span className={`text-xs px-2 py-0.5 rounded ${fail ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{v || '—'}</span>;
+      },
+    },
+    { accessorKey: 'account_id', header: 'Account', size: 140 },
+    { accessorKey: 'region',     header: 'Region',  size: 110 },
   ];
 
   const findingsData = rawFindings.length ? rawFindings : identities;
@@ -669,14 +629,45 @@ export default function IamSecurityPage() {
       ],
       searchPlaceholder: 'Search by rule, resource, title...',
     },
-  }), [findingsData, rawFindings, findingsColumns, overviewColumns, serviceOptions]);
+    roles: {
+      data: roles,
+      columns: rolesColumns,
+      filters: [
+        { key: 'severity', label: 'Severity', options: ['critical', 'high', 'medium', 'low'] },
+        { key: 'status',   label: 'Status',   options: ['FAIL', 'PASS'] },
+      ],
+      searchPlaceholder: 'Search by role name, rule, account...',
+    },
+    access_keys: {
+      data: accessKeys,
+      columns: accessKeyColumns,
+      filters: [
+        { key: 'severity', label: 'Severity', options: ['critical', 'high', 'medium', 'low'] },
+        { key: 'status',   label: 'Status',   options: ['FAIL', 'PASS'] },
+      ],
+      searchPlaceholder: 'Search by user, rule, account...',
+    },
+    privilege_escalation: {
+      data: privilegeEscalation,
+      columns: privEscColumns,
+      filters: [
+        { key: 'severity', label: 'Severity', options: ['critical', 'high', 'medium', 'low'] },
+        { key: 'status',   label: 'Status',   options: ['FAIL', 'PASS'] },
+      ],
+      searchPlaceholder: 'Search by resource, rule, account...',
+    },
+  }), [findingsData, rawFindings, findingsColumns, overviewColumns, serviceOptions,
+       roles, accessKeys, privilegeEscalation, rolesColumns, accessKeyColumns, privEscColumns]);
 
   const pageContext = {
     title: (data.pageContext || {}).title || 'IAM Security',
     brief:  (data.pageContext || {}).brief  || 'Identity and access management posture across cloud accounts. Monitors roles, access keys, MFA adoption, and privilege escalation paths.',
     tabs: [
-      { id: 'overview', label: 'Overview' },
-      { id: 'findings', label: 'Findings', count: findingsData.length },
+      { id: 'overview',              label: 'Overview'                                          },
+      { id: 'findings',              label: 'Findings',              count: findingsData.length },
+      { id: 'roles',                 label: 'Roles & Policies',      count: roles.length        },
+      { id: 'access_keys',           label: 'Access Control',        count: accessKeys.length   },
+      { id: 'privilege_escalation',  label: 'Privilege Escalation',  count: privilegeEscalation.length },
     ],
   };
 

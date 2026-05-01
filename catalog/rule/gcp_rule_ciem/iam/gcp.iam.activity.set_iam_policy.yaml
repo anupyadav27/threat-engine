@@ -1,0 +1,86 @@
+rule_id: gcp.iam.activity.set_iam_policy
+service: iam
+provider: gcp
+check_type: log
+severity: high
+title: 'IAM: Set IAM Policy on Resource'
+description: IAM policy modified on a GCP project, folder, or organization — potential privilege escalation or persistence.
+rationale: 'Adversaries add additional roles or permissions to adversary-controlled cloud accounts to maintain persistent access to a tenant. Attackers target Global Administrator, Owner, and Contributor roles — granting full control over subscription resources without deploying remote access tools. Detected via: IAM role attachment events, privilege grant events in Entra ID/Okta, and admin role assignment in Microsoft 365.'
+threat_category: privilege_escalation
+mitre_tactics:
+- privilege_escalation
+mitre_techniques:
+- T1098.003
+risk_score: 78
+resource: iam_policy
+source: default
+is_active: true
+domain: identity_and_access_management
+action_category: privilege_escalation
+posture_category: iam_posture
+threat_tags:
+- T1098.003
+- T1098
+- cloud_iam
+- privilege_escalation
+- identity
+risk_indicators:
+  actor_type: iam_user_or_role
+  action_type: privilege_change
+  target_type: iam_identity
+  blast_radius: account
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - policy_analysis
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_gcp_v2:
+  - 1.1
+  - 1.4
+  - 1.7
+  - 2.4
+  nist_800_53_r5:
+  - AC-2
+  - AC-3
+  - AC-6
+  - IA-2
+  pci_dss_v4:
+  - 7.1
+  - 7.2
+  - 8.2
+  iso_27001_2022:
+  - A.5.18
+  - A.8.2
+  - A.8.3
+detection_events:
+- Microsoft.Authorization/roleAssignments/write
+- 'iam:AttachUserPolicy'
+- 'iam:PutRolePolicy'
+- Add member to role (Entra ID audit)
+remediation: |
+  1. Immediately audit the modified IAM policy and revoke unauthorized role grants.
+  2. Enable Cloud Asset Inventory change notifications for IAM policy updates.
+  3. Apply Org Policy constraints to restrict role assignment to approved principals.
+  4. Require two-person approval for Owner/Editor role grants via Cloud Identity workflows.
+  5. Configure VPC Service Controls to prevent cross-project privilege escalation.
+references:
+- https://attack.mitre.org/techniques/T1098/003/
+- https://cloud.google.com/iam/docs/audit-logging
+- https://cloud.google.com/resource-manager/docs/audit-logging
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: iam.googleapis.com
+    - field: operation
+      op: contains
+      value: SetIamPolicy
+version: '1.0'

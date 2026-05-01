@@ -1,21 +1,14 @@
-"""
-Encryption DB Reader for AI Security Engine.
+"""Encryption reader for AI Security Engine — ML/AI encryption findings."""
 
-Reads ML/AI-related encryption findings and KMS key usage from
-the threat_engine_encryption database to assess encryption posture
-of AI/ML resources.
-"""
-
-import os
 import logging
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
-import psycopg2
+from engine_common.base_reader import BaseDBReader
+from engine_common.db_connections import get_encryption_conn
 from psycopg2.extras import RealDictCursor
 
 logger = logging.getLogger(__name__)
 
-# Resource UID patterns for ML/AI services
 ML_RESOURCE_PATTERNS = (
     "%sagemaker%", "%bedrock%", "%comprehend%", "%rekognition%",
     "%textract%", "%translate%", "%transcribe%", "%polly%",
@@ -24,45 +17,11 @@ ML_RESOURCE_PATTERNS = (
 )
 
 
-def _get_encryption_conn():
-    """Get connection to the Encryption database."""
-    return psycopg2.connect(
-        host=os.getenv("ENCRYPTION_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("ENCRYPTION_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("ENCRYPTION_DB_NAME", "threat_engine_encryption"),
-        user=os.getenv("ENCRYPTION_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("ENCRYPTION_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-    )
-
-
-class AIEncryptionReader:
-    """Reads ML/AI encryption findings and key usage from Encryption DB."""
-
+class AIEncryptionReader(BaseDBReader):
     def __init__(self):
-        self.conn = None
+        super().__init__(get_encryption_conn)
 
-    def _ensure_conn(self):
-        if self.conn is None or self.conn.closed:
-            self.conn = _get_encryption_conn()
-
-    def get_ml_encryption_findings(
-        self,
-        scan_run_id: str,
-        tenant_id: str,
-    ) -> List[Dict[str, Any]]:
-        """Load encryption findings for ML/AI resources.
-
-        Matches findings where resource_uid contains sagemaker, bedrock,
-        comprehend, rekognition, textract, or other ML service references.
-
-        Args:
-            scan_run_id: Pipeline scan run identifier.
-            tenant_id: Tenant identifier.
-
-        Returns:
-            List of encryption finding dicts.
-        """
+    def get_ml_encryption_findings(self, scan_run_id: str, tenant_id: str) -> List[Dict[str, Any]]:
         self._ensure_conn()
         try:
             with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -70,7 +29,6 @@ class AIEncryptionReader:
                     ["ef.resource_uid ILIKE %s" for _ in ML_RESOURCE_PATTERNS]
                 )
                 params: list = [scan_run_id, tenant_id] + list(ML_RESOURCE_PATTERNS)
-
                 cur.execute(f"""
                     SELECT
                         ef.finding_id, ef.scan_run_id, ef.tenant_id,
@@ -87,35 +45,18 @@ class AIEncryptionReader:
                       AND ({resource_conditions})
                 """, params)
                 rows = cur.fetchall()
-                logger.info(
-                    f"Encryption: loaded {len(rows)} ML findings for scan {scan_run_id}"
-                )
+                logger.info("Encryption: loaded %d ML findings for scan %s", len(rows), scan_run_id)
                 return [dict(r) for r in rows]
         except Exception as e:
-            logger.error(f"Failed to load ML encryption findings: {e}", exc_info=True)
+            logger.error("Failed to load ML encryption findings: %s", e)
+            if self.conn and not self.conn.closed:
+                self.conn.rollback()
             return []
 
-    def get_ml_key_usage(
-        self,
-        scan_run_id: str,
-        tenant_id: str,
-    ) -> List[Dict[str, Any]]:
-        """Load KMS keys used by ML/AI services.
-
-        Joins encryption_key_inventory with dependency data to find
-        keys that ML resources depend on for encryption.
-
-        Args:
-            scan_run_id: Pipeline scan run identifier.
-            tenant_id: Tenant identifier.
-
-        Returns:
-            List of dicts with key details and dependent ML resource info.
-        """
+    def get_ml_key_usage(self, scan_run_id: str, tenant_id: str) -> List[Dict[str, Any]]:
         self._ensure_conn()
         try:
             with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
-                # Check if encryption_key_inventory table exists
                 cur.execute("""
                     SELECT EXISTS (
                         SELECT FROM information_schema.tables
@@ -130,7 +71,6 @@ class AIEncryptionReader:
                     ["eki.dependent_resources::text ILIKE %s" for _ in ML_RESOURCE_PATTERNS]
                 )
                 params: list = [scan_run_id, tenant_id] + list(ML_RESOURCE_PATTERNS)
-
                 cur.execute(f"""
                     SELECT
                         eki.key_arn, eki.key_id, eki.key_alias,
@@ -145,15 +85,10 @@ class AIEncryptionReader:
                       AND ({resource_conditions})
                 """, params)
                 rows = cur.fetchall()
-                logger.info(
-                    f"Encryption: loaded {len(rows)} KMS keys used by ML services"
-                )
+                logger.info("Encryption: loaded %d KMS keys used by ML services", len(rows))
                 return [dict(r) for r in rows]
         except Exception as e:
-            logger.error(f"Failed to load ML key usage: {e}", exc_info=True)
+            logger.error("Failed to load ML key usage: %s", e)
+            if self.conn and not self.conn.closed:
+                self.conn.rollback()
             return []
-
-    def close(self):
-        """Close the database connection."""
-        if self.conn and not self.conn.closed:
-            self.conn.close()

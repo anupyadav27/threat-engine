@@ -1,0 +1,23 @@
+version: '1.0'
+provider: {{ category }}
+engine: {{ tech }}
+category: {{ section_slug }}
+cis_section: '{{ section }}'
+description: >
+  {{ tech }} CIS Section {{ section }} — {{ description }}
+
+discovery:
+{% for row in rows %}
+  - discovery_id: {{ row._discovery_id }}
+    description: {{ row.title | replace('"', "'") }}
+    calls:
+      - action: run_command
+        command: "{{ row._ssh_command if row._ssh_command else 'db.adminCommand({ ' + row._check_slug + ': 1 })' }}"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: {{ row._check_slug }}
+        value: "{{ '{{' }} result.stdout {{ '}}' }}"
+        expected: "{{ row._expected_value }}"
+{% endfor %}

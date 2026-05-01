@@ -35,12 +35,23 @@ _CF_TEMPLATE = os.path.join(
 
 # ── Pydantic models ───────────────────────────────────────────────────────────
 
+_CLOUD_PROVIDERS    = "aws|azure|gcp|oci|alicloud|ibm|k8s"
+_DB_PROVIDERS       = "postgres|mysql|mssql|mongodb|oracle"
+_ALL_PROVIDERS_RE   = f"^({_CLOUD_PROVIDERS}|{_DB_PROVIDERS})$"
+
+_DB_PROVIDER_SET    = {"postgres", "mysql", "mssql", "mongodb", "oracle"}
+
+
 class CloudAccountCreate(BaseModel):
-    customer_id:    str = Field(..., description="Customer identity")
-    tenant_id:      str = Field(..., description="Tenant workspace ID")
-    account_name:   str = Field(..., min_length=1, max_length=255)
-    provider:       str = Field(..., pattern="^(aws|azure|gcp|oci|alicloud|ibm|k8s)$")
-    account_number: Optional[str] = Field(None, description="Cloud account/subscription/project ID")
+    customer_id:       str = Field(..., description="Customer identity")
+    tenant_id:         str = Field(..., description="Tenant workspace ID")
+    account_name:      str = Field(..., min_length=1, max_length=255)
+    provider:          str = Field(..., pattern=_ALL_PROVIDERS_RE)
+    account_category:  Optional[str] = Field(
+        None,
+        description="cloud | database — inferred from provider if omitted",
+    )
+    account_number:    Optional[str] = Field(None, description="Cloud account/subscription/project ID")
 
 
 class CredentialStore(BaseModel):
@@ -91,13 +102,17 @@ async def create_account(body: CloudAccountCreate):
     if not tenant:
         raise HTTPException(status_code=404, detail=f"Tenant {body.tenant_id} not found")
 
+    category = body.account_category or (
+        "database" if body.provider in _DB_PROVIDER_SET else "cloud"
+    )
     data = {
-        "account_id":    str(uuid.uuid4()),
-        "customer_id":   body.customer_id,
-        "tenant_id":     body.tenant_id,
-        "account_name":  body.account_name.strip(),
-        "provider":      body.provider,
-        "account_number": body.account_number,
+        "account_id":       str(uuid.uuid4()),
+        "customer_id":      body.customer_id,
+        "tenant_id":        body.tenant_id,
+        "account_name":     body.account_name.strip(),
+        "account_category": category,
+        "provider":         body.provider,
+        "account_number":   body.account_number,
     }
     try:
         account = create_cloud_account(data)
@@ -112,19 +127,21 @@ async def create_account(body: CloudAccountCreate):
 
 @router.get("")
 async def list_accounts(
-    customer_id: Optional[str] = Query(None),
-    tenant_id:   Optional[str] = Query(None),
-    provider:    Optional[str] = Query(None),
-    status:      Optional[str] = Query(None),
-    limit:       int           = Query(100, ge=1, le=1000),
-    offset:      int           = Query(0, ge=0),
+    customer_id:      Optional[str] = Query(None),
+    tenant_id:        Optional[str] = Query(None),
+    provider:         Optional[str] = Query(None),
+    account_category: Optional[str] = Query(None),
+    status:           Optional[str] = Query(None),
+    limit:            int           = Query(100, ge=1, le=1000),
+    offset:           int           = Query(0, ge=0),
 ):
     """List cloud accounts with optional filters and pagination."""
     filters = {}
-    if customer_id: filters["customer_id"]    = customer_id
-    if tenant_id:   filters["tenant_id"]      = tenant_id
-    if provider:    filters["provider"]        = provider
-    if status:      filters["account_status"]  = status
+    if customer_id:      filters["customer_id"]       = customer_id
+    if tenant_id:        filters["tenant_id"]         = tenant_id
+    if provider:         filters["provider"]           = provider
+    if account_category: filters["account_category"]  = account_category
+    if status:           filters["account_status"]     = status
 
     try:
         accounts = list_cloud_accounts(filters=filters, limit=limit, offset=offset)
@@ -360,4 +377,20 @@ def _get_validator(provider: str, credential_type: str):
     if p == "k8s":
         from engine_onboarding.validators.k8s_validator import K8sValidator
         return K8sValidator()
+    # Self-hosted database providers
+    if p == "postgres":
+        from engine_onboarding.validators.db_postgres_validator import DBPostgresValidator
+        return DBPostgresValidator()
+    if p == "mysql":
+        from engine_onboarding.validators.db_mysql_validator import DBMysqlValidator
+        return DBMysqlValidator()
+    if p == "mssql":
+        from engine_onboarding.validators.db_mssql_validator import DBMssqlValidator
+        return DBMssqlValidator()
+    if p == "mongodb":
+        from engine_onboarding.validators.db_mongodb_validator import DBMongodbValidator
+        return DBMongodbValidator()
+    if p == "oracle":
+        from engine_onboarding.validators.db_oracle_validator import DBOracleValidator
+        return DBOracleValidator()
     raise ValueError(f"Unsupported provider: {provider}")

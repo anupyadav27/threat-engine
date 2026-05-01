@@ -1,0 +1,47 @@
+version: '1.0'
+provider: azure
+service: batch
+checks:
+- rule_id: azure.batch.account.authentication.modes.check
+  for_each: azure.batch.batchaccount.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.authenticationModes
+      op: contains
+      value: AAD
+    - var: item.authenticationModes
+      op: not_contains
+      value: SharedKey
+- rule_id: azure.batch.account.diagnostics.settings.logs.enabled
+  for_each: azure.batch.batchaccount.list
+  severity: MEDIUM
+  conditions:
+    var: item.diagnostics_settings.logs.enabled
+    op: is_true
+    value: null
+- rule_id: azure.batch.account.private.endpoint.approved
+  for_each: azure.batch.batchaccount.list
+  severity: MEDIUM
+  conditions:
+    var: item.privateEndpointConnections[].privateLinkServiceConnectionState.status
+    op: equals
+    value: Approved
+- rule_id: azure.batch.account.public.network.access.check.disabled
+  for_each: azure.batch.batchaccount.list
+  severity: MEDIUM
+  conditions:
+    var: item.public_network_access
+    op: equals
+    value: Disabled
+- rule_id: azure.batch.private.endpoint.dns.zone.validation
+  for_each: azure.batch.batchaccount.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.privateEndpointConnections[].privateLinkServiceConnectionState.status
+      op: equals
+      value: Approved
+    - var: item.privateEndpointConnections[].privateEndpoint.customDnsConfigs[].ipAddresses
+      op: exists
+      value: null

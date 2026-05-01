@@ -1,0 +1,42 @@
+# ==========================================================
+# Discovery YAML — edr (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 1 | ops: 1 independent, 0 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: edr
+
+services:
+  client: edr
+  module: "boto3.client('edr')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: membership
+    identifier_op: aws.edr.list_memberships
+    identifier_field: membershipArn
+    item_var_path: item.membershipArn
+    identifier_template: '{membershiparn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.edr.list_memberships  ──
+  - discovery_id: aws.edr.list_memberships
+    calls:
+      - action: list_memberships
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        accountId: '{{ item.accountId }}'
+        membershipArn: '{{ item.membershipArn }}'
+        membershipId: '{{ item.membershipId }}'
+        membershipStatus: '{{ item.membershipStatus }}'
+        region: '{{ item.region }}'
+

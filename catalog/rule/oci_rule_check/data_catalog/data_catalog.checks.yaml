@@ -1,0 +1,749 @@
+version: '1.0'
+provider: oci
+service: data_catalog
+checks:
+- rule_id: oci.data_catalog.catalog.ai_dataset_encrypted_at_rest_cmek
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.encryption_key_id
+    op: exists
+    value: null
+- rule_id: oci.data_catalog.catalog.ai_dataset_public_access_blocked_blocked
+  for_each: oci.data_catalog.list_catalogs
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.freeform_tags.ai_dataset_public_access_blocked
+      op: exists
+      value: null
+    - var: item.freeform_tags.ai_dataset_public_access_blocked
+      op: equals
+      value: 'true'
+- rule_id: oci.data_catalog.catalog.ai_services_dataset_access_logging_enabled
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.ai_services_dataset_access_logging_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.ai_services_dataset_lifecycle_policy_configured
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.ai_services_dataset_lifecycle_policy
+    op: exists
+    value: null
+- rule_id: oci.data_catalog.catalog.ai_services_dataset_s3_block_public_access_blocked
+  for_each: oci.data_catalog.list_catalogs
+  severity: CRITICAL
+  conditions:
+    var: item.ai_services_dataset_s3_block_public_access_blocked
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.ai_services_dataset_s3_encrypted_at_rest
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.ai_services_dataset_s3_encrypted_at_rest
+      op: exists
+      value: null
+    - var: item.ai_services_dataset_s3_encrypted_at_rest
+      op: is_true
+      value: null
+- rule_id: oci.data_catalog.catalog.ai_services_model_artifact_encrypted_at_rest
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.ai_services_model_artifact_encrypted_at_rest
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.ai_services_model_execution_role_least_privilege_required
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.attached_catalog_private_endpoints[].lifecycle_state
+      op: contains
+      value: ACTIVE
+    - var: item.attached_catalog_private_endpoints[].dns_zones
+      op: not_contains
+      value: public
+- rule_id: oci.data_catalog.catalog.ai_services_model_image_scan_passed
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.ai_services_model_image_scan_passed
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.ai_services_model_kms_cmk_used_enabled
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.ai_services_model_kms_cmk_used
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.catalog_audit_logging_enabled
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.audit_config
+    op: exists
+    value: null
+- rule_id: oci.data_catalog.catalog.catalog_change_audit_logging_enabled
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.change_audit_logging_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.catalog_cross_account_sharing_restricted
+  for_each: oci.data_catalog.list_catalogs
+  severity: LOW
+  conditions:
+    var: item.freeform_tags.cross_account_sharing
+    op: not_equals
+    value: enabled
+- rule_id: oci.data_catalog.catalog.catalog_cross_account_sharing_review_required
+  for_each: oci.data_catalog.list_catalogs
+  severity: LOW
+  conditions:
+    var: item.freeform_tags.cross_account_sharing_reviewed
+    op: exists
+    value: null
+- rule_id: oci.data_catalog.catalog.catalog_metadata_encryption_enabled
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_catalog.catalog.catalog_rbac_least_privilege_required
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.freeform_tags.Environment
+      op: equals
+      value: production
+- rule_id: oci.data_catalog.catalog.catalog_store_encrypted
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_catalog.catalog.catalog_update_rbac_least_privilege_required
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.data_catalog.catalog.classification_auto_enabled
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.is_auto_classification_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.classification_policy_blocks_public_for_sensitive_blocked
+  for_each: oci.data_catalog.list_catalogs
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.data_catalog.catalog.classification_required_sensitivity_tags_present
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.defined_tags.Classification
+    op: exists
+    value: null
+- rule_id: oci.data_catalog.catalog.classifier_definition_version_pinned_required
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.classifier_definition_version
+    op: exists
+    value: null
+- rule_id: oci.data_catalog.catalog.classifier_rbac_least_privilege_required
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.data_catalog.catalog.classifier_source_trusted
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.classifier_source
+    op: exists
+    value: null
+- rule_id: oci.data_catalog.catalog.connection_credentials_in_secrets_manager
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    var: item.connection_credentials_in_secrets_manager
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.connection_private_networking_enforced
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.connection_private_networking_enforced
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.connection_role_least_privilege_required
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.data_catalog.catalog.connection_tls_required
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.connection_tls_required
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.consent_access_rbac_least_privilege_required
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.freeform_tags.consent_access_rbac_least_privilege_required
+      op: exists
+      value: null
+    - var: item.freeform_tags.consent_access_rbac_least_privilege_required
+      op: equals
+      value: enabled
+- rule_id: oci.data_catalog.catalog.consent_store_encrypted
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.encryption_key_id
+    op: exists
+    value: null
+- rule_id: oci.data_catalog.catalog.crawler_logs_enabled
+  for_each: oci.data_catalog.list_catalogs
+  severity: LOW
+  conditions:
+    var: item.crawler_logs_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.crawler_network_private_only_enforced
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_catalog.catalog.crawler_role_least_privilege_required
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    var: item.crawler_role_least_privilege_required
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.crawler_scope_restricted_to_allowlist
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.freeform_tags.Environment
+      op: equals
+      value: production
+    - var: item.defined_tags.Environment
+      op: equals
+      value: production
+- rule_id: oci.data_catalog.catalog.data_catalogs_connection_passwodatabase_encryption_enabled
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    var: item.connection_password_encryption_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.data_catalogs_metadata_encryption_enabled
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    var: item.metadata_encryption_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.data_catalogs_public_access_blocked
+  for_each: oci.data_catalog.list_catalogs
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.lifecycle_state
+      op: not_equals
+      value: PUBLIC
+- rule_id: oci.data_catalog.catalog.data_quality_logs_enabled
+  for_each: oci.data_catalog.list_catalogs
+  severity: LOW
+  conditions:
+    var: item.data_quality_logs_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.data_quality_output_location_private_and_encrypted
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.data_quality_output_location
+      op: exists
+      value: null
+    - var: item.data_quality_output_location.is_private
+      op: is_true
+      value: null
+    - var: item.data_quality_output_location.encryption_key_id
+      op: exists
+      value: null
+- rule_id: oci.data_catalog.catalog.data_quality_role_least_privilege_required
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.data_catalog.catalog.dev_endpoint_encrypted
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.dev_endpoint_encrypted
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.dev_endpoint_no_public_access_blocked
+  for_each: oci.data_catalog.list_catalogs
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.dev_endpoint
+      op: not_exists
+      value: null
+    - var: item.dev_endpoint
+      op: is_false
+      value: null
+- rule_id: oci.data_catalog.catalog.dev_endpoint_role_least_privilege_required
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    var: item.freeform_tags.Environment
+    op: not_equals
+    value: dev
+- rule_id: oci.data_catalog.catalog.development_endpoints_job_bookmark_encryption_enabled
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.attached_catalog_private_endpoints[].id
+      op: exists
+      value: null
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+- rule_id: oci.data_catalog.catalog.development_endpoints_monitoring_logs_encryption_enabled
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    var: item.development_endpoints_monitoring_logs_encryption_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.development_endpoints_object_storage_encryption_enabled
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.development_endpoints.object_storage_encryption_enabled
+      op: exists
+      value: null
+    - var: item.development_endpoints.object_storage_encryption_enabled
+      op: is_true
+      value: null
+- rule_id: oci.data_catalog.catalog.etl_jobs_amazon_object_storage_encryption_enabled
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.etl_jobs_amazon_object_storage_encryption_enabled
+      op: exists
+      value: null
+    - var: item.etl_jobs_amazon_object_storage_encryption_enabled
+      op: is_true
+      value: null
+- rule_id: oci.data_catalog.catalog.etl_jobs_job_bookmark_encryption_enabled
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    var: item.etl_jobs_job_bookmark_encryption_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.etl_jobs_logging_enabled
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.etl_jobs_logging_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.etl_jobs_monitoring_logs_encryption_enabled
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    var: item.etl_jobs_monitoring_logs_encryption_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.instance_encryption_enabled
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_catalog.catalog.job_logs_and_metrics_enabled
+  for_each: oci.data_catalog.list_catalogs
+  severity: LOW
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.data_catalog.catalog.job_network_private_only_enforced
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.job_network_private_only_enforced
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.job_role_least_privilege_required
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.data_catalog.catalog.job_script_location_private_and_encrypted
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.job_script_location
+      op: exists
+      value: null
+    - var: item.job_script_location.is_private
+      op: is_true
+      value: null
+    - var: item.job_script_location.is_encrypted
+      op: is_true
+      value: null
+- rule_id: oci.data_catalog.catalog.lineage_access_rbac_least_privilege_required
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.data_catalog.catalog.lineage_capture_enabled
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.lineage_capture_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.lineage_export_destination_encrypted
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.lineage_export_destination_encrypted
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.ml_transform_encrypted_at_rest
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.ml_transform_encrypted_at_rest
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.model_registry_access_rbac_least_privilege_required
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.data_catalog.catalog.model_registry_artifact_encryption_enabled
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.model_registry_artifact_encryption_enabled
+      op: exists
+      value: null
+    - var: item.model_registry_artifact_encryption_enabled
+      op: is_true
+      value: null
+- rule_id: oci.data_catalog.catalog.model_registry_cross_account_sharing_restricted
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.freeform_tags.CrossAccountSharing
+      op: not_equals
+      value: enabled
+    - var: item.defined_tags.CrossAccountSharing
+      op: not_equals
+      value: enabled
+- rule_id: oci.data_catalog.catalog.model_registry_rbac_least_privilege_required
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.data_catalog.catalog.quality_logs_enabled
+  for_each: oci.data_catalog.list_catalogs
+  severity: LOW
+  conditions:
+    var: item.quality_logs_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.quality_outputs_encrypted_and_private
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.quality_outputs_encrypted
+      op: is_true
+      value: null
+    - var: item.quality_outputs_private
+      op: is_true
+      value: null
+- rule_id: oci.data_catalog.catalog.registry_cross_account_sharing_restricted
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.freeform_tags.CrossAccountSharing
+    op: not_equals
+    value: enabled
+- rule_id: oci.data_catalog.catalog.registry_metadata_encryption_enabled
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    var: item.registry_metadata_encryption_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.registry_rbac_least_privilege_required
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    var: item.freeform_tags.registry_rbac_least_privilege_required
+    op: exists
+    value: null
+- rule_id: oci.data_catalog.catalog.rule_definition_version_pinned_required
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.rule_definition_version
+    op: exists
+    value: null
+- rule_id: oci.data_catalog.catalog.rule_rbac_least_privilege_required
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    var: item.freeform_tags.Environment
+    op: exists
+    value: null
+- rule_id: oci.data_catalog.catalog.rule_source_trusted
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.rule_source
+    op: equals
+    value: TRUSTED
+- rule_id: oci.data_catalog.catalog.ruleset_encrypted_at_rest
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.ruleset_encrypted_at_rest
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.ruleset_rbac_least_privilege_required
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.lifecycle_state
+      op: not_equals
+      value: DELETED
+- rule_id: oci.data_catalog.catalog.ruleset_version_pinned_required
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.ruleset_version
+    op: exists
+    value: null
+- rule_id: oci.data_catalog.catalog.science_notebook_instance_encryption_enabled
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    var: item.science_notebook_instance_encryption_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.catalog.workflow_cross_account_trusts_restricted
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.freeform_tags
+    op: exists
+    value: null
+- rule_id: oci.data_catalog.catalog.workflow_execution_role_least_privilege_required
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.workflow_execution_role
+      op: exists
+      value: null
+    - var: item.workflow_execution_role
+      op: not_equals
+      value: DataCatalogAdminRole
+- rule_id: oci.data_catalog.catalog.workflow_kms_encryption_enabled
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    var: item.workflow_kms_encryption_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_catalog.connection.connection_credentials_in_secrets_manager
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.connection_config.connection_credentials_secret_id
+      op: exists
+      value: null
+- rule_id: oci.data_catalog.connection.connection_role_least_privilege_required
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.data_catalog.job.job_network_private_only_enforced
+  for_each: oci.data_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_catalog.job.job_role_least_privilege_required
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.data_catalog.job.quality_jobs_role_least_privilege_required
+  for_each: oci.data_catalog.list_catalogs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null

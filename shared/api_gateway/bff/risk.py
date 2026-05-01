@@ -9,9 +9,9 @@ This page shows "financial risk exposure" — what the CFO/board cares about.
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
-from ._shared import fetch_many, safe_get, mock_fallback, is_empty_or_health
+from ._shared import fetch_many, safe_get
 from ._transforms import normalize_risk_scenario
 from ._page_context import risk_page_context
 
@@ -20,12 +20,16 @@ router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
 @router.get("/risk")
 async def view_risk(
+    request: Request,
     tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
 ):
     """Single endpoint returning everything the risk page needs."""
+
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 
     results = await fetch_many([
         ("risk", "/api/v1/risk/ui-data", {
@@ -36,7 +40,7 @@ async def view_risk(
             "scan_run_id": "latest",
             "limit": "1",
         }),
-    ])
+    ], auth_headers=fwd_headers)
 
     risk_data, threat_data = results
 
@@ -45,12 +49,6 @@ async def view_risk(
         risk_data = {}
     if not isinstance(threat_data, dict):
         threat_data = {}
-
-    # Mock fallback when engine data is empty
-    if is_empty_or_health(risk_data) and is_empty_or_health(threat_data):
-        m = mock_fallback("risk")
-        if m is not None:
-            return m
 
     # Scenarios from risk ui-data
     raw_scenarios = safe_get(risk_data, "scenarios", [])

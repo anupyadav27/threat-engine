@@ -1,0 +1,18 @@
+version: '1.0'
+rule_id: aws.sagemaker.modelpackage.not_publicly_shared_configured
+for_each: aws.sagemaker.describe_model_package
+severity: HIGH
+conditions:
+  all:
+  - var: item.ModelPackageStatus
+    op: equals
+    value: Completed
+  - var: item.ModelApprovalStatus
+    op: equals
+    value: Approved
+  - var: item.InferenceSpecification.Containers[].Image
+    op: exists
+  - var: item.InferenceSpecification.SupportedRealtimeInferenceInstanceTypes
+    op: not_empty
+  - var: item.ValidationSpecification.ValidationProfiles[].TransformJobDefinition.TransformOutput.S3OutputPath
+    op: exists

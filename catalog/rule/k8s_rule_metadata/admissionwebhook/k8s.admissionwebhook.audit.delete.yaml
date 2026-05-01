@@ -1,0 +1,50 @@
+rule_id: k8s.admissionwebhook.audit.delete
+rule_type: ciem
+title: 'Admission Webhook: ValidatingWebhookConfiguration Deleted'
+scope: admissionwebhook.audit
+domain: container_and_kubernetes_security
+subcategory: container_security
+severity: critical
+service: admissionwebhook
+resource: audit
+requirement: Delete
+description: Kubernetes ValidatingWebhookConfiguration deleted — removes policy enforcement
+  (OPA/Gatekeeper, Kyverno, PSA) allowing deployment of any workload including privileged
+  containers.
+rationale: 'Adversaries modify or disable security tools to avoid detection of their
+  activities — including killing security software processes, disabling GuardDuty
+  detectors, deleting Microsoft Defender plans, or tampering with cloud monitoring
+  agents. Once defenses are disabled, subsequent attack phases proceed without generating
+  alerts. Detected via: security process/service termination, cloud monitoring agent
+  disable API calls, and container admission controller tampering.'
+remediation: '1. Immediately restore the deleted webhook configuration or network
+  policy.
+
+  2. Apply RBAC to restrict deletion of admission webhooks and audit policies to cluster-admin
+  only.
+
+  3. Enable Falco rules to alert on webhook configuration deletion and network policy
+  removal.
+
+  4. Use GitOps (ArgoCD/Flux) to detect and restore unauthorized configuration drift.
+
+  5. Configure out-of-band audit log export before admission webhook changes take
+  effect.
+
+  '
+references:
+- https://attack.mitre.org/techniques/T1562/001/
+- https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/
+compliance:
+- cis_azure_8.1.16
+- pci_dss_v4_0_1_10_6_1
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1562.001
+risk_score: 95
+action_category: modify
+source: default
+metadata_source: auto_generated
+generated_by: k8s_ciem_generator

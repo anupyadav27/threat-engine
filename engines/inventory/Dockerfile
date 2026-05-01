@@ -11,6 +11,7 @@ COPY engines/inventory/inventory_engine/ ./inventory_engine/
 COPY engines/inventory/run_scan.py ./run_scan.py
 COPY shared/common/ ./engine_common/
 COPY shared/database/ ./consolidated_services/
+COPY shared/auth/ ./engine_auth/
 ENV PYTHONPATH=/app
 
 # Expose port

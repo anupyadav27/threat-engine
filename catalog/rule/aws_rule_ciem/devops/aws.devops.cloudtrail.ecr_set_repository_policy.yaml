@@ -1,0 +1,76 @@
+rule_id: aws.devops.cloudtrail.ecr_set_repository_policy
+service: devops
+provider: aws
+check_type: log
+severity: high
+title: 'DevOps: Ecr Set Repository Policy'
+description: ECR repository policy updated — check for cross-account access grants.
+rationale: Transferring data to an attacker-controlled cloud account bypasses traditional egress monitoring by using trusted cloud provider channels that appear legitimate.
+threat_category: lateral_movement
+mitre_tactics:
+- lateral_movement
+mitre_techniques:
+- T1537
+risk_score: 72
+resource: codepipeline
+source: default
+is_active: true
+domain: configuration_and_change_management
+action_category: audit_activity
+log_source_type: 
+posture_category: network_posture
+threat_tags:
+- T1537
+- lateral_movement
+- cloud_pivot
+- cicd
+- devops_security
+risk_indicators:
+  actor_type: cicd_service_principal
+  action_type: write
+  target_type: cicd_pipeline
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 5.1
+  - 5.2
+  - 5.3
+  cis_azure_v2:
+  - 6.1
+  - 6.2
+  nist_800_53_r5:
+  - SC-7
+  - AC-4
+  - SI-3
+  pci_dss_v4:
+  - 1.2
+  - 1.3
+  - 7.2
+  iso_27001_2022:
+  - A.8.20
+  - A.8.22
+  - A.5.14
+remediation: |
+  1. Block cross-account data replication/copy operations via SCPs / Azure Policy.
+  2. Monitor for S3 replication rule changes or storage account copy operations.
+  3. Alert on cross-tenant storage access and replication events.
+  4. Apply data residency policies via Azure Policy / AWS Config.
+references:
+- https://attack.mitre.org/techniques/T1537/
+- https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication.html
+check_config:
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ecr
+    - field: operation
+      op: equals
+      value: SetRepositoryPolicy
+version: '1.0'

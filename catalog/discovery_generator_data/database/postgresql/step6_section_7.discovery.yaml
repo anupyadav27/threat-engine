@@ -1,0 +1,44 @@
+version: '1.0'
+provider: database
+engine: postgresql
+category: section_7
+cis_section: '7'
+description: >
+  postgresql CIS Section 7 — logging of replication commands is configured
+
+discovery:
+
+  - discovery_id: postgresql.section_7.logging_of_replication_commands_is_configured
+    description: Ensure logging of replication commands is configured
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT current_setting('log_replication_commands');"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: logging_of_replication_commands_is_configured
+        setting_name: log_replication_commands
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: postgresql.section_7.wal_archiving_is_configured_and_functional
+    description: Ensure WAL archiving is configured and functional
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT name, setting FROM pg_settings WHERE name IN ('archive_mode','archive_command','archive_library') AND setting IS NOT NULL AND setting <> 'off' AND setting <> '(disabled)' AND setting <> '';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: wal_archiving_is_configured_and_functional
+        setting_name: wal_archiving_is_configured_and_functional
+        value: "{{ result.value }}"
+        expected: ""
+
+

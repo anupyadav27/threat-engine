@@ -1,0 +1,62 @@
+rule_id: ibm.ciem.chain.defense_evasion_log_destroy
+service: ciem
+provider: ibm
+check_type: log_correlation
+severity: critical
+title: 'IBM CIEM: Defense Evasion via Activity Tracker Deletion + MFA Disable'
+description: 'Detect an evidence destruction chain: Activity Tracker instance deleted + MFA settings weakened within a short window, indicating an attacker removing audit visibility and weakening authentication.'
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1562
+risk_score: 99
+resource: ibm_logdna_instance
+domain: logging_monitoring_and_alerting
+action_category: modify
+log_source_type: 
+posture_category: security_posture
+threat_tags:
+- T1562
+- defense_evasion
+- log_tampering
+- ciem_correlation
+- attack_chain
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: tenant_or_account
+  stealth_risk: critical
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: Review and investigate this activity in the IBM Cloud Console and take corrective action.
+check_config:
+  events:
+  - conditions:
+      all:
+      - field: source_type
+        op: equals
+        value: ibm_activity
+      - field: operation
+        op: in
+        value:
+        - logdnaat.instance.delete
+        - atracker.route.delete
+  - conditions:
+      all:
+      - field: source_type
+        op: equals
+        value: ibm_activity
+      - field: operation
+        op: in
+        value:
+        - iam-identity.accountsettings.update
+        - iam-identity.mfaenrollment.update
+  type: sequence
+  window_seconds: 300

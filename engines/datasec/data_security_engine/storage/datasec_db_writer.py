@@ -374,10 +374,161 @@ def save_datasec_report_to_db(report: Dict[str, Any]) -> str:
         conn.close()
 
 
-# ── New enrichment writers (Phase 2) ─────────────────────────────────────────
+# ── DSPM analyze() findings writer (ENG-10) ──────────────────────────────────
 
 import logging as _logging
 _logger = _logging.getLogger(__name__)
+
+
+def save_dspm_findings(
+    dspm_findings: list,
+    credential_ref: str = "",
+    credential_type: str = "",
+) -> int:
+    """Save structured DSPM findings produced by provider.analyze().
+
+    Writes to datasec_findings using the new columns:
+      dspm_module, classification_labels, encryption_status, public_access.
+
+    Each finding dict must contain the keys from the analyze() contract:
+      finding_id, scan_run_id, tenant_id, account_id, provider, region,
+      resource_uid, resource_type, severity, status, dspm_module,
+      classification_labels, encryption_status, public_access,
+      blast_radius_score, first_seen_at, last_seen_at.
+
+    Args:
+        dspm_findings: List of finding dicts from provider.analyze().
+        credential_ref: Credential reference string (optional).
+        credential_type: Credential type string (optional).
+
+    Returns:
+        Number of rows inserted/updated.
+    """
+    if not dspm_findings:
+        return 0
+
+    conn = _get_datasec_db_connection()
+    count = 0
+    try:
+        with conn.cursor() as cur:
+            # Upsert tenant once per unique tenant_id in findings
+            seen_tenants: set = set()
+            for f in dspm_findings:
+                tid = f.get("tenant_id", "default")
+                if tid not in seen_tenants:
+                    cur.execute(
+                        "INSERT INTO tenants (tenant_id, tenant_name) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                        (tid, tid),
+                    )
+                    seen_tenants.add(tid)
+
+            # Modules that are always written regardless of status/severity (8-module coverage)
+            _always_write_modules = {
+                "classification", "encryption", "access_control", "lifecycle",
+                "activity_logging", "governance_score",
+            }
+            for f in dspm_findings:
+                status = f.get("status", "FAIL")
+                severity = f.get("severity", "MEDIUM")
+                dspm_mod = f.get("dspm_module", "")
+                # Write FAIL findings always.
+                # Write PASS findings only for modules that need full coverage visibility.
+                # Skip pure data_lineage / data_residency PASS/INFO (high volume, low value).
+                if status == "PASS" and severity == "INFO" and dspm_mod not in _always_write_modules:
+                    continue
+
+                finding_id = f.get("finding_id", "")
+                if not finding_id:
+                    continue
+
+                scan_run_id = f.get("scan_run_id", "")
+                tenant_id = f.get("tenant_id", "default")
+                account_id = f.get("account_id", "")
+                provider = f.get("provider", "")
+                region = f.get("region", "")
+                resource_uid = f.get("resource_uid", "")
+                resource_type = f.get("resource_type", "")
+                dspm_module = f.get("dspm_module", "")
+                classification_labels = f.get("classification_labels", [])
+                encryption_status = f.get("encryption_status", "unknown")
+                public_access = bool(f.get("public_access", False))
+                first_seen_at = f.get("first_seen_at")
+                last_seen_at = f.get("last_seen_at")
+
+                rule_id = f"dspm.{provider}.{dspm_module}.{_resource_type_slug(resource_type)}"
+
+                cur.execute(
+                    """
+                    INSERT INTO datasec_findings (
+                        finding_id, scan_run_id, tenant_id,
+                        account_id, credential_ref, credential_type,
+                        provider, region,
+                        rule_id, datasec_modules, severity, status,
+                        resource_type, resource_uid,
+                        data_classification, sensitivity_score,
+                        dspm_module, classification_labels,
+                        encryption_status, public_access,
+                        finding_data, first_seen_at, last_seen_at
+                    )
+                    VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s::jsonb, %s, %s, %s::jsonb, %s, %s
+                    )
+                    ON CONFLICT (finding_id) DO UPDATE SET
+                        last_seen_at = EXCLUDED.last_seen_at,
+                        dspm_module = EXCLUDED.dspm_module,
+                        classification_labels = EXCLUDED.classification_labels,
+                        encryption_status = EXCLUDED.encryption_status,
+                        public_access = EXCLUDED.public_access
+                    """,
+                    (
+                        finding_id,
+                        scan_run_id,
+                        tenant_id,
+                        account_id,
+                        credential_ref,
+                        credential_type,
+                        provider,
+                        region,
+                        rule_id,
+                        [dspm_module],
+                        severity.upper(),
+                        status,
+                        resource_type,
+                        resource_uid,
+                        classification_labels,  # stored in data_classification column
+                        0,                       # sensitivity_score
+                        dspm_module,
+                        json.dumps(classification_labels),
+                        encryption_status,
+                        public_access,
+                        json.dumps({
+                            "dspm_module": dspm_module,
+                            "blast_radius_score": 0,
+                            "public_access": public_access,
+                            "encryption_status": encryption_status,
+                            "classification_labels": classification_labels,
+                        }),
+                        first_seen_at,
+                        last_seen_at,
+                    ),
+                )
+                count += 1
+
+        conn.commit()
+        _logger.info("save_dspm_findings: wrote %d DSPM findings to datasec_findings", count)
+        return count
+    except Exception as exc:
+        conn.rollback()
+        _logger.error("save_dspm_findings failed: %s", exc, exc_info=True)
+        return 0
+    finally:
+        conn.close()
+
+
+def _resource_type_slug(resource_type: str) -> str:
+    """Convert resource_type to slug for rule_id construction."""
+    return "".join(c if c.isalnum() else "_" for c in resource_type.lower()).strip("_")
 
 
 def save_data_catalog(

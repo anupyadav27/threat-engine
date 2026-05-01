@@ -10,7 +10,7 @@
 // This routes all engine/BFF calls to a locally-running API gateway.
 const NLB_URL =
   process.env.NEXT_PUBLIC_GATEWAY_URL ||
-  'http://a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com';
+  'http://a6fff2656f8c845e5a2d8effc1b3e56f-1461670384.ap-south-1.elb.amazonaws.com';
 
 // All engine prefixes that the nginx ingress routes on the cluster
 const ENGINE_PREFIXES = [
@@ -28,6 +28,7 @@ const ENGINE_PREFIXES = [
   'gateway',
   'cspm',       // Django CSPM backend
   'vulnerability', // Vulnerability engine (port 8000, /vulnerability ingress)
+  'sbom',          // SBOM engine (port 8002, /sbom ingress)
 ];
 
 const nextConfig = {

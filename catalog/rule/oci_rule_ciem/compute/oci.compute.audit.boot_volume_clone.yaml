@@ -1,0 +1,63 @@
+rule_id: oci.compute.audit.boot_volume_clone
+service: compute
+provider: oci
+check_type: log
+severity: high
+title: 'OCI Compute: Boot Volume Cloned'
+description: A boot volume was cloned. Volume cloning is used by attackers to create exfiltration copies of disk data outside the victim account.
+threat_category: collection
+mitre_tactics:
+- collection
+- exfiltration
+mitre_techniques:
+- T1005
+risk_score: 78
+resource: oci_core_boot_volume
+domain: compute_and_workload_security
+action_category: read
+log_source_type: 
+posture_category: data_security_posture
+threat_tags:
+- T1005
+- data_collection
+- sensitive_data
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: read
+  target_type: compute_instance
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - data_access_governance
+  categories:
+  - sensitive_data_access
+  - unauthorized_access
+  priority: high
+  impact:
+    pci: PCI DSS Requirement 12.3 — Implement security awareness program and protect systems
+    gdpr: GDPR Article 32 — Appropriate technical and organizational measures for data security
+    hipaa: §164.306(a) — Ensure confidentiality, integrity, and availability of ePHI
+  sensitive_data_context: |
+  Unauthorized collection on compute resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks: {}
+remediation: Review and investigate this activity in the OCI Console and take corrective action.
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.computemanagement
+    - field: operation
+      op: equals
+      value: CreateBootVolumeBackup

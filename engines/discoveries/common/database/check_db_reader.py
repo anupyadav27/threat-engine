@@ -6,7 +6,7 @@ This eliminates the dependency on local YAML files for discovery configurations.
 import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from typing import Dict, List, Any, Optional
+from typing import Dict, Optional, Set
 import logging
 import json
 
@@ -119,7 +119,11 @@ class CheckDBReader:
                     data = row["discoveries_data"]
                     if isinstance(data, str):
                         data = json.loads(data)
-                    if data and data.get("discovery"):
+                    # Normalize: some rows store discoveries_data as a bare list
+                    # of discovery operations; others wrap it as {"discovery": [...]}
+                    if isinstance(data, list):
+                        data = {"discovery": data}
+                    if isinstance(data, dict) and data.get("discovery"):
                         # Inject per-service worker limit from DB column
                         max_workers = row.get("max_discovery_workers")
                         if max_workers and max_workers > 0:

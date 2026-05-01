@@ -1,0 +1,85 @@
+version: '1.0'
+provider: azure
+service: container
+checks:
+- rule_id: azure.container.instance.logging_enabled
+  for_each: azure.containerinstance.containergroups.list
+  severity: MEDIUM
+  conditions:
+    var: item.Diagnostics.LogAnalytics.WorkspaceId
+    op: exists
+    value: null
+- rule_id: azure.container.instance.managed.identity.least.privilege.check
+  for_each: azure.containerinstance.containergroups.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Identity.Type
+      op: exists
+      value: null
+    - var: item.Identity.Type
+      op: not_equals
+      value: None
+    - var: item.Identity.UserAssignedIdentities
+      op: exists
+      value: null
+    - var: item.Identity.UserAssignedIdentities[].ClientId
+      op: not_contains
+      value: '*'
+- rule_id: azure.container.instances_group.containers_kubernetes_instance_env_no_plaintext_secrets
+  for_each: azure.containerinstance.containergroups.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.Containers[].Properties.EnvironmentVariables[].SecureValue
+      op: exists
+      value: null
+    - var: item.Properties.Containers[].Properties.EnvironmentVariables[].Value
+      op: not_exists
+      value: null
+- rule_id: azure.container.instances_group.containers_kubernetes_instance_no_privileged_containers
+  for_each: azure.containerinstance.containergroups.list
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.Containers[].Properties.SecurityContext.Privileged
+    op: is_false
+    value: null
+- rule_id: azure.container.instances_group.containers_kubernetes_instance_read_only_root_filesystem
+  for_each: azure.containerinstance.containergroups.list
+  severity: MEDIUM
+  conditions:
+    var: item.containers[].read_only_root_filesystem
+    op: is_true
+    value: null
+- rule_id: azure.container.registry.encryption_enabled
+  for_each: azure.containerregistry.root.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption.status
+    op: is_true
+    value: null
+- rule_id: azure.container.registry.image_scan_enabled
+  for_each: azure.containerregistry.root.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.policies.quarantinePolicy.status
+    op: equals
+    value: enabled
+- rule_id: azure.container.registry.not_publicly_accessible
+  for_each: azure.containerregistry.root.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.publicNetworkAccess
+      op: exists
+      value: null
+    - var: item.properties.publicNetworkAccess
+      op: equals
+      value: Disabled
+- rule_id: azure.container.registry.private_link_enabled
+  for_each: azure.containerregistry.root.list
+  severity: MEDIUM
+  conditions:
+    var: item.PrivateEndpointConnections
+    op: exists
+    value: null

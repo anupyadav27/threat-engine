@@ -1,0 +1,181 @@
+version: '1.0'
+provider: aws
+service: elbv2
+checks:
+- rule_id: aws.elbv2.alb_https_redirect.elbv2_alb_https_redirect_configured
+  for_each: aws.elbv2.describe_listeners
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.Listeners[].DefaultActions[].RedirectConfig.Protocol
+      op: equals
+      value: HTTPS
+    - var: item.Listeners[].DefaultActions[].Type
+      op: equals
+      value: redirect
+- rule_id: aws.elbv2.deletion_protection.deletion_protection_configured
+  for_each: aws.elbv2.describe_load_balancers
+  severity: MEDIUM
+  conditions:
+    var: item.LoadBalancers[].LoadBalancerAttributes[?Key=='deletion_protection.enabled'].Value
+    op: contains
+    value: 'true'
+- rule_id: aws.elbv2.group.security_check_health_check_enabled
+  for_each: aws.elbv2.describe_target_groups
+  severity: MEDIUM
+  conditions:
+    var: item.HealthCheckEnabled
+    op: is_true
+    value: null
+- rule_id: aws.elbv2.insecure_ssl_ciphers.insecure_ssl_ciphers_configured
+  for_each: aws.elbv2.describe_listeners
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.Protocol
+      op: not_equals
+      value: HTTPS
+    - var: item.SslPolicy
+      op: exists
+      value: null
+    - all:
+      - var: item.SslPolicy
+        op: not_contains
+        value: ELBSecurityPolicy-TLS13
+      - var: item.SslPolicy
+        op: not_contains
+        value: ELBSecurityPolicy-FS
+      - var: item.SslPolicy
+        op: not_contains
+        value: ELBSecurityPolicy-TLS-1-2-Ext
+- rule_id: aws.elbv2.internetfacing.elbv2_internet_facing_configured
+  for_each: aws.elbv2.describe_load_balancers
+  severity: MEDIUM
+  conditions:
+    var: item.Scheme
+    op: not_equals
+    value: internet-facing
+- rule_id: aws.elbv2.isinmultipleaz.elbv2_is_in_multiple_az_configured
+  for_each: aws.elbv2.describe_load_balancers
+  severity: MEDIUM
+  conditions:
+    var: item.AvailabilityZones
+    op: length_gte
+    value: 2
+- rule_id: aws.elbv2.listener.cipher_policy_secure_configured
+  for_each: aws.elbv2.describe_listeners
+  severity: HIGH
+  conditions:
+    var: item.SslPolicy
+    op: exists
+    value: null
+- rule_id: aws.elbv2.listener.tls_min_1_2_configured
+  for_each: aws.elbv2.describe_listeners
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Protocol
+      op: equals
+      value: HTTPS
+    - var: item.SslPolicy
+      op: contains
+      value: TLS_1_2
+- rule_id: aws.elbv2.loadbalancer.access_logs_enabled
+  for_each: aws.elbv2.describe_load_balancers
+  severity: MEDIUM
+  conditions:
+    var: item.Attributes[?(@.Key=='access_logs.s3.enabled')].Value
+    op: contains
+    value: 'true'
+- rule_id: aws.elbv2.loadbalancer.deletion_protection_enabled
+  for_each: aws.elbv2.describe_load_balancers
+  severity: MEDIUM
+  conditions:
+    var: item.LoadBalancerAttributes[?Key=='deletion_protection.enabled'].Value
+    op: contains
+    value: 'true'
+- rule_id: aws.elbv2.loadbalancer.listener_tls_min_1_2_configured
+  for_each: aws.elbv2.describe_listeners
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Protocol
+      op: equals
+      value: HTTPS
+    - var: item.SslPolicy
+      op: contains
+      value: TLS-1-2
+- rule_id: aws.elbv2.loadbalancer.valid_certificate_enabled
+  for_each: aws.elbv2.describe_listeners
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Protocol
+      op: equals
+      value: HTTPS
+    - var: item.Certificates
+      op: not_empty
+      value: null
+- rule_id: aws.elbv2.loadbalancer.waf_attached_if_supported
+  for_each: aws.elbv2.describe_load_balancers
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Type
+      op: equals
+      value: application
+    - var: item.LoadBalancerArn
+      op: exists
+      value: null
+    - any:
+      - var: item.LoadBalancerArn
+        op: not_contains
+        value: app/
+      - all:
+        - var: item.LoadBalancerArn
+          op: contains
+          value: app/
+        - var: item.LoadBalancerArn
+          op: not_exists
+          value: arn:aws:elasticloadbalancing:.*:.*:loadbalancer/app/.*/.*
+- rule_id: aws.elbv2.logging.access_logging_enabled
+  for_each: aws.elbv2.describe_load_balancer_attributes
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Key
+      op: equals
+      value: access_logs.s3.enabled
+    - var: item.Value
+      op: equals
+      value: 'true'
+- rule_id: aws.elbv2.resource.logging_enabled
+  for_each: aws.elbv2.describe_load_balancers
+  severity: MEDIUM
+  conditions:
+    var: item.LoadBalancerAttributes[?Key=='access_logs.s3.enabled'].Value
+    op: contains
+    value: 'true'
+- rule_id: aws.elbv2.targetgroup.elbv2_targets_in_private_subnets_configured
+  for_each: aws.elbv2.describe_target_groups
+  severity: HIGH
+  conditions:
+    var: item.TargetGroups[].TargetType
+    op: not_equals
+    value: lambda
+- rule_id: aws.elbv2.targetgroup.health_checks_tls_if_supported_configured
+  for_each: aws.elbv2.describe_target_groups
+  severity: HIGH
+  conditions:
+    var: item.HealthCheckProtocol
+    op: in
+    value:
+    - HTTPS
+    - TLS
+- rule_id: aws.elbv2.wafaclattached.waf_acl_enabled
+  for_each: aws.elbv2.describe_load_balancers
+  severity: MEDIUM
+  conditions:
+    var: item.LoadBalancers[].LoadBalancerArn
+    op: exists
+    value: null

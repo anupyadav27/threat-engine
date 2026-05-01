@@ -1,0 +1,134 @@
+version: '1.0'
+provider: azure
+service: cost
+checks:
+- rule_id: azure.cost.management_allocation_rule.allocation_cost_tag_policy_enforced
+  for_each: azure.costmanagement.exports.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.costAllocationRule.properties.targetCostAllocationResource.tags
+    op: exists
+    value: null
+- rule_id: azure.cost.management_allocation_rule.allocation_required_cost_tags_present
+  for_each: azure.costmanagement.exports.list
+  severity: MEDIUM
+  conditions:
+    var: item.Tags
+    op: not_empty
+    value: null
+- rule_id: azure.cost.management_allocation_rule.allocation_untagged_resource_alerts_enabled
+  for_each: azure.costmanagement.exports.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.enableUntaggedResourceAlerts
+    op: is_true
+    value: null
+- rule_id: azure.cost.management_anomaly.anomaly_alert_destinations_configured
+  for_each: azure.costmanagement.alerts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.destinations
+    op: not_empty
+    value: null
+- rule_id: azure.cost.management_anomaly.anomaly_detectors_enabled
+  for_each: azure.costmanagement.exports.list
+  severity: MEDIUM
+  conditions:
+    var: item.Enabled
+    op: is_true
+    value: null
+- rule_id: azure.cost.management_anomaly.anomaly_severity_thresholds_configured
+  for_each: azure.costmanagement.exports.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.threshold
+      op: exists
+      value: null
+    - var: item.properties.threshold
+      op: gt
+      value: '0'
+- rule_id: azure.cost.management_budget.budget_alert_destinations_configured
+  for_each: azure.costmanagement.exports.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.notifications[].contactEmails
+    op: not_empty
+    value: null
+- rule_id: azure.cost.management_budget.budget_alert_thresholds_configured
+  for_each: azure.costmanagement.exports.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.notifications
+    op: not_empty
+    value: null
+- rule_id: azure.cost.management_budget.budget_budgets_defined_for_accounts_or_projects
+  for_each: azure.costmanagement.exports.list
+  severity: MEDIUM
+  conditions:
+    var: item.value
+    op: not_empty
+    value: null
+- rule_id: azure.cost.management_budget.budget_modify_permissions_restricted
+  for_each: azure.costmanagement.exports.list
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.Notifications[].ContactRoles[]
+    op: not_contains
+    value: Owner
+- rule_id: azure.cost.management_category.access_billing_admins_mfa_required
+  for_each: azure.costmanagement.exports.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.Principal.Properties.UserType
+      op: equals
+      value: User
+    - var: item.Properties.Principal.Properties.SignInName
+      op: exists
+      value: null
+    - var: item.Properties.Principal.Properties.SignInName
+      op: not_contains
+      value: '#EXT#'
+- rule_id: azure.cost.management_category.access_billing_console_rbac_least_privilege
+  for_each: azure.billing.billingaccounts.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.authorizations[].principalId
+      op: exists
+      value: null
+    - var: item.properties.authorizations[].roleDefinitionId
+      op: equals
+      value: b0f43e54-7877-4442-9a5f-2b9f0d7b0d1c
+- rule_id: azure.cost.management_category.access_cost_data_exports_private_and_encrypted
+  for_each: azure.costmanagement.exports.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.deliveryInfo.destination.resourceId
+      op: exists
+      value: null
+    - var: item.properties.format
+      op: equals
+      value: Csv
+- rule_id: azure.cost.management_category.access_cost_export_destinations_least_privilege
+  for_each: azure.costmanagement.exports.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.destination.resourceId
+      op: exists
+      value: null
+    - var: item.properties.definition.type
+      op: equals
+      value: ActualCost
+    - var: item.properties.destination.container
+      op: exists
+      value: null
+    - var: item.properties.destination.rootFolderPath
+      op: exists
+      value: null
+    - var: item.properties.destination.storageAccountId
+      op: exists
+      value: null

@@ -1,0 +1,73 @@
+rule_id: alicloud.objectstorage.actiontrail.delete_bucket_encryption
+service: objectstorage
+provider: alicloud
+check_type: log
+severity: high
+title: 'AliCloud OSS: Bucket Encryption Disabled'
+description: Server-side encryption was removed from an OSS bucket. Data written after
+  this change will be stored unencrypted, violating data-at-rest requirements.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1070
+risk_score: 78
+resource: alicloud_oss_bucket
+source: alicloud_ciem_generator
+is_active: true
+domain: data_protection_and_privacy
+action_category: delete
+log_source_type: alicloud_actiontrail
+posture_category: data_security_posture
+threat_tags:
+- T1070
+- defense_evasion
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '5.1'
+  - '5.2'
+  nist_800_53_r5:
+  - SC-28
+  - AC-3
+  - AU-9
+  pci_dss_v4:
+  - '3.4'
+  - '3.5'
+  - '6.3'
+  iso_27001_2022:
+  - A.8.10
+  - A.8.24
+remediation: '1. Re-enable SSE immediately.
+
+  2. Audit objects written since encryption was removed.
+
+  3. Alert on any SSE configuration change.'
+references:
+- https://www.alibabacloud.com/help/en/oss/user-guide/server-side-encryption
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: oss
+    - field: operation
+      op: equals
+      value: DeleteBucketEncryption
+version: '1.0'

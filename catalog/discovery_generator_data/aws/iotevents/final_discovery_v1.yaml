@@ -1,0 +1,80 @@
+# ==========================================================
+# Discovery YAML — iotevents (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 3 | ops: 2 independent, 1 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: iotevents
+
+services:
+  client: iotevents
+  module: "boto3.client('iotevents')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: input
+    identifier_op: aws.iotevents.list_inputs
+    identifier_field: inputArn
+    item_var_path: item.inputArn
+    identifier_template: '{inputarn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.iotevents.get_detector_model_analysis_results  ──
+  - discovery_id: aws.iotevents.get_detector_model_analysis_results
+    calls:
+      - action: get_detector_model_analysis_results
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.analysisResults }}'
+      item:
+        Tags: '{{ item.Tags }}'
+        level: '{{ item.level }}'
+        locations: '{{ item.locations }}'
+        message: '{{ item.message }}'
+        type: '{{ item.type }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.iotevents.list_inputs  ──
+  - discovery_id: aws.iotevents.list_inputs
+    calls:
+      - action: list_inputs
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.inputSummaries }}'
+      item:
+        Tags: '{{ item.Tags }}'
+        creationTime: '{{ item.creationTime }}'
+        input: '{{ item.input }}'
+        inputArn: '{{ item.inputArn }}'
+        inputDescription: '{{ item.inputDescription }}'
+        inputName: '{{ item.inputName }}'
+        lastUpdateTime: '{{ item.lastUpdateTime }}'
+        status: '{{ item.status }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.iotevents.describe_alarm_model [dependent] ──
+  - discovery_id: aws.iotevents.describe_alarm_model
+    for_each: aws.iotevents.list_alarm_models
+    calls:
+      - action: describe_alarm_model
+        params:
+          alarmModelName: "{{ item.alarmModelName }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Tags: '{{ item.Tags }}'
+        severity: '{{ item.severity }}'
+        simpleRule: '{{ item.simpleRule }}'
+

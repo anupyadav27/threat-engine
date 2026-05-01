@@ -1,0 +1,76 @@
+rule_id: aws.network.flow_log.c2_high_port
+service: network
+provider: aws
+check_type: log
+severity: high
+title: 'Network: C2 High Port'
+description: Traffic on non-standard high port — possible C2 communication channel.
+rationale: Non-standard port communications bypass firewall rules configured for standard ports, enabling C2 communication over unexpected and less-monitored channels.
+threat_category: execution
+mitre_tactics:
+- command_and_control
+mitre_techniques:
+- T1571
+risk_score: 78
+resource: vpc
+source: ciem_rule_generator
+is_active: true
+domain: network_security_and_connectivity
+action_category: execute
+log_source_type: vpc_flow
+posture_category: workload_posture
+threat_tags:
+- T1571
+- remote_execution
+- cloud_exec
+- network_security
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: execution
+  target_type: network_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 3.1
+  - 5.1
+  cis_azure_v2:
+  - 5.1
+  - 6.1
+  nist_800_53_r5:
+  - CM-7
+  - SI-3
+  - AU-12
+  pci_dss_v4:
+  - 6.3
+  - 10.2
+  iso_27001_2022:
+  - A.8.19
+  - A.8.8
+remediation: |
+  1. Apply default-deny egress security groups (allow only required outbound ports).
+  2. Enable network flow analysis to detect non-standard port usage.
+  3. Restrict outbound traffic to approved destination ports only.
+references:
+- https://attack.mitre.org/techniques/T1571/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: vpc_flow
+    - field: dst_port
+      op: greater_than
+      value: 49151
+    - field: outcome
+      op: equals
+      value: success
+  for_each: log_events
+  log_source_type: vpc_flow
+  type: log
+version: '1.0'

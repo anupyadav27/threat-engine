@@ -1,0 +1,43 @@
+# ============================================================
+# Discovery YAML — apiserver (final_discovery v1)
+# Generated: 2026-04-16T09:36:43Z
+# Check rules: 77 | ops in scope: 1
+# ============================================================
+version: '1.0'
+provider: k8s
+service: apiserver
+
+services:
+  client: core_v1_api
+  module: kubernetes.client
+  api_class: CoreV1Api
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: 
+    identifier_op: k8s.apiserver.list_component_status
+    identifier_field: metadata.name
+    item_var_path: item.metadata.name
+    identifier_template: '{name}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── k8s.apiserver.list_component_status ──
+  - discovery_id: k8s.apiserver.list_component_status
+    calls:
+      - action: list_component_status
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        conditions: '{{ item.conditions }}'
+        conditions[].message: '{{ item.conditions[].message }}'
+        conditions[].status: '{{ item.conditions[].status }}'
+        conditions[].type: '{{ item.conditions[].type }}'
+        metadata.name: '{{ item.metadata.name }}'
+

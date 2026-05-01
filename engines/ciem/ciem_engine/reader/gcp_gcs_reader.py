@@ -54,20 +54,13 @@ class GCPGCSReader(BaseReader):
             try:
                 blobs = client.list_blobs(bucket, prefix=prefix)
                 for blob in blobs:
-                    # Filter by time range
-                    modified = blob.updated or blob.time_created
-                    if modified:
-                        if modified.tzinfo is None:
-                            modified = modified.replace(tzinfo=timezone.utc)
-                        if modified < start_time:
-                            continue
-                        if modified > end_time:
-                            continue
-
+                    # GCS log sink delivery can lag 60-90 min behind actual events,
+                    # so blob.updated >> event time. Rely on date prefix for time
+                    # scoping — don't filter by upload time.
                     files.append({
                         "key": blob.name,
                         "size": blob.size or 0,
-                        "last_modified": modified,
+                        "last_modified": blob.updated or blob.time_created,
                     })
             except Exception as exc:
                 logger.warning(

@@ -1,0 +1,486 @@
+version: '1.0'
+provider: oci
+service: analytics
+checks:
+- rule_id: oci.analytics.analytics_instance.anomaly_destinations_encrypted
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    var: item.anomaly_destinations[].encryption_key_id
+    op: exists
+    value: null
+- rule_id: oci.analytics.analytics_instance.anomaly_detectors_enabled
+  for_each: oci.analytics.list_analytics_instances
+  severity: LOW
+  conditions:
+    var: item.anomaly_detectors_enabled
+    op: is_true
+    value: null
+- rule_id: oci.analytics.analytics_instance.api_security_monitoring_access_log_fields_restricted
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    var: item.freeform_tags.api_security_monitoring_access_log_fields_restricted
+    op: exists
+    value: null
+- rule_id: oci.analytics.analytics_instance.api_security_monitoring_access_log_sink_configured_restricted
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags
+      op: exists
+      value: null
+    - var: item.freeform_tags.Environment
+      op: equals
+      value: production
+- rule_id: oci.analytics.analytics_instance.api_security_monitoring_access_logging_enabled
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    var: item.api_security_monitoring_access_logging_enabled
+    op: is_true
+    value: null
+- rule_id: oci.analytics.analytics_instance.api_security_monitoring_execution_logging_level_enabled
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    var: item.api_security_monitoring_execution_logging_level
+    op: exists
+    value: null
+- rule_id: oci.analytics.analytics_instance.api_security_monitoring_logs_retention_days_minimum_enabled
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.analytics.analytics_instance.audit_logs_centralized_and_encrypted
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.audit_logs_centralized
+      op: is_true
+      value: null
+    - var: item.audit_logs_encrypted
+      op: is_true
+      value: null
+- rule_id: oci.analytics.analytics_instance.audit_retention_days_minimum_enabled
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    var: item.audit_retention_days
+    op: gte
+    value: '365'
+- rule_id: oci.analytics.analytics_instance.custom_identifier_source_trusted
+  for_each: oci.analytics.list_analytics_instances
+  severity: LOW
+  conditions:
+    all:
+    - var: item.freeform_tags.TrustedIdentitySource
+      op: exists
+      value: null
+    - var: item.freeform_tags.TrustedIdentitySource
+      op: equals
+      value: OCI
+- rule_id: oci.analytics.analytics_instance.custom_identifier_storage_encrypted
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    var: item.custom_identifier_storage_encrypted
+    op: is_true
+    value: null
+- rule_id: oci.analytics.analytics_instance.dashboard_export_controls_enabled
+  for_each: oci.analytics.list_analytics_instances
+  severity: LOW
+  conditions:
+    var: item.dashboard_export_controls_enabled
+    op: is_true
+    value: null
+- rule_id: oci.analytics.analytics_instance.dashboard_public_embeds_disabled
+  for_each: oci.analytics.list_analytics_instances
+  severity: CRITICAL
+  conditions:
+    var: item.features_details.embedded_analytics.is_embedded_analytics_enabled
+    op: is_false
+    value: null
+- rule_id: oci.analytics.analytics_instance.dashboard_sharing_restricted_to_org
+  for_each: oci.analytics.list_analytics_instances
+  severity: LOW
+  conditions:
+    var: item.freeform_tags.DashboardSharingRestrictedToOrg
+    op: equals
+    value: 'true'
+- rule_id: oci.analytics.analytics_instance.dashboard_sso_required
+  for_each: oci.analytics.list_analytics_instances
+  severity: LOW
+  conditions:
+    var: item.dashboard_sso_required
+    op: is_true
+    value: null
+- rule_id: oci.analytics.analytics_instance.dataset_access_policies_least_privilege_required
+  for_each: oci.analytics.list_analytics_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.analytics.analytics_instance.dataset_cmk_encryption
+  for_each: oci.analytics.list_analytics_instances
+  severity: HIGH
+  conditions:
+    var: item.capacity.initialCapacity
+    op: exists
+    value: null
+- rule_id: oci.analytics.analytics_instance.dataset_encrypted_at_rest_cmek
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    var: item.capacity.capacity_type
+    op: exists
+    value: null
+- rule_id: oci.analytics.analytics_instance.dataset_public_access
+  for_each: oci.analytics.list_analytics_instances
+  severity: CRITICAL
+  conditions:
+    var: item.is_public_access_allowed
+    op: is_false
+    value: null
+- rule_id: oci.analytics.analytics_instance.dataset_public_sharing_disabled
+  for_each: oci.analytics.list_analytics_instances
+  severity: CRITICAL
+  conditions:
+    var: item.freeform_tags.DatasetPublicSharingEnabled
+    op: not_equals
+    value: 'true'
+- rule_id: oci.analytics.analytics_instance.dataset_row_level_security_enabled
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    var: item.dataset_row_level_security_enabled
+    op: is_true
+    value: null
+- rule_id: oci.analytics.analytics_instance.event_subscription_cross_account_sharing_restricted
+  for_each: oci.analytics.list_analytics_instances
+  severity: LOW
+  conditions:
+    var: item.event_subscription_cross_account_sharing_restricted
+    op: is_true
+    value: null
+- rule_id: oci.analytics.analytics_instance.event_subscription_destination_encrypted
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    var: item.event_subscription_destination.encryption_key_id
+    op: exists
+    value: null
+- rule_id: oci.analytics.analytics_instance.event_subscription_destination_least_privilege_required
+  for_each: oci.analytics.list_analytics_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.event_subscription_destination
+      op: exists
+      value: null
+    - var: item.event_subscription_destination.permissions
+      op: not_contains
+      value: '*'
+- rule_id: oci.analytics.analytics_instance.group_external_sharing_restricted
+  for_each: oci.analytics.list_analytics_instances
+  severity: LOW
+  conditions:
+    var: item.freeform_tags.ExternalSharing
+    op: not_equals
+    value: enabled
+- rule_id: oci.analytics.analytics_instance.group_roles_minimal
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.analytics.analytics_instance.instance_network_endpoint_access_restricted
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    var: item.network_endpoint_details.network_endpoint_type
+    op: not_equals
+    value: PUBLIC
+- rule_id: oci.analytics.analytics_instance.monitoring_admin_activity_logging_enabled
+  for_each: oci.analytics.list_analytics_instances
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.analytics.analytics_instance.monitoring_logs_enabled
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    var: item.monitoring_logs_enabled
+    op: is_true
+    value: null
+- rule_id: oci.analytics.analytics_instance.monitoring_logs_retention_days_minimum_enabled
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    var: item.monitoring_logs_retention_days
+    op: gte
+    value: '30'
+- rule_id: oci.analytics.analytics_instance.monitoring_outputs_encrypted_and_private
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.monitoring_outputs_encrypted
+      op: is_true
+      value: null
+    - var: item.monitoring_outputs_private
+      op: is_true
+      value: null
+- rule_id: oci.analytics.analytics_instance.monitoring_private_networking_enforced
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    var: item.network_endpoint_details.network_endpoint_type
+    op: equals
+    value: PRIVATE
+- rule_id: oci.analytics.analytics_instance.monitoring_query_access_logging_enabled
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    var: item.monitoring_query_access_logging_enabled
+    op: is_true
+    value: null
+- rule_id: oci.analytics.analytics_instance.monitoring_roles_least_privilege_required
+  for_each: oci.analytics.list_analytics_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.analytics.analytics_instance.query_definition_access_rbac_least_privilege_required
+  for_each: oci.analytics.list_analytics_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.analytics.analytics_instance.query_definition_storage_encrypted
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    var: item.query_definition_storage_encrypted
+    op: is_true
+    value: null
+- rule_id: oci.analytics.analytics_instance.service_domains_access_control_enabled
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    var: item.service_domains_access_control_enabled
+    op: is_true
+    value: null
+- rule_id: oci.analytics.analytics_instance.service_domains_audit_logging_enabled
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    var: item.service_domains_audit_logging_enabled
+    op: is_true
+    value: null
+- rule_id: oci.analytics.analytics_instance.service_domains_cloudwatch_logging_enabled
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    var: item.service_domains[].cloudwatch_logging_enabled
+    op: is_true
+    value: null
+- rule_id: oci.analytics.analytics_instance.service_domains_encryption_enabled
+  for_each: oci.analytics.list_analytics_instances
+  severity: HIGH
+  conditions:
+    var: item.service_domains_encryption_enabled
+    op: is_true
+    value: null
+- rule_id: oci.analytics.analytics_instance.service_domains_fault_tolerant_data_nodes
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.capacity.min_node_count
+      op: gte
+      value: 2
+- rule_id: oci.analytics.analytics_instance.service_domains_fault_tolerant_master_nodes
+  for_each: oci.analytics.list_analytics_instances
+  severity: LOW
+  conditions:
+    var: item.service_domains.fault_tolerant_master_nodes
+    op: exists
+    value: null
+- rule_id: oci.analytics.analytics_instance.service_domains_internal_user_database_enabled
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    var: item.service_domains_internal_user_database_enabled
+    op: is_true
+    value: null
+- rule_id: oci.analytics.analytics_instance.service_domains_monitoring_logging_enabled
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    var: item.service_domains_monitoring_logging_enabled
+    op: is_true
+    value: null
+- rule_id: oci.analytics.analytics_instance.service_domains_node_to_encryption_enabled
+  for_each: oci.analytics.list_analytics_instances
+  severity: HIGH
+  conditions:
+    var: item.service_domains_node_to_encryption_enabled
+    op: is_true
+    value: null
+- rule_id: oci.analytics.analytics_instance.service_domains_public_access_blocked
+  for_each: oci.analytics.list_analytics_instances
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.network_endpoint_details.network_endpoint_type
+      op: equals
+      value: PRIVATE
+- rule_id: oci.analytics.analytics_instance.snapshot_cmk_policy_least_privilege_enabled
+  for_each: oci.analytics.list_analytics_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.analytics.analytics_instance.snapshot_encrypted_at_rest_cmek
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    var: item.snapshot_encryption_key_id
+    op: exists
+    value: null
+- rule_id: oci.analytics.analytics_instance.snapshot_not_publicly_shared_blocked
+  for_each: oci.analytics.list_analytics_instances
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.freeform_tags.SnapshotVisibility
+      op: exists
+      value: null
+    - var: item.freeform_tags.SnapshotVisibility
+      op: not_equals
+      value: public
+- rule_id: oci.analytics.analytics_instance.subnet_group_private_subnets_only_enforced
+  for_each: oci.analytics.list_analytics_instances
+  severity: LOW
+  conditions:
+    var: item.network_endpoint_details.network_endpoint_type
+    op: equals
+    value: PRIVATE
+- rule_id: oci.analytics.analytics_instance.table_cmk_encryption
+  for_each: oci.analytics.list_analytics_instances
+  severity: HIGH
+  conditions:
+    var: item.table_cmk_encryption
+    op: is_true
+    value: null
+- rule_id: oci.analytics.analytics_instance.traffic_analysis_alert_destinations_enabled
+  for_each: oci.analytics.list_analytics_instances
+  severity: LOW
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.network_endpoint_details.network_endpoint_type
+      op: equals
+      value: PUBLIC
+    - var: item.capacity.metering_frequency
+      op: exists
+      value: null
+- rule_id: oci.analytics.analytics_instance.traffic_analysis_ids_ips_enabled
+  for_each: oci.analytics.list_analytics_instances
+  severity: LOW
+  conditions:
+    var: item.traffic_analysis_ids_ips_enabled
+    op: is_true
+    value: null
+- rule_id: oci.analytics.analytics_instance.workgroup_allowed_data_sources_allowlist
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.workload_type
+      op: equals
+      value: OLAP
+    - var: item.workload_type
+      op: not_equals
+      value: DW
+- rule_id: oci.analytics.analytics_instance.workgroup_encryption
+  for_each: oci.analytics.list_analytics_instances
+  severity: HIGH
+  conditions:
+    var: item.work_request_details.work_request_type
+    op: exists
+    value: null
+- rule_id: oci.analytics.analytics_instance.workgroup_logging_enabled
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    var: item.work_request_logging_enabled
+    op: is_true
+    value: null
+- rule_id: oci.analytics.analytics_instance.workgroup_network_access_private_restricted
+  for_each: oci.analytics.list_analytics_instances
+  severity: MEDIUM
+  conditions:
+    var: item.network_endpoint_details.network_endpoint_type
+    op: equals
+    value: PRIVATE
+- rule_id: oci.analytics.analytics_instance.workgroup_query_result_encryption_enabled
+  for_each: oci.analytics.list_analytics_instances
+  severity: HIGH
+  conditions:
+    var: item.work_request_details.query_result_encryption_enabled
+    op: is_true
+    value: null

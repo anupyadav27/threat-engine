@@ -1,0 +1,71 @@
+rule_id: azure.network.activity_log.route_table_write
+service: network
+provider: azure
+check_type: log
+severity: high
+title: 'Network: Route Table Write'
+description: Route table created or modified — custom routing rules may redirect traffic through attacker-controlled path.
+rationale: MITM attacks on cloud communication channels can intercept credentials, session tokens, or sensitive data in transit between cloud services.
+threat_category: lateral_movement
+mitre_tactics:
+- lateral_movement
+mitre_techniques:
+- T1557
+risk_score: 72
+resource: azure_network
+source: default
+is_active: true
+domain: network_security_and_connectivity
+action_category: create
+log_source_type: activity_log
+posture_category: network_posture
+threat_tags:
+- T1557
+- lateral_movement
+- cloud_pivot
+- network_security
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: network_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 5.1
+  - 5.2
+  - 5.3
+  cis_azure_v2:
+  - 6.1
+  - 6.2
+  nist_800_53_r5:
+  - SC-7
+  - AC-4
+  - SI-3
+  pci_dss_v4:
+  - 1.2
+  - 1.3
+  - 7.2
+  iso_27001_2022:
+  - A.8.20
+  - A.8.22
+  - A.5.14
+remediation: |
+  1. Enforce TLS/HTTPS for all cloud API communications.
+  2. Enable HSTS and consider certificate pinning for critical services.
+  3. Apply network-level controls to prevent ARP spoofing within VNets/VPCs.
+references:
+- https://attack.mitre.org/techniques/T1557/
+check_config:
+  conditions:
+    all:
+    - field: operation
+      op: equals
+      value: Microsoft.Network/routeTables/write
+  log_source_type: activity_log
+version: '1.0'

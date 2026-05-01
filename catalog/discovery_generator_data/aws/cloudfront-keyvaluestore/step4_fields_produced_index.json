@@ -1,0 +1,151 @@
+{
+  "service": "cloudfront-keyvaluestore",
+  "seed_from_list": [
+    "Key",
+    "Value"
+  ],
+  "enriched_from_get_describe": [
+    "Created",
+    "ETag",
+    "FailureReason",
+    "ItemCount",
+    "Key",
+    "KvsARN",
+    "LastModified",
+    "Status",
+    "TotalSizeInBytes",
+    "Value"
+  ],
+  "fields": {
+    "Created": {
+      "operators": [
+        "equals",
+        "not_equals",
+        "gt",
+        "lt",
+        "gte",
+        "lte"
+      ],
+      "dependency_index_entity": "cloudfront-keyvaluestore.item_count_created",
+      "operations": [
+        "DescribeKeyValueStore"
+      ],
+      "discovery_id": "aws.cloudfront-keyvaluestore.describe_key_value_store",
+      "main_output_field": "ItemCount"
+    },
+    "Key": {
+      "field_name": "Key",
+      "dependency_index_entity": "cloudfront-keyvaluestore.item_key",
+      "operations": [
+        "ListKeys"
+      ],
+      "main_output_field": "Items",
+      "operators": [
+        "equals",
+        "not_equals",
+        "contains",
+        "in"
+      ],
+      "possible_values": null,
+      "enum": false,
+      "type": "string",
+      "discovery_id": "aws.cloudfront-keyvaluestore.list_keys",
+      "for_each": null,
+      "consumes": [],
+      "produces": [
+        "cloudfront-keyvaluestore.item_key"
+      ]
+    },
+    "Status": {
+      "operators": [
+        "equals",
+        "not_equals",
+        "gt",
+        "lt",
+        "gte",
+        "lte"
+      ],
+      "dependency_index_entity": "cloudfront-keyvaluestore.item_count_status",
+      "operations": [
+        "DescribeKeyValueStore"
+      ],
+      "discovery_id": "aws.cloudfront-keyvaluestore.describe_key_value_store",
+      "main_output_field": "ItemCount"
+    },
+    "Value": {
+      "field_name": "Value",
+      "dependency_index_entity": "cloudfront-keyvaluestore.item_value",
+      "operations": [
+        "ListKeys"
+      ],
+      "main_output_field": "Items",
+      "operators": [
+        "equals",
+        "not_equals",
+        "contains",
+        "in"
+      ],
+      "possible_values": null,
+      "enum": false,
+      "type": "string",
+      "discovery_id": "aws.cloudfront-keyvaluestore.list_keys",
+      "for_each": null,
+      "consumes": [],
+      "produces": [
+        "cloudfront-keyvaluestore.item_value"
+      ]
+    }
+  },
+  "field_mappings": {},
+  "source": {
+    "operation_registry": "services/cloudfront-keyvaluestore/operation_registry.json",
+    "read_ops_rule": "operation name startswith List/Get/Describe/Search/Lookup",
+    "excluded_keys": [
+      "nextToken",
+      "maxResults"
+    ]
+  },
+  "param_source_map": {
+    "KvsARN": {
+      "entity": "cloudfront-keyvaluestore.item_key",
+      "emit_field": "Key",
+      "producing_op": "ListKeys",
+      "discovery_id": "aws.cloudfront-keyvaluestore.list_keys",
+      "items_path": "response.Items",
+      "note": "When dependent op needs 'KvsARN' param, use for_each=aws.cloudfront-keyvaluestore.list_keys and set KvsARN='{{ item.Key }}'"
+    }
+  },
+  "response_emit_map": {
+    "DescribeKeyValueStore": {
+      "emit_style": "flat",
+      "response_fields": [
+        "ItemCount",
+        "TotalSizeInBytes",
+        "KvsARN",
+        "Created",
+        "ETag",
+        "LastModified",
+        "Status",
+        "FailureReason"
+      ],
+      "field_type": "scalar",
+      "note": "Flat emit \u2014 access top-level response fields directly"
+    },
+    "GetKey": {
+      "emit_style": "flat",
+      "response_fields": [
+        "Key",
+        "Value",
+        "ItemCount",
+        "TotalSizeInBytes"
+      ],
+      "field_type": "scalar",
+      "note": "Flat emit \u2014 access top-level response fields directly"
+    },
+    "ListKeys": {
+      "emit_style": "list",
+      "items_path": "response.Items",
+      "list_field": "Items"
+    }
+  }
+}

@@ -1,0 +1,59 @@
+rule_id: aws.threat.correlation.cloudtrail.enumerate_s3
+service: threat
+provider: aws
+check_type: log
+severity: medium
+title: 'Threat: Enumerate S3'
+description: S3 bucket enumeration detected — attacker listing accessible storage.
+rationale: File and directory discovery operations map available data stores, identifying high-value targets for subsequent collection and exfiltration.
+threat_category: discovery
+mitre_tactics:
+- discovery
+mitre_techniques:
+- T1083
+risk_score: 45
+resource: multi_resource
+source: ciem_rule_generator
+is_active: true
+domain: threat_detection
+action_category: reconnaissance
+log_source_type: cloudtrail
+posture_category: threat_posture
+threat_tags:
+- T1083
+- threat_detection
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: discovery
+  target_type: cloud_resource
+  blast_radius: multi_resource
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: |
+  1. Apply least-privilege RBAC on all storage access.
+  2. Enable storage access logging and alert on unusual enumeration patterns.
+  3. Use bucket/container policies to restrict list operations to authorized roles.
+references:
+- https://attack.mitre.org/techniques/T1083/
+check_config:
+  conditions:
+    all:
+    - field: operation
+      op: in
+      value:
+      - ListBuckets
+      - GetBucketAcl
+      - GetBucketPolicy
+      - GetBucketLocation
+    - field: service
+      op: equals
+      value: s3
+  for_each: log_events
+  log_source_type: cloudtrail
+  type: log
+version: '1.0'

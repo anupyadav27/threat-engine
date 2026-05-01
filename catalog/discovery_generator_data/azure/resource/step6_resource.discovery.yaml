@@ -1,0 +1,227 @@
+version: '1.0'
+provider: azure
+service: resource
+services:
+  client: resource
+  module: azure.mgmt.resource.managedapplications.v2019_07_01
+discovery:
+- discovery_id: azure.resource.applicationclientmixin.list_operations
+  calls:
+  - action: applicationclientmixin.list_operations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      action_type: '{{ item.action_type }}'
+      display: '{{ item.display }}'
+      is_data_action: '{{ item.is_data_action }}'
+      origin: '{{ item.origin }}'
+- discovery_id: azure.resource.applicationdefinitions.list_by_resource_group
+  calls:
+  - action: applicationdefinitions.list_by_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      application_resource_id: '{{ item.application_resource_id }}'
+      created_by: '{{ item.created_by }}'
+      jit_authorization_policies: '{{ item.jit_authorization_policies }}'
+      jit_request_state: '{{ item.jit_request_state }}'
+      jit_scheduling_policy: '{{ item.jit_scheduling_policy }}'
+      publisher_tenant_id: '{{ item.publisher_tenant_id }}'
+      updated_by: '{{ item.updated_by }}'
+- discovery_id: azure.resource.applications.list_by_resource_group
+  calls:
+  - action: applications.list_by_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      application_resource_id: '{{ item.application_resource_id }}'
+      created_by: '{{ item.created_by }}'
+      jit_authorization_policies: '{{ item.jit_authorization_policies }}'
+      jit_request_state: '{{ item.jit_request_state }}'
+      jit_scheduling_policy: '{{ item.jit_scheduling_policy }}'
+      publisher_tenant_id: '{{ item.publisher_tenant_id }}'
+      updated_by: '{{ item.updated_by }}'
+- discovery_id: azure.resource.applications.list_by_subscription
+  calls:
+  - action: applications.list_by_subscription
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      application_resource_id: '{{ item.application_resource_id }}'
+      created_by: '{{ item.created_by }}'
+      jit_authorization_policies: '{{ item.jit_authorization_policies }}'
+      jit_request_state: '{{ item.jit_request_state }}'
+      jit_scheduling_policy: '{{ item.jit_scheduling_policy }}'
+      publisher_tenant_id: '{{ item.publisher_tenant_id }}'
+      updated_by: '{{ item.updated_by }}'
+- discovery_id: azure.resource.jitrequests.list_by_resource_group
+  calls:
+  - action: jitrequests.list_by_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      application_resource_id: '{{ item.application_resource_id }}'
+      created_by: '{{ item.created_by }}'
+      jit_authorization_policies: '{{ item.jit_authorization_policies }}'
+      jit_request_state: '{{ item.jit_request_state }}'
+      jit_scheduling_policy: '{{ item.jit_scheduling_policy }}'
+      publisher_tenant_id: '{{ item.publisher_tenant_id }}'
+      updated_by: '{{ item.updated_by }}'
+- discovery_id: azure.resource.jitrequests.list_by_subscription
+  calls:
+  - action: jitrequests.list_by_subscription
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      application_resource_id: '{{ item.application_resource_id }}'
+      created_by: '{{ item.created_by }}'
+      jit_authorization_policies: '{{ item.jit_authorization_policies }}'
+      jit_request_state: '{{ item.jit_request_state }}'
+      jit_scheduling_policy: '{{ item.jit_scheduling_policy }}'
+      publisher_tenant_id: '{{ item.publisher_tenant_id }}'
+      updated_by: '{{ item.updated_by }}'
+- discovery_id: azure.resource.applicationdefinitions.get_by_id
+  for_each: azure.resource.applicationdefinitions.list_by_resource_group
+  calls:
+  - action: applicationdefinitions.get_by_id
+    save_as: response
+    on_error: continue
+    params:
+      application_definition_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.resource.applications.get_by_id
+  for_each: azure.resource.applications.list_by_subscription
+  calls:
+  - action: applications.get_by_id
+    save_as: response
+    on_error: continue
+    params:
+      application_id: '{{ item.id }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.resources.resources.resources_list
+  calls:
+  - action: resources.Resources_List
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+- discovery_id: azure.resource.list_operations
+  calls:
+  - action: list_operations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.resource.list_by_resource_group
+  calls:
+  - action: list_by_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.resource.list_by_subscription
+  calls:
+  - action: list_by_subscription
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'

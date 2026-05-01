@@ -1,0 +1,37 @@
+# Auto-generated: check rules for IBM iam_access_groups from test-rulecheck_python_code
+version: '1.0'
+provider: ibm
+service: iam_access_groups
+checks:
+- rule_id: ibm.iam_access_groups.access_group.description_present
+  for_each: ibm.iam_access_groups.get-access-group
+  severity: LOW
+  conditions:
+    var: item.description
+    op: exists
+- rule_id: ibm.iam_access_groups.access_group.dynamic_rules_for_federated_users
+  for_each: ibm.iam_access_groups.get-access-group
+  severity: MEDIUM
+  conditions:
+    var: item.dynamic_rules
+    op: exists
+- rule_id: ibm.iam_access_groups.access_group.no_orphaned_group
+  for_each: ibm.iam_access_groups.get-access-group
+  severity: LOW
+  conditions:
+    var: item.status
+    op: equals
+    value: ACTIVE
+- rule_id: ibm.iam_access_groups.access_group.no_wildcard_policies
+  for_each: ibm.iam_access_groups.get-access-group-rule
+  severity: HIGH
+  conditions:
+    var: item.rules[].conditions[].value
+    op: not_contains
+    value: '*'
+- rule_id: ibm.iam_access_groups.account.public_access_disabled
+  for_each: ibm.iam_access_groups.get-account-settings
+  severity: CRITICAL
+  conditions:
+    var: item.public_access_enabled
+    op: is_false

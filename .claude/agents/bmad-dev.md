@@ -57,14 +57,18 @@ ON CONFLICT (rule_id) DO UPDATE SET
 
 ```
 /Users/apple/Desktop/threat-engine/
-├── engines/discoveries/providers/azure/     ← Azure scanner (create)
-├── engines/discoveries/providers/gcp/       ← GCP scanner (create)
-├── engines/discoveries/run_scan.py          ← provider registration
-├── catalog/azure/                           ← Azure YAML catalog (create)
+├── engines/discoveries/                     ← discovery engine
+│   ├── providers/{csp}/                     ← per-CSP scanner implementations
+│   └── run_scan.py                          ← provider registration
+├── engines/network-security/                ← network 7-layer engine
+│   └── network_security_engine/providers/   ← per-CSP topology analyzers
+├── engines/{engine}/                        ← each engine directory
+├── shared/common/                           ← engine_common in Docker
+├── shared/database/schemas/                 ← SQL schemas
+├── catalog/{csp}_rule_check/               ← check rules per CSP
+├── catalog/discovery_generator_data/{csp}/  ← step6 discovery YAMLs
+├── deployment/aws/eks/engines/              ← K8s manifests
 ├── deployment/aws/eks/argo/cspm-pipeline.yaml
-├── engines/threat/threat_engine/graph/graph_builder.py
-├── engines/threat/threat_engine/graph/graph_queries.py
-├── consolidated_services/database/schemas/
 └── .claude/planning/stories/               ← story files
 ```
 

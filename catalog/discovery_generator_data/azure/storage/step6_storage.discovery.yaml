@@ -1,0 +1,781 @@
+version: '1.0'
+provider: azure
+service: storage
+services:
+  client: storage
+  module: azure.mgmt.storage
+discovery:
+- discovery_id: azure.storage.deletedaccounts.list
+  calls:
+  - action: deletedaccounts.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.storage.skus.list
+  calls:
+  - action: skus.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.storage.storageaccounts.list
+  calls:
+  - action: storageaccounts.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.storage.storageaccounts.list_by_resource_group
+  calls:
+  - action: storageaccounts.list_by_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      public_network_access: '{{ item.public_network_access }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      network_rule_set: '{{ item.network_rule_set }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      enable_https_traffic_only: '{{ item.enable_https_traffic_only }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      minimum_tls_version: '{{ item.minimum_tls_version }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      encryption: '{{ item.encryption }}'
+      tags: '{{ item.tags }}'
+      access_tier: '{{ item.access_tier }}'
+      account_migration_in_progress: '{{ item.account_migration_in_progress }}'
+      allow_blob_public_access: '{{ item.allow_blob_public_access }}'
+      allow_cross_tenant_replication: '{{ item.allow_cross_tenant_replication }}'
+      allow_shared_key_access: '{{ item.allow_shared_key_access }}'
+      allowed_copy_scope: '{{ item.allowed_copy_scope }}'
+      azure_files_identity_based_authentication: '{{ item.azure_files_identity_based_authentication
+        }}'
+      blob_restore_status: '{{ item.blob_restore_status }}'
+      creation_time: '{{ item.creation_time }}'
+      custom_domain: '{{ item.custom_domain }}'
+      default_to_o_auth_authentication: '{{ item.default_to_o_auth_authentication
+        }}'
+      dns_endpoint_type: '{{ item.dns_endpoint_type }}'
+      dual_stack_endpoint_preference: '{{ item.dual_stack_endpoint_preference }}'
+      enable_extended_groups: '{{ item.enable_extended_groups }}'
+      enable_nfs_v3: '{{ item.enable_nfs_v3 }}'
+      extended_location: '{{ item.extended_location }}'
+      failover_in_progress: '{{ item.failover_in_progress }}'
+      geo_priority_replication_status: '{{ item.geo_priority_replication_status }}'
+      geo_replication_stats: '{{ item.geo_replication_stats }}'
+      immutable_storage_with_versioning: '{{ item.immutable_storage_with_versioning
+        }}'
+      is_hns_enabled: '{{ item.is_hns_enabled }}'
+      is_local_user_enabled: '{{ item.is_local_user_enabled }}'
+      is_sftp_enabled: '{{ item.is_sftp_enabled }}'
+      is_sku_conversion_blocked: '{{ item.is_sku_conversion_blocked }}'
+      key_creation_time: '{{ item.key_creation_time }}'
+      key_policy: '{{ item.key_policy }}'
+      large_file_shares_state: '{{ item.large_file_shares_state }}'
+      last_geo_failover_time: '{{ item.last_geo_failover_time }}'
+      placement: '{{ item.placement }}'
+      primary_endpoints: '{{ item.primary_endpoints }}'
+      primary_location: '{{ item.primary_location }}'
+      private_endpoint_connections: '{{ item.private_endpoint_connections }}'
+      routing_preference: '{{ item.routing_preference }}'
+      sas_policy: '{{ item.sas_policy }}'
+      secondary_endpoints: '{{ item.secondary_endpoints }}'
+      secondary_location: '{{ item.secondary_location }}'
+      status_of_primary: '{{ item.status_of_primary }}'
+      status_of_secondary: '{{ item.status_of_secondary }}'
+      storage_account_sku_conversion_status: '{{ item.storage_account_sku_conversion_status
+        }}'
+- discovery_id: azure.storage.blobcontainers.get_immutability_policy
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: blobcontainers.get_immutability_policy
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.storage.blobcontainers.list
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: blobcontainers.list
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.storage.blobinventorypolicies.list
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: blobinventorypolicies.list
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.storage.blobservices.get_service_properties
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: blobservices.get_service_properties
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.storage.blobservices.list
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: blobservices.list
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.storage.encryptionscopes.list
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: encryptionscopes.list
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.storage.fileservices.get_service_properties
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: fileservices.get_service_properties
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.storage.fileservices.get_service_usage
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: fileservices.get_service_usage
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.storage.fileservices.list
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: fileservices.list
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.storage.fileservices.list_service_usages
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: fileservices.list_service_usages
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.storage.fileshares.list
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: fileshares.list
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.storage.localusers.list
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: localusers.list
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.storage.localusers.list_keys
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: localusers.list_keys
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.storage.networksecurityperimeterconfigurations.list
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: networksecurityperimeterconfigurations.list
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.storage.objectreplicationpolicies.list
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: objectreplicationpolicies.list
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.storage.privateendpointconnections.list
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: privateendpointconnections.list
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.storage.privatelinkresources.list_by_storage_account
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: privatelinkresources.list_by_storage_account
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      group_id: '{{ item.group_id }}'
+      required_members: '{{ item.required_members }}'
+      required_zone_names: '{{ item.required_zone_names }}'
+- discovery_id: azure.storage.queue.list
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: queue.list
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.storage.queueservices.get_service_properties
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: queueservices.get_service_properties
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.storage.queueservices.list
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: queueservices.list
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.storage.storageaccounts.get_customer_initiated_migration
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: storageaccounts.get_customer_initiated_migration
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.storage.storageaccounts.get_properties
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: storageaccounts.get_properties
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.storage.storageaccounts.list_account_sas
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: storageaccounts.list_account_sas
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.storage.storageaccounts.list_keys
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: storageaccounts.list_keys
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.storage.storageaccounts.list_service_sas
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: storageaccounts.list_service_sas
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.storage.storagetaskassignmentinstancesreport.list
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: storagetaskassignmentinstancesreport.list
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.storage.storagetaskassignments.list
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: storagetaskassignments.list
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.storage.storagetaskassignmentsinstancesreport.list
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: storagetaskassignmentsinstancesreport.list
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.storage.table.list
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: table.list
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.storage.tableservices.get_service_properties
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: tableservices.get_service_properties
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.storage.tableservices.list
+  for_each: azure.storage.storageaccounts.list
+  calls:
+  - action: tableservices.list
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.blob.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      storage_account_resource_id: '{{ item.storage_account_resource_id }}'
+      location: '{{ item.location }}'
+      restore_reference: '{{ item.restore_reference }}'
+      creation_time: '{{ item.creation_time }}'
+      deletion_time: '{{ item.deletion_time }}'
+- discovery_id: azure.elastic.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      storage_account_resource_id: '{{ item.storage_account_resource_id }}'
+      location: '{{ item.location }}'
+      restore_reference: '{{ item.restore_reference }}'
+      creation_time: '{{ item.creation_time }}'
+      deletion_time: '{{ item.deletion_time }}'
+- discovery_id: azure.files.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      storage_account_resource_id: '{{ item.storage_account_resource_id }}'
+      location: '{{ item.location }}'
+      restore_reference: '{{ item.restore_reference }}'
+      creation_time: '{{ item.creation_time }}'
+      deletion_time: '{{ item.deletion_time }}'
+- discovery_id: azure.netappfiles.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      storage_account_resource_id: '{{ item.storage_account_resource_id }}'
+      location: '{{ item.location }}'
+      restore_reference: '{{ item.restore_reference }}'
+      creation_time: '{{ item.creation_time }}'
+      deletion_time: '{{ item.deletion_time }}'
+- discovery_id: azure.storage.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      storage_account_resource_id: '{{ item.storage_account_resource_id }}'
+      location: '{{ item.location }}'
+      restore_reference: '{{ item.restore_reference }}'
+      creation_time: '{{ item.creation_time }}'
+      deletion_time: '{{ item.deletion_time }}'
+- discovery_id: azure.storage.usage_list
+  calls:
+  - action: Usage_List
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'

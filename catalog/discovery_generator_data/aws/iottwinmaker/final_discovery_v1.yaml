@@ -1,0 +1,122 @@
+# ==========================================================
+# Discovery YAML — iottwinmaker (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 5 | ops: 0 independent, 5 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: iottwinmaker
+
+services:
+  client: iottwinmaker
+  module: "boto3.client('iottwinmaker')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  []
+
+checks: []
+
+discovery:
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.iottwinmaker.get_component_type [dependent] ──
+  - discovery_id: aws.iottwinmaker.get_component_type
+    for_each: aws.iottwinmaker.list_workspaces
+    calls:
+      - action: get_component_type
+        params:
+          workspaceId: "{{ item.workspaceId }}"
+          componentTypeId: "{{ item.componentTypeId }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.extendsFrom }}'
+      item:
+        Tags: '{{ item.Tags }}'
+        compositeComponentTypes: '{{ item.compositeComponentTypes }}'
+        extendsFrom: '{{ item.extendsFrom }}'
+        functions: '{{ item.functions }}'
+        isAbstract: '{{ item.isAbstract }}'
+        isSchemaInitialized: '{{ item.isSchemaInitialized }}'
+        isSingleton: '{{ item.isSingleton }}'
+        propertyDefinitions: '{{ item.propertyDefinitions }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.iottwinmaker.get_entity [dependent] ──
+  - discovery_id: aws.iottwinmaker.get_entity
+    for_each: aws.iottwinmaker.list_workspaces
+    calls:
+      - action: get_entity
+        params:
+          workspaceId: "{{ item.workspaceId }}"
+          entityId: "{{ item.entityId }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Tags: '{{ item.Tags }}'
+        error: '{{ item.error }}'
+        state: '{{ item.state }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.iottwinmaker.get_scene [dependent] ──
+  - discovery_id: aws.iottwinmaker.get_scene
+    for_each: aws.iottwinmaker.list_workspaces
+    calls:
+      - action: get_scene
+        params:
+          workspaceId: "{{ item.workspaceId }}"
+          sceneId: "{{ item.sceneId }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.capabilities }}'
+      item:
+        Tags: '{{ item.Tags }}'
+        capabilities: '{{ item.capabilities }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.iottwinmaker.get_workspace [dependent] ──
+  - discovery_id: aws.iottwinmaker.get_workspace
+    for_each: aws.iottwinmaker.list_workspaces
+    calls:
+      - action: get_workspace
+        params:
+          workspaceId: "{{ item.workspaceId }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.linkedServices }}'
+      item:
+        Tags: '{{ item.Tags }}'
+        role: '{{ item.role }}'
+        s3Location: '{{ item.s3Location }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.iottwinmaker.list_sync_jobs [dependent] ──
+  - discovery_id: aws.iottwinmaker.list_sync_jobs
+    for_each: aws.iottwinmaker.list_workspaces
+    calls:
+      - action: list_sync_jobs
+        params:
+          workspaceId: "{{ item.workspaceId }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.syncJobSummaries }}'
+      item:
+        Tags: '{{ item.Tags }}'
+        arn: '{{ item.arn }}'
+        creationDateTime: '{{ item.creationDateTime }}'
+        status: '{{ item.status }}'
+        syncSource: '{{ item.syncSource }}'
+        updateDateTime: '{{ item.updateDateTime }}'
+        workspaceId: '{{ item.workspaceId }}'
+

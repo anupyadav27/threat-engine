@@ -29,6 +29,7 @@ class Cloud(str, Enum):
     ALICLOUD = "alicloud"
     OCI = "oci"
     IBM = "ibm"
+    K8S = "k8s"
 
 
 class CollectionMode(str, Enum):

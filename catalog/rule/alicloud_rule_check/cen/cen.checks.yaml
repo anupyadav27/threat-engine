@@ -1,0 +1,22 @@
+version: '1.0'
+provider: alicloud
+service: cen
+checks:
+- rule_id: alicloud.cen.network.eni_security_groups_present
+  for_each: alicloud.cen.network.eni_security_groups.list
+  severity: MEDIUM
+  conditions:
+    var: item.security_groups
+    op: not_empty
+    value: null
+- rule_id: alicloud.cen.network.eni_security_groups_restrictive
+  for_each: alicloud.cen.describe_cen_attached_child_instances
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.AttachedChildInstanceType
+      op: equals
+      value: VPC
+    - var: item.ChildInstanceAttachments[].SecurityGroupIds[].SecurityGroupId
+      op: not_contains
+      value: sg-bp1abc123456

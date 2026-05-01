@@ -1,0 +1,21 @@
+version: '1.0'
+rule_id: gcp.compute.backend_service.cdn_cache_key_minimal_query_and_cookie_variants
+for_each: gcp.compute.list_backend_services
+severity: MEDIUM
+conditions:
+  all:
+  - var: item.CdnPolicy.CacheKeyPolicy.IncludeHost
+    op: is_true
+  - var: item.CdnPolicy.CacheKeyPolicy.IncludeProtocol
+    op: is_true
+  - var: item.CdnPolicy.CacheKeyPolicy.IncludeQueryString
+    op: is_true
+  - var: item.CdnPolicy.CacheKeyPolicy.QueryStringWhitelist
+    op: exists
+  - var: item.CdnPolicy.CacheKeyPolicy.QueryStringBlacklist
+    op: not_exists
+  - var: item.CdnPolicy.CacheKeyPolicy.IncludeHttpHeaders
+    op: exists
+  - var: item.CdnPolicy.CacheKeyPolicy.IncludeHttpHeaders[].header_name
+    op: contains
+    value: Cookie

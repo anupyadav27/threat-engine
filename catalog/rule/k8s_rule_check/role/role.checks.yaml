@@ -1,0 +1,33 @@
+version: '1.0'
+provider: k8s
+service: role
+checks:
+- rule_id: k8s.role.permission.exec_restricted
+  for_each: k8s.rbac.roles.list
+  severity: HIGH
+  conditions:
+    var: item.rules[].verbs[]
+    op: not_contains
+    value: exec
+- rule_id: k8s.role.permission.secrets_access_restricted
+  for_each: k8s.rbac.roles.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.rules[].resources[]
+      op: not_contains
+      value: secrets
+    - var: item.rules[].verbs[]
+      op: not_contains
+      value: '*'
+- rule_id: k8s.role.permission.wildcard_verbs_restricted
+  for_each: k8s.rbac.roles.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.rules[].verbs[]
+      op: not_contains
+      value: '*'
+    - var: item.rules[].verbs[]
+      op: not_contains
+      value: '"*'

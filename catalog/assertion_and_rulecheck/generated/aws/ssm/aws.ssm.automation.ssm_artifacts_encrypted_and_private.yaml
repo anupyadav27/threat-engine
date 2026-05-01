@@ -1,0 +1,23 @@
+version: '1.0'
+rule_id: aws.ssm.automation.ssm_artifacts_encrypted_and_private
+for_each: aws.ssm.describe_automation_executions
+severity: HIGH
+conditions:
+  all:
+  - var: item.Outputs.S3OutputLocation.OutputS3BucketName
+    op: exists
+  - var: item.Outputs.S3OutputLocation.OutputS3KeyPrefix
+    op: exists
+  - any:
+    - var: item.Outputs.S3OutputLocation.OutputS3EncryptionOption
+      op: equals
+      value: SSE_KMS
+    - var: item.Outputs.S3OutputLocation.OutputS3EncryptionOption
+      op: equals
+      value: SSE_S3
+  - var: item.Outputs.S3OutputLocation.OutputS3Region
+    op: exists
+fixture_validated: false
+fixture_note: 'PASS fixture returned FAIL — wrong field or operator (pass_fixture keys: [''AlarmConfiguration'', ''AssociationId'',
+  ''AutomationExecutionId'', ''AutomationExecutionMetadataList'', ''AutomationExecutionStatus'', ''AutomationSubtype'', ''AutomationType'',
+  ''ChangeRequestName''])'

@@ -1,0 +1,556 @@
+version: '1.0'
+provider: linux
+engine: debian
+category: section_5
+cis_section: '5'
+description: >
+  debian CIS Section 5 — permissions on /etc/ssh/sshd_config are configured
+
+discovery:
+
+  - discovery_id: debian.section_5.permissions_on_etc_ssh_sshd_config_are_configured
+    description: Ensure permissions on /etc/ssh/sshd_config are configured
+    calls:
+      - action: run_command
+        command: "Run the following script and verify /etc/ssh/sshd_config and files ending in .conf in the /etc/ssh/sshd_config.d directory are: \u2022 Mode 0600 or more restrictive \u2022 Owned by the root user \u2022 Group owned by the group root. #!/usr/bin/env bash { a_output=(); a_output2=() perm_mask=\u00270177\u0027 \u0026\u0026 maxperm=\u0027$( printf \u0027%o\u0027 $(( 0777 \u0026 ~$perm_mask)) )\u0027 f_sshd_files_chk() { while IFS=: read -r l_mode l_user l_group; do a_out2=() [ $(( $l_mode \u0026 $perm_mask )) -gt 0 ] \u0026\u0026 a_out2+=(\u0027 Is mode: \\\u0027$l_mode\\\u0027\u0027 \\ \u0027 should be mode: \\\u0027$maxperm\\\u0027 or more restrictive\u0027) [ \u0027$l_user\u0027 != \u0027root\u0027 ] \u0026\u0026 a_out2+=(\u0027 Is owned by \\\u0027$l_user\\\u0027 should be owned by \\\u0027root\\\u0027\u0027) [ \u0027$l_group\u0027 != \u0027root\u0027 ] \u0026\u0026 a_out2+=(\u0027 Is group owned by \\\u0027$l_user\\\u0027 should be group owned by \\\u0027root\\\u0027\u0027) if [ \u0027${#a_out2[@]}\u0027 -gt \u00270\u0027 ]; then a_output2+=(\u0027 - File: \\\u0027$l_file\\\u0027:\u0027 \u0027${a_out2[@]}\u0027) else a_output+=(\u0027 - File: \\\u0027$l_file\\\u0027:\u0027 \u0027 Correct: mode ($l_mode), owner ($l_user)\u0027 \\ \u0027 and group owner ($l_group) configured\u0027) fi done \u003c \u003c(stat -Lc \u0027%#a:%U:%G\u0027 \u0027$l_file\u0027) } [ -e \u0027/etc/ssh/sshd_config\u0027 ] \u0026\u0026 l_file=\u0027/etc/ssh/sshd_config\u0027 \u0026\u0026 f_sshd_files_chk while IFS= read -r -d $\u0027\\0\u0027 l_file; do [ -e \u0027$l_file\u0027 ] \u0026\u0026 f_sshd_files_chk done \u003c \u003c(find /etc/ssh/sshd_config.d -type f -name \u0027*.conf\u0027 \\( -perm /077 -o ! -user root -o ! -group root \\) -print0 2\u003e/dev/null) if [ \u0027${#a_output2[@]}\u0027 -le 0 ]; then printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** PASS **\u0027 \u0027${a_output[@]}\u0027 \u0027\u0027 else printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** FAIL **\u0027 \u0027 - Reason(s) for audit failure:\u0027 \u0027${a_output2[@]}\u0027 [ \u0027${#a_output[@]}\u0027 -gt 0 ] \u0026\u0026 printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Correctly set:\u0027 \u0027${a_output[@]}\u0027 \u0027\u0027 fi } - IF - other locations are listed in an Include statement, *.conf files in these locations should also be checked."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: permissions_on_etc_ssh_sshd_config_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.permissions_on_ssh_private_host_key_files_are
+    description: Ensure permissions on SSH private host key files are configured
+    calls:
+      - action: run_command
+        command: "Run the following script to verify SSH private host key files are owned by the root user and either: \u2022 owned by the group root and mode 0600 or more restrictive - OR - \u2022 owned by the group designated to own openSSH private keys and mode 0640 or more restrictive #!/usr/bin/env bash { a_output=(); a_output2=() l_ssh_group_name=\u0027$(awk -F: \u0027($1 ~ /^(ssh_keys|_?ssh)$/) {print $1}\u0027 /etc/group)\u0027 f_file_chk() { while IFS=: read -r l_file_mode l_file_owner l_file_group; do a_out2=() [ \u0027$l_file_group\u0027 = \u0027$l_ssh_group_name\u0027 ] \u0026\u0026 l_pmask=\u00270137\u0027 || l_pmask=\u00270177\u0027 l_maxperm=\u0027$( printf \u0027%o\u0027 $(( 0777 \u0026 ~$l_pmask )) )\u0027 if [ $(( $l_file_mode \u0026 $l_pmask )) -gt 0 ]; then a_out2+=(\u0027 Mode: \\\u0027$l_file_mode\\\u0027 should be mode: \\\u0027$l_maxperm\\\u0027 or more restrictive\u0027) fi if [ \u0027$l_file_owner\u0027 != \u0027root\u0027 ]; then a_out2+=(\u0027 Owned by: \\\u0027$l_file_owner\\\u0027 should be owned by \\\u0027root\\\u0027\u0027) fi if [[ ! \u0027$l_file_group\u0027 =~ ($l_ssh_group_name|root) ]]; then a_out2+=(\u0027 Owned by group \\\u0027$l_file_group\\\u0027 should be group owned by: \\\u0027$l_ssh_group_name\\\u0027 or \\\u0027root\\\u0027\u0027) fi if [ \u0027${#a_out2[@]}\u0027 -gt \u00270\u0027 ]; then a_output2+=(\u0027 - File: \\\u0027$l_file\\\u0027${a_out2[@]}\u0027) else a_output+=(\u0027 - File: \\\u0027$l_file\\\u0027\u0027 \\ \u0027 Correct: mode: \\\u0027$l_file_mode\\\u0027, owner: \\\u0027$l_file_owner\\\u0027 and group owner: \\\u0027$l_file_group\\\u0027 configured\u0027) fi done \u003c \u003c(stat -Lc \u0027%#a:%U:%G\u0027 \u0027$l_file\u0027) } while IFS= read -r -d $\u0027\\0\u0027 l_file; do if ssh-keygen -lf \u0026\u003e/dev/null \u0027$l_file\u0027; then file \u0027$l_file\u0027 | grep -Piq -- \u0027\\bopenssh\\h+([^#\\n\\r]+\\h+)?private\\h+key\\b\u0027 \u0026\u0026 f_file_chk fi done \u003c \u003c(find -L /etc/ssh -xdev -type f -print0 2\u003e/dev/null) if [ \u0027${#a_output2[@]}\u0027 -le 0 ]; then printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** PASS **\u0027 \u0027${a_output[@]}\u0027 \u0027\u0027 else printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** FAIL **\u0027 \u0027 - Reason(s) for audit failure:\u0027 \u0027${a_output2[@]}\u0027 [ \u0027${#a_output[@]}\u0027 -gt 0 ] \u0026\u0026 printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Correctly set:\u0027 \u0027${a_output[@]}\u0027 \u0027\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: permissions_on_ssh_private_host_key_files_are
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.permissions_on_ssh_public_host_key_files_are
+    description: Ensure permissions on SSH public host key files are configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify Access does not grant write or execute permissions to group or other for all returned files: Run the following script to verify SSH public host key files are mode 0644 or more restrictive, owned by the root user, and owned by the root group: #!/usr/bin/env bash { a_output=(); a_output2=() l_pmask=\u00270133\u0027; l_maxperm=\u0027$( printf \u0027%o\u0027 $(( 0777 \u0026 ~$l_pmask )) )\u0027 f_file_chk() { while IFS=: read -r l_file_mode l_file_owner l_file_group; do a_out2=() if [ $(( $l_file_mode \u0026 $l_pmask )) -gt 0 ]; then a_out2+=(\u0027 Mode: \\\u0027$l_file_mode\\\u0027 should be mode: \\\u0027$l_maxperm\\\u0027 or more restrictive\u0027) fi if [ \u0027$l_file_owner\u0027 != \u0027root\u0027 ]; then a_out2+=(\u0027 Owned by: \\\u0027$l_file_owner\\\u0027 should be owned by: \\\u0027root\\\u0027\u0027) fi if [ \u0027$l_file_group\u0027 != \u0027root\u0027 ]; then a_out2+=(\u0027 Owned by group \\\u0027$l_file_group\\\u0027 should be group owned by group: \\\u0027root\\\u0027\u0027) fi if [ \u0027${#a_out2[@]}\u0027 -gt \u00270\u0027 ]; then a_output2+=(\u0027 - File: \\\u0027$l_file\\\u0027\u0027 \u0027${a_out2[@]}\u0027) else a_output+=(\u0027 - File: \\\u0027$l_file\\\u0027\u0027 \\ \u0027 Correct: mode: \\\u0027$l_file_mode\\\u0027, owner: \\\u0027$l_file_owner\\\u0027 and group owner: \\\u0027$l_file_group\\\u0027 configured\u0027) fi done \u003c \u003c(stat -Lc \u0027%#a:%U:%G\u0027 \u0027$l_file\u0027) } while IFS= read -r -d $\u0027\\0\u0027 l_file; do if ssh-keygen -lf \u0026\u003e/dev/null \u0027$l_file\u0027; then file \u0027$l_file\u0027 | grep -Piq -- \u0027\\bopenssh\\h+([^#\\n\\r]+\\h+)?public\\h+key\\b\u0027 \u0026\u0026 f_file_chk fi done \u003c \u003c(find -L /etc/ssh -xdev -type f -print0 2\u003e/dev/null) if [ \u0027${#a_output2[@]}\u0027 -le 0 ]; then [ \u0027${#a_output[@]}\u0027 -le 0 ] \u0026\u0026 a_output+=(\u0027 - No openSSH public keys found\u0027) printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** PASS **\u0027 \u0027${a_output[@]}\u0027 \u0027\u0027 else printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** FAIL **\u0027 \u0027 - Reason(s) for audit failure:\u0027 \u0027${a_output2[@]}\u0027 [ \u0027${#a_output[@]}\u0027 -gt 0 ] \u0026\u0026 printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Correctly set:\u0027 \u0027${a_output[@]}\u0027 \u0027\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: permissions_on_ssh_public_host_key_files_are
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.sshd_banner_is_configured
+    description: Ensure sshd Banner is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify Banner is set: # sshd -T | grep -Pi -- \u0027^banner\\h+\\/\\H+\u0027 Example: banner /etc/issue.net - IF - Match set statements are used in your environment, specify the connection parameters to use for the -T extended test mode and run the audit to verify the setting is not incorrectly configured in a match block Example additional audit needed for a match block for the user sshuser: # sshd -T -C user=sshuser | grep -Pi -- \u0027^banner\\h+\\/\\H+\u0027 Note: If provided, any Match directives in the configuration file that would apply are applied before the configuration is written to standard output. The connection parameters are supplied as keyword=value pairs and may be supplied in any order, either with multiple -C options or as a comma-separated list. The keywords are addr (source address), user (user), host (resolved source host name), laddr (local address), lport (local port number), and rdomain (routing domain). Run the following command and verify that the contents or the file being called by the Banner argument match site policy: # [ -e \u0027$(sshd -T | awk \u0027$1 == \u0027banner\u0027 {print $2}\u0027)\u0027 ] \u0026\u0026 cat \u0027$(sshd -T | awk \u0027$1 == \u0027banner\u0027 {print $2}\u0027)\u0027 Run the following command and verify no results are returned: # grep -Psi -- \u0027(\\\\\\v|\\\\\\r|\\\\\\m|\\\\\\s|\\b$(grep \u0027^ID=\u0027 /etc/os-release | cut - d= -f2 | sed -e \u0027s/\u0027//g\u0027)\\b)\u0027 \u0027$(sshd -T | awk \u0027$1 == \u0027banner\u0027 {print $2}\u0027)\u0027"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_banner_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.sshd_ciphers_are_configured
+    description: Ensure sshd Ciphers are configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify none of the \u0027weak\u0027 ciphers are being used: # sshd -T | grep -Pi -- \u0027^ciphers\\h+\\\u0027?([^#\\n\\r]+,)?((3des|blowfish|cast128|aes(128|192|256))- cbc|arcfour(128|256)?|rijndael-cbc@lysator\\.liu\\.se|chacha20- poly1305@openssh\\.com)\\b\u0027 - IF - a line is returned, review the list of ciphers. If the line includes chacha20- poly1305@openssh.com, review CVE-2023-48795 and verify the system has been patched. No ciphers in the list below should be returned as they\u0027re considered \u0027weak\u0027: 3des-cbc aes128-cbc aes192-cbc aes256-cbc"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_ciphers_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.sshd_clientaliveinterval_and_clientalivecountmax
+    description: Ensure sshd ClientAliveInterval and ClientAliveCountMax are configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify ClientAliveInterval and ClientAliveCountMax are greater than zero: # sshd -T | grep -Pi -- \u0027(clientaliveinterval|clientalivecountmax)\u0027 Example Output: clientaliveinterval 15 clientalivecountmax 3 - IF - Match set statements are used in your environment, specify the connection parameters to use for the -T extended test mode and run the audit to verify the setting is not incorrectly configured in a match block Example additional audit needed for a match block for the user sshuser: # sshd -T -C user=sshuser | grep -Pi -- \u0027(clientaliveinterval|clientalivecountmax)\u0027 Note: If provided, any Match directives in the configuration file that would apply are applied before the configuration is written to standard output. The connection parameters are supplied as keyword=value pairs and may be supplied in any order, either with multiple -C options or as a comma-separated list. The keywords are addr (source address), user (user), host (resolved source host name), laddr (local address), lport (local port number), and rdomain (routing domain)."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_clientaliveinterval_and_clientalivecountmax
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.sshd_disableforwarding_is_enabled
+    description: Ensure sshd DisableForwarding is enabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify DisableForwarding is set to yes: # sshd -T | grep -i disableforwarding disableforwarding yes"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_disableforwarding_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.sshd_gssapiauthentication_is_disabled
+    description: Ensure sshd GSSAPIAuthentication is disabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify GSSAPIAuthentication is set to no: # sshd -T | grep gssapiauthentication gssapiauthentication no - IF - Match set statements are used in your environment, specify the connection parameters to use for the -T extended test mode and run the audit to verify the setting is not incorrectly configured in a match block Example additional audit needed for a match block for the user sshuser: # sshd -T -C user=sshuser | grep gssapiauthentication Note: If provided, any Match directives in the configuration file that would apply are applied before the configuration is written to standard output. The connection parameters are supplied as keyword=value pairs and may be supplied in any order, either with multiple -C options or as a comma-separated list. The keywords are addr (source address), user (user), host (resolved source host name), laddr (local address), lport (local port number), and rdomain (routing domain)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_gssapiauthentication_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.sshd_hostbasedauthentication_is_disabled
+    description: Ensure sshd HostbasedAuthentication is disabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify HostbasedAuthentication is set to no: # sshd -T | grep hostbasedauthentication hostbasedauthentication no - IF - Match set statements are used in your environment, specify the connection parameters to use for the -T extended test mode and run the audit to verify the setting is not incorrectly configured in a match block Example additional audit needed for a match block for the user sshuser: # sshd -T -C user=sshuser | grep hostbasedauthentication Note: If provided, any Match directives in the configuration file that would apply are applied before the configuration is written to standard output. The connection parameters are supplied as keyword=value pairs and may be supplied in any order, either with multiple -C options or as a comma-separated list. The keywords are addr (source address), user (user), host (resolved source host name), laddr (local address), lport (local port number), and rdomain (routing domain)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_hostbasedauthentication_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.sshd_ignorerhosts_is_enabled
+    description: Ensure sshd IgnoreRhosts is enabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify IgnoreRhosts is set to yes: # sshd -T | grep ignorerhosts ignorerhosts yes - IF - Match set statements are used in your environment, specify the connection parameters to use for the -T extended test mode and run the audit to verify the setting is not incorrectly configured in a match block Example additional audit needed for a match block for the user sshuser: # sshd -T -C user=sshuser | grep ignorerhosts Note: If provided, any Match directives in the configuration file that would apply are applied before the configuration is written to standard output. The connection parameters are supplied as keyword=value pairs and may be supplied in any order, either with multiple -C options or as a comma-separated list. The keywords are addr (source address), user (user), host (resolved source host name), laddr (local address), lport (local port number), and rdomain (routing domain)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_ignorerhosts_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.sshd_kexalgorithms_is_configured
+    description: Ensure sshd KexAlgorithms is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify none of the \u0027weak\u0027 Key Exchange algorithms are being used: # sshd -T | grep -Pi -- \u0027kexalgorithms\\h+([^#\\n\\r]+,)?(diffie-hellman-group1- sha1|diffie-hellman-group14-sha1|diffie-hellman-group-exchange-sha1)\\b\u0027 Nothing should be returned The following are considered \u0027weak\u0027 Key Exchange Algorithms, and should not be used: diffie-hellman-group1-sha1 diffie-hellman-group14-sha1 diffie-hellman-group-exchange-sha1"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_kexalgorithms_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.sshd_loglevel_is_configured
+    description: Ensure sshd LogLevel is configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that output matches loglevel VERBOSE or loglevel INFO: # sshd -T | grep loglevel loglevel VERBOSE - OR - loglevel INFO - IF - Match set statements are used in your environment, specify the connection parameters to use for the -T extended test mode and run the audit to verify the setting is not incorrectly configured in a match block Example additional audit needed for a match block for the user sshuser: # sshd -T -C user=sshuser | grep loglevel Note: If provided, any Match directives in the configuration file that would apply are applied before the configuration is written to standard output. The connection parameters are supplied as keyword=value pairs and may be supplied in any order, either with multiple -C options or as a comma-separated list. The keywords are addr (source address), user (user), host (resolved source host name), laddr (local address), lport (local port number), and rdomain (routing domain)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_loglevel_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.sshd_macs_are_configured
+    description: Ensure sshd MACs are configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify none of the \u0027weak\u0027 MACs are being used: # sshd -T | grep -Pi -- \u0027macs\\h+([^#\\n\\r]+,)?(hmac-md5|hmac-md5-96|hmac- ripemd160|hmac-sha1-96|umac-64@openssh\\.com|hmac-md5-etm@openssh\\.com|hmac- md5-96-etm@openssh\\.com|hmac-ripemd160-etm@openssh\\.com|hmac-sha1-96- etm@openssh\\.com|umac-64-etm@openssh\\.com|umac-128-etm@openssh\\.com)\\b\u0027 Nothing should be returned Note: Review CVE-2023-48795 and verify the system has been patched. If the system has not been patched, review the use of the Encrypt Then Mac (etm) MACs. The following are considered \u0027weak\u0027 MACs, and should not be used: hmac-md5 hmac-md5-96 hmac-ripemd160 hmac-sha1-96 umac-64@openssh.com hmac-md5-etm@openssh.com hmac-md5-96-etm@openssh.com hmac-ripemd160-etm@openssh.com hmac-sha1-96-etm@openssh.com umac-64-etm@openssh.com umac-128-etm@openssh.com"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_macs_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.sshd_maxsessions_is_configured
+    description: Ensure sshd MaxSessions is configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that MaxSessions is 10 or less: # sshd -T | grep -i maxsessions maxsessions 10 Run the following command and verify the output: grep -Psi -- \u0027^\\h*MaxSessions\\h+\\\u0027?(1[1-9]|[2-9][0-9]|[1-9][0-9][0-9]+)\\b\u0027 /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf Nothing should be returned - IF - Match set statements are used in your environment, specify the connection parameters to use for the -T extended test mode and run the audit to verify the setting is not incorrectly configured in a match block Example additional audit needed for a match block for the user sshuser: # sshd -T -C user=sshuser | grep maxsessions Note: If provided, any Match directives in the configuration file that would apply are applied before the configuration is written to standard output. The connection parameters are supplied as keyword=value pairs and may be supplied in any order, either with multiple -C options or as a comma-separated list. The keywords are addr (source address), user (user), host (resolved source host name), laddr (local address), lport (local port number), and rdomain (routing domain)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_maxsessions_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.sshd_maxstartups_is_configured
+    description: Ensure sshd MaxStartups is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify MaxStartups is 10:30:60 or more restrictive: # sshd -T | awk \u0027$1 ~ /^\\s*maxstartups/{split($2, a, \u0027:\u0027);{if(a[1] \u003e 10 || a[2] \u003e 30 || a[3] \u003e 60) print $0}}\u0027 Nothing should be returned"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_maxstartups_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.sshd_permituserenvironment_is_disabled
+    description: Ensure sshd PermitUserEnvironment is disabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify PermitUserEnviroment is set to no: # sshd -T | grep permituserenvironment permituserenvironment no"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_permituserenvironment_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.sshd_usepam_is_enabled
+    description: Ensure sshd UsePAM is enabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify UsePAM is set to yes: # sshd -T | grep -i usepam usepam yes"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_usepam_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.latest_version_of_pam_is_installed
+    description: Ensure latest version of pam is installed
+    calls:
+      - action: run_command
+        command: "Run the following command to verify the version of libpam-runtime on the system: # dpkg-query -s libpam-runtime | grep -P -- \u0027^(Status|Version)\\b\u0027 The output should be similar to: Status: install ok installed Version: 1.5.2-6"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: latest_version_of_pam_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.libpam_modules_is_installed
+    description: Ensure libpam-modules is installed
+    calls:
+      - action: run_command
+        command: "Run the following command to verify libpam-modules is installed and version 1.5.2-6 or later: # dpkg-query -s libpam-modules | grep -P -- \u0027^(Status|Version)\\b\u0027 The output should be similar to: Status: install ok installed Version: 1.5.2-6"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: libpam_modules_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.libpam_pwquality_is_installed
+    description: Ensure libpam-pwquality is installed
+    calls:
+      - action: run_command
+        command: "Run the following command to verify libpam-pwquality is installed: # dpkg-query -s libpam-pwquality | grep -P -- \u0027^(Status|Version)\\b\u0027 The output should be similar to: Status: install ok installed Version: 1.4.5-1+b1"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: libpam_pwquality_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.pam_faillock_module_is_enabled
+    description: Ensure pam_faillock module is enabled
+    calls:
+      - action: run_command
+        command: "Run the following commands to verify that pam_faillock is enabled: # grep -P -- \u0027\\bpam_faillock\\.so\\b\u0027 /etc/pam.d/common-{auth,account} Output should be similar to: /etc/pam.d/common-auth:auth requisite pam_faillock.so preauth /etc/pam.d/common-auth:auth [default=die] pam_faillock.so authfail /etc/pam.d/common-account:account required pam_faillock.so"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: pam_faillock_module_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.pam_pwquality_module_is_enabled
+    description: Ensure pam_pwquality module is enabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that pam_pwhistory is enabled: # grep -P -- \u0027\\bpam_pwquality\\.so\\b\u0027 /etc/pam.d/common-password Output should be similar to: password requisite pam_pwquality.so retry=3"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: pam_pwquality_module_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.pam_pwhistory_module_is_enabled
+    description: Ensure pam_pwhistory module is enabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that pam_pwhistory is enabled: # grep -P -- \u0027\\bpam_pwhistory\\.so\\b\u0027 /etc/pam.d/common-password Output should be similar to: password requisite pam_pwhistory.so remember=24 enforce_for_root try_first_pass use_authtok"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: pam_pwhistory_module_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.password_number_of_changed_characters_is
+    description: Ensure password number of changed characters is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that the difok option is set to 2 or more and follows local site policy: # grep -Psi -- \u0027^\\h*difok\\h*=\\h*([2-9]|[1-9][0-9]+)\\b\u0027 /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf Example output: /etc/security/pwquality.conf.d/50-pwdifok.conf:difok = 2 Verify returned value(s) are 2 or more and meet local site policy Run the following command to verify that difok is not set, is 2 or more, and conforms to local site policy: # grep -Psi -- \u0027^\\h*password\\h+(requisite|required|sufficient)\\h+pam_pwquality\\.so\\h+([^#\\n\\ r]+\\h+)?difok\\h*=\\h*([0-1])\\b\u0027 /etc/pam.d/common-password Nothing should be returned Note: \u2022 settings should be configured in only one location for clarity \u2022 Settings observe an order of precedence: o module arguments override the settings in the /etc/security/pwquality.conf configuration file o settings in the /etc/security/pwquality.conf configuration file override settings in a .conf file in the /etc/security/pwquality.conf.d/ directory o settings in a .conf file in the /etc/security/pwquality.conf.d/ directory are read in canonical order, with last read file containing the setting taking precedence \u2022 It is recommended that settings be configured in a .conf file in the /etc/security/pwquality.conf.d/ directory for clarity, convenience, and durability."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_number_of_changed_characters_is
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.minimum_password_length_is_configured
+    description: Ensure minimum password length is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that password length is 14 or more characters, and conforms to local site policy: # grep -Psi -- \u0027^\\h*minlen\\h*=\\h*(1[4-9]|[2-9][0-9]|[1-9][0-9]{2,})\\b\u0027 /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf Example output: /etc/security/pwquality.conf.d/50-pwlength.conf:minlen = 14 Verify returned value(s) are no less than 14 characters and meet local site policy Run the following command to verify that minlen is not set, or is 14 or more characters, and conforms to local site policy: # grep -Psi -- \u0027^\\h*password\\h+(requisite|required|sufficient)\\h+pam_pwquality\\.so\\h+([^#\\n\\ r]+\\h+)?minlen\\h*=\\h*([0-9]|1[0-3])\\b\u0027 /etc/pam.d/system-auth /etc/pam.d/common-password Nothing should be returned Note: \u2022 settings should be configured in only one location for clarity \u2022 Settings observe an order of precedence: o module arguments override the settings in the /etc/security/pwquality.conf configuration file o settings in the /etc/security/pwquality.conf configuration file override settings in a .conf file in the /etc/security/pwquality.conf.d/ directory o settings in a .conf file in the /etc/security/pwquality.conf.d/ directory are read in canonical order, with last read file containing the setting taking precedence \u2022 It is recommended that settings be configured in a .conf file in the /etc/security/pwquality.conf.d/ directory for clarity, convenience, and durability."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: minimum_password_length_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.password_same_consecutive_characters_is_configured
+    description: Ensure password same consecutive characters is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that the maxrepeat option is set to 3 or less, not 0, and follows local site policy: # grep -Psi -- \u0027^\\h*maxrepeat\\h*=\\h*[1-3]\\b\u0027 /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf Example output: /etc/security/pwquality.conf.d/50-pwrepeat.conf:maxrepeat = 3 Verify returned value(s) are 3 or less, not 0, and meet local site policy Run the following command to verify that maxrepeat is not set, is 3 or less, not 0, and conforms to local site policy: # grep -Psi -- \u0027^\\h*password\\h+(requisite|required|sufficient)\\h+pam_pwquality\\.so\\h+([^#\\n\\ r]+\\h+)?maxrepeat\\h*=\\h*(0|[4-9]|[1-9][0-9]+)\\b\u0027 /etc/pam.d/common-password Nothing should be returned Note: \u2022 settings should be configured in only one location for clarity \u2022 Settings observe an order of precedence: o module arguments override the settings in the /etc/security/pwquality.conf configuration file o settings in the /etc/security/pwquality.conf configuration file override settings in a .conf file in the /etc/security/pwquality.conf.d/ directory o settings in a .conf file in the /etc/security/pwquality.conf.d/ directory are read in canonical order, with last read file containing the setting taking precedence \u2022 It is recommended that settings be configured in a .conf file in the /etc/security/pwquality.conf.d/ directory for clarity, convenience, and durability."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_same_consecutive_characters_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.password_maximum_sequential_characters_is
+    description: Ensure password maximum sequential characters is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that the maxsequence option is set to 3 or less, not 0, and follows local site policy: # grep -Psi -- \u0027^\\h*maxsequence\\h*=\\h*[1-3]\\b\u0027 /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf Example output: /etc/security/pwquality.conf.d/50-pwmaxsequence.conf:maxsequence = 3 Verify returned value(s) are 3 or less, not 0, and meet local site policy Run the following command to verify that maxsequence is not set, is 3 or less, not 0, and conforms to local site policy: # grep -Psi -- \u0027^\\h*password\\h+(requisite|required|sufficient)\\h+pam_pwquality\\.so\\h+([^#\\n\\ r]+\\h+)?maxsequence\\h*=\\h*(0|[4-9]|[1-9][0-9]+)\\b\u0027 /etc/pam.d/common-password Nothing should be returned Note: \u2022 settings should be configured in only one location for clarity \u2022 Settings observe an order of precedence: o module arguments override the settings in the /etc/security/pwquality.conf configuration file o settings in the /etc/security/pwquality.conf configuration file override settings in a .conf file in the /etc/security/pwquality.conf.d/ directory o settings in a .conf file in the /etc/security/pwquality.conf.d/ directory are read in canonical order, with last read file containing the setting taking precedence \u2022 It is recommended that settings be configured in a .conf file in the /etc/security/pwquality.conf.d/ directory for clarity, convenience, and durability."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_maximum_sequential_characters_is
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.password_dictionary_check_is_enabled
+    description: Ensure password dictionary check is enabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that the dictcheck option is not set to 0 (disabled) in a pwquality configuration file: # grep -Psi -- \u0027^\\h*dictcheck\\h*=\\h*0\\b\u0027 /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf Nothing should be returned Run the following command to verify that the dictcheck option is not set to 0 (disabled) as a module argument in a PAM file: # grep -Psi -- \u0027^\\h*password\\h+(requisite|required|sufficient)\\h+pam_pwquality\\.so\\h+([^#\\n\\ r]+\\h+)?dictcheck\\h*=\\h*0\\b\u0027 /etc/pam.d/common-password Nothing should be returned Note: \u2022 Settings observe an order of precedence: o module arguments override the settings in the /etc/security/pwquality.conf configuration file o settings in the /etc/security/pwquality.conf configuration file override settings in a .conf file in the /etc/security/pwquality.conf.d/ directory o settings in a .conf file in the /etc/security/pwquality.conf.d/ directory are read in canonical order, with last read file containing the setting taking precedence \u2022 It is recommended that settings be configured in a .conf file in the /etc/security/pwquality.conf.d/ directory for clarity, convenience, and durability."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_dictionary_check_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.password_quality_checking_is_enforced
+    description: Ensure password quality checking is enforced
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that enforcing=0 has not been set in a pwquality configuration file: # grep -PHsi -- \u0027^\\h*enforcing\\h*=\\h*0\\b\u0027 /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf Nothing should be returned Run the following command to verify that the enforcing=0 argument has not been set on the pam_pwquality module: # grep -PHsi -- \u0027^\\h*password\\h+[^#\\n\\r]+\\h+pam_pwquality\\.so\\h+([^#\\n\\r]+\\h+)?enforcing=0\\b\u0027 /etc/pam.d/common-password Nothing should be returned"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_quality_checking_is_enforced
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.password_quality_is_enforced_for_the_root_user
+    description: Ensure password quality is enforced for the root user
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that the enforce_for_root option is enabled in a pwquality configuration file: # grep -Psi -- \u0027^\\h*enforce_for_root\\b\u0027 /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf Example output: /etc/security/pwquality.conf.d/50-pwroot.conf:enforce_for_root Note: \u2022 Settings observe an order of precedence: o module arguments override the settings in the /etc/security/pwquality.conf configuration file o settings in the /etc/security/pwquality.conf configuration file override settings in a .conf file in the /etc/security/pwquality.conf.d/ directory o settings in a .conf file in the /etc/security/pwquality.conf.d/ directory are read in canonical order, with last read file containing the setting taking precedence \u2022 It is recommended that settings be configured in a .conf file in the /etc/security/pwquality.conf.d/ directory for clarity, convenience, and durability."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_quality_is_enforced_for_the_root_user
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.password_history_remember_is_configured
+    description: Ensure password history remember is configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify: \u2022 The pwhistory line in /etc/pam.d/common-password includes remember=\u003cN\u003e \u2022 The value of \u003cN\u003e is 24 or more \u2022 The value meets local site policy # grep -Psi -- \u0027^\\h*password\\h+[^#\\n\\r]+\\h+pam_pwhistory\\.so\\h+([^#\\n\\r]+\\h+)?remember=\\d+\\b \u0027 /etc/pam.d/common-password Output should be similar to: password requisite pam_pwhistory.so remember=24 enforce_for_root try_first_pass use_authtok"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_history_remember_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.password_history_is_enforced_for_the_root_user
+    description: Ensure password history is enforced for the root user
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that the enforce_for_root argument is exists on the pwhistory line in /etc/pam.d/common-password: # grep -Psi -- \u0027^\\h*password\\h+[^#\\n\\r]+\\h+pam_pwhistory\\.so\\h+([^#\\n\\r]+\\h+)?enforce_for_ro ot\\b\u0027 /etc/pam.d/common-password Output should be similar to: password requisite pam_pwhistory.so remember=24 enforce_for_root try_first_pass use_authtok"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_history_is_enforced_for_the_root_user
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.pam_pwhistory_includes_use_authtok
+    description: Ensure pam_pwhistory includes use_authtok
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that the use_authtok argument exists on the pwhistory line in /etc/pam.d/common-password: # grep -Psi -- \u0027^\\h*password\\h+[^#\\n\\r]+\\h+pam_pwhistory\\.so\\h+([^#\\n\\r]+\\h+)?use_authtok\\b\u0027 /etc/pam.d/common-password Output should be similar to: password requisite pam_pwhistory.so remember=24 enforce_for_root try_first_pass use_authtok"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: pam_pwhistory_includes_use_authtok
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.pam_unix_does_not_include_remember
+    description: Ensure pam_unix does not include remember
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that the remember argument is not set on the pam_unix.so module: # grep -PHs -- \u0027^\\h*^\\h*[^#\\n\\r]+\\h+pam_unix\\.so\\h+([^#\\n\\r]+\\h+)?remember=\\d+\\b\u0027 /etc/pam.d/common-{password,auth,account,session,session-noninteractive} Nothing should be returned"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: pam_unix_does_not_include_remember
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.pam_unix_includes_a_strong_password_hashing
+    description: Ensure pam_unix includes a strong password hashing algorithm
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that a strong password hashing algorithm is set on the pam_unix.so module: # grep -PH -- \u0027^\\h*password\\h+([^#\\n\\r]+)\\h+pam_unix\\.so\\h+([^#\\n\\r]+\\h+)?(sha512|yescrypt) \\b\u0027 /etc/pam.d/common-password Output should be similar to: /etc/pam.d/common-password:password [success=1 default=ignore] pam_unix.so obscure use_authtok try_first_pass yescrypt Verify that the line(s) include either sha512 - OR - yescrypt"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: pam_unix_includes_a_strong_password_hashing
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.pam_unix_includes_use_authtok
+    description: Ensure pam_unix includes use_authtok
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that use_authtok is set on the pam_unix.so module lines in the password stack: # grep -PH -- \u0027^\\h*password\\h+([^#\\n\\r]+)\\h+pam_unix\\.so\\h+([^#\\n\\r]+\\h+)?use_authtok\\b\u0027 /etc/pam.d/common-password Output should be similar to: /etc/pam.d/common-password:password [success=1 default=ignore] pam_unix.so obscure use_authtok try_first_pass yescrypt Verify that the line(s) include use_authtok"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: pam_unix_includes_use_authtok
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.strong_password_hashing_algorithm_is_configured
+    description: Ensure strong password hashing algorithm is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify the hashing algorithm is sha512 or yescrypt in /etc/login.defs: # grep -Pi -- \u0027^\\h*ENCRYPT_METHOD\\h+(SHA512|yescrypt)\\b\u0027 /etc/login.defs Example output: ENCRYPT_METHOD SHA512 - OR - ENCRYPT_METHOD YESCRYPT"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: strong_password_hashing_algorithm_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.inactive_password_lock_is_configured
+    description: Ensure inactive password lock is configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify INACTIVE conforms to site policy (no more than 45 days): # useradd -D | grep INACTIVE INACTIVE=45 Verify all users with a password have Password inactive no more than 45 days after password expires Verify all users with a password have Password inactive no more than 45 days after password expires: Run the following command and Review list of users and INACTIVE to verify that all users INACTIVE conforms to site policy (no more than 45 days): # awk -F: \u0027($2~/^\\$.+\\$/) {if($7 \u003e 45 || $7 \u003c 0)print \u0027User: \u0027 $1 \u0027 INACTIVE: \u0027 $7}\u0027 /etc/shadow Nothing should be returned"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: inactive_password_lock_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.all_users_last_password_change_date_is_in_the_past
+    description: Ensure all users last password change date is in the past
+    calls:
+      - action: run_command
+        command: "Run the following script and verify nothing is returned: #!/usr/bin/env bash { while IFS= read -r l_user; do l_change=$(date -d \u0027$(chage --list $l_user | grep \u0027^Last password change\u0027 | cut -d: -f2 | grep -v \u0027never$\u0027)\u0027 +%s) if [[ \u0027$l_change\u0027 -gt \u0027$(date +%s)\u0027 ]]; then echo \u0027User: \\\u0027$l_user\\\u0027 last password change was \\\u0027$(chage --list $l_user | grep \u0027^Last password change\u0027 | cut -d: -f2)\\\u0027\u0027 fi done \u003c \u003c(awk -F: \u0027$2~/^\\$.+\\$/{print $1}\u0027 /etc/shadow) }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: all_users_last_password_change_date_is_in_the_past
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.root_is_the_only_gid_0_account
+    description: Ensure root is the only GID 0 account
+    calls:
+      - action: run_command
+        command: "Run the following command to verify the root user\u0027s primary GID is 0, and no other user\u0027s have GID 0 as their primary GID: # awk -F: \u0027($1 !~ /^(sync|shutdown|halt|operator)/ \u0026\u0026 $4==\u00270\u0027) {print $1\u0027:\u0027$4}\u0027 /etc/passwd root:0 Note: User\u0027s: sync, shutdown, halt, and operator are excluded from the check for other user\u0027s with GID 0"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: root_is_the_only_gid_0_account
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.group_root_is_the_only_gid_0_group
+    description: Ensure group root is the only GID 0 group
+    calls:
+      - action: run_command
+        command: "Run the following command to verify no group other than root is assigned GID 0: # awk -F: \u0027$3==\u00270\u0027{print $1\u0027:\u0027$3}\u0027 /etc/group root:0"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: group_root_is_the_only_gid_0_group
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: debian.section_5.root_path_integrity
+    description: Ensure root path integrity
+    calls:
+      - action: run_command
+        command: "Run the following script to verify root\u0027s path does not include: \u2022 Locations that are not directories \u2022 An empty directory (::) \u2022 A trailing (:) \u2022 Current working directory (.) \u2022 Non root owned directories \u2022 Directories that less restrictive than mode 0755 #!/usr/bin/env bash { l_output2=\u0027\u0027 l_pmask=\u00270022\u0027 l_maxperm=\u0027$( printf \u0027%o\u0027 $(( 0777 \u0026 ~$l_pmask )) )\u0027 l_root_path=\u0027$(sudo -Hiu root env | grep \u0027^PATH\u0027 | cut -d= -f2)\u0027 unset a_path_loc \u0026\u0026 IFS=\u0027:\u0027 read -ra a_path_loc \u003c\u003c\u003c \u0027$l_root_path\u0027 grep -q \u0027::\u0027 \u003c\u003c\u003c \u0027$l_root_path\u0027 \u0026\u0026 l_output2=\u0027$l_output2\\n - root\u0027s path contains a empty directory (::)\u0027 grep -Pq \u0027:\\h*$\u0027 \u003c\u003c\u003c \u0027$l_root_path\u0027 \u0026\u0026 l_output2=\u0027$l_output2\\n - root\u0027s path contains a trailing (:)\u0027 grep -Pq \u0027(\\h+|:)\\.(:|\\h*$)\u0027 \u003c\u003c\u003c \u0027$l_root_path\u0027 \u0026\u0026 l_output2=\u0027$l_output2\\n - root\u0027s path contains current working directory (.)\u0027 while read -r l_path; do if [ -d \u0027$l_path\u0027 ]; then while read -r l_fmode l_fown; do [ \u0027$l_fown\u0027 != \u0027root\u0027 ] \u0026\u0026 l_output2=\u0027$l_output2\\n - Directory: \\\u0027$l_path\\\u0027 is owned by: \\\u0027$l_fown\\\u0027 should be owned by \\\u0027root\\\u0027\u0027 [ $(( $l_fmode \u0026 $l_pmask )) -gt 0 ] \u0026\u0026 l_output2=\u0027$l_output2\\n - Directory: \\\u0027$l_path\\\u0027 is mode: \\\u0027$l_fmode\\\u0027 and should be mode: \\\u0027$l_maxperm\\\u0027 or more restrictive\u0027 done \u003c\u003c\u003c \u0027$(stat -Lc \u0027%#a %U\u0027 \u0027$l_path\u0027)\u0027 else l_output2=\u0027$l_output2\\n - \\\u0027$l_path\\\u0027 is not a directory\u0027 fi done \u003c\u003c\u003c \u0027$(printf \u0027%s\\n\u0027 \u0027${a_path_loc[@]}\u0027)\u0027 if [ -z \u0027$l_output2\u0027 ]; then echo -e \u0027\\n- Audit Result:\\n *** PASS ***\\n - Root\u0027s path is correctly configured\\n\u0027 else echo -e \u0027\\n- Audit Result:\\n ** FAIL **\\n - * Reasons for audit failure * :\\n$l_output2\\n\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: root_path_integrity
+        value: "{{ result.stdout }}"
+        expected: ""
+

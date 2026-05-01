@@ -1,0 +1,127 @@
+# ============================================================
+# Discovery YAML — iam (final_discovery v1)
+# Generated: 2026-04-16T09:26:47Z
+# Source: gcp_master_field_catalog.csv
+# Check rules: 112 | ops in scope: 4 (3 independent, 1 dependent)
+# ============================================================
+version: '1.0'
+provider: gcp
+service: iam
+
+services:
+  client: iam
+  module: "googleapiclient.discovery.build('iam', 'v1')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: unknown
+    identifier_op: gcp.iam.organizations.roles.list
+    identifier_field: roles[].name
+    item_var_path: item.roles[].name
+  - resource_type: unknown
+    identifier_op: gcp.iam.projects.locations.workloadIdentityPools.list
+    identifier_field: workloadIdentityPools[].name
+    item_var_path: item.workloadIdentityPools[].name
+  - resource_type: unknown
+    identifier_op: gcp.iam.projects.serviceAccounts.list
+    identifier_field: accounts[].name
+    item_var_path: item.accounts[].name
+  - resource_type: unknown
+    identifier_op: gcp.iam.projects.serviceAccounts.keys.list
+    identifier_field: keys[].name
+    item_var_path: item.keys[].name
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── gcp.iam.organizations.roles.list ──
+  - discovery_id: gcp.iam.organizations.roles.list
+    calls:
+      - action: organizations.roles.list
+        params:
+          parent: '{{ project_id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        deleted: '{{ item.deleted }}'
+        description: '{{ item.description }}'
+        includedPermissions: '{{ item.includedPermissions }}'
+        name: '{{ item.name }}'
+        roles: '{{ item.roles }}'
+        stage: '{{ item.stage }}'
+        title: '{{ item.title }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── gcp.iam.projects.locations.workloadIdentityPools.list ──
+  - discovery_id: gcp.iam.projects.locations.workloadIdentityPools.list
+    calls:
+      - action: projects.locations.workloadIdentityPools.list
+        params:
+          parent: '{{ project_id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        bindings: '{{ item.bindings }}'
+        description: '{{ item.description }}'
+        disabled: '{{ item.disabled }}'
+        displayName: '{{ item.displayName }}'
+        expireTime: '{{ item.expireTime }}'
+        inlineCertificateIssuanceConfig: '{{ item.inlineCertificateIssuanceConfig }}'
+        inlineTrustConfig: '{{ item.inlineTrustConfig }}'
+        mode: '{{ item.mode }}'
+        name: '{{ item.name }}'
+        state: '{{ item.state }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── gcp.iam.projects.serviceAccounts.list ──
+  - discovery_id: gcp.iam.projects.serviceAccounts.list
+    calls:
+      - action: projects.serviceAccounts.list
+        params:
+          name: '{{ name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        auditConfigs: '{{ item.auditConfigs }}'
+        bindings: '{{ item.bindings }}'
+        description: '{{ item.description }}'
+        disabled: '{{ item.disabled }}'
+        displayName: '{{ item.displayName }}'
+        email: '{{ item.email }}'
+        name: '{{ item.name }}'
+        oauth2ClientId: '{{ item.oauth2ClientId }}'
+        projectId: '{{ item.projectId }}'
+        uniqueId: '{{ item.uniqueId }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── gcp.iam.projects.serviceAccounts.keys.list [dependent] ──
+  - discovery_id: gcp.iam.projects.serviceAccounts.keys.list
+    for_each: gcp.iam.projects.serviceAccounts.list
+    calls:
+      - action: projects.serviceAccounts.keys.list
+        params:
+          name: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        disabled: '{{ item.disabled }}'
+        keyAlgorithm: '{{ item.keyAlgorithm }}'
+        keyOrigin: '{{ item.keyOrigin }}'
+        keyType: '{{ item.keyType }}'
+        keys: '{{ response.keys }}'
+        validAfterTime: '{{ item.validAfterTime }}'
+        validBeforeTime: '{{ item.validBeforeTime }}'
+

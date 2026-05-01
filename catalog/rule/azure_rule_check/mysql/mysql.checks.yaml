@@ -1,0 +1,66 @@
+version: '1.0'
+provider: azure
+service: mysql
+checks:
+- rule_id: azure.mysql.flexibleserver.audit_log_connection_enabled
+  for_each: azure.mysql.servers.servers_list
+  severity: MEDIUM
+  conditions:
+    var: item.audit_log_connection_enabled
+    op: is_true
+    value: null
+- rule_id: azure.mysql.flexibleserver.audit_log_enabled
+  for_each: azure.mysql.servers.servers_list
+  severity: MEDIUM
+  conditions:
+    var: item.audit_log_enabled
+    op: is_true
+    value: null
+- rule_id: azure.mysql.flexibleserver.minimum_tls_version_12
+  for_each: azure.mysql.servers.servers_list
+  severity: MEDIUM
+  conditions:
+    var: item.minimum_tls_version
+    op: in
+    value:
+    - TLS1_2
+    - TLSEnforcementDisabled
+- rule_id: azure.mysql.flexibleserver.ssl_connection_enabled
+  for_each: azure.mysql.servers.servers_list
+  severity: MEDIUM
+  conditions:
+    var: item.ssl_enforcement
+    op: is_true
+    value: null
+- rule_id: azure.mysql.server.audit.log.connection.check
+  for_each: azure.mysql.servers.servers_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.auditLogSettings
+      op: exists
+      value: null
+    - var: item.properties.auditLogSettings.connectionLogsEnabled
+      op: is_true
+      value: null
+- rule_id: azure.mysql.server.audit.log.enabled
+  for_each: azure.mysql.servers.servers_list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.audit.log.enabled
+    op: is_true
+    value: null
+- rule_id: azure.mysql.server.geo_redundant_backup
+  for_each: azure.mysql.servers.servers_list
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.Storage.StorageProfile.GeoRedundantBackup
+    op: equals
+    value: Enabled
+- rule_id: azure.mysql.standard.database.ssl.enforcement.check
+  for_each: azure.mysql.servers.servers_list
+  severity: MEDIUM
+  conditions:
+    var: item.sslEnforcement
+    op: equals
+    value: Enabled

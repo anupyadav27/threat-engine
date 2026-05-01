@@ -1,0 +1,50 @@
+version: '1.0'
+provider: gcp
+service: function
+checks:
+- rule_id: gcp.function.error
+  for_each: gcp.function.list_functions
+  severity: MEDIUM
+  conditions:
+    var: item.error
+    op: not_exists
+    value: null
+- rule_id: gcp.function.high_memory
+  for_each: gcp.function.list_functions
+  severity: MEDIUM
+  conditions:
+    var: item.memory_mb
+    op: lte
+    value: 256
+- rule_id: gcp.function.permission_denied
+  for_each: gcp.function.list_functions
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IAMPolicy.Bindings[].Members[]
+      op: not_contains
+      value: allUsers
+    - var: item.IAMPolicy.Bindings[].Members[]
+      op: not_contains
+      value: allAuthenticatedUsers
+- rule_id: gcp.function.runtime_crash
+  for_each: gcp.function.list_functions
+  severity: MEDIUM
+  conditions:
+    var: item.status
+    op: equals
+    value: ACTIVE
+- rule_id: gcp.function.timeout
+  for_each: gcp.function.list_functions
+  severity: MEDIUM
+  conditions:
+    var: item.timeout
+    op: lt
+    value: 540
+- rule_id: gcp.function.unauthorized_api
+  for_each: gcp.function.list_functions
+  severity: HIGH
+  conditions:
+    var: item.iamPolicy.bindings[].role
+    op: not_contains
+    value: roles/cloudfunctions.invoker

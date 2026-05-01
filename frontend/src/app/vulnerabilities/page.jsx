@@ -336,6 +336,8 @@ export default function VulnerabilitiesPage() {
     <div style={{ padding:24, color:C.critical }}>{error}</div>
   );
 
+  const isEmptyState = data?._source === 'empty' || (s.total_vulnerabilities === 0 && s.total_agents === 0);
+
   const tabs = [
     { id:'overview',    label:'Overview',    count:null,                        icon:<Activity size={13}/> },
     { id:'findings',    label:'Findings',    count:s.total_vulnerabilities,     icon:<Bug size={13}/> },
@@ -364,6 +366,17 @@ export default function VulnerabilitiesPage() {
           {`${s.total_vulnerabilities || 0} vulnerabilities · ${s.critical_count || 0} critical · ${s.affected_assets || 0} affected assets`}
         </p>
       </div>
+
+      {/* ── Empty state banner ──────────────────────────────────────────────── */}
+      {isEmptyState && (
+        <div style={{ padding:'16px 20px', borderRadius:10, border:'1px solid var(--border-primary)', backgroundColor:'var(--bg-secondary)', display:'flex', alignItems:'center', gap:12 }}>
+          <Bug size={18} style={{ color:'var(--text-muted)', flexShrink:0 }} />
+          <div>
+            <p style={{ margin:0, fontSize:13, fontWeight:600, color:'var(--text-primary)' }}>No vulnerability scan data yet</p>
+            <p style={{ margin:0, fontSize:12, color:'var(--text-muted)' }}>Deploy the vulnerability agent to hosts or trigger a scan to populate this dashboard.</p>
+          </div>
+        </div>
+      )}
 
       {/* ── Tab Bar ─────────────────────────────────────────────────────────── */}
       <div style={{ display:'flex', gap:4, borderBottom:'1px solid var(--border-primary)' }}>

@@ -1,0 +1,15 @@
+version: '1.0'
+rule_id: aws.iam.policy.execution_roles_least_privilege
+for_each: aws.iam.get_account_authorization_details
+severity: HIGH
+conditions:
+  all:
+  - var: item.RoleDetailList[].AssumeRolePolicyDocument.Statement[].Effect
+    op: equals
+    value: Allow
+  - var: item.RoleDetailList[].AssumeRolePolicyDocument.Statement[].Principal.Service
+    op: contains
+    value: lambda.amazonaws.com
+  - var: item.RoleDetailList[].AttachedManagedPolicies[].PolicyName
+    op: not_contains
+    value: AdministratorAccess

@@ -33,7 +33,7 @@ export default function ProfilePage() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetchFromCspm('/api/users/me/');
+        const res = await fetchFromCspm('/api/auth/me/');
         if (res && !res.error) {
           setFormData({
             firstName: res.first_name || '',
@@ -61,27 +61,36 @@ export default function ProfilePage() {
     setPasswordData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSaveProfile = (e) => {
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
+    const res = await fetchFromCspm('/api/auth/me/', {
+      method: 'PATCH',
+      body: JSON.stringify({ first_name: formData.firstName, last_name: formData.lastName }),
+    });
+    if (res?.error) { toast.error(res.error); return; }
     setSuccessMessage('Profile updated successfully!');
     setEditMode(false);
     setTimeout(() => setSuccessMessage(null), 3000);
   };
 
-  const handleChangePassword = (e) => {
+  const handleChangePassword = async (e) => {
     e.preventDefault();
     if (passwordData.newPassword !== passwordData.confirmPassword) {
       toast.error('Passwords do not match');
       return;
     }
-    setSuccessMessage('Password changed successfully!');
-    setPasswordData({
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: '',
+    const res = await fetchFromCspm('/api/auth/change-password/', {
+      method: 'POST',
+      body: JSON.stringify({
+        current_password: passwordData.currentPassword,
+        new_password: passwordData.newPassword,
+      }),
     });
+    if (res?.error) { toast.error(res.error); return; }
+    setSuccessMessage('Password changed successfully! Please log in again.');
+    setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
     setShowPasswordForm(false);
-    setTimeout(() => setSuccessMessage(null), 3000);
+    setTimeout(() => setSuccessMessage(null), 4000);
   };
 
   return (

@@ -1,0 +1,74 @@
+rule_id: gcp.dns.audit.managed_zone_deleted
+service: dns
+provider: gcp
+check_type: log
+severity: high
+title: 'Cloud DNS: Managed Zone Deleted'
+description: A Cloud DNS managed zone was deleted, removing all DNS records and potentially causing service outages.
+rationale: Adversaries abuse dns operations to achieve impact in GCP environments. Detected via Cloud Admin Activity or Data Access audit logs.
+threat_category: impact
+mitre_tactics:
+- impact
+mitre_techniques:
+- T1498
+risk_score: 85
+resource: gcp_dns_managed_zone
+source: default
+is_active: true
+domain: impact
+action_category: delete
+log_source_type: 
+posture_category: workload_posture
+threat_tags:
+- T1498
+- impact
+- availability
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: destructive
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: low
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_gcp_v2:
+  - 2.1
+  - 5.1
+  - 6.5
+  nist_800_53_r5:
+  - CP-9
+  - CP-10
+  - SI-7
+  pci_dss_v4:
+  - 12.3
+  - 10.2
+  iso_27001_2022:
+  - A.8.13
+  - A.8.14
+  - A.5.30
+remediation: |
+  1. Restore the deleted resource from Cloud Storage versioning, BigQuery snapshots, or Persistent Disk snapshot.
+  2. Enable Cloud Storage Object Versioning and Bucket Lock for critical buckets.
+  3. Apply Org Policy `constraints/gcp.resourceLocations` to restrict deletion regions.
+  4. Set up Cloud Asset Inventory change notifications for resource deletion events.
+  5. Require two-person approval for project deletion via Resource Manager policy.
+references:
+- https://attack.mitre.org/techniques/T1498/
+- https://cloud.google.com/logging/docs/audit
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: dns.googleapis.com
+    - field: operation
+      op: equals
+      value: dns.managedZones.delete
+version: '1.0'

@@ -1,0 +1,70 @@
+# discoveries_only_check: 3 kept / 28 removed from 31 total
+# generated_from: step6_inspector2.discovery.yaml
+# purpose: only discoveries needed by inspector2.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: inspector2
+services:
+  client: inspector2
+  module: boto3.client
+discovery:
+- discovery_id: aws.inspector2.describe_organization_configuration
+  calls:
+  - action: describe_organization_configuration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      autoEnable: '{{ response.autoEnable.autoEnable }}'
+      codeRepository: '{{ response.autoEnable.codeRepository }}'
+      ec2: '{{ response.autoEnable.ec2 }}'
+      ecr: '{{ response.autoEnable.ecr }}'
+      lambda: '{{ response.autoEnable.lambda }}'
+      lambdaCode: '{{ response.autoEnable.lambdaCode }}'
+      maxAccountLimitReached: '{{ response.autoEnable.maxAccountLimitReached }}'
+- discovery_id: aws.inspector2.list_coverage
+  calls:
+  - action: list_coverage
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.coveredResources }}'
+    item:
+      accountId: '{{ item.accountId }}'
+      lastScannedAt: '{{ item.lastScannedAt }}'
+      resourceId: '{{ item.resourceId }}'
+      resourceMetadata: '{{ item.resourceMetadata }}'
+      resourceType: '{{ item.resourceType }}'
+      scanMode: '{{ item.scanMode }}'
+      scanStatus: '{{ item.scanStatus }}'
+      scanType: '{{ item.scanType }}'
+- discovery_id: aws.inspector2.list_findings
+  calls:
+  - action: list_findings
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.findings }}'
+    item:
+      awsAccountId: '{{ item.awsAccountId }}'
+      codeVulnerabilityDetails: '{{ item.codeVulnerabilityDetails }}'
+      exploitAvailable: '{{ item.exploitAvailable }}'
+      exploitabilityDetails: '{{ item.exploitabilityDetails }}'
+      findingArn: '{{ item.findingArn }}'
+      firstObservedAt: '{{ item.firstObservedAt }}'
+      fixAvailable: '{{ item.fixAvailable }}'
+      inspectorScore: '{{ item.inspectorScore }}'
+      inspectorScoreDetails: '{{ item.inspectorScoreDetails }}'
+      lastObservedAt: '{{ item.lastObservedAt }}'
+      networkReachabilityDetails: '{{ item.networkReachabilityDetails }}'
+      packageVulnerabilityDetails: '{{ item.packageVulnerabilityDetails }}'
+      remediation: '{{ item.remediation }}'
+      resources: '{{ item.resources }}'
+      severity: '{{ item.severity }}'
+      status: '{{ item.status }}'
+      title: '{{ item.title }}'
+      type: '{{ item.type }}'
+      updatedAt: '{{ item.updatedAt }}'

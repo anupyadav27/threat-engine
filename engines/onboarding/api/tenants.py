@@ -33,6 +33,7 @@ class TenantCreate(BaseModel):
     customer_id: str = Field(..., description="Customer identity (from auth session)")
     tenant_name: str = Field(..., min_length=1, max_length=255)
     tenant_description: Optional[str] = None
+    tenant_id: Optional[str] = Field(None, description="Explicit UUID from platform (sync use)")
 
 
 class TenantUpdate(BaseModel):
@@ -53,7 +54,7 @@ async def create_tenant_endpoint(body: TenantCreate):
     """
     try:
         data = {
-            "tenant_id": str(uuid.uuid4()),
+            "tenant_id": body.tenant_id or str(uuid.uuid4()),
             "customer_id": body.customer_id,
             "tenant_name": body.tenant_name.strip(),
             "tenant_description": body.tenant_description,

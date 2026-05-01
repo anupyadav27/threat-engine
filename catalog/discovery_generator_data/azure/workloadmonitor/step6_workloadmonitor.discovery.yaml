@@ -1,0 +1,89 @@
+# Discovery YAML — workloadmonitor (Azure)
+# Generated: 2026-04-15T10:39:32Z
+# Source: step1b_operation_registry.json (qualified ops + dependency chains)
+# Actions use {category}.{method} format for SDK method resolution
+version: '1.0'
+provider: azure
+service: workloadmonitor
+services:
+  client: workloadmonitor
+  module: azure.mgmt.workloadmonitor
+discovery:
+  # ════════════════════════════════════════
+  # Independent root operations
+  # ════════════════════════════════════════
+  # ── healthmonitors.list [root] ──
+  # NOTE: requires VM resource params; fails gracefully on_error:continue
+  - discovery_id: azure.workloadmonitor.healthmonitors.list
+    calls:
+      - action: healthmonitors.list
+        save_as: response
+        on_error: continue
+        params:
+          provider_name: ''
+          resource_collection_name: ''
+          resource_name: ''
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        type: '{{ item.type }}'
+
+  # ════════════════════════════════════════
+  # Dependent operations (for_each + params)
+  # ════════════════════════════════════════
+  # ── healthmonitors.get_state_change [dependent] ──
+  - discovery_id: azure.workloadmonitor.healthmonitors.get_state_change
+    for_each: azure.workloadmonitor.healthmonitors.list
+    calls:
+      - action: healthmonitors.get_state_change
+        save_as: response
+        on_error: continue
+        params:
+          provider_name: '{{ item.name }}'
+          monitor_id: '{{ item.id }}'
+    emit:
+      as: item
+      item:
+        identity: '{{ response.identity }}'
+        type: '{{ response.type }}'
+        properties: '{{ response.properties }}'
+        location: '{{ response.location }}'
+        sku: '{{ response.sku }}'
+        name: '{{ response.name }}'
+        provisioning_state: '{{ response.provisioning_state }}'
+        zones: '{{ response.zones }}'
+        kind: '{{ response.kind }}'
+        id: '{{ response.id }}'
+        tags: '{{ response.tags }}'
+  # ── healthmonitors.list_state_changes [dependent] ──
+  - discovery_id: azure.workloadmonitor.healthmonitors.list_state_changes
+    for_each: azure.workloadmonitor.healthmonitors.list
+    calls:
+      - action: healthmonitors.list_state_changes
+        save_as: response
+        on_error: continue
+        params:
+          provider_name: '{{ item.name }}'
+          monitor_id: '{{ item.id }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        current_monitor_state: '{{ item.current_monitor_state }}'
+        current_state_first_observed_timestamp: '{{ item.current_state_first_observed_timestamp }}'
+        evaluation_timestamp: '{{ item.evaluation_timestamp }}'
+        evidence: '{{ item.evidence }}'
+        monitor_configuration: '{{ item.monitor_configuration }}'
+        monitor_name: '{{ item.monitor_name }}'
+        monitor_type: '{{ item.monitor_type }}'
+        monitored_object: '{{ item.monitored_object }}'
+        previous_monitor_state: '{{ item.previous_monitor_state }}'
+
+  # ── Unwired dependent ops (no root producer found) ──
+  # SKIP: azure.workloadmonitor.healthmonitors.list — required_params: ['provider_name', 'resource_collection_name', 'resource_name']

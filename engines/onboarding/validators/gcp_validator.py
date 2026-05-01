@@ -21,22 +21,24 @@ class GCPValidator(BaseValidator):
         """
         credential_type = credentials.get('credential_type')
         
-        if credential_type == 'gcp_service_account':
+        if credential_type in ('service_account', 'gcp_service_account'):
             return await self._validate_service_account(credentials)
         else:
             return self._create_error_result(
                 f"Unsupported GCP credential type: {credential_type}",
-                ["Supported types: gcp_service_account"]
+                ["Supported types: service_account, gcp_service_account"]
             )
     
     async def _validate_service_account(self, credentials: Dict[str, Any]) -> ValidationResult:
         """Validate GCP Service Account credentials"""
         try:
-            service_account_json = credentials.get('service_account_json')
+            service_account_json = (
+                credentials.get('service_account_json')
+                or credentials.get('credentials_json')
+                or credentials.get('credentials')    # Secrets Manager wrapper format
+            )
 
-            # Support both formats:
-            # 1. {"service_account_json": {...}} — wrapped format
-            # 2. {"type": "service_account", "project_id": "..."} — direct SA JSON
+            # Support direct SA JSON: {"type": "service_account", "project_id": "..."}
             if not service_account_json and credentials.get('type') == 'service_account':
                 service_account_json = credentials
 

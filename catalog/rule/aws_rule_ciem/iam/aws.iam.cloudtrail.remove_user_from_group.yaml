@@ -1,0 +1,74 @@
+rule_id: aws.iam.cloudtrail.remove_user_from_group
+service: iam
+provider: aws
+check_type: log
+severity: medium
+title: 'IAM: Remove User From Group'
+description: User removed from IAM group.
+rationale: Account access removal (deleting users, removing MFA) blocks legitimate users from accessing resources and can be used to seize control of cloud accounts.
+threat_category: identity_manipulation
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1531
+risk_score: 45
+resource: iam_principal
+source: default
+is_active: true
+domain: identity_and_access_management
+action_category: audit_activity
+log_source_type: 
+posture_category: iam_posture
+threat_tags:
+- T1531
+- cloud_iam
+- identity_manipulation
+- identity
+risk_indicators:
+  actor_type: iam_user_or_role
+  action_type: write
+  target_type: iam_identity
+  blast_radius: account
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.1
+  - 1.16
+  - 1.22
+  cis_azure_v2:
+  - 1.1
+  - 2.1
+  nist_800_53_r5:
+  - AC-2
+  - AC-3
+  - IA-2
+  pci_dss_v4:
+  - 7.1
+  - 8.2
+  iso_27001_2022:
+  - A.5.18
+  - A.8.2
+remediation: |
+  1. Restore removed accounts or access immediately from a break-glass account.
+  2. Review and audit all actions taken by the responsible actor.
+  3. Implement role-based approvals for account deletion and access revocation.
+  4. Maintain break-glass emergency access accounts with separate credential paths.
+references:
+- https://attack.mitre.org/techniques/T1531/
+- https://learn.microsoft.com/en-us/azure/active-directory/roles/security-emergency-access
+check_config:
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: RemoveUserFromGroup
+version: '1.0'

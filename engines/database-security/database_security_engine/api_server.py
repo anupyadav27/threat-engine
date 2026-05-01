@@ -21,6 +21,13 @@ from engine_common.middleware import RequestLoggingMiddleware, CorrelationIDMidd
 from engine_common.orchestration import get_orchestration_metadata
 from engine_common.job_creator import create_engine_job
 
+# ── Auth imports (engine_auth is COPY shared/auth/ ./engine_auth/ in Dockerfile) ──
+try:
+    from engine_auth.fastapi.middleware import AuthMiddleware
+    _AUTH_AVAILABLE = True
+except ImportError:
+    _AUTH_AVAILABLE = False
+
 logger = setup_logger(__name__, engine_name="engine-dbsec")
 
 SCANNER_IMAGE = os.getenv("DBSEC_SCANNER_IMAGE", "yadavanup84/engine-dbsec:v-std-cols")
@@ -45,6 +52,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# AuthMiddleware validates access_token / X-Auth-Context for every non-health path
+if _AUTH_AVAILABLE:
+    app.add_middleware(AuthMiddleware)
 
 from .api.ui_data_router import router as ui_data_router
 app.include_router(ui_data_router)

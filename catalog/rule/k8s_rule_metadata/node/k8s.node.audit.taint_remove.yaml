@@ -1,0 +1,58 @@
+rule_id: k8s.node.audit.taint_remove
+rule_type: ciem
+title: 'Node: Taint Removed (Workload Placement Control Bypassed)'
+scope: node.audit
+domain: container_and_kubernetes_security
+subcategory: container_security
+severity: medium
+service: node
+resource: audit
+requirement: Taint Remove
+description: Node taint removed — may allow pods that were previously excluded to
+  schedule on this node, bypassing workload isolation controls.
+rationale: Adversaries modify Kubernetes Service objects to add external load balancer
+  IPs or NodePort configurations, exposing internal cluster services to the internet.
+  This creates unauthorized ingress points for C2 traffic or data exfiltration. Detected
+  via K8s audit logs for service patch/update operations adding externalIPs or changing
+  type to NodePort/LoadBalancer.
+remediation: '1. Terminate the unauthorized kubectl exec or port-forward session immediately.
+
+  2. Audit RBAC permissions: restrict pods/exec and pods/portforward to specific service
+  accounts.
+
+  3. Apply NetworkPolicies to prevent unauthorized pod-to-pod communication.
+
+  4. Enable audit log alerting for exec/portforward operations by non-CI/CD users.
+
+  5. Use Falco rules to detect and alert on interactive exec sessions in production
+  namespaces.
+
+  '
+references:
+- https://attack.mitre.org/techniques/T1205/
+- https://kubernetes.io/docs/concepts/services-networking/service/
+compliance:
+  cis_k8s_v1:
+  - 5.2.5
+  - 5.2.7
+  - 5.7.1
+  nist_800_53_r5:
+  - AC-4
+  - SC-7
+  - SI-4
+  pci_dss_v4:
+  - 1.3
+  - 7.2
+  iso_27001_2022:
+  - A.8.20
+  - A.8.22
+threat_category: lateral_movement
+mitre_tactics:
+- lateral_movement
+mitre_techniques:
+- T1205
+risk_score: 62
+action_category: delete
+source: default
+metadata_source: auto_generated
+generated_by: k8s_ciem_generator

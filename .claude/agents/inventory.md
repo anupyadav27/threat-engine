@@ -24,7 +24,7 @@ id, inventory_scan_id, tenant_id, source_uid, target_uid, relation_type, metadat
 - **K8s service**: engine-inventory (namespace: threat-engine-engines)
 - **CRITICAL**: svc port is 80, targetPort is 8022
 - **Port-forward**: `kubectl port-forward svc/engine-inventory 8022:80 -n threat-engine-engines`
-- **Scan trigger**: POST /api/v1/scan `{orchestration_id, tenant_id, discovery_scan_id, check_scan_id}`
+- **Scan trigger**: POST /api/v1/scan `{scan_run_id, tenant_id, account_id, csp}`
 - **Blast radius**: GET /api/v1/inventory/assets/{uid}/blast-radius?tenant_id=X&max_depth=3
 - **Architecture**: GET /api/v1/inventory/architecture
 
@@ -38,14 +38,14 @@ id, inventory_scan_id, tenant_id, source_uid, target_uid, relation_type, metadat
 
 ## Full Stack (UI → BFF → API → DB)
 - **UI pages**:
-  - `/inventory` → `ui_samples/src/app/inventory/page.jsx` (asset list)
-  - `/inventory/architecture` → `ui_samples/src/app/inventory/architecture/page.jsx`
+  - `/inventory` → `frontend/src/app/inventory/page.jsx` (asset list)
+  - `/inventory/architecture` → `frontend/src/app/inventory/architecture/page.jsx`
   - `/inventory/[assetId]` → asset detail + relationships + drift + blast-radius
 - **BFF file**: `shared/api_gateway/bff/inventory.py` → `GET /api/v1/views/inventory`
 - **BFF calls**: inventory `/api/v1/ui-data`, threat `/api/v1/threat/findings/batch-severity`, check `/api/v1/check/findings/batch-severity`
 - **Engine code**: `engines/inventory/`
 - **K8s manifest**: `deployment/aws/eks/engines/engine-inventory.yaml`
-- **Image**: `yadavanup84/inventory-engine:v11-blast-radius`
+- **Image**: `yadavanup84/inventory-engine:v-rel-fix2`
 
 ## Pipeline Dependencies
 ```

@@ -1,0 +1,31 @@
+# Auto-generated check rule stub for oci.iam.chain.privilege_escalation
+# Source: generate_check_rules_for_stubs.py
+# Category: chain_ciem
+# TODO: Review and update conditions to match actual resource fields
+version: '1.0'
+provider: oci
+service: iam
+checks:
+- rule_id: oci.iam.chain.privilege_escalation
+  check_type: log_correlation
+  severity: HIGH
+  description: Detect privilege escalation via oci_audit event correlation
+  conditions:
+    all:
+    - op: equals
+      field: source_type
+      value: oci_audit
+    - op: equals
+      field: outcome
+      value: SUCCESS
+  sequence:
+  - event: initial
+    conditions:
+    - op: equals
+      field: source_type
+      value: oci_audit
+  - event: followup
+    conditions:
+    - op: equals
+      field: actor.principal
+      value: '{{initial.actor.principal}}'

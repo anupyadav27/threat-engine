@@ -1,0 +1,217 @@
+version: '1.0'
+provider: gcp
+service: pubsub
+checks:
+- rule_id: gcp.pubsub.analytics_application.analytics_checkpoints_and_outputs_encrypted
+  for_each: gcp.pubsub.projects.topics.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.bigqueryConfig.keyStorageType
+      op: exists
+      value: null
+    - var: item.cloudStorageConfig.keyStorageType
+      op: exists
+      value: null
+- rule_id: gcp.pubsub.analytics_application.analytics_network_private_only
+  for_each: gcp.pubsub.projects.topics.list
+  severity: MEDIUM
+  conditions:
+    var: item.analyticsHubSubscriptionInfo
+    op: exists
+    value: null
+- rule_id: gcp.pubsub.analytics_application.analytics_role_least_privilege
+  for_each: gcp.pubsub.projects.topics.list
+  severity: HIGH
+  conditions:
+    var: item.labels.app
+    op: exists
+    value: null
+- rule_id: gcp.pubsub.firehose.firehose_destination_encrypted
+  for_each: gcp.pubsub.projects.subscriptions.list
+  severity: MEDIUM
+  conditions:
+    var: item.cloudStorageConfig.keyStorageType
+    op: exists
+    value: null
+- rule_id: gcp.pubsub.firehose.firehose_destination_least_privilege
+  for_each: gcp.pubsub.projects.subscriptions.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.bigqueryConfig
+      op: exists
+      value: null
+    - var: item.bigqueryConfig.keyStorageType
+      op: equals
+      value: example-type
+- rule_id: gcp.pubsub.firehose.firehose_logging_enabled
+  for_each: gcp.pubsub.projects.subscriptions.list
+  severity: MEDIUM
+  conditions:
+    var: item.cloudStorageConfig
+    op: exists
+    value: null
+- rule_id: gcp.pubsub.stream.stream_consumer_auth_required
+  for_each: gcp.pubsub.projects.subscriptions.list
+  severity: MEDIUM
+  conditions:
+    var: item.bigqueryConfig
+    op: exists
+    value: null
+- rule_id: gcp.pubsub.stream.stream_encryption_at_rest_enabled
+  for_each: gcp.pubsub.projects.topics.list
+  severity: HIGH
+  conditions:
+    var: item.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.pubsub.stream.stream_private_network_only_where_supported
+  for_each: gcp.pubsub.projects.topics.list
+  severity: MEDIUM
+  conditions:
+    var: item.bigqueryConfig.endpoint
+    op: not_exists
+    value: null
+- rule_id: gcp.pubsub.stream_consumer.consumer_access_least_privilege
+  for_each: gcp.pubsub.projects.subscriptions.list
+  severity: HIGH
+  conditions:
+    var: item.iamPolicy.bindings[].role
+    op: not_in
+    value:
+    - roles/pubsub.subscriber
+    - roles/pubsub.viewer
+    - roles/owner
+    - roles/editor
+- rule_id: gcp.pubsub.stream_consumer.consumer_auth_required
+  for_each: gcp.pubsub.projects.subscriptions.list
+  severity: MEDIUM
+  conditions:
+    var: item.bigqueryConfig
+    op: not_exists
+    value: null
+- rule_id: gcp.pubsub.subscription.analytics_event_subscription_cross_account_sharing_restricted
+  for_each: gcp.pubsub.projects.subscriptions.list
+  severity: MEDIUM
+  conditions:
+    var: item.analyticsHubSubscriptionInfo
+    op: not_exists
+    value: null
+- rule_id: gcp.pubsub.subscription.analytics_event_subscription_destination_encrypted
+  for_each: gcp.pubsub.projects.subscriptions.list
+  severity: MEDIUM
+  conditions:
+    var: item.bigqueryConfig.keyStorageType
+    op: exists
+    value: null
+- rule_id: gcp.pubsub.subscription.analytics_event_subscription_destination_least_privilege
+  for_each: gcp.pubsub.projects.subscriptions.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.bigqueryConfig
+      op: exists
+      value: null
+    - var: item.bigqueryConfig.keyStorageType
+      op: equals
+      value: example-type
+- rule_id: gcp.pubsub.subscription.warehouse_event_subscription_cross_account_sharing_restricted
+  for_each: gcp.pubsub.projects.subscriptions.list
+  severity: HIGH
+  conditions:
+    var: item.bigqueryConfig.endpoint
+    op: not_contains
+    value: projects/
+- rule_id: gcp.pubsub.subscription.warehouse_event_subscription_destination_encrypted
+  for_each: gcp.pubsub.projects.subscriptions.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.bigqueryConfig
+      op: exists
+      value: null
+    - var: item.bigqueryConfig.keyStorageType
+      op: exists
+      value: null
+- rule_id: gcp.pubsub.subscription.warehouse_event_subscription_destination_least_privilege
+  for_each: gcp.pubsub.projects.subscriptions.list
+  severity: HIGH
+  conditions:
+    var: item.bigqueryConfig.keyStorageType
+    op: equals
+    value: CUSTOMER_MANAGED_ENCRYPTION
+- rule_id: gcp.pubsub.topic.queue_auth_required
+  for_each: gcp.pubsub.projects.topics.list
+  severity: HIGH
+  conditions:
+    var: item.ackDeadlineSeconds
+    op: exists
+    value: null
+- rule_id: gcp.pubsub.topic.queue_cross_account_send_receive_restricted
+  for_each: gcp.pubsub.projects.topics.list
+  severity: HIGH
+  conditions:
+    var: item.labels
+    op: exists
+    value: null
+- rule_id: gcp.pubsub.topic.queue_encryption_at_rest_enabled
+  for_each: gcp.pubsub.projects.topics.list
+  severity: HIGH
+  conditions:
+    var: item.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.pubsub.topic.queue_private_network_only_where_supported
+  for_each: gcp.pubsub.projects.topics.list
+  severity: HIGH
+  conditions:
+    var: item.messageStoragePolicy.allowedPersistenceRegions
+    op: exists
+    value: null
+- rule_id: gcp.pubsub.topic.stream_consumer_auth_required
+  for_each: gcp.pubsub.projects.topics.list
+  severity: HIGH
+  conditions:
+    var: item.labels
+    op: exists
+    value: null
+- rule_id: gcp.pubsub.topic.stream_encryption_at_rest_enabled
+  for_each: gcp.pubsub.projects.topics.list
+  severity: HIGH
+  conditions:
+    var: item.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.pubsub.topic.stream_private_network_only_where_supported
+  for_each: gcp.pubsub.projects.topics.list
+  severity: HIGH
+  conditions:
+    var: item.labels['goog-compute-engine-default-network']
+    op: not_exists
+    value: null
+- rule_id: gcp.pubsub.video_stream.video_encryption_at_rest_enabled
+  for_each: gcp.pubsub.projects.topics.list
+  severity: HIGH
+  conditions:
+    var: item.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.pubsub.video_stream.video_encryption_in_transit_required
+  for_each: gcp.pubsub.projects.topics.list
+  severity: HIGH
+  conditions:
+    var: item.labels.video_encryption_in_transit
+    op: equals
+    value: required
+- rule_id: gcp.pubsub.video_stream.video_retention_days_minimum_configured
+  for_each: gcp.pubsub.projects.subscriptions.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.messageRetentionDuration
+      op: exists
+      value: null
+    - var: item.messageRetentionDuration
+      op: gte
+      value: 864000s

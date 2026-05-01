@@ -1,0 +1,126 @@
+version: '1.0'
+provider: azure
+service: functionapp
+checks:
+- rule_id: azure.functionapp.authentication.enabled
+  for_each: azure.web.webapps.list
+  severity: MEDIUM
+  conditions:
+    var: item.auth_settings.enabled
+    op: is_true
+    value: null
+- rule_id: azure.functionapp.basic.auth.publishing.disabled
+  for_each: azure.web.webapps.list
+  severity: MEDIUM
+  conditions:
+    var: item.config.siteConfig.ftpsState
+    op: not_equals
+    value: FtpsOnly
+- rule_id: azure.functionapp.client.cert.required.check
+  for_each: azure.web.webapps.list
+  severity: MEDIUM
+  conditions:
+    var: item.clientCertEnabled
+    op: is_true
+    value: null
+- rule_id: azure.functionapp.deployment.slot.identity.check
+  for_each: azure.web.webapps.list_slots
+  severity: MEDIUM
+  conditions:
+    var: item.Identity.Type
+    op: exists
+    value: null
+- rule_id: azure.functionapp.deployment.slot.java.version.check
+  for_each: azure.web.webapps.list_slots
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.config.linuxFxVersion
+      op: contains
+      value: JAVA
+    - var: item.config.linuxFxVersion
+      op: not_contains
+      value: JAVA|8
+- rule_id: azure.functionapp.deployment.slot.minimum.tls.version.check
+  for_each: azure.web.webapps.list
+  severity: MEDIUM
+  conditions:
+    var: item.SiteConfig.MinTlsVersion
+    op: gte
+    value: '1.2'
+- rule_id: azure.functionapp.deployment.slot.vnet.integration.check
+  for_each: azure.web.webapps.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.virtualNetworkSubnetId
+      op: exists
+      value: null
+    - var: item.properties.siteConfig.vnetRouteAllEnabled
+      op: is_true
+      value: null
+- rule_id: azure.functionapp.deployment.slots.basic.auth.disabled
+  for_each: azure.web.webapps.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.site_config.basic_auth_enabled
+      op: is_false
+      value: null
+- rule_id: azure.functionapp.ftps.state.compliance.check
+  for_each: azure.web.webapps.list
+  severity: MEDIUM
+  conditions:
+    var: item.site_config.ftps_state
+    op: not_equals
+    value: AllAllowed
+- rule_id: azure.functionapp.https.only.check
+  for_each: azure.web.webapps.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.config.httpsOnly
+      op: is_true
+      value: null
+- rule_id: azure.functionapp.incoming.client.certificates.required
+  for_each: azure.web.webapps.list
+  severity: MEDIUM
+  conditions:
+    var: item.ClientCertEnabled
+    op: is_true
+    value: null
+- rule_id: azure.functionapp.java.supported.version.check
+  for_each: azure.web.webapps.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.config.linuxFxVersion
+      op: contains
+      value: JAVA
+    - var: item.config.linuxFxVersion
+      op: not_contains
+      value: '8'
+    - var: item.config.linuxFxVersion
+      op: not_contains
+      value: '11'
+- rule_id: azure.functionapp.python.version.check
+  for_each: azure.web.webapps.list
+  severity: MEDIUM
+  conditions:
+    var: item.site_config.linux_fx_version
+    op: contains
+    value: PYTHON
+- rule_id: azure.functionapp.tls.encryption.in.transit.check
+  for_each: azure.web.webapps.list
+  severity: MEDIUM
+  conditions:
+    var: item.config.httpsOnly
+    op: is_true
+    value: null
+- rule_id: azure.functionapp.vnet.routing.enabled.check
+  for_each: azure.web.webapps.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.virtualNetworkSubnetId
+    op: exists
+    value: null

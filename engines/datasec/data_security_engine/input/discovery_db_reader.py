@@ -14,8 +14,8 @@ import logging
 import os
 from typing import Any, Dict, List, Optional, Set
 
-import psycopg2
 from psycopg2.extras import RealDictCursor
+from engine_common.db_connections import get_discoveries_conn
 
 logger = logging.getLogger(__name__)
 
@@ -40,18 +40,6 @@ DATA_STORE_DISCOVERY_MAP = {
 }
 
 
-def _get_discoveries_conn():
-    return psycopg2.connect(
-        host=os.getenv("DISCOVERIES_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("DISCOVERIES_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("DISCOVERIES_DB_NAME", "threat_engine_discoveries"),
-        user=os.getenv("DISCOVERIES_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("DISCOVERIES_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-        connect_timeout=10,
-    )
-
-
 class DataStoreDiscoveryReader:
     """Read data store metadata from the discoveries database."""
 
@@ -69,7 +57,7 @@ class DataStoreDiscoveryReader:
             name, size_bytes, record_count, owner, tags, creation_date, etc.
         """
         discovery_ids = list(DATA_STORE_DISCOVERY_MAP.values())
-        conn = _get_discoveries_conn()
+        conn = get_discoveries_conn()
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 query = """

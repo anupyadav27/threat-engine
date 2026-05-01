@@ -1,0 +1,73 @@
+rule_id: alicloud.serverless.actiontrail.invoke_function
+service: serverless
+provider: alicloud
+check_type: log
+severity: medium
+title: 'AliCloud FC: Function Directly Invoked via API'
+description: A Function Compute function was directly invoked via the management API.
+  Direct invocations (outside normal triggers) may indicate adversary testing or execution
+  of planted code.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: execution
+mitre_tactics:
+- execution
+mitre_techniques:
+- T1648
+risk_score: 55
+resource: alicloud_fc_function
+source: alicloud_ciem_generator
+is_active: true
+domain: compute_and_workload_security
+action_category: audit_activity
+log_source_type: alicloud_actiontrail
+posture_category: workload_posture
+threat_tags:
+- T1648
+- execution
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '8.1'
+  - '8.2'
+  nist_800_53_r5:
+  - CM-2
+  - CM-7
+  - SC-7
+  pci_dss_v4:
+  - '6.3'
+  - '6.4'
+  iso_27001_2022:
+  - A.8.9
+  - A.8.25
+remediation: '1. Baseline normal invocation patterns and alert on anomalies.
+
+  2. Restrict direct API invocations to authorized test accounts.
+
+  3. Monitor function execution logs for suspicious output.'
+references:
+- https://attack.mitre.org/techniques/T1648/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: fc
+    - field: operation
+      op: equals
+      value: InvokeFunction
+version: '1.0'

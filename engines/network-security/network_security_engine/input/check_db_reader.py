@@ -8,45 +8,16 @@ rules, then classifies them into network security modules.
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any, Dict, List, Optional
 
-import psycopg2
 from psycopg2.extras import RealDictCursor
+
+from engine_common.db_connections import get_check_conn
 
 logger = logging.getLogger(__name__)
 
-# Services whose check_findings are network-relevant
-NETWORK_SERVICES = {
-    "ec2", "vpc", "elbv2", "elb", "wafv2", "waf",
-    "cloudfront", "route53", "networkfirewall",
-    "apigateway", "apigatewayv2", "vpcflowlogs",
-    "directconnect",
-}
-
-# Resource types that are network-relevant
-NETWORK_RESOURCE_TYPES = {
-    "security_group", "vpc", "subnet", "route_table",
-    "network_acl", "igw", "nat_gateway", "eip",
-    "load_balancer", "listener", "target_group",
-    "web_acl", "firewall", "flow_log",
-    "hosted_zone", "health_check",
-    "vpn_connection", "vpc_endpoint",
-    "transit_gateway", "peering_connection",
-}
-
-
-def _get_check_conn():
-    """Return a fresh psycopg2 connection to the check DB."""
-    return psycopg2.connect(
-        host=os.getenv("CHECK_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("CHECK_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("CHECK_DB_NAME", "threat_engine_check"),
-        user=os.getenv("CHECK_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("CHECK_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-        connect_timeout=10,
-    )
+# Service/resource-type lists removed — the network_security JSONB scope column
+# in rule_metadata is the source of truth (set by migration 023).
 
 
 class NetworkCheckReader:
@@ -65,12 +36,11 @@ class NetworkCheckReader:
             List of check finding dicts with rule_id, resource_uid, status,
             severity, finding_data, etc.
         """
-        conn = _get_check_conn()
+        conn = get_check_conn()
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 query = """
                     SELECT
-                        cf.finding_id,
                         cf.scan_run_id,
                         cf.tenant_id,
                         cf.account_id,
@@ -97,17 +67,9 @@ class NetworkCheckReader:
                     LEFT JOIN rule_metadata rm ON cf.rule_id = rm.rule_id
                     WHERE cf.scan_run_id = %s
                       AND cf.tenant_id = %s
-                      AND (
-                          rm.service = ANY(%s)
-                          OR cf.resource_type = ANY(%s)
-                      )
+                      AND (rm.network_security ->> 'applicable')::boolean = true
                 """
-                params: list = [
-                    scan_run_id,
-                    tenant_id,
-                    list(NETWORK_SERVICES),
-                    list(NETWORK_RESOURCE_TYPES),
-                ]
+                params: list = [scan_run_id, tenant_id]
 
                 if account_id:
                     query += " AND cf.account_id = %s"
@@ -126,7 +88,7 @@ class NetworkCheckReader:
 
     def load_network_rules(self) -> List[Dict[str, Any]]:
         """Load rule_metadata for network-related services."""
-        conn = _get_check_conn()
+        conn = get_check_conn()
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
@@ -136,9 +98,9 @@ class NetworkCheckReader:
                            compliance_frameworks, action_category,
                            is_active
                     FROM rule_metadata
-                    WHERE service = ANY(%s)
+                    WHERE (network_security ->> 'applicable')::boolean = true
                       AND is_active = TRUE
-                """, [list(NETWORK_SERVICES)])
+                """)
                 return [dict(r) for r in cur.fetchall()]
         finally:
             conn.close()
@@ -149,7 +111,7 @@ class NetworkCheckReader:
         tenant_id: str,
     ) -> Dict[str, Any]:
         """Get summary counts of network check findings by severity/status."""
-        conn = _get_check_conn()
+        conn = get_check_conn()
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
@@ -165,9 +127,8 @@ class NetworkCheckReader:
                     LEFT JOIN rule_metadata rm ON cf.rule_id = rm.rule_id
                     WHERE cf.scan_run_id = %s
                       AND cf.tenant_id = %s
-                      AND (rm.service = ANY(%s) OR cf.resource_type = ANY(%s))
-                """, [scan_run_id, tenant_id,
-                      list(NETWORK_SERVICES), list(NETWORK_RESOURCE_TYPES)])
+                      AND (rm.network_security ->> 'applicable')::boolean = true
+                """, [scan_run_id, tenant_id])
                 row = cur.fetchone()
                 return dict(row) if row else {}
         finally:

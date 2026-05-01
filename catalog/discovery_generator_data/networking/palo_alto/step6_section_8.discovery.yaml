@@ -1,0 +1,36 @@
+version: '1.0'
+provider: networking
+engine: palo_alto
+category: section_8
+cis_section: '8'
+description: >
+  palo_alto CIS Section 8 — 'SSL Forward Proxy Policy' for traffic destined to the Internet is configured
+
+discovery:
+
+  - discovery_id: palo_alto.section_8.ssl_forward_proxy_policy_for_traffic_destined_to
+    description: Ensure 'SSL Forward Proxy Policy' for traffic destined to the Internet is configured
+    calls:
+      - action: run_command
+        command: "Navigate to Policies \u003e Decryption. Verify SSL Forward Proxy is set for all traffic destined to the Internet. Verify each Decryption Policy Rule: \u2022 Source tab: The Source Zone and/or Source Address should include all target internal networks. Source User should include all target internal users \u2022 Destination tab: The Destination Zone should include the untrusted target zone (usually the internet). Destination Address is typically Any for an internet destination. \u2022 Service/URL Category tab: Verify that all URL Category entries are included except financial-services, government and health-and-medicine (this list may vary depending on your organization and its policies). \u2022 Options tab: Verify that the Type is set to SSL Forward Proxy"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ssl_forward_proxy_policy_for_traffic_destined_to
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_8.the_certificate_used_for_decryption_is_trusted
+    description: Ensure that the Certificate used for Decryption is Trusted
+    calls:
+      - action: run_command
+        command: "Verify the CA Certificate(s): Navigate to Device \u003e Certificate Management \u003e Certificates \u2022 Verify that appropriate internal certificates are imported, and that all certificates in the list are valid. In particular, verify the Subject, Issuer, CA, Expires, Algorithm and Usage fields \u2022 Alternatively, if an internal CA is implemented on the firewall, verify that target clients have the root certificate for this CA imported into their list of trusted certificate authorities. Verify the Certificate Profile needed for the SSL Forward Proxy: \u2022 Navigate to Device \u003e Certificate Management \u003e Certificate Profile. Verify that an appropriate profile is created."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: the_certificate_used_for_decryption_is_trusted
+        value: "{{ result.stdout }}"
+        expected: ""
+

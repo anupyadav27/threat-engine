@@ -1,0 +1,72 @@
+rule_id: alicloud.container.actiontrail.modify_cluster_security
+service: container
+provider: alicloud
+check_type: log
+severity: high
+title: 'AliCloud ACK: Cluster API Server Access Configuration Changed'
+description: The cluster's public API server endpoint configuration was changed. Enabling
+  public API server access exposes the Kubernetes control plane to the internet.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: initial_access
+mitre_tactics:
+- initial_access
+mitre_techniques:
+- T1190
+risk_score: 82
+resource: alicloud_ack_cluster
+source: alicloud_ciem_generator
+is_active: true
+domain: container_and_kubernetes_security
+action_category: modify
+log_source_type: alicloud_actiontrail
+posture_category: workload_posture
+threat_tags:
+- T1190
+- initial_access
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '7.1'
+  - '7.2'
+  nist_800_53_r5:
+  - CM-7
+  - AC-3
+  - SC-28
+  pci_dss_v4:
+  - '6.3'
+  - '6.4'
+  iso_27001_2022:
+  - A.8.9
+  - A.8.25
+remediation: '1. Review changes to public endpoint access and authorized CIDR allowlist.
+
+  2. Disable public API server access if not required.
+
+  3. Use VPN or private endpoints for API server access.'
+references:
+- https://attack.mitre.org/techniques/T1190/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: cs
+    - field: operation
+      op: equals
+      value: ModifyCluster
+version: '1.0'

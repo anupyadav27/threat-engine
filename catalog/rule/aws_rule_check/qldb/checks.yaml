@@ -1,0 +1,35 @@
+version: '1.0'
+provider: aws
+service: qldb
+checks:
+- rule_id: aws.qldb.ledger.encryption_at_rest_enabled
+  for_each: aws.qldb.list_qldbs
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.encrypted
+      op: not_empty
+      value: null
+    - var: item.kms_key_id
+      op: exists
+      value: null
+- rule_id: aws.qldb.ledger.journal_export_configured
+  for_each: aws.qldb.list_qldbs
+  severity: MEDIUM
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: aws.qldb.logging.and_monitoring_compliance_check
+  for_each: aws.qldb.list_qldbs
+  severity: MEDIUM
+  conditions:
+    var: item.logging_enabled
+    op: is_true
+- rule_id: aws.qldb.vpc.network_access_secure_configuration_check
+  for_each: aws.qldb.list_qldbs
+  severity: MEDIUM
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'

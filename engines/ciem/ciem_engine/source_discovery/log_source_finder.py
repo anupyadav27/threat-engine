@@ -94,10 +94,10 @@ class LogSourceFinder:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
                     SELECT log_sources FROM cloud_accounts
-                    WHERE account_number = %s AND tenant_id = %s
+                    WHERE (account_id = %s OR account_number = %s)
                     AND log_sources IS NOT NULL
                     LIMIT 1
-                """, (self.account_id, self.tenant_id))
+                """, (self.account_id, self.account_id))
                 row = cur.fetchone()
             conn.close()
 
@@ -108,22 +108,60 @@ class LogSourceFinder:
             if isinstance(cfg, str):
                 cfg = json.loads(cfg)
 
+            # Storage type and location key vary by CSP.
+            # azure_activity uses azure_monitor (direct API) when no storage_account
+            # is configured, or azure_blob when a storage_account is provided.
+            _storage_type_map = {
+                "azure_activity": ("azure_monitor", "subscription_id"),
+                "azure_nsg_flow": ("azure_blob", "storage_account"),
+                "azure_aks_audit": ("azure_blob", "storage_account"),
+                "azure_keyvault": ("azure_blob", "storage_account"),
+                "azure_sql_audit": ("azure_blob", "storage_account"),
+                "gcp_audit": ("gcs", "bucket"),
+                "gcp_vpc_flow": ("gcs", "bucket"),
+                "gcp_gke_audit": ("gcs", "bucket"),
+                "oci_audit": ("oci_os", "bucket"),
+                "oci_vcn_flow": ("oci_os", "bucket"),
+                # OCI: direct Audit API (location = region, e.g. ap-mumbai-1)
+                "oci_audit_direct": ("oci_audit_direct", "location"),
+                "ibm_activity": ("ibm_cos", "bucket"),
+                # K8s: EKS audit logs delivered to CloudWatch log groups
+                "k8s_audit": ("cloudwatch", "location"),
+                "eks_audit": ("cloudwatch", "location"),
+                # AliCloud: ActionTrail direct API (location = region, e.g. cn-hangzhou)
+                "alicloud_actiontrail": ("alicloud_actiontrail", "location"),
+            }
+
             for source_type, entries in cfg.items():
                 if not isinstance(entries, list):
                     continue
+                storage_type, loc_key = _storage_type_map.get(source_type, ("s3", "bucket"))
                 sources = []
                 for entry in entries:
-                    bucket = entry.get("bucket", "")
-                    if not bucket:
+                    location = entry.get(loc_key, entry.get("bucket", ""))
+                    if not location:
                         continue
+                    # For Azure blob, combine storage_account/container into location
+                    if storage_type == "azure_blob":
+                        container = entry.get("container", "insights-activity-logs")
+                        metadata = {
+                            "storage_account": location,
+                            "container": container,
+                            "resource_group": entry.get("resource_group", ""),
+                        }
+                    elif storage_type == "oci_os":
+                        metadata = {"namespace": entry.get("namespace", "")}
+                    else:
+                        metadata = {}
                     sources.append(LogSource(
                         source_type=source_type,
-                        storage_type="s3",
-                        location=bucket,
+                        storage_type=storage_type,
+                        location=location,
                         prefix=entry.get("prefix", ""),
                         region=entry.get("region", ""),
                         account_id=self.account_id,
                         format=entry.get("format", ""),
+                        metadata=metadata,
                     ))
                 if sources:
                     result[source_type] = sources
@@ -134,6 +172,49 @@ class LogSourceFinder:
 
         return result
 
+    def _resolve_discovery_scan_id(self, scan_run_id: str) -> str:
+        """Return the scan_run_id to use when querying discovery_findings.
+
+        CIEM runs in parallel with discovery, so the current scan's discovery
+        data may not exist yet. If the current scan has no rows, fall back to
+        the most recent completed scan for the same tenant/account.
+        """
+        try:
+            conn = self._get_discovery_conn()
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT 1 FROM discovery_findings "
+                    "WHERE scan_run_id = %s AND tenant_id = %s LIMIT 1",
+                    (scan_run_id, self.tenant_id),
+                )
+                if cur.fetchone():
+                    conn.close()
+                    return scan_run_id
+
+                # Current scan has no data yet — use most recent previous scan
+                cur.execute("""
+                    SELECT scan_run_id
+                    FROM discovery_findings
+                    WHERE tenant_id = %s AND account_id = %s AND scan_run_id != %s
+                    GROUP BY scan_run_id
+                    ORDER BY MAX(first_seen_at) DESC
+                    LIMIT 1
+                """, (self.tenant_id, self.account_id, scan_run_id))
+                row = cur.fetchone()
+            conn.close()
+
+            if row:
+                prev = row[0]
+                logger.info(
+                    f"Discovery data not yet available for scan {scan_run_id}; "
+                    f"using previous scan {prev} for log source discovery"
+                )
+                return prev
+        except Exception as exc:
+            logger.debug(f"Discovery scan_run_id resolution failed: {exc}")
+
+        return scan_run_id
+
     def find_all_sources(self, scan_run_id: str, region: str = "") -> List[LogSource]:
         """Find all log sources for this tenant/account.
 
@@ -142,6 +223,9 @@ class LogSourceFinder:
         """
         # Load user-configured sources first (highest priority)
         user_sources = self._load_user_configured_sources()
+
+        # CIEM runs in parallel with discovery — resolve which scan_run_id has data
+        discovery_scan_id = self._resolve_discovery_scan_id(scan_run_id)
 
         sources = []
 
@@ -185,12 +269,13 @@ class LogSourceFinder:
 
         finders = finders_by_csp.get(self.provider, {})
 
-        # For each type: use user config if available, otherwise auto-discover
+        # For each type: use user config if available, otherwise auto-discover.
+        # Pass discovery_scan_id (may differ from scan_run_id if discovery is still running).
         for stype, finder in finders.items():
             if stype in user_sources:
                 sources.extend(user_sources[stype])
             else:
-                sources.extend(finder(scan_run_id, region))
+                sources.extend(finder(discovery_scan_id, region))
 
         # Include any extra user-configured types not in our finder list
         for stype, srcs in user_sources.items():

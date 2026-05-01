@@ -1,0 +1,100 @@
+version: '1.0'
+provider: aws
+service: ses
+checks:
+- rule_id: aws.ses.email.change_audit_logging_enabled
+  for_each: aws.ses.describe_active_receipt_rule_set
+  severity: HIGH
+  conditions:
+    var: item.Rules[].Actions
+    op: contains
+    value: S3
+- rule_id: aws.ses.email.destinations_access_least_privilege
+  for_each: aws.ses.describe_active_receipt_rule_set
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Rules[].Actions[].S3Action.Policy
+      op: exists
+      value: null
+    - var: item.Rules[].Actions[].S3Action.Policy.Statement[].Effect
+      op: equals
+      value: Allow
+    - var: item.Rules[].Actions[].S3Action.Policy.Statement[].Principal
+      op: not_contains
+      value: '*'
+    - var: item.Rules[].Actions[].S3Action.Policy.Statement[].Action
+      op: not_contains
+      value: '*'
+- rule_id: aws.ses.email.endpoints_authenticated_configured
+  for_each: aws.ses.describe_active_receipt_rule_set
+  severity: MEDIUM
+  conditions:
+    var: item.Rules[].Actions[].S3Action[].InvocationType
+    op: exists
+    value: null
+- rule_id: aws.ses.email.message_encryption_in_transit_configured
+  for_each: aws.ses.describe_active_receipt_rule_set
+  severity: HIGH
+  conditions:
+    var: item.TlsPolicy
+    op: exists
+    value: null
+- rule_id: aws.ses.email.no_public_webhooks_configured
+  for_each: aws.ses.describe_active_receipt_rule_set
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Rules
+      op: not_empty
+      value: null
+    - var: item.Rules[].Actions[].S3Action.TopicArn
+      op: not_exists
+      value: null
+- rule_id: aws.ses.email.no_public_webhooks_without_auth_configured
+  for_each: aws.ses.describe_active_receipt_rule_set
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Rules[].Actions[].S3Action.InvocationType
+      op: not_equals
+      value: Event
+    - var: item.Rules[].Actions[].S3Action.TopicArn
+      op: exists
+      value: null
+- rule_id: aws.ses.email.oncall_contacts_verified
+  for_each: aws.ses.describe_active_receipt_rule_set
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Rules[].Recipients[]
+      op: contains
+      value: oncall@example.com
+    - var: item.Rules[].Enabled
+      op: is_true
+      value: null
+- rule_id: aws.ses.email.policy_exists_for_critical_severity_configured
+  for_each: aws.ses.list_identity_policies
+  severity: HIGH
+  conditions:
+    var: item.Policies
+    op: not_empty
+    value: null
+- rule_id: aws.ses.email.ses_channels_configured
+  for_each: aws.ses.describe_active_receipt_rule_set
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Rules
+      op: not_empty
+      value: null
+    - var: item.Rules[].Actions
+      op: not_empty
+      value: null
+- rule_id: aws.ses.email.ses_destinations_configured
+  for_each: aws.ses.describe_active_receipt_rule_set
+  severity: MEDIUM
+  conditions:
+    var: item.Rules
+    op: not_empty
+    value: null

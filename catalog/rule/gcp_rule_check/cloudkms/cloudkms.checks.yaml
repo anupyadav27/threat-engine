@@ -1,0 +1,61 @@
+version: '1.0'
+provider: gcp
+service: cloudkms
+checks:
+- rule_id: gcp.cloudkms.crypto_key.kms_key_deletion_requires_waiting_period
+  for_each: gcp.cloudkms.projects.locations.keyRings.cryptoKeys.list
+  severity: CRITICAL
+  conditions:
+    var: item.primaryVersion.destroyEventTime
+    op: exists
+    value: null
+- rule_id: gcp.cloudkms.crypto_key.kms_key_not_publicly_accessible
+  for_each: gcp.cloudkms.projects.locations.keyRings.cryptoKeys.list
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.iamPolicy.bindings[].members[]
+      op: not_contains
+      value: allUsers
+    - var: item.iamPolicy.bindings[].members[]
+      op: not_contains
+      value: allAuthenticatedUsers
+- rule_id: gcp.cloudkms.crypto_key.kms_key_policy_least_privilege
+  for_each: gcp.cloudkms.projects.locations.keyRings.cryptoKeys.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.iamPolicy.bindings[].members[]
+      op: not_contains
+      value: allUsers
+    - var: item.iamPolicy.bindings[].members[]
+      op: not_contains
+      value: allAuthenticatedUsers
+- rule_id: gcp.cloudkms.crypto_key.kms_key_rotation_enabled
+  for_each: gcp.cloudkms.projects.locations.keyRings.cryptoKeys.list
+  severity: CRITICAL
+  conditions:
+    var: item.rotationPeriod
+    op: exists
+    value: null
+- rule_id: gcp.cloudkms.key_ring.kms_default_keys_disabled_where_cmek_required
+  for_each: gcp.cloudkms.projects.locations.keyRings.cryptoKeys.list
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.name
+      op: contains
+      value: /cryptoKeys/
+    - var: item.primary.name
+      op: exists
+      value: null
+    - var: item.primary.state
+      op: equals
+      value: ENABLED
+- rule_id: gcp.cloudkms.key_ring.kms_logging_enabled
+  for_each: gcp.cloudkms.projects.locations.keyRings.list
+  severity: CRITICAL
+  conditions:
+    var: item.name
+    op: exists
+    value: null

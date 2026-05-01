@@ -1,0 +1,95 @@
+rule_id: azure.keyvault.activity_log.keyvault_key_backup
+service: keyvault
+provider: azure
+check_type: log
+severity: high
+title: 'Key Vault: Keyvault Key Backup'
+description: Key Vault key backed up — key material exported to blob, potential off-vault exfiltration.
+rationale: Private keys embedded in code repositories, CI/CD pipelines, or cloud storage can be harvested to authenticate as services or users.
+threat_category: data_exfiltration
+mitre_tactics:
+- collection
+- exfiltration
+mitre_techniques:
+- T1552.004
+- T1567
+risk_score: 80
+resource: azure_key_vault
+source: default
+is_active: true
+domain: cryptography_and_key_management
+action_category: read
+log_source_type: activity_log
+posture_category: data_security_posture
+threat_tags:
+- T1552.004
+- T1567
+- T1552
+- data_exfiltration
+- data_loss
+- secrets
+- cryptography
+risk_indicators:
+  actor_type: service_principal_or_app
+  action_type: read
+  target_type: secret_or_key
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - secrets_management
+  - backup_and_recovery
+  - data_loss_prevention
+  categories:
+  - data_exfiltration
+  - unauthorized_access
+  priority: high
+  impact:
+    pci: PCI DSS Requirement 3.4 — Sensitive authentication data must be protected
+    gdpr: GDPR Article 32 — Appropriate technical measures to protect personal data
+    hipaa: §164.312(e)(2)(ii) — Encryption of ePHI in transit and at rest
+  sensitive_data_context: |
+  Unauthorized data exfiltration on keyvault resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks:
+  cis_aws_v3:
+  - 2.7
+  - 3.7
+  cis_azure_v2:
+  - 3.1
+  - 5.2
+  nist_800_53_r5:
+  - SC-7
+  - SC-28
+  - AC-4
+  pci_dss_v4:
+  - 3.2
+  - 4.1
+  - 10.2
+  iso_27001_2022:
+  - A.8.12
+  - A.8.20
+  - A.5.14
+remediation: |
+  1. Rotate all affected private keys immediately.
+  2. Scan source code and build artifacts for private key patterns.
+  3. Use HSM-backed key storage (AWS KMS / Azure Key Vault HSM).
+  4. Enforce automated secret scanning in all CI/CD pipelines.
+references:
+- https://attack.mitre.org/techniques/T1552/004/
+- https://docs.aws.amazon.com/kms/latest/developerguide/overview.html
+- https://attack.mitre.org/techniques/T1567/
+check_config:
+  conditions:
+    all:
+    - field: operation
+      op: equals
+      value: Microsoft.KeyVault/vaults/keys/backup/action
+  log_source_type: activity_log
+version: '1.0'

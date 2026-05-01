@@ -1,0 +1,97 @@
+checks:
+- rule_id: alicloud.dns.dnssec.disabled
+  for_each: alicloud.dns.dnssec
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.dns.health_check.https_or_tls_used
+  for_each: alicloud.alb.GetHealthCheckTemplateAttribute
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.dns.health_check.no_plaintext_credentials_in_url
+  for_each: alicloud.alb.GetHealthCheckTemplateAttribute
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.dns.key.in_dnssec
+  for_each: alicloud.actiontrail.GetAccessKeyLastUsedEvents
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.dns.public.hosted_zones_cloudmonitor_logging_enabled
+  for_each: alicloud.actiontrail.oss_bucket_public_access_blocked
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.dns.record.set_caa_records_present_for_root_and_wildcard
+  for_each: alicloud.dns.DescribeDomainRecords
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.dns.record.set_dmarc_record_present_when_mx_present
+  for_each: alicloud.dns.DescribeDomainRecords
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.dns.record.set_no_overly_broad_wildcard_records_in_sensitive_zones
+  for_each: alicloud.dns.DescribeDomainRecords
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.dns.rsasha1.in_use_to_key_sign_in_dnssec
+  for_each: alicloud.dns.rsasha1
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.dns.rsasha1.in_use_to_zone_sign_in_dnssec
+  for_each: alicloud.dns.rsasha1
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.dns.service.dnssec_enabled_for_security
+  for_each: alicloud.ack.log_service
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.dns.service.rsasha1_deprecated_for_key_signing_in_dnssec
+  for_each: alicloud.ack.log_service
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.dns.service.rsasha1_deprecated_for_zone_signing_in_dnssec
+  for_each: alicloud.ack.log_service
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.dns.zone.cross_account_sharing_restricted
+  for_each: alicloud.alb.DescribeZones
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.dns.zone.dnssec_enabled_where_supported
+  for_each: alicloud.alb.DescribeZones
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.dns.zone.zone_transfer_restricted_or_tsig_required
+  for_each: alicloud.alb.DescribeZones
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'

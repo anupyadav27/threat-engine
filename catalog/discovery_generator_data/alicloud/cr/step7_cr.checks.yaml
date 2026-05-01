@@ -1,0 +1,109 @@
+checks:
+- rule_id: alicloud.artifacts.container.analysis_enabled
+  for_each: alicloud.ecs.training_job_inter_container
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.cr.container.vulnerability_scanning_enabled
+  for_each: alicloud.ecs.training_job_inter_container
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.cr.image.critical_vulnerabilities_blocked
+  for_each: alicloud.cr.GetImageLayer
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.cr.image.vulnerability_scan_on_push
+  for_each: alicloud.cr.GetImageLayer
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.cr.instance.access_policy_and_network_restriction_audit
+  for_each: alicloud.apigateway.DescribeInstances
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.cr.not.publicly_accessible
+  for_each: alicloud.ess.DescribeNotificationConfigurations
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.cr.packages.external_public_publishing_disabled
+  for_each: alicloud.cr.packages
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.cr.replication_rule.registry_replication_cross_region_encrypted
+  for_each: alicloud.cr.replication_rule
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.cr.replication_rule.registry_replication_destinations_least_privilege
+  for_each: alicloud.cr.replication_rule
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.cr.repo_policy.registry_policy_no_public_pull_push
+  for_each: alicloud.cr.repo_policy
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+    - var: item.permissions
+      op: not_contains
+- rule_id: alicloud.cr.repo_policy.registry_policy_no_wildcard_admin
+  for_each: alicloud.cr.repo_policy
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.cr.repository.not_publicly_accessible
+  for_each: alicloud.artifacts.ListRepository
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+- rule_id: alicloud.cr.repository.registry_image_scanning_enabled
+  for_each: alicloud.artifacts.ListRepository
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.cr.repository.registry_immutable_tags_or_signing_enforced
+  for_each: alicloud.artifacts.ListRepository
+  conditions:
+    var: item.versioning_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.cr.repository.registry_repo_private_or_access_restricted
+  for_each: alicloud.artifacts.ListRepository
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.cr.repository.scanning_enabled
+  for_each: alicloud.artifacts.ListRepository
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.cr.uses.private_link
+  for_each: alicloud.eventbridge.ListEventBuses
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'

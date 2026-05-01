@@ -1,0 +1,44 @@
+version: '1.0'
+provider: azure
+service: dbformysql
+services:
+  client: dbformysql
+  module: boto3.client
+discovery:
+- discovery_id: azure.dbformysql.servers.list
+  calls:
+  - action: servers.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'
+      properties: '{{ item.properties }}'
+      properties.administratorLogin: '{{ item.properties.administratorLogin }}'
+      properties.sslEnforcement: '{{ item.properties.sslEnforcement }}'
+      properties.minimalTlsVersion: '{{ item.properties.minimalTlsVersion }}'
+      properties.publicNetworkAccess: '{{ item.properties.publicNetworkAccess }}'
+      sku: '{{ item.sku }}'
+- discovery_id: azure.dbformysql.firewallRules.listByServer
+  for_each: azure.dbformysql.servers.list
+  calls:
+  - action: firewallRules.listByServer
+    save_as: response
+    params:
+      serverName: '{{ item.name }}'
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      properties.startIpAddress: '{{ item.properties.startIpAddress }}'
+      properties.endIpAddress: '{{ item.properties.endIpAddress }}'

@@ -1,0 +1,37 @@
+tech_type: {{ tech }}
+category: {{ category }}
+cis_benchmark: CIS {{ tech_display_name }} {{ version }}
+cis_section: '{{ section }}'
+
+rules:
+{% for row in automated_rows %}
+  - rule_id: {{ row._rule_id }}
+    title: "{{ row.title | replace('"', "'") }}"
+    severity: {{ row.severity | lower if row.severity | lower in ['critical', 'high', 'medium', 'low'] else 'informational' }}
+    automation_type: automated
+    cis_control: '{{ row.control_id }}'
+    cis_section: '{{ row.section }}'
+    profile_applicability: "{{ row.profile_applicability }}"
+    scope: {{ row._scope }}
+    assertion:
+      field: {{ row._assertion_field }}
+      operator: {{ row._assertion_operator }}
+      expected: "{{ row._assertion_expected }}"
+    remediation: >
+      {{ row.remediation_steps | wordwrap(78, break_long_words=False) | indent(6) }}
+    compliance:
+      - cis_{{ tech }}_{{ row.framework_version | replace('.', '_') | replace('-', '_') }}_{{ row.control_id | replace('.', '_') }}
+{% endfor %}
+{% for row in manual_rows %}
+  - rule_id: {{ row._rule_id }}
+    title: "{{ row.title | replace('"', "'") }}"
+    severity: {{ row.severity | lower if row.severity | lower in ['critical', 'high', 'medium', 'low'] else 'informational' }}
+    automation_type: manual
+    cis_control: '{{ row.control_id }}'
+    cis_section: '{{ row.section }}'
+    profile_applicability: "{{ row.profile_applicability }}"
+    manual_procedure: >
+      {{ row.audit_procedure | wordwrap(78, break_long_words=False) | indent(6) }}
+    remediation: >
+      {{ row.remediation_steps | wordwrap(78, break_long_words=False) | indent(6) }}
+{% endfor %}

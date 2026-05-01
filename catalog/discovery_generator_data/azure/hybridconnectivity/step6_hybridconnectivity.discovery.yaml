@@ -1,0 +1,131 @@
+# Discovery YAML — hybridconnectivity (Azure)
+# Generated: 2026-04-15T10:39:30Z
+# Source: step1b_operation_registry.json (qualified ops + dependency chains)
+# Actions use {category}.{method} format for SDK method resolution
+version: '1.0'
+provider: azure
+service: hybridconnectivity
+services:
+  client: hybridconnectivity
+  module: azure.mgmt.hybridconnectivity
+discovery:
+  # ════════════════════════════════════════
+  # Independent root operations
+  # ════════════════════════════════════════
+  # ── endpoints.list [root] ──
+  # NOTE: requires an Arc-enabled resource URI; fails gracefully on_error:continue
+  - discovery_id: azure.hybridconnectivity.endpoints.list
+    calls:
+      - action: endpoints.list
+        save_as: response
+        on_error: continue
+        params:
+          resource_uri: ''
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+
+  # ════════════════════════════════════════
+  # Dependent operations (for_each + params)
+  # ════════════════════════════════════════
+  # ── endpoints.list_credentials [dependent] ──
+  - discovery_id: azure.hybridconnectivity.endpoints.list_credentials
+    for_each: azure.hybridconnectivity.endpoints.list
+    calls:
+      - action: endpoints.list_credentials
+        save_as: response
+        on_error: continue
+        params:
+          endpoint_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        location: '{{ item.location }}'
+        sku: '{{ item.sku }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        zones: '{{ item.zones }}'
+        kind: '{{ item.kind }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+  # ── endpoints.list_ingress_gateway_credentials [dependent] ──
+  - discovery_id: azure.hybridconnectivity.endpoints.list_ingress_gateway_credentials
+    for_each: azure.hybridconnectivity.endpoints.list
+    calls:
+      - action: endpoints.list_ingress_gateway_credentials
+        save_as: response
+        on_error: continue
+        params:
+          endpoint_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        location: '{{ item.location }}'
+        sku: '{{ item.sku }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        zones: '{{ item.zones }}'
+        kind: '{{ item.kind }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+  # ── endpoints.list_managed_proxy_details [dependent] ──
+  - discovery_id: azure.hybridconnectivity.endpoints.list_managed_proxy_details
+    for_each: azure.hybridconnectivity.endpoints.list
+    calls:
+      - action: endpoints.list_managed_proxy_details
+        save_as: response
+        on_error: continue
+        params:
+          endpoint_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        location: '{{ item.location }}'
+        sku: '{{ item.sku }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        zones: '{{ item.zones }}'
+        kind: '{{ item.kind }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+  # ── serviceconfigurations.list_by_endpoint_resource [dependent] ──
+  - discovery_id: azure.hybridconnectivity.serviceconfigurations.list_by_endpoint_resource
+    for_each: azure.hybridconnectivity.endpoints.list
+    calls:
+      - action: serviceconfigurations.list_by_endpoint_resource
+        save_as: response
+        on_error: continue
+        params:
+          endpoint_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        port: '{{ item.port }}'
+        resource_id: '{{ item.resource_id }}'
+        service_name: '{{ item.service_name }}'
+        system_data: '{{ item.system_data }}'
+
+  # ── Unwired dependent ops (no root producer found) ──
+  # SKIP: azure.hybridconnectivity.endpoints.list — required_params: ['resource_uri']

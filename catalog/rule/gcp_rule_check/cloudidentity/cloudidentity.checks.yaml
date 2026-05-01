@@ -1,0 +1,68 @@
+version: '1.0'
+provider: gcp
+service: cloudidentity
+checks:
+- rule_id: gcp.cloudidentity.group.group_attached_policies_not_admin_star
+  for_each: gcp.cloudidentity.groups.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.roles[].name
+      op: not_contains
+      value: roles/owner
+    - var: item.roles[].name
+      op: not_contains
+      value: roles/editor
+- rule_id: gcp.cloudidentity.group.group_membership_review_enabled_where_supported
+  for_each: gcp.cloudidentity.groups.list
+  severity: HIGH
+  conditions:
+    var: item.roles[].expiryDetail.expireTime
+    op: exists
+    value: null
+- rule_id: gcp.cloudidentity.group.group_no_inline_policies
+  for_each: gcp.cloudidentity.groups.list
+  severity: HIGH
+  conditions:
+    var: item.roles
+    op: not_exists
+    value: null
+- rule_id: gcp.cloudidentity.user.user_access_keys_rotated_90_days_or_less_when_present
+  for_each: gcp.cloudidentity.groups.memberships.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.updateTime
+      op: exists
+      value: null
+    - var: item.updateTime
+      op: gte
+      value: '2025-01-01T00:00:00Z'
+- rule_id: gcp.cloudidentity.user.user_console_password_present_only_if_required
+  for_each: gcp.cloudidentity.groups.memberships.list
+  severity: HIGH
+  conditions:
+    var: item.roles[].name
+    op: not_contains
+    value: USER
+- rule_id: gcp.cloudidentity.user.user_inactive_90_days_disabled
+  for_each: gcp.cloudidentity.groups.memberships.list
+  severity: HIGH
+  conditions:
+    var: item.updateTime
+    op: gte
+    value: now-90d
+- rule_id: gcp.cloudidentity.user.user_mfa_required
+  for_each: gcp.cloudidentity.groups.list
+  severity: HIGH
+  conditions:
+    var: item.roles[].type
+    op: equals
+    value: MFA
+- rule_id: gcp.cloudidentity.user.user_no_inline_policies_attached
+  for_each: gcp.cloudidentity.groups.memberships.list
+  severity: HIGH
+  conditions:
+    var: item.roles[].role
+    op: not_contains
+    value: MEMBER

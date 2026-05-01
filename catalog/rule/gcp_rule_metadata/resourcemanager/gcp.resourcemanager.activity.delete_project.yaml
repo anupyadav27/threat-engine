@@ -1,0 +1,60 @@
+rule_id: gcp.resourcemanager.activity.delete_project
+rule_type: ciem
+title: 'Resource Manager: GCP Project Deleted'
+scope: resourcemanager.activity
+domain: configuration_and_change_management
+subcategory: configuration
+severity: critical
+service: resourcemanager
+resource: activity
+requirement: Delete Project
+description: GCP project deletion initiated — destroys all resources, audit logs,
+  and data in the project; potential ransomware or cover-tracks operation.
+rationale: 'Adversaries destroy data and files on cloud storage or databases at scale
+  to interrupt availability, render services inoperable, or destroy evidence. Cloud
+  data destruction is often irreversible without backups. Detected via: bulk S3 object
+  deletion via elevated IAM credentials, EC2/EBS/snapshot mass deletion events, storage
+  account deletion with soft-delete disabled, and database cluster deletion without
+  final snapshot.'
+remediation: '1. Restore the deleted resource from Cloud Storage versioning, BigQuery
+  snapshots, or Persistent Disk snapshot.
+
+  2. Enable Cloud Storage Object Versioning and Bucket Lock for critical buckets.
+
+  3. Apply Org Policy `constraints/gcp.resourceLocations` to restrict deletion regions.
+
+  4. Set up Cloud Asset Inventory change notifications for resource deletion events.
+
+  5. Require two-person approval for project deletion via Resource Manager policy.
+
+  '
+references:
+- https://attack.mitre.org/techniques/T1485/
+- https://cloud.google.com/storage/docs/object-versioning
+- https://cloud.google.com/kms/docs/audit-logging
+compliance:
+  cis_gcp_v2:
+  - 2.1
+  - 5.1
+  - 6.5
+  nist_800_53_r5:
+  - CP-9
+  - CP-10
+  - SI-7
+  pci_dss_v4:
+  - 12.3
+  - 10.2
+  iso_27001_2022:
+  - A.8.13
+  - A.8.14
+  - A.5.30
+threat_category: impact
+mitre_tactics:
+- impact
+mitre_techniques:
+- T1485
+risk_score: 95
+action_category: delete
+source: default
+metadata_source: auto_generated
+generated_by: gcp_ciem_generator

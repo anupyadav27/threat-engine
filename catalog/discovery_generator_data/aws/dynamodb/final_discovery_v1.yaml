@@ -1,0 +1,180 @@
+# ==========================================================
+# Discovery YAML — dynamodb (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 24 | ops: 3 independent, 4 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: dynamodb
+
+services:
+  client: dynamodb
+  module: "boto3.client('dynamodb')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: table
+    identifier_op: aws.dynamodb.describe_global_table
+    identifier_field: GlobalTableArn
+    item_var_path: item.GlobalTableArn
+    identifier_template: '{globaltablearn}'
+  - resource_type: backup
+    identifier_op: aws.dynamodb.list_backups
+    identifier_field: BackupArn
+    item_var_path: item.BackupArn
+    identifier_template: '{backuparn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.dynamodb.list_backups  ──
+  - discovery_id: aws.dynamodb.list_backups
+    calls:
+      - action: list_backups
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.BackupSummaries }}'
+      item:
+        BackupArn: '{{ item.BackupArn }}'
+        BackupCreationDateTime: '{{ item.BackupCreationDateTime }}'
+        BackupExpiryDateTime: '{{ item.BackupExpiryDateTime }}'
+        BackupName: '{{ item.BackupName }}'
+        BackupSizeBytes: '{{ item.BackupSizeBytes }}'
+        BackupStatus: '{{ item.BackupStatus }}'
+        BackupType: '{{ item.BackupType }}'
+        TableArn: '{{ item.TableArn }}'
+        TableId: '{{ item.TableId }}'
+        TableName: '{{ item.TableName }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.dynamodb.list_global_tables  ──
+  - discovery_id: aws.dynamodb.list_global_tables
+    calls:
+      - action: list_global_tables
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.GlobalTables }}'
+      item:
+        GlobalTableName: '{{ item.GlobalTableName }}'
+        ReplicationGroup: '{{ item.ReplicationGroup }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.dynamodb.list_tables  ──
+  - discovery_id: aws.dynamodb.list_tables
+    calls:
+      - action: list_tables
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.TableNames }}'
+      item:
+        item: '{{ item }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.dynamodb.describe_global_table [dependent] ──
+  - discovery_id: aws.dynamodb.describe_global_table
+    for_each: aws.dynamodb.list_global_tables
+    calls:
+      - action: describe_global_table
+        params:
+          GlobalTableName: "{{ item.GlobalTableName }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        CreationDateTime: '{{ item.CreationDateTime }}'
+        GlobalTableArn: '{{ item.GlobalTableArn }}'
+        GlobalTableName: '{{ item.GlobalTableName }}'
+        GlobalTableStatus: '{{ item.GlobalTableStatus }}'
+        ReplicationGroup: '{{ item.ReplicationGroup }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.dynamodb.describe_table [dependent] ──
+  - discovery_id: aws.dynamodb.describe_table
+    for_each: aws.dynamodb.list_backups
+    calls:
+      - action: describe_table
+        params:
+          TableName: "{{ item.TableName }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        ArchivalSummary: '{{ item.ArchivalSummary }}'
+        AttributeDefinitions: '{{ item.AttributeDefinitions }}'
+        BillingModeSummary: '{{ item.BillingModeSummary }}'
+        CreationDateTime: '{{ item.CreationDateTime }}'
+        DeletionProtectionEnabled: '{{ item.DeletionProtectionEnabled }}'
+        GlobalSecondaryIndexes: '{{ item.GlobalSecondaryIndexes }}'
+        GlobalTableVersion: '{{ item.GlobalTableVersion }}'
+        GlobalTableWitnesses: '{{ item.GlobalTableWitnesses }}'
+        ItemCount: '{{ item.ItemCount }}'
+        KeySchema: '{{ item.KeySchema }}'
+        LatestStreamArn: '{{ item.LatestStreamArn }}'
+        LatestStreamLabel: '{{ item.LatestStreamLabel }}'
+        LocalSecondaryIndexes: '{{ item.LocalSecondaryIndexes }}'
+        MultiRegionConsistency: '{{ item.MultiRegionConsistency }}'
+        OnDemandThroughput: '{{ item.OnDemandThroughput }}'
+        ProvisionedThroughput: '{{ item.ProvisionedThroughput }}'
+        Replicas: '{{ item.Replicas }}'
+        RestoreSummary: '{{ item.RestoreSummary }}'
+        SSEDescription: '{{ item.SSEDescription }}'
+        SSEDescription.SSEType: '{{ item.SSEDescription.SSEType }}'
+        SSEDescription.Status: '{{ item.SSEDescription.Status }}'
+        StreamSpecification: '{{ item.StreamSpecification }}'
+        StreamSpecification.StreamEnabled: '{{ item.StreamSpecification.StreamEnabled }}'
+        TableArn: '{{ item.TableArn }}'
+        TableClassSummary: '{{ item.TableClassSummary }}'
+        TableId: '{{ item.TableId }}'
+        TableName: '{{ item.TableName }}'
+        TableSizeBytes: '{{ item.TableSizeBytes }}'
+        TableStatus: '{{ item.TableStatus }}'
+        WarmThroughput: '{{ item.WarmThroughput }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.dynamodb.describe_table_replica_auto_scaling [dependent] ──
+  - discovery_id: aws.dynamodb.describe_table_replica_auto_scaling
+    for_each: aws.dynamodb.list_backups
+    calls:
+      - action: describe_table_replica_auto_scaling
+        params:
+          TableName: "{{ item.TableName }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Replicas: '{{ item.Replicas }}'
+        TableName: '{{ item.TableName }}'
+        TableStatus: '{{ item.TableStatus }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.dynamodb.describe_continuous_backups [dependent] ──
+  - discovery_id: aws.dynamodb.describe_continuous_backups
+    for_each: aws.dynamodb.list_backups
+    calls:
+      - action: describe_continuous_backups
+        params:
+          TableName: "{{ item.TableName }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        ContinuousBackupsStatus: '{{ item.ContinuousBackupsStatus }}'
+        PointInTimeRecoveryDescription: '{{ item.PointInTimeRecoveryDescription }}'
+        PointInTimeRecoveryDescription.PointInTimeRecoveryStatus: '{{ item.PointInTimeRecoveryDescription.PointInTimeRecoveryStatus }}'
+

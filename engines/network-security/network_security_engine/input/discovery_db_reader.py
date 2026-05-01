@@ -9,11 +9,11 @@ Services: ec2 (VPC, SG, NACL, routes, IGW, NAT, ENI), elbv2, elb,
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any, Dict, List, Optional
 
-import psycopg2
 from psycopg2.extras import RealDictCursor
+
+from engine_common.db_connections import get_discoveries_conn
 
 logger = logging.getLogger(__name__)
 
@@ -69,19 +69,6 @@ NETWORK_DISCOVERY_MAP = {
 }
 
 
-def _get_discoveries_conn():
-    """Return a fresh psycopg2 connection to the discoveries DB."""
-    return psycopg2.connect(
-        host=os.getenv("DISCOVERIES_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("DISCOVERIES_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("DISCOVERIES_DB_NAME", "threat_engine_discoveries"),
-        user=os.getenv("DISCOVERIES_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("DISCOVERIES_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-        connect_timeout=10,
-    )
-
-
 class NetworkDiscoveryReader:
     """Read network resources from the discoveries database."""
 
@@ -102,7 +89,7 @@ class NetworkDiscoveryReader:
 
         discovery_ids = list(NETWORK_DISCOVERY_MAP.values())
 
-        conn = _get_discoveries_conn()
+        conn = get_discoveries_conn()
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 query = """
@@ -147,7 +134,7 @@ class NetworkDiscoveryReader:
         account_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Load resources for a single discovery_id."""
-        conn = _get_discoveries_conn()
+        conn = get_discoveries_conn()
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 query = """
@@ -174,7 +161,7 @@ class NetworkDiscoveryReader:
         tenant_id: str,
     ) -> Dict[str, int]:
         """Get counts of each network resource type for reporting."""
-        conn = _get_discoveries_conn()
+        conn = get_discoveries_conn()
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 discovery_ids = list(NETWORK_DISCOVERY_MAP.values())

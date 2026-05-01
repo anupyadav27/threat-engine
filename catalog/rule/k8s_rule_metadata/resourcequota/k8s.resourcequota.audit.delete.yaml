@@ -1,0 +1,56 @@
+rule_id: k8s.resourcequota.audit.delete
+rule_type: ciem
+title: 'ResourceQuota: Deleted (Namespace Limits Removed)'
+scope: resourcequota.audit
+domain: container_and_kubernetes_security
+subcategory: container_security
+severity: medium
+service: resourcequota
+resource: audit
+requirement: Delete
+description: ResourceQuota deleted — removes namespace-level limits on CPU, memory,
+  pod count, and storage; enables resource exhaustion attacks.
+rationale: 'Adversaries destroy data and files on cloud storage or databases at scale
+  to interrupt availability, render services inoperable, or destroy evidence. Cloud
+  data destruction is often irreversible without backups. Detected via: bulk S3 object
+  deletion via elevated IAM credentials, EC2/EBS/snapshot mass deletion events, storage
+  account deletion with soft-delete disabled, and database cluster deletion without
+  final snapshot.'
+remediation: '1. Restore deleted resources from cluster backup or etcd snapshot.
+
+  2. Apply RBAC to restrict delete verbs on nodes, namespaces, and PersistentVolumes.
+
+  3. Enable Velero or equivalent backup solution for cluster state and PersistentVolumes.
+
+  4. Configure resource deletion protection policies via admission controllers.
+
+  5. Alert on node and namespace deletion via audit log monitoring or Falco.
+
+  '
+references:
+- https://attack.mitre.org/techniques/T1485/
+- https://kubernetes.io/docs/concepts/storage/persistent-volumes/
+compliance:
+  cis_k8s_v1:
+  - 3.2.1
+  - 5.7.4
+  nist_800_53_r5:
+  - CP-9
+  - CP-10
+  - SI-7
+  pci_dss_v4:
+  - 12.3
+  - 10.2
+  iso_27001_2022:
+  - A.8.13
+  - A.8.14
+threat_category: impact
+mitre_tactics:
+- impact
+mitre_techniques:
+- T1485
+risk_score: 65
+action_category: delete
+source: default
+metadata_source: auto_generated
+generated_by: k8s_ciem_generator

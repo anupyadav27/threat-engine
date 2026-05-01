@@ -1,0 +1,157 @@
+version: '1.0'
+provider: azure
+service: search
+services:
+  client: search
+  module: azure.mgmt.search
+discovery:
+- discovery_id: azure.search.services.list_by_resource_group
+  calls:
+  - action: services.list_by_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      public_network_access: '{{ item.public_network_access }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      network_rule_set: '{{ item.network_rule_set }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      status: '{{ item.status }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      auth_options: '{{ item.auth_options }}'
+      compute_type: '{{ item.compute_type }}'
+      data_exfiltration_protections: '{{ item.data_exfiltration_protections }}'
+      disable_local_auth: '{{ item.disable_local_auth }}'
+      e_tag: '{{ item.e_tag }}'
+      encryption_with_cmk: '{{ item.encryption_with_cmk }}'
+      endpoint: '{{ item.endpoint }}'
+      hosting_mode: '{{ item.hosting_mode }}'
+      partition_count: '{{ item.partition_count }}'
+      private_endpoint_connections: '{{ item.private_endpoint_connections }}'
+      replica_count: '{{ item.replica_count }}'
+      semantic_search: '{{ item.semantic_search }}'
+      service_upgraded_at: '{{ item.service_upgraded_at }}'
+      shared_private_link_resources: '{{ item.shared_private_link_resources }}'
+      status_details: '{{ item.status_details }}'
+      system_data: '{{ item.system_data }}'
+      upgrade_available: '{{ item.upgrade_available }}'
+- discovery_id: azure.search.services.list_by_subscription
+  calls:
+  - action: services.list_by_subscription
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      current_value: '{{ item.current_value }}'
+      limit: '{{ item.limit }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.search.networksecurityperimeterconfigurations.list_by_service
+  for_each: azure.search.services.list_by_subscription
+  calls:
+  - action: networksecurityperimeterconfigurations.list_by_service
+    save_as: response
+    on_error: continue
+    params:
+      search_service_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.search.privateendpointconnections.list_by_service
+  for_each: azure.search.services.list_by_subscription
+  calls:
+  - action: privateendpointconnections.list_by_service
+    save_as: response
+    on_error: continue
+    params:
+      search_service_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.search.privatelinkresources.list_supported
+  for_each: azure.search.services.list_by_subscription
+  calls:
+  - action: privatelinkresources.list_supported
+    save_as: response
+    on_error: continue
+    params:
+      search_service_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.search.querykeys.list_by_search_service
+  for_each: azure.search.services.list_by_subscription
+  calls:
+  - action: querykeys.list_by_search_service
+    save_as: response
+    on_error: continue
+    params:
+      search_service_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      key: '{{ item.key }}'
+- discovery_id: azure.search.sharedprivatelinkresources.list_by_service
+  for_each: azure.search.services.list_by_subscription
+  calls:
+  - action: sharedprivatelinkresources.list_by_service
+    save_as: response
+    on_error: continue
+    params:
+      search_service_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.search.usages_list_by_subscription
+  calls:
+  - action: Usages_ListBySubscription
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'

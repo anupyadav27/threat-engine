@@ -1,0 +1,21 @@
+version: '1.0'
+provider: k8s
+service: storage
+checks:
+- rule_id: k8s.storage.persistent_volume.encryption_state_configured
+  for_each: k8s.storage.list_persistent_volume
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enabled
+      op: not_empty
+      value: null
+    - var: item.kms_key_id
+      op: exists
+      value: null
+- rule_id: k8s.storage.persistentvolume.reclaim_policy_configured
+  for_each: k8s.storage.list_persistent_volume
+  severity: MEDIUM
+  conditions:
+    var: item.enabled
+    op: is_true

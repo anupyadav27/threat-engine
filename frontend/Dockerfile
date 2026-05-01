@@ -3,7 +3,7 @@ ARG NODE_VERSION=22-alpine
 # ── deps ────────────────────────────────────────────────────────────
 FROM node:${NODE_VERSION} AS deps
 WORKDIR /app
-COPY ui_samples/package.json ui_samples/package-lock.json ./
+COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 
 # ── builder ─────────────────────────────────────────────────────────
@@ -11,16 +11,22 @@ FROM node:${NODE_VERSION} AS builder
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY ui_samples/ .
+COPY frontend/ .
 
 # Bake env at build time (NEXT_PUBLIC_* are client-visible, safe to embed)
-ARG NEXT_PUBLIC_API_BASE=http://a6fff2656f8c845e5a2d8effc1b3e56f-1461670384.ap-south-1.elb.amazonaws.com
-ARG NEXT_PUBLIC_AUTH_URL=http://a6fff2656f8c845e5a2d8effc1b3e56f-1461670384.ap-south-1.elb.amazonaws.com/cspm
+# Default is empty string = relative URLs (works in-cluster via nginx ingress routing).
+# Override at build time: docker build --build-arg NEXT_PUBLIC_API_BASE=http://NLB_URL .
+ARG NEXT_PUBLIC_API_BASE=
+ARG NEXT_PUBLIC_AUTH_URL=
 ARG NEXT_PUBLIC_TENANT_ID=default-tenant
 
 ENV NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE}
 ENV NEXT_PUBLIC_AUTH_URL=${NEXT_PUBLIC_AUTH_URL}
 ENV NEXT_PUBLIC_TENANT_ID=${NEXT_PUBLIC_TENANT_ID}
+
+# Guard: DEV_BYPASS_AUTH must never be true in a production image
+RUN ! grep -r "NEXT_PUBLIC_DEV_BYPASS_AUTH=true" /app/.env* 2>/dev/null || \
+    (echo "ERROR: NEXT_PUBLIC_DEV_BYPASS_AUTH must not be true in production" && exit 1)
 
 RUN npm run build
 

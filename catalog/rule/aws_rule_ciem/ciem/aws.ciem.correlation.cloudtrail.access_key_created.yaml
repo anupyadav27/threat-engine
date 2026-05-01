@@ -1,0 +1,94 @@
+rule_id: aws.ciem.correlation.cloudtrail.access_key_created
+service: ciem
+provider: aws
+check_type: log
+severity: high
+title: 'CIEM: Access Key Created'
+description: IAM access key created — programmatic credential established.
+rationale: Cloud instance metadata endpoints provide temporary credentials; accessing them from an SSRF vulnerability or compromised workload yields credentials to the cloud account.
+threat_category: persistence
+mitre_tactics:
+- persistence
+- credential_access
+mitre_techniques:
+- T1552.005
+risk_score: 72
+resource: multi_resource
+source: ciem_rule_generator
+is_active: true
+domain: identity_and_access_management
+action_category: create
+log_source_type: cloudtrail
+posture_category: iam_posture
+threat_tags:
+- T1552.005
+- T1552
+- persistence
+- backdoor
+- ciem_correlation
+- attack_chain
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: tenant_or_account
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: true
+  modules:
+  - secrets_management
+  categories:
+  - sensitive_data_access
+  priority: high
+  impact:
+    pci: PCI DSS Requirement 12.3 — Implement security awareness program and protect systems
+    gdpr: GDPR Article 32 — Appropriate technical and organizational measures for data security
+    hipaa: §164.306(a) — Ensure confidentiality, integrity, and availability of ePHI
+  sensitive_data_context: |
+  Unauthorized persistence on ciem resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.1
+  - 1.4
+  - 1.16
+  cis_azure_v2:
+  - 1.1
+  - 2.1
+  - 2.9
+  nist_800_53_r5:
+  - AC-2
+  - AC-6
+  - IA-2
+  - SC-7
+  pci_dss_v4:
+  - 7.1
+  - 8.2
+  - 10.2
+  iso_27001_2022:
+  - A.8.2
+  - A.9.2
+  - A.5.18
+remediation: |
+  1. Enforce IMDSv2 (AWS) / restrict IMDS access (Azure) to prevent credential theft.
+  2. Alert on metadata service calls from unexpected sources.
+  3. Apply network-level restrictions to limit IMDS reachability.
+  4. Investigate the source of any metadata endpoint request.
+references:
+- https://attack.mitre.org/techniques/T1552/005/
+- https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html
+check_config:
+  conditions:
+    field: operation
+    op: equals
+    value: CreateAccessKey
+  for_each: log_events
+  log_source_type: cloudtrail
+  type: log
+version: '1.0'

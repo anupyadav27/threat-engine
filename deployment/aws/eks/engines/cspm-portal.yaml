@@ -33,7 +33,7 @@ spec:
       serviceAccountName: engine-sa
       initContainers:
       - name: migrate
-        image: yadavanup84/cspm-django-backend:v-auth
+        image: yadavanup84/cspm-django-backend:v-backend-auth
         imagePullPolicy: Always
         command: ["python", "manage.py", "migrate", "--noinput"]
         env:
@@ -61,7 +61,7 @@ spec:
           value: "require"
       containers:
       - name: cspm-backend
-        image: yadavanup84/cspm-django-backend:v-auth
+        image: yadavanup84/cspm-django-backend:v-backend-auth
         imagePullPolicy: Always
         ports:
         - containerPort: 8000
@@ -76,10 +76,12 @@ spec:
               optional: true
         - name: DEBUG
           value: "False"
+        - name: COOKIE_SECURE
+          value: "false"
         - name: ALLOWED_HOSTS
           value: "*"
         - name: FRONTEND_URL
-          value: "http://a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com/ui"
+          value: "https://a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com/ui"
         # ── Database — use explicit DB_* vars (not DATABASE_URL) ──────
         - name: DB_NAME
           value: "cspm"
@@ -101,7 +103,9 @@ spec:
           value: "require"
         # ── Engine URLs (all default to cluster-local) ───────────
         - name: ONBOARDING_ENGINE_URL
-          value: "http://engine-onboarding.threat-engine-engines.svc.cluster.local"
+          value: "http://engine-onboarding.threat-engine-engines.svc.cluster.local/api/v1"
+        - name: ALLOW_LOCAL_SIGNUP
+          value: "false"
         - name: THREAT_ENGINE_URL
           value: "http://engine-threat.threat-engine-engines.svc.cluster.local"
         - name: COMPLIANCE_ENGINE_URL
@@ -134,11 +138,22 @@ spec:
               key: GOOGLE_CLIENT_SECRET
               optional: true
         - name: GOOGLE_REDIRECT_URI
+          value: "https://a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com/api/auth/google/callback/"
+        # ── Microsoft OIDC (Azure AD multi-tenant) ────────────────
+        - name: MICROSOFT_CLIENT_ID
           valueFrom:
-            configMapKeyRef:
-              name: cspm-portal-config
-              key: GOOGLE_REDIRECT_URI
+            secretKeyRef:
+              name: cspm-oauth-secrets
+              key: MICROSOFT_CLIENT_ID
               optional: true
+        - name: MICROSOFT_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: cspm-oauth-secrets
+              key: MICROSOFT_CLIENT_SECRET
+              optional: true
+        - name: MICROSOFT_REDIRECT_URI
+          value: "https://a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com/api/auth/microsoft/callback/"
         # ── Email (SES) ──────────────────────────────────────────
         - name: SES_FROM_EMAIL
           valueFrom:
@@ -165,6 +180,7 @@ spec:
             port: 8000
           initialDelaySeconds: 30
           periodSeconds: 15
+          timeoutSeconds: 5
           failureThreshold: 3
         readinessProbe:
           httpGet:
@@ -172,6 +188,7 @@ spec:
             port: 8000
           initialDelaySeconds: 15
           periodSeconds: 10
+          timeoutSeconds: 5
 ---
 apiVersion: v1
 kind: Service
@@ -220,7 +237,7 @@ spec:
       serviceAccountName: engine-sa
       containers:
       - name: cspm-frontend
-        image: yadavanup84/cspm-frontend:v-orca-graph2
+        image: yadavanup84/cspm-frontend:v-engine-tenant-rbac1
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
@@ -232,6 +249,14 @@ spec:
           value: "3000"
         - name: NODE_ENV
           value: "production"
+        - name: NLB_URL
+          valueFrom:
+            configMapKeyRef:
+              name: platform-config
+              key: nlb-url
+              optional: true
+        - name: CSPM_BACKEND_URL
+          value: "http://cspm-backend.threat-engine-engines.svc.cluster.local"
         resources:
           requests:
             memory: "256Mi"
@@ -269,3 +294,27 @@ spec:
     name: http
   selector:
     app: cspm-frontend
+---
+# ── Auth API ingress — routes /api/* to Django backend without path rewrite
+# Required because NEXT_PUBLIC_AUTH_URL is baked empty; browser calls /api/auth/...
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cspm-api-ingress
+  namespace: threat-engine-engines
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - path: /api/
+        pathType: Prefix
+        backend:
+          service:
+            name: cspm-backend
+            port:
+              number: 80

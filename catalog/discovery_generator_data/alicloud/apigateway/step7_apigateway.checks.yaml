@@ -1,0 +1,218 @@
+checks:
+- rule_id: alicloud.api.api.endpoint_authn_required
+  for_each: alicloud.api.app_credential
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.api.api.endpoint_authz_policies_enforced
+  for_each: alicloud.api.app_credential
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.api.api.endpoint_waf_attached
+  for_each: alicloud.api.app_credential
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.api.app_credential.api_key_scopes_least_privilege
+  for_each: alicloud.api.app_credential
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.api.authorizer.tls_min_1_2_enforced
+  for_each: alicloud.api.authorizer
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.api.authorizer.token_audience_restricted
+  for_each: alicloud.api.authorizer
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.api.field.level_logging_enabled
+  for_each: alicloud.api.field
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.api.function.access_keys_configured
+  for_each: alicloud.fc.function_public_access_blocked
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.api.function.identity_without_admin_privileges
+  for_each: alicloud.fc.function_public_access_blocked
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.api.function.not_publicly_accessible
+  for_each: alicloud.fc.function_public_access_blocked
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+- rule_id: alicloud.api.gateway.api_gateway_https_required
+  for_each: alicloud.apigateway.DescribeApiGroups
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.api.gateway.client_certificate_enabled
+  for_each: alicloud.apigateway.DescribeApiGroups
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.api.gateway.restapi_client_certificate_enabled
+  for_each: alicloud.apigateway.DescribeApiGroups
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.api.gateway.restapi_logging_enabled
+  for_each: alicloud.apigateway.DescribeApiGroups
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.api.gateway.restapi_tracing_enabled
+  for_each: alicloud.apigateway.DescribeApiGroups
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.api.gateway.restapi_waf_acl_attached
+  for_each: alicloud.apigateway.DescribeApiGroups
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.api.gateway.validation_api_parameters_validation_enabled
+  for_each: alicloud.apigateway.DescribeApiGroups
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.api.gateway.validation_api_request_schema_validation_enabled
+  for_each: alicloud.apigateway.DescribeApiGroups
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.api.gateway.validation_api_required_security_headers_enforced
+  for_each: alicloud.apigateway.DescribeApiGroups
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.api.hosting.managed_updates_enabled
+  for_each: alicloud.api.hosting
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.api.http.logs_enabled
+  for_each: alicloud.api.http
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.api.minimum.tls_version_12
+  for_each: alicloud.api.minimum
+  conditions:
+    all:
+    - var: item.ssl_enabled
+      op: equals
+    - var: item.min_tls_version
+      op: gte
+- rule_id: alicloud.api.stage.logging_enabled
+  for_each: alicloud.api.stage
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.api.stage.throttling_enabled
+  for_each: alicloud.api.stage
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.api.usage_plan.rate_limits_configured
+  for_each: alicloud.api.usage_plan
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.apigateway.api.access_logging_enabled
+  for_each: alicloud.apigateway.DescribeApiGroups
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.apigateway.fileshare.encryption_enabled
+  for_each: alicloud.apigateway.fileshare
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.logging_enabled
+      op: equals
+- rule_id: alicloud.apigateway.restapi.cache_encryption_at_rest_enabled
+  for_each: alicloud.apigateway.restapi
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.apigateway.restapi.client_certificate_required
+  for_each: alicloud.apigateway.restapi
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.apigateway.restapi.logging_enabled
+  for_each: alicloud.apigateway.restapi
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.apigateway.restapi.public
+  for_each: alicloud.apigateway.restapi
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+- rule_id: alicloud.apigateway.restapi.public_access_detected
+  for_each: alicloud.apigateway.restapi
+  conditions:
+    var: item.public_ip_address
+    op: exists
+- rule_id: alicloud.apigateway.restapi_access_logging_enabled_90_day_retention.configured
+  for_each: alicloud.apigateway.restapi_access_logging_enabled_90_day_retention
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.apikeys.api.restrictions_configured
+  for_each: alicloud.apikeys.ListAccessKeys
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.apikeys.key.rotated_in_90_days
+  for_each: alicloud.apikeys.ListAccessKeys
+  conditions:
+    var: item.status
+    op: equals
+    value: Active

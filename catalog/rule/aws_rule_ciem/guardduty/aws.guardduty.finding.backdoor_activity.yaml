@@ -1,0 +1,72 @@
+rule_id: aws.guardduty.finding.backdoor_activity
+service: guardduty
+provider: aws
+check_type: log
+severity: critical
+title: 'GuardDuty: Backdoor Activity'
+description: GuardDuty detected backdoor activity — malware or implant communicating.
+rationale: Custom malware developed specifically for cloud environments evades generic detection tools that rely on known-bad signatures.
+threat_category: execution
+mitre_tactics:
+- command_and_control
+mitre_techniques:
+- T1587.001
+risk_score: 90
+resource: guardduty_finding
+source: default
+is_active: true
+domain: compute_and_workload_security
+action_category: execute
+log_source_type: 
+posture_category: workload_posture
+threat_tags:
+- T1587.001
+- T1587
+- remote_execution
+- cloud_exec
+- threat_detection
+- guardduty
+risk_indicators:
+  actor_type: external_threat_actor
+  action_type: execution
+  target_type: cloud_workload
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 3.1
+  - 5.1
+  cis_azure_v2:
+  - 5.1
+  - 6.1
+  nist_800_53_r5:
+  - CM-7
+  - SI-3
+  - AU-12
+  pci_dss_v4:
+  - 6.3
+  - 10.2
+  iso_27001_2022:
+  - A.8.19
+  - A.8.8
+remediation: |
+  1. Enable behavioral analysis in cloud security tools (Defender for Cloud, GuardDuty).
+  2. Apply application allowlisting for critical workloads.
+  3. Enable Defender for Cloud / GuardDuty behavioral threat detection.
+references:
+- https://attack.mitre.org/techniques/T1587/001/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: guardduty
+    - field: operation
+      op: contains
+      value: Backdoor
+version: '1.0'

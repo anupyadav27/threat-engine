@@ -1,0 +1,58 @@
+# discoveries_only_check: 4 kept / 18 removed from 22 total
+# generated_from: step6_ses.discovery.yaml
+# purpose: only discoveries needed by ses.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: ses
+services:
+  client: ses
+  module: boto3.client
+discovery:
+- discovery_id: aws.ses.describe_active_receipt_rule_set
+  calls:
+  - action: describe_active_receipt_rule_set
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Rules }}'
+    item:
+      Name: '{{ item.Name }}'
+      TlsPolicy: '{{ item.TlsPolicy }}'
+      Actions: '{{ item.Actions }}'
+      Enabled: '{{ item.Enabled }}'
+      Metadata: '{{ item.Metadata }}'
+      Recipients: '{{ item.Recipients }}'
+      Rules: '{{ item.Rules }}'
+      ScanEnabled: '{{ item.ScanEnabled }}'
+      Statement: '{{ item.Statement }}'
+      Version: '{{ item.Version }}'
+- discovery_id: aws.ses.list_configuration_sets
+  calls:
+  - action: list_configuration_sets
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ConfigurationSets }}'
+    item:
+      Name: '{{ item.Name }}'
+      Status: '{{ item.Status }}'
+- discovery_id: aws.ses.list_verified_email_addresses
+  calls:
+  - action: list_verified_email_addresses
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.VerifiedEmailAddresses }}'
+- discovery_id: aws.ses.list_identity_policies
+  calls:
+  - action: list_identity_policies
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.PolicyNames }}'
+    item:
+      Policies: '{{ item.Policies }}'

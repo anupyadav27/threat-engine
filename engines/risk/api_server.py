@@ -15,23 +15,76 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
+# Make engine_common importable (for job_creator) — works in both API pod and local dev
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+
 import psycopg2
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query
 from pydantic import BaseModel
+from engine_common.db_connections import get_risk_conn
+
+# ── Auth imports (engine_auth is COPY shared/auth/ ./engine_auth/ in Dockerfile) ──
+try:
+    from engine_auth.fastapi.middleware import AuthMiddleware
+    from engine_auth.fastapi.dependencies import require_permission
+    from engine_auth.core.models import AuthContext
+    _AUTH_AVAILABLE = True
+except ImportError:
+    _AUTH_AVAILABLE = False
+    AuthContext = None  # type: ignore[assignment,misc]
+
+
+def strip_sensitive_fields(data: List[Dict[str, Any]], auth: Any) -> List[Dict[str, Any]]:
+    """Remove credential and proprietary model fields based on caller's auth level.
+
+    For risk engine:
+    - level > 1: strip credential_ref, credential_type
+    - level >= 4: also strip calculation_model (FAIR model parameters) and
+      blast_radius_sample (list of affected resources)
+    NOTE: blast_radius_score (integer) must remain in the response — only the
+    JSONB detail fields are stripped.
+
+    Args:
+        data: List of risk scenario / finding dicts.
+        auth: AuthContext instance (or None when auth is unavailable).
+
+    Returns:
+        New list with sensitive fields removed; original dicts are not mutated.
+    """
+    if not isinstance(data, list):
+        return data
+    stripped = []
+    for row in data:
+        r = dict(row) if not isinstance(row, dict) else row.copy()
+        if auth is not None and auth.level > 1:
+            r.pop("credential_ref", None)
+            r.pop("credential_type", None)
+        if auth is not None and auth.level >= 4:
+            r.pop("calculation_model", None)
+            r.pop("blast_radius_sample", None)
+        stripped.append(r)
+    return stripped
 
 logger = logging.getLogger(__name__)
+
+# ── Scanner Job config ───────────────────────────────────────────────────────
+SCANNER_IMAGE = os.getenv("RISK_SCANNER_IMAGE", "yadavanup84/engine-risk:v-job")
+SCANNER_CPU_REQUEST = os.getenv("SCANNER_CPU_REQUEST", "500m")
+SCANNER_MEM_REQUEST = os.getenv("SCANNER_MEM_REQUEST", "2Gi")
+SCANNER_CPU_LIMIT = os.getenv("SCANNER_CPU_LIMIT", "1")
+SCANNER_MEM_LIMIT = os.getenv("SCANNER_MEM_LIMIT", "4Gi")
 
 # ---------------------------------------------------------------------------
 # Database connection pools
 # ---------------------------------------------------------------------------
 
-_risk_pool = None
 _discovery_pool = None
 _onboarding_pool = None
 _external_pool = None
@@ -46,13 +99,6 @@ def _get_pool(db_name: str, env_prefix: str):
         user=os.getenv(f"{env_prefix}_DB_USER", os.getenv("DB_USER", "postgres")),
         password=os.getenv(f"{env_prefix}_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
     )
-
-
-def get_risk_conn():
-    global _risk_pool
-    if _risk_pool is None or _risk_pool.closed:
-        _risk_pool = _get_pool("threat_engine_risk", "RISK")
-    return _risk_pool
 
 
 def get_discovery_conn():
@@ -89,7 +135,7 @@ async def lifespan(app: FastAPI):
     logger.info("Risk engine starting on port 8009")
     yield
     # Cleanup connections
-    for pool in [_risk_pool, _discovery_pool, _onboarding_pool, _external_pool]:
+    for pool in [_discovery_pool, _onboarding_pool, _external_pool]:
         if pool and not pool.closed:
             pool.close()
     logger.info("Risk engine shut down")
@@ -101,6 +147,10 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+# AuthMiddleware validates access_token / X-Auth-Context for every non-health path
+if _AUTH_AVAILABLE:
+    app.add_middleware(AuthMiddleware)
 
 # ---------------------------------------------------------------------------
 # Metrics
@@ -137,86 +187,47 @@ class ScanResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-@app.post("/api/v1/scan", response_model=ScanResponse)
+@app.post("/api/v1/scan")
 async def run_scan(request: ScanRequest):
-    """Run the full 3-stage risk quantification pipeline."""
-    global _scan_count, _scan_errors, _last_scan_duration_ms
+    """Trigger a risk quantification scan as a K8s Job on a spot node.
 
+    Returns 202 immediately. Poll GET /api/v1/risk/{scan_run_id}/status for progress.
+    """
+    global _scan_count
+
+    # NOTE: status endpoint returns "running" by default when no row exists —
+    # no need to pre-create a row. The Job will write status when it completes.
     scan_id = str(uuid4())
-    started_at = datetime.now(timezone.utc)
-    start_time = time.time()
 
+    # Create K8s Job on spot node
     try:
-        risk_conn = get_risk_conn()
-        onboarding_conn = get_onboarding_conn()
-        external_conn = get_external_conn()
-
-        # Stage 1: ETL — Transform
-        # ETL opens its own per-engine DB connections internally
-        from engines.risk.etl.risk_etl import RiskETL
-        etl = RiskETL(risk_conn, onboarding_conn, external_conn)
-        transformed_count = etl.run(
-            scan_id, request.scan_run_id,
-            request.tenant_id, request.account_id, request.provider,
-        )
-
-        # Stage 2: Evaluate — FAIR model
-        from engines.risk.evaluator.risk_evaluator import RiskEvaluator
-        evaluator = RiskEvaluator(risk_conn)
-        scenario_count = evaluator.run(
-            scan_id, request.scan_run_id,
-            request.tenant_id, request.account_id, request.provider,
-        )
-
-        # Stage 3: Report — Aggregate
-        from engines.risk.reporter.risk_reporter import RiskReporter
-        reporter = RiskReporter(risk_conn)
-        report = reporter.run(
-            scan_id, request.scan_run_id,
-            request.tenant_id, request.account_id, request.provider,
-            started_at=started_at,
-        )
-
-        # Stage 4: Coordinate — Update orchestration
-        from engines.risk.db.risk_db_writer import RiskDBWriter
-        writer = RiskDBWriter(risk_conn)
-        writer.update_orchestration(request.scan_run_id, scan_id, onboarding_conn)
-
-        duration_ms = int((time.time() - start_time) * 1000)
-        _scan_count += 1
-        _last_scan_duration_ms = duration_ms
-
-        return ScanResponse(
-            risk_scan_id=scan_id,
+        from engine_common.job_creator import create_engine_job
+        job_name = create_engine_job(
+            engine_name="risk",
+            scan_id=request.scan_run_id,
             scan_run_id=request.scan_run_id,
-            status="completed",
-            transformed_count=transformed_count,
-            scenario_count=scenario_count,
-            total_exposure_likely=report.get("total_exposure_likely", 0),
-            duration_ms=duration_ms,
+            image=SCANNER_IMAGE,
+            cpu_request=SCANNER_CPU_REQUEST,
+            mem_request=SCANNER_MEM_REQUEST,
+            cpu_limit=SCANNER_CPU_LIMIT,
+            mem_limit=SCANNER_MEM_LIMIT,
+            active_deadline_seconds=14400,
         )
-
     except Exception as exc:
         _scan_errors += 1
-        logger.error("Risk scan failed: %s", exc, exc_info=True)
-        # Write failed report
-        try:
-            from engines.risk.db.risk_db_writer import RiskDBWriter
-            writer = RiskDBWriter(get_risk_conn())
-            writer.insert_report({
-                "risk_scan_id": scan_id,
-                "scan_run_id": request.scan_run_id,
-                "tenant_id": request.tenant_id,
-                "account_id": request.account_id,
-                "provider": request.provider,
-                "status": "failed",
-                "error_message": str(exc),
-                "started_at": started_at,
-                "completed_at": datetime.now(timezone.utc),
-            })
-        except Exception:
-            pass
-        raise HTTPException(status_code=500, detail=str(exc))
+        logger.error("Failed to create risk scan job: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create scanner Job: {exc}")
+
+    _scan_count += 1
+    logger.info("Risk scan Job created: %s (scan_run_id=%s)", job_name, request.scan_run_id)
+
+    return {
+        "status": "submitted",
+        "scan_run_id": request.scan_run_id,
+        "risk_scan_id": scan_id,
+        "job_name": job_name,
+        "message": f"Risk scanner Job '{job_name}' created on spot node",
+    }
 
 
 @app.get("/api/v1/report/{scan_id}")
@@ -268,6 +279,24 @@ async def get_report(scan_id: str):
             "status": row[21],
             "scan_duration_ms": row[22],
         }
+    finally:
+        cursor.close()
+
+
+@app.get("/api/v1/risk/{scan_run_id}/status")
+async def get_risk_status(scan_run_id: str):
+    """Poll endpoint for Argo pipeline — returns scan status by scan_run_id."""
+    conn = get_risk_conn()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT status, total_scenarios FROM risk_report WHERE scan_run_id = %s ORDER BY created_at DESC LIMIT 1",
+            (scan_run_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return {"scan_run_id": scan_run_id, "status": "running", "total_findings": 0}
+        return {"scan_run_id": scan_run_id, "status": row[0], "total_findings": row[1] or 0}
     finally:
         cursor.close()
 
@@ -1002,6 +1031,7 @@ async def risk_top_assets(
 @app.get("/api/v1/risk/ui-data")
 async def risk_ui_data(
     tenant_id: Optional[str] = Query(None, description="Tenant UUID"),
+    auth: Any = Depends(require_permission("risk:read") if _AUTH_AVAILABLE else (lambda: None)),
 ) -> Dict[str, Any]:
     """Consolidated risk data for the frontend dashboard.
 
@@ -1093,7 +1123,7 @@ async def risk_ui_data(
             "risk_reduction": 0.0,
             "compliance_index": compliance_index,
             "risk_register": risk_register,
-            "scenarios": scenarios,
+            "scenarios": strip_sensitive_fields(scenarios, auth),
             "trends": trends,
             "mitigation_roadmap": mitigation_roadmap,
             "breakdown": breakdown,

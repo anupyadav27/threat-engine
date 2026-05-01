@@ -1,0 +1,86 @@
+rule_id: aws.iam.cloudtrail.update_oidc_provider_thumbprint
+service: iam
+provider: aws
+check_type: log
+severity: high
+title: 'IAM: Update OIDC Provider Thumbprint'
+description: OIDC provider thumbprint updated — hybrid identity trust relationship modified for external IdP.
+rationale: 'Adversaries patch, modify, or backdoor cloud authentication processes tied to on-premises identities (Golden SAML / hybrid identity attack). Organizations using Password Hash Sync, Pass-Through Authentication, or AD FS are at risk. A rogue identity provider can issue valid tokens for any user in the tenant without their credentials. Detected via: AD FS token-signing certificate changes, federation trust modifications, and conditional access MFA bypass modifications.'
+threat_category: persistence
+mitre_tactics:
+- persistence
+mitre_techniques:
+- T1556.007
+risk_score: 72
+resource: iam_principal
+source: default
+is_active: true
+domain: identity_and_access_management
+action_category: audit_activity
+posture_category: iam_posture
+threat_tags:
+- T1556.007
+- T1556
+- persistence
+- backdoor
+- cloud_iam
+- identity
+risk_indicators:
+  actor_type: iam_user_or_role
+  action_type: write
+  target_type: iam_identity
+  blast_radius: account
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.1
+  - 1.4
+  - 1.16
+  cis_azure_v2:
+  - 1.1
+  - 2.1
+  - 2.9
+  nist_800_53_r5:
+  - AC-2
+  - AC-6
+  - IA-2
+  - SC-7
+  pci_dss_v4:
+  - 7.1
+  - 8.2
+  - 10.2
+  iso_27001_2022:
+  - A.8.2
+  - A.9.2
+  - A.5.18
+detection_events:
+- microsoft.directory/domains/federation/update
+- Set domain authentication (Entra ID audit)
+- AD FS token-signing certificate modification
+- ExternalIdP creation event
+remediation: |
+  1. Immediately revert the federation change and remove the rogue IdP.
+  2. Revoke all SAML tokens issued via the rogue IdP.
+  3. Restrict domain federation changes to break-glass accounts with approval workflows.
+  4. Enable Microsoft Sentinel detection rules for federation changes.
+  5. Implement PIM with approval for all federation management operations.
+references:
+- https://attack.mitre.org/techniques/T1556/007/
+- https://learn.microsoft.com/en-us/azure/active-directory/fundamentals/security-operations-introduction
+- https://www.microsoft.com/en-us/security/blog/2020/12/21/advice-for-incident-responders-on-recovery-from-systemic-identity-compromises/
+check_config:
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: iam
+    - field: operation
+      op: equals
+      value: UpdateOpenIDConnectProviderThumbprint
+version: '1.0'

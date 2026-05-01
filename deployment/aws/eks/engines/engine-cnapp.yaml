@@ -1,0 +1,127 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: engine-cnapp
+  namespace: threat-engine-engines
+  labels:
+    app: engine-cnapp
+    tier: engine
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: engine-cnapp
+  template:
+    metadata:
+      labels:
+        app: engine-cnapp
+        tier: engine
+    spec:
+      serviceAccountName: engine-sa
+      containers:
+      - name: engine-cnapp
+        image: yadavanup84/engine-cnapp:v-cnapp-graceful
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8015
+          name: http
+        env:
+        - name: PYTHONPATH
+          value: /app
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: CNAPP_PORT
+          value: "8015"
+
+        # ── Pillar engine URLs (internal K8s ClusterIP services) ────────────
+        # All services expose port 80 → engine-specific container port.
+        - name: CHECK_ENGINE_URL
+          value: "http://engine-check"
+        - name: COMPLIANCE_ENGINE_URL
+          value: "http://engine-compliance"
+        - name: CIEM_ENGINE_URL
+          value: "http://engine-ciem"
+        - name: IAM_ENGINE_URL
+          value: "http://engine-iam"
+        - name: CWPP_ENGINE_URL
+          value: "http://engine-cwpp"
+        - name: CONTAINER_SEC_URL
+          value: "http://engine-container-sec"
+        - name: VUL_ENGINE_URL
+          value: "http://engine-vul"
+        - name: DATASEC_ENGINE_URL
+          value: "http://engine-datasec"
+        - name: NETWORK_ENGINE_URL
+          value: "http://engine-network"
+        - name: THREAT_ENGINE_URL
+          value: "http://engine-threat"
+        - name: SECOPS_ENGINE_URL
+          value: "http://engine-secops"
+
+        # ── OpenTelemetry ────────────────────────────────────────────────────
+        - name: OTEL_SERVICE_NAME
+          value: "engine-cnapp"
+        - name: OTEL_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_ENABLED
+              optional: true
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_EXPORTER_OTLP_ENDPOINT
+              optional: true
+        - name: OTEL_EXPORTER_OTLP_INSECURE
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_EXPORTER_OTLP_INSECURE
+              optional: true
+
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
+
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health/live
+            port: 8015
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          failureThreshold: 6
+
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health/ready
+            port: 8015
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: engine-cnapp
+  namespace: threat-engine-engines
+  labels:
+    app: engine-cnapp
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8015
+    protocol: TCP
+    name: http
+  selector:
+    app: engine-cnapp

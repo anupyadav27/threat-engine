@@ -1,0 +1,85 @@
+checks:
+- rule_id: alicloud.cas.cas.certificate_key_length_minimum
+  for_each: alicloud.cas.cas_private_ca
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.min_tls_version
+      op: gte
+- rule_id: alicloud.cas.cas.certificate_not_expired
+  for_each: alicloud.cas.cas_private_ca
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.cas.cas.certificate_trusted_issuer
+  for_each: alicloud.cas.cas_private_ca
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.cas.cas_private_ca.private_ca_ca_access_rbac_least_privilege
+  for_each: alicloud.cas.cas_private_ca
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.permissions
+      op: not_contains
+- rule_id: alicloud.cas.cas_private_ca.private_ca_ca_key_in_hsm_where_supported
+  for_each: alicloud.cas.cas_private_ca
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.cas.cas_private_ca.private_ca_crl_or_ocsp_configured
+  for_each: alicloud.cas.cas_private_ca
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.cas.certificate.expiration
+  for_each: alicloud.cas.certificates
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.cas.certificates.expiration_check
+  for_each: alicloud.cas.certificates
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.cas.certificates.expiration_check_alicloud_alb_ssl_listeners_alicloud_slb_ssl_listeners_alicloud_cdn_distributions_using_deprecated_ssl_protocols
+  for_each: alicloud.cas.certificates
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.cas.certificates.expiration_check_alicloud_oss_bucket_enforces_ssl_alicloud_alb_ssl_listeners_alicloud_elasticsearch_service_domains_node_to_node_encryption_enabled_alicloud_slb_ssl_listeners_alicloud_elasticsearch_service_domains_https_communica
+  for_each: alicloud.cas.certificates
+  conditions:
+    all:
+    - var: item.ssl_enabled
+      op: equals
+    - var: item.min_tls_version
+      op: gte
+- rule_id: alicloud.cas.certificates.not_expired_and_valid
+  for_each: alicloud.cas.certificates
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.cas.kubernetes.cluster_confidential_computing_enabled
+  for_each: alicloud.cas.kubernetes
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.cas.kubernetes_cluster.confidential_computing_enforced
+  for_each: alicloud.cas.kubernetes_cluster
+  conditions:
+    var: item.status
+    op: equals
+    value: Active

@@ -1,0 +1,373 @@
+version: '1.0'
+provider: gcp
+service: sql
+checks:
+- rule_id: gcp.sql.backup.cluster_snapshot_cross_account_sharing_restricted
+  for_each: gcp.sql.instances.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.settings.backupConfiguration.enabled
+      op: is_true
+      value: null
+    - var: item.settings.backupConfiguration.backupRetentionSettings.retentionUnit
+      op: exists
+      value: null
+    - var: item.settings.backupConfiguration.backupRetentionSettings.retainedBackups
+      op: gte
+      value: 1
+    - var: item.settings.backupConfiguration.location
+      op: not_contains
+      value: us
+- rule_id: gcp.sql.backup.cluster_snapshot_cross_region_copy_encrypted
+  for_each: gcp.sql.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.settings.backupConfiguration.enabled
+      op: is_true
+      value: null
+    - var: item.settings.backupConfiguration.location
+      op: equals
+      value: us
+    - var: item.diskEncryptionConfiguration.kmsKeyName
+      op: exists
+      value: null
+- rule_id: gcp.sql.backup.cluster_snapshot_encrypted
+  for_each: gcp.sqladmin.instances.list
+  severity: HIGH
+  conditions:
+    var: item.settings.backupConfiguration.pointInTimeRecoveryEnabled
+    op: is_true
+    value: null
+- rule_id: gcp.sql.backup.cluster_snapshot_not_publicly_shared
+  for_each: gcp.sql.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.settings.backupConfiguration.enabled
+      op: is_true
+      value: null
+    - var: item.settings.backupConfiguration.binaryLogEnabled
+      op: is_true
+      value: null
+    - var: item.settings.ipConfiguration.authorizedNetworks[].value
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: gcp.sql.backup.snapshot_cross_account_sharing_restricted
+  for_each: gcp.sql.instances.list
+  severity: HIGH
+  conditions:
+    var: item.settings.backupConfiguration.snapshotCrossAccountSharing
+    op: is_false
+    value: null
+- rule_id: gcp.sql.backup.snapshot_cross_region_copy_encrypted
+  for_each: gcp.sql.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.settings.backupConfiguration.location
+      op: exists
+      value: null
+    - var: item.settings.backupConfiguration.location
+      op: not_equals
+      value: us
+    - var: item.diskEncryptionConfiguration.kmsKeyName
+      op: exists
+      value: null
+- rule_id: gcp.sql.backup.snapshot_encrypted
+  for_each: gcp.sql.list_instances
+  severity: HIGH
+  conditions:
+    var: item.settings.backupConfiguration.backupRetentionSettings.retentionUnit
+    op: exists
+    value: null
+- rule_id: gcp.sql.backup.snapshot_not_publicly_shared
+  for_each: gcp.sql.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.settings.backupConfiguration.enabled
+      op: is_true
+      value: null
+    - var: item.settings.backupConfiguration.binaryLogEnabled
+      op: is_true
+      value: null
+    - var: item.settings.backupConfiguration.location
+      op: not_equals
+      value: us
+    - var: item.settings.userLabels
+      op: not_contains
+      value: public
+- rule_id: gcp.sql.config.parameter_group_audit_logging_enabled_where_supported
+  for_each: gcp.sql.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.settings.databaseFlags[].name
+      op: contains
+      value: cloudsql.enable_pgaudit
+    - var: item.settings.databaseFlags[?(@.name == 'cloudsql.enable_pgaudit')].value
+      op: equals
+      value: 'on'
+- rule_id: gcp.sql.config.parameter_group_insecure_features_disabled_where_applicable
+  for_each: gcp.sql.instances.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.settings.databaseFlags[].name
+      op: not_contains
+      value: cloudsql.enable_pgaudit
+    - var: item.settings.databaseFlags[].name
+      op: not_contains
+      value: cloudsql.enable_pgaudit_log
+    - var: item.settings.databaseFlags[].name
+      op: not_contains
+      value: cloudsql.enable_pgaudit_syslog
+    - var: item.settings.databaseFlags[].name
+      op: not_contains
+      value: cloudsql.enable_pgaudit_csv
+    - var: item.settings.databaseFlags[].name
+      op: not_contains
+      value: cloudsql.enable_pgaudit_json
+    - var: item.settings.databaseFlags[].name
+      op: not_contains
+      value: cloudsql.enable_pgaudit_text
+    - var: item.settings.databaseFlags[].name
+      op: not_contains
+      value: cloudsql.enable_pgaudit_stderr
+    - var: item.settings.databaseFlags[].name
+      op: not_contains
+      value: cloudsql.enable_pgaudit_stdout
+    - var: item.settings.databaseFlags[].name
+      op: not_contains
+      value: cloudsql.enable_pgaudit_syslog_events
+    - var: item.settings.databaseFlags[].name
+      op: not_contains
+      value: cloudsql.enable_pgaudit_csv_events
+    - var: item.settings.databaseFlags[].name
+      op: not_contains
+      value: cloudsql.enable_pgaudit_json_events
+    - var: item.settings.databaseFlags[].name
+      op: not_contains
+      value: cloudsql.enable_pgaudit_text_events
+    - var: item.settings.databaseFlags[].name
+      op: not_contains
+      value: cloudsql.enable_pgaudit_stderr_events
+    - var: item.settings.databaseFlags[].name
+      op: not_contains
+      value: cloudsql.enable_pgaudit_stdout_events
+- rule_id: gcp.sql.config.parameter_group_require_ssl
+  for_each: gcp.sql.list_instances
+  severity: HIGH
+  conditions:
+    var: item.settings.ipConfiguration.requireSsl
+    op: is_true
+    value: null
+- rule_id: gcp.sql.database_instance.db_encryption_at_rest_enabled
+  for_each: gcp.sql.list_database_instances
+  severity: HIGH
+  conditions:
+    var: item.settings.diskEncryptionConfiguration.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.sql.database_instance.db_public_access_disabled
+  for_each: gcp.sql.instances.list
+  severity: HIGH
+  conditions:
+    var: item.settings.ipConfiguration.authorizedNetworks[].value
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: gcp.sql.database_instance.db_require_tls_in_transit
+  for_each: gcp.sql.instances.list
+  severity: HIGH
+  conditions:
+    var: item.settings.ipConfiguration.requireSsl
+    op: is_true
+    value: null
+- rule_id: gcp.sql.instance.cluster_deletion_protection_enabled
+  for_each: gcp.sql.list_instances
+  severity: HIGH
+  conditions:
+    var: item.Settings.DeletionProtectionEnabled
+    op: is_true
+    value: null
+- rule_id: gcp.sql.instance.cluster_encryption_at_rest_cmek
+  for_each: gcp.sql.list_instances
+  severity: HIGH
+  conditions:
+    var: item.settings.diskEncryptionConfiguration.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.sql.instance.cluster_minor_version_auto_upgrade_enabled
+  for_each: gcp.sql.instances.list
+  severity: HIGH
+  conditions:
+    var: item.settings.autoUpgradeMinorVersion
+    op: is_true
+    value: null
+- rule_id: gcp.sql.instance.cluster_private_networking_enforced
+  for_each: gcp.sql.list_instances
+  severity: HIGH
+  conditions:
+    var: item.settings.ipConfiguration.privateNetwork
+    op: exists
+    value: null
+- rule_id: gcp.sql.instance.instance_deletion_protection_enabled
+  for_each: gcp.sql.list_instances
+  severity: HIGH
+  conditions:
+    var: item.settings.deletionProtectionEnabled
+    op: is_true
+    value: null
+- rule_id: gcp.sql.instance.instance_encryption_at_rest_enabled
+  for_each: gcp.sql.list_instances
+  severity: HIGH
+  conditions:
+    var: item.settings.diskEncryptionConfiguration.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.sql.instance.instance_iam_or_managed_identity_auth_enabled_where_supported
+  for_each: gcp.sql.list_instances
+  severity: HIGH
+  conditions:
+    var: item.settings.databaseFlags[].name
+    op: contains
+    value: cloudsql.iam_authentication
+- rule_id: gcp.sql.instance.instance_public_access_disabled
+  for_each: gcp.sql.instances.list
+  severity: HIGH
+  conditions:
+    var: item.settings.ipConfiguration.authorizedNetworks[].value
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: gcp.sql.instance.instance_require_tls_in_transit
+  for_each: gcp.sql.instances.list
+  severity: HIGH
+  conditions:
+    var: item.settings.ipConfiguration.requireSsl
+    op: is_true
+    value: null
+- rule_id: gcp.sql.instance.subnet_group_private_subnets_only
+  for_each: gcp.sql.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.settings.ipConfiguration.privateNetwork
+      op: exists
+      value: null
+    - var: item.settings.ipConfiguration.authorizedNetworks[].value
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: gcp.sql.option_group.option_group_insecure_extensions_not_enabled
+  for_each: gcp.sql.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.settings.databaseFlags[].name
+      op: not_contains
+      value: cloudsql.enable_pglogical
+    - var: item.settings.databaseFlags[].name
+      op: not_contains
+      value: cloudsql.enable_pgaudit
+    - var: item.settings.databaseFlags[].name
+      op: not_contains
+      value: cloudsql.enable_pg_cron
+- rule_id: gcp.sql.option_group.option_group_only_approved_extensions_enabled
+  for_each: gcp.sqladmin.instances.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.settings.databaseFlags[].name
+      op: not_contains
+      value: cloudsql.enable_pg_extra_controls
+    - var: item.settings.databaseFlags[].name
+      op: not_contains
+      value: cloudsql.enable_pg_stat_statements
+    - var: item.settings.databaseFlags[].name
+      op: not_contains
+      value: cloudsql.enable_pg_cron
+- rule_id: gcp.sql.ssl_cert.sg_egress_restricted
+  for_each: gcp.sql.instances.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.settings.ipConfiguration.authorizedNetworks[].value
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.settings.ipConfiguration.requireSsl
+      op: is_true
+      value: null
+- rule_id: gcp.sql.ssl_cert.sg_no_0_0_0_0_ingress_on_db_ports
+  for_each: gcp.sql.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.settings.ipConfiguration.authorizedNetworks[].value
+      op: not_contains
+      value: 0.0.0.0/0
+    - any:
+      - var: item.settings.ipConfiguration.requireSsl
+        op: is_true
+        value: null
+      - var: item.settings.ipConfiguration.authorizedNetworks
+        op: is_empty
+        value: null
+- rule_id: gcp.sql.ssl_cert.sg_only_required_ports_open
+  for_each: gcp.sql.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.settings.ipConfiguration.authorizedNetworks[].value
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.settings.ipConfiguration.authorizedNetworks[].value
+      op: not_contains
+      value: ::/0
+- rule_id: gcp.sql.user.user_approved_list_of_superusers_only
+  for_each: gcp.sql.list_users
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.type
+      op: equals
+      value: BUILT_IN
+    - var: item.name
+      op: in
+      value:
+      - cloudsqlsuperuser
+      - cloudsqladmin
+- rule_id: gcp.sql.user.user_no_unused_or_default_superusers
+  for_each: gcp.sql.list_users
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.type
+      op: not_equals
+      value: BUILT_IN
+    - var: item.type
+      op: not_equals
+      value: CLOUD_IAM_USER
+    - var: item.type
+      op: not_equals
+      value: CLOUD_IAM_SERVICE_ACCOUNT
+    - var: item.host
+      op: not_equals
+      value: '%'
+    - var: item.name
+      op: not_equals
+      value: root
+    - var: item.name
+      op: not_equals
+      value: postgres
+- rule_id: gcp.sql.user.user_password_auth_hardened_or_iam_auth_preferred_where_supported
+  for_each: gcp.sql.list_instances
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.settings.databaseFlags[].name
+      op: contains
+      value: cloudsql.iam_authentication
+    - var: item.settings.databaseFlags[].name
+      op: contains
+      value: cloudsql.enable_password_verification

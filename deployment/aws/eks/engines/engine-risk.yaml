@@ -23,12 +23,18 @@ spec:
         engine: risk
         layer: "4"
     spec:
+      serviceAccountName: engine-sa
       containers:
         - name: engine-risk
-          image: yadavanup84/engine-risk:v-std-cols
+          image: yadavanup84/engine-risk:v-risk-auth
           imagePullPolicy: Always
           ports:
             - containerPort: 8009
+          envFrom:
+          - configMapRef:
+              name: threat-engine-db-config
+          - secretRef:
+              name: threat-engine-db-passwords
           env:
             # Risk DB (primary)
             - name: RISK_DB_HOST
@@ -189,6 +195,36 @@ spec:
                 secretKeyRef:
                   name: threat-engine-db-passwords
                   key: DISCOVERIES_DB_PASSWORD
+            # Neo4j Aura — blast radius graph traversal (ENG-13)
+            # NEO4J_URI and NEO4J_PASSWORD already in threat-engine-db-passwords via secretRef
+            # NEO4J_USERNAME aliases NEO4J_USER (neo4j Python driver uses USERNAME not USER)
+            - name: NEO4J_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: NEO4J_USER
+            # ── Runtime config ──────────────────────────────────────────────
+            - name: PYTHONPATH
+              value: "/app"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: ENGINE_NAME
+              value: "risk"
+            # ── Scanner Job config ──────────────────────────────────────────
+            - name: RISK_SCANNER_IMAGE
+              value: "yadavanup84/engine-risk:v-risk-auth"
+            - name: SCANNER_CPU_REQUEST
+              value: "500m"
+            - name: SCANNER_MEM_REQUEST
+              value: "2Gi"
+            - name: SCANNER_CPU_LIMIT
+              value: "1"
+            - name: SCANNER_MEM_LIMIT
+              value: "4Gi"
+            - name: SCANNER_NAMESPACE
+              value: "threat-engine-engines"
+            - name: SCANNER_SERVICE_ACCOUNT
+              value: "engine-sa"
           resources:
             requests:
               cpu: "100m"

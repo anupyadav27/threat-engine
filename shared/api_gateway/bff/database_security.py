@@ -9,9 +9,9 @@ Single call to engine-dbsec/api/v1/database-security/ui-data.
 
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
-from ._shared import fetch_many, fetch_all_check_findings, safe_get, mock_fallback, is_empty_or_health
+from ._shared import fetch_many, fetch_all_check_findings, safe_get, is_empty_or_health
 from ._transforms import apply_global_filters
 from ._page_context import database_security_page_context, database_security_filter_schema
 
@@ -20,6 +20,7 @@ router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
 @router.get("/database-security")
 async def view_database_security(
+    request: Request,
     tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
@@ -28,12 +29,15 @@ async def view_database_security(
 ):
     """Single endpoint returning everything the database security page needs."""
 
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
     results = await fetch_many([
         ("dbsec", "/api/v1/database-security/ui-data", {
             "tenant_id": tenant_id,
             "scan_id": scan_id,
         }),
-    ])
+    ], auth_headers=fwd_headers)
 
     dbsec_data = results[0]
     if not isinstance(dbsec_data, dict):
@@ -45,13 +49,9 @@ async def view_database_security(
         check_raw = await fetch_all_check_findings({
             "tenant_id": tenant_id,
             "domain": "database_security",
-        })
+        }, auth_headers=fwd_headers)
         if check_raw:
             dbsec_data = {"findings": check_raw, "databases": [], "summary": {}}
-        else:
-            m = mock_fallback("database_security")
-            if m is not None:
-                return m
 
     summary = safe_get(dbsec_data, "summary", {})
 
@@ -138,11 +138,9 @@ async def view_database_security(
                 ],
             },
         ],
-        "data": {
-            "databases": filtered_databases,
-            "findings": filtered_findings,
-            "domain_scores": domain_scores,
-        },
+        "databases":    filtered_databases,
+        "findings":     filtered_findings,
+        "domain_scores": domain_scores,
         "domainBreakdown": safe_get(dbsec_data, "domain_breakdown", []),
         "scanTrend": safe_get(dbsec_data, "scan_trend", []),
     }

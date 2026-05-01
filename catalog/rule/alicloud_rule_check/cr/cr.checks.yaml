@@ -1,0 +1,124 @@
+version: '1.0'
+provider: alicloud
+service: cr
+checks:
+- rule_id: alicloud.cr.container.vulnerability_scanning_enabled
+  for_each: alicloud.cr.container
+  severity: MEDIUM
+  conditions:
+    var: item.vulnerability_scanning_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.cr.image.critical_vulnerabilities_blocked
+  for_each: alicloud.cr.image
+  severity: HIGH
+  conditions:
+    var: item.critical_vulnerabilities_blocked
+    op: is_true
+    value: null
+- rule_id: alicloud.cr.image.vulnerability_scan_on_push
+  for_each: alicloud.cr.image
+  severity: MEDIUM
+  conditions:
+    var: item.vulnerability_scan_on_push
+    op: is_true
+    value: null
+- rule_id: alicloud.cr.instance.access_policy_and_network_restriction_audit
+  for_each: alicloud.cr.instance
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.permissions
+      op: exists
+      value: null
+    - var: item.internet_facing
+      op: is_false
+      value: null
+- rule_id: alicloud.cr.not.publicly_accessible
+  for_each: alicloud.cr.not
+  severity: HIGH
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: PUBLIC
+- rule_id: alicloud.cr.packages.external_public_publishing_disabled
+  for_each: alicloud.cr.instance
+  severity: HIGH
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: PUBLIC
+- rule_id: alicloud.cr.replication_rule.registry_replication_cross_region_encrypted
+  for_each: alicloud.cr.instance
+  severity: HIGH
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.cr.replication_rule.registry_replication_destinations_least_privilege
+  for_each: alicloud.cr.instance
+  severity: HIGH
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.cr.repo_policy.registry_policy_no_public_pull_push
+  for_each: alicloud.cr.not
+  severity: HIGH
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: public
+- rule_id: alicloud.cr.repo_policy.registry_policy_no_wildcard_admin
+  for_each: alicloud.cr.instance
+  severity: HIGH
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.cr.repository.not_publicly_accessible
+  for_each: alicloud.cr.instance
+  severity: HIGH
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: PUBLIC
+- rule_id: alicloud.cr.repository.registry_image_scanning_enabled
+  for_each: alicloud.cr.instance
+  severity: MEDIUM
+  conditions:
+    var: item.ssl_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.cr.repository.registry_immutable_tags_or_signing_enforced
+  for_each: alicloud.cr.instance
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.immutable_tags_enabled
+      op: is_true
+      value: null
+    - var: item.signing_enabled
+      op: is_true
+      value: null
+- rule_id: alicloud.cr.repository.registry_repo_private_or_access_restricted
+  for_each: alicloud.cr.instance
+  severity: MEDIUM
+  conditions:
+    var: item.public_ip_address
+    op: not_exists
+    value: null
+- rule_id: alicloud.cr.repository.scanning_enabled
+  for_each: alicloud.cr.instance
+  severity: MEDIUM
+  conditions:
+    var: item.scanning_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.cr.uses.private_link
+  for_each: alicloud.cr.instance
+  severity: MEDIUM
+  conditions:
+    var: item.public_ip_address
+    op: not_exists
+    value: null

@@ -1,0 +1,25 @@
+version: '1.0'
+provider: k8s
+service: persistentvolumeclaim
+checks:
+- rule_id: k8s.persistentvolumeclaim.access.access_mode_not_readwritemany
+  for_each: k8s.persistentvolumeclaim.list
+  severity: MEDIUM
+  conditions:
+    var: item.spec.accessModes[]
+    op: contains
+    value: ReadWriteMany
+- rule_id: k8s.persistentvolumeclaim.status.bound_to_volume
+  for_each: k8s.persistentvolumeclaim.list
+  severity: LOW
+  conditions:
+    var: item.status.phase
+    op: equals
+    value: Bound
+- rule_id: k8s.persistentvolumeclaim.storage.storage_class_configured
+  for_each: k8s.persistentvolumeclaim.list
+  severity: MEDIUM
+  conditions:
+    var: item.spec.storageClassName
+    op: exists
+    value: null

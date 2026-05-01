@@ -1,0 +1,36 @@
+version: '1.0'
+provider: database
+engine: cassandra
+category: section_5
+cis_section: '5'
+description: >
+  cassandra CIS Section 5 — Inter-node Encryption
+
+discovery:
+
+  - discovery_id: cassandra.section_5.inter_node_encryption
+    description: Inter-node Encryption
+    calls:
+      - action: run_command
+        command: "Run the following command to verify whether inter-node encryption is enabled. cat cassandra.yaml | grep -in 'internode_encryption:' Acceptable values are all, dc or rack. If the internode_encryption is set to none, this is a finding. Note: The Cassandra configuration files can be found in the conf directory of tarballs. For packages, the configuration files will be located in /etc/cassandra."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: inter_node_encryption
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: cassandra.section_5.client_encryption
+    description: Client Encryption
+    calls:
+      - action: run_command
+        command: "The Cassandra configuration files can be found in the conf directory of tarballs. For packages, the configuration files will be located in /etc/cassandra. Open up the cassandra.yaml file, look for client_encryption_options section. Look for enabled: and optional: enabled: true optional: false If neither is true, then all client connections are unencrypted which makes this a finding. If enabled is true and optional is false, then all client connections must be encrypted which makes this not a finding. If enabled is false and optional is true, then enabled wins and all client connections are unencrypted which makes this a finding. If both are set to true, then both unencrypted and encrypted connections are allowed on the same port which makes this not a finding."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: client_encryption
+        value: "{{ result.stdout }}"
+        expected: ""
+

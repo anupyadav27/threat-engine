@@ -16,12 +16,12 @@ You are a specialist agent for the Discovery engine in the Threat Engine CSPM pl
 - **Scan ID column**: `discovery_scan_id` in discovery_findings
 
 ### discovery_findings columns
-id (PK serial), discovery_scan_id, customer_id, tenant_id, provider, hierarchy_id, hierarchy_type, discovery_id, resource_uid, resource_id, resource_type, service, region, emitted_fields (JSONB), raw_response (JSONB), config_hash, version, scan_timestamp, account_id
+id (PK serial), discovery_scan_id (job-level ID), scan_run_id (cross-engine link), customer_id, tenant_id, provider, hierarchy_id, hierarchy_type, discovery_id, resource_uid, resource_id, resource_type, service, region, emitted_fields (JSONB), raw_response (JSONB), config_hash, version, scan_timestamp, account_id
 
 ## Your API
 - **K8s service**: engine-discoveries (namespace: threat-engine-engines)
 - **Port**: 8001 (svc 80, targetPort 8001)
-- **Scan trigger**: POST /api/v1/scan `{orchestration_id, scan_run_id, tenant_id, account_id, csp}`
+- **Scan trigger**: POST /api/v1/scan `{scan_run_id, tenant_id, account_id, csp}`
 - **Health**: GET /api/v1/health/live
 
 ## Key Facts
@@ -52,7 +52,7 @@ WHERE discovery_scan_id = $1 AND service = $2 LIMIT 5;
 - **BFF**: None (no direct UI)
 - **Engine code**: `engines/discoveries/`
 - **K8s manifest**: `deployment/aws/eks/engines/engine-discoveries.yaml`
-- **Image**: `yadavanup84/engine-discoveries:v11-multicloud`
+- **Image**: `yadavanup84/engine-discoveries:v-disc-fix15`
 - **Catalog YAMLs**: `catalog/aws/{service}/step6_{service}.discovery.yaml`
 
 ## Pipeline Dependencies

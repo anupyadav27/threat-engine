@@ -1,0 +1,143 @@
+tech_type: nginx
+category: web_server
+cis_benchmark: CIS NGINX v2.1.0
+cis_section: '5'
+
+rules:
+
+  - rule_id: nginx.cis.5.timeout_values_for_reading_the_client_header_and
+    title: "Ensure timeout values for reading the client header and body are set correctly"
+    severity: high
+    automation_type: automated
+    cis_control: '5.2.1'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: nginx.section_5.timeout_values_for_reading_the_client_header_and
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Find the HTTP or server block of your nginx configuration and add the
+      client_header_timeout and client_body_timeout directives set to the
+      configuration. The below example sets the timeouts to 10 seconds.
+      client_body_timeout 10; client_header_timeout 10; Default Value:
+      client_header_timeout 60; client_body_timeout 60; References: 1.
+      https://www.owasp.org/index.php/SCG_WS_nginx 2.
+      https://blog.qualys.com/securitylabs/2011/11/02/how-to-protect-against-slow-
+      http- attacks 3.
+      http://nginx.org/en/docs/http/ngx_http_core_module.html#client_header_timeout
+    compliance:
+      - cis_nginx_v2_1_0_5_2_1
+
+  - rule_id: nginx.cis.5.maximum_request_body_size_is_set_correctly
+    title: "Ensure the maximum request body size is set correctly"
+    severity: high
+    automation_type: automated
+    cis_control: '5.2.2'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: nginx.section_5.maximum_request_body_size_is_set_correctly
+    assertion:
+      field: row_count
+      operator: lte
+      expected: "true"
+    remediation: >
+      Find the HTTP or server block of your nginx configuration and add the
+      client_max_body_size set to 100K in this block. The appropriate value may be
+      different based on your application's needs. client_max_body_size 100K;
+      Default Value: client_max_body_size 1m; References: 1.
+      https://www.cyberciti.biz/tips/linux-unix-bsd-nginx-webserver-security.html 2.
+      http://nginx.org/en/docs/http/ngx_http_core_module.html#client_body_temp_path
+      3. https://www.acunetix.com/blog/articles/nginx-server-security-hardening-
+      configuration-1/ 4. https://www.tecmint.com/nginx-web-server-security-
+      hardening-and-performance- tips/ 5.
+      http://nginx.org/en/docs/http/ngx_http_core_module.html#client_max_body_size
+    compliance:
+      - cis_nginx_v2_1_0_5_2_2
+
+  - rule_id: nginx.cis.5.maximum_buffer_size_for_uris_is_defined
+    title: "Ensure the maximum buffer size for URIs is defined"
+    severity: high
+    automation_type: automated
+    cis_control: '5.2.3'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: nginx.section_5.maximum_buffer_size_for_uris_is_defined
+    assertion:
+      field: row_count
+      operator: lte
+      expected: "true"
+    remediation: >
+      Open your nginx.conf file and locate your server or HTTP blocks. This may be
+      added to the HTTP block for all configurations or the server block for more
+      specific configurations to meet your needs. Add the below line to implement
+      this recommendation: large_client_header_buffers 2 1k; Default Value:
+      large_client_header_buffers 4 8k; References: 1.
+      https://www.cyberciti.biz/tips/linux-unix-bsd-nginx-webserver-security.html 2.
+      https://www.owasp.org/index.php/Denial_of_Service_Cheat_Sheet 3.
+      http://nginx.org/en/docs/http/ngx_http_core_module.html#large_client_header_bu
+      ffers Additional Information: If this directive is not set correctly, users
+      may receive a 414 Request-URI Too Large error.
+    compliance:
+      - cis_nginx_v2_1_0_5_2_3
+
+  - rule_id: nginx.cis.5.x_frame_options_header_is_configured_and_enabled
+    title: "Ensure X-Frame-Options header is configured and enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '5.3.1'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: nginx.section_5.x_frame_options_header_is_configured_and_enabled
+    assertion:
+      field: enabled
+      operator: exists
+      expected: "on"
+    remediation: >
+      Add the below to your server blocks in your nginx configuration. The policy
+      should be configured to meet your organization's needs. add_header X-Frame-
+      Options 'SAMEORIGIN' always; Default Value: This is not configured by default.
+      References: 1. https://developer.mozilla.org/en-
+      US/docs/Web/HTTP/Headers/X-Frame-Options 2.
+      https://scotthelme.co.uk/hardening-your-http-response-headers/ 3.
+      https://www.veracode.com/blog/2014/03/guidelines-for-setting-security-headers
+      4. https://www.owasp.org/index.php/OWASP_Secure_Headers_Project Additional
+      Information: Important Note: The configuration in this recommendation
+      recommends that this header is set to the same origin; however, this does not
+      mean that if it is not set so, that this is done incorrectly. This header may
+      also be configured to allow from specific origins or deny from all origins.
+      The always parameter ensures that this header is applied no matter what the
+      http response code is.
+    compliance:
+      - cis_nginx_v2_1_0_5_3_1
+
+  - rule_id: nginx.cis.5.x_content_type_options_header_is_configured_and
+    title: "Ensure X-Content-Type-Options header is configured and enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '5.3.2'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: nginx.section_5.x_content_type_options_header_is_configured_and
+    assertion:
+      field: enabled
+      operator: exists
+      expected: "on"
+    remediation: >
+      Open the nginx configuration file that contains your server blocks. Add the
+      below line into your server block to add X-Content-Type-Options header and
+      direct your user agent to not sniff content types. add_header X-Content-Type-
+      Options 'nosniff' always; Default Value: This header is not implemented by
+      default. References: 1. https://scotthelme.co.uk/hardening-your-http-response-
+      headers/ 2. https://www.veracode.com/blog/2014/03/guidelines-for-setting-
+      security-headers 3.
+      https://www.owasp.org/index.php/OWASP_Secure_Headers_Project 4.
+      https://fetch.spec.whatwg.org/#x-content-type-options-header 5.
+      https://www.iana.org/assignments/message-headers/message- headers.xml#perm-
+      headers Additional Information: The always parameter ensures that the header
+      is applied to the HTTP response no matter what the HTTP response code is.
+    compliance:
+      - cis_nginx_v2_1_0_5_3_2
+
+

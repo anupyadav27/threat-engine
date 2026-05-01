@@ -1,0 +1,96 @@
+rule_id: gcp.sql.audit.ssl_disabled
+service: sql
+provider: gcp
+check_type: log
+severity: high
+title: 'Cloud SQL: SSL Requirement Disabled'
+description: SSL was disabled for a Cloud SQL instance, allowing unencrypted connections that can be intercepted.
+rationale: Adversaries abuse sql operations to achieve credential access in GCP environments. Detected via Cloud Admin Activity or Data Access audit logs.
+threat_category: credential_access
+mitre_tactics:
+- credential_access
+mitre_techniques:
+- T1040
+risk_score: 80
+resource: gcp_sql_instance
+source: default
+is_active: true
+domain: identity_and_access_management
+action_category: read
+log_source_type: 
+posture_category: iam_posture
+threat_tags:
+- T1040
+- credential_access
+- secret_exposure
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: read
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: true
+  modules:
+  - data_access_governance
+  categories:
+  - secrets_exposure
+  - credential_theft
+  priority: high
+  impact:
+    pci: PCI DSS Requirement 12.3 — Implement security awareness program and protect systems
+    gdpr: GDPR Article 32 — Appropriate technical and organizational measures for data security
+    hipaa: §164.306(a) — Ensure confidentiality, integrity, and availability of ePHI
+  sensitive_data_context: |
+  Unauthorized credential access on sql resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks:
+  cis_gcp_v2:
+  - 1.6
+  - 1.7
+  - 1.9
+  nist_800_53_r5:
+  - IA-5
+  - IA-8
+  - SC-28
+  pci_dss_v4:
+  - 8.3
+  - 8.6
+  - 10.2
+  iso_27001_2022:
+  - A.8.5
+  - A.8.6
+  - A.5.17
+remediation: |
+  1. Immediately rotate or disable the accessed credential / secret.
+  2. Review all Access Context Manager policies for unexpected secret access.
+  3. Enable Secret Manager audit logs (Data Access) and alert on AccessSecretVersion.
+  4. Apply CMEK to Secret Manager and restrict IAM to least-privilege consumers.
+  5. Use Workload Identity Federation instead of long-lived service account keys.
+references:
+- https://attack.mitre.org/techniques/T1040/
+- https://cloud.google.com/logging/docs/audit
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: cloudsql.googleapis.com
+    - field: operation
+      op: in
+      value:
+      - cloudsql.instances.create
+      - cloudsql.instances.update
+    - field: request.settings.ipConfiguration.requireSsl
+      op: equals
+      value: false
+version: '1.0'

@@ -1,0 +1,88 @@
+version: '1.0'
+provider: web_server
+engine: nginx
+category: section_4
+cis_section: '4'
+description: >
+  nginx CIS Section 4 — only modern TLS protocols are used
+
+discovery:
+
+  - discovery_id: nginx.section_4.only_modern_tls_protocols_are_used
+    description: Ensure only modern TLS protocols are used
+    calls:
+      - action: run_command
+        command: "You can verify which SSL/TLS protocols your server uses by issuing the below command to see the configured cipher suites on the server. If anything older than TLS 1.2 is implemented or nothing appears, this recommendation is not implemented. grep -ir ssl_protocol /etc/nginx Note: Depending on your configuration, you may see different results. The directive ssl_protocols should always be part of your server block. If your NGINX server is also a proxy or load balancer, you should also check for the presence of the proxy_ssl_protocols directive as part of the location block of your nginx configuration. This ensures your proxy follows a specific set of negotiation rules for encrypting traffic with your upstream server."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: only_modern_tls_protocols_are_used
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: nginx.section_4.custom_diffie_hellman_parameters_are_used
+    description: Ensure custom Diffie-Hellman parameters are used
+    calls:
+      - action: run_command
+        command: "Verify the option ssl_dhparam is explicitly provided: grep ssl_dhparam /etc/nginx/nginx.conf"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: custom_diffie_hellman_parameters_are_used
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: nginx.section_4.online_certificate_status_protocol_ocsp_stapling
+    description: Ensure Online Certificate Status Protocol (OCSP) stapling is enabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify OCSP stapling is enabled: grep -ir ssl_stapling /etc/nginx If the output does not contain your proxy or web server configuration file with the below two directives, this recommendation is not implemented. ssl_stapling on; ssl_stapling_verify on;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: online_certificate_status_protocol_ocsp_stapling
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: nginx.section_4.upstream_server_traffic_is_authenticated_with_a
+    description: Ensure upstream server traffic is authenticated with a client certificate
+    calls:
+      - action: run_command
+        command: "To verify this recommendation, validate that the below configuration is in the location block of your nginx configuration that is sending traffic to an upstream location. The command below may be helpful in determining if this is set up: grep -ir proxy_ssl_certificate /etc/nginx You should see output similar to the below. You may need to manually ensure this is configured properly by investigating your location block for the output as well. proxy_ssl_certificate /etc/nginx/ssl/nginx.pem; proxy_ssl_certificate_key /etc/nginx/ssl/nginx.key;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: upstream_server_traffic_is_authenticated_with_a
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: nginx.section_4.session_resumption_is_disabled_to_enable_perfect
+    description: Ensure session resumption is disabled to enable perfect forward security
+    calls:
+      - action: run_command
+        command: "Run the following command to verify the ssl_session_tickets directive is turned off. You should always investigate your nginx configuration file for included file locations outside of /etc/nginx to ensure you are properly investigating each server block for the presence of the ssl_session_tickets directive being turned off. grep -ir ssl_session_tickets /etc/nginx The output should contain the following: ssl_session_tickets off;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: session_resumption_is_disabled_to_enable_perfect
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: nginx.section_4.http_2_0_is_used
+    description: Ensure HTTP/2.0 is used
+    calls:
+      - action: run_command
+        command: "Verify that listening ports on the web server leverage HTTP/2.0 by running this command: grep -ir http2 /etc/nginx If there is no output, the output does not cover all running ports on the server that are not redirecting to another port, or the output is commented out, this recommendation is not implemented."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: http_2_0_is_used
+        value: "{{ result.stdout }}"
+        expected: ""
+

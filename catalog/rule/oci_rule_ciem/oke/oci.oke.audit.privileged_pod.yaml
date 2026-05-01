@@ -1,0 +1,51 @@
+rule_id: oci.oke.audit.privileged_pod
+service: oke
+provider: oci
+check_type: log
+severity: critical
+title: 'OCI OKE: Privileged Pod Created'
+description: A privileged Kubernetes pod was created in an OKE cluster. Privileged pods have host-level access and can be used for container escapes.
+threat_category: privilege_escalation
+mitre_tactics:
+- privilege_escalation
+mitre_techniques:
+- T1611
+risk_score: 92
+resource: oci_containerengine_cluster
+domain: identity_and_access_management
+action_category: privilege_escalation
+log_source_type: 
+posture_category: iam_posture
+threat_tags:
+- T1611
+- cloud_iam
+- privilege_escalation
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: privilege_change
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: Review and investigate this activity in the OCI Console and take corrective action.
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_k8s_audit
+    - field: verb
+      op: equals
+      value: create
+    - field: resource
+      op: equals
+      value: pods
+    - field: request.spec.containers.securityContext.privileged
+      op: equals
+      value: true

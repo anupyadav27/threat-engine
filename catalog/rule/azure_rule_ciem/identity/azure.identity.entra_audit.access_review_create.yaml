@@ -1,0 +1,54 @@
+rule_id: azure.identity.entra_audit.access_review_create
+service: identity
+provider: azure
+check_type: log
+severity: low
+title: 'Identity: Access Review Create'
+description: Access review created — periodic review of user access rights initiated.
+rationale: Cloud account enumeration identifies IAM users, service principals, and roles that can be targeted for credential attacks or privilege escalation.
+threat_category: discovery
+mitre_tactics:
+- discovery
+mitre_techniques:
+- T1087.004
+risk_score: 25
+resource: entra_access_review
+source: default
+is_active: true
+domain: threat_detection
+action_category: create
+log_source_type: entra_audit
+posture_category: threat_posture
+threat_tags:
+- T1087.004
+- T1087
+- cloud_iam
+- conditional_access
+risk_indicators:
+  actor_type: user_or_service_principal
+  action_type: write
+  target_type: entra_id_identity
+  blast_radius: tenant
+  stealth_risk: medium
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: |
+  1. Apply IAM permission restrictions on ListUsers/ListRoles/ListServicePrincipals.
+  2. Alert on unexpected enumeration API call patterns.
+  3. Use AWS Organizations SCPs / Azure Policy to limit who can enumerate identities.
+references:
+- https://attack.mitre.org/techniques/T1087/004/
+- https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_examples_iam_limited-identities.html
+check_config:
+  conditions:
+    all:
+    - field: operation
+      op: equals
+      value: microsoft.directory/accessReviews/create
+  log_source_type: entra_audit
+version: '1.0'

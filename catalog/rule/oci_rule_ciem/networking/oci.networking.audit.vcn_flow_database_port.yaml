@@ -1,0 +1,64 @@
+rule_id: oci.networking.audit.vcn_flow_database_port
+service: networking
+provider: oci
+check_type: log
+severity: high
+title: 'OCI VCN Flow: Database Port Exposed to Internet'
+description: Database traffic (ports 1521, 3306, 5432, 1433) was observed from an external source. Publicly accessible database ports are a critical risk.
+threat_category: initial_access
+mitre_tactics:
+- initial_access
+mitre_techniques:
+- T1190
+risk_score: 85
+resource: oci_core_vcn
+domain: threat_detection
+action_category: create
+log_source_type: 
+posture_category: threat_posture
+threat_tags:
+- T1190
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - data_access_governance
+  - database_security
+  categories:
+  - sensitive_data_access
+  priority: high
+  impact:
+    pci: PCI DSS Requirement 7 — Restrict access to cardholder data by business need
+    gdpr: GDPR Article 25 — Data protection by design and by default
+    hipaa: §164.312(a)(1) — Access control for ePHI data systems
+  sensitive_data_context: |
+  Unauthorized initial access on networking resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks: {}
+remediation: Review and investigate this activity in the OCI Console and take corrective action.
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_vcn_flow
+    - field: destination_port
+      op: in
+      value:
+      - 1521
+      - 3306
+      - 5432
+      - 1433
+    - field: direction
+      op: equals
+      value: INGRESS

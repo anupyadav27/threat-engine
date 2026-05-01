@@ -180,7 +180,7 @@ class DatabaseExporter:
         except Exception:
             return datetime.now()
 
-    def export_report(self, report: EnterpriseComplianceReport, account_id: str = "") -> str:
+    def export_report(self, report: EnterpriseComplianceReport, account_id: str = "", provider: str = "") -> str:
         """
         Export enterprise compliance report to PostgreSQL.
 
@@ -292,6 +292,7 @@ class DatabaseExporter:
                             'remediation': finding.remediation.description if finding.remediation else None,
                         }, default=str),
                         account_id or None,
+                        provider or report.scan_context.cloud.value or None,
                     ))
 
                 execute_values(
@@ -302,7 +303,7 @@ class DatabaseExporter:
                         rule_id, rule_version, category, severity, confidence,
                         status, first_seen_at, last_seen_at,
                         resource_type, resource_id, resource_uid, region,
-                        finding_data, account_id
+                        finding_data, account_id, provider
                     ) VALUES %s
                     ON CONFLICT (finding_id) DO UPDATE
                     SET scan_run_id = EXCLUDED.scan_run_id,
@@ -310,7 +311,8 @@ class DatabaseExporter:
                         status = EXCLUDED.status,
                         severity = EXCLUDED.severity,
                         finding_data = EXCLUDED.finding_data,
-                        account_id = COALESCE(EXCLUDED.account_id, compliance_findings.account_id)
+                        account_id = COALESCE(EXCLUDED.account_id, compliance_findings.account_id),
+                        provider = COALESCE(EXCLUDED.provider, compliance_findings.provider)
                     """,
                     finding_rows
                 )

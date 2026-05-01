@@ -79,9 +79,10 @@ def load_rule_metadata(folder="python_docs"):
                         if isinstance(data, dict) and "rule_id" in data:
                             rules_meta[data["rule_id"]] = data
                 except Exception as e:
+                    logger.warning("python_scanner: skipping malformed rule file %s: %s", file_path, e)
                     continue
     except Exception as e:
-        pass
+        logger.warning("python_scanner: failed to load rules from %s: %s", folder_path, e)
     return rules_meta
 
 # Step 4: Define base rule class

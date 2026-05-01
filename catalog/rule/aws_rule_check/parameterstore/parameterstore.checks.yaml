@@ -1,0 +1,43 @@
+version: '1.0'
+provider: aws
+service: parameterstore
+checks:
+- rule_id: aws.parameterstore.parameter.kms_encryption_enabled
+  for_each: aws.ssm.describe_parameters
+  severity: HIGH
+  conditions:
+    var: item.KeyId
+    op: exists
+    value: null
+- rule_id: aws.parameterstore.parameter.kms_key_configured
+  for_each: aws.ssm.describe_parameters
+  severity: HIGH
+  conditions:
+    var: item.KMSKeyId
+    op: exists
+    value: null
+- rule_id: aws.parameterstore.parameter.parameterstore_secure_string_type_for_sensitive_configured
+  for_each: aws.ssm.describe_parameters
+  severity: MEDIUM
+  conditions:
+    var: item.Type
+    op: equals
+    value: SecureString
+- rule_id: aws.parameterstore.parameter.rbac_least_privilege
+  for_each: aws.ssm.describe_parameters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Policies[].PolicyText
+      op: not_contains
+      value: '"Effect":"Allow"'
+    - var: item.Policies[].PolicyText
+      op: not_contains
+      value: '"Action":"ssm:*"'
+- rule_id: aws.parameterstore.parameter.rotation_enabled_for_rotatable_secrets
+  for_each: aws.ssm.describe_parameters
+  severity: MEDIUM
+  conditions:
+    var: item.KeyId
+    op: exists
+    value: null

@@ -1,0 +1,52 @@
+# discoveries_only_check: 2 kept / 1 removed from 3 total
+# generated_from: step6_kinesisanalytics.discovery.yaml
+# purpose: only discoveries needed by kinesisanalytics.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: kinesisanalytics
+services:
+  client: kinesisanalytics
+  module: boto3.client
+discovery:
+- discovery_id: aws.kinesisanalytics.list_applications
+  calls:
+  - action: list_applications
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ApplicationSummaries }}'
+    item:
+      ApplicationARN: '{{ item.ApplicationARN }}'
+      ApplicationDetail: '{{ item.ApplicationDetail }}'
+      ApplicationName: '{{ item.ApplicationName }}'
+      ApplicationStatus: '{{ item.ApplicationStatus }}'
+- discovery_id: aws.kinesisanalytics.describe_application
+  for_each: aws.kinesisanalytics.list_applications
+  calls:
+  - action: describe_application
+    params:
+      ApplicationName: '{{ item.ApplicationName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      ApplicationARN: '{{ response.ApplicationDetail.ApplicationARN }}'
+      ApplicationCode: '{{ response.ApplicationDetail.ApplicationCode }}'
+      ApplicationDescription: '{{ response.ApplicationDetail.ApplicationDescription
+        }}'
+      ApplicationDetail: '{{ response.ApplicationDetail.ApplicationDetail }}'
+      ApplicationName: '{{ response.ApplicationDetail.ApplicationName }}'
+      ApplicationStatus: '{{ response.ApplicationDetail.ApplicationStatus }}'
+      ApplicationVersionId: '{{ response.ApplicationDetail.ApplicationVersionId }}'
+      CloudWatchLoggingOptionDescriptions: '{{ response.ApplicationDetail.CloudWatchLoggingOptionDescriptions
+        }}'
+      CreateTimestamp: '{{ response.ApplicationDetail.CreateTimestamp }}'
+      InputDescriptions: '{{ response.ApplicationDetail.InputDescriptions }}'
+      LastUpdateTimestamp: '{{ response.ApplicationDetail.LastUpdateTimestamp }}'
+      OutputDescriptions: '{{ response.ApplicationDetail.OutputDescriptions }}'
+      ReferenceDataSourceDescriptions: '{{ response.ApplicationDetail.ReferenceDataSourceDescriptions
+        }}'
+      ServiceExecutionRole: '{{ response.ApplicationDetail.ServiceExecutionRole }}'
+      ApplicationConfigurationDescription: '{{ response.ApplicationDetail.ApplicationConfigurationDescription }}'

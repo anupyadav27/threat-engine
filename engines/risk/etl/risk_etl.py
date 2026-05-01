@@ -69,7 +69,60 @@ FINDING_QUERY = """
       AND LOWER(severity) IN ('critical', 'high')
 """
 
-# CIEM findings have different columns — use a separate query
+CHECK_FINDING_QUERY = """
+    SELECT
+        finding_id::text,
+        scan_run_id::text,
+        tenant_id,
+        account_id,
+        provider,
+        region,
+        resource_uid,
+        resource_type,
+        LOWER(severity) AS severity,
+        status,
+        rule_id,
+        finding_data
+    FROM {table}
+    WHERE scan_run_id = %s
+      AND tenant_id = %s
+      AND UPPER(status) = 'FAIL'
+      AND LOWER(severity) IN ('critical', 'high')
+"""
+
+# ai_security_findings has no finding_data column — construct equivalent from available columns
+AI_SECURITY_FINDING_QUERY = """
+    SELECT
+        finding_id::text,
+        scan_run_id::text,
+        tenant_id,
+        account_id,
+        provider,
+        region,
+        resource_uid,
+        resource_type,
+        LOWER(severity) AS severity,
+        status,
+        rule_id,
+        jsonb_build_object(
+            'title', title,
+            'description', detail,
+            'category', category,
+            'remediation', remediation,
+            'frameworks', frameworks,
+            'mitre_techniques', mitre_techniques,
+            'ml_service', ml_service,
+            'model_type', model_type
+        ) AS finding_data
+    FROM {table}
+    WHERE scan_run_id = %s
+      AND tenant_id = %s
+      AND UPPER(status) = 'FAIL'
+      AND LOWER(severity) IN ('critical', 'high')
+"""
+
+# CIEM findings have different columns — use a separate query.
+# NOTE: {{}} in the SQL string is escaped Python format braces → '{}'::jsonb at runtime
 CIEM_FINDING_QUERY = """
     SELECT
         finding_id::text,
@@ -83,7 +136,7 @@ CIEM_FINDING_QUERY = """
         LOWER(severity) AS severity,
         'FAIL' AS status,
         rule_id,
-        '{}'::jsonb AS finding_data,
+        '{{}}'::jsonb AS finding_data,
         title,
         actor_principal,
         operation,
@@ -199,6 +252,18 @@ class RiskETL:
                             CIEM_FINDING_QUERY.format(table=table),
                             (tenant_id,),
                         )
+                    elif engine_name == "check":
+                        # check_findings uses `id` serial PK instead of `finding_id`
+                        cur.execute(
+                            CHECK_FINDING_QUERY.format(table=table),
+                            (scan_run_id, tenant_id),
+                        )
+                    elif engine_name == "ai_security":
+                        # ai_security_findings has no finding_data column
+                        cur.execute(
+                            AI_SECURITY_FINDING_QUERY.format(table=table),
+                            (scan_run_id, tenant_id),
+                        )
                     else:
                         cur.execute(
                             FINDING_QUERY.format(table=table),
@@ -267,21 +332,18 @@ class RiskETL:
             "sensitivity_multipliers": {},
         }
 
-        # Try cloud_accounts for industry
+        # cloud_accounts does not have industry/revenue_range columns yet.
+        # Log at debug to avoid noisy warnings — FAIR model uses defaults from risk_model_config.
         if self._onboarding_conn:
             try:
                 with self._onboarding_conn.cursor(cursor_factory=RealDictCursor) as cur:
                     cur.execute("""
-                        SELECT industry, revenue_range, applicable_regulations
-                        FROM cloud_accounts
+                        SELECT provider FROM cloud_accounts
                         WHERE tenant_id = %s LIMIT 1
                     """, (tenant_id,))
-                    row = cur.fetchone()
-                    if row:
-                        config["industry"] = row.get("industry") or "default"
-                        config["applicable_regulations"] = row.get("applicable_regulations") or ["GDPR"]
+                    # industry/revenue columns not yet added — use risk_model_config defaults
             except Exception as e:
-                logger.warning("Failed to load tenant config from onboarding: %s", e)
+                logger.debug("Could not read cloud_accounts for tenant config: %s", e)
 
         # Load FAIR model config
         try:
@@ -353,8 +415,8 @@ class RiskETL:
                             "posture_score": rd.get("risk_score", 0),
                             "total_findings": rd.get("total_findings", 0),
                         }
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.warning("risk_etl: failed to load IAM posture: %s", _e)
             finally:
                 conn.close()
 
@@ -377,8 +439,8 @@ class RiskETL:
                             "encryption_score": row.get("encryption_score", 0),
                             "access_score": row.get("access_score", 0),
                         }
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.warning("risk_etl: failed to load DataSec posture: %s", _e)
             finally:
                 conn.close()
 
@@ -401,8 +463,8 @@ class RiskETL:
                             "firewall_score": row.get("firewall_score", 0),
                             "internet_exposed": row.get("internet_exposed_resources", 0),
                         }
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.warning("risk_etl: failed to load network posture: %s", _e)
             finally:
                 conn.close()
 
@@ -425,8 +487,8 @@ class RiskETL:
                             "posture_score": min(100, int((crit * 10 + high * 5) / total * 10)),
                             "total_findings": total,
                         }
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.warning("risk_etl: failed to load threat posture: %s", _e)
             finally:
                 conn.close()
 

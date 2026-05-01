@@ -1,0 +1,472 @@
+# Discovery YAML — media (Azure)
+# Generated: 2026-04-15T10:39:30Z
+# Source: step1b_operation_registry.json (qualified ops + dependency chains)
+# Actions use {category}.{method} format for SDK method resolution
+version: '1.0'
+provider: azure
+service: media
+services:
+  client: media
+  module: azure.mgmt.media
+discovery:
+  # ── mediaservices.list [root] ──
+  - discovery_id: azure.media.mediaservices.list
+    calls:
+      - action: mediaservices.list
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        track: '{{ item.track }}'
+  # ── mediaservices.list_by_subscription [root] ──
+  - discovery_id: azure.media.mediaservices.list_by_subscription
+    calls:
+      - action: mediaservices.list_by_subscription
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        public_network_access: '{{ item.public_network_access }}'
+        type: '{{ item.type }}'
+        location: '{{ item.location }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        encryption: '{{ item.encryption }}'
+        tags: '{{ item.tags }}'
+        key_delivery: '{{ item.key_delivery }}'
+        media_service_id: '{{ item.media_service_id }}'
+        private_endpoint_connections: '{{ item.private_endpoint_connections }}'
+        storage_accounts: '{{ item.storage_accounts }}'
+        storage_authentication: '{{ item.storage_authentication }}'
+        system_data: '{{ item.system_data }}'
+  # ════════════════════════════════════════
+  # Dependent operations (for_each + params)
+  # ════════════════════════════════════════
+  # ── accountfilters.list [dependent] ──
+  - discovery_id: azure.media.accountfilters.list
+    for_each: azure.media.mediaservices.list_by_subscription
+    calls:
+      - action: accountfilters.list
+        save_as: response
+        on_error: continue
+        params:
+          account_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        track: '{{ item.track }}'
+  # ── assetfilters.list [dependent] ──
+  - discovery_id: azure.media.assetfilters.list
+    for_each: azure.media.mediaservices.list_by_subscription
+    calls:
+      - action: assetfilters.list
+        save_as: response
+        on_error: continue
+        params:
+          account_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        track: '{{ item.track }}'
+  # ── assets.get_encryption_key [dependent] ──
+  - discovery_id: azure.media.assets.get_encryption_key
+    for_each: azure.media.mediaservices.list_by_subscription
+    calls:
+      - action: assets.get_encryption_key
+        save_as: response
+        on_error: continue
+        params:
+          account_name: '{{ item.name }}'
+    emit:
+      as: item
+      item:
+        identity: '{{ response.identity }}'
+        type: '{{ response.type }}'
+        properties: '{{ response.properties }}'
+        location: '{{ response.location }}'
+        sku: '{{ response.sku }}'
+        name: '{{ response.name }}'
+        provisioning_state: '{{ response.provisioning_state }}'
+        zones: '{{ response.zones }}'
+        kind: '{{ response.kind }}'
+        id: '{{ response.id }}'
+        tags: '{{ response.tags }}'
+  # ── assets.list [dependent] ──
+  - discovery_id: azure.media.assets.list
+    for_each: azure.media.mediaservices.list_by_subscription
+    calls:
+      - action: assets.list
+        save_as: response
+        on_error: continue
+        params:
+          account_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        track: '{{ item.track }}'
+  # ── assets.list_container_sas [dependent] ──
+  - discovery_id: azure.media.assets.list_container_sas
+    for_each: azure.media.mediaservices.list_by_subscription
+    calls:
+      - action: assets.list_container_sas
+        save_as: response
+        on_error: continue
+        params:
+          account_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        location: '{{ item.location }}'
+        sku: '{{ item.sku }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        zones: '{{ item.zones }}'
+        kind: '{{ item.kind }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+  # ── assets.list_streaming_locators [dependent] ──
+  - discovery_id: azure.media.assets.list_streaming_locators
+    for_each: azure.media.mediaservices.list_by_subscription
+    calls:
+      - action: assets.list_streaming_locators
+        save_as: response
+        on_error: continue
+        params:
+          account_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        location: '{{ item.location }}'
+        sku: '{{ item.sku }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        zones: '{{ item.zones }}'
+        kind: '{{ item.kind }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+  # ── contentkeypolicies.get_policy_properties_with_secrets [dependent] ──
+  - discovery_id: azure.media.contentkeypolicies.get_policy_properties_with_secrets
+    for_each: azure.media.mediaservices.list_by_subscription
+    calls:
+      - action: contentkeypolicies.get_policy_properties_with_secrets
+        save_as: response
+        on_error: continue
+        params:
+          account_name: '{{ item.name }}'
+    emit:
+      as: item
+      item:
+        identity: '{{ response.identity }}'
+        type: '{{ response.type }}'
+        properties: '{{ response.properties }}'
+        location: '{{ response.location }}'
+        sku: '{{ response.sku }}'
+        name: '{{ response.name }}'
+        provisioning_state: '{{ response.provisioning_state }}'
+        zones: '{{ response.zones }}'
+        kind: '{{ response.kind }}'
+        id: '{{ response.id }}'
+        tags: '{{ response.tags }}'
+  # ── contentkeypolicies.list [dependent] ──
+  - discovery_id: azure.media.contentkeypolicies.list
+    for_each: azure.media.mediaservices.list_by_subscription
+    calls:
+      - action: contentkeypolicies.list
+        save_as: response
+        on_error: continue
+        params:
+          account_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        track: '{{ item.track }}'
+  # ── jobs.list [dependent] ──
+  - discovery_id: azure.media.jobs.list
+    for_each: azure.media.mediaservices.list_by_subscription
+    calls:
+      - action: jobs.list
+        save_as: response
+        on_error: continue
+        params:
+          account_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        track: '{{ item.track }}'
+  # ── liveevents.list [dependent] ──
+  - discovery_id: azure.media.liveevents.list
+    for_each: azure.media.mediaservices.list_by_subscription
+    calls:
+      - action: liveevents.list
+        save_as: response
+        on_error: continue
+        params:
+          account_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        track: '{{ item.track }}'
+  # ── liveoutputs.list [dependent] ──
+  - discovery_id: azure.media.liveoutputs.list
+    for_each: azure.media.mediaservices.list_by_subscription
+    calls:
+      - action: liveoutputs.list
+        save_as: response
+        on_error: continue
+        params:
+          account_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        track: '{{ item.track }}'
+  # ── mediaservices.list_edge_policies [dependent] ──
+  - discovery_id: azure.media.mediaservices.list_edge_policies
+    for_each: azure.media.mediaservices.list_by_subscription
+    calls:
+      - action: mediaservices.list_edge_policies
+        save_as: response
+        on_error: continue
+        params:
+          account_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        location: '{{ item.location }}'
+        sku: '{{ item.sku }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        zones: '{{ item.zones }}'
+        kind: '{{ item.kind }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+  # ── privateendpointconnections.list [dependent] ──
+  - discovery_id: azure.media.privateendpointconnections.list
+    for_each: azure.media.mediaservices.list_by_subscription
+    calls:
+      - action: privateendpointconnections.list
+        save_as: response
+        on_error: continue
+        params:
+          account_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        track: '{{ item.track }}'
+  # ── privatelinkresources.list [dependent] ──
+  - discovery_id: azure.media.privatelinkresources.list
+    for_each: azure.media.mediaservices.list_by_subscription
+    calls:
+      - action: privatelinkresources.list
+        save_as: response
+        on_error: continue
+        params:
+          account_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        track: '{{ item.track }}'
+  # ── streamingendpoints.list [dependent] ──
+  - discovery_id: azure.media.streamingendpoints.list
+    for_each: azure.media.mediaservices.list_by_subscription
+    calls:
+      - action: streamingendpoints.list
+        save_as: response
+        on_error: continue
+        params:
+          account_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        track: '{{ item.track }}'
+  # ── streaminglocators.list [dependent] ──
+  - discovery_id: azure.media.streaminglocators.list
+    for_each: azure.media.mediaservices.list_by_subscription
+    calls:
+      - action: streaminglocators.list
+        save_as: response
+        on_error: continue
+        params:
+          account_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        track: '{{ item.track }}'
+  # ── streaminglocators.list_content_keys [dependent] ──
+  - discovery_id: azure.media.streaminglocators.list_content_keys
+    for_each: azure.media.mediaservices.list_by_subscription
+    calls:
+      - action: streaminglocators.list_content_keys
+        save_as: response
+        on_error: continue
+        params:
+          account_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        location: '{{ item.location }}'
+        sku: '{{ item.sku }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        zones: '{{ item.zones }}'
+        kind: '{{ item.kind }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+  # ── streaminglocators.list_paths [dependent] ──
+  - discovery_id: azure.media.streaminglocators.list_paths
+    for_each: azure.media.mediaservices.list_by_subscription
+    calls:
+      - action: streaminglocators.list_paths
+        save_as: response
+        on_error: continue
+        params:
+          account_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        location: '{{ item.location }}'
+        sku: '{{ item.sku }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        zones: '{{ item.zones }}'
+        kind: '{{ item.kind }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+  # ── streamingpolicies.list [dependent] ──
+  - discovery_id: azure.media.streamingpolicies.list
+    for_each: azure.media.mediaservices.list_by_subscription
+    calls:
+      - action: streamingpolicies.list
+        save_as: response
+        on_error: continue
+        params:
+          account_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        track: '{{ item.track }}'
+  # ── tracks.list [dependent] ──
+  - discovery_id: azure.media.tracks.list
+    for_each: azure.media.mediaservices.list_by_subscription
+    calls:
+      - action: tracks.list
+        save_as: response
+        on_error: continue
+        params:
+          account_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        track: '{{ item.track }}'
+  # ── transforms.list [dependent] ──
+  - discovery_id: azure.media.transforms.list
+    for_each: azure.media.mediaservices.list_by_subscription
+    calls:
+      - action: transforms.list
+        save_as: response
+        on_error: continue
+        params:
+          account_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        track: '{{ item.track }}'

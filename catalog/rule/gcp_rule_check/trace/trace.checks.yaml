@@ -1,0 +1,64 @@
+version: '1.0'
+provider: gcp
+service: trace
+checks:
+- rule_id: gcp.trace.trace.monitoring_access_rbac_least_privilege
+  for_each: gcp.trace.list_traces
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.iamPolicy.bindings[].role
+      op: not_in
+      value:
+      - roles/cloudtrace.admin
+      - roles/owner
+    - var: item.iamPolicy.bindings[].members[]
+      op: not_contains
+      value: allUsers
+    - var: item.iamPolicy.bindings[].members[]
+      op: not_contains
+      value: allAuthenticatedUsers
+- rule_id: gcp.trace.trace.monitoring_retention_days_minimum
+  for_each: gcp.trace.get_trace_sink
+  severity: MEDIUM
+  conditions:
+    var: item.retention_days
+    op: gte
+    value: '30'
+- rule_id: gcp.trace.trace.monitoring_store_encrypted
+  for_each: gcp.trace.list_traces
+  severity: MEDIUM
+  conditions:
+    var: item.encryption
+    op: exists
+    value: null
+- rule_id: gcp.trace.trace.trace_access_rbac_least_privilege
+  for_each: gcp.trace.list_traces
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.iamPolicy.bindings[].role
+      op: not_in
+      value:
+      - roles/cloudtrace.admin
+      - roles/owner
+    - var: item.iamPolicy.bindings[].members[]
+      op: not_contains
+      value: allUsers
+    - var: item.iamPolicy.bindings[].members[]
+      op: not_contains
+      value: allAuthenticatedUsers
+- rule_id: gcp.trace.trace.trace_retention_days_minimum
+  for_each: gcp.trace.list_traces
+  severity: MEDIUM
+  conditions:
+    var: item.retention_days
+    op: gte
+    value: '30'
+- rule_id: gcp.trace.trace.trace_store_encrypted
+  for_each: gcp.trace.list_trace_sinks
+  severity: MEDIUM
+  conditions:
+    var: item.EncryptionKey
+    op: exists
+    value: null

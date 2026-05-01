@@ -1,0 +1,37 @@
+version: '1.0'
+provider: ibm
+service: functions
+services:
+  client: functions
+  module: boto3.client
+discovery:
+- discovery_id: ibm.functions.list-namespaces
+  calls:
+  - action: list-namespaces
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.namespaces }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      classic_type: '{{ item.classic_type }}'
+      location: '{{ item.location }}'
+- discovery_id: ibm.functions.list-actions
+  for_each: ibm.functions.list-namespaces
+  calls:
+  - action: list-actions
+    save_as: response
+    params:
+      namespace_id: '{{ item.id }}'
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+    item:
+      name: '{{ item.name }}'
+      namespace: '{{ item.namespace }}'
+      version: '{{ item.version }}'
+      publish: '{{ item.publish }}'
+      annotations: '{{ item.annotations }}'

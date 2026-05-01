@@ -747,10 +747,10 @@ class ThreatAnalyzer:
         return f"postgresql://{user}:{pwd}@{host}:{port}/{db}"
 
     def _shared_conn_str(self) -> str:
-        """Connection to shared DB for scan_orchestration lookups."""
+        """Connection to onboarding DB for scan_runs lookups."""
         host = os.getenv("SHARED_DB_HOST", os.getenv("THREAT_DB_HOST", "localhost"))
         port = os.getenv("SHARED_DB_PORT", "5432")
-        db = os.getenv("SHARED_DB_NAME", "threat_engine_shared")
+        db = os.getenv("SHARED_DB_NAME", "threat_engine_onboarding")
         user = os.getenv("SHARED_DB_USER", os.getenv("THREAT_DB_USER", "threat_user"))
         pwd = os.getenv("SHARED_DB_PASSWORD", os.getenv("THREAT_DB_PASSWORD", "threat_password"))
         return f"postgresql://{user}:{pwd}@{host}:{port}/{db}"
@@ -787,7 +787,7 @@ class ThreatAnalyzer:
     def _resolve_inventory_scan_id(self, scan_run_id: str) -> Optional[str]:
         """Return scan_run_id directly — all engines share the same ID.
 
-        The scan_orchestration table no longer has per-engine scan ID columns.
+        The scan_runs table no longer has per-engine scan ID columns.
         """
         return scan_run_id
 

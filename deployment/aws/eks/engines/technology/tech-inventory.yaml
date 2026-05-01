@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tech-inventory
+  namespace: threat-engine-engines
+  labels:
+    app: tech-inventory
+    category: technology-engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tech-inventory
+  template:
+    metadata:
+      labels:
+        app: tech-inventory
+    spec:
+      tolerations:
+        - key: spot-scanner
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      containers:
+        - name: tech-inventory
+          image: yadavanup84/engine-tech-inventory:v-tech-inv-v1
+          ports:
+            - containerPort: 8031
+          envFrom:
+            - configMapRef:
+                name: threat-engine-db-config
+          env:
+            - name: TECH_DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: TECH_DB_HOST
+            - name: TECH_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: tech-engine-db-secret
+                  key: username
+            - name: TECH_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tech-engine-db-secret
+                  key: password
+            - name: TECH_DB_NAME
+              value: threat_engine_tech
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health/live
+              port: 8031
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health/ready
+              port: 8031
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tech-inventory
+  namespace: threat-engine-engines
+spec:
+  selector:
+    app: tech-inventory
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8031

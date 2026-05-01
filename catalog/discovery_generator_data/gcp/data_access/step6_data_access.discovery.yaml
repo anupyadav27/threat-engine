@@ -1,0 +1,98 @@
+version: '1.0'
+provider: gcp
+service: data_access
+discovery:
+- discovery_id: gcp.data_access.list_egress_events
+  calls:
+  - action: entries.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      logName: '{{ item.logName }}'
+      resource: '{{ item.resource }}'
+      timestamp: '{{ item.timestamp }}'
+      severity: '{{ item.severity }}'
+      labels: '{{ item.labels }}'
+      operation: '{{ item.operation }}'
+      trace: '{{ item.trace }}'
+      insertId: '{{ item.insertId }}'
+      jsonPayload: '{{ item.jsonPayload }}'
+      textPayload: '{{ item.textPayload }}'
+      protoPayload: '{{ item.protoPayload }}'
+- discovery_id: gcp.data_access.list_iam_policies
+  calls:
+  - action: entries.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      logName: '{{ item.logName }}'
+      resource: '{{ item.resource }}'
+      timestamp: '{{ item.timestamp }}'
+      severity: '{{ item.severity }}'
+      labels: '{{ item.labels }}'
+      operation: '{{ item.operation }}'
+      trace: '{{ item.trace }}'
+      insertId: '{{ item.insertId }}'
+      jsonPayload: '{{ item.jsonPayload }}'
+      textPayload: '{{ item.textPayload }}'
+      protoPayload: '{{ item.protoPayload }}'
+- discovery_id: gcp.iam.list_service_accounts
+  calls:
+  - action: projects.serviceAccounts.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      name: '{{ item.name }}'
+      email: '{{ item.email }}'
+      displayName: '{{ item.displayName }}'
+      disabled: '{{ item.disabled }}'
+      oauth2ClientId: '{{ item.oauth2ClientId }}'
+      projectId: '{{ item.projectId }}'
+      description: '{{ item.description }}'
+- discovery_id: gcp.storage.list_buckets
+  calls:
+  - action: buckets.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      location: '{{ item.location }}'
+      storageClass: '{{ item.storageClass }}'
+      iamConfiguration: '{{ item.iamConfiguration }}'
+      versioning: '{{ item.versioning }}'
+      logging: '{{ item.logging }}'
+      encryption: '{{ item.encryption }}'
+      labels: '{{ item.labels }}'
+      retentionPolicy: '{{ item.retentionPolicy }}'
+- discovery_id: gcp.iam.list_service_account_keys
+  calls:
+  - action: projects.serviceAccounts.keys.list
+    save_as: response
+    on_error: continue
+    params:
+      name: '{{ item.email }}'
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      name: '{{ item.name }}'
+      validAfterTime: '{{ item.validAfterTime }}'
+      validBeforeTime: '{{ item.validBeforeTime }}'
+      keyType: '{{ item.keyType }}'
+      keyAlgorithm: '{{ item.keyAlgorithm }}'
+      keyOrigin: '{{ item.keyOrigin }}'
+      disabled: '{{ item.disabled }}'
+  for_each: gcp.iam.list_service_accounts

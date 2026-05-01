@@ -124,7 +124,9 @@ class RiskDBWriter:
                 applicable_regulations,
                 total_exposure_min, total_exposure_max, total_exposure_likely,
                 risk_tier, calculation_model,
-                account_id, region, csp
+                account_id, region, csp,
+                blast_radius_score, blast_radius_sample,
+                regulatory_multiplier, mitre_techniques, attack_path
             ) VALUES (
                 %(scenario_id)s, %(risk_scan_id)s, %(tenant_id)s, %(scan_run_id)s,
                 %(source_finding_id)s, %(source_engine)s,
@@ -137,8 +139,18 @@ class RiskDBWriter:
                 %(applicable_regulations)s,
                 %(total_exposure_min)s, %(total_exposure_max)s, %(total_exposure_likely)s,
                 %(risk_tier)s, %(calculation_model)s,
-                %(account_id)s, %(region)s, %(csp)s
+                %(account_id)s, %(region)s, %(csp)s,
+                %(blast_radius_score)s, %(blast_radius_sample)s,
+                %(regulatory_multiplier)s, %(mitre_techniques)s, %(attack_path)s
             )
+            ON CONFLICT (scenario_id) DO UPDATE SET
+                blast_radius_score = EXCLUDED.blast_radius_score,
+                blast_radius_sample = EXCLUDED.blast_radius_sample,
+                regulatory_multiplier = EXCLUDED.regulatory_multiplier,
+                mitre_techniques = EXCLUDED.mitre_techniques,
+                total_exposure_likely = EXCLUDED.total_exposure_likely,
+                risk_tier = EXCLUDED.risk_tier,
+                calculation_model = EXCLUDED.calculation_model
         """
 
         count = 0
@@ -159,6 +171,19 @@ class RiskDBWriter:
         calc_model = row.get("calculation_model", {})
         if isinstance(calc_model, dict):
             calc_model = json.dumps(calc_model)
+
+        # JSONB fields — serialize lists/dicts; leave None as None
+        blast_sample = row.get("blast_radius_sample", [])
+        if isinstance(blast_sample, (list, dict)):
+            blast_sample = json.dumps(blast_sample)
+
+        mitre = row.get("mitre_techniques", [])
+        if isinstance(mitre, (list, dict)):
+            mitre = json.dumps(mitre)
+
+        attack_path = row.get("attack_path", [])
+        if isinstance(attack_path, (list, dict)):
+            attack_path = json.dumps(attack_path)
 
         return {
             "scenario_id": str(uuid4()),
@@ -189,6 +214,12 @@ class RiskDBWriter:
             "account_id": row.get("account_id"),
             "region": row.get("region"),
             "csp": row.get("csp", "aws"),
+            # ENG-13: new columns
+            "blast_radius_score": int(row.get("blast_radius_score") or 0),
+            "blast_radius_sample": blast_sample,
+            "regulatory_multiplier": float(row.get("regulatory_multiplier") or 1.0),
+            "mitre_techniques": mitre,
+            "attack_path": attack_path,
         }
 
     # ------------------------------------------------------------------

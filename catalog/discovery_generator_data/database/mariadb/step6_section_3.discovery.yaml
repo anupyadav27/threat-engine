@@ -1,0 +1,78 @@
+version: '1.0'
+provider: database
+engine: mariadb
+category: section_3
+cis_section: '3'
+description: >
+  mariadb CIS Section 3 — 'datadir' Has Appropriate Permissions
+
+discovery:
+
+  - discovery_id: mariadb.section_3.datadir_has_appropriate_permissions
+    description: Ensure 'datadir' Has Appropriate Permissions
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT VARIABLE_NAME, VARIABLE_VALUE FROM information_schema.global_variables WHERE VARIABLE_NAME LIKE 'datadir';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: datadir_has_appropriate_permissions
+        setting_name: "datadir"
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: mariadb.section_3.ssl_key_files_have_appropriate_permissions
+    description: Ensure SSL Key Files Have Appropriate Permissions
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT * FROM information_schema.global_variables WHERE REGEXP_INSTR(VARIABLE_NAME,'^.*ssl_(ca|capath|cert|crl|crlpath|key)$') AND VARIABLE_VALUE <> '';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ssl_key_files_have_appropriate_permissions
+        setting_name: "all"
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: mariadb.section_3.plugin_directory_has_appropriate_permissions
+    description: Ensure Plugin Directory Has Appropriate Permissions
+    calls:
+
+
+      - action: query_setting
+        query: "SHOW VARIABLES LIKE 'plugin_dir';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: plugin_directory_has_appropriate_permissions
+        setting_name: "plugin_dir"
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: mariadb.section_3.file_key_management_encryption_plugin_files_have
+    description: Ensure File Key Management Encryption Plugin files have appropriate permissions
+    calls:
+
+
+      - action: query_setting
+        query: "SHOW VARIABLES LIKE 'file_key_management_encryption_plugin_files_have';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: file_key_management_encryption_plugin_files_have
+        setting_name: "file_key_management_encryption_plugin_files_have"
+        value: "{{ result.value }}"
+        expected: ""
+
+

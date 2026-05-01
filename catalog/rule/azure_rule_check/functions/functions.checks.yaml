@@ -1,0 +1,22 @@
+version: '1.0'
+provider: azure
+service: functions
+checks:
+- rule_id: azure.functions.app.restrict_public_access
+  for_each: azure.web.webapps.list_functions
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.siteConfig.ipSecurityRestrictions
+      op: exists
+      value: null
+    - var: item.properties.siteConfig.ipSecurityRestrictions[].ipAddress
+      op: not_equals
+      value: '*'
+- rule_id: azure.functions.app.url_public
+  for_each: azure.web.webapps.list_functions
+  severity: MEDIUM
+  conditions:
+    var: item.properties.httpsOnly
+    op: is_true
+    value: null

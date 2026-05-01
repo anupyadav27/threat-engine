@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Server,
@@ -20,8 +20,7 @@ import {
   ClipboardCheck,
   Brain,
 } from 'lucide-react';
-import { fetchView } from '@/lib/api';
-import { useGlobalFilter } from '@/lib/global-filter-context';
+import { useViewFetch } from '@/lib/use-view-fetch';
 import { classifyResourceDomain } from '@/lib/inventory-taxonomy';
 import PageLayout from '@/components/shared/PageLayout';
 import InsightRow from '@/components/shared/InsightRow';
@@ -153,186 +152,32 @@ const getRiskLevel = (score) => {
   return 'low';
 };
 
-// ── Primary asset types shown in the inventory table ──────────────────────────
-// Infrastructure plumbing (SG rules, route tables, ENIs, etc.) is excluded to
-// keep the table focused on assets that security teams actually investigate.
-// Set showAllTypes=true (toggle below) to reveal all resource types.
-//
-// To add a new service: append its resource_type string to the appropriate group.
-export const PRIMARY_ASSET_TYPES = new Set([
-  // ── Compute ───────────────────────────────────────────────────────────────
-  'ec2.instance', 'ec2.resource',        // ec2.resource is the generic normalized type
-  'lambda.function', 'lambda.resource',
-  'ecs.service', 'ecs.task-definition', 'ecs.cluster', 'ecs.resource',
-  'eks.cluster', 'eks.resource', 'eks.nodegroup',
-  'ecr.repository', 'ecr.resource',
-  'lightsail.instance',
-  'batch.compute-environment', 'batch.resource',
-  'fargate.capacity_provider', 'fargate.resource',
-
-  // ── Storage ───────────────────────────────────────────────────────────────
-  's3.resource', 's3.bucket',
-  'efs.file-system', 'elasticfilesystem.file-system',
-  'ec2.volume', 'ebs.volume',
-  'glacier.vault', 'glacier.vaults',
-  'backup.backup-vault',
-
-  // ── Databases ─────────────────────────────────────────────────────────────
-  'rds.instance', 'rds.db-instance', 'rds.cluster', 'rds.db-cluster', 'rds.resource',
-  'dynamodb.table', 'dynamodb.resource',
-  'elasticache.cluster', 'elasticache.replication-group', 'elasticache.resource',
-  'redshift.cluster', 'redshift.resource',
-  'docdb.cluster', 'docdb.resource',
-  'neptune.cluster', 'neptune.resource',
-  'opensearch.domain', 'opensearch.resource', 'opensearch.application',
-  'elasticsearch.domain', 'es.resource',
-
-  // ── Identity & Access ──────────────────────────────────────────────────────
-  'iam.role',
-  'iam.user',
-  'iam.policy',
-  'iam.instance-profile',
-  'iam.group',
-  'cognito.identity-pool', 'cognito.resource', 'cognito.user-pool',
-
-  // ── Secrets & Encryption ──────────────────────────────────────────────────
-  'kms.key',
-  'secretsmanager.secret', 'secretsmanager.resource',
-  'ssm.parameter',
-  'acm.certificate',
-
-  // ── Network (boundary-level only — not plumbing) ───────────────────────────
-  'ec2.vpc', 'vpc.vpc',
-  'ec2.security-group',
-  'elasticloadbalancingv2.loadbalancer', 'elbv2.loadbalancer',
-  'elb.loadbalancer', 'elasticloadbalancing.loadbalancer',
-  'ec2.internet-gateway', 'vpc.internet-gateway',
-  'wafv2.web-acl',
-  'cloudfront.distribution',
-
-  // ── API & Serverless ──────────────────────────────────────────────────────
-  'apigateway.restapi', 'apigateway.resource', 'apigateway.item_rest_api',
-  'apigatewayv2.api', 'apigatewayv2.item_api',
-  'sqs.queue',
-  'sns.topic',
-  'kinesis.stream',
-  'events.rule',
-  'states.state-machine',
-
-  // ── AI / ML ───────────────────────────────────────────────────────────────
-  'bedrock.foundation-model', 'bedrock.agent', 'bedrock.inference-profile',
-  'sagemaker.endpoint', 'sagemaker.notebook-instance', 'sagemaker.model',
-
-  // ── Analytics ─────────────────────────────────────────────────────────────
-  'redshift.cluster',
-  'glue.database',
-  'athena.workgroup',
-  'emr.cluster',
-
-  // ── Observability & Security ──────────────────────────────────────────────
-  'cloudtrail.trail', 'cloudtrail.channel',
-  'guardduty.detector',
-  'inspector2.resource',
-  'securityhub.hub',
-  'access-analyzer.analyzer',
-
-  // ── Messaging & Integration ───────────────────────────────────────────────
-  'sesv2.resource', 'ses.resource',
-  'codepipeline.pipeline_role', 'codepipeline.resource',
-  'codecommit.repository', 'codebuild.project',
-
-  // ── Catch-all .resource suffix for any service not explicitly listed ─────
-  // These are normalized fallback types from the discovery engine.
-  // Individual services use {service}.resource when a more specific type isn't set.
-  'cognito-idp.user_pool', 'cognito-idp.resource',
-  'appflow.resource', 'appflow.connector_entity_field_parententifier',
-  'mediaconvert.resource',
-
-  // ── Azure ─────────────────────────────────────────────────────────────────
-  'azure.virtual_machine', 'azure.sql_server', 'azure.sql_database',
-  'azure.storage_account', 'azure.blob_container',
-  'azure.key_vault', 'azure.app_service', 'azure.function_app',
-  'azure.aks_cluster', 'azure.managed_identity', 'azure.service_principal',
-  'azure.cosmos_db', 'azure.service_bus', 'azure.container_registry',
-
-  // ── GCP ───────────────────────────────────────────────────────────────────
-  'gcp.compute_instance', 'gcp.gcs_bucket', 'gcp.cloud_function',
-  'gcp.gke_cluster', 'gcp.cloud_sql_instance', 'gcp.bigquery_dataset',
-  'gcp.iam_service_account', 'gcp.cloud_run_service',
-  'gcp.kms_key_ring', 'gcp.artifact_registry',
-
-  // ── OCI ───────────────────────────────────────────────────────────────────
-  'oci.compute_instance', 'oci.object_storage_bucket',
-  'oci.autonomous_database', 'oci.vault',
-]);
-
-// Excluded (infrastructure noise — too granular for security review):
-//   ec2.security-group-rule, ec2.network-interface, ec2.route-table,
-//   ec2.network-acl, ec2.subnet, ec2.snapshot, ec2.image, ec2.key-pair,
-//   ec2.host, ec2.placement-group, lambda.event-source-mapping,
-//   iam.iam-instance-profile-association, logs.group, cloudwatch.alarm,
-//   elbv2.listener, elbv2.target-group (shown via load balancer relationships)
 
 export default function InventoryPage() {
   const router = useRouter();
-  const { provider, account, region } = useGlobalFilter();
-  const [assets, setAssets] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [summary, setSummary] = useState(null);
-  const [showAllTypes, setShowAllTypes] = useState(false);
-
-  // Fetch assets and summary via BFF
-  useEffect(() => {
-    const loadAssets = async () => {
-      setLoading(true);
-      try {
-        const data = await fetchView('inventory', {
-          provider: provider || undefined,
-          account: account || undefined,
-          region: region || undefined,
-        });
-        if (data.error) { setError(data.error); return; }
-        if (data.assets) setAssets(data.assets);
-        if (data.summary) setSummary(data.summary);
-      } catch (err) {
-        console.warn('[inventory] loadAssets error:', err);
-        setError('Failed to load inventory data');
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadAssets();
-  }, [provider, account, region]);
+  const { data, loading, error } = useViewFetch('inventory');
+  const assets  = data.assets  || [];
+  const summary = data.summary || null;
 
   // ── Derived metrics ──
-  // KPI metrics use ALL assets; table uses primary assets only (unless showAllTypes).
-  const scopeFiltered = useMemo(
-    () => showAllTypes
-      ? assets
-      : assets.filter(a => PRIMARY_ASSET_TYPES.has(a.resource_type)),
-    [assets, showAllTypes]
-  );
-  const hiddenCount = assets.length - scopeFiltered.length;
-
-  const newThisWeek = scopeFiltered.filter(
+  const newThisWeek = assets.filter(
     (a) => new Date(a.created_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
   ).length;
-  const unmanagedCount = scopeFiltered.filter((a) => !a.tags || Object.keys(a.tags).length === 0).length;
-  const exposedCount = scopeFiltered.filter((a) => a.internet_exposed === true || a.public === true || a.risk_score > 70).length;
-  const criticalCount = scopeFiltered.filter((a) => a.severity === 'critical' || a.risk_level === 'critical' || (a.findings && a.findings.critical > 0)).length;
+  const unmanagedCount = assets.filter((a) => !a.tags || Object.keys(a.tags).length === 0).length;
+  const exposedCount = assets.filter((a) => a.internet_exposed === true || a.public === true || a.risk_score > 70).length;
+  const criticalCount = assets.filter((a) => a.severity === 'critical' || a.risk_level === 'critical' || (a.findings && a.findings.critical > 0)).length;
   const driftCount = summary?.total_drift ?? 0;
   const removedCount = summary?.removed_assets ?? 0;
-  const uniqueProviders = new Set(scopeFiltered.map((r) => r.provider)).size;
-  const staleCount = scopeFiltered.filter(a => {
+  const uniqueProviders = new Set(assets.map((r) => r.provider)).size;
+  const staleCount = assets.filter(a => {
     const lastSeen = new Date(a.last_scanned);
     return (Date.now() - lastSeen) > 30 * 24 * 60 * 60 * 1000;
   }).length;
 
-  const totalAssets  = scopeFiltered.length || 1;
-  const awsAssets   = scopeFiltered.filter((a) => a.provider === 'aws').length;
-  const azureAssets = scopeFiltered.filter((a) => a.provider === 'azure').length;
-  const gcpAssets   = scopeFiltered.filter((a) => a.provider === 'gcp').length;
+  const totalAssets  = assets.length || 1;
+  const awsAssets   = assets.filter((a) => a.provider === 'aws').length;
+  const azureAssets = assets.filter((a) => a.provider === 'azure').length;
+  const gcpAssets   = assets.filter((a) => a.provider === 'gcp').length;
 
   // ── KPI strip derived values ──
   const assetsTrend   = INV_SCAN_TREND.map(d => d.assets);
@@ -346,8 +191,8 @@ export default function InventoryPage() {
 
   // ── Asset Status Distribution data ──
   const statusBars = useMemo(() => {
-    const total = scopeFiltered.length || 1;
-    const statusCounts = scopeFiltered.reduce((acc, a) => {
+    const total = assets.length || 1;
+    const statusCounts = assets.reduce((acc, a) => {
       const s = (a.status || 'active').toLowerCase();
       acc[s] = (acc[s] || 0) + 1;
       return acc;
@@ -364,15 +209,15 @@ export default function InventoryPage() {
         value: Math.round((count / total) * 100),
         color: statusColors[label] || '#9ca3af',
       }));
-  }, [scopeFiltered]);
+  }, [assets]);
 
   // ── Tab-filtered data sets ──
-  const exposedAssets = useMemo(() => scopeFiltered.filter(a => a.internet_exposed === true || a.public === true || a.risk_score > 70), [scopeFiltered]);
-  const unmanagedAssets = useMemo(() => scopeFiltered.filter(a => !a.tags || Object.keys(a.tags).length === 0), [scopeFiltered]);
-  const criticalAssets = useMemo(() => scopeFiltered.filter(a => a.severity === 'critical' || a.risk_level === 'critical' || (a.findings && a.findings.critical > 0)), [scopeFiltered]);
+  const exposedAssets = useMemo(() => assets.filter(a => a.internet_exposed === true || a.public === true || a.risk_score > 70), [assets]);
+  const unmanagedAssets = useMemo(() => assets.filter(a => !a.tags || Object.keys(a.tags).length === 0), [assets]);
+  const criticalAssets = useMemo(() => assets.filter(a => a.severity === 'critical' || a.risk_level === 'critical' || (a.findings && a.findings.critical > 0)), [assets]);
 
   // ── Unique values for dynamic filter options ──
-  const uniqueVals = (key) => [...new Set(scopeFiltered.map(r => r[key]).filter(Boolean))].sort();
+  const uniqueVals = (key) => [...new Set(assets.map(r => r[key]).filter(Boolean))].sort();
 
 
   // ── Table columns ──
@@ -517,7 +362,7 @@ export default function InventoryPage() {
     ],
     tabs: [
       { id: 'overview',  label: 'Overview' },
-      { id: 'all', label: 'All Assets', count: scopeFiltered.length },
+      { id: 'all', label: 'All Assets', count: assets.length },
       { id: 'exposed', label: 'Internet Exposed', count: exposedCount },
       { id: 'unmanaged', label: 'Unmanaged', count: unmanagedCount },
       { id: 'critical', label: 'Critical Findings', count: criticalCount },
@@ -534,14 +379,14 @@ export default function InventoryPage() {
   };
 
   // exposure sub-type counts
-  const exposedDirect  = scopeFiltered.filter(a => a.internet_exposure?.type === 'direct_ip'     ).length;
-  const exposedBucket  = scopeFiltered.filter(a => a.internet_exposure?.type === 'public_bucket'  ).length;
-  const exposedApi     = scopeFiltered.filter(a => a.internet_exposure?.type === 'public_api'     ).length;
+  const exposedDirect  = assets.filter(a => a.internet_exposure?.type === 'direct_ip'     ).length;
+  const exposedBucket  = assets.filter(a => a.internet_exposure?.type === 'public_bucket'  ).length;
+  const exposedApi     = assets.filter(a => a.internet_exposure?.type === 'public_api'     ).length;
 
   // Risk profile (moved up so donut panel can use it)
   const riskProfile = useMemo(() => {
     const buckets = { critical: 0, high: 0, medium: 0, low: 0, clean: 0 };
-    scopeFiltered.forEach(a => {
+    assets.forEach(a => {
       const sev = (a.severity || a.risk_level || '').toLowerCase();
       const score = a.risk_score || 0;
       if      (sev === 'critical' || score >= 90) buckets.critical++;
@@ -551,8 +396,8 @@ export default function InventoryPage() {
       else                                        buckets.clean++;
     });
     const hasSeverityData = (buckets.critical + buckets.high + buckets.medium + buckets.low) > 0;
-    if (!hasSeverityData && scopeFiltered.length > 0) {
-      const n = scopeFiltered.length;
+    if (!hasSeverityData && assets.length > 0) {
+      const n = assets.length;
       buckets.critical = Math.round(n * 0.06);
       buckets.high     = Math.round(n * 0.18);
       buckets.medium   = Math.round(n * 0.22);
@@ -560,7 +405,7 @@ export default function InventoryPage() {
       buckets.clean    = n - buckets.critical - buckets.high - buckets.medium - buckets.low;
     }
     return buckets;
-  }, [scopeFiltered]);
+  }, [assets]);
 
   const riskSlices = [
     { label: 'Critical', value: riskProfile.critical, color: C.critical },
@@ -818,39 +663,9 @@ export default function InventoryPage() {
     </div>
   );
 
-  // Toggle row shown above the asset table when infrastructure types are hidden
-  const typeFilterBadge = !showAllTypes && hiddenCount > 0 ? (
-    <div className="flex items-center gap-3 px-4 py-2 rounded-lg border text-xs"
-      style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', color: 'var(--text-tertiary)' }}>
-      <span>
-        Showing <strong style={{ color: 'var(--text-primary)' }}>{scopeFiltered.length}</strong> primary
-        assets — <strong>{hiddenCount}</strong> infrastructure resources hidden
-        (SG rules, ENIs, route tables, etc.)
-      </span>
-      <button
-        onClick={() => setShowAllTypes(true)}
-        className="underline hover:opacity-80 transition-opacity whitespace-nowrap"
-        style={{ color: 'var(--accent-primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-      >
-        Show all
-      </button>
-    </div>
-  ) : showAllTypes ? (
-    <div className="flex items-center gap-3 px-4 py-2 rounded-lg border text-xs"
-      style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', color: 'var(--text-tertiary)' }}>
-      <span>Showing all <strong style={{ color: 'var(--text-primary)' }}>{assets.length}</strong> resource types including infrastructure</span>
-      <button
-        onClick={() => setShowAllTypes(false)}
-        className="underline hover:opacity-80 transition-opacity whitespace-nowrap"
-        style={{ color: 'var(--accent-primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-      >
-        Show primary only
-      </button>
-    </div>
-  ) : null;
 
   const tabData = {
-    all: { data: scopeFiltered, columns, headerExtra: typeFilterBadge },
+    all: { data: assets, columns },
     exposed: { data: exposedAssets, columns },
     unmanaged: { data: unmanagedAssets, columns },
     critical: { data: criticalAssets, columns },
@@ -862,7 +677,7 @@ export default function InventoryPage() {
   // Resource type breakdown: group by service/resource_type, count findings per type
   const resourceTypeBreakdown = useMemo(() => {
     const typeMap = {};
-    scopeFiltered.forEach(a => {
+    assets.forEach(a => {
       const key = (a.service || a.resource_type || 'unknown').toLowerCase().replace(/\./g, ' ');
       if (!typeMap[key]) typeMap[key] = { total: 0, critical: 0, high: 0, medium: 0 };
       typeMap[key].total++;
@@ -889,7 +704,7 @@ export default function InventoryPage() {
       });
     }
     return rows;
-  }, [scopeFiltered]);
+  }, [assets]);
 
   const totalRiskAssets = riskProfile.critical + riskProfile.high + riskProfile.medium + riskProfile.low + riskProfile.clean;
 

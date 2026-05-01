@@ -1,0 +1,295 @@
+# CHECK_POINT — CIEM Detection Rules
+# Real-time authentication & access event analysis
+# Log source: SmartLog, syslog
+
+tech_type: check_point
+category: networking
+log_source: SmartLog, syslog
+
+rules:
+
+  - rule_id: tciem.check_point.deny_access_to_unused_accounts_is_selected
+    title: "Ensure Deny access to unused accounts is selected"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.8'
+    cis_section: '1'
+    log_source: "SmartLog, syslog"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Run the following command to set the deny-on-nonuse setting. CLI: Hostname>set
+      password-controls deny-on-nonuse enable on GUI: Navigate to User Management >
+      Password Policy > Deny access to unused accounts: Checked the 'Deny access to
+      unused accounts' setting. Default Value: Not Selected 26 | P a g e
+
+  - rule_id: tciem.check_point.days_of_non_use_before_lock_out_is_set_to_30
+    title: "Ensure Days of non-use before lock-out is set to 30"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.9'
+    cis_section: '1'
+    log_source: "SmartLog, syslog"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Run the following command to set the deny-on-nonuse allowed-days setting. CLI:
+      Hostname>set password-controls deny-on-nonuse allowed-days 30 28 | P a g e
+      GUI: Navigate to User Management > Password Policy > Deny access to unused
+      accounts: Set 'Days of non-use before lock-out' to 30 or less. Note: This
+      setting only takes effect if 'Deny access to unused accounts' is enabled.
+      Default Value: 365
+
+  - rule_id: tciem.check_point.force_users_to_change_password_at_first_login
+    title: "Ensure Force users to change password at first login after password was changed from Users page is selected"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.10'
+    cis_section: '1'
+    log_source: "SmartLog, syslog"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Run the following command to set force-change-when setting. CLI: Hostname>set
+      password-controls force-change-when password GUI: Navigate to User Management
+      > Password Policy > Mandatory Password Change: Checked the 'Force users to
+      change password at first login after password was changed from Users page'
+      setting. 30 | P a g e Default Value: Not Selected
+
+  - rule_id: tciem.check_point.deny_access_after_failed_login_attempts_is
+    title: "Ensure Deny access after failed login attempts is selected"
+    severity: high
+    mitre_technique: T1110
+    mitre_tactic: credential_access
+    cis_control: '1.11'
+    cis_section: '1'
+    log_source: "SmartLog, syslog"
+    detection:
+      event_type: authentication_failure
+      threshold: 5
+      window_seconds: 300
+      group_by: [source_ip, username]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Run the following command to set the deny-on-fail setting. CLI: Hostname>set
+      password-controls deny-on-fail enable on GUI: Navigate to User Management >
+      Password Policy > Deny Access After Failed Login Attempts: Checked the 'Deny
+      access after failed login attempts' setting. 32 | P a g e Default Value: Not
+      selected
+
+  - rule_id: tciem.check_point.maximum_number_of_failed_attempts_allowed_is_set
+    title: "Ensure Maximum number of failed attempts allowed is set to 5 or fewer"
+    severity: high
+    mitre_technique: T1110
+    mitre_tactic: credential_access
+    cis_control: '1.12'
+    cis_section: '1'
+    log_source: "SmartLog, syslog"
+    detection:
+      event_type: authentication_failure
+      threshold: 5
+      window_seconds: 300
+      group_by: [source_ip, username]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Run the following command to set the deny-on-fail failures-allowed setting.
+      CLI: Hostname>set password-controls deny-on-fail failures-allowed 5 34 | P a g
+      e GUI: Navigate to User Management > Password Policy > Deny Access After
+      Failed Login Attempts: checked and set ' Maximum number of failed attempts
+      allowed is set to' setting to 5 or fewer. Default Value: 10 References: 1.
+      https://sc1.checkpoint.com/documents/R76/CP_R76_Gaia_WebAdmin/73101.htm
+      #o94478 Notes: Looking for input regarding a value for this recommendation.
+      Note from checkpoint documentation.... Warning: Enabling this leaves you open
+      to a 'denial of service' -- if an attacker issues unsuccessful login attempts
+      often enough you will be locked out. Please consider the advantages and
+      disadvantages of this option, in light of your security policy, before
+      enabling it.
+
+  - rule_id: tciem.check_point.allow_access_again_after_time_is_set_to_300_or
+    title: "Ensure Allow access again after time is set to 300 or more seconds"
+    severity: high
+    mitre_technique: T1110
+    mitre_tactic: credential_access
+    cis_control: '1.13'
+    cis_section: '1'
+    log_source: "SmartLog, syslog"
+    detection:
+      event_type: authentication_failure
+      threshold: 5
+      window_seconds: 300
+      group_by: [source_ip, username]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Run the following command to set the deny-on-fail allow-afte setting. CLI:
+      Hostname> set password-controls deny-on-fail allow-after 300 36 | P a g e GUI:
+      Navigate to User Management > Password Policy > Deny Access After Failed Login
+      Attempts: Set the 'Allow access again after time' setting to 300 or more
+      seconds. Default Value: 1200 (20 minutes) Notes: Looking for input regarding a
+      value for this recommendation.
+
+  - rule_id: tciem.check_point.login_banner_is_set
+    title: "Ensure 'Login Banner' is set"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.1.1'
+    cis_section: '2'
+    log_source: "SmartLog, syslog"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Run the following command to enable and set the Banner. CLI: Hostname>set
+      message banner on msgvalue 'Organization_Banner' 39 | P a g e GUI: Navigate to
+      System Management > Messages Checked the Banner message and configured the
+      organization defined banner.
+
+  - rule_id: tciem.check_point.telnet_is_disabled
+    title: "Ensure Telnet is disabled"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.1.9'
+    cis_section: '2'
+    log_source: "SmartLog, syslog"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Run the following command to disable the telnet. CLI: Hostname> set net-access
+      telnet off GUI: Navigate to System Management > Network Access > verify Enable
+      Telnet is unchecked. Default Value: Off 52 | P a g e
+
+  - rule_id: tciem.check_point.mgmtauditlogs_is_set_to_on
+    title: "Ensure mgmtauditlogs is set to on"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '2.6.1'
+    cis_section: '2'
+    log_source: "SmartLog, syslog"
+    detection:
+      event_type: configuration_change
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Run the following command to enable the mgmtauditlogs. CLI: Hostname> set
+      syslog mgmtauditlogs on 83 | P a g e GUI: Navigate to System Management >
+      System Logging > System Logging checked the Send audit logs to management
+      server upon successful configuration
+
+  - rule_id: tciem.check_point.auditlog_is_set_to_permanent
+    title: "Ensure auditlog is set to permanent"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '2.6.2'
+    cis_section: '2'
+    log_source: "SmartLog, syslog"
+    detection:
+      event_type: configuration_change
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Run the following command to enable the auditlog. CLI: Hostname> set syslog
+      auditlog permanent GUI: Navigate to System Management > System Logging >
+      System Logging checked the Send audit logs to syslog upon successful
+      configuration 85 | P a g e
+
+  - rule_id: tciem.check_point.configure_a_default_drop_cleanup_rule
+    title: "Configure a Default Drop/Cleanup Rule"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.2'
+    cis_section: '3'
+    log_source: "SmartLog, syslog"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Create or edit the last rule in the rulebase which is denying all traffic from
+      any source to any destination. 90 | P a g e
+
+  - rule_id: tciem.check_point.no_allow_rule_with_any_in_destination_filed
+    title: "Ensure no Allow Rule with Any in Destination filed present in the Firewall Rules"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.5'
+    cis_section: '3'
+    log_source: "SmartLog, syslog"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Delete the rule from the firewall which has Any used in the Source field.
+
+  - rule_id: tciem.check_point.no_allow_rule_with_any_in_source_filed_present_in
+    title: "Ensure no Allow Rule with Any in Source filed present in the Firewall Rules"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.6'
+    cis_section: '3'
+    log_source: "SmartLog, syslog"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Delete the rule from the firewall which has Any used in the Destination field.
+
+  - rule_id: tciem.check_point.no_allow_rule_with_any_in_services_filed_present
+    title: "Ensure no Allow Rule with Any in Services filed present in the Firewall Rules"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.7'
+    cis_section: '3'
+    log_source: "SmartLog, syslog"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Delete the rule from the firewall which has Any used in the Service field.
+

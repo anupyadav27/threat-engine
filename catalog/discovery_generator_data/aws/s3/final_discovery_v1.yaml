@@ -1,0 +1,240 @@
+# ==========================================================
+# Discovery YAML — s3 (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 70 | ops: 1 independent, 12 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: s3
+
+services:
+  client: s3
+  module: "boto3.client('s3')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: bucket
+    identifier_op: aws.s3.list_buckets
+    identifier_field: BucketArn
+    item_var_path: item.BucketArn
+    identifier_template: '{bucketarn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.s3.list_buckets  ──
+  - discovery_id: aws.s3.list_buckets
+    calls:
+      - action: list_buckets
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        BucketArn: '{{ item.BucketArn }}'
+        BucketRegion: '{{ item.BucketRegion }}'
+        CreationDate: '{{ item.CreationDate }}'
+        Name: '{{ item.Name }}'
+        Tags: '{{ item.Tags }}'
+        item: '{{ item }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.s3.get_bucket_acl [dependent] ──
+  - discovery_id: aws.s3.get_bucket_acl
+    for_each: aws.s3.list_buckets
+    calls:
+      - action: get_bucket_acl
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Grantee: '{{ item.Grantee }}'
+        Grantee.URI: '{{ item.Grantee.URI }}'
+        Permission: '{{ item.Permission }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.s3.get_bucket_lifecycle_configuration [dependent] ──
+  - discovery_id: aws.s3.get_bucket_lifecycle_configuration
+    for_each: aws.s3.list_buckets
+    calls:
+      - action: get_bucket_lifecycle_configuration
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        AbortIncompleteMultipartUpload: '{{ item.AbortIncompleteMultipartUpload }}'
+        Expiration: '{{ item.Expiration }}'
+        Expiration.Date: '{{ item.Expiration.Date }}'
+        Expiration.Days: '{{ item.Expiration.Days }}'
+        Filter: '{{ item.Filter }}'
+        ID: '{{ item.ID }}'
+        NoncurrentVersionExpiration: '{{ item.NoncurrentVersionExpiration }}'
+        NoncurrentVersionTransitions: '{{ item.NoncurrentVersionTransitions }}'
+        Prefix: '{{ item.Prefix }}'
+        Status: '{{ item.Status }}'
+        Transitions: '{{ item.Transitions }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.s3.get_bucket_logging [dependent] ──
+  - discovery_id: aws.s3.get_bucket_logging
+    for_each: aws.s3.list_buckets
+    calls:
+      - action: get_bucket_logging
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        TargetBucket: '{{ item.TargetBucket }}'
+        TargetGrants: '{{ item.TargetGrants }}'
+        TargetObjectKeyFormat: '{{ item.TargetObjectKeyFormat }}'
+        TargetPrefix: '{{ item.TargetPrefix }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.s3.get_bucket_replication [dependent] ──
+  - discovery_id: aws.s3.get_bucket_replication
+    for_each: aws.s3.list_buckets
+    calls:
+      - action: get_bucket_replication
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Role: '{{ item.Role }}'
+        Rules: '{{ item.Rules }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.s3.get_bucket_versioning [dependent] ──
+  - discovery_id: aws.s3.get_bucket_versioning
+    for_each: aws.s3.list_buckets
+    calls:
+      - action: get_bucket_versioning
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        MFADelete: '{{ item.MFADelete }}'
+        Status: '{{ item.Status }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.s3.get_object_lock_configuration [dependent] ──
+  - discovery_id: aws.s3.get_object_lock_configuration
+    for_each: aws.s3.list_buckets
+    calls:
+      - action: get_object_lock_configuration
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        ObjectLockEnabled: '{{ item.ObjectLockEnabled }}'
+        Rule: '{{ item.Rule }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.s3.get_public_access_block [dependent] ──
+  - discovery_id: aws.s3.get_public_access_block
+    for_each: aws.s3.list_buckets
+    calls:
+      - action: get_public_access_block
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        BlockPublicAcls: '{{ item.BlockPublicAcls }}'
+        BlockPublicPolicy: '{{ item.BlockPublicPolicy }}'
+        IgnorePublicAcls: '{{ item.IgnorePublicAcls }}'
+        RestrictPublicBuckets: '{{ item.RestrictPublicBuckets }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.s3.list_bucket_intelligent_tiering_configurations [dependent] ──
+  - discovery_id: aws.s3.list_bucket_intelligent_tiering_configurations
+    for_each: aws.s3.list_buckets
+    calls:
+      - action: list_bucket_intelligent_tiering_configurations
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Filter: '{{ item.Filter }}'
+        Id: '{{ item.Id }}'
+        Status: '{{ item.Status }}'
+        Tierings: '{{ item.Tierings }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.s3.list_bucket_metrics_configurations [dependent] ──
+  - discovery_id: aws.s3.list_bucket_metrics_configurations
+    for_each: aws.s3.list_buckets
+    calls:
+      - action: list_bucket_metrics_configurations
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Filter: '{{ item.Filter }}'
+        Id: '{{ item.Id }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.s3.get_bucket_encryption [dependent] ──
+  - discovery_id: aws.s3.get_bucket_encryption
+    for_each: aws.s3.list_buckets
+    calls:
+      - action: get_bucket_encryption
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Rules: '{{ item.Rules }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.s3.get_bucket_policy_status [dependent] ──
+  - discovery_id: aws.s3.get_bucket_policy_status
+    for_each: aws.s3.list_buckets
+    calls:
+      - action: get_bucket_policy_status
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        IsPublic: '{{ item.IsPublic }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.s3.get_bucket_policy [dependent] ──
+  - discovery_id: aws.s3.get_bucket_policy
+    for_each: aws.s3.list_buckets
+    calls:
+      - action: get_bucket_policy
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Policy: '{{ item.Policy }}'
+        Policy.Statement.Action: '{{ item.Policy.Statement.Action }}'
+        "Policy.Statement.Condition.Bool'aws:SecureTransport'": "{{ item.Policy.Statement.Condition.Bool'aws:SecureTransport' }}"
+        Policy.Statement.Effect: '{{ item.Policy.Statement.Effect }}'
+        Policy.Statement.Principal: '{{ item.Policy.Statement.Principal }}'
+

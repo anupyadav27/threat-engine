@@ -3,10 +3,9 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Shield, ChevronRight, ChevronDown, CheckCircle, XCircle,
-  AlertTriangle, ArrowLeft, Search, Download, X, FileText,
-  Server, ExternalLink, Clock,
+  AlertTriangle, ArrowLeft, Search, Download, X,
 } from 'lucide-react';
-import { getFromEngine } from '@/lib/api';
+import { getFromEngine, fetchView } from '@/lib/api';
 import { TENANT_ID } from '@/lib/constants';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 
@@ -45,11 +44,9 @@ export default function CompliancePage() {
   // ── Fetch frameworks list ──
   useEffect(() => {
     setLoading(true);
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    fetch(`${origin}/gateway/api/v1/views/compliance?tenant_id=${TENANT_ID || 'default-tenant'}`)
-      .then(r => r.json())
+    fetchView('compliance', { tenant_id: TENANT_ID || 'default-tenant' })
       .then(d => {
-        setFrameworks(d.frameworks || []);
+        setFrameworks(d?.frameworks || []);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -60,9 +57,7 @@ export default function CompliancePage() {
     if (!selectedFw) { setFwDetail(null); return; }
     setFwLoading(true);
     setExpandedSections(new Set());
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    fetch(`${origin}/gateway/api/v1/views/compliance/framework/${selectedFw.id}?tenant_id=${TENANT_ID || 'default-tenant'}`)
-      .then(r => r.json())
+    fetchView(`compliance/framework/${selectedFw.id}`, { tenant_id: TENANT_ID || 'default-tenant' })
       .then(d => setFwDetail(d))
       .catch(() => setFwDetail(null))
       .finally(() => setFwLoading(false));
@@ -160,11 +155,19 @@ export default function CompliancePage() {
           value={selectedFw && fwDetail ? `${fwDetail.score}%` : `${totals.score}%`}
           color={totals.score >= 70 ? C.pass : totals.score >= 40 ? C.partial : C.fail} />
         {selectedFw && fwDetail && (
-          <div style={{ display: 'flex', gap: 24, padding: '16px 24px', borderRadius: 12, border: `1px solid ${C.border}`, backgroundColor: C.bg, flex: 1 }}>
+          <div style={{ display: 'flex', gap: 24, padding: '16px 24px', borderRadius: 12, border: `1px solid ${C.border}`, backgroundColor: C.bg, flex: 1, flexWrap: 'wrap' }}>
             <MiniStat label="Pass" value={fwDetail.summary?.PASS || 0} color={C.pass} />
             <MiniStat label="Fail" value={fwDetail.summary?.FAIL || 0} color={C.fail} />
             <MiniStat label="Partial" value={fwDetail.summary?.PARTIAL || 0} color={C.partial} />
             <MiniStat label="N/A" value={fwDetail.summary?.NOT_APPLICABLE || 0} color={C.na} />
+            {/* Config vs CIEM split — surfaced from enriched CSV */}
+            {(fwDetail.config_score != null || fwDetail.ciem_score != null) && (
+              <>
+                <div style={{ width: 1, backgroundColor: C.border, alignSelf: 'stretch' }} />
+                <CiemConfigBar label="Config" score={fwDetail.config_score ?? fwDetail.score} />
+                <CiemConfigBar label="CIEM" score={fwDetail.ciem_score ?? 0} gap={(fwDetail.config_score ?? 0) - (fwDetail.ciem_score ?? 0)} />
+              </>
+            )}
           </div>
         )}
       </div>
@@ -454,6 +457,46 @@ export default function CompliancePage() {
                     <StatBox label="Fail" value={controlPanel.fail_count || 0} color={C.fail} />
                     <StatBox label="Total" value={controlPanel.total_resources || 0} color={C.blue} />
                   </div>
+
+                  {/* Config checks list — each check_id links to /check/:provider/:id */}
+                  {controlDetail?.config_checks?.length > 0 && (
+                    <Section title="Config Checks">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {controlDetail.config_checks.map((ck) => (
+                          <a key={ck.check_id} href={`/check/${ck.provider}/${ck.check_id}`}
+                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', borderRadius: 6, backgroundColor: 'var(--bg-tertiary)', textDecoration: 'none', border: `1px solid ${C.border}` }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 3, fontWeight: 700, backgroundColor: 'var(--bg-secondary)', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{ck.provider}</span>
+                              <code style={{ fontSize: 11, color: 'var(--text-primary)' }}>{ck.check_id}</code>
+                            </div>
+                            <span style={{ fontSize: 10, fontWeight: 600, color: ck.status === 'PASS' ? C.pass : C.fail }}>
+                              {ck.status === 'PASS' ? '✓' : `✗ ${ck.failing_count ?? ''}`}
+                            </span>
+                          </a>
+                        ))}
+                      </div>
+                    </Section>
+                  )}
+
+                  {/* CIEM checks list */}
+                  {controlDetail?.ciem_checks?.length > 0 && (
+                    <Section title="CIEM Checks">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {controlDetail.ciem_checks.map((ck) => (
+                          <a key={ck.check_id} href={`/check/${ck.provider}/${ck.check_id}`}
+                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', borderRadius: 6, backgroundColor: 'rgba(139,92,246,0.07)', textDecoration: 'none', border: `1px solid rgba(139,92,246,0.2)` }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 3, fontWeight: 700, backgroundColor: 'rgba(139,92,246,0.15)', color: '#8b5cf6', textTransform: 'uppercase' }}>{ck.provider}</span>
+                              <code style={{ fontSize: 11, color: 'var(--text-primary)' }}>{ck.check_id}</code>
+                            </div>
+                            <span style={{ fontSize: 10, fontWeight: 600, color: ck.status === 'PASS' ? C.pass : C.fail }}>
+                              {ck.status === 'PASS' ? '✓' : `✗ ${ck.failing_count ?? ''}`}
+                            </span>
+                          </a>
+                        ))}
+                      </div>
+                    </Section>
+                  )}
                 </div>
               )}
 
@@ -475,9 +518,12 @@ export default function CompliancePage() {
                               {(f.check_result || f.status || '').toUpperCase()}
                             </span>
                           </div>
-                          <div style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {/* Asset ID links to asset detail page */}
+                          <a href={`/inventory/${f.asset_id || f.resource_uid}`}
+                            style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--accent-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block', textDecoration: 'none' }}
+                            title="View asset detail">
                             {f.resource_uid || f.resource_arn || '—'}
-                          </div>
+                          </a>
                           {f.checked_fields?.length > 0 && (
                             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
                               {f.checked_fields.map((cf, ci) => (
@@ -517,8 +563,9 @@ function RemediationTab({ controlDetail, findings }) {
   const guidance = controlDetail?.implementation_guidance || '';
   const testing = controlDetail?.testing_procedures || '';
   const findingRem = findings?.[0]?.remediation || '';
+  // enriched_remediation comes from final_compliance_rules_enriched.csv via the API
+  const enrichedRem = controlDetail?.remediation || controlDetail?.enriched_remediation || '';
 
-  // Extract CLI commands from testing_procedures or remediation
   const extractCli = (text) => {
     if (!text) return null;
     const lines = text.split('\n');
@@ -531,20 +578,26 @@ function RemediationTab({ controlDetail, findings }) {
     return cliLines.length > 0 ? cliLines.join('\n') : null;
   };
 
-  const cliFromTesting = extractCli(testing);
-  const cliFromGuidance = extractCli(guidance);
-  const cliContent = cliFromTesting || cliFromGuidance;
+  const cliContent = extractCli(testing) || extractCli(guidance) || extractCli(enrichedRem);
+  const consoleContent = guidance || enrichedRem || findingRem || null;
 
-  // Console steps = the main guidance/remediation text
-  const consoleContent = guidance || findingRem || null;
+  // Extract IaC snippets from enriched remediation (blocks fenced with terraform/pulumi/yaml)
+  const extractBlock = (text, lang) => {
+    if (!text) return null;
+    const re = new RegExp('```' + lang + '\\s*([\\s\\S]*?)```', 'i');
+    const m = text.match(re);
+    return m ? m[1].trim() : null;
+  };
+  const terraformContent = extractBlock(enrichedRem, 'terraform') || extractBlock(enrichedRem, 'hcl');
+  const cfnContent = extractBlock(enrichedRem, 'yaml') || extractBlock(enrichedRem, 'json');
 
   const modes = [
-    { id: 'cli', label: 'CLI', hasContent: !!cliContent },
-    { id: 'console', label: 'Console', hasContent: !!consoleContent },
-    { id: 'terraform', label: 'Terraform', hasContent: false },
-    { id: 'pulumi', label: 'Pulumi', hasContent: false },
-    { id: 'cloudformation', label: 'CloudFormation', hasContent: false },
-    { id: 'arm', label: 'ARM', hasContent: false },
+    { id: 'cli',            label: 'CLI',            hasContent: !!cliContent },
+    { id: 'console',        label: 'Console',        hasContent: !!consoleContent },
+    { id: 'terraform',      label: 'Terraform',      hasContent: !!terraformContent },
+    { id: 'pulumi',         label: 'Pulumi',         hasContent: false },
+    { id: 'cloudformation', label: 'CloudFormation', hasContent: !!cfnContent },
+    { id: 'arm',            label: 'ARM',            hasContent: false },
   ];
 
   return (
@@ -595,13 +648,24 @@ function RemediationTab({ controlDetail, findings }) {
         </Section>
       )}
 
-      {['terraform', 'pulumi', 'cloudformation', 'arm'].includes(activeMode) && (
-        <Section title={`${modes.find(m => m.id === activeMode)?.label} Remediation`}>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
-            {modes.find(m => m.id === activeMode)?.label} remediation will be available in a future update.
-          </p>
-        </Section>
-      )}
+      {['terraform', 'pulumi', 'cloudformation', 'arm'].includes(activeMode) && (() => {
+        const snippets = { terraform: terraformContent, cloudformation: cfnContent };
+        const content = snippets[activeMode];
+        const label = modes.find(m => m.id === activeMode)?.label;
+        return (
+          <Section title={`${label} Remediation`}>
+            {content ? (
+              <pre style={{ margin: 0, fontSize: 12, fontFamily: 'monospace', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                {content}
+              </pre>
+            ) : (
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
+                {label} snippet not available for this control.
+              </p>
+            )}
+          </Section>
+        );
+      })()}
     </div>
   );
 }
@@ -666,6 +730,24 @@ function StatBox({ label, value, color }) {
     <div style={{ padding: '12px', borderRadius: 8, backgroundColor: 'var(--bg-secondary)', border: `1px solid ${C.border}`, textAlign: 'center' }}>
       <div style={{ fontSize: 20, fontWeight: 700, color }}>{value}</div>
       <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{label}</div>
+    </div>
+  );
+}
+
+function CiemConfigBar({ label, score, gap }) {
+  const color = label === 'CIEM' ? '#8b5cf6' : '#3b82f6';
+  return (
+    <div style={{ minWidth: 120 }}>
+      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>
+        <span>{label}</span>
+        {gap != null && gap > 0 && <span style={{ color: '#f97316' }}>gap: {gap}%</span>}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: 'var(--bg-tertiary)', overflow: 'hidden' }}>
+          <div style={{ width: `${score ?? 0}%`, height: '100%', backgroundColor: color, borderRadius: 3 }} />
+        </div>
+        <span style={{ fontSize: 12, fontWeight: 700, color, minWidth: 32, textAlign: 'right' }}>{score ?? 0}%</span>
+      </div>
     </div>
   );
 }

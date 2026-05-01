@@ -44,8 +44,9 @@ def create_engine_job(
     extra_args: Optional[List[str]] = None,
     namespace: Optional[str] = None,
     service_account: Optional[str] = None,
+    use_spot: bool = True,
 ) -> str:
-    """Create a K8s Job to run an engine scan on a spot node.
+    """Create a K8s Job to run an engine scan.
 
     Args:
         engine_name: Engine identifier (e.g., "check", "threat", "discoveries")
@@ -61,6 +62,8 @@ def create_engine_job(
         extra_args: Additional CLI arguments appended to the command
         namespace: Override K8s namespace (default: threat-engine-engines)
         service_account: Override service account (default: engine-sa)
+        use_spot: If True (default), schedule on spot scanner nodes.
+                  If False, schedule on on-demand nodes (no spot taint/selector).
 
     Returns:
         Job name (str)
@@ -91,6 +94,18 @@ def create_engine_job(
         k8s_client.V1EnvVar(name="AWS_REGION", value=os.getenv("AWS_REGION", "ap-south-1")),
         k8s_client.V1EnvVar(name="AWS_STS_REGIONAL_ENDPOINTS", value="legacy"),
         k8s_client.V1EnvVar(name="ENGINE_NAME", value=engine_name),
+        # DB_PASSWORD is the shared fallback used by all engine DB connectors.
+        # Map it from DISCOVERIES_DB_PASSWORD (the key that exists in the secret)
+        # so engines that haven't been updated to use DISCOVERIES_DB_PASSWORD directly still work.
+        k8s_client.V1EnvVar(
+            name="DB_PASSWORD",
+            value_from=k8s_client.V1EnvVarSource(
+                secret_key_ref=k8s_client.V1SecretKeySelector(
+                    name="threat-engine-db-passwords",
+                    key="DISCOVERIES_DB_PASSWORD",
+                )
+            ),
+        ),
     ]
     if extra_env:
         env.extend(extra_env)
@@ -129,22 +144,32 @@ def create_engine_job(
                         "workload-type": "scan",
                         "engine": engine_name,
                     },
+                    # Prevent cluster autoscaler from evicting on-demand scanner
+                    # pods mid-run. Spot pods are intentionally evictable.
+                    annotations=(
+                        {}
+                        if use_spot
+                        else {"cluster-autoscaler.kubernetes.io/safe-to-evict": "false"}
+                    ),
                 ),
                 spec=k8s_client.V1PodSpec(
                     service_account_name=sa,
                     restart_policy="Never",
-                    tolerations=[
-                        k8s_client.V1Toleration(
-                            key="spot-scanner",
-                            operator="Equal",
-                            value="true",
-                            effect="NoSchedule",
-                        ),
-                    ],
-                    node_selector={
-                        "workload-type": "scan",
-                        "node-type": "spot",
-                    },
+                    tolerations=(
+                        [
+                            k8s_client.V1Toleration(
+                                key="spot-scanner",
+                                operator="Equal",
+                                value="true",
+                                effect="NoSchedule",
+                            ),
+                        ]
+                        if use_spot else []
+                    ),
+                    node_selector=(
+                        {"workload-type": "scan", "node-type": "spot"}
+                        if use_spot else {}
+                    ),
                     containers=[
                         k8s_client.V1Container(
                             name="scanner",
@@ -165,6 +190,12 @@ def create_engine_job(
     )
 
     batch_api = k8s_client.BatchV1Api()
-    batch_api.create_namespaced_job(namespace=ns, body=job)
-    logger.info(f"Created {engine_name} scanner Job: {job_name} (image={image})")
+    try:
+        batch_api.create_namespaced_job(namespace=ns, body=job)
+        logger.info(f"Created {engine_name} scanner Job: {job_name} (image={image})")
+    except k8s_client.ApiException as e:
+        if e.status == 409:
+            logger.info(f"Scanner Job {job_name} already exists — reusing existing job")
+        else:
+            raise
     return job_name

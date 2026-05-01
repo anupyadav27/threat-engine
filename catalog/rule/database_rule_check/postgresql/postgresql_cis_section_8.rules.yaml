@@ -1,0 +1,44 @@
+tech_type: postgresql
+category: database
+cis_benchmark: CIS PostgreSQL 17 v1.0.0
+cis_section: '8'
+
+rules:
+
+  - rule_id: postgresql.cis.8.backup_and_restore_tool_pgbackrest_is_installed
+    title: "Ensure the backup and restore tool, 'pgBackRest', is installed and configured"
+    severity: high
+    automation_type: automated
+    cis_control: '8.2'
+    cis_section: '8'
+    profile_applicability: "Level 1"
+    scope: postgresql.section_8.backup_and_restore_tool_pgbackrest_is_installed
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      pgBackRest is not installed nor configured for PostgreSQL by default, but
+      instead is maintained as a GitHub project. Fortunately, it is a part of the
+      PGDG repository and can be easily installed: # whoami root # subscription-
+      manager repos --enable codeready-builder-for-rhel-9-$(arch)- rpms && dnf -y
+      install https://dl.fedoraproject.org/pub/epel/epel-release-
+      latest-9.noarch.rpm <snip> Installed: epel-release-9-8.el9.noarch Complete! #
+      dnf -y install pgbackrest <snip> Installed: libssh2-1.11.0-1.el9.x86_64
+      pgbackrest-2.53.1- 1PGDG.rhel9.x86_64 Complete! Once installed, pgBackRest
+      must be configured for things like stanza name, backup location, retention
+      policy, logging, etc. Please consult the configuration guide. If employing
+      pgBackRest for your backup/recovery solution, ensure the repository, base
+      backups, and WAL archives are stored on a reliable file system separate from
+      the database server. Further, the external storage system where backups reside
+      should have limited access to only those system administrators as necessary.
+      Finally, as with any backup/recovery solution, stringent testing must be
+      conducted. A backup is only good if it can be restored successfully.
+      References: 1. https://pgbackrest.org/ 2.
+      https://github.com/pgbackrest/pgbackrest 3.
+      https://www.postgresql.org/docs/current/static/app-pgdump.html 4.
+      https://www.postgresql.org/docs/current/static/app-pgbasebackup.html
+    compliance:
+      - cis_postgresql_17_v1_0_0_8_2
+
+

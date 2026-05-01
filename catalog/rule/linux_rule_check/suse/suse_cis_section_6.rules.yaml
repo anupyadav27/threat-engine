@@ -1,0 +1,858 @@
+tech_type: suse
+category: linux
+cis_benchmark: CIS SUSE Linux 15 v2.0.1
+cis_section: '6'
+
+rules:
+
+  - rule_id: suse.cis.6.aide_is_installed
+    title: "Ensure AIDE is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1.1'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.aide_is_installed
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to install aide: # zypper install aide Configure
+      aide as appropriate for your environment. Consult the aide documentation for
+      options. Initialize aide: Run the following commands: # aide -i # mv
+      /var/lib/aide/aide.db.new /var/lib/aide/aide.db References: 1. AIDE stable
+      manual: http://aide.sourceforge.net/stable/manual.html 2. NIST SP 800-53 Rev.
+      5: AU-2 3. https://documentation.suse.com/sles/15-SP6/html/SLES-all/cha-
+      aide.html Additional Information: The prelinking feature can interfere with
+      aide because it alters binaries to speed up their start up times. Run prelink
+      -ua to restore the binaries to their prelinked state, thus avoiding false
+      positives from aide.
+    compliance:
+      - cis_suse_15_v2_0_1_6_1_1
+
+  - rule_id: suse.cis.6.filesystem_integrity_is_regularly_checked
+    title: "Ensure filesystem integrity is regularly checked"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1.2'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.filesystem_integrity_is_regularly_checked
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - cron will be used to schedule and run aide check Run the following
+      command: # crontab -u root -e Add the following line to the crontab: 0 5 * * *
+      /usr/bin/aide --check - OR - - IF - aidecheck.service and aidecheck.timer will
+      be used to schedule and run aide check: Create or edit the file
+      /etc/systemd/system/aidecheck.service and add the following lines: [Unit]
+      Description=Aide Check [Service] Type=simple ExecStart=/usr/bin/aide --check
+      [Install] WantedBy=multi-user.target Create or edit the file
+      /etc/systemd/system/aidecheck.timer and add the following lines: [Unit]
+      Description=Aide check every day at 5AM [Timer] OnCalendar=*-*-* 05:00:00
+      Unit=aidecheck.service [Install] WantedBy=multi-user.target Run the following
+      commands: # chown root:root /etc/systemd/system/aidecheck.* # chmod 0644
+      /etc/systemd/system/aidecheck.* # systemctl daemon-reload # systemctl enable
+      aidecheck.service # systemctl --now enable aidecheck.timer References: 1.
+      https://github.com/konstruktoid/hardening/blob/master/config/aidecheck.service
+      2.
+      https://github.com/konstruktoid/hardening/blob/master/config/aidecheck.timer
+      3. NIST SP 800-53 Rev. 5: AU-2 4.
+      https://documentation.suse.com/sles/15-SP6/html/SLES-all/cha-aide.html
+      Additional Information: The checking in this recommendation occurs every day
+      at 5am. Alter the frequency and time of the checks in compliance with site
+      policy.
+    compliance:
+      - cis_suse_15_v2_0_1_6_1_2
+
+  - rule_id: suse.cis.6.journald_service_is_enabled_and_active
+    title: "Ensure journald service is enabled and active"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.1.1'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.journald_service_is_enabled_and_active
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following commands to unmask and start systemd-journald.service #
+      systemctl unmask systemd-journald.service # systemctl start systemd-
+      journald.service References: 1. NIST SP 800-53 Rev. 5: AU-2, AU-7 AU-12
+    compliance:
+      - cis_suse_15_v2_0_1_6_2_1_1
+
+  - rule_id: suse.cis.6.only_one_logging_system_is_in_use
+    title: "Ensure only one logging system is in use"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.1.4'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.only_one_logging_system_is_in_use
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      1. Determine whether to use journald - OR - rsyslog depending on site needs 2.
+      Configure systemd-jounald.service 3. Configure only ONE either journald - OR -
+      rsyslog and complete the recommendations in that subsection 4. Return to this
+      recommendation to ensure only one logging system is in use 6.2.2 Configure
+      journald Included in the systemd suite is a journaling service called systemd-
+      journald.service for the collection and storage of logging data. It creates
+      and maintains structured, indexed journals based on logging information that
+      is received from a variety of sources such as: Classic RFC3164 BSD syslog via
+      the /dev/log socket STDOUT/STDERR of programs via StandardOutput=journal +
+      StandardError=journal in service files (both of which are default settings)
+      Kernel log messages via the /dev/kmsg device node Audit records via the
+      kernel’s audit subsystem Structured log messages via journald’s native
+      protocol Any changes made to the systemd-journald configuration will require a
+      re-start of systemd- journald Note: - IF - rsyslog will be used for remote
+      logging on the system this subsection can be skipped 6.2.2.1 Configure
+      systemd-journal-remote The systemd-journal-remote package includes systemd-
+      journal-upload. systemd-journal-upload will upload journal entries to the URL
+      specified with --url=. This program reads journal entries from one or more
+      journal files, similarly to journalctl. systemd-journal-upload transfers the
+      raw content of journal file and uses HTTP as a transport protocol. systemd-
+      journal-upload.service is a system service that uses systemd-journal- upload
+      to upload journal entries to a server. It uses the configuration in journal-
+      upload.conf. Note: - IF - rsyslog is in use this subsection can be skipped.
+    compliance:
+      - cis_suse_15_v2_0_1_6_2_1_4
+
+  - rule_id: suse.cis.6.systemd_journal_remote_is_installed
+    title: "Ensure systemd-journal-remote is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.2.1.1'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.systemd_journal_remote_is_installed
+    assertion:
+      field: port
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following command to install systemd-journal-remote: # zypper install
+      systemd-journal-remote References: 1. NIST SP 800-53 Rev. 5: AU-2, AU-7 AU-12
+    compliance:
+      - cis_suse_15_v2_0_1_6_2_2_1_1
+
+  - rule_id: suse.cis.6.systemd_journal_upload_is_enabled_and_active
+    title: "Ensure systemd-journal-upload is enabled and active"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.2.1.3'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.systemd_journal_upload_is_enabled_and_active
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following commands to unmask, enable and start systemd-journal-upload:
+      # systemctl unmask systemd-journal-upload.service # systemctl --now enable
+      systemd-journal-upload.service References: 1. NIST SP 800-53 Rev. 5: AU-2,
+      AU-12
+    compliance:
+      - cis_suse_15_v2_0_1_6_2_2_1_3
+
+  - rule_id: suse.cis.6.systemd_journal_remote_service_is_not_in_use
+    title: "Ensure systemd-journal-remote service is not in use"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.2.1.4'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.systemd_journal_remote_service_is_not_in_use
+    assertion:
+      field: port
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following commands to stop and mask systemd-journal-remote.socket and
+      systemd-journal-remote.service: # systemctl stop systemd-journal-remote.socket
+      systemd-journal-remote.service # systemctl mask systemd-journal-remote.socket
+      systemd-journal-remote.service References: 1. NIST SP 800-53 Rev. 5: AU-2,
+      AU-7 AU-12
+    compliance:
+      - cis_suse_15_v2_0_1_6_2_2_1_4
+
+  - rule_id: suse.cis.6.journald_forwardtosyslog_is_disabled
+    title: "Ensure journald ForwardToSyslog is disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.2.2'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.journald_forwardtosyslog_is_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      - IF - rsyslog is the preferred method for capturing logs, this section and
+      Recommendation should be skipped and the 'Configure rsyslog' section followed.
+      - IF - journald is the preferred method for capturing logs: Set the following
+      parameter in the [Journal] section in /etc/systemd/journald.conf or a file in
+      /etc/systemd/journald.conf.d/ ending in .conf: ForwardToSyslog=no Example:
+      #!/usr/bin/env bash { [ ! -d /etc/systemd/journald.conf.d/ ] && mkdir
+      /etc/systemd/journald.conf.d/ if grep -Psq -- '^\h*\[Journal\]'
+      /etc/systemd/journald.conf.d/60- journald.conf; then printf '%s\n'
+      'ForwardToSyslog=no' >> /etc/systemd/journald.conf.d/60- journald.conf else
+      printf '%s\n' '[Journal]' 'ForwardToSyslog=no' >>
+      /etc/systemd/journald.conf.d/60-journald.conf fi } Note: If this setting
+      appears in a canonically later file, or later in the same file, the setting
+      will be overwritten Run to following command to update the parameters in the
+      service: # systemctl reload-or-restart systemd-journald Default Value:
+      ForwardToSyslog=no References: 1. NIST SP 800-53 Rev. 5: AU-2, AU-6, AU-7,
+      AU-12
+    compliance:
+      - cis_suse_15_v2_0_1_6_2_2_2
+
+  - rule_id: suse.cis.6.journald_compress_is_configured
+    title: "Ensure journald Compress is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.2.3'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.journald_compress_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "yes"
+    remediation: >
+      Set the following parameter in the [Journal] section in
+      /etc/systemd/journald.conf or a file in /etc/systemd/journald.conf.d/ ending
+      in .conf: Compress=yes Example: #!/usr/bin/env bash { [ ! -d
+      /etc/systemd/journald.conf.d/ ] && mkdir /etc/systemd/journald.conf.d/ if grep
+      -Psq -- '^\h*\[Journal\]' /etc/systemd/journald.conf.d/60- journald.conf; then
+      printf '%s\n' 'Compress=yes' >> /etc/systemd/journald.conf.d/60- journald.conf
+      else printf '%s\n' '[Journal]' 'Compress=yes' >>
+      /etc/systemd/journald.conf.d/60-journald.conf fi } Note: If this setting
+      appears in a canonically later file, or later in the same file, the setting
+      will be overwritten Run to following command to update the parameters in the
+      service: # systemctl reload-or-restart systemd-journald References: 1. NIST SP
+      800-53 Rev. 5: AU-4
+    compliance:
+      - cis_suse_15_v2_0_1_6_2_2_3
+
+  - rule_id: suse.cis.6.journald_storage_is_configured
+    title: "Ensure journald Storage is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.2.4'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.journald_storage_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Set the following parameter in the [Journal] section in
+      /etc/systemd/journald.conf or a file in /etc/systemd/journald.conf.d/ ending
+      in .conf: Storage=persistent Example: #!/usr/bin/env bash { [ ! -d
+      /etc/systemd/journald.conf.d/ ] && mkdir /etc/systemd/journald.conf.d/ if grep
+      -Psq -- '^\h*\[Journal\]' /etc/systemd/journald.conf.d/60- journald.conf; then
+      printf '%s\n' 'Storage=persistent' >> /etc/systemd/journald.conf.d/60-
+      journald.conf else printf '%s\n' '[Journal]' 'Storage=persistent' >>
+      /etc/systemd/journald.conf.d/60-journald.conf fi } Note: If this setting
+      appears in a canonically later file, or later in the same file, the setting
+      will be overwritten Run to following command to update the parameters in the
+      service: # systemctl reload-or-restart systemd-journald References: 1. NIST SP
+      800-53 Rev. 5: AU-3, AU-12
+    compliance:
+      - cis_suse_15_v2_0_1_6_2_2_4
+
+  - rule_id: suse.cis.6.rsyslog_is_not_configured_to_receive_logs_from_a
+    title: "Ensure rsyslog is not configured to receive logs from a remote client"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.3.1.2'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.rsyslog_is_not_configured_to_receive_logs_from_a
+    assertion:
+      field: port
+      operator: exists
+      expected: "true"
+    remediation: >
+      Should there be any active log server configuration found in the auditing
+      section, modify those files and remove the specific lines highlighted by the
+      audit. Verify none of the following entries are present in any of
+      /etc/rsyslog.conf or /etc/rsyslog.d/*.conf. advanced format
+      module(load='imtcp') input(type='imtcp' port='514') deprecated legacy format
+      $ModLoad imtcp $InputTCPServerRun Restart the service: # systemctl restart
+      rsyslog References: 1. NIST SP 800-53 Rev. 5: AU-2, AU-7, AU-12, CM-6 2.
+      https://www.rsyslog.com/doc/index.html
+    compliance:
+      - cis_suse_15_v2_0_1_6_2_3_1_2
+
+  - rule_id: suse.cis.6.rsyslog_is_installed
+    title: "Ensure rsyslog is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.3.2'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.rsyslog_is_installed
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following command to install rsyslog: # zypper install rsyslog Default
+      Value: Installed References: 1. NIST SP 800-53 Rev. 5: AU-2, AU-3, AU-12
+    compliance:
+      - cis_suse_15_v2_0_1_6_2_3_2
+
+  - rule_id: suse.cis.6.rsyslog_service_is_enabled_and_active
+    title: "Ensure rsyslog service is enabled and active"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.3.3'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.rsyslog_service_is_enabled_and_active
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "on"
+    remediation: >
+      - IF - rsyslog is being used for logging on the system: Run the following
+      commands to unmask, enable, and start rsyslog.service: # systemctl unmask
+      rsyslog.service # systemctl enable rsyslog.service # systemctl start
+      rsyslog.service References: 1. NIST SP 800-53 Rev. 5: AU-2, AU-3, AU-12
+    compliance:
+      - cis_suse_15_v2_0_1_6_2_3_3
+
+  - rule_id: suse.cis.6.journald_is_configured_to_send_logs_to_rsyslog
+    title: "Ensure journald is configured to send logs to rsyslog"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.3.4'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.journald_is_configured_to_send_logs_to_rsyslog
+    assertion:
+      field: port
+      operator: exists
+      expected: "yes"
+    remediation: >
+      - IF - rsyslog is the preferred method for capturing logs: Set the following
+      parameter in the [Journal] section in /etc/systemd/journald.conf or a file in
+      /etc/systemd/journald.conf.d/ ending in .conf: ForwardToSyslog=yes Example:
+      #!/usr/bin/env bash { [ ! -d /etc/systemd/journald.conf.d/ ] && mkdir
+      /etc/systemd/journald.conf.d/ if grep -Psq -- '^\h*\[Journal\]'
+      /etc/systemd/journald.conf.d/60- journald.conf; then printf '%s\n'
+      'ForwardToSyslog=yes' >> /etc/systemd/journald.conf.d/60- journald.conf else
+      printf '%s\n' '[Journal]' 'ForwardToSyslog=yes' >>
+      /etc/systemd/journald.conf.d/60-journald.conf fi } Note: If this setting
+      appears in a canonically later file, or later in the same file, the setting
+      will be overwritten Run to following command to update the parameters in the
+      service: Restart systemd-journald.service: # systemctl reload-or-restart
+      systemd-journald.service References: 1. NIST SP 800-53 Rev. 5: AC-3, AU-2,
+      AU-4, AU-12, MP-2 2. SYSTEMD-JOURNALD.SERVICE(8) 3. JOURNALD.CONF(5)
+      Additional Information: As noted in the systemd-journald man pages, systemd-
+      journald logs may be exported to rsyslog either through the process mentioned
+      here, or through a facility like systemd-journald.service. There are trade-
+      offs involved in each implementation, where ForwardToSyslog will immediately
+      capture all events (and forward to an external log server, if properly
+      configured), but may not capture all boot-up activities. Mechanisms such as
+      systemd-journald.service, on the other hand, will record bootup events, but
+      may delay sending the information to rsyslog, leading to the potential for log
+      manipulation prior to export. Be aware of the limitations of all tools
+      employed to secure a system.
+    compliance:
+      - cis_suse_15_v2_0_1_6_2_3_4
+
+  - rule_id: suse.cis.6.rsyslog_log_file_creation_mode_is_configured
+    title: "Ensure rsyslog log file creation mode is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.3.5'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.rsyslog_log_file_creation_mode_is_configured
+    assertion:
+      field: port
+      operator: exists
+      expected: "true"
+    remediation: >
+      Edit either /etc/rsyslog.conf or a dedicated .conf file in /etc/rsyslog.d/ and
+      set $FileCreateMode to 0640 or more restrictive: $FileCreateMode 0640 Restart
+      the service: # systemctl restart rsyslog References: 1. RSYSLOG.CONF(5) 2.
+      NIST SP 800-53 Rev. 5: AC-3, AC-6, MP-2 3. https://www.rsyslog.com/doc/ 4.
+      https://www.rsyslog.com/doc/configuration/action/rsconf1_filecreatemode.html#fil
+      ecreatemode
+    compliance:
+      - cis_suse_15_v2_0_1_6_2_3_5
+
+  - rule_id: suse.cis.6.file_deletion_events_by_users_are_collected
+    title: "Ensure file deletion events by users are collected"
+    severity: medium
+    automation_type: automated
+    cis_control: '6.3.3.13'
+    cis_section: '6'
+    profile_applicability: "Level 2"
+    scope: suse.section_6.file_deletion_events_by_users_are_collected
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Create audit rules Edit or create a file in the /etc/audit/rules.d/ directory,
+      ending in .rules extension, with the relevant rules to monitor file deletion
+      events by users. Example: # { UID_MIN=$(awk '/^\s*UID_MIN/{print $2}'
+      /etc/login.defs) [ -n '${UID_MIN}' ] && printf ' -a always,exit -F arch=b64 -S
+      rename,unlink,unlinkat,renameat -F auid>=${UID_MIN} -F auid!=unset -F
+      key=delete -a always,exit -F arch=b32 -S rename,unlink,unlinkat,renameat -F
+      auid>=${UID_MIN} -F auid!=unset -F key=delete ' >>
+      /etc/audit/rules.d/50-delete.rules || printf 'ERROR: Variable 'UID_MIN' is
+      unset.\n' } Load audit rules Merge and load the rules into active
+      configuration: # augenrules --load Check if reboot is required. # if [[
+      $(auditctl -s | grep 'enabled') =~ '2' ]]; then printf 'Reboot required to
+      load rules\n'; fi References: 1. NIST SP 800-53 Rev. 5: AU-12, SC-7 Additional
+      Information: Potential reboot required If the auditing configuration is locked
+      (-e 2), then augenrules will not warn in any way that rules could not be
+      loaded into the running configuration. A system reboot will be required to
+      load the rules into the running configuration. System call structure For
+      performance (man 7 audit.rules) reasons it is preferable to have all the
+      system calls on one line. However, your configuration may have them on one
+      line each or some other combination. This is important to understand for both
+      the auditing and remediation sections as the examples given are optimized for
+      performance as per the man page.
+    compliance:
+      - cis_suse_15_v2_0_1_6_3_3_13
+
+  - rule_id: suse.cis.6.permissions_on_etc_passwd_are_configured
+    title: "Ensure permissions on /etc/passwd are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1.2'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.permissions_on_etc_passwd_are_configured
+    assertion:
+      field: row_count
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following commands to set owner, group, and permissions on
+      /etc/passwd: # chown root:root /etc/passwd # chmod u-x,g-wx,o-wx /etc/passwd
+    compliance:
+      - cis_suse_12_v3_2_1_6_1_2
+
+  - rule_id: suse.cis.6.permissions_on_etc_shadow_are_configured
+    title: "Ensure permissions on /etc/shadow are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1.3'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.permissions_on_etc_shadow_are_configured
+    assertion:
+      field: row_count
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following commands to set owner, group, and permissions on
+      /etc/shadow: # chown root:root /etc/shadow # chmod u-x,g-wx,o-rwx /etc/shadow
+    compliance:
+      - cis_suse_12_v3_2_1_6_1_3
+
+  - rule_id: suse.cis.6.no_unowned_files_or_directories_exist
+    title: "Ensure no unowned files or directories exist"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1.9'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.no_unowned_files_or_directories_exist
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Locate files that are owned by users or groups not listed in the system
+      configuration files, and reset the ownership of these files to some active
+      user on the system as appropriate.
+    compliance:
+      - cis_suse_12_v3_2_1_6_1_9
+
+  - rule_id: suse.cis.6.no_ungrouped_files_or_directories_exist
+    title: "Ensure no ungrouped files or directories exist"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1.10'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.no_ungrouped_files_or_directories_exist
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Locate files that are owned by users or groups not listed in the system
+      configuration files, and reset the ownership of these files to some active
+      user on the system as appropriate.
+    compliance:
+      - cis_suse_12_v3_2_1_6_1_10
+
+  - rule_id: suse.cis.6.accounts_in_etc_passwd_use_shadowed_passwords
+    title: "Ensure accounts in /etc/passwd use shadowed passwords"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.1'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.accounts_in_etc_passwd_use_shadowed_passwords
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "no"
+    remediation: >
+      If any accounts in the /etc/passwd file do not have a single x in the password
+      field, run the following command to set these accounts to use shadowed
+      passwords: # sed -e 's/^\([a-zA-Z0-9_]*\):[^:]*:/\1:x:/' -i /etc/passwd
+      Investigate to determine if the account is logged in and what it is being used
+      for, to determine if it needs to be forced off.
+    compliance:
+      - cis_suse_12_v3_2_1_6_2_1
+
+  - rule_id: suse.cis.6.etc_shadow_password_fields_are_not_empty
+    title: "Ensure /etc/shadow password fields are not empty"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.2'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.etc_shadow_password_fields_are_not_empty
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "no"
+    remediation: >
+      If any accounts in the /etc/shadow file do not have a password, run the
+      following command to lock the account until it can be determined why it does
+      not have a password: # passwd -l <username> Also, check to see if the account
+      is logged in and investigate what it is being used for to determine if it
+      needs to be forced off.
+    compliance:
+      - cis_suse_12_v3_2_1_6_2_2
+
+  - rule_id: suse.cis.6.root_path_integrity
+    title: "Ensure root PATH Integrity"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.4'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.root_path_integrity
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Correct or justify any items discovered in the Audit step.
+    compliance:
+      - cis_suse_12_v3_2_1_6_2_4
+
+  - rule_id: suse.cis.6.all_users_home_directories_exist
+    title: "Ensure all users' home directories exist"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.5'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.all_users_home_directories_exist
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      If any users' home directories do not exist, create them and make sure the
+      respective user owns the directory. Users without an assigned home directory
+      should be removed or assigned a home directory as appropriate.
+    compliance:
+      - cis_suse_12_v3_2_1_6_2_5
+
+  - rule_id: suse.cis.6.users_home_directories_permissions_are_750_or
+    title: "Ensure users' home directories permissions are 750 or more restrictive"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.6'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.users_home_directories_permissions_are_750_or
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Making global modifications to user home directories without alerting the user
+      community can result in unexpected outages and unhappy users. Therefore, it is
+      recommended that a monitoring policy be established to report user file
+      permissions and determine the action to be taken in accordance with site
+      policy.
+    compliance:
+      - cis_suse_12_v3_2_1_6_2_6
+
+  - rule_id: suse.cis.6.users_own_their_home_directories
+    title: "Ensure users own their home directories"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.7'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.users_own_their_home_directories
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Change the ownership of any home directories that are not owned by the defined
+      user to the correct user.
+    compliance:
+      - cis_suse_12_v3_2_1_6_2_7
+
+  - rule_id: suse.cis.6.users_dot_files_are_not_group_or_world_writable
+    title: "Ensure users' dot files are not group or world writable"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.8'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.users_dot_files_are_not_group_or_world_writable
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Making global modifications to users' files without alerting the user
+      community can result in unexpected outages and unhappy users. Therefore, it is
+      recommended that a monitoring policy be established to report user dot file
+      permissions and determine the action to be taken in accordance with site
+      policy.
+    compliance:
+      - cis_suse_12_v3_2_1_6_2_8
+
+  - rule_id: suse.cis.6.no_users_have_forward_files
+    title: "Ensure no users have .forward files"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.9'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.no_users_have_forward_files
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Making global modifications to users' files without alerting the user
+      community can result in unexpected outages and unhappy users. Therefore, it is
+      recommended that a monitoring policy be established to report user .forward
+      files and determine the action to be taken in accordance with site policy.
+    compliance:
+      - cis_suse_12_v3_2_1_6_2_9
+
+  - rule_id: suse.cis.6.no_users_have_netrc_files
+    title: "Ensure no users have .netrc files"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.10'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.no_users_have_netrc_files
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Making global modifications to users' files without alerting the user
+      community can result in unexpected outages and unhappy users. Therefore, it is
+      recommended that a monitoring policy be established to report user .netrc
+      files and determine the action to be taken in accordance with site policy.
+    compliance:
+      - cis_suse_12_v3_2_1_6_2_10
+
+  - rule_id: suse.cis.6.no_users_have_rhosts_files
+    title: "Ensure no users have .rhosts files"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.12'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.no_users_have_rhosts_files
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Making global modifications to users' files without alerting the user
+      community can result in unexpected outages and unhappy users. Therefore, it is
+      recommended that a monitoring policy be established to report user .rhosts
+      files and determine the action to be taken in accordance with site policy.
+    compliance:
+      - cis_suse_12_v3_2_1_6_2_12
+
+  - rule_id: suse.cis.6.all_groups_in_etc_passwd_exist_in_etc_group
+    title: "Ensure all groups in /etc/passwd exist in /etc/group"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.13'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.all_groups_in_etc_passwd_exist_in_etc_group
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Analyze the output of the Audit step above and perform the appropriate action
+      to correct any discrepancies found.
+    compliance:
+      - cis_suse_12_v3_2_1_6_2_13
+
+  - rule_id: suse.cis.6.no_duplicate_uids_exist
+    title: "Ensure no duplicate UIDs exist"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.14'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.no_duplicate_uids_exist
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Based on the results of the audit script, establish unique UIDs and review all
+      files owned by the shared UIDs to determine which UID they are supposed to
+      belong to.
+    compliance:
+      - cis_suse_12_v3_2_1_6_2_14
+
+  - rule_id: suse.cis.6.no_duplicate_gids_exist
+    title: "Ensure no duplicate GIDs exist"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.15'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.no_duplicate_gids_exist
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Based on the results of the audit script, establish unique GIDs and review all
+      files owned by the shared GID to determine which group they are supposed to
+      belong to.
+    compliance:
+      - cis_suse_12_v3_2_1_6_2_15
+
+  - rule_id: suse.cis.6.no_duplicate_user_names_exist
+    title: "Ensure no duplicate user names exist"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.16'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.no_duplicate_user_names_exist
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Based on the results of the audit script, establish unique user names for the
+      users. File ownerships will automatically reflect the change as long as the
+      users have unique UIDs.
+    compliance:
+      - cis_suse_12_v3_2_1_6_2_16
+
+  - rule_id: suse.cis.6.no_duplicate_group_names_exist
+    title: "Ensure no duplicate group names exist"
+    severity: high
+    automation_type: automated
+    cis_control: '6.2.17'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: suse.section_6.no_duplicate_group_names_exist
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Based on the results of the audit script, establish unique names for the user
+      groups. File group ownerships will automatically reflect the change as long as
+      the groups have unique GIDs.
+    compliance:
+      - cis_suse_12_v3_2_1_6_2_17
+
+  - rule_id: suse.cis.6.permissions_on_etc_passwd_old_are_configured
+    title: "Ensure permissions on /etc/passwd.old are configured"
+    severity: medium
+    automation_type: automated
+    cis_control: '6.1.5'
+    cis_section: '6'
+    profile_applicability: ""
+    scope: suse.section_6.permissions_on_etc_passwd_old_are_configured
+    assertion:
+      field: row_count
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following command to set permissions on /etc/passwd.old: # chown
+      root:root /etc/passwd.old # chmod u-x,go-wx /etc/passwd.old
+    compliance:
+      - cis_suse_11_v2_1_1_6_1_5
+
+  - rule_id: suse.cis.6.permissions_on_etc_shadow_old_are_configured
+    title: "Ensure permissions on /etc/shadow.old are configured"
+    severity: medium
+    automation_type: automated
+    cis_control: '6.1.6'
+    cis_section: '6'
+    profile_applicability: ""
+    scope: suse.section_6.permissions_on_etc_shadow_old_are_configured
+    assertion:
+      field: row_count
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the one of the following chown commands as appropriate and the chmod to
+      set permissions on /etc/shadow.old: # chown root:root /etc/shadow.old # chown
+      root:shadow /etc/shadow.old # chmod o-rwx,g-rw /etc/shadow.old 333 | P a g e
+    compliance:
+      - cis_suse_11_v2_1_1_6_1_6
+
+  - rule_id: suse.cis.6.permissions_on_etc_group_old_are_configured
+    title: "Ensure permissions on /etc/group.old are configured"
+    severity: medium
+    automation_type: automated
+    cis_control: '6.1.7'
+    cis_section: '6'
+    profile_applicability: ""
+    scope: suse.section_6.permissions_on_etc_group_old_are_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following command to set permissions on /etc/group.old: # chown
+      root:root /etc/group.old # chmod u-x,go-wx /etc/group.old
+    compliance:
+      - cis_suse_11_v2_1_1_6_1_7
+
+

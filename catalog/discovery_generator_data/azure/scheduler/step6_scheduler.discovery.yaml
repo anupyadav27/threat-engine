@@ -1,0 +1,105 @@
+# Discovery YAML — scheduler (Azure)
+# Generated: 2026-04-15T10:39:31Z
+# Source: step1b_operation_registry.json (qualified ops + dependency chains)
+# Actions use {category}.{method} format for SDK method resolution
+version: '1.0'
+provider: azure
+service: scheduler
+services:
+  client: scheduler
+  module: azure.mgmt.scheduler
+discovery:
+  # ── jobcollections.list_by_resource_group [root] ──
+  - discovery_id: azure.scheduler.jobcollections.list_by_resource_group
+    calls:
+      - action: jobcollections.list_by_resource_group
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        location: '{{ item.location }}'
+        sku: '{{ item.sku }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        zones: '{{ item.zones }}'
+        kind: '{{ item.kind }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+  # ── jobcollections.list_by_subscription [root] ──
+  - discovery_id: azure.scheduler.jobcollections.list_by_subscription
+    calls:
+      - action: jobcollections.list_by_subscription
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        location: '{{ item.location }}'
+        sku: '{{ item.sku }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        zones: '{{ item.zones }}'
+        kind: '{{ item.kind }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+  # ════════════════════════════════════════
+  # Dependent operations (for_each + params)
+  # ════════════════════════════════════════
+  # ── jobs.list [dependent] ──
+  - discovery_id: azure.scheduler.jobs.list
+    for_each: azure.scheduler.jobcollections.list_by_subscription
+    calls:
+      - action: jobs.list
+        save_as: response
+        on_error: continue
+        params:
+          job_collection_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        location: '{{ item.location }}'
+        sku: '{{ item.sku }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        zones: '{{ item.zones }}'
+        kind: '{{ item.kind }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+  # ── jobs.list_job_history [dependent] ──
+  - discovery_id: azure.scheduler.jobs.list_job_history
+    for_each: azure.scheduler.jobcollections.list_by_subscription
+    calls:
+      - action: jobs.list_job_history
+        save_as: response
+        on_error: continue
+        params:
+          job_collection_name: '{{ item.name }}'
+          job_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        location: '{{ item.location }}'
+        sku: '{{ item.sku }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        zones: '{{ item.zones }}'
+        kind: '{{ item.kind }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'

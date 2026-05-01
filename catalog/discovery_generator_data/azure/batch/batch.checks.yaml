@@ -1,0 +1,72 @@
+version: '1.0'
+provider: azure
+service: batch
+checks:
+# ═══════════════════════════════════════════
+# Batch Account — azure.batch.batchaccount.list_by_resource_group
+# Fields: id, name, type, location, tags, identity, provisioning_state, encryption,
+#         public_network_access, account_endpoint, allowed_authentication_modes,
+#         auto_storage, key_vault_reference, network_profile, private_endpoint_connections,
+#         pool_allocation_mode, dedicated_core_quota, low_priority_core_quota, pool_quota
+# ═══════════════════════════════════════════
+- rule_id: azure.batch.account.public_network_access_disabled
+  for_each: azure.batch.batchaccount.list_by_resource_group
+  conditions:
+    var: item.public_network_access
+    op: equals
+    value: Disabled
+
+- rule_id: azure.batch.account.private_endpoints_configured
+  for_each: azure.batch.batchaccount.list_by_resource_group
+  conditions:
+    var: item.private_endpoint_connections
+    op: not_empty
+
+- rule_id: azure.batch.account.encryption_configured
+  for_each: azure.batch.batchaccount.list_by_resource_group
+  conditions:
+    var: item.encryption
+    op: not_empty
+
+- rule_id: azure.batch.account.managed_identity_enabled
+  for_each: azure.batch.batchaccount.list_by_resource_group
+  conditions:
+    var: item.identity
+    op: not_empty
+
+- rule_id: azure.batch.account.allowed_auth_modes_configured
+  for_each: azure.batch.batchaccount.list_by_resource_group
+  conditions:
+    var: item.allowed_authentication_modes
+    op: not_empty
+
+- rule_id: azure.batch.account.key_vault_reference_configured
+  for_each: azure.batch.batchaccount.list_by_resource_group
+  conditions:
+    var: item.key_vault_reference
+    op: not_empty
+
+- rule_id: azure.batch.account.network_profile_configured
+  for_each: azure.batch.batchaccount.list_by_resource_group
+  conditions:
+    var: item.network_profile
+    op: not_empty
+
+- rule_id: azure.batch.account.auto_storage_configured
+  for_each: azure.batch.batchaccount.list_by_resource_group
+  conditions:
+    var: item.auto_storage
+    op: not_empty
+
+- rule_id: azure.batch.account.provisioning_succeeded
+  for_each: azure.batch.batchaccount.list_by_resource_group
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.batch.account.tags_configured
+  for_each: azure.batch.batchaccount.list_by_resource_group
+  conditions:
+    var: item.tags
+    op: not_empty

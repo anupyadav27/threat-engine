@@ -1,0 +1,803 @@
+version: '1.0'
+provider: linux
+engine: suse
+category: section_1
+cis_section: '1'
+description: >
+  suse CIS Section 1 — cramfs kernel module is not available
+
+discovery:
+
+  - discovery_id: suse.section_1.cramfs_kernel_module_is_not_available
+    description: Ensure cramfs kernel module is not available
+    calls:
+      - action: run_command
+        command: "Verify the cramfs kernel module is not available on the system - OR - has been disabled. This can be verified by performing the following or by running the audit script included below. 1. Run the following script to determine if the cramfs kernel module is available on the system: #!/usr/bin/env bash { l_mod_name=\u0027cramfs\u0027 l_mod_type=\u0027fs\u0027 while IFS= read -r l_mod_path; do if [ -d \u0027$l_mod_path/${l_mod_name/-/\\/}\u0027 ] \u0026\u0026 [ -n \u0027$(ls -A \u0027$l_mod_path/${l_mod_name/-/\\/}\u0027)\u0027 ]; then printf \u0027%s\\n\u0027 \u0027$l_mod_name exists in $l_mod_path\u0027 fi done \u003c \u003c(readlink -f /usr/lib/modules/**/kernel/$l_mod_type || readlink -f /lib/modules/**/kernel/$l_mod_type) } If nothing is returned, the cramfs kernel module is not available on the system and no further audit steps are required. Note: Some systems may include the cramfs filesystem as part of the kernel opposed to being available as a kernel module. In this case, the above audit will not return anything. This is also considered a passing state. 2. If anything is returned by the above script, verify the cramfs kernel module is not loaded and not loadable by performing the following: a) Run the following command to verify the cramfs kernel module is not loaded: # lsmod | grep \u0027cramfs\u0027 Nothing should be returned b) Run the following command to verify the cramfs kernel module is not loadable: # modprobe --showconfig | grep -P -- \u0027\\b(install|blacklist)\\h+cramfs\\b\u0027 verify the output includes: blacklist cramfs -AND EITHER- install cramfs /bin/false -OR- install cramfs /bin/true Example output: blacklist cramfs install cramfs /bin/false Optional audit script This script will perform the above checks and produce output with passing or failing status #!/usr/bin/env bash { a_output=() a_output2=() a_output3=() l_dl=\u0027\u0027 l_mod_name=\u0027cramfs\u0027 l_mod_type=\u0027fs\u0027 l_mod_path=\u0027$(readlink -f /usr/lib/modules/**/kernel/$l_mod_type || readlink -f /lib/modules/**/kernel/$l_mod_type)\u0027 f_module_chk() { l_dl=\u0027y\u0027 a_showconfig=() while IFS= read -r l_showconfig; do a_showconfig+=(\u0027$l_showconfig\u0027) done \u003c \u003c(modprobe --showconfig | grep -P -- \u0027\\b(install|blacklist)\\h+\u0027\u0027${l_mod_chk_name//-/_}\u0027\u0027\\b\u0027) if ! lsmod | grep \u0027$l_mod_chk_name\u0027 \u0026\u003e /dev/null; then a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is not loaded\u0027) else a_output2+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is loaded\u0027) fi if grep -Pq -- \u0027\\binstall\\h+\u0027\u0027${l_mod_chk_name//- /_}\u0027\u0027\\h+(\\/usr)?\\/bin\\/(true|false)\\b\u0027 \u003c\u003c\u003c \u0027${a_showconfig[*]}\u0027; then a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is not loadable\u0027) else a_output2+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is loadable\u0027) fi if grep -Pq -- \u0027\\bblacklist\\h+\u0027\u0027${l_mod_chk_name//-/_}\u0027\u0027\\b\u0027 \u003c\u003c\u003c \u0027${a_showconfig[*]}\u0027; then a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is deny listed\u0027) else a_output2+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is not deny listed\u0027) fi } for l_mod_base_directory in $l_mod_path; do if [ -d \u0027$l_mod_base_directory/${l_mod_name/-/\\/}\u0027 ] \u0026\u0026 [ -n \u0027$(ls -A \u0027$l_mod_base_directory/${l_mod_name/-/\\/}\u0027)\u0027 ]; then a_output3+=(\u0027 - \\\u0027$l_mod_base_directory\\\u0027\u0027) l_mod_chk_name=\u0027$l_mod_name\u0027 [[ \u0027$l_mod_name\u0027 =~ overlay ]] \u0026\u0026 l_mod_chk_name=\u0027${l_mod_name::-2}\u0027 [ \u0027$l_dl\u0027 != \u0027y\u0027 ] \u0026\u0026 f_module_chk else a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 doesn\u0027t exist in \\\u0027$l_mod_base_directory\\\u0027\u0027) fi done [ \u0027${#a_output3[@]}\u0027 -gt 0 ] \u0026\u0026 printf \u0027%s\\n\u0027 \u0027\u0027 \u0027 -- INFO --\u0027 \u0027 - module: \\\u0027$l_mod_name\\\u0027 exists in:\u0027 \u0027${a_output3[@]}\u0027 if [ \u0027${#a_output2[@]}\u0027 -le 0 ]; then printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** PASS **\u0027 \u0027${a_output[@]}\u0027 else printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** FAIL **\u0027 \u0027 - Reason(s) for audit failure:\u0027 \u0027${a_output2[@]}\u0027 [ \u0027${#a_output[@]}\u0027 -gt 0 ] \u0026\u0026 printf \u0027%s\\n\u0027 \u0027- Correctly set:\u0027 \u0027${a_output[@]}\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: cramfs_kernel_module_is_not_available
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.freevxfs_kernel_module_is_not_available
+    description: Ensure freevxfs kernel module is not available
+    calls:
+      - action: run_command
+        command: "Verify the freevxfs kernel module is not available on the system or has been disabled. This can be verified by performing the following or by running the audit script included below. Run the following script to determine if the freevxfs kernel module is available on the system: #!/usr/bin/env bash { l_mod_name=\u0027freevxfs\u0027 l_mod_type=\u0027fs\u0027 while IFS= read -r l_mod_path; do if [ -d \u0027$l_mod_path/${l_mod_name/-/\\/}\u0027 ] \u0026\u0026 [ -n \u0027$(ls -A \u0027$l_mod_path/${l_mod_name/-/\\/}\u0027)\u0027 ]; then printf \u0027%s\\n\u0027 \u0027$l_mod_name exists in $l_mod_path\u0027 fi done \u003c \u003c(readlink -f /usr/lib/modules/**/kernel/$l_mod_type || readlink -f /lib/modules/**/kernel/$l_mod_type) } If nothing is returned, the freevxfs kernel module is not available on the system and no further audit steps are required. Note: Some systems may include the freevxfs filesystem as part of the kernel opposed to being available as a kernel module. In this case, the above audit will not return anything. This is also considered a passing state. If anything is returned, verify the freevxfs kernel module is not loaded and not loadable by performing the following: Run the following command to verify the freevxfs kernel module is not loaded: # lsmod | grep \u0027freevxfs\u0027 Nothing should be returned Run the following command to verify the freevxfs kernel module is not loadable: # modprobe --showconfig | grep -P -- \u0027\\b(install|blacklist)\\h+freevxfs\\b\u0027 Verify the output includes: blacklist freevxfs -AND- install freevxfs /bin/false -OR- install freevxfs /bin/true Example output: blacklist freevxfs install freevxfs /bin/false Optional audit script This script will perform the above checks and produce output with passing or failing status #!/usr/bin/env bash { a_output=() a_output2=() a_output3=() l_dl=\u0027\u0027 l_mod_name=\u0027freevxfs\u0027 l_mod_type=\u0027fs\u0027 l_mod_path=\u0027$(readlink -f /usr/lib/modules/**/kernel/$l_mod_type || readlink -f /lib/modules/**/kernel/$l_mod_type)\u0027 f_module_chk() { l_dl=\u0027y\u0027 a_showconfig=() while IFS= read -r l_showconfig; do a_showconfig+=(\u0027$l_showconfig\u0027) done \u003c \u003c(modprobe --showconfig | grep -P -- \u0027\\b(install|blacklist)\\h+\u0027\u0027${l_mod_chk_name//-/_}\u0027\u0027\\b\u0027) if ! lsmod | grep \u0027$l_mod_chk_name\u0027 \u0026\u003e /dev/null; then a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is not loaded\u0027) else a_output2+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is loaded\u0027) fi if grep -Pq -- \u0027\\binstall\\h+\u0027\u0027${l_mod_chk_name//- /_}\u0027\u0027\\h+(\\/usr)?\\/bin\\/(true|false)\\b\u0027 \u003c\u003c\u003c \u0027${a_showconfig[*]}\u0027; then a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is not loadable\u0027) else a_output2+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is loadable\u0027) fi if grep -Pq -- \u0027\\bblacklist\\h+\u0027\u0027${l_mod_chk_name//-/_}\u0027\u0027\\b\u0027 \u003c\u003c\u003c \u0027${a_showconfig[*]}\u0027; then a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is deny listed\u0027) else a_output2+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is not deny listed\u0027) fi } for l_mod_base_directory in $l_mod_path; do if [ -d \u0027$l_mod_base_directory/${l_mod_name/-/\\/}\u0027 ] \u0026\u0026 [ -n \u0027$(ls -A \u0027$l_mod_base_directory/${l_mod_name/-/\\/}\u0027)\u0027 ]; then a_output3+=(\u0027 - \\\u0027$l_mod_base_directory\\\u0027\u0027) l_mod_chk_name=\u0027$l_mod_name\u0027 [[ \u0027$l_mod_name\u0027 =~ overlay ]] \u0026\u0026 l_mod_chk_name=\u0027${l_mod_name::-2}\u0027 [ \u0027$l_dl\u0027 != \u0027y\u0027 ] \u0026\u0026 f_module_chk else a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 doesn\u0027t exist in \\\u0027$l_mod_base_directory\\\u0027\u0027) fi done [ \u0027${#a_output3[@]}\u0027 -gt 0 ] \u0026\u0026 printf \u0027%s\\n\u0027 \u0027\u0027 \u0027 -- INFO --\u0027 \u0027 - module: \\\u0027$l_mod_name\\\u0027 exists in:\u0027 \u0027${a_output3[@]}\u0027 if [ \u0027${#a_output2[@]}\u0027 -le 0 ]; then printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** PASS **\u0027 \u0027${a_output[@]}\u0027 else printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** FAIL **\u0027 \u0027 - Reason(s) for audit failure:\u0027 \u0027${a_output2[@]}\u0027 [ \u0027${#a_output[@]}\u0027 -gt 0 ] \u0026\u0026 printf \u0027%s\\n\u0027 \u0027- Correctly set:\u0027 \u0027${a_output[@]}\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: freevxfs_kernel_module_is_not_available
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.hfs_kernel_module_is_not_available
+    description: Ensure hfs kernel module is not available
+    calls:
+      - action: run_command
+        command: "Verify the hfs kernel module is not available on the system or has been disabled. This can be verified by performing the following or by running the audit script included below. Run the following script to determine if the hfs kernel module is available on the system: #!/usr/bin/env bash { l_mod_name=\u0027hfs\u0027 l_mod_type=\u0027fs\u0027 while IFS= read -r l_mod_path; do if [ -d \u0027$l_mod_path/${l_mod_name/-/\\/}\u0027 ] \u0026\u0026 [ -n \u0027$(ls -A \u0027$l_mod_path/${l_mod_name/-/\\/}\u0027)\u0027 ]; then printf \u0027%s\\n\u0027 \u0027$l_mod_name exists in $l_mod_path\u0027 fi done \u003c \u003c(readlink -f /usr/lib/modules/**/kernel/$l_mod_type || readlink -f /lib/modules/**/kernel/$l_mod_type) } If nothing is returned, the hfs kernel module is not available on the system and no further audit steps are required. Note: Some systems may include the hfs filesystem as part of the kernel opposed to being available as a kernel module. In this case, the above audit will not return anything. This is also considered a passing state. If anything is returned, verify the hfs kernel module is not loaded and not loadable by performing the following: Run the following command to verify the hfs kernel module is not loaded: # lsmod | grep \u0027hfs\u0027 Nothing should be returned Run the following command to verify the hfs kernel module is not loadable: # modprobe --showconfig | grep -P -- \u0027\\b(install|blacklist)\\h+hfs\\b\u0027 Verify the output includes: blacklist hfs -AND- install hfs /bin/false -OR- install hfs /bin/true Example output: blacklist hfs install hfs /bin/false Optional audit script This script will perform the above checks and produce output with passing or failing status #!/usr/bin/env bash { a_output=() a_output2=() a_output3=() l_dl=\u0027\u0027 l_mod_name=\u0027hfs\u0027 l_mod_type=\u0027fs\u0027 l_mod_path=\u0027$(readlink -f /usr/lib/modules/**/kernel/$l_mod_type || readlink -f /lib/modules/**/kernel/$l_mod_type)\u0027 f_module_chk() { l_dl=\u0027y\u0027 a_showconfig=() while IFS= read -r l_showconfig; do a_showconfig+=(\u0027$l_showconfig\u0027) done \u003c \u003c(modprobe --showconfig | grep -P -- \u0027\\b(install|blacklist)\\h+\u0027\u0027${l_mod_chk_name//-/_}\u0027\u0027\\b\u0027) if ! lsmod | grep \u0027$l_mod_chk_name\u0027 \u0026\u003e /dev/null; then a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is not loaded\u0027) else a_output2+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is loaded\u0027) fi if grep -Pq -- \u0027\\binstall\\h+\u0027\u0027${l_mod_chk_name//- /_}\u0027\u0027\\h+(\\/usr)?\\/bin\\/(true|false)\\b\u0027 \u003c\u003c\u003c \u0027${a_showconfig[*]}\u0027; then a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is not loadable\u0027) else a_output2+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is loadable\u0027) fi if grep -Pq -- \u0027\\bblacklist\\h+\u0027\u0027${l_mod_chk_name//-/_}\u0027\u0027\\b\u0027 \u003c\u003c\u003c \u0027${a_showconfig[*]}\u0027; then a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is deny listed\u0027) else a_output2+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is not deny listed\u0027) fi } for l_mod_base_directory in $l_mod_path; do if [ -d \u0027$l_mod_base_directory/${l_mod_name/-/\\/}\u0027 ] \u0026\u0026 [ -n \u0027$(ls -A \u0027$l_mod_base_directory/${l_mod_name/-/\\/}\u0027)\u0027 ]; then a_output3+=(\u0027 - \\\u0027$l_mod_base_directory\\\u0027\u0027) l_mod_chk_name=\u0027$l_mod_name\u0027 [[ \u0027$l_mod_name\u0027 =~ overlay ]] \u0026\u0026 l_mod_chk_name=\u0027${l_mod_name::-2}\u0027 [ \u0027$l_dl\u0027 != \u0027y\u0027 ] \u0026\u0026 f_module_chk else a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 doesn\u0027t exist in \\\u0027$l_mod_base_directory\\\u0027\u0027) fi done [ \u0027${#a_output3[@]}\u0027 -gt 0 ] \u0026\u0026 printf \u0027%s\\n\u0027 \u0027\u0027 \u0027 -- INFO --\u0027 \u0027 - module: \\\u0027$l_mod_name\\\u0027 exists in:\u0027 \u0027${a_output3[@]}\u0027 if [ \u0027${#a_output2[@]}\u0027 -le 0 ]; then printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** PASS **\u0027 \u0027${a_output[@]}\u0027 else printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** FAIL **\u0027 \u0027 - Reason(s) for audit failure:\u0027 \u0027${a_output2[@]}\u0027 [ \u0027${#a_output[@]}\u0027 -gt 0 ] \u0026\u0026 printf \u0027%s\\n\u0027 \u0027- Correctly set:\u0027 \u0027${a_output[@]}\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: hfs_kernel_module_is_not_available
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.hfsplus_kernel_module_is_not_available
+    description: Ensure hfsplus kernel module is not available
+    calls:
+      - action: run_command
+        command: "Verify the hfsplus kernel module is not available on the system or has been disabled. This can be verified by performing the following or by running the audit script included below. Run the following script to determine if the hfsplus kernel module is available on the system: #!/usr/bin/env bash { l_mod_name=\u0027hfsplus\u0027 l_mod_type=\u0027fs\u0027 while IFS= read -r l_mod_path; do if [ -d \u0027$l_mod_path/${l_mod_name/-/\\/}\u0027 ] \u0026\u0026 [ -n \u0027$(ls -A \u0027$l_mod_path/${l_mod_name/-/\\/}\u0027)\u0027 ]; then printf \u0027%s\\n\u0027 \u0027$l_mod_name exists in $l_mod_path\u0027 fi done \u003c \u003c(readlink -f /usr/lib/modules/**/kernel/$l_mod_type || readlink -f /lib/modules/**/kernel/$l_mod_type) } If nothing is returned, the hfsplus kernel module is not available on the system and no further audit steps are required. Note: Some systems may include the hfsplus filesystem as part of the kernel opposed to being available as a kernel module. In this case, the above audit will not return anything. This is also considered a passing state. If anything is returned, verify the hfsplus kernel module is not loaded and not loadable by performing the following: Run the following command to verify the hfsplus kernel module is not loaded: # lsmod | grep \u0027hfsplus\u0027 Nothing should be returned Run the following command to verify the hfsplus kernel module is not loadable: # modprobe --showconfig | grep -P -- \u0027\\b(install|blacklist)\\h+hfsplus\\b\u0027 Verify the output includes: blacklist hfsplus -AND- install hfsplus /bin/false -OR- install hfsplus /bin/true Example output: blacklist hfsplus install hfsplus /bin/false Optional audit script This script will perform the above checks and produce output with passing or failing status #!/usr/bin/env bash { a_output=() a_output2=() a_output3=() l_dl=\u0027\u0027 l_mod_name=\u0027hfsplus\u0027 l_mod_type=\u0027fs\u0027 l_mod_path=\u0027$(readlink -f /usr/lib/modules/**/kernel/$l_mod_type || readlink -f /lib/modules/**/kernel/$l_mod_type)\u0027 f_module_chk() { l_dl=\u0027y\u0027 a_showconfig=() while IFS= read -r l_showconfig; do a_showconfig+=(\u0027$l_showconfig\u0027) done \u003c \u003c(modprobe --showconfig | grep -P -- \u0027\\b(install|blacklist)\\h+\u0027\u0027${l_mod_chk_name//-/_}\u0027\u0027\\b\u0027) if ! lsmod | grep \u0027$l_mod_chk_name\u0027 \u0026\u003e /dev/null; then a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is not loaded\u0027) else a_output2+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is loaded\u0027) fi if grep -Pq -- \u0027\\binstall\\h+\u0027\u0027${l_mod_chk_name//- /_}\u0027\u0027\\h+(\\/usr)?\\/bin\\/(true|false)\\b\u0027 \u003c\u003c\u003c \u0027${a_showconfig[*]}\u0027; then a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is not loadable\u0027) else a_output2+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is loadable\u0027) fi if grep -Pq -- \u0027\\bblacklist\\h+\u0027\u0027${l_mod_chk_name//-/_}\u0027\u0027\\b\u0027 \u003c\u003c\u003c \u0027${a_showconfig[*]}\u0027; then a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is deny listed\u0027) else a_output2+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is not deny listed\u0027) fi } for l_mod_base_directory in $l_mod_path; do if [ -d \u0027$l_mod_base_directory/${l_mod_name/-/\\/}\u0027 ] \u0026\u0026 [ -n \u0027$(ls -A \u0027$l_mod_base_directory/${l_mod_name/-/\\/}\u0027)\u0027 ]; then a_output3+=(\u0027 - \\\u0027$l_mod_base_directory\\\u0027\u0027) l_mod_chk_name=\u0027$l_mod_name\u0027 [[ \u0027$l_mod_name\u0027 =~ overlay ]] \u0026\u0026 l_mod_chk_name=\u0027${l_mod_name::-2}\u0027 [ \u0027$l_dl\u0027 != \u0027y\u0027 ] \u0026\u0026 f_module_chk else a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 doesn\u0027t exist in \\\u0027$l_mod_base_directory\\\u0027\u0027) fi done [ \u0027${#a_output3[@]}\u0027 -gt 0 ] \u0026\u0026 printf \u0027%s\\n\u0027 \u0027\u0027 \u0027 -- INFO --\u0027 \u0027 - module: \\\u0027$l_mod_name\\\u0027 exists in:\u0027 \u0027${a_output3[@]}\u0027 if [ \u0027${#a_output2[@]}\u0027 -le 0 ]; then printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** PASS **\u0027 \u0027${a_output[@]}\u0027 else printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** FAIL **\u0027 \u0027 - Reason(s) for audit failure:\u0027 \u0027${a_output2[@]}\u0027 [ \u0027${#a_output[@]}\u0027 -gt 0 ] \u0026\u0026 printf \u0027%s\\n\u0027 \u0027- Correctly set:\u0027 \u0027${a_output[@]}\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: hfsplus_kernel_module_is_not_available
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.jffs2_kernel_module_is_not_available
+    description: Ensure jffs2 kernel module is not available
+    calls:
+      - action: run_command
+        command: "Verify the jffs2 kernel module is not available on the system or has been disabled. This can be verified by performing the following or by running the audit script included below. Run the following script to determine if the jffs2 kernel module is available on the system: #!/usr/bin/env bash { l_mod_name=\u0027jffs2\u0027 l_mod_type=\u0027fs\u0027 while IFS= read -r l_mod_path; do if [ -d \u0027$l_mod_path/${l_mod_name/-/\\/}\u0027 ] \u0026\u0026 [ -n \u0027$(ls -A \u0027$l_mod_path/${l_mod_name/-/\\/}\u0027)\u0027 ]; then printf \u0027%s\\n\u0027 \u0027$l_mod_name exists in $l_mod_path\u0027 fi done \u003c \u003c(readlink -f /usr/lib/modules/**/kernel/$l_mod_type || readlink -f /lib/modules/**/kernel/$l_mod_type) } If nothing is returned, the jffs2 kernel module is not available on the system and no further audit steps are required. Note: Some systems may include the jffs2 filesystem as part of the kernel opposed to being available as a kernel module. In this case, the above audit will not return anything. This is also considered a passing state. If anything is returned, verify the jffs2 kernel module is not loaded and not loadable by performing the following: Run the following command to verify the jffs2 kernel module is not loaded: # lsmod | grep \u0027jffs2\u0027 Nothing should be returned Run the following command to verify the jffs2 kernel module is not loadable: # modprobe --showconfig | grep -P -- \u0027\\b(install|blacklist)\\h+jffs2\\b\u0027 Verify the output includes: blacklist jffs2 -AND- install jffs2 /bin/false -OR- install jffs2 /bin/true Example output: blacklist jffs2 install jffs2 /bin/false Optional audit script #!/usr/bin/env bash { a_output=() a_output2=() a_output3=() l_dl=\u0027\u0027 l_mod_name=\u0027jffs2\u0027 l_mod_type=\u0027fs\u0027 l_mod_path=\u0027$(readlink -f /usr/lib/modules/**/kernel/$l_mod_type || readlink -f /lib/modules/**/kernel/$l_mod_type)\u0027 f_module_chk() { l_dl=\u0027y\u0027 a_showconfig=() while IFS= read -r l_showconfig; do a_showconfig+=(\u0027$l_showconfig\u0027) done \u003c \u003c(modprobe --showconfig | grep -P -- \u0027\\b(install|blacklist)\\h+\u0027\u0027${l_mod_chk_name//-/_}\u0027\u0027\\b\u0027) if ! lsmod | grep \u0027$l_mod_chk_name\u0027 \u0026\u003e /dev/null; then a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is not loaded\u0027) else a_output2+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is loaded\u0027) fi if grep -Pq -- \u0027\\binstall\\h+\u0027\u0027${l_mod_chk_name//- /_}\u0027\u0027\\h+(\\/usr)?\\/bin\\/(true|false)\\b\u0027 \u003c\u003c\u003c \u0027${a_showconfig[*]}\u0027; then a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is not loadable\u0027) else a_output2+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is loadable\u0027) fi if grep -Pq -- \u0027\\bblacklist\\h+\u0027\u0027${l_mod_chk_name//-/_}\u0027\u0027\\b\u0027 \u003c\u003c\u003c \u0027${a_showconfig[*]}\u0027; then a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is deny listed\u0027) else a_output2+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is not deny listed\u0027) fi } for l_mod_base_directory in $l_mod_path; do if [ -d \u0027$l_mod_base_directory/${l_mod_name/-/\\/}\u0027 ] \u0026\u0026 [ -n \u0027$(ls -A \u0027$l_mod_base_directory/${l_mod_name/-/\\/}\u0027)\u0027 ]; then a_output3+=(\u0027 - \\\u0027$l_mod_base_directory\\\u0027\u0027) l_mod_chk_name=\u0027$l_mod_name\u0027 [[ \u0027$l_mod_name\u0027 =~ overlay ]] \u0026\u0026 l_mod_chk_name=\u0027${l_mod_name::-2}\u0027 [ \u0027$l_dl\u0027 != \u0027y\u0027 ] \u0026\u0026 f_module_chk else a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 doesn\u0027t exist in \\\u0027$l_mod_base_directory\\\u0027\u0027) fi done [ \u0027${#a_output3[@]}\u0027 -gt 0 ] \u0026\u0026 printf \u0027%s\\n\u0027 \u0027\u0027 \u0027 -- INFO --\u0027 \u0027 - module: \\\u0027$l_mod_name\\\u0027 exists in:\u0027 \u0027${a_output3[@]}\u0027 if [ \u0027${#a_output2[@]}\u0027 -le 0 ]; then printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** PASS **\u0027 \u0027${a_output[@]}\u0027 else printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** FAIL **\u0027 \u0027 - Reason(s) for audit failure:\u0027 \u0027${a_output2[@]}\u0027 [ \u0027${#a_output[@]}\u0027 -gt 0 ] \u0026\u0026 printf \u0027%s\\n\u0027 \u0027- Correctly set:\u0027 \u0027${a_output[@]}\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: jffs2_kernel_module_is_not_available
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.overlay_kernel_module_is_not_available
+    description: Ensure overlay kernel module is not available
+    calls:
+      - action: run_command
+        command: "Verify the overlay kernel module is not available on the system or has been disabled. This can be verified by performing the following or by running the audit script included below. Run the following script to determine if the overlay kernel module is available on the system: #!/usr/bin/env bash { l_mod_name=\u0027overlayfs\u0027 l_mod_type=\u0027fs\u0027 while IFS= read -r l_mod_path; do if [ -d \u0027$l_mod_path/${l_mod_name/-/\\/}\u0027 ] \u0026\u0026 [ -n \u0027$(ls -A \u0027$l_mod_path/${l_mod_name/-/\\/}\u0027)\u0027 ]; then printf \u0027%s\\n\u0027 \u0027$l_mod_name exists in $l_mod_path\u0027 fi done \u003c \u003c(readlink -f /usr/lib/modules/**/kernel/$l_mod_type || readlink -f /lib/modules/**/kernel/$l_mod_type) } If nothing is returned, the overlay kernel module is not available on the system and no further audit steps are required. Note: Some systems may include the overlay filesystem as part of the kernel opposed to being available as a kernel module. In this case, the above audit will not return anything. This is also considered a passing state. If anything is returned, verify the overlay kernel module is not loaded and not loadable by performing the following: Run the following command to verify the overlay kernel module is not loaded: # lsmod | grep \u0027overlay\u0027 Nothing should be returned Run the following command to verify the overlay kernel module is not loadable: # modprobe --showconfig | grep -P -- \u0027\\b(install|blacklist)\\h+overlay\\b\u0027 Verify the output includes: blacklist overlay -AND- install overlay /bin/false -OR- install overlay /bin/true Example output: blacklist overlay install overlay /bin/false Optional audit script This script will perform the above checks and produce output with passing or failing status #!/usr/bin/env bash { a_output=() a_output2=() a_output3=() l_dl=\u0027\u0027 l_mod_name=\u0027overlayfs\u0027 l_mod_type=\u0027fs\u0027 l_mod_path=\u0027$(readlink -f /usr/lib/modules/**/kernel/$l_mod_type || readlink -f /lib/modules/**/kernel/$l_mod_type)\u0027 f_module_chk() { l_dl=\u0027y\u0027 a_showconfig=() while IFS= read -r l_showconfig; do a_showconfig+=(\u0027$l_showconfig\u0027) done \u003c \u003c(modprobe --showconfig | grep -P -- \u0027\\b(install|blacklist)\\h+\u0027\u0027${l_mod_chk_name//-/_}\u0027\u0027\\b\u0027) if ! lsmod | grep \u0027$l_mod_chk_name\u0027 \u0026\u003e /dev/null; then a_output+=(\u0027 - kernel module: \\\u0027$l_mod_chk_name\\\u0027 is not loaded\u0027) else a_output2+=(\u0027 - kernel module: \\\u0027$l_mod_chk_name\\\u0027 is loaded\u0027) fi if grep -Pq -- \u0027\\binstall\\h+\u0027\u0027${l_mod_chk_name//- /_}\u0027\u0027\\h+(\\/usr)?\\/bin\\/(true|false)\\b\u0027 \u003c\u003c\u003c \u0027${a_showconfig[*]}\u0027; then a_output+=(\u0027 - kernel module: \\\u0027$l_mod_chk_name\\\u0027 is not loadable\u0027) else a_output2+=(\u0027 - kernel module: \\\u0027$l_mod_chk_name\\\u0027 is loadable\u0027) fi if grep -Pq -- \u0027\\bblacklist\\h+\u0027\u0027${l_mod_chk_name//-/_}\u0027\u0027\\b\u0027 \u003c\u003c\u003c \u0027${a_showconfig[*]}\u0027; then a_output+=(\u0027 - kernel module: \\\u0027$l_mod_chk_name\\\u0027 is deny listed\u0027) else a_output2+=(\u0027 - kernel module: \\\u0027$l_mod_chk_name\\\u0027 is not deny listed\u0027) fi } for l_mod_base_directory in $l_mod_path; do if [ -d \u0027$l_mod_base_directory/${l_mod_name/-/\\/}\u0027 ] \u0026\u0026 [ -n \u0027$(ls -A \u0027$l_mod_base_directory/${l_mod_name/-/\\/}\u0027)\u0027 ]; then a_output3+=(\u0027 - \\\u0027$l_mod_base_directory\\\u0027\u0027) l_mod_chk_name=\u0027$l_mod_name\u0027 [[ \u0027$l_mod_name\u0027 =~ overlay ]] \u0026\u0026 l_mod_chk_name=\u0027${l_mod_name::-2}\u0027 [ \u0027$l_dl\u0027 != \u0027y\u0027 ] \u0026\u0026 f_module_chk else a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 doesn\u0027t exist in \\\u0027$l_mod_base_directory\\\u0027\u0027) fi done [ \u0027${#a_output3[@]}\u0027 -gt 0 ] \u0026\u0026 printf \u0027%s\\n\u0027 \u0027\u0027 \u0027 -- INFO --\u0027 \u0027 - module: \\\u0027$l_mod_name\\\u0027 exists in:\u0027 \u0027${a_output3[@]}\u0027 if [ \u0027${#a_output2[@]}\u0027 -le 0 ]; then printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** PASS **\u0027 \u0027${a_output[@]}\u0027 else printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** FAIL **\u0027 \u0027 - Reason(s) for audit failure:\u0027 \u0027${a_output2[@]}\u0027 [ \u0027${#a_output[@]}\u0027 -gt 0 ] \u0026\u0026 printf \u0027%s\\n\u0027 \u0027- Correctly set:\u0027 \u0027${a_output[@]}\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: overlay_kernel_module_is_not_available
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.squashfs_kernel_module_is_not_available
+    description: Ensure squashfs kernel module is not available
+    calls:
+      - action: run_command
+        command: "Verify the squashfs kernel module is not available on the system or has been disabled. This can be verified by performing the following or by running the audit script included below. Run the following script to determine if the squashfs kernel module is available on the system: #!/usr/bin/env bash { l_mod_name=\u0027squashfs\u0027 l_mod_type=\u0027fs\u0027 while IFS= read -r l_mod_path; do if [ -d \u0027$l_mod_path/${l_mod_name/-/\\/}\u0027 ] \u0026\u0026 [ -n \u0027$(ls -A \u0027$l_mod_path/${l_mod_name/-/\\/}\u0027)\u0027 ]; then printf \u0027%s\\n\u0027 \u0027$l_mod_name exists in $l_mod_path\u0027 fi done \u003c \u003c(readlink -f /usr/lib/modules/**/kernel/$l_mod_type || readlink -f /lib/modules/**/kernel/$l_mod_type) } If nothing is returned, the squashfs kernel module is not available on the system and no further audit steps are required. Note: Some systems may include the squashfs filesystem as part of the kernel opposed to being available as a kernel module. In this case, the above audit will not return anything. This is also considered a passing state. If anything is returned, verify the squashfs kernel module is not loaded and not loadable by performing the following: Run the following command to verify the squashfs kernel module is not loaded: # lsmod | grep \u0027squashfs\u0027 Nothing should be returned Run the following command to verify the squashfs kernel module is not loadable: # modprobe --showconfig | grep -P -- \u0027\\b(install|blacklist)\\h+squashfs\\b\u0027 Verify the output includes: blacklist squashfs -AND- install squashfs /bin/false -OR- install squashfs /bin/true Example output: blacklist squashfs install squashfs /bin/false Optional audit script This script will perform the above checks and produce output with passing or failing status #!/usr/bin/env bash { a_output=() a_output2=() a_output3=() l_dl=\u0027\u0027 l_mod_name=\u0027squashfs\u0027 l_mod_type=\u0027fs\u0027 l_mod_path=\u0027$(readlink -f /usr/lib/modules/**/kernel/$l_mod_type || readlink -f /lib/modules/**/kernel/$l_mod_type)\u0027 f_module_chk() { l_dl=\u0027y\u0027 a_showconfig=() while IFS= read -r l_showconfig; do a_showconfig+=(\u0027$l_showconfig\u0027) done \u003c \u003c(modprobe --showconfig | grep -P -- \u0027\\b(install|blacklist)\\h+\u0027\u0027${l_mod_chk_name//-/_}\u0027\u0027\\b\u0027) if ! lsmod | grep \u0027$l_mod_chk_name\u0027 \u0026\u003e /dev/null; then a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is not loaded\u0027) else a_output2+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is loaded\u0027) fi if grep -Pq -- \u0027\\binstall\\h+\u0027\u0027${l_mod_chk_name//- /_}\u0027\u0027\\h+(\\/usr)?\\/bin\\/(true|false)\\b\u0027 \u003c\u003c\u003c \u0027${a_showconfig[*]}\u0027; then a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is not loadable\u0027) else a_output2+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is loadable\u0027) fi if grep -Pq -- \u0027\\bblacklist\\h+\u0027\u0027${l_mod_chk_name//-/_}\u0027\u0027\\b\u0027 \u003c\u003c\u003c \u0027${a_showconfig[*]}\u0027; then a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is deny listed\u0027) else a_output2+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is not deny listed\u0027) fi } for l_mod_base_directory in $l_mod_path; do if [ -d \u0027$l_mod_base_directory/${l_mod_name/-/\\/}\u0027 ] \u0026\u0026 [ -n \u0027$(ls -A \u0027$l_mod_base_directory/${l_mod_name/-/\\/}\u0027)\u0027 ]; then a_output3+=(\u0027 - \\\u0027$l_mod_base_directory\\\u0027\u0027) l_mod_chk_name=\u0027$l_mod_name\u0027 [[ \u0027$l_mod_name\u0027 =~ overlay ]] \u0026\u0026 l_mod_chk_name=\u0027${l_mod_name::-2}\u0027 [ \u0027$l_dl\u0027 != \u0027y\u0027 ] \u0026\u0026 f_module_chk else a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 doesn\u0027t exist in \\\u0027$l_mod_base_directory\\\u0027\u0027) fi done [ \u0027${#a_output3[@]}\u0027 -gt 0 ] \u0026\u0026 printf \u0027%s\\n\u0027 \u0027\u0027 \u0027 -- INFO --\u0027 \u0027 - module: \\\u0027$l_mod_name\\\u0027 exists in:\u0027 \u0027${a_output3[@]}\u0027 if [ \u0027${#a_output2[@]}\u0027 -le 0 ]; then printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** PASS **\u0027 \u0027${a_output[@]}\u0027 else printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** FAIL **\u0027 \u0027 - Reason(s) for audit failure:\u0027 \u0027${a_output2[@]}\u0027 [ \u0027${#a_output[@]}\u0027 -gt 0 ] \u0026\u0026 printf \u0027%s\\n\u0027 \u0027- Correctly set:\u0027 \u0027${a_output[@]}\u0027 fi } Note: On operating systems where squashfs is pre-build into the kernel: \u2022 This is considered an acceptable \u0027passing\u0027 state \u2022 The kernel should not be re-compiled to remove squashfs \u2022 This audit will return a passing state with \u0027module: \u0027squashfs\u0027 doesn\u0027t exist in ...\u0027"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: squashfs_kernel_module_is_not_available
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.udf_kernel_module_is_not_available
+    description: Ensure udf kernel module is not available
+    calls:
+      - action: run_command
+        command: "Verify the udf kernel module is not available on the system or has been disabled. This can be verified by performing the following or by running the audit script included below. Run the following script to determine if the udf kernel module is available on the system: #!/usr/bin/env bash { l_mod_name=\u0027udf\u0027 l_mod_type=\u0027fs\u0027 while IFS= read -r l_mod_path; do if [ -d \u0027$l_mod_path/${l_mod_name/-/\\/}\u0027 ] \u0026\u0026 [ -n \u0027$(ls -A \u0027$l_mod_path/${l_mod_name/-/\\/}\u0027)\u0027 ]; then printf \u0027%s\\n\u0027 \u0027$l_mod_name exists in $l_mod_path\u0027 fi done \u003c \u003c(readlink -f /usr/lib/modules/**/kernel/$l_mod_type || readlink -f /lib/modules/**/kernel/$l_mod_type) } If nothing is returned, the udf kernel module is not available on the system and no further audit steps are required. Note: Some systems may include the udf filesystem as part of the kernel opposed to being available as a kernel module. In this case, the above audit will not return anything. This is also considered a passing state. If anything is returned, verify the udf kernel module is not loaded and not loadable by performing the following: Run the following command to verify the udf kernel module is not loaded: # lsmod | grep \u0027udf\u0027 Nothing should be returned Run the following command to verify the udf kernel module is not loadable: # modprobe --showconfig | grep -P -- \u0027\\b(install|blacklist)\\h+udf\\b\u0027 Verify the output includes: blacklist udf -AND- install udf /bin/false -OR- install udf /bin/true Example output: blacklist udf install udf /bin/false Optional audit script This script will perform the above checks and produce output with passing or failing status #!/usr/bin/env bash { a_output=() a_output2=() a_output3=() l_dl=\u0027\u0027 l_mod_name=\u0027udf\u0027 l_mod_type=\u0027fs\u0027 l_mod_path=\u0027$(readlink -f /usr/lib/modules/**/kernel/$l_mod_type || readlink -f /lib/modules/**/kernel/$l_mod_type)\u0027 f_module_chk() { l_dl=\u0027y\u0027 a_showconfig=() while IFS= read -r l_showconfig; do a_showconfig+=(\u0027$l_showconfig\u0027) done \u003c \u003c(modprobe --showconfig | grep -P -- \u0027\\b(install|blacklist)\\h+\u0027\u0027${l_mod_chk_name//-/_}\u0027\u0027\\b\u0027) if ! lsmod | grep \u0027$l_mod_chk_name\u0027 \u0026\u003e /dev/null; then a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is not loaded\u0027) else a_output2+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is loaded\u0027) fi if grep -Pq -- \u0027\\binstall\\h+\u0027\u0027${l_mod_chk_name//- /_}\u0027\u0027\\h+(\\/usr)?\\/bin\\/(true|false)\\b\u0027 \u003c\u003c\u003c \u0027${a_showconfig[*]}\u0027; then a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is not loadable\u0027) else a_output2+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is loadable\u0027) fi if grep -Pq -- \u0027\\bblacklist\\h+\u0027\u0027${l_mod_chk_name//-/_}\u0027\u0027\\b\u0027 \u003c\u003c\u003c \u0027${a_showconfig[*]}\u0027; then a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is deny listed\u0027) else a_output2+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 is not deny listed\u0027) fi } for l_mod_base_directory in $l_mod_path; do if [ -d \u0027$l_mod_base_directory/${l_mod_name/-/\\/}\u0027 ] \u0026\u0026 [ -n \u0027$(ls -A \u0027$l_mod_base_directory/${l_mod_name/-/\\/}\u0027)\u0027 ]; then a_output3+=(\u0027 - \\\u0027$l_mod_base_directory\\\u0027\u0027) l_mod_chk_name=\u0027$l_mod_name\u0027 [[ \u0027$l_mod_name\u0027 =~ overlay ]] \u0026\u0026 l_mod_chk_name=\u0027${l_mod_name::-2}\u0027 [ \u0027$l_dl\u0027 != \u0027y\u0027 ] \u0026\u0026 f_module_chk else a_output+=(\u0027 - kernel module: \\\u0027$l_mod_name\\\u0027 doesn\u0027t exist in \\\u0027$l_mod_base_directory\\\u0027\u0027) fi done [ \u0027${#a_output3[@]}\u0027 -gt 0 ] \u0026\u0026 printf \u0027%s\\n\u0027 \u0027\u0027 \u0027 -- INFO --\u0027 \u0027 - module: \\\u0027$l_mod_name\\\u0027 exists in:\u0027 \u0027${a_output3[@]}\u0027 if [ \u0027${#a_output2[@]}\u0027 -le 0 ]; then printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** PASS **\u0027 \u0027${a_output[@]}\u0027 else printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** FAIL **\u0027 \u0027 - Reason(s) for audit failure:\u0027 \u0027${a_output2[@]}\u0027 [ \u0027${#a_output[@]}\u0027 -gt 0 ] \u0026\u0026 printf \u0027%s\\n\u0027 \u0027- Correctly set:\u0027 \u0027${a_output[@]}\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: udf_kernel_module_is_not_available
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.tmp_is_a_separate_partition
+    description: Ensure /tmp is a separate partition
+    calls:
+      - action: run_command
+        command: "Run the following command and verify the output shows that /tmp is mounted. Particular requirements pertaining to mount options are covered in ensuing sections. # findmnt -kn /tmp Example output: /tmp tmpfs tmpfs rw,nosuid,nodev,noexec Ensure that systemd will mount the /tmp partition at boot time. # systemctl is-enabled tmp.mount Example output: generated Verify output is not masked or disabled. Note: By default, systemd will output generated if there is an entry in /etc/fstab for /tmp. This just means systemd will use the entry in /etc/fstab instead of its default unit file configuration for /tmp."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: tmp_is_a_separate_partition
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.nodev_option_set_on_tmp_partition
+    description: Ensure nodev option set on /tmp partition
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: nodev_option_set_on_tmp_partition
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.nosuid_option_set_on_tmp_partition
+    description: Ensure nosuid option set on /tmp partition
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: nosuid_option_set_on_tmp_partition
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.noexec_option_set_on_tmp_partition
+    description: Ensure noexec option set on /tmp partition
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: noexec_option_set_on_tmp_partition
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.dev_shm_is_a_separate_partition
+    description: Ensure /dev/shm is a separate partition
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: dev_shm_is_a_separate_partition
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.nodev_option_set_on_dev_shm_partition
+    description: Ensure nodev option set on /dev/shm partition
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: nodev_option_set_on_dev_shm_partition
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.nosuid_option_set_on_dev_shm_partition
+    description: Ensure nosuid option set on /dev/shm partition
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: nosuid_option_set_on_dev_shm_partition
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.noexec_option_set_on_dev_shm_partition
+    description: Ensure noexec option set on /dev/shm partition
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: noexec_option_set_on_dev_shm_partition
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.separate_partition_exists_for_home
+    description: Ensure separate partition exists for /home
+    calls:
+      - action: run_command
+        command: "Run the following command and verify output shows /home is mounted: # findmnt -kn /home /home /dev/sdb ext4 rw,nosuid,nodev,relatime,seclabel"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: separate_partition_exists_for_home
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.nodev_option_set_on_home_partition
+    description: Ensure nodev option set on /home partition
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: nodev_option_set_on_home_partition
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.nosuid_option_set_on_home_partition
+    description: Ensure nosuid option set on /home partition
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: nosuid_option_set_on_home_partition
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.separate_partition_exists_for_var
+    description: Ensure separate partition exists for /var
+    calls:
+      - action: run_command
+        command: "Run the following command and verify output shows /var is mounted. Example: # findmnt -kn /var /var /dev/sdb ext4 rw,nosuid,nodev,relatime,seclabel"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: separate_partition_exists_for_var
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.nodev_option_set_on_var_partition
+    description: Ensure nodev option set on /var partition
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: nodev_option_set_on_var_partition
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.nosuid_option_set_on_var_partition
+    description: Ensure nosuid option set on /var partition
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: nosuid_option_set_on_var_partition
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.separate_partition_exists_for_var_tmp
+    description: Ensure separate partition exists for /var/tmp
+    calls:
+      - action: run_command
+        command: "Run the following command and verify output shows /var/tmp is mounted. Example: # findmnt -kn /var/tmp /var/tmp /dev/sdb ext4 rw,nosuid,nodev,noexec,relatime,seclabel"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: separate_partition_exists_for_var_tmp
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.nodev_option_set_on_var_tmp_partition
+    description: Ensure nodev option set on /var/tmp partition
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: nodev_option_set_on_var_tmp_partition
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.nosuid_option_set_on_var_tmp_partition
+    description: Ensure nosuid option set on /var/tmp partition
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: nosuid_option_set_on_var_tmp_partition
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.noexec_option_set_on_var_tmp_partition
+    description: Ensure noexec option set on /var/tmp partition
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: noexec_option_set_on_var_tmp_partition
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.separate_partition_exists_for_var_log
+    description: Ensure separate partition exists for /var/log
+    calls:
+      - action: run_command
+        command: "Run the following command and verify output shows /var/log is mounted: # findmnt -kn /var/log /var/log /dev/sdb ext4 rw,nosuid,nodev,noexec,relatime,seclabel"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: separate_partition_exists_for_var_log
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.nodev_option_set_on_var_log_partition
+    description: Ensure nodev option set on /var/log partition
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: nodev_option_set_on_var_log_partition
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.nosuid_option_set_on_var_log_partition
+    description: Ensure nosuid option set on /var/log partition
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: nosuid_option_set_on_var_log_partition
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.noexec_option_set_on_var_log_partition
+    description: Ensure noexec option set on /var/log partition
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: noexec_option_set_on_var_log_partition
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.gpgcheck_is_globally_activated
+    description: Ensure gpgcheck is globally activated
+    calls:
+      - action: run_command
+        command: "Global configuration. Run the following command and verify that global configuration for gpgcheck is enabled: # grep -Pi -- \u0027^\\h*gpgcheck\\h*=\\h*(0|false|no|off)\\b\u0027 /etc/zypp/zypp.conf Nothing should be returned. Configurations in /etc/zypp/repos.d/ takes precedence over the global configuration. Run the following command and verify that there are no instances of entries starting with gpgcheck returned set to 0. Nor should there be any invalid (non-boolean) values: # grep -Pris -- \u0027^\\h*gpgcheck\\h*=\\h*(0|[2-9]|[1-9][0-9]+|false|no|off)\\b\u0027 /etc/zypp/repos.d/ Nothing should be returned."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: gpgcheck_is_globally_activated
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.apparmor_is_installed
+    description: Ensure AppArmor is installed
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that AppArmor packages are installed: # rpm -q apparmor-parser apparmor-profiles apparmor-utils libapparmor1 apparmor-parser-\u003cversion\u003e apparmor-profiles-\u003cversion\u003e apparmor-utils-\u003cversion\u003e libapparmor1-\u003cversion\u003e"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: apparmor_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.apparmor_is_enabled_in_the_bootloader
+    description: Ensure AppArmor is enabled in the bootloader configuration
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that all linux lines have the apparmor=1 parameter set: # grep \u0027^\\s*linux\u0027 /boot/grub2/grub.cfg | grep -v \u0027apparmor=1\u0027 Nothing should be returned. Run the following command to verify that all linux lines have the security=apparmor parameter set: # grep \u0027^\\s*linux\u0027 /boot/grub2/grub.cfg | grep -v \u0027security=apparmor\u0027 Nothing should be returned."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: apparmor_is_enabled_in_the_bootloader
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.bootloader_password_is_set
+    description: Ensure bootloader password is set
+    calls:
+      - action: run_command
+        command: "Run the following commands to verify the bootloader password has been set: # grep \u0027^\\s*set superusers\u0027 /boot/grub2/grub.cfg set superusers=\u0027\u003cusername\u003e\u0027 # grep \u0027^\\s*password\u0027 /boot/grub2/grub.cfg password_pbkdf2 \u003cusername\u003e \u003cencrypted-password\u003e"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: bootloader_password_is_set
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.address_space_layout_randomization_is_enabled
+    description: Ensure address space layout randomization is enabled
+    calls:
+      - action: run_command
+        command: "Run the following script to verify the following kernel parameter is set in the running configuration and correctly loaded from a kernel parameter configuration file: \u2022 kernel.randomize_va_space is set to 2 Note: kernel parameters are loaded by file and parameter order precedence. The following script observes this precedence as part of the auditing procedure. The parameters being checked may be set correctly in a file. If that file is superseded, the parameter is overridden by an incorrect setting later in that file, or in a canonically later file, that \u0027correct\u0027 setting will be ignored both by the script and by the system during a normal kernel parameter load sequence. #!/usr/bin/env bash { a_output=(); a_output2=(); a_parlist=(kernel.randomize_va_space=2) l_systemdsysctl=\u0027$(readlink -f /lib/systemd/systemd-sysctl || readlink -f /usr/lib/systemd/systemd-sysctl)\u0027 l_ufwscf=\u0027$([ -f /etc/default/ufw ] \u0026\u0026 awk -F= \u0027/^\\s*IPT_SYSCTL=/ {print $2}\u0027 /etc/default/ufw)\u0027 f_kernel_parameter_chk() { l_running_parameter_value=\u0027$(sysctl \u0027$l_parameter_name\u0027 | awk -F= \u0027{print $2}\u0027 | xargs)\u0027 # Check running configuration if grep -Pq -- \u0027\\b\u0027\u0027$l_parameter_value\u0027\u0027\\b\u0027 \u003c\u003c\u003c \u0027$l_running_parameter_value\u0027; then a_output+=(\u0027 - \\\u0027$l_parameter_name\\\u0027 is correctly set to \\\u0027$l_running_parameter_value\\\u0027\u0027 \u0027 in the running configuration\u0027) else a_output2+=(\u0027 - \\\u0027$l_parameter_name\\\u0027 is incorrectly set to \\\u0027$l_running_parameter_value\\\u0027\u0027 \\ \u0027 in the running configuration\u0027 \\ \u0027 and should have a value of: \\\u0027$l_value_out\\\u0027\u0027) fi unset A_out; declare -A A_out # Check durable setting (files) while read -r l_out; do if [ -n \u0027$l_out\u0027 ]; then if [[ $l_out =~ ^\\s*# ]]; then l_file=\u0027${l_out//# /}\u0027 else l_kpar=\u0027$(awk -F= \u0027{print $1}\u0027 \u003c\u003c\u003c \u0027$l_out\u0027 | xargs)\u0027 [ \u0027$l_kpar\u0027 = \u0027$l_parameter_name\u0027 ] \u0026\u0026 A_out+=([\u0027$l_kpar\u0027]=\u0027$l_file\u0027) fi fi done \u003c \u003c(\u0027$l_systemdsysctl\u0027 --cat-config | grep -Po \u0027^\\h*([^#\\n\\r]+|#\\h*\\/[^#\\n\\r\\h]+\\.conf\\b)\u0027) if [ -n \u0027$l_ufwscf\u0027 ]; then # Account for systems with UFW (Not covered by systemd-sysctl --cat-config) l_kpar=\u0027$(grep -Po \u0027^\\h*$l_parameter_name\\b\u0027 \u0027$l_ufwscf\u0027 | xargs)\u0027 l_kpar=\u0027${l_kpar//\\//.}\u0027 [ \u0027$l_kpar\u0027 = \u0027$l_parameter_name\u0027 ] \u0026\u0026 A_out+=([\u0027$l_kpar\u0027]=\u0027$l_ufwscf\u0027) fi if (( ${#A_out[@]} \u003e 0 )); then # Assess output from files and generate output while IFS=\u0027=\u0027 read -r l_fkpname l_file_parameter_value; do l_fkpname=\u0027${l_fkpname// /}\u0027; l_file_parameter_value=\u0027${l_file_parameter_value// /}\u0027 if grep -Pq -- \u0027\\b\u0027\u0027$l_parameter_value\u0027\u0027\\b\u0027 \u003c\u003c\u003c \u0027$l_file_parameter_value\u0027; then a_output+=(\u0027 - \\\u0027$l_parameter_name\\\u0027 is correctly set to \\\u0027$l_file_parameter_value\\\u0027\u0027 \\ \u0027 in \\\u0027$(printf \u0027%s\u0027 \u0027${A_out[@]}\u0027)\\\u0027\u0027) else a_output2+=(\u0027 - \\\u0027$l_parameter_name\\\u0027 is incorrectly set to \\\u0027$l_file_parameter_value\\\u0027\u0027 \u0027 in \\\u0027$(printf \u0027%s\u0027 \u0027${A_out[@]}\u0027)\\\u0027\u0027 \\ \u0027 and should have a value of: \\\u0027$l_value_out\\\u0027\u0027) fi done \u003c \u003c(grep -Po -- \u0027^\\h*$l_parameter_name\\h*=\\h*\\H+\u0027 \u0027${A_out[@]}\u0027) else a_output2+=(\u0027 - \\\u0027$l_parameter_name\\\u0027 is not set in an included file\u0027 \\ \u0027 ** Note: \\\u0027$l_parameter_name\\\u0027 May be set in a file that\u0027s ignored by load procedure **\u0027) fi } while IFS=\u0027=\u0027 read -r l_parameter_name l_parameter_value; do # Assess and check parameters l_parameter_name=\u0027${l_parameter_name// /}\u0027; l_parameter_value=\u0027${l_parameter_value// /}\u0027 l_value_out=\u0027${l_parameter_value//-/ through }\u0027; l_value_out=\u0027${l_value_out//|/ or }\u0027 l_value_out=\u0027$(tr -d \u0027(){}\u0027 \u003c\u003c\u003c \u0027$l_value_out\u0027)\u0027 f_kernel_parameter_chk done \u003c \u003c(printf \u0027%s\\n\u0027 \u0027${a_parlist[@]}\u0027) if [ \u0027${#a_output2[@]}\u0027 -le 0 ]; then printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** PASS **\u0027 \u0027${a_output[@]}\u0027 \u0027\u0027 else printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Audit Result:\u0027 \u0027 ** FAIL **\u0027 \u0027 - Reason(s) for audit failure:\u0027 \u0027${a_output2[@]}\u0027 [ \u0027${#a_output[@]}\u0027 -gt 0 ] \u0026\u0026 printf \u0027%s\\n\u0027 \u0027\u0027 \u0027- Correctly set:\u0027 \u0027${a_output[@]}\u0027 \u0027\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: address_space_layout_randomization_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.core_dumps_are_restricted
+    description: Ensure core dumps are restricted
+    calls:
+      - action: run_command
+        command: "Run the following commands and verify output matches: # grep -E \u0027^\\s*\\*\\s+hard\\s+core\u0027 /etc/security/limits.conf /etc/security/limits.d/* 2\u003e/dev/null * hard core 0 # sysctl fs.suid_dumpable fs.suid_dumpable = 0 # grep \u0027fs\\.suid_dumpable\u0027 /etc/sysctl.conf /etc/sysctl.d/* 2\u003e/dev/null fs.suid_dumpable = 0 Run the following command to check if systemd-coredump is installed: # systemctl is-enabled coredump.service If enabled or disabled is returned systemd-coredump is installed"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: core_dumps_are_restricted
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.prelink_is_disabled
+    description: Ensure prelink is disabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that 1prelink` is not installed: # rpm -q prelink package prelink is not installed"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: prelink_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.crypto_policies_scripts_package_is_installed
+    description: Ensure crypto-policies-scripts package is installed
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that crypto-policies-scripts is installed: # rpm -q crypto-policies-scripts crypto-policies-scripts-\u003cversion\u003e"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: crypto_policies_scripts_package_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.system_wide_crypto_policy_is_not_set_to_legacy
+    description: Ensure system wide crypto policy is not set to legacy
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that the system-wide crypto policy is not LEGACY # grep -Pi \u0027^\\h*LEGACY\\b\u0027 /etc/crypto-policies/config Verify that no lines are returned"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: system_wide_crypto_policy_is_not_set_to_legacy
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.system_wide_crypto_policy_is_not_set_in_sshd
+    description: Ensure system wide crypto policy is not set in sshd configuration
+    calls:
+      - action: run_command
+        command: "Run the following command: # grep -Pi \u0027^\\h*CRYPTO_POLICY\\h*=\u0027 /etc/sysconfig/ssh No output should be returned"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: system_wide_crypto_policy_is_not_set_in_sshd
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.system_wide_crypto_policy_disables_sha1_hash_and
+    description: Ensure system wide crypto policy disables sha1 hash and signature support
+    calls:
+      - action: run_command
+        command: "Run the following commands to verify SHA1 hash and signature support has been disabled: Run the following command to verify that the hash and sign lines do not include the SHA1 hash: # awk -F= \u0027($1~/(hash|sign)/ \u0026\u0026 $2~/SHA1/ \u0026\u0026 $2!~/^\\s*\\- \\s*([^#\\n\\r]+)?SHA1/){print}\u0027 /etc/crypto-policies/state/CURRENT.pol Nothing should be returned Run the following command to verify that sha1_in_certs is set to 0 (disabled): # grep -Psi -- \u0027^\\h*sha1_in_certs\\h*=\\h*\u0027 /etc/crypto- policies/state/CURRENT.pol sha1_in_certs = 0"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: system_wide_crypto_policy_disables_sha1_hash_and
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.system_wide_crypto_policy_disables_macs_less_than
+    description: Ensure system wide crypto policy disables macs less than 128 bits
+    calls:
+      - action: run_command
+        command: "Run the following script to verify weak MACs are disabled: # grep -Pi -- \u0027^\\h*mac\\h*=\\h*([^#\\n\\r]+)?-128\\b\u0027 /etc/crypto- policies/state/CURRENT.pol Nothing should be returned"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: system_wide_crypto_policy_disables_macs_less_than
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.system_wide_crypto_policy_disables_cbc_for_ssh
+    description: Ensure system wide crypto policy disables cbc for ssh
+    calls:
+      - action: run_command
+        command: "Run the following script to verify CBC is disabled for SSH: #!/usr/bin/env bash { l_output=\u0027\u0027 l_output2=\u0027\u0027 if grep -Piq -- \u0027^\\h*cipher\\h*=\\h*([^#\\n\\r]+)?-CBC\\b\u0027 /etc/crypto- policies/state/CURRENT.pol; then if grep -Piq -- \u0027^\\h*cipher@(lib|open)ssh(-server|-client)?\\h*=\\h*\u0027 /etc/crypto-policies/state/CURRENT.pol; then if ! grep -Piq -- \u0027^\\h*cipher@(lib|open)ssh(-server|- client)?\\h*=\\h*([^#\\n\\r]+)?-CBC\\b\u0027 /etc/crypto-policies/state/CURRENT.pol; then l_output=\u0027$l_output\\n - Cipher Block Chaining (CBC) is disabled for SSH\u0027 else l_output2=\u0027$l_output2\\n - Cipher Block Chaining (CBC) is enabled for SSH\u0027 fi else l_output2=\u0027$l_output2\\n - Cipher Block Chaining (CBC) is enabled for SSH\u0027 fi else l_output=\u0027 - Cipher Block Chaining (CBC) is disabled\u0027 fi if [ -z \u0027$l_output2\u0027 ]; then # Provide output from checks echo -e \u0027\\n- Audit Result:\\n ** PASS **\\n$l_output\\n\u0027 else echo -e \u0027\\n- Audit Result:\\n ** FAIL **\\n - Reason(s) for audit failure:\\n$l_output2\\n\u0027 [ -n \u0027$l_output\u0027 ] \u0026\u0026 echo -e \u0027\\n- Correctly set:\\n$l_output\\n\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: system_wide_crypto_policy_disables_cbc_for_ssh
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.system_wide_crypto_policy_disables_chacha20
+    description: Ensure system wide crypto policy disables chacha20- poly1305 for ssh
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: system_wide_crypto_policy_disables_chacha20
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.gdm_screen_locks_when_the_user_is_idle
+    description: Ensure GDM screen locks when the user is idle
+    calls:
+      - action: run_command
+        command: "Run the following script to verify that the screen locks when the user is idle: #!/usr/bin/env bash { # Check if GNMOE Desktop Manager is installed. If package isn\u0027t installed, recommendation is Not Applicable\\n # determine system\u0027s package manager l_pkgoutput=\u0027\u0027 if command -v dpkg-query \u003e /dev/null 2\u003e\u00261; then l_pq=\u0027dpkg-query -W\u0027 elif command -v rpm \u003e /dev/null 2\u003e\u00261; then l_pq=\u0027rpm -q\u0027 fi # Check if GDM is installed l_pcl=\u0027gdm gdm3\u0027 # Space separated list of packages to check for l_pn in $l_pcl; do $l_pq \u0027$l_pn\u0027 \u003e /dev/null 2\u003e\u00261 \u0026\u0026 l_pkgoutput=\u0027$l_pkgoutput\\n - Package: \\\u0027$l_pn\\\u0027 exists on the system\\n - checking configuration\u0027 done # Check configuration (If applicable) if [ -n \u0027$l_pkgoutput\u0027 ]; then l_output=\u0027\u0027 l_output2=\u0027\u0027 l_idmv=\u0027900\u0027 # Set for max value for idle-delay in seconds l_ldmv=\u00275\u0027 # Set for max value for lock-delay in seconds # Look for idle-delay to determine profile in use, needed for remaining tests l_kfile=\u0027$(grep -Psril \u0027^\\h*idle-delay\\h*=\\h*uint32\\h+\\d+\\b\u0027 /etc/dconf/db/*/)\u0027 # Determine file containing idle-delay key if [ -n \u0027$l_kfile\u0027 ]; then # set profile name (This is the name of a dconf database) l_profile=\u0027$(awk -F\u0027/\u0027 \u0027{split($(NF-1),a,\u0027.\u0027);print a[1]}\u0027 \u003c\u003c\u003c \u0027$l_kfile\u0027)\u0027 #Set the key profile name l_pdbdir=\u0027/etc/dconf/db/$l_profile.d\u0027 # Set the key file dconf db directory # Confirm that idle-delay exists, includes unit32, and value is between 1 and max value for idle-delay l_idv=\u0027$(awk -F \u0027uint32\u0027 \u0027/idle-delay/{print $2}\u0027 \u0027$l_kfile\u0027 | xargs)\u0027 if [ -n \u0027$l_idv\u0027 ]; then [ \u0027$l_idv\u0027 -gt \u00270\u0027 -a \u0027$l_idv\u0027 -le \u0027$l_idmv\u0027 ] \u0026\u0026 l_output=\u0027$l_output\\n - The \\\u0027idle-delay\\\u0027 option is set to \\\u0027$l_idv\\\u0027 seconds in \\\u0027$l_kfile\\\u0027\u0027 [ \u0027$l_idv\u0027 = \u00270\u0027 ] \u0026\u0026 l_output2=\u0027$l_output2\\n - The \\\u0027idle- delay\\\u0027 option is set to \\\u0027$l_idv\\\u0027 (disabled) in \\\u0027$l_kfile\\\u0027\u0027 [ \u0027$l_idv\u0027 -gt \u0027$l_idmv\u0027 ] \u0026\u0026 l_output2=\u0027$l_output2\\n - The \\\u0027idle-delay\\\u0027 option is set to \\\u0027$l_idv\\\u0027 seconds (greater than $l_idmv) in \\\u0027$l_kfile\\\u0027\u0027 else l_output2=\u0027$l_output2\\n - The \\\u0027idle-delay\\\u0027 option is not set in \\\u0027$l_kfile\\\u0027\u0027 fi # Confirm that lock-delay exists, includes unit32, and value is between 0 and max value for lock-delay l_ldv=\u0027$(awk -F \u0027uint32\u0027 \u0027/lock-delay/{print $2}\u0027 \u0027$l_kfile\u0027 | xargs)\u0027 if [ -n \u0027$l_ldv\u0027 ]; then [ \u0027$l_ldv\u0027 -ge \u00270\u0027 -a \u0027$l_ldv\u0027 -le \u0027$l_ldmv\u0027 ] \u0026\u0026 l_output=\u0027$l_output\\n - The \\\u0027lock-delay\\\u0027 option is set to \\\u0027$l_ldv\\\u0027 seconds in \\\u0027$l_kfile\\\u0027\u0027 [ \u0027$l_ldv\u0027 -gt \u0027$l_ldmv\u0027 ] \u0026\u0026 l_output2=\u0027$l_output2\\n - The \\\u0027lock-delay\\\u0027 option is set to \\\u0027$l_ldv\\\u0027 seconds (greater than $l_ldmv) in \\\u0027$l_kfile\\\u0027\u0027 else l_output2=\u0027$l_output2\\n - The \\\u0027lock-delay\\\u0027 option is not set in \\\u0027$l_kfile\\\u0027\u0027 fi # Confirm that dconf profile exists if grep -Psq \u0027^\\h*system-db:$l_profile\u0027 /etc/dconf/profile/*; then l_output=\u0027$l_output\\n - The \\\u0027$l_profile\\\u0027 profile exists\u0027 else l_output2=\u0027$l_output2\\n - The \\\u0027$l_profile\\\u0027 doesn\u0027t exist\u0027 fi # Confirm that dconf profile database file exists if [ -f \u0027/etc/dconf/db/$l_profile\u0027 ]; then l_output=\u0027$l_output\\n - The \\\u0027$l_profile\\\u0027 profile exists in the dconf database\u0027 else l_output2=\u0027$l_output2\\n - The \\\u0027$l_profile\\\u0027 profile doesn\u0027t exist in the dconf database\u0027 fi else l_output2=\u0027$l_output2\\n - The \\\u0027idle-delay\\\u0027 option doesn\u0027t exist, remaining tests skipped\u0027 fi else l_output=\u0027$l_output\\n - GNOME Desktop Manager package is not installed on the system\\n - Recommendation is not applicable\u0027 fi # Report results. If no failures output in l_output2, we pass [ -n \u0027$l_pkgoutput\u0027 ] \u0026\u0026 echo -e \u0027\\n$l_pkgoutput\u0027 if [ -z \u0027$l_output2\u0027 ]; then echo -e \u0027\\n- Audit Result:\\n ** PASS **\\n$l_output\\n\u0027 else echo -e \u0027\\n- Audit Result:\\n ** FAIL **\\n - Reason(s) for audit failure:\\n$l_output2\\n\u0027 [ -n \u0027$l_output\u0027 ] \u0026\u0026 echo -e \u0027\\n- Correctly set:\\n$l_output\\n\u0027 fi } Note: \u2022 idle-delay=uint32 Should be 900 seconds (15 minutes) or less, not 0 (disabled) and follow local site policy \u2022 lock-delay=uint32 should be 5 seconds or less and follow local site policy"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: gdm_screen_locks_when_the_user_is_idle
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.gdm_screen_locks_cannot_be_overridden
+    description: Ensure GDM screen locks cannot be overridden
+    calls:
+      - action: run_command
+        command: "Run the following script to verify that the screen lock cannot be overridden: #!/usr/bin/env bash { # Check if GNOME Desktop Manager is installed. If package isn\u0027t installed, recommendation is Not Applicable\\n # determine system\u0027s package manager l_pkgoutput=\u0027\u0027 if command -v dpkg-query \u003e /dev/null 2\u003e\u00261; then l_pq=\u0027dpkg-query -W\u0027 elif command -v rpm \u003e /dev/null 2\u003e\u00261; then l_pq=\u0027rpm -q\u0027 fi # Check if GDM is installed l_pcl=\u0027gdm gdm3\u0027 # Space separated list of packages to check for l_pn in $l_pcl; do $l_pq \u0027$l_pn\u0027 \u003e /dev/null 2\u003e\u00261 \u0026\u0026 l_pkgoutput=\u0027$l_pkgoutput\\n - Package: \\\u0027$l_pn\\\u0027 exists on the system\\n - checking configuration\u0027 done # Check configuration (If applicable) if [ -n \u0027$l_pkgoutput\u0027 ]; then l_output=\u0027\u0027 l_output2=\u0027\u0027 # Look for idle-delay to determine profile in use, needed for remaining tests l_kfd=\u0027/etc/dconf/db/$(grep -Psril \u0027^\\h*idle- delay\\h*=\\h*uint32\\h+\\d+\\b\u0027 /etc/dconf/db/*/ | awk -F\u0027/\u0027 \u0027{split($(NF- 1),a,\u0027.\u0027);print a[1]}\u0027).d\u0027 #set directory of key file to be locked l_kfd2=\u0027/etc/dconf/db/$(grep -Psril \u0027^\\h*lock- delay\\h*=\\h*uint32\\h+\\d+\\b\u0027 /etc/dconf/db/*/ | awk -F\u0027/\u0027 \u0027{split($(NF- 1),a,\u0027.\u0027);print a[1]}\u0027).d\u0027 #set directory of key file to be locked if [ -d \u0027$l_kfd\u0027 ]; then # If key file directory doesn\u0027t exist, options can\u0027t be locked if grep -Prilq \u0027\\/org\\/gnome\\/desktop\\/session\\/idle-delay\\b\u0027 \u0027$l_kfd\u0027; then l_output=\u0027$l_output\\n - \\\u0027idle-delay\\\u0027 is locked in \\\u0027$(grep - Pril \u0027\\/org\\/gnome\\/desktop\\/session\\/idle-delay\\b\u0027 \u0027$l_kfd\u0027)\\\u0027\u0027 else l_output2=\u0027$l_output2\\n - \\\u0027idle-delay\\\u0027 is not locked\u0027 fi else l_output2=\u0027$l_output2\\n - \\\u0027idle-delay\\\u0027 is not set so it can not be locked\u0027 fi if [ -d \u0027$l_kfd2\u0027 ]; then # If key file directory doesn\u0027t exist, options can\u0027t be locked if grep -Prilq \u0027\\/org\\/gnome\\/desktop\\/screensaver\\/lock-delay\\b\u0027 \u0027$l_kfd2\u0027; then l_output=\u0027$l_output\\n - \\\u0027lock-delay\\\u0027 is locked in \\\u0027$(grep - Pril \u0027\\/org\\/gnome\\/desktop\\/screensaver\\/lock-delay\\b\u0027 \u0027$l_kfd2\u0027)\\\u0027\u0027 else l_output2=\u0027$l_output2\\n - \\\u0027lock-delay\\\u0027 is not locked\u0027 fi else l_output2=\u0027$l_output2\\n - \\\u0027lock-delay\\\u0027 is not set so it can not be locked\u0027 fi else l_output=\u0027$l_output\\n - GNOME Desktop Manager package is not installed on the system\\n - Recommendation is not applicable\u0027 fi # Report results. If no failures output in l_output2, we pass [ -n \u0027$l_pkgoutput\u0027 ] \u0026\u0026 echo -e \u0027\\n$l_pkgoutput\u0027 if [ -z \u0027$l_output2\u0027 ]; then echo -e \u0027\\n- Audit Result:\\n ** PASS **\\n$l_output\\n\u0027 else echo -e \u0027\\n- Audit Result:\\n ** FAIL **\\n - Reason(s) for audit failure:\\n$l_output2\\n\u0027 [ -n \u0027$l_output\u0027 ] \u0026\u0026 echo -e \u0027\\n- Correctly set:\\n$l_output\\n\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: gdm_screen_locks_cannot_be_overridden
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.gdm_automatic_mounting_of_removable_media_is
+    description: Ensure GDM automatic mounting of removable media is disabled
+    calls:
+      - action: run_command
+        command: "Run the following script to verify automatic mounting is disabled: #!/usr/bin/env bash { l_pkgoutput=\u0027\u0027 l_output=\u0027\u0027 l_output2=\u0027\u0027 # Check if GNOME Desktop Manager is installed. If package isn\u0027t installed, recommendation is Not Applicable\\n # determine system\u0027s package manager if command -v dpkg-query \u003e /dev/null 2\u003e\u00261; then l_pq=\u0027dpkg-query -W\u0027 elif command -v rpm \u003e /dev/null 2\u003e\u00261; then l_pq=\u0027rpm -q\u0027 fi # Check if GDM is installed l_pcl=\u0027gdm gdm3\u0027 # Space separated list of packages to check for l_pn in $l_pcl; do $l_pq \u0027$l_pn\u0027 \u003e /dev/null 2\u003e\u00261 \u0026\u0026 l_pkgoutput=\u0027$l_pkgoutput\\n - Package: \\\u0027$l_pn\\\u0027 exists on the system\\n - checking configuration\u0027 done # Check configuration (If applicable) if [ -n \u0027$l_pkgoutput\u0027 ]; then echo -e \u0027$l_pkgoutput\u0027 # Look for existing settings and set variables if they exist l_kfile=\u0027$(grep -Prils -- \u0027^\\h*automount\\b\u0027 /etc/dconf/db/*.d)\u0027 l_kfile2=\u0027$(grep -Prils -- \u0027^\\h*automount-open\\b\u0027 /etc/dconf/db/*.d)\u0027 # Set profile name based on dconf db directory ({PROFILE_NAME}.d) if [ -f \u0027$l_kfile\u0027 ]; then l_gpname=\u0027$(awk -F\\/ \u0027{split($(NF-1),a,\u0027.\u0027);print a[1]}\u0027 \u003c\u003c\u003c \u0027$l_kfile\u0027)\u0027 elif [ -f \u0027$l_kfile2\u0027 ]; then l_gpname=\u0027$(awk -F\\/ \u0027{split($(NF-1),a,\u0027.\u0027);print a[1]}\u0027 \u003c\u003c\u003c \u0027$l_kfile2\u0027)\u0027 fi # If the profile name exist, continue checks if [ -n \u0027$l_gpname\u0027 ]; then l_gpdir=\u0027/etc/dconf/db/$l_gpname.d\u0027 # Check if profile file exists if grep -Pq -- \u0027^\\h*system-db:$l_gpname\\b\u0027 /etc/dconf/profile/*; then l_output=\u0027$l_output\\n - dconf database profile file \\\u0027$(grep -Pl -- \u0027^\\h*system-db:$l_gpname\\b\u0027 /etc/dconf/profile/*)\\\u0027 exists\u0027 else l_output2=\u0027$l_output2\\n - dconf database profile isn\u0027t set\u0027 fi # Check if the dconf database file exists if [ -f \u0027/etc/dconf/db/$l_gpname\u0027 ]; then l_output=\u0027$l_output\\n - The dconf database \\\u0027$l_gpname\\\u0027 exists\u0027 else l_output2=\u0027$l_output2\\n - The dconf database \\\u0027$l_gpname\\\u0027 doesn\u0027t exist\u0027 fi # check if the dconf database directory exists if [ -d \u0027$l_gpdir\u0027 ]; then l_output=\u0027$l_output\\n - The dconf directory \\\u0027$l_gpdir\\\u0027 exist\u0027 else l_output2=\u0027$l_output2\\n - The dconf directory \\\u0027$l_gpdir\\\u0027 doesn\u0027t exist\u0027 fi # check automount setting if grep -Pqrs -- \u0027^\\h*automount\\h*=\\h*false\\b\u0027 \u0027$l_kfile\u0027; then l_output=\u0027$l_output\\n - \\\u0027automount\\\u0027 is set to false in: \\\u0027$l_kfile\\\u0027\u0027 else l_output2=\u0027$l_output2\\n - \\\u0027automount\\\u0027 is not set correctly\u0027 fi # check automount-open setting if grep -Pqs -- \u0027^\\h*automount-open\\h*=\\h*false\\b\u0027 \u0027$l_kfile2\u0027; then l_output=\u0027$l_output\\n - \\\u0027automount-open\\\u0027 is set to false in: \\\u0027$l_kfile2\\\u0027\u0027 else l_output2=\u0027$l_output2\\n - \\\u0027automount-open\\\u0027 is not set correctly\u0027 fi else # Setings don\u0027t exist. Nothing further to check l_output2=\u0027$l_output2\\n - neither \\\u0027automount\\\u0027 or \\\u0027automount- open\\\u0027 is set\u0027 fi else l_output=\u0027$l_output\\n - GNOME Desktop Manager package is not installed on the system\\n - Recommendation is not applicable\u0027 fi # Report results. If no failures output in l_output2, we pass if [ -z \u0027$l_output2\u0027 ]; then echo -e \u0027\\n- Audit Result:\\n ** PASS **\\n$l_output\\n\u0027 else echo -e \u0027\\n- Audit Result:\\n ** FAIL **\\n - Reason(s) for audit failure:\\n$l_output2\\n\u0027 [ -n \u0027$l_output\u0027 ] \u0026\u0026 echo -e \u0027\\n- Correctly set:\\n$l_output\\n\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: gdm_automatic_mounting_of_removable_media_is
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.gdm_disabling_automatic_mounting_of_removable
+    description: Ensure GDM disabling automatic mounting of removable media is not overridden
+    calls:
+      - action: run_command
+        command: "Run the following script to verify disable automatic mounting is locked: #!/usr/bin/env bash { # Check if GNOME Desktop Manager is installed. If package isn\u0027t installed, recommendation is Not Applicable\\n # determine system\u0027s package manager l_pkgoutput=\u0027\u0027 if command -v dpkg-query \u003e /dev/null 2\u003e\u00261; then l_pq=\u0027dpkg-query -W\u0027 elif command -v rpm \u003e /dev/null 2\u003e\u00261; then l_pq=\u0027rpm -q\u0027 fi # Check if GDM is installed l_pcl=\u0027gdm gdm3\u0027 # Space separated list of packages to check for l_pn in $l_pcl; do $l_pq \u0027$l_pn\u0027 \u003e /dev/null 2\u003e\u00261 \u0026\u0026 l_pkgoutput=\u0027$l_pkgoutput\\n - Package: \\\u0027$l_pn\\\u0027 exists on the system\\n - checking configuration\u0027 done # Check configuration (If applicable) if [ -n \u0027$l_pkgoutput\u0027 ]; then l_output=\u0027\u0027 l_output2=\u0027\u0027 echo -e \u0027$l_pkgoutput\\n\u0027 # Look for idle-delay to determine profile in use, needed for remaining tests l_kfd=\u0027/etc/dconf/db/$(grep -Psril \u0027^\\h*automount\\b\u0027 /etc/dconf/db/*/ | awk -F\u0027/\u0027 \u0027{split($(NF-1),a,\u0027.\u0027);print a[1]}\u0027).d\u0027 #set directory of key file to be locked l_kfd2=\u0027/etc/dconf/db/$(grep -Psril \u0027^\\h*automount-open\\b\u0027 /etc/dconf/db/*/ | awk -F\u0027/\u0027 \u0027{split($(NF-1),a,\u0027.\u0027);print a[1]}\u0027).d\u0027 #set directory of key file to be locked if [ -d \u0027$l_kfd\u0027 ]; then # If key file directory doesn\u0027t exist, options can\u0027t be locked if grep -Priq \u0027^\\h*\\/org/gnome\\/desktop\\/media- handling\\/automount\\b\u0027 \u0027$l_kfd\u0027; then l_output=\u0027$l_output\\n - \\\u0027automount\\\u0027 is locked in \\\u0027$(grep -Pril \u0027^\\h*\\/org/gnome\\/desktop\\/media-handling\\/automount\\b\u0027 \u0027$l_kfd\u0027)\\\u0027\u0027 else l_output2=\u0027$l_output2\\n - \\\u0027automount\\\u0027 is not locked\u0027 fi else l_output2=\u0027$l_output2\\n - \\\u0027automount\\\u0027 is not set so it can not be locked\u0027 fi if [ -d \u0027$l_kfd2\u0027 ]; then # If key file directory doesn\u0027t exist, options can\u0027t be locked if grep -Priq \u0027^\\h*\\/org/gnome\\/desktop\\/media-handling\\/automount- open\\b\u0027 \u0027$l_kfd2\u0027; then l_output=\u0027$l_output\\n - \\\u0027lautomount-open\\\u0027 is locked in \\\u0027$(grep -Pril \u0027^\\h*\\/org/gnome\\/desktop\\/media-handling\\/automount-open\\b\u0027 \u0027$l_kfd2\u0027)\\\u0027\u0027 else l_output2=\u0027$l_output2\\n - \\\u0027automount-open\\\u0027 is not locked\u0027 fi else l_output2=\u0027$l_output2\\n - \\\u0027automount-open\\\u0027 is not set so it can not be locked\u0027 fi else l_output=\u0027$l_output\\n - GNOME Desktop Manager package is not installed on the system\\n - Recommendation is not applicable\u0027 fi # Report results. If no failures output in l_output2, we pass if [ -z \u0027$l_output2\u0027 ]; then echo -e \u0027\\n- Audit Result:\\n ** PASS **\\n$l_output\\n\u0027 else echo -e \u0027\\n- Audit Result:\\n ** FAIL **\\n - Reason(s) for audit failure:\\n$l_output2\\n\u0027 [ -n \u0027$l_output\u0027 ] \u0026\u0026 echo -e \u0027\\n- Correctly set:\\n$l_output\\n\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: gdm_disabling_automatic_mounting_of_removable
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.gdm_autorun_never_is_enabled
+    description: Ensure GDM autorun-never is enabled
+    calls:
+      - action: run_command
+        command: "Run the following script to verify that autorun-never is set to true for GDM: #!/usr/bin/env bash { l_pkgoutput=\u0027\u0027 l_output=\u0027\u0027 l_output2=\u0027\u0027 # Check if GNOME Desktop Manager is installed. If package isn\u0027t installed, recommendation is Not Applicable\\n # determine system\u0027s package manager if command -v dpkg-query \u003e /dev/null 2\u003e\u00261; then l_pq=\u0027dpkg-query -W\u0027 elif command -v rpm \u003e /dev/null 2\u003e\u00261; then l_pq=\u0027rpm -q\u0027 fi # Check if GDM is installed l_pcl=\u0027gdm gdm3\u0027 # Space separated list of packages to check for l_pn in $l_pcl; do $l_pq \u0027$l_pn\u0027 \u003e /dev/null 2\u003e\u00261 \u0026\u0026 l_pkgoutput=\u0027$l_pkgoutput\\n - Package: \\\u0027$l_pn\\\u0027 exists on the system\\n - checking configuration\u0027 echo -e \u0027$l_pkgoutput\u0027 done # Check configuration (If applicable) if [ -n \u0027$l_pkgoutput\u0027 ]; then echo -e \u0027$l_pkgoutput\u0027 # Look for existing settings and set variables if they exist l_kfile=\u0027$(grep -Prils -- \u0027^\\h*autorun-never\\b\u0027 /etc/dconf/db/*.d)\u0027 # Set profile name based on dconf db directory ({PROFILE_NAME}.d) if [ -f \u0027$l_kfile\u0027 ]; then l_gpname=\u0027$(awk -F\\/ \u0027{split($(NF-1),a,\u0027.\u0027);print a[1]}\u0027 \u003c\u003c\u003c \u0027$l_kfile\u0027)\u0027 fi # If the profile name exist, continue checks if [ -n \u0027$l_gpname\u0027 ]; then l_gpdir=\u0027/etc/dconf/db/$l_gpname.d\u0027 # Check if profile file exists if grep -Pq -- \u0027^\\h*system-db:$l_gpname\\b\u0027 /etc/dconf/profile/*; then l_output=\u0027$l_output\\n - dconf database profile file \\\u0027$(grep -Pl -- \u0027^\\h*system-db:$l_gpname\\b\u0027 /etc/dconf/profile/*)\\\u0027 exists\u0027 else l_output2=\u0027$l_output2\\n - dconf database profile isn\u0027t set\u0027 fi # Check if the dconf database file exists if [ -f \u0027/etc/dconf/db/$l_gpname\u0027 ]; then l_output=\u0027$l_output\\n - The dconf database \\\u0027$l_gpname\\\u0027 exists\u0027 else l_output2=\u0027$l_output2\\n - The dconf database \\\u0027$l_gpname\\\u0027 doesn\u0027t exist\u0027 fi # check if the dconf database directory exists if [ -d \u0027$l_gpdir\u0027 ]; then l_output=\u0027$l_output\\n - The dconf directory \\\u0027$l_gpdir\\\u0027 exitst\u0027 else l_output2=\u0027$l_output2\\n - The dconf directory \\\u0027$l_gpdir\\\u0027 doesn\u0027t exist\u0027 fi # check autorun-never setting if grep -Pqrs -- \u0027^\\h*autorun-never\\h*=\\h*true\\b\u0027 \u0027$l_kfile\u0027; then l_output=\u0027$l_output\\n - \\\u0027autorun-never\\\u0027 is set to true in: \\\u0027$l_kfile\\\u0027\u0027 else l_output2=\u0027$l_output2\\n - \\\u0027autorun-never\\\u0027 is not set correctly\u0027 fi else # Settings don\u0027t exist. Nothing further to check l_output2=\u0027$l_output2\\n - \\\u0027autorun-never\\\u0027 is not set\u0027 fi else l_output=\u0027$l_output\\n - GNOME Desktop Manager package is not installed on the system\\n - Recommendation is not applicable\u0027 fi # Report results. If no failures output in l_output2, we pass if [ -z \u0027$l_output2\u0027 ]; then echo -e \u0027\\n- Audit Result:\\n ** PASS **\\n$l_output\\n\u0027 else echo -e \u0027\\n- Audit Result:\\n ** FAIL **\\n - Reason(s) for audit failure:\\n$l_output2\\n\u0027 [ -n \u0027$l_output\u0027 ] \u0026\u0026 echo -e \u0027\\n- Correctly set:\\n$l_output\\n\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: gdm_autorun_never_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.gdm_autorun_never_is_not_overridden
+    description: Ensure GDM autorun-never is not overridden
+    calls:
+      - action: run_command
+        command: "Run the following script to verify that autorun-never=true cannot be overridden: #!/usr/bin/env bash { # Check if GNOME Desktop Manager is installed. If package isn\u0027t installed, recommendation is Not Applicable\\n # determine system\u0027s package manager l_pkgoutput=\u0027\u0027 if command -v dpkg-query \u003e /dev/null 2\u003e\u00261; then l_pq=\u0027dpkg-query -W\u0027 elif command -v rpm \u003e /dev/null 2\u003e\u00261; then l_pq=\u0027rpm -q\u0027 fi # Check if GDM is installed l_pcl=\u0027gdm gdm3\u0027 # Space separated list of packages to check for l_pn in $l_pcl; do $l_pq \u0027$l_pn\u0027 \u003e /dev/null 2\u003e\u00261 \u0026\u0026 l_pkgoutput=\u0027$l_pkgoutput\\n - Package: \\\u0027$l_pn\\\u0027 exists on the system\\n - checking configuration\u0027 done # Check configuration (If applicable) if [ -n \u0027$l_pkgoutput\u0027 ]; then l_output=\u0027\u0027 l_output2=\u0027\u0027 echo -e \u0027$l_pkgoutput\\n\u0027 # Look for idle-delay to determine profile in use, needed for remaining tests l_kfd=\u0027/etc/dconf/db/$(grep -Psril \u0027^\\h*autorun-never\\b\u0027 /etc/dconf/db/*/ | awk -F\u0027/\u0027 \u0027{split($(NF-1),a,\u0027.\u0027);print a[1]}\u0027).d\u0027 #set directory of key file to be locked if [ -d \u0027$l_kfd\u0027 ]; then # If key file directory doesn\u0027t exist, options can\u0027t be locked if grep -Priq \u0027^\\h*\\/org/gnome\\/desktop\\/media-handling\\/autorun- never\\b\u0027 \u0027$l_kfd\u0027; then l_output=\u0027$l_output\\n - \\\u0027autorun-never\\\u0027 is locked in \\\u0027$(grep - Pril \u0027^\\h*\\/org/gnome\\/desktop\\/media-handling\\/autorun-never\\b\u0027 \u0027$l_kfd\u0027)\\\u0027\u0027 else l_output2=\u0027$l_output2\\n - \\\u0027autorun-never\\\u0027 is not locked\u0027 fi else l_output2=\u0027$l_output2\\n - \\\u0027autorun-never\\\u0027 is not set so it can not be locked\u0027 fi else l_output=\u0027$l_output\\n - GNOME Desktop Manager package is not installed on the system\\n - Recommendation is not applicable\u0027 fi # Report results. If no failures output in l_output2, we pass if [ -z \u0027$l_output2\u0027 ]; then echo -e \u0027\\n- Audit Result:\\n ** PASS **\\n$l_output\\n\u0027 else echo -e \u0027\\n- Audit Result:\\n ** FAIL **\\n - Reason(s) for audit failure:\\n$l_output2\\n\u0027 [ -n \u0027$l_output\u0027 ] \u0026\u0026 echo -e \u0027\\n- Correctly set:\\n$l_output\\n\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: gdm_autorun_never_is_not_overridden
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.mounting_of_squashfs_filesystems_is_disabled
+    description: Ensure mounting of squashfs filesystems is disabled
+    calls:
+      - action: run_command
+        command: "Run the following commands and verify the output is as indicated: # modprobe -n -v squashfs | grep -E \u0027(squashfs|install)\u0027 install /bin/true # lsmod | grep squashfs \u003cNo output\u003e"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: mounting_of_squashfs_filesystems_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.mounting_of_udf_filesystems_is_disabled
+    description: Ensure mounting of udf filesystems is disabled
+    calls:
+      - action: run_command
+        command: "Run the following commands and verify the output is as indicated: # modprobe -n -v udf | grep -E \u0027(udf|install)\u0027 install /bin/true # lsmod | grep udf \u003cNo output\u003e"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: mounting_of_udf_filesystems_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.mounting_of_fat_filesystems_is_limited
+    description: Ensure mounting of FAT filesystems is limited
+    calls:
+      - action: run_command
+        command: "If utilizing UEFI the FAT filesystem format is required. If this case, ensure that the FAT filesystem is only used where appropriate Run the following command # grep -E -i \u0027\\svfat\\s\u0027 /etc/fstab And review that any output is appropriate for your environment If not utilizing UEFI Run the following commands and verify the output is as indicated: # modprobe -n -v fat | grep -E \u0027(fat|install)\u0027 install /bin/true # lsmod | grep fat \u003cNo output\u003e # modprobe -n -v vfat | grep -E \u0027(vfat|install)\u0027 install /bin/true # lsmod | grep vfat \u003cNo output\u003e # modprobe -n -v msdos | grep -E \u0027(msdos|install)\u0027 install /bin/true # lsmod | grep msdos \u003cNo output\u003e"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: mounting_of_fat_filesystems_is_limited
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.tmp_is_configured
+    description: Ensure /tmp is configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify output shows /tmp is mounted: # mount | grep -E \u0027\\s/tmp\\s\u0027 tmpfs on /tmp type tmpfs (rw,nosuid,nodev,noexec,relatime) - IF - /etc/fstab is used: \u2022 Run the following command and verify that tmpfs has been mounted to, or a system partition has been created for /tmp # grep -E \u0027\\s/tmp\\s\u0027 /etc/fstab | grep -E -v \u0027^\\s*#\u0027 tmpfs /tmp tmpfs defaults,noexec,nosuid,nodev 0 0 - OR/IF - systemd tmp.mount file is used: \u2022 Run the following command and verify that tmp.mount is enabled: # systemctl is-enabled tmp.mount enabled"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: tmp_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.sticky_bit_is_set_on_all_world_writable
+    description: Ensure sticky bit is set on all world-writable directories
+    calls:
+      - action: run_command
+        command: "Run the following command to verify no world writable directories exist without the sticky bit set: # df --local -P 2\u003e /dev/null | awk \u0027{if (NR!=1) print $6}\u0027 | xargs -I \u0027{}\u0027 find \u0027{}\u0027 -xdev -type d \\( -perm -0002 -a ! -perm -1000 \\) 2\u003e/dev/null Nothing should be returned."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sticky_bit_is_set_on_all_world_writable
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.aide_is_installed
+    description: Ensure AIDE is installed
+    calls:
+      - action: run_command
+        command: "Run the following command and verify aide is installed: # rpm -q aide aide-\u003cversion\u003e"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: aide_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.filesystem_integrity_is_regularly_checked
+    description: Ensure filesystem integrity is regularly checked
+    calls:
+      - action: run_command
+        command: "Run the following commands to determine if there is a cron job scheduled to run the aide check. # crontab -u root -l | grep aide # grep -r aide /etc/cron.* /etc/crontab Ensure a cron job in compliance with site policy is returned. - OR - Run the following commands to verify that aidecheck.service and aidecheck.timer are enabled and aidecheck.timer is running # systemctl is-enabled aidecheck.service # systemctl is-enabled aidecheck.timer # systemctl status aidecheck.timer"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: filesystem_integrity_is_regularly_checked
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.permissions_on_bootloader_config_are_configured
+    description: Ensure permissions on bootloader config are configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify Uid and Gid are 0/root and Access does not grant permissions to group or other : # stat /boot/grub2/grub.cfg Access: (0600/-rw-------) Uid: ( 0/ root) Gid: ( 0/ root)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: permissions_on_bootloader_config_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.authentication_required_for_single_user_mode
+    description: Ensure authentication required for single user mode
+    calls:
+      - action: run_command
+        command: "Run the following commands and verify that /sbin/sulogin or /usr/sbin/sulogin is used as shown: # grep sulogin /usr/lib/systemd/system/rescue.service ExecStart=-/bin/sh -c \u0027/usr/sbin/sulogin; echo \u0027Starting default target\u0027; /usr/bin/systemctl --job-mode=fail --no-block default\u0027 # grep sulogin /usr/lib/systemd/system/emergency.service ExecStart=-/bin/sh -c \u0027/usr/sbin/sulogin; echo \u0027Starting default target\u0027; /usr/bin/systemctl --job-mode=fail --no-block default\u0027"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: authentication_required_for_single_user_mode
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.xd_nx_support_is_enabled
+    description: Ensure XD/NX support is enabled
+    calls:
+      - action: run_command
+        command: "Run the following command and verify your kernel has identified and activated NX/XD protection. # journalctl | grep \u0027protection: active\u0027 kernel: NX (Execute Disable) protection: active - OR - On systems without journalctl: # [[ -n $(grep noexec[0-9]*=off /proc/cmdline) || -z $(grep -E -i \u0027 (pae|nx) \u0027 /proc/cpuinfo) || -n $(grep \u0027\\sNX\\s.*\\sprotection:\\s\u0027 /var/log/dmesg | grep -v active) ]] \u0026\u0026 echo \u0027NX Protection is not active\u0027 Nothing should be returned."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: xd_nx_support_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_1.address_space_layout_randomization_aslr_is_enabled
+    description: Ensure address space layout randomization (ASLR) is enabled
+    calls:
+      - action: run_command
+        command: "Run the following commands and verify output matches: # sysctl kernel.randomize_va_space kernel.randomize_va_space = 2 # grep -s -- \u0027kernel\\.randomize_va_space\u0027 /run/sysctl.d/*.conf /etc/sysctl.d/*.conf /usr/local/lib/sysctl.d/*.conf /usr/lib/sysctl.d/*.conf /lib/sysctl.d/*.conf /etc/sysctl.conf kernel.randomize_va_space = 2"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: address_space_layout_randomization_aslr_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+

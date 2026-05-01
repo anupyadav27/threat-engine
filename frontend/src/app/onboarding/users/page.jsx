@@ -1,14 +1,18 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Users, Plus } from 'lucide-react';
 import DataTable from '@/components/shared/DataTable';
 
-const MOCK_USERS = [
-  { id: 1, name: 'Anup Yadav', email: 'yadav.anup@gmail.com', role: 'Admin', status: 'active', last_login: '2026-03-23' },
-  { id: 2, name: 'Security Team', email: 'security@acmecorp.com', role: 'Analyst', status: 'active', last_login: '2026-03-22' },
-];
-
 export default function UsersPage() {
+  const [users, setUsers] = useState([]);
+
+  useEffect(() => {
+    fetch('/gateway/api/v1/platform/users', { headers: { 'X-Tenant-ID': process.env.NEXT_PUBLIC_TENANT_ID || 'default-tenant' } })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setUsers(Array.isArray(d) ? d : (d.users || [])))
+      .catch(() => {});
+  }, []);
+
   const columns = [
     { accessorKey: 'name', header: 'Name' },
     { accessorKey: 'email', header: 'Email' },
@@ -29,7 +33,10 @@ export default function UsersPage() {
         </button>
       </div>
       <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Manage platform users, roles, and access permissions.</p>
-      <DataTable data={MOCK_USERS} columns={columns} pageSize={25} hideToolbar />
+      {users.length > 0
+        ? <DataTable data={users} columns={columns} pageSize={25} hideToolbar />
+        : <p className="text-sm text-center py-10" style={{ color: 'var(--text-muted)' }}>No users found.</p>
+      }
     </div>
   );
 }

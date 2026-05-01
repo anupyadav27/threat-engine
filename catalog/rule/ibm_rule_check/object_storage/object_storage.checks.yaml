@@ -1,0 +1,50 @@
+# Auto-generated: check rules for IBM object_storage from test-rulecheck_python_code
+version: '1.0'
+provider: ibm
+service: object_storage
+checks:
+- rule_id: ibm.object_storage.bucket.activity_tracking_enabled
+  for_each: ibm.object_storage.list_buckets
+  severity: MEDIUM
+  conditions:
+    var: item.ActivityTracking.Enabled
+    op: is_true
+- rule_id: ibm.object_storage.bucket.encryption_at_rest_enabled
+  for_each: ibm.object_storage.list_buckets
+  severity: HIGH
+  conditions:
+    var: item.Encryption
+    op: exists
+- rule_id: ibm.object_storage.bucket.no_public_access
+  for_each: ibm.object_storage.list_buckets
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.PublicAccessBlockConfiguration
+      op: exists
+    - var: item.PublicAccessBlockConfiguration.BlockPublicAcls
+      op: is_true
+    - var: item.PublicAccessBlockConfiguration.IgnorePublicAcls
+      op: is_true
+    - var: item.PublicAccessBlockConfiguration.BlockPublicPolicy
+      op: is_true
+    - var: item.PublicAccessBlockConfiguration.RestrictPublicBuckets
+      op: is_true
+- rule_id: ibm.object_storage.bucket.retention_policy_configured
+  for_each: ibm.object_storage.buckets.list
+  severity: MEDIUM
+  conditions:
+    var: item.retention_policy
+    op: exists
+- rule_id: ibm.object_storage.bucket.ssl_enforced
+  for_each: ibm.object_storage.list_buckets
+  severity: HIGH
+  conditions:
+    var: item.SSLEnabled
+    op: is_true
+- rule_id: ibm.object_storage.bucket.versioning_enabled
+  for_each: ibm.object_storage.list_buckets
+  severity: MEDIUM
+  conditions:
+    var: item.Versioning.Enabled
+    op: is_true

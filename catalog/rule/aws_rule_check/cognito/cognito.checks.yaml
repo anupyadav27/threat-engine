@@ -1,0 +1,118 @@
+version: '1.0'
+provider: aws
+service: cognito
+checks:
+- rule_id: aws.cognito.userpool.access_keys_rotated_90_days_or_less_when_present
+  for_each: aws.cognito.describe_user_pool
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.UserPoolAddOns
+      op: exists
+      value: null
+    - var: item.UserPoolAddOns.AdvancedSecurityMode
+      op: exists
+      value: null
+    - var: item.UserPoolAddOns.AdvancedSecurityMode
+      op: equals
+      value: ENFORCED
+- rule_id: aws.cognito.userpool.cognito_inactive_90_days_disabled
+  for_each: aws.cognito.describe_user_pool
+  severity: MEDIUM
+  conditions:
+    var: item.AccountRecoverySetting.RecoveryMechanisms[].Priority
+    op: exists
+    value: null
+- rule_id: aws.cognito.userpool.cognito_no_inline_policies_enabled
+  for_each: aws.cognito.describe_user_pool
+  severity: MEDIUM
+  conditions:
+    var: item.Policies
+    op: not_exists
+    value: null
+- rule_id: aws.cognito.userpool.cognito_store_encrypted
+  for_each: aws.cognito.describe_user_pool
+  severity: HIGH
+  conditions:
+    var: item.UserPoolAddOns.AdvancedSecurityMode
+    op: exists
+    value: null
+- rule_id: aws.cognito.userpool.cognito_workflow_storage_encrypted
+  for_each: aws.cognito.describe_user_pool
+  severity: HIGH
+  conditions:
+    var: item.UserPoolAddOns.AdvancedSecurityMode
+    op: exists
+    value: null
+- rule_id: aws.cognito.userpool.console_password_present_only_if_required
+  for_each: aws.cognito.describe_user_pool
+  severity: CRITICAL
+  conditions:
+    any:
+    - var: item.AdminCreateUserConfig.AllowAdminCreateUserOnly
+      op: is_true
+      value: null
+    - var: item.UsernameAttributes
+      op: contains
+      value: email
+    - var: item.UsernameAttributes
+      op: contains
+      value: phone_number
+- rule_id: aws.cognito.userpool.mfa_required
+  for_each: aws.cognito.describe_user_pool
+  severity: MEDIUM
+  conditions:
+    var: item.MfaConfiguration
+    op: equals
+    value: 'ON'
+- rule_id: aws.cognito.userpool.rbac_least_privilege
+  for_each: aws.cognito.describe_user_pool
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Policies.PasswordPolicy.MinimumLength
+      op: gte
+      value: 12
+    - var: item.Policies.PasswordPolicy.RequireUppercase
+      op: is_true
+      value: null
+    - var: item.Policies.PasswordPolicy.RequireLowercase
+      op: is_true
+      value: null
+    - var: item.Policies.PasswordPolicy.RequireNumbers
+      op: is_true
+      value: null
+    - var: item.Policies.PasswordPolicy.RequireSymbols
+      op: is_true
+      value: null
+    - var: item.Policies.PasswordPolicy.TemporaryPasswordValidityDays
+      op: lte
+      value: 7
+- rule_id: aws.cognito.userpoolgroup.cognito_attached_policies_not_admin_star_configured
+  for_each: aws.cognito.describe_user_pool
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.UserPoolGroups[].Policies[].PolicyDocument.Statement[].Effect
+      op: equals
+      value: Allow
+    - var: item.UserPoolGroups[].Policies[].PolicyDocument.Statement[].Action
+      op: not_contains
+      value: '*'
+    - var: item.UserPoolGroups[].Policies[].PolicyDocument.Statement[].Resource
+      op: not_contains
+      value: '*'
+- rule_id: aws.cognito.userpoolgroup.cognito_membership_review_enabled_if_supported
+  for_each: aws.cognito.describe_user_pool
+  severity: MEDIUM
+  conditions:
+    var: item.AdminCreateUserConfig.AllowAdminCreateUserOnly
+    op: is_true
+    value: null
+- rule_id: aws.cognito.userpoolgroup.cognito_no_inline_policies_configured
+  for_each: aws.cognito.describe_user_pool
+  severity: MEDIUM
+  conditions:
+    var: item.Policies
+    op: not_exists
+    value: null

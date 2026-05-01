@@ -1,0 +1,1103 @@
+tech_type: ubuntu
+category: linux
+cis_benchmark: CIS Ubuntu 24.04 v1.0.0
+cis_section: '3'
+
+rules:
+
+  - rule_id: ubuntu.cis.3.wireless_interfaces_are_disabled
+    title: "Ensure wireless interfaces are disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '3.1.2'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.wireless_interfaces_are_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Run the following script to disable any wireless interfaces: #!/usr/bin/env
+      bash { module_fix() { if ! modprobe -n -v '$l_mname' | grep -P -- '^\h*install
+      \/bin\/(true|false)'; then echo -e ' - setting module: \'$l_mname\' to be un-
+      loadable' echo -e 'install $l_mname /bin/false' >>
+      /etc/modprobe.d/'$l_mname'.conf fi if lsmod | grep '$l_mname' > /dev/null
+      2>&1; then echo -e ' - unloading module \'$l_mname\'' modprobe -r '$l_mname'
+      fi if ! grep -Pq -- '^\h*blacklist\h+$l_mname\b' /etc/modprobe.d/*; then echo
+      -e ' - deny listing \'$l_mname\'' echo -e 'blacklist $l_mname' >>
+      /etc/modprobe.d/'$l_mname'.conf fi } if [ -n '$(find /sys/class/net/*/ -type d
+      -name wireless)' ]; then l_dname=$(for driverdir in $(find /sys/class/net/*/
+      -type d -name wireless | xargs -0 dirname); do basename '$(readlink -f
+      '$driverdir'/device/driver/module)';done | sort -u) for l_mname in $l_dname;
+      do module_fix done fi } References: 1. NIST SP 800-53 Rev. 5: CM-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_3_1_2
+
+  - rule_id: ubuntu.cis.3.bluetooth_services_are_not_in_use
+    title: "Ensure bluetooth services are not in use"
+    severity: high
+    automation_type: automated
+    cis_control: '3.1.3'
+    cis_section: '3'
+    profile_applicability: "Level 1 + Level 2"
+    scope: ubuntu.section_3.bluetooth_services_are_not_in_use
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following commands to stop bluetooth.service, and remove the bluez
+      package: # systemctl stop bluetooth.service # apt purge bluez - OR - - IF -
+      the bluez package is required as a dependency: Run the following commands to
+      stop and mask bluetooth.service: # systemctl stop bluetooth.service #
+      systemctl mask bluetooth.service Note: A reboot may be required References: 1.
+      https://www.cisa.gov/tips/st05-015 2. NIST SP 800-53 Rev. 5: CM-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_3_1_3
+
+  - rule_id: ubuntu.cis.3.tipc_kernel_module_is_not_available
+    title: "Ensure tipc kernel module is not available"
+    severity: medium
+    automation_type: automated
+    cis_control: '3.2.2'
+    cis_section: '3'
+    profile_applicability: "Level 2"
+    scope: ubuntu.section_3.tipc_kernel_module_is_not_available
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following script to unload and disable the tipc module: - IF - the
+      tipc kernel module is available in ANY installed kernel: • Create a file
+      ending in .conf with install tipc /bin/false in the /etc/modprobe.d/ directory
+      • Create a file ending in .conf with blacklist tipc in the /etc/modprobe.d/
+      directory • Run modprobe -r tipc 2>/dev/null; rmmod tipc 2>/dev/null to remove
+      tipc from the kernel - IF - the tipc kernel module is not available on the
+      system, or pre-compiled into the kernel, no remediation is necessary
+      #!/usr/bin/env bash { a_output2=() a_output3=() l_dl='' l_mod_name='tipc'
+      l_mod_type='net' l_mod_path='$(readlink -f /lib/modules/**/kernel/$l_mod_type
+      | sort -u)' f_module_fix() { l_dl='y' a_showconfig=() while IFS= read -r
+      l_showconfig; do a_showconfig+=('$l_showconfig') done < <(modprobe
+      --showconfig | grep -P --
+      '\b(install|blacklist)\h+''${l_mod_chk_name//-/_}''\b') if lsmod | grep
+      '$l_mod_chk_name' &> /dev/null; then a_output2+=(' - unloading kernel module:
+      \'$l_mod_name\'') modprobe -r '$l_mod_chk_name' 2>/dev/null; rmmod
+      '$l_mod_name' 2>/dev/null fi if ! grep -Pq --
+      '\binstall\h+''${l_mod_chk_name//- /_}''\h+(\/usr)?\/bin\/(true|false)\b' <<<
+      '${a_showconfig[*]}'; then a_output2+=(' - setting kernel module:
+      \'$l_mod_name\' to \'$(readlink -f /bin/false)\'') printf '%s\n' 'install
+      $l_mod_chk_name $(readlink -f /bin/false)' >>
+      /etc/modprobe.d/'$l_mod_name'.conf fi if ! grep -Pq --
+      '\bblacklist\h+''${l_mod_chk_name//-/_}''\b' <<< '${a_showconfig[*]}'; then
+      a_output2+=(' - denylisting kernel module: \'$l_mod_name\'') printf '%s\n'
+      'blacklist $l_mod_chk_name' >> /etc/modprobe.d/'$l_mod_name'.conf fi } for
+      l_mod_base_directory in $l_mod_path; do # Check if the module exists on the
+      system if [ -d '$l_mod_base_directory/${l_mod_name/-/\/}' ] && [ -n '$(ls -A
+      '$l_mod_base_directory/${l_mod_name/-/\/}')' ]; then a_output3+=(' -
+      \'$l_mod_base_directory\'') l_mod_chk_name='$l_mod_name' [[ '$l_mod_name' =~
+      overlay ]] && l_mod_chk_name='${l_mod_name::-2}' [ '$l_dl' != 'y' ] &&
+      f_module_fix else printf '%s\n' ' - kernel module: \'$l_mod_name\' doesn't
+      exist in \'$l_mod_base_directory\'' fi done [ '${#a_output3[@]}' -gt 0 ] &&
+      printf '%s\n' '' ' -- INFO --' ' - module: \'$l_mod_name\' exists in:'
+      '${a_output3[@]}' [ '${#a_output2[@]}' -gt 0 ] && printf '%s\n' ''
+      '${a_output2[@]}' || printf '%s\n' '' ' - No changes needed' printf '%s\n' ''
+      ' - remediation of kernel module: \'$l_mod_name\' complete' '' } References:
+      1. NIST SP 800-53 Rev. 5: SI-4, CM-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_3_2_2
+
+  - rule_id: ubuntu.cis.3.rds_kernel_module_is_not_available
+    title: "Ensure rds kernel module is not available"
+    severity: medium
+    automation_type: automated
+    cis_control: '3.2.3'
+    cis_section: '3'
+    profile_applicability: "Level 2"
+    scope: ubuntu.section_3.rds_kernel_module_is_not_available
+    assertion:
+      field: port
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following script to unload and disable the rds module: - IF - the rds
+      kernel module is available in ANY installed kernel: • Create a file ending in
+      .conf with install rds /bin/false in the /etc/modprobe.d/ directory • Create a
+      file ending in .conf with blacklist rds in the /etc/modprobe.d/ directory •
+      Run modprobe -r rds 2>/dev/null; rmmod rds 2>/dev/null to remove rds from the
+      kernel - IF - the rds kernel module is not available on the system, or pre-
+      compiled into the kernel, no remediation is necessary #!/usr/bin/env bash {
+      a_output2=() a_output3=() l_dl='' l_mod_name='rds' l_mod_type='net'
+      l_mod_path='$(readlink -f /lib/modules/**/kernel/$l_mod_type | sort -u)'
+      f_module_fix() { l_dl='y' a_showconfig=() while IFS= read -r l_showconfig; do
+      a_showconfig+=('$l_showconfig') done < <(modprobe --showconfig | grep -P --
+      '\b(install|blacklist)\h+''${l_mod_chk_name//-/_}''\b') if lsmod | grep
+      '$l_mod_chk_name' &> /dev/null; then a_output2+=(' - unloading kernel module:
+      \'$l_mod_name\'') modprobe -r '$l_mod_chk_name' 2>/dev/null; rmmod
+      '$l_mod_name' 2>/dev/null fi if ! grep -Pq --
+      '\binstall\h+''${l_mod_chk_name//- /_}''\h+(\/usr)?\/bin\/(true|false)\b' <<<
+      '${a_showconfig[*]}'; then a_output2+=(' - setting kernel module:
+      \'$l_mod_name\' to \'$(readlink -f /bin/false)\'') printf '%s\n' 'install
+      $l_mod_chk_name $(readlink -f /bin/false)' >>
+      /etc/modprobe.d/'$l_mod_name'.conf fi if ! grep -Pq --
+      '\bblacklist\h+''${l_mod_chk_name//-/_}''\b' <<< '${a_showconfig[*]}'; then
+      a_output2+=(' - denylisting kernel module: \'$l_mod_name\'') printf '%s\n'
+      'blacklist $l_mod_chk_name' >> /etc/modprobe.d/'$l_mod_name'.conf fi } for
+      l_mod_base_directory in $l_mod_path; do # Check if the module exists on the
+      system if [ -d '$l_mod_base_directory/${l_mod_name/-/\/}' ] && [ -n '$(ls -A
+      '$l_mod_base_directory/${l_mod_name/-/\/}')' ]; then a_output3+=(' -
+      \'$l_mod_base_directory\'') l_mod_chk_name='$l_mod_name' [[ '$l_mod_name' =~
+      overlay ]] && l_mod_chk_name='${l_mod_name::-2}' [ '$l_dl' != 'y' ] &&
+      f_module_fix else printf '%s\n' ' - kernel module: \'$l_mod_name\' doesn't
+      exist in \'$l_mod_base_directory\'' fi done [ '${#a_output3[@]}' -gt 0 ] &&
+      printf '%s\n' '' ' -- INFO --' ' - module: \'$l_mod_name\' exists in:'
+      '${a_output3[@]}' [ '${#a_output2[@]}' -gt 0 ] && printf '%s\n' ''
+      '${a_output2[@]}' || printf '%s\n' '' ' - No changes needed' printf '%s\n' ''
+      ' - remediation of kernel module: \'$l_mod_name\' complete' '' } References:
+      1. NIST SP 800-53 Rev. 5: SI-4, CM-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_3_2_3
+
+  - rule_id: ubuntu.cis.3.sctp_kernel_module_is_not_available
+    title: "Ensure sctp kernel module is not available"
+    severity: medium
+    automation_type: automated
+    cis_control: '3.2.4'
+    cis_section: '3'
+    profile_applicability: "Level 2"
+    scope: ubuntu.section_3.sctp_kernel_module_is_not_available
+    assertion:
+      field: port
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following script to unload and disable the sctp module: - IF - the
+      sctp kernel module is available in ANY installed kernel: • Create a file
+      ending in .conf with install sctp /bin/false in the /etc/modprobe.d/ directory
+      • Create a file ending in .conf with blacklist sctp in the /etc/modprobe.d/
+      directory • Run modprobe -r sctp 2>/dev/null; rmmod sctp 2>/dev/null to remove
+      sctp from the kernel - IF - the sctp kernel module is not available on the
+      system, or pre-compiled into the kernel, no remediation is necessary
+      #!/usr/bin/env bash { a_output2=() a_output3=() l_dl='' l_mod_name='sctp'
+      l_mod_type='net' l_mod_path='$(readlink -f /lib/modules/**/kernel/$l_mod_type
+      | sort -u)' f_module_fix() { l_dl='y' a_showconfig=() while IFS= read -r
+      l_showconfig; do a_showconfig+=('$l_showconfig') done < <(modprobe
+      --showconfig | grep -P --
+      '\b(install|blacklist)\h+''${l_mod_chk_name//-/_}''\b') if lsmod | grep
+      '$l_mod_chk_name' &> /dev/null; then a_output2+=(' - unloading kernel module:
+      \'$l_mod_name\'') modprobe -r '$l_mod_chk_name' 2>/dev/null; rmmod
+      '$l_mod_name' 2>/dev/null fi if ! grep -Pq --
+      '\binstall\h+''${l_mod_chk_name//- /_}''\h+(\/usr)?\/bin\/(true|false)\b' <<<
+      '${a_showconfig[*]}'; then a_output2+=(' - setting kernel module:
+      \'$l_mod_name\' to \'$(readlink -f /bin/false)\'') printf '%s\n' 'install
+      $l_mod_chk_name $(readlink -f /bin/false)' >>
+      /etc/modprobe.d/'$l_mod_name'.conf fi if ! grep -Pq --
+      '\bblacklist\h+''${l_mod_chk_name//-/_}''\b' <<< '${a_showconfig[*]}'; then
+      a_output2+=(' - denylisting kernel module: \'$l_mod_name\'') printf '%s\n'
+      'blacklist $l_mod_chk_name' >> /etc/modprobe.d/'$l_mod_name'.conf fi } for
+      l_mod_base_directory in $l_mod_path; do # Check if the module exists on the
+      system if [ -d '$l_mod_base_directory/${l_mod_name/-/\/}' ] && [ -n '$(ls -A
+      '$l_mod_base_directory/${l_mod_name/-/\/}')' ]; then a_output3+=(' -
+      \'$l_mod_base_directory\'') l_mod_chk_name='$l_mod_name' [[ '$l_mod_name' =~
+      overlay ]] && l_mod_chk_name='${l_mod_name::-2}' [ '$l_dl' != 'y' ] &&
+      f_module_fix else printf '%s\n' ' - kernel module: \'$l_mod_name\' doesn't
+      exist in \'$l_mod_base_directory\'' fi done [ '${#a_output3[@]}' -gt 0 ] &&
+      printf '%s\n' '' ' -- INFO --' ' - module: \'$l_mod_name\' exists in:'
+      '${a_output3[@]}' [ '${#a_output2[@]}' -gt 0 ] && printf '%s\n' ''
+      '${a_output2[@]}' || printf '%s\n' '' ' - No changes needed' printf '%s\n' ''
+      ' - remediation of kernel module: \'$l_mod_name\' complete' '' } References:
+      1. NIST SP 800-53 Rev. 5: SI-4, CM-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_3_2_4
+
+  - rule_id: ubuntu.cis.3.ip_forwarding_is_disabled
+    title: "Ensure ip forwarding is disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3.1'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.ip_forwarding_is_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Set the following parameter in /etc/sysctl.conf or a file in /etc/sysctl.d/
+      ending in .conf: • net.ipv4.ip_forward = 0 Example: # printf '%s\n'
+      'net.ipv4.ip_forward = 0' >> /etc/sysctl.d/60- netipv4_sysctl.conf Run the
+      following script to set the active kernel parameters: #!/usr/bin/env bash {
+      sysctl -w net.ipv4.ip_forward=0 sysctl -w net.ipv4.route.flush=1 } - IF - IPv6
+      is enabled on the system: Set the following parameter in /etc/sysctl.conf or a
+      file in /etc/sysctl.d/ ending in .conf: • net.ipv6.conf.all.forwarding = 0
+      Example: # printf '%s\n' 'net.ipv6.conf.all.forwarding = 0' >>
+      /etc/sysctl.d/60- netipv6_sysctl.conf Run the following script to set the
+      active kernel parameters: #!/usr/bin/env bash { sysctl -w
+      net.ipv6.conf.all.forwarding=0 sysctl -w net.ipv6.route.flush=1 } Note: If
+      these settings appear in a canonically later file, or later in the same file,
+      these settings will be overwritten Default Value: net.ipv4.ip_forward = 0
+      net.ipv6.conf.all.forwarding = 0 References: 1. NIST SP 800-53 Rev. 5: CM-1,
+      CM-2, CM-6, CM-7, IA-5 Additional Information: On systems with Uncomplicated
+      Firewall, additional settings may be configured in /etc/ufw/sysctl.conf • The
+      settings in /etc/ufw/sysctl.conf will override settings in /etc/sysctl.conf •
+      This behavior can be changed by updating the IPT_SYSCTL parameter in
+      /etc/default/ufw
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_3_3_1
+
+  - rule_id: ubuntu.cis.3.packet_redirect_sending_is_disabled
+    title: "Ensure packet redirect sending is disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3.2'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.packet_redirect_sending_is_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Set the following parameters in /etc/sysctl.conf or a file in /etc/sysctl.d/
+      ending in .conf: • net.ipv4.conf.all.send_redirects = 0 •
+      net.ipv4.conf.default.send_redirects = 0 Example: # printf '%s\n'
+      'net.ipv4.conf.all.send_redirects = 0' 'net.ipv4.conf.default.send_redirects =
+      0' >> /etc/sysctl.d/60- netipv4_sysctl.conf Run the following script to set
+      the active kernel parameters: #!/usr/bin/env bash { sysctl -w
+      net.ipv4.conf.all.send_redirects=0 sysctl -w
+      net.ipv4.conf.default.send_redirects=0 sysctl -w net.ipv4.route.flush=1 }
+      Note: If these settings appear in a canonically later file, or later in the
+      same file, these settings will be overwritten Default Value:
+      net.ipv4.conf.all.send_redirects = 1 net.ipv4.conf.default.send_redirects = 1
+      References: 1. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5 Additional
+      Information: On systems with Uncomplicated Firewall, additional settings may
+      be configured in /etc/ufw/sysctl.conf • The settings in /etc/ufw/sysctl.conf
+      will override settings in /etc/sysctl.conf • This behavior can be changed by
+      updating the IPT_SYSCTL parameter in /etc/default/ufw
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_3_3_2
+
+  - rule_id: ubuntu.cis.3.bogus_icmp_responses_are_ignored
+    title: "Ensure bogus icmp responses are ignored"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3.3'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.bogus_icmp_responses_are_ignored
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Set the following parameter in /etc/sysctl.conf or a file in /etc/sysctl.d/
+      ending in .conf: • net.ipv4.icmp_ignore_bogus_error_responses = 1 Example: #
+      printf '%s\n' 'net.ipv4.icmp_ignore_bogus_error_responses = 1' >>
+      /etc/sysctl.d/60-netipv4_sysctl.conf Run the following script to set the
+      active kernel parameters: #!/usr/bin/env bash { sysctl -w
+      net.ipv4.icmp_ignore_bogus_error_responses=1 sysctl -w net.ipv4.route.flush=1
+      } Note: If these settings appear in a canonically later file, or later in the
+      same file, these settings will be overwritten Default Value:
+      net.ipv4.icmp_ignore_bogus_error_responses = 1 References: 1. NIST SP 800-53
+      Rev. 5: CM-1,CM-2, CM-6, CM-7, IA-5 Additional Information: On systems with
+      Uncomplicated Firewall, additional settings may be configured in
+      /etc/ufw/sysctl.conf • The settings in /etc/ufw/sysctl.conf will override
+      settings in /etc/sysctl.conf • This behavior can be changed by updating the
+      IPT_SYSCTL parameter in /etc/default/ufw
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_3_3_3
+
+  - rule_id: ubuntu.cis.3.broadcast_icmp_requests_are_ignored
+    title: "Ensure broadcast icmp requests are ignored"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3.4'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.broadcast_icmp_requests_are_ignored
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Set the following parameter in /etc/sysctl.conf or a file in /etc/sysctl.d/
+      ending in .conf: • net.ipv4.icmp_echo_ignore_broadcasts = 1 Example: # printf
+      '%s\n' 'net.ipv4.icmp_echo_ignore_broadcasts = 1' >>
+      /etc/sysctl.d/60-netipv4_sysctl.conf Run the following script to set the
+      active kernel parameters: #!/usr/bin/env bash { sysctl -w
+      net.ipv4.icmp_echo_ignore_broadcasts=1 sysctl -w net.ipv4.route.flush=1 }
+      Note: If these settings appear in a canonically later file, or later in the
+      same file, these settings will be overwritten Default Value:
+      net.ipv4.icmp_echo_ignore_broadcasts = 1 References: 1. NIST SP 800-53 Rev. 5:
+      CM-1, CM-2, CM-6, CM-7, IA-5 Additional Information: On systems with
+      Uncomplicated Firewall, additional settings may be configured in
+      /etc/ufw/sysctl.conf • The settings in /etc/ufw/sysctl.conf will override
+      settings in /etc/sysctl.conf • This behavior can be changed by updating the
+      IPT_SYSCTL parameter in /etc/default/ufw
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_3_3_4
+
+  - rule_id: ubuntu.cis.3.icmp_redirects_are_not_accepted
+    title: "Ensure icmp redirects are not accepted"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3.5'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.icmp_redirects_are_not_accepted
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Set the following parameters in /etc/sysctl.conf or a file in /etc/sysctl.d/
+      ending in .conf: • net.ipv4.conf.all.accept_redirects = 0 •
+      net.ipv4.conf.default.accept_redirects = 0 Example: # printf '%s\n'
+      'net.ipv4.conf.all.accept_redirects = 0'
+      'net.ipv4.conf.default.accept_redirects = 0' >> /etc/sysctl.d/60-
+      netipv4_sysctl.conf Run the following script to set the active kernel
+      parameters: #!/usr/bin/env bash { sysctl -w
+      net.ipv4.conf.all.accept_redirects=0 sysctl -w
+      net.ipv4.conf.default.accept_redirects=0 sysctl -w net.ipv4.route.flush=1 } -
+      IF - IPv6 is enabled on the system: Set the following parameters in
+      /etc/sysctl.conf or a file in /etc/sysctl.d/ ending in .conf: •
+      net.ipv6.conf.all.accept_redirects = 0 •
+      net.ipv6.conf.default.accept_redirects = 0 Example: # printf '%s\n'
+      'net.ipv6.conf.all.accept_redirects = 0'
+      'net.ipv6.conf.default.accept_redirects = 0' >> /etc/sysctl.d/60-
+      netipv6_sysctl.conf Run the following script to set the active kernel
+      parameters: #!/usr/bin/env bash { sysctl -w
+      net.ipv6.conf.all.accept_redirects=0 sysctl -w
+      net.ipv6.conf.default.accept_redirects=0 sysctl -w net.ipv6.route.flush=1 }
+      Note: If these settings appear in a canonically later file, or later in the
+      same file, these settings will be overwritten Default Value:
+      net.ipv4.conf.all.accept_redirects = 1 net.ipv4.conf.default.accept_redirects
+      = 1 net.ipv6.conf.all.accept_redirects = 1
+      net.ipv6.conf.default.accept_redirects = 1 References: 1. NIST SP 800-53 Rev.
+      5: CM-1, CM-2, CM-6, CM-7, IA-5 Additional Information: On systems with
+      Uncomplicated Firewall, additional settings may be configured in
+      /etc/ufw/sysctl.conf • The settings in /etc/ufw/sysctl.conf will override
+      settings in /etc/sysctl.conf • This behavior can be changed by updating the
+      IPT_SYSCTL parameter in /etc/default/ufw
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_3_3_5
+
+  - rule_id: ubuntu.cis.3.secure_icmp_redirects_are_not_accepted
+    title: "Ensure secure icmp redirects are not accepted"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3.6'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.secure_icmp_redirects_are_not_accepted
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Set the following parameters in /etc/sysctl.conf or a file in /etc/sysctl.d/
+      ending in .conf: • net.ipv4.conf.all.secure_redirects = 0 •
+      net.ipv4.conf.default.secure_redirects = 0 Example: # printf '%s\n'
+      'net.ipv4.conf.all.secure_redirects = 0'
+      'net.ipv4.conf.default.secure_redirects = 0' >> /etc/sysctl.d/60-
+      netipv4_sysctl.conf Run the following script to set the active kernel
+      parameters: #!/usr/bin/env bash { sysctl -w
+      net.ipv4.conf.all.secure_redirects=0 sysctl -w
+      net.ipv4.conf.default.secure_redirects=0 sysctl -w net.ipv4.route.flush=1 }
+      Note: If these settings appear in a canonically later file, or later in the
+      same file, these settings will be overwritten Default Value:
+      net.ipv4.conf.all.secure_redirects = 1 net.ipv4.conf.default.secure_redirects
+      = 1 References: 1. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5
+      Additional Information: On systems with Uncomplicated Firewall, additional
+      settings may be configured in /etc/ufw/sysctl.conf • The settings in
+      /etc/ufw/sysctl.conf will override settings in /etc/sysctl.conf • This
+      behavior can be changed by updating the IPT_SYSCTL parameter in
+      /etc/default/ufw
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_3_3_6
+
+  - rule_id: ubuntu.cis.3.reverse_path_filtering_is_enabled
+    title: "Ensure reverse path filtering is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3.7'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.reverse_path_filtering_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "on"
+    remediation: >
+      Set the following parameters in /etc/sysctl.conf or a file in /etc/sysctl.d/
+      ending in .conf: • net.ipv4.conf.all.rp_filter = 1 •
+      net.ipv4.conf.default.rp_filter = 1 Example: # printf '%s\n'
+      'net.ipv4.conf.all.rp_filter = 1' 'net.ipv4.conf.default.rp_filter = 1' >>
+      /etc/sysctl.d/60-netipv4_sysctl.conf Run the following script to set the
+      active kernel parameters: #!/usr/bin/env bash { sysctl -w
+      net.ipv4.conf.all.rp_filter=1 sysctl -w net.ipv4.conf.default.rp_filter=1
+      sysctl -w net.ipv4.route.flush=1 } Note: If these settings appear in a
+      canonically later file, or later in the same file, these settings will be
+      overwritten Default Value: net.ipv4.conf.all.rp_filter = 2
+      net.ipv4.conf.default.rp_filter = 1 References: 1. NIST SP 800-53 Rev. 5:
+      CM-1,CM-2, CM-6, CM-7, IA-5 Additional Information: On systems with
+      Uncomplicated Firewall, additional settings may be configured in
+      /etc/ufw/sysctl.conf • The settings in /etc/ufw/sysctl.conf will override
+      settings in /etc/sysctl.conf • This behavior can be changed by updating the
+      IPT_SYSCTL parameter in /etc/default/ufw
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_3_3_7
+
+  - rule_id: ubuntu.cis.3.source_routed_packets_are_not_accepted
+    title: "Ensure source routed packets are not accepted"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3.8'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.source_routed_packets_are_not_accepted
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Set the following parameters in /etc/sysctl.conf or a file in /etc/sysctl.d/
+      ending in .conf: • net.ipv4.conf.all.accept_source_route = 0 •
+      net.ipv4.conf.default.accept_source_route = 0 Example: # printf '%s\n'
+      'net.ipv4.conf.all.accept_source_route = 0'
+      'net.ipv4.conf.default.accept_source_route = 0' >> /etc/sysctl.d/60-
+      netipv4_sysctl.conf Run the following script to set the active kernel
+      parameters: #!/usr/bin/env bash { sysctl -w
+      net.ipv4.conf.all.accept_source_route=0 sysctl -w
+      net.ipv4.conf.default.accept_source_route=0 sysctl -w net.ipv4.route.flush=1 }
+      - IF - IPv6 is enabled on the system: Set the following parameters in
+      /etc/sysctl.conf or a file in /etc/sysctl.d/ ending in .conf: •
+      net.ipv6.conf.all.accept_source_route = 0 •
+      net.ipv6.conf.default.accept_source_route = 0 Example: # printf '%s\n'
+      'net.ipv6.conf.all.accept_source_route = 0'
+      'net.ipv6.conf.default.accept_source_route = 0' >> /etc/sysctl.d/60-
+      netipv6_sysctl.conf Run the following command to set the active kernel
+      parameters: #!/usr/bin/env bash { sysctl -w
+      net.ipv6.conf.all.accept_source_route=0 sysctl -w
+      net.ipv6.conf.default.accept_source_route=0 sysctl -w net.ipv6.route.flush=1 }
+      Note: If these settings appear in a canonically later file, or later in the
+      same file, these settings will be overwritten Default Value:
+      net.ipv4.conf.all.accept_source_route = 0
+      net.ipv4.conf.default.accept_source_route = 0
+      net.ipv6.conf.all.accept_source_route = 0
+      net.ipv6.conf.default.accept_source_route = 0 References: 1. NIST SP 800-53
+      Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5 Additional Information: On systems with
+      Uncomplicated Firewall, additional settings may be configured in
+      /etc/ufw/sysctl.conf • The settings in /etc/ufw/sysctl.conf will override
+      settings in /etc/sysctl.conf • This behavior can be changed by updating the
+      IPT_SYSCTL parameter in /etc/default/ufw
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_3_3_8
+
+  - rule_id: ubuntu.cis.3.suspicious_packets_are_logged
+    title: "Ensure suspicious packets are logged"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3.9'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.suspicious_packets_are_logged
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "on"
+    remediation: >
+      Set the following parameters in /etc/sysctl.conf or a file in /etc/sysctl.d/
+      ending in .conf: • net.ipv4.conf.all.log_martians = 1 •
+      net.ipv4.conf.default.log_martians = 1 Example: # printf '%s\n'
+      'net.ipv4.conf.all.log_martians = 1' 'net.ipv4.conf.default.log_martians = 1'
+      >> /etc/sysctl.d/60- netipv4_sysctl.conf Run the following script to set the
+      active kernel parameters: #!/usr/bin/env bash { sysctl -w
+      net.ipv4.conf.all.log_martians=1 sysctl -w
+      net.ipv4.conf.default.log_martians=1 sysctl -w net.ipv4.route.flush=1 } Note:
+      If these settings appear in a canonically later file, or later in the same
+      file, these settings will be overwritten Default Value:
+      net.ipv4.conf.all.log_martians = 0 net.ipv4.conf.default.log_martians = 0
+      References: 1. NIST SP 800-53 Rev. 5: AU-3 Additional Information: On systems
+      with Uncomplicated Firewall, additional settings may be configured in
+      /etc/ufw/sysctl.conf • The settings in /etc/ufw/sysctl.conf will override
+      settings in /etc/sysctl.conf • This behavior can be changed by updating the
+      IPT_SYSCTL parameter in /etc/default/ufw
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_3_3_9
+
+  - rule_id: ubuntu.cis.3.tcp_syn_cookies_is_enabled
+    title: "Ensure tcp syn cookies is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3.10'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.tcp_syn_cookies_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "on"
+    remediation: >
+      Set the following parameter in /etc/sysctl.conf or a file in /etc/sysctl.d/
+      ending in .conf: • net.ipv4.tcp_syncookies = 1 Example: # printf '%s\n'
+      'net.ipv4.tcp_syncookies = 1' >> /etc/sysctl.d/60- netipv4_sysctl.conf Run the
+      following script to set the active kernel parameters: #!/usr/bin/env bash {
+      sysctl -w net.ipv4.tcp_syncookies=1 sysctl -w net.ipv4.route.flush=1 } Note:
+      If these settings appear in a canonically later file, or later in the same
+      file, these settings will be overwritten Default Value:
+      net.ipv4.tcp_syncookies = 1 References: 1. NIST SP 800-53 Rev. 5: CM-1,CM-2,
+      CM-6, CM-7, IA-5 Additional Information: On systems with Uncomplicated
+      Firewall, additional settings may be configured in /etc/ufw/sysctl.conf • The
+      settings in /etc/ufw/sysctl.conf will override settings in /etc/sysctl.conf •
+      This behavior can be changed by updating the IPT_SYSCTL parameter in
+      /etc/default/ufw
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_3_3_10
+
+  - rule_id: ubuntu.cis.3.ipv6_router_advertisements_are_not_accepted
+    title: "Ensure ipv6 router advertisements are not accepted"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3.11'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.ipv6_router_advertisements_are_not_accepted
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      - IF - IPv6 is enabled on the system: Set the following parameters in
+      /etc/sysctl.conf or a file in /etc/sysctl.d/ ending in .conf: •
+      net.ipv6.conf.all.accept_ra = 0 • net.ipv6.conf.default.accept_ra = 0 Example:
+      # printf '%s\n' 'net.ipv6.conf.all.accept_ra = 0'
+      'net.ipv6.conf.default.accept_ra = 0' >> /etc/sysctl.d/60-netipv6_sysctl.conf
+      Run the following script to set the active kernel parameters: #!/usr/bin/env
+      bash { sysctl -w net.ipv6.conf.all.accept_ra=0 sysctl -w
+      net.ipv6.conf.default.accept_ra=0 sysctl -w net.ipv6.route.flush=1 } Note: If
+      these settings appear in a canonically later file, or later in the same file,
+      these settings will be overwritten Default Value: net.ipv6.conf.all.accept_ra
+      = 1 net.ipv6.conf.default.accept_ra = 1 References: 1. NIST SP 800-53 Rev. 5:
+      CM-1,CM-2, CM-6, CM-7, IA-5 Additional Information: On systems with
+      Uncomplicated Firewall, additional settings may be configured in
+      /etc/ufw/sysctl.conf • The settings in /etc/ufw/sysctl.conf will override
+      settings in /etc/sysctl.conf • This behavior can be changed by updating the
+      IPT_SYSCTL parameter in /etc/default/ufw
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_3_3_11
+
+  - rule_id: ubuntu.cis.3.wireless_interfaces_are_not_available
+    title: "Ensure wireless interfaces are not available"
+    severity: high
+    automation_type: automated
+    cis_control: '3.1.2'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.wireless_interfaces_are_not_available
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following command to disable any wireless interfaces: # find
+      /lib/modules/`uname -r`/kernel/drivers/net/wireless -name '*.ko' -printf
+      'install %f /bin/false\nblacklist %f\n\n' | sed 's/\.ko//1' >>
+      /etc/modprobe.d/blacklist-wireless.conf Note: the *.conf file in
+      /etc/modprobe.d/ in the above command can renamed as needed. References: 1.
+      NIST SP 800-53 Rev. 5: CM-7
+    compliance:
+      - cis_ubuntu_20_04_v3_0_0_3_1_2
+
+  - rule_id: ubuntu.cis.3.reversepath_filtering_is_enabled
+    title: "Ensure reversepath filtering is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3.7'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.reversepath_filtering_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "on"
+    remediation: >
+      Set the following parameters in /etc/sysctl.conf or a file in /etc/sysctl.d/
+      ending in .conf: • net.ipv4.conf.all.rp_filter = 1 •
+      net.ipv4.conf.default.rp_filter = 1 Example: # printf '%s\n'
+      'net.ipv4.conf.all.rp_filter = 1' 'net.ipv4.conf.default.rp_filter = 1' >>
+      /etc/sysctl.d/60- netipv4_sysctl.conf Run the following commands to set the
+      active kernel parameters: # { sysctl -w net.ipv4.conf.all.rp_filter=1 sysctl
+      -w net.ipv4.conf.default.rp_filter=1 sysctl -w net.ipv4.route.flush=1 } Note:
+      If these settings appear in a canonically later file, or later in the same
+      file, these settings will be overwritten Default Value:
+      net.ipv4.conf.all.rp_filter = 2 net.ipv4.conf.default.rp_filter = 1
+      References: 1. NIST SP 800-53 Rev. 5: CM-1,CM-2, CM-6, CM-7, IA-5 Additional
+      Information: On systems with Uncomplicated Firewall, additional settings may
+      be configured in /etc/ufw/sysctl.conf • The settings in /etc/ufw/sysctl.conf
+      will override settings in /etc/sysctl.conf • This behavior can be changed by
+      updating the IPT_SYSCTL parameter in /etc/default/ufw
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_3_3_7
+
+  - rule_id: ubuntu.cis.3.ufw_is_installed
+    title: "Ensure ufw is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.1.1'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.ufw_is_installed
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to install Uncomplicated Firewall (UFW): apt install
+      ufw References: 1. NIST SP 800-53 Rev. 5: SC-7
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_3_4_1_1
+
+  - rule_id: ubuntu.cis.3.iptables_persistent_is_not_installed_with_ufw
+    title: "Ensure iptables-persistent is not installed with ufw"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.1.2'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.iptables_persistent_is_not_installed_with_ufw
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Run the following command to remove the iptables-persistent package: # apt
+      purge iptables-persistent References: 1. NIST SP 800-53 Rev. 5: SC-7
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_3_4_1_2
+
+  - rule_id: ubuntu.cis.3.ufw_service_is_enabled
+    title: "Ensure ufw service is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.1.3'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.ufw_service_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Run the following command to unmask the ufw daemon: # systemctl unmask
+      ufw.service Run the following command to enable and start the ufw daemon: #
+      systemctl --now enable ufw.service active Run the following command to enable
+      ufw: # ufw enable References: 1.
+      http://manpages.ubuntu.com/manpages/precise/en/man8/ufw.8.html 2. NIST SP
+      800-53 Rev. 5: SC-7
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_3_4_1_3
+
+  - rule_id: ubuntu.cis.3.ufw_loopback_traffic_is_configured
+    title: "Ensure ufw loopback traffic is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.1.4'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.ufw_loopback_traffic_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      Run the following commands to implement the loopback rules: # ufw allow in on
+      lo # ufw allow out on lo # ufw deny in from 127.0.0.0/8 # ufw deny in from ::1
+      References: 1. NIST SP 800-53 Rev. 5: SC-7
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_3_4_1_4
+
+  - rule_id: ubuntu.cis.3.ufw_firewall_rules_exist_for_all_open_ports
+    title: "Ensure ufw firewall rules exist for all open ports"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.1.6'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.ufw_firewall_rules_exist_for_all_open_ports
+    assertion:
+      field: port
+      operator: equals
+      expected: "true"
+    remediation: >
+      For each port identified in the audit which does not have a firewall rule,
+      evaluate the service listening on the port and add a rule for accepting or
+      denying inbound connections in accordance with local site policy: Examples: #
+      ufw allow in <port>/<tcp or udp protocol> # ufw deny in <port>/<tcp or udp
+      protocol> Note: Examples create rules for from any, to any. More specific
+      rules should be concentered when allowing inbound traffic e.g only traffic
+      from this network. Example to allow traffic on port 443 using the tcp protocol
+      from the 192.168.1.0 network: ufw allow from 192.168.1.0/24 to any proto tcp
+      port 443 References: 1. NIST SP 800-53 Rev. 5: SC-7
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_3_4_1_6
+
+  - rule_id: ubuntu.cis.3.ufw_default_deny_firewall_policy
+    title: "Ensure ufw default deny firewall policy"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.1.7'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.ufw_default_deny_firewall_policy
+    assertion:
+      field: port
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following commands to implement a default deny policy: # ufw default
+      deny incoming # ufw default deny outgoing # ufw default deny routed
+      References: 1. NIST SP 800-53 Rev. 5: SC-7
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_3_4_1_7
+
+  - rule_id: ubuntu.cis.3.nftables_is_installed
+    title: "Ensure nftables is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.2.1'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.nftables_is_installed
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following command to install nftables: # apt install nftables
+      References: 1. NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_3_4_2_1
+
+  - rule_id: ubuntu.cis.3.ufw_is_uninstalled_or_disabled_with_nftables
+    title: "Ensure ufw is uninstalled or disabled with nftables"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.2.2'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.ufw_is_uninstalled_or_disabled_with_nftables
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Run one of the following to either remove ufw or disable ufw and mask
+      ufw.service: Run the following command to remove ufw: # apt purge ufw -OR- Run
+      the following commands to disable ufw and mask ufw.service: # ufw disable #
+      systemctl stop ufw.service # systemctl mask ufw.service Note: ufw disable
+      needs to be run before systemctl mask ufw.service in order to correctly
+      disable UFW References: 1. NIST SP 800-53 Rev. 5: SC-7
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_3_4_2_2
+
+  - rule_id: ubuntu.cis.3.a_nftables_table_exists
+    title: "Ensure a nftables table exists"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.2.4'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.a_nftables_table_exists
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following command to create a table in nftables # nft create table
+      inet <table name> Example: # nft create table inet filter References: 1. NIST
+      SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_3_4_2_4
+
+  - rule_id: ubuntu.cis.3.nftables_base_chains_exist
+    title: "Ensure nftables base chains exist"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.2.5'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.nftables_base_chains_exist
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to create the base chains: # nft create chain inet
+      <table name> <base chain name> { type filter hook <(input|forward|output)>
+      priority 0 \; } Example: # nft create chain inet filter input { type filter
+      hook input priority 0 \; } # nft create chain inet filter forward { type
+      filter hook forward priority 0 \; } # nft create chain inet filter output {
+      type filter hook output priority 0 \; } References: 1. NIST SP 800-53 Rev. 5:
+      CA-9, SC-7
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_3_4_2_5
+
+  - rule_id: ubuntu.cis.3.nftables_loopback_traffic_is_configured
+    title: "Ensure nftables loopback traffic is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.2.6'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.nftables_loopback_traffic_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      Run the following commands to implement the loopback rules: # nft add rule
+      inet filter input iif lo accept # nft add rule inet filter input ip saddr
+      127.0.0.0/8 counter drop -IF- IPv6 is enabled on the system: Run the following
+      command to implement the IPv6 loopback rule: # nft add rule inet filter input
+      ip6 saddr ::1 counter drop References: 1. NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_3_4_2_6
+
+  - rule_id: ubuntu.cis.3.nftables_default_deny_firewall_policy
+    title: "Ensure nftables default deny firewall policy"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.2.8'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.nftables_default_deny_firewall_policy
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command for the base chains with the input, forward, and
+      output hooks to implement a default DROP policy: # nft chain <table family>
+      <table name> <chain name> { policy drop \; } Example: # nft chain inet filter
+      input { policy drop \; } # nft chain inet filter forward { policy drop \; } #
+      nft chain inet filter output { policy drop \; } Default Value: accept
+      References: 1. Manual Page nft 2. NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_3_4_2_8
+
+  - rule_id: ubuntu.cis.3.nftables_service_is_enabled
+    title: "Ensure nftables service is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.2.9'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.nftables_service_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to enable the nftables service: # systemctl enable
+      nftables References: 1. NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_3_4_2_9
+
+  - rule_id: ubuntu.cis.3.nftables_rules_are_permanent
+    title: "Ensure nftables rules are permanent"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.2.10'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.nftables_rules_are_permanent
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Edit the /etc/nftables.conf file and un-comment or add a line with include
+      <Absolute path to nftables rules file> for each nftables file you want
+      included in the nftables ruleset on boot Example: # vi /etc/nftables.conf Add
+      the line: include '/etc/nftables.rules' References: 1. NIST SP 800-53 Rev. 5:
+      CA-9, SC-7
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_3_4_2_10
+
+  - rule_id: ubuntu.cis.3.iptables_packages_are_installed
+    title: "Ensure iptables packages are installed"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.3.1.1'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.iptables_packages_are_installed
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to install iptables and iptables-persistent # apt
+      install iptables iptables-persistent References: 1. NIST SP 800-53 Rev. 5:
+      CA-9, SC-7
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_3_4_3_1_1
+
+  - rule_id: ubuntu.cis.3.nftables_is_not_installed_with_iptables
+    title: "Ensure nftables is not installed with iptables"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.3.1.2'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.nftables_is_not_installed_with_iptables
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to remove nftables: # apt purge nftables References:
+      1. NIST SP 800-53 Rev. 5: CA-9, CM-7
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_3_4_3_1_2
+
+  - rule_id: ubuntu.cis.3.ufw_is_uninstalled_or_disabled_with_iptables
+    title: "Ensure ufw is uninstalled or disabled with iptables"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.3.1.3'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.ufw_is_uninstalled_or_disabled_with_iptables
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "false"
+    remediation: >
+      Run one of the following commands to either remove ufw or stop and mask ufw
+      Run the following command to remove ufw: # apt purge ufw -OR- Run the
+      following commands to disable ufw: # ufw disable # systemctl stop ufw #
+      systemctl mask ufw Note: ufw disable needs to be run before systemctl mask ufw
+      in order to correctly disable UFW References: 1. NIST SP 800-53 Rev. 5: SC-7
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_3_4_3_1_3
+
+  - rule_id: ubuntu.cis.3.iptables_default_deny_firewall_policy
+    title: "Ensure iptables default deny firewall policy"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.3.2.1'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.iptables_default_deny_firewall_policy
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following commands to implement a default DROP policy: # iptables -P
+      INPUT DROP # iptables -P OUTPUT DROP # iptables -P FORWARD DROP References: 1.
+      NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_3_4_3_2_1
+
+  - rule_id: ubuntu.cis.3.iptables_loopback_traffic_is_configured
+    title: "Ensure iptables loopback traffic is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.3.2.2'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.iptables_loopback_traffic_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following commands to implement the loopback rules: # iptables -A
+      INPUT -i lo -j ACCEPT # iptables -A OUTPUT -o lo -j ACCEPT # iptables -A INPUT
+      -s 127.0.0.0/8 -j DROP References: 1. NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_3_4_3_2_2
+
+  - rule_id: ubuntu.cis.3.iptables_firewall_rules_exist_for_all_open_ports
+    title: "Ensure iptables firewall rules exist for all open ports"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.3.2.4'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.iptables_firewall_rules_exist_for_all_open_ports
+    assertion:
+      field: port
+      operator: equals
+      expected: "on"
+    remediation: >
+      For each port identified in the audit which does not have a firewall rule
+      establish a proper rule for accepting inbound connections: # iptables -A INPUT
+      -p <protocol> --dport <port> -m state --state NEW -j ACCEPT References: 1.
+      NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_3_4_3_2_4
+
+  - rule_id: ubuntu.cis.3.ip6tables_default_deny_firewall_policy
+    title: "Ensure ip6tables default deny firewall policy"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.3.3.1'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.ip6tables_default_deny_firewall_policy
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      IF IPv6 is enabled on your system: Run the following commands to implement a
+      default DROP policy: # ip6tables -P INPUT DROP # ip6tables -P OUTPUT DROP #
+      ip6tables -P FORWARD DROP References: 1. NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_3_4_3_3_1
+
+  - rule_id: ubuntu.cis.3.ip6tables_loopback_traffic_is_configured
+    title: "Ensure ip6tables loopback traffic is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.3.3.2'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.ip6tables_loopback_traffic_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      Run the following commands to implement the loopback rules: # ip6tables -A
+      INPUT -i lo -j ACCEPT # ip6tables -A OUTPUT -o lo -j ACCEPT # ip6tables -A
+      INPUT -s ::1 -j DROP References: 1. NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_3_4_3_3_2
+
+  - rule_id: ubuntu.cis.3.ip6tables_firewall_rules_exist_for_all_open_ports
+    title: "Ensure ip6tables firewall rules exist for all open ports"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.3.3.4'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_3.ip6tables_firewall_rules_exist_for_all_open_ports
+    assertion:
+      field: port
+      operator: equals
+      expected: "on"
+    remediation: >
+      For each port identified in the audit which does not have a firewall rule
+      establish a proper rule for accepting inbound connections: # ip6tables -A
+      INPUT -p <protocol> --dport <port> -m state --state NEW -j ACCEPT References:
+      1. NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_3_4_3_3_4
+
+

@@ -1,0 +1,224 @@
+version: '1.0'
+provider: oci
+service: edge_services
+checks:
+- rule_id: oci.edge_services.distribution.cache_policy_allowlists_minimal_query_headers_cookies
+  for_each: oci.edge_services.list_distributions
+  severity: MEDIUM
+  conditions:
+    var: item.cache_policy.allowlist.query_parameters
+    op: not_empty
+    value: null
+- rule_id: oci.edge_services.distribution.cache_policy_no_sensitive_headers_cached
+  for_each: oci.edge_services.list_distributions
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.cache_policy
+      op: exists
+      value: null
+    - var: item.cache_policy.sensitive_headers
+      op: is_empty
+      value: null
+- rule_id: oci.edge_services.distribution.cache_policy_respects_control_no_store_private_enforced
+  for_each: oci.edge_services.list_distributions
+  severity: LOW
+  conditions:
+    all:
+    - var: item.cache_policy.respects_control_no_store
+      op: exists
+      value: null
+    - var: item.cache_policy.respects_control_no_store
+      op: is_true
+      value: null
+- rule_id: oci.edge_services.distribution.cdn_access_logging_enabled
+  for_each: oci.edge_services.list_distributions
+  severity: MEDIUM
+  conditions:
+    var: item.cdn_access_logging_enabled
+    op: is_true
+    value: null
+- rule_id: oci.edge_services.distribution.cdn_cache_key_excludes_sensitive_headers
+  for_each: oci.edge_services.list_distributions
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.cache_key_settings.query_string_settings.behavior
+      op: equals
+      value: EXCLUDE_ALL
+    - var: item.cache_key_settings.header_settings.items[].header
+      op: not_contains
+      value: Authorization
+    - var: item.cache_key_settings.header_settings.items[].header
+      op: not_contains
+      value: Proxy-Authorization
+- rule_id: oci.edge_services.distribution.cdn_cache_key_minimal_query_and_cookie_variants
+  for_each: oci.edge_services.list_distributions
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.cache_key_query_params
+      op: exists
+      value: null
+    - var: item.cache_key_query_params.is_include_specific
+      op: is_true
+      value: null
+    - var: item.cache_key_query_params.include_specific
+      op: length_gte
+      value: 1
+    - var: item.cache_key_cookies
+      op: exists
+      value: null
+    - var: item.cache_key_cookies.is_include_specific
+      op: is_true
+      value: null
+    - var: item.cache_key_cookies.include_specific
+      op: length_gte
+      value: 1
+- rule_id: oci.edge_services.distribution.cdn_hsts_enabled
+  for_each: oci.edge_services.list_distributions
+  severity: LOW
+  conditions:
+    var: item.web_app_firewall_id
+    op: exists
+    value: null
+- rule_id: oci.edge_services.distribution.cdn_https_only_viewer_protocol
+  for_each: oci.edge_services.list_distributions
+  severity: LOW
+  conditions:
+    var: item.viewer_protocol_policy
+    op: equals
+    value: HTTPS_ONLY
+- rule_id: oci.edge_services.distribution.cdn_origin_access_restricted_restricted
+  for_each: oci.edge_services.list_distributions
+  severity: MEDIUM
+  conditions:
+    var: item.backend_type
+    op: not_equals
+    value: CUSTOM
+- rule_id: oci.edge_services.distribution.cdn_signed_urls_or_headers_required_content
+  for_each: oci.edge_services.list_distributions
+  severity: LOW
+  conditions:
+    var: item.web_app_firewall_id
+    op: exists
+    value: null
+- rule_id: oci.edge_services.distribution.cdn_tls_min_1_2_enforced
+  for_each: oci.edge_services.list_distributions
+  severity: MEDIUM
+  conditions:
+    var: item.tls_minimum_version
+    op: in
+    value:
+    - '1.2'
+    - '1.3'
+- rule_id: oci.edge_services.distribution.cdn_valid_trusted_certificate_attached
+  for_each: oci.edge_services.list_distributions
+  severity: MEDIUM
+  conditions:
+    var: item.web_app_firewall_id
+    op: exists
+    value: null
+- rule_id: oci.edge_services.distribution.cdn_waf_web_acl_attached
+  for_each: oci.edge_services.list_distributions
+  severity: LOW
+  conditions:
+    var: item.web_app_firewall_id
+    op: exists
+    value: null
+- rule_id: oci.edge_services.distribution.cloudfront_https_required
+  for_each: oci.edge_services.list_distributions
+  severity: LOW
+  conditions:
+    var: item.backend_type
+    op: exists
+    value: null
+- rule_id: oci.edge_services.distribution.distributions_custom_ssl_certificate
+  for_each: oci.edge_services.list_distributions
+  severity: MEDIUM
+  conditions:
+    var: item.web_app_firewall_id
+    op: exists
+    value: null
+- rule_id: oci.edge_services.distribution.distributions_field_level_encryption_enabled
+  for_each: oci.edge_services.list_distributions
+  severity: HIGH
+  conditions:
+    var: item.field_level_encryption_enabled
+    op: is_true
+    value: null
+- rule_id: oci.edge_services.distribution.distributions_https_enabled
+  for_each: oci.edge_services.list_distributions
+  severity: LOW
+  conditions:
+    var: item.backend_type
+    op: exists
+    value: null
+- rule_id: oci.edge_services.distribution.distributions_logging_enabled
+  for_each: oci.edge_services.list_distributions
+  severity: MEDIUM
+  conditions:
+    var: item.logging
+    op: exists
+    value: null
+- rule_id: oci.edge_services.distribution.distributions_multiple_origin_failover_configured
+  for_each: oci.edge_services.list_distributions
+  severity: LOW
+  conditions:
+    var: item.backend_type
+    op: exists
+    value: null
+- rule_id: oci.edge_services.distribution.distributions_origin_traffic_encrypted
+  for_each: oci.edge_services.list_distributions
+  severity: MEDIUM
+  conditions:
+    var: item.backend_type
+    op: equals
+    value: CUSTOM
+- rule_id: oci.edge_services.distribution.distributions_using_deprecated_ssl_protocols
+  for_each: oci.edge_services.list_distributions
+  severity: MEDIUM
+  conditions:
+    var: item.ssl_protocols
+    op: not_contains
+    value: TLSv1
+- rule_id: oci.edge_services.distribution.origin_request_policy_forward_cookies_minimal
+  for_each: oci.edge_services.list_distributions
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.origin_request_policy.forward_cookies
+      op: exists
+      value: null
+    - var: item.origin_request_policy.forward_cookies
+      op: equals
+      value: NONE
+- rule_id: oci.edge_services.distribution.origin_request_policy_forward_headers_minimal
+  for_each: oci.edge_services.list_distributions
+  severity: MEDIUM
+  conditions:
+    var: item.origin_request_policy.forward_headers
+    op: equals
+    value: MINIMAL
+- rule_id: oci.edge_services.distribution.origin_request_policy_forward_querystrings_minimal
+  for_each: oci.edge_services.list_distributions
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.origin_request_policy.forward_querystrings
+      op: exists
+      value: null
+    - var: item.origin_request_policy.forward_querystrings
+      op: is_true
+      value: null
+- rule_id: oci.edge_services.distribution.origin_request_policy_no_secret_headers_forwarded
+  for_each: oci.edge_services.list_distributions
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.origin_request_policy.secret_headers_forwarded
+      op: exists
+      value: null
+    - var: item.origin_request_policy.secret_headers_forwarded
+      op: is_false
+      value: null

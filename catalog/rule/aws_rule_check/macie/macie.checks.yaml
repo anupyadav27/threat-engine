@@ -1,0 +1,110 @@
+version: '1.0'
+provider: aws
+service: macie
+checks:
+- rule_id: aws.macie.classification_job.macie_auto_classification_enabled_if_supported
+  for_each: aws.macie.list_findings
+  severity: MEDIUM
+  conditions:
+    var: item.classificationDetails
+    op: exists
+    value: null
+- rule_id: aws.macie.classification_job.macie_required_sensitivity_tags_present
+  for_each: aws.macie.list_findings
+  severity: MEDIUM
+  conditions:
+    var: item.classificationDetails
+    op: exists
+    value: null
+- rule_id: aws.macie.classification_job.policy_blocks_public_for_sensitive_configured
+  for_each: aws.macie.list_findings
+  severity: HIGH
+  conditions:
+    var: item.policyDetails
+    op: exists
+    value: null
+- rule_id: aws.macie.custom_data_identifier.macie_auto_classification_enabled_if_supported
+  for_each: aws.macie.list_findings
+  severity: MEDIUM
+  conditions:
+    var: item.classificationDetails
+    op: exists
+    value: null
+- rule_id: aws.macie.custom_data_identifier.macie_required_sensitivity_tags_present
+  for_each: aws.macie.list_findings
+  severity: MEDIUM
+  conditions:
+    var: item.findings
+    op: not_empty
+    value: null
+- rule_id: aws.macie.custom_data_identifier.policy_blocks_public_for_sensitive_configured
+  for_each: aws.macie.list_findings
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.policyDetails
+      op: exists
+      value: null
+    - var: item.policyDetails.action.findingPublishingFrequency
+      op: equals
+      value: FIFTEEN_MINUTES
+    - var: item.policyDetails.action.policyStatus
+      op: equals
+      value: ENABLED
+- rule_id: aws.macie.findings.alert_destinations_configured
+  for_each: aws.macie.list_findings
+  severity: MEDIUM
+  conditions:
+    var: item.findings
+    op: not_empty
+    value: null
+- rule_id: aws.macie.findings.integrations_authenticated_configured
+  for_each: aws.macie.list_findings
+  severity: MEDIUM
+  conditions:
+    var: item.findings
+    op: not_empty
+    value: null
+- rule_id: aws.macie.findings.macie_export_destinations_private_configured
+  for_each: aws.macie.list_findings
+  severity: HIGH
+  conditions:
+    var: item.findings
+    op: not_empty
+    value: null
+- rule_id: aws.macie.findings.macie_logs_centralized_and_encrypted
+  for_each: aws.macie.list_findings
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.findings
+      op: exists
+      value: null
+    - var: item.findings[].resourcesAffected.s3Object
+      op: exists
+      value: null
+- rule_id: aws.macie.findings.macie_reports_storage_encrypted
+  for_each: aws.macie.list_findings
+  severity: HIGH
+  conditions:
+    var: item.resourcesAffected.s3Object.encryptionType
+    op: exists
+    value: null
+- rule_id: aws.macie.findings.rbac_least_privilege
+  for_each: aws.macie.list_findings
+  severity: HIGH
+  conditions:
+    var: item.policyDetails.action.findingType
+    op: not_equals
+    value: Policy:IAMUser/S3BucketSharedExternally
+- rule_id: aws.macie.findings.retention_days_minimum
+  for_each: aws.macie.list_findings
+  severity: LOW
+  conditions:
+    all:
+    - var: item.findings[].createdAt
+      op: exists
+      value: null
+    - var: item.findings[].createdAt
+      op: lte
+      value: '90'

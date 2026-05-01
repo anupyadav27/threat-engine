@@ -1,0 +1,46 @@
+# discoveries_only_check: 2 kept / 9 removed from 11 total
+# generated_from: step6_mq.discovery.yaml
+# purpose: only discoveries needed by mq.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: mq
+services:
+  client: mq
+  module: boto3.client
+discovery:
+- discovery_id: aws.mq.list_brokers
+  calls:
+  - action: list_brokers
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.BrokerSummaries }}'
+    item:
+      BrokerArn: '{{ item.BrokerArn }}'
+      BrokerId: '{{ item.BrokerId }}'
+      BrokerName: '{{ item.BrokerName }}'
+      BrokerState: '{{ item.BrokerState }}'
+      Created: '{{ item.Created }}'
+      DeploymentMode: '{{ item.DeploymentMode }}'
+      EngineType: '{{ item.EngineType }}'
+      HostInstanceType: '{{ item.HostInstanceType }}'
+      PendingAuthenticationStrategy: '{{ item.PendingAuthenticationStrategy }}'
+      PendingHostInstanceType: '{{ item.PendingHostInstanceType }}'
+- discovery_id: aws.mq.describe_broker
+  for_each: aws.mq.list_brokers
+  calls:
+  - action: describe_broker
+    params:
+      BrokerId: '{{ item.BrokerId }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ActionsRequired }}'
+    item:
+      ActionRequiredCode: '{{ item.ActionRequiredCode }}'
+      ActionRequiredInfo: '{{ item.ActionRequiredInfo }}'
+      Logs: '{{ item.Logs }}'
+      PendingAuthenticationStrategy: '{{ item.PendingAuthenticationStrategy }}'
+      PendingHostInstanceType: '{{ item.PendingHostInstanceType }}'

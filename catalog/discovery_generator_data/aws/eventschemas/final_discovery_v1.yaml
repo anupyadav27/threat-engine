@@ -1,0 +1,63 @@
+# ==========================================================
+# Discovery YAML — eventschemas (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 3 | ops: 2 independent, 0 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: eventschemas
+
+services:
+  client: eventschemas
+  module: "boto3.client('eventschemas')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: discoverer
+    identifier_op: aws.eventschemas.list_discoverers
+    identifier_field: DiscovererArn
+    item_var_path: item.DiscovererArn
+    identifier_template: '{discovererarn}'
+  - resource_type: registry
+    identifier_op: aws.eventschemas.list_registries
+    identifier_field: RegistryArn
+    item_var_path: item.RegistryArn
+    identifier_template: '{registryarn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.eventschemas.list_discoverers  ──
+  - discovery_id: aws.eventschemas.list_discoverers
+    calls:
+      - action: list_discoverers
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Discoverers }}'
+      item:
+        CrossAccount: '{{ item.CrossAccount }}'
+        DiscovererArn: '{{ item.DiscovererArn }}'
+        DiscovererId: '{{ item.DiscovererId }}'
+        SourceArn: '{{ item.SourceArn }}'
+        State: '{{ item.State }}'
+        Tags: '{{ item.Tags }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.eventschemas.list_registries  ──
+  - discovery_id: aws.eventschemas.list_registries
+    calls:
+      - action: list_registries
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Registries }}'
+      item:
+        RegistryArn: '{{ item.RegistryArn }}'
+        Tags: '{{ item.Tags }}'
+        item: '{{ item }}'
+

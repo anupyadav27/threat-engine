@@ -1,0 +1,84 @@
+rule_id: azure.compute.activity_log.vm_capture
+service: compute
+provider: azure
+check_type: log
+severity: high
+title: 'Compute: Vm Capture'
+description: VM image captured — full disk image of running VM created, may contain sensitive data.
+rationale: Collecting data from cloud resources before exfiltration indicates active data theft; early detection limits data loss volume.
+threat_category: data_exfiltration
+mitre_tactics:
+- collection
+mitre_techniques:
+- T1005
+risk_score: 78
+resource: azure_vm
+source: default
+is_active: true
+domain: compute_and_workload_security
+action_category: modify
+log_source_type: activity_log
+posture_category: data_security_posture
+threat_tags:
+- T1005
+- data_exfiltration
+- data_loss
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: compute_instance
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - data_loss_prevention
+  categories:
+  - data_exfiltration
+  - unauthorized_access
+  priority: high
+  impact:
+    pci: PCI DSS Requirement 12.3 — Implement security awareness program and protect systems
+    gdpr: GDPR Article 32 — Appropriate technical and organizational measures for data security
+    hipaa: §164.306(a) — Ensure confidentiality, integrity, and availability of ePHI
+  sensitive_data_context: |
+  Unauthorized data exfiltration on compute resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks:
+  cis_aws_v3:
+  - 2.7
+  - 3.7
+  cis_azure_v2:
+  - 3.1
+  - 5.2
+  nist_800_53_r5:
+  - SC-7
+  - SC-28
+  - AC-4
+  pci_dss_v4:
+  - 3.2
+  - 4.1
+  - 10.2
+  iso_27001_2022:
+  - A.8.12
+  - A.8.20
+  - A.5.14
+remediation: |
+  1. Restrict data access permissions to least-privilege roles.
+  2. Enable CloudTrail data events / Storage analytics logging.
+  3. Apply DLP policies to detect bulk data access patterns.
+references:
+- https://attack.mitre.org/techniques/T1005/
+check_config:
+  conditions:
+    all:
+    - field: operation
+      op: equals
+      value: Microsoft.Compute/virtualMachines/capture/action
+  log_source_type: activity_log
+version: '1.0'

@@ -1,0 +1,60 @@
+version: '1.0'
+provider: db
+engine: mysql
+category: authentication
+cis_section: '3'
+description: MySQL CIS Section 3 — Authentication
+
+discovery:
+  - discovery_id: db.mysql.auth.anonymous_users
+    calls:
+      - action: query_table
+        query: "SELECT user, host FROM mysql.user WHERE user = '';"
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        user: "{{ item.user }}"
+        host: "{{ item.host }}"
+
+  - discovery_id: db.mysql.auth.password_policy_length
+    calls:
+      - action: query_setting
+        query: "SHOW VARIABLES LIKE 'validate_password.length';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        setting_name: validate_password.length
+        value: "{{ result.Value }}"
+        expected_min: 14
+
+  - discovery_id: db.mysql.auth.password_policy_mixed_case
+    calls:
+      - action: query_setting
+        query: "SHOW VARIABLES LIKE 'validate_password.mixed_case_count';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        setting_name: validate_password.mixed_case_count
+        value: "{{ result.Value }}"
+        expected_min: 1
+
+  - discovery_id: db.mysql.auth.users_without_password
+    calls:
+      - action: query_table
+        query: >
+          SELECT user, host, plugin
+          FROM mysql.user
+          WHERE (authentication_string = '' OR authentication_string IS NULL)
+            AND plugin NOT IN ('auth_socket', 'unix_socket');
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        user: "{{ item.user }}"
+        host: "{{ item.host }}"
+        plugin: "{{ item.plugin }}"

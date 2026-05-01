@@ -1,0 +1,75 @@
+version: '1.0'
+provider: virtualization
+engine: vmware_esxi
+category: section_3
+cis_section: '3'
+description: >
+  vmware_esxi CIS Section 3 — (L1) Host must deactivate the ESXi Managed Object Browser (MOB)
+
+discovery:
+
+  - discovery_id: vmware_esxi.section_3.l1_host_must_deactivate_the_esxi_managed_object
+    description: (L1) Host must deactivate the ESXi Managed Object Browser (MOB)
+    calls:
+      - action: run_command
+        command: "To confirm whether MOB is enabled, perform the following from the vSphere Web Client: 1. Select a host 2. Click Configure then expand System then select Advanced System Settings. 3. Click Edit then search for Config.HostAgent.plugins.solo.enableMob 4. Verify the value is set to false. To determine if the MOB is enabled, run the following command from the ESXi shell: vim-cmd proxysvc/service_list Additionally, the following PowerCLI command may be used: Get-VMHost | Get-AdvancedSetting -Name Config.HostAgent.plugins.solo.enableMob"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_host_must_deactivate_the_esxi_managed_object
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_3.l1_host_must_automatically_terminate_idle_dcui
+    description: (L1) Host must automatically terminate idle DCUI sessions
+    calls:
+      - action: run_command
+        command: "To verify the DCUI timeout setting, perform the following steps: 1. From the vSphere Web Client, select the host. 2. Click Configure, then under System select Advanced System Settings. 3. Select Edit then enter UserVars.DcuiTimeOut in the filter. 4. Verify that the value for this parameter is 600 seconds or less. Alternately, the following PowerCLI command may be used: Get-VMHost | Get-AdvancedSetting -Name UserVars.DcuiTimeOut"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_host_must_automatically_terminate_idle_dcui
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_3.l1_host_must_automatically_deactivate_shell
+    description: (L1) Host must automatically deactivate shell services
+    calls:
+      - action: run_command
+        command: "To verify the timeout is set to one hour or less, perform the following from the vSphere web client: 1. From the vSphere Web Client, select the host. 2. Click Configure then expand System. 3. Select Advanced System Settings then click Edit. 4. Enter ESXiShellTimeOut in the filter. 5. Verify that the value for this parameter is set to 3600 (1 hour) or less. Alternately, the following PowerCLI command may be used: # List UserVars.ESXiShellTimeOut in minutes for each host Get-VMHost | Select Name, @{N=\u0027UserVars.ESXiShellTimeOut\u0027;E={$_ | Get- AdvancedSettings UserVars.ESXiShellTimeOut | Select -ExpandProperty Values}}"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_host_must_automatically_deactivate_shell
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_3.l1_ensure_a_centralized_location_is_configured_to
+    description: (L1) Ensure a centralized location is configured to collect ESXi host core dumps
+    calls:
+      - action: run_command
+        command: "Run the following ESXi shell command to determine if the host is configured as prescribed: esxcli system coredump network get"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_ensure_a_centralized_location_is_configured_to
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_3.l1_ensure_remote_logging_is_configured_for_esxi
+    description: (L1) Ensure remote logging is configured for ESXi hosts
+    calls:
+      - action: run_command
+        command: "To ensure remote logging is configured properly, perform the following from the vSphere web client: 1. Select the host 2. Click Configure then expand System then select Advanced System Settings. 3. Select Edit then enter Syslog.global.logHost in the filter. 4. Verify the Syslog.global.logHost is set to the hostname of the central log server. Alternately, the following PowerCLI command may be used: # List Syslog.global.logHost for each host Get-VMHost | Select Name, @{N=\u0027Syslog.global.logHost\u0027;E={$_ | Get- AdvancedSetting Syslog.global.logHost}}"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_ensure_remote_logging_is_configured_for_esxi
+        value: "{{ result.stdout }}"
+        expected: ""
+

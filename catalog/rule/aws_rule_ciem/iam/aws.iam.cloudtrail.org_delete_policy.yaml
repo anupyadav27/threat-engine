@@ -1,0 +1,85 @@
+rule_id: aws.iam.cloudtrail.org_delete_policy
+service: iam
+provider: aws
+check_type: log
+severity: medium
+title: 'IAM: Org Delete Policy'
+description: Organizations policy deleted.
+rationale: 'Adversaries modify or disable security tools to avoid detection of their activities — including killing security software processes, disabling GuardDuty detectors, deleting Microsoft Defender plans, or tampering with cloud monitoring agents. Once defenses are disabled, subsequent attack phases proceed without generating alerts. Detected via: security process/service termination, cloud monitoring agent disable API calls, and container admission controller tampering.'
+threat_category: privilege_escalation
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1562.001
+risk_score: 45
+resource: iam_principal
+source: default
+is_active: true
+domain: identity_and_access_management
+action_category: delete
+posture_category: iam_posture
+threat_tags:
+- T1562.001
+- T1562
+- cloud_iam
+- privilege_escalation
+- identity
+risk_indicators:
+  actor_type: iam_user_or_role
+  action_type: destructive
+  target_type: iam_identity
+  blast_radius: account
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - policy_analysis
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.1
+  - 1.16
+  - 1.17
+  cis_azure_v2:
+  - 1.1
+  - 2.1
+  - 3.1
+  nist_800_53_r5:
+  - AC-2
+  - AC-3
+  - AC-6
+  - IA-2
+  pci_dss_v4:
+  - 7.1
+  - 7.2
+  - 8.2
+  iso_27001_2022:
+  - A.5.18
+  - A.8.2
+  - A.8.3
+detection_events:
+- 'guardduty:DeleteDetector'
+- 'securityhub:DisableSecurityHub'
+- Microsoft.Security/pricings/write (Standard → Free)
+- Set-MpPreference -DisableRealtimeMonitoring
+remediation: |
+  1. Re-enable the security tool immediately.
+  2. Apply SCPs / Azure Policies to prevent disabling security services.
+  3. Enable Config rules to detect and auto-remediate disabled security tools.
+  4. Alert via secondary channel (CloudWatch Events, Azure Event Grid) independent of the disabled service.
+references:
+- https://attack.mitre.org/techniques/T1562/001/
+- https://docs.aws.amazon.com/guardduty/latest/ug/guardduty_managing_access.html
+- https://learn.microsoft.com/en-us/azure/defender-for-cloud/enable-enhanced-security
+check_config:
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: organizations
+    - field: operation
+      op: equals
+      value: DeletePolicy
+version: '1.0'

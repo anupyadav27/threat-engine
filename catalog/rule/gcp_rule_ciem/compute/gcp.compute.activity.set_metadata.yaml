@@ -1,0 +1,78 @@
+rule_id: gcp.compute.activity.set_metadata
+service: compute
+provider: gcp
+check_type: log
+severity: high
+title: 'Compute: Instance Metadata Modified (Startup Script Injection)'
+description: Instance metadata modified via setMetadata — adversaries inject startup scripts to achieve persistent code execution on VMs without SSH access.
+rationale: 'Adversaries abuse cloud management services such as AWS Systems Manager (Run Command), Azure VM RunCommand, or Automation Runbooks to execute commands within virtual machines via installed agents — achieving remote code execution through the cloud control plane without requiring network access to the instance. Detected via: SSM RunCommand / Azure RunCommand API calls by unexpected users, command execution outside maintenance windows, and service account-initiated script execution atypical for admin tasks.'
+threat_category: execution
+mitre_tactics:
+- execution
+- persistence
+mitre_techniques:
+- T1651
+risk_score: 82
+resource: compute_instance
+source: default
+is_active: true
+domain: compute_and_workload_security
+action_category: execute
+posture_category: workload_posture
+threat_tags:
+- T1651
+- remote_execution
+- cloud_exec
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: execution
+  target_type: compute_instance
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_gcp_v2:
+  - 4.1
+  - 4.2
+  - 4.3
+  nist_800_53_r5:
+  - CM-7
+  - SI-3
+  - SI-4
+  pci_dss_v4:
+  - 6.3
+  - 6.4
+  iso_27001_2022:
+  - A.8.19
+  - A.8.20
+detection_events:
+- 'ssm:SendCommand'
+- Microsoft.Compute/virtualMachines/runCommand/action
+- Microsoft.Automation/automationAccounts/runbooks/publish/action
+- 'ec2:GetConsoleOutput (post-execution evidence gathering)'
+remediation: |
+  1. Audit the compute instance or function for malicious startup scripts or code.
+  2. Verify the workload image against a trusted artifact registry with Binary Authorization.
+  3. Apply Org Policy `compute.requireShieldedVm` for all new VM instances.
+  4. Enable Security Command Center threats for anomalous compute execution events.
+  5. Review service account permissions attached to the created instance or function.
+references:
+- https://attack.mitre.org/techniques/T1651/
+- https://cloud.google.com/compute/docs/metadata/overview
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: compute.googleapis.com
+    - field: operation
+      op: contains
+      value: setMetadata
+version: '1.0'

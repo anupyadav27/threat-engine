@@ -1,0 +1,78 @@
+rule_id: azure.iam.entra_audit.group_member_remove
+service: iam
+provider: azure
+check_type: log
+severity: medium
+title: 'IAM: Group Member Remove'
+description: User removed from Entra ID group — access revoked or attacker removing legitimate users.
+rationale: Account access removal (deleting users, removing MFA) blocks legitimate users from accessing resources and can be used to seize control of cloud accounts.
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1531
+risk_score: 45
+resource: entra_group
+source: default
+is_active: true
+domain: logging_monitoring_and_alerting
+action_category: delete
+log_source_type: entra_audit
+posture_category: security_posture
+threat_tags:
+- T1531
+- defense_evasion
+- log_tampering
+- cloud_iam
+- identity
+risk_indicators:
+  actor_type: iam_user_or_role
+  action_type: destructive
+  target_type: iam_identity
+  blast_radius: account
+  stealth_risk: critical
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 3.1
+  - 3.2
+  - 3.3
+  - 3.4
+  cis_azure_v2:
+  - 5.1
+  - 5.2
+  - 5.3
+  nist_800_53_r5:
+  - AU-2
+  - AU-6
+  - AU-12
+  - SI-4
+  pci_dss_v4:
+  - 10.1
+  - 10.2
+  - 10.3
+  iso_27001_2022:
+  - A.8.15
+  - A.8.16
+  - A.5.28
+remediation: |
+  1. Restore removed accounts or access immediately from a break-glass account.
+  2. Review and audit all actions taken by the responsible actor.
+  3. Implement role-based approvals for account deletion and access revocation.
+  4. Maintain break-glass emergency access accounts with separate credential paths.
+references:
+- https://attack.mitre.org/techniques/T1531/
+- https://learn.microsoft.com/en-us/azure/active-directory/roles/security-emergency-access
+check_config:
+  conditions:
+    all:
+    - field: operation
+      op: equals
+      value: microsoft.directory/groups/members/remove
+  log_source_type: entra_audit
+version: '1.0'

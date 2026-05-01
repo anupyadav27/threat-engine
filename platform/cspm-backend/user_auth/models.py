@@ -33,6 +33,7 @@ class Users(AbstractBaseUser, PermissionsMixin):
     first_name = models.TextField(blank=True, null=True)
     last_name = models.TextField(blank=True, null=True)
     status = models.TextField(blank=True, null=True)
+    is_break_glass = models.BooleanField(default=False)
     last_login = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -77,6 +78,9 @@ class UserSessions(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     session_index = models.TextField(blank=True, null=True)
+    token_hint = models.CharField(max_length=8, null=True, blank=True, db_index=False)
+    permissions_cache = models.JSONField(default=list)
+    scope_cache = models.JSONField(default=dict)
 
     class Meta:
         managed = True
@@ -133,6 +137,8 @@ class Roles(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    level = models.IntegerField(default=4)
+    scope_level = models.CharField(max_length=50, default='tenant')
     permissions = models.ManyToManyField(
         Permissions,
         through='RolePermissions',

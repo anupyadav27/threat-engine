@@ -1,0 +1,244 @@
+version: '1.0'
+provider: networking
+engine: cisco_ios_xr
+category: section_1
+cis_section: '1'
+description: >
+  cisco_ios_xr CIS Section 1 — TACACS+
+
+discovery:
+
+  - discovery_id: cisco_ios_xr.section_1.tacacs
+    description: TACACS+
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: tacacs
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: cisco_ios_xr.section_1.radius
+    description: RADIUS
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: radius
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: cisco_ios_xr.section_1.configure_authorization
+    description: Configure Authorization
+    calls:
+      - action: run_command
+        command: "Check which line template is referenced by the vty-pools IOSXR#show run formal | i \u0027vty-pool\u0027 vty-pool default 0 4 line-template default Check the relationship between line template in use and the aaa list: IOSXR##show run formal | i \u0027authorization\u0027 line console authorization commands default line default authorization commands default Verify an authentication list is defined and optionally references the aaa group that was created in the prerequisites: IOSXR#show run formal | i \u0027aaa authorization\u0027 aaa authorization commands default group {tacacs_group} none"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: configure_authorization
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: cisco_ios_xr.section_1.exec_accounting
+    description: exec accounting
+    calls:
+      - action: run_command
+        command: "Make sure an accounting list is defined and that same list (called \u0027default\u0027 in the example below) is referenced by the line templates. IOSXR#show run aaa aaa accounting exec default start-stop group {tacacs_group|radius_group} line console accounting exec default line default accounting exec default If not the \u0027line default\u0027 template is used, make sure the correct line template is associated with the vty-pool."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: exec_accounting
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: cisco_ios_xr.section_1.command_accounting
+    description: command accounting
+    calls:
+      - action: run_command
+        command: "Make sure an accounting list is defined and that same list (called \u0027default\u0027 in the example below) is referenced by the line templates. IOSXR#show run aaa aaa accounting commands default start-stop local none line console accounting commands default line default accounting commands default If not the \u0027line default\u0027 template is used, make sure the correct line template is associated with the vty-pool."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: command_accounting
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: cisco_ios_xr.section_1.network_accounting
+    description: network accounting
+    calls:
+      - action: run_command
+        command: "Verify the network accounting IOSXR#show run aaa aaa accounting network default start-stop group {tacacs_group|radius_group}"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: network_accounting
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: cisco_ios_xr.section_1.system_accounting
+    description: system accounting
+    calls:
+      - action: run_command
+        command: "Verify the system accounting: IOSXR#show run aaa aaa accounting system default start-stop group {tacacs_group|radius_group}"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: system_accounting
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: cisco_ios_xr.section_1.set_the_hostname
+    description: Set the 'hostname'
+    calls:
+      - action: run_command
+        command: "Perform the following to determine if the local time zone is configured: Verify the result shows the summer-time recurrence is configured properly. IOSXR#sh run | incl hostname"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: set_the_hostname
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: cisco_ios_xr.section_1.enable_logging
+    description: Enable logging
+    calls:
+      - action: run_command
+        command: "Perform the following to determine if the feature is enabled: Verify no result returns IOSXR#sh logging Wed Jul 19 18:27:39.571 UTC Syslog logging: enabled (0 messages dropped, 0 flushes, 0 overruns) Console logging: level warnings, 121 messages logged Monitor logging: level debugging, 0 messages logged Trap logging: level alert, 0 messages logged Logging to 1.1.1.1, 0 message lines logged Buffer logging: level debugging, 909 messages logged"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: enable_logging
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: cisco_ios_xr.section_1.set_buffer_size
+    description: Set 'buffer size'
+    calls:
+      - action: run_command
+        command: "Perform the following to determine if the feature is enabled: Verify a command string result returns IOSXR#sh logging Wed Jul 19 18:30:49.736 UTC Syslog logging: enabled (0 messages dropped, 0 flushes, 0 overruns) Console logging: level warnings, 123 messages logged Monitor logging: level debugging, 0 messages logged Trap logging: level alert, 0 messages logged Logging to 1.1.1.1, 0 message lines logged Buffer logging: level debugging, 916 messages logged IOSXR#sh run logging Wed Jul 19 18:32:35.155 UTC logging trap alerts logging buffered 123123123 logging 1.1.1.1 vrf default severity alerts"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: set_buffer_size
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: cisco_ios_xr.section_1.set_ip_address_for_logging_host
+    description: Set IP address for 'logging host'
+    calls:
+      - action: run_command
+        command: "Perform the following to determine if a syslog server is enabled: Verify one or more IP address(es) returns RP/0/RP0/CPU0:IOSXR#sh logging Wed Jul 19 18:35:21.188 UTC Syslog logging: enabled (0 messages dropped, 0 flushes, 0 overruns) Console logging: level critical, 127 messages logged Monitor logging: level debugging, 0 messages logged Trap logging: level alert, 0 messages logged Logging to 1.1.1.1, 0 message lines logged Buffer logging: level debugging, 950 messages logged IOSXR#sh run logging Wed Jul 19 18:35:46.794 UTC logging trap alerts logging console critical logging buffered 123123123 logging 1.1.1.1 vrf default severity alerts"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: set_ip_address_for_logging_host
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: cisco_ios_xr.section_1.set_logging_trap_informational
+    description: Set 'logging trap informational'
+    calls:
+      - action: run_command
+        command: "Perform the following to determine if a syslog server for SNMP traps is enabled: Verify \u0027level informational\u0027 returns IOSXR#sh run logging Wed Jul 19 18:36:42.079 UTC logging trap alerts logging console critical logging buffered 123123123 logging 1.1.1.1 vrf default severity alerts IOSXR#sh logging Wed Jul 19 18:37:03.574 UTC Syslog logging: enabled (0 messages dropped, 0 flushes, 0 overruns) Console logging: level critical, 127 messages logged Monitor logging: level debugging, 0 messages logged Trap logging: level alert, 0 messages logged Logging to 1.1.1.1, 0 message lines logged Buffer logging: level debugging, 961 messages logged"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: set_logging_trap_informational
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: cisco_ios_xr.section_1.set_logging_timestamps
+    description: Set logging timestamps
+    calls:
+      - action: run_command
+        command: "Perform the following to determine if the additional detail is enabled: Verify a command string result returns IOSXR#sh run | inc timestamp Wed Jul 19 18:40:59.975 UTC Building configuration... service timestamps log datetime msec"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: set_logging_timestamps
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: cisco_ios_xr.section_1.set_logging_source_interface
+    description: Set 'logging source interface'
+    calls:
+      - action: run_command
+        command: "Perform the following to determine if logging services are bound to a source interface: Verify a command string result returns IOSXR(config)#sh run logging Wed Jul 19 18:41:55.797 UTC logging trap informational logging console critical logging buffered 123123123 logging 1.1.1.1 vrf default severity alerts logging source-interface MgmtEth0/RP0/CPU0/0"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: set_logging_source_interface
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: cisco_ios_xr.section_1.set_snmp_server_enable_traps_snmp
+    description: Set 'snmp-server enable traps snmp'
+    calls:
+      - action: run_command
+        command: "Perform the following to determine if SNMP traps are enabled: If the command returns configuration values, then SNMP is enabled. IOSXR#show run | incl snmp-server"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: set_snmp_server_enable_traps_snmp
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: cisco_ios_xr.section_1.set_priv_for_each_snmp_server_group_using_snmpv3
+    description: Set 'priv' for each 'snmp-server group' using SNMPv3
+    calls:
+      - action: run_command
+        command: "Verify the result show the appropriate group name and security model IOSXR#show run | inc snmp-server group"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: set_priv_for_each_snmp_server_group_using_snmpv3
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: cisco_ios_xr.section_1.require_aes_128_as_minimum_for_snmp_server_user
+    description: Require 'aes 128' as minimum for 'snmp-server user' when using SNMPv3
+    calls:
+      - action: run_command
+        command: "Verify the result show the appropriate user name and security settings IOSXR#show snmp user"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: require_aes_128_as_minimum_for_snmp_server_user
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: cisco_ios_xr.section_1.management_plane_protection
+    description: Management plane protection
+    calls:
+      - action: run_command
+        command: "Verify the appropriate management plane protection configuration. IOSXR#sh run control-plane Wed Jul 19 23:25:11.297 UTC control-plane management-plane inband interface Loopback1 allow SSH peer address ipv4 1.1.1.1 ! ! ! out-of-band interface MgmtEth0/RP0/CPU0/0 allow SSH peer address ipv4 1.1.1.1"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: management_plane_protection
+        value: "{{ result.stdout }}"
+        expected: ""
+

@@ -1,0 +1,71 @@
+rule_id: azure.threat.activity_log.subscription_transfer
+service: threat
+provider: azure
+check_type: log
+severity: critical
+title: 'Threat: Subscription Transfer'
+description: Azure subscription cancelled — all resources across subscription scheduled for deletion.
+rationale: Account access removal (deleting users, removing MFA) blocks legitimate users from accessing resources and can be used to seize control of cloud accounts.
+threat_category: impact
+mitre_tactics:
+- impact
+mitre_techniques:
+- T1531
+risk_score: 95
+resource: azure_subscription
+source: default
+is_active: true
+domain: impact
+action_category: delete
+log_source_type: activity_log
+posture_category: workload_posture
+threat_tags:
+- T1531
+- impact
+- availability
+- threat_detection
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: destructive
+  target_type: cloud_resource
+  blast_radius: multi_resource
+  stealth_risk: low
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 2.6
+  - 3.1
+  cis_azure_v2:
+  - 7.5
+  - 5.1
+  nist_800_53_r5:
+  - CP-9
+  - CP-10
+  - SI-12
+  - IR-4
+  pci_dss_v4:
+  - 12.3
+  - 3.4
+  iso_27001_2022:
+  - A.5.29
+  - A.8.13
+remediation: |
+  1. Restore removed accounts or access immediately from a break-glass account.
+  2. Review and audit all actions taken by the responsible actor.
+  3. Implement role-based approvals for account deletion and access revocation.
+  4. Maintain break-glass emergency access accounts with separate credential paths.
+references:
+- https://attack.mitre.org/techniques/T1531/
+- https://learn.microsoft.com/en-us/azure/active-directory/roles/security-emergency-access
+check_config:
+  conditions:
+    all:
+    - field: operation
+      op: equals
+      value: Microsoft.Subscription/cancel/action
+  log_source_type: activity_log
+version: '1.0'

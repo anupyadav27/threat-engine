@@ -19,7 +19,7 @@ id, iam_scan_id, tenant_id, finding_id, rule_id, module, severity, resource_uid,
 
 ## Your API
 - **Port**: 8003
-- **Scan trigger**: POST /api/v1/iam-security/scan `{csp, scan_id, orchestration_id, tenant_id}` OR POST /api/v1/scan
+- **Scan trigger**: POST /api/v1/iam-security/scan `{scan_run_id, tenant_id, csp}`
 - **Findings**: GET /api/v1/iam-security/findings?tenant_id=X
 - **Modules**: GET /api/v1/iam-security/modules
 
@@ -31,12 +31,12 @@ id, iam_scan_id, tenant_id, finding_id, rule_id, module, severity, resource_uid,
 - Needs IAM policy parser upgrade for effective permissions (planned)
 
 ## Full Stack (UI → BFF → API → DB)
-- **UI page**: `/iam` → `ui_samples/src/app/iam/page.jsx`
+- **UI page**: `/iam` → `frontend/src/app/iam/page.jsx`
 - **BFF file**: `shared/api_gateway/bff/iam.py` → `GET /api/v1/views/iam`
 - **BFF calls**: iam `/api/v1/iam-security/ui-data`
 - **Engine code**: `engines/iam/`
 - **K8s manifest**: `deployment/aws/eks/engines/engine-iam.yaml`
-- **Image**: `yadavanup84/engine-iam:v3-latest-scan`
+- **Image**: `yadavanup84/engine-iam:v-std-cols`
 
 ## Pipeline Dependencies
 ```

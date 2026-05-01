@@ -1,0 +1,86 @@
+rule_id: aws.dns.query_log.file_sharing_domain
+service: dns
+provider: aws
+check_type: log
+severity: medium
+title: 'Route53: File Sharing Domain'
+description: File sharing domain queried — data may be exfiltrated via web service.
+rationale: Exfiltration to cloud storage services (OneDrive, S3 buckets in attacker accounts) uses trusted channels that bypass traditional DLP controls.
+threat_category: data_exfiltration
+mitre_tactics:
+- exfiltration
+mitre_techniques:
+- T1567
+risk_score: 55
+resource: route53_zone
+source: default
+is_active: true
+domain: data_protection_and_privacy
+action_category: exfiltration
+log_source_type: 
+posture_category: data_security_posture
+threat_tags:
+- T1567
+- data_exfiltration
+- data_loss
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: data_transfer
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - data_loss_prevention
+  categories:
+  - data_exfiltration
+  - unauthorized_access
+  priority: medium
+  impact:
+    pci: PCI DSS Requirement 12.3 — Implement security awareness program and protect systems
+    gdpr: GDPR Article 32 — Appropriate technical and organizational measures for data security
+    hipaa: §164.306(a) — Ensure confidentiality, integrity, and availability of ePHI
+  sensitive_data_context: |
+  Unauthorized data exfiltration on dns resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks:
+  cis_aws_v3:
+  - 2.7
+  - 3.7
+  cis_azure_v2:
+  - 3.1
+  - 5.2
+  nist_800_53_r5:
+  - SC-7
+  - SC-28
+  - AC-4
+  pci_dss_v4:
+  - 3.2
+  - 4.1
+  - 10.2
+  iso_27001_2022:
+  - A.8.12
+  - A.8.20
+  - A.5.14
+remediation: |
+  1. Apply CASB policies to restrict file uploads to unauthorized cloud storage.
+  2. Block access to non-corporate cloud storage domains at the network perimeter.
+  3. Enable Cloud App Security / Defender for Cloud Apps policies.
+references:
+- https://attack.mitre.org/techniques/T1567/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: dns
+    - field: operation
+      op: contains
+      value: transfer.sh
+version: '1.0'

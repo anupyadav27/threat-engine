@@ -14,26 +14,29 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import os
 from typing import Any, Dict, List, Optional
+
+from psycopg2.extras import RealDictCursor
+
+from engine_common.db_connections import get_ciem_conn as _base_get_ciem_conn
 
 logger = logging.getLogger(__name__)
 
 
 def _get_ciem_conn():
-    """Return a connection to the CIEM DB (if available)."""
+    """Return a CIEM DB connection with a 30s statement timeout.
+
+    The flow analysis query aggregates potentially millions of ciem_events rows.
+    Without a statement timeout it can block the entire network scanner for 20+
+    minutes.  30 seconds is generous — if it can't finish in that time the
+    flow enrichment is skipped (non-fatal) and the scan completes normally.
+    """
     try:
-        import psycopg2
-        from psycopg2.extras import RealDictCursor
-        return psycopg2.connect(
-            host=os.getenv("CIEM_DB_HOST", os.getenv("DB_HOST", "localhost")),
-            port=int(os.getenv("CIEM_DB_PORT", os.getenv("DB_PORT", "5432"))),
-            dbname=os.getenv("CIEM_DB_NAME", "threat_engine_ciem"),
-            user=os.getenv("CIEM_DB_USER", os.getenv("DB_USER", "postgres")),
-            password=os.getenv("CIEM_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-            sslmode=os.getenv("DB_SSLMODE", "prefer"),
-            connect_timeout=10,
-        )
+        conn = _base_get_ciem_conn()
+        with conn.cursor() as cur:
+            cur.execute("SET statement_timeout = 30000")
+        conn.commit()
+        return conn
     except Exception as e:
         logger.warning("CIEM DB not available for flow analysis: %s", e)
         return None
@@ -69,8 +72,6 @@ def enrich_with_flow_data(
         return sg_findings
 
     try:
-        from psycopg2.extras import RealDictCursor
-
         # Load recent flow events grouped by dst_port and action
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""

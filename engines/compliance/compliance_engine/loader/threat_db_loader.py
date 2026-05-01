@@ -116,8 +116,8 @@ class ThreatDBLoader:
                         "generated_at": r["generated_at"].isoformat() + "Z" if hasattr(r["generated_at"], "isoformat") else str(r["generated_at"]),
                         "cloud": r["cloud"],
                     })
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.warning("threat_db_loader: failed to load threat scan list: %s", _e)
         return out
 
     def misconfig_findings_to_scan_results(

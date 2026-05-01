@@ -1,0 +1,16 @@
+version: '1.0'
+rule_id: aws.networkfirewall.firewall.networkfirewall_no_permit_any_configured
+for_each: aws.networkfirewall.describe_firewall_policy
+severity: HIGH
+conditions:
+  all:
+  - var: item.FirewallPolicyResponse.StatefulRuleGroupReferences
+    op: not_empty
+  - any:
+    - var: item.FirewallPolicyResponse.StatefulRuleGroupReferences[].StatefulRuleGroupArn
+      op: contains
+      value: permit-any
+    - var: item.FirewallPolicyResponse.StatefulRuleGroupReferences[].StatefulRuleGroupArn
+      op: contains
+      value: allow-all
+  - op: not

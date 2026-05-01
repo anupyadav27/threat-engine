@@ -1,4 +1,5 @@
 import json
+import os
 import uuid
 import re
 from django.utils import timezone
@@ -8,8 +9,9 @@ from datetime import timedelta
 
 from django.utils.decorators import method_decorator
 from rest_framework.views import APIView
-from user_auth.models import Users, UserSessions
-from user_auth.utils.auth_utils import generate_token, hash_token, verify_token
+from user_auth.models import Users, UserRoles, UserSessions
+from user_auth.utils.audit_utils import log_auth_event
+from user_auth.utils.auth_utils import compute_auth_caches, generate_token, hash_token, verify_token
 from user_auth.utils.cookie_utils import set_auth_cookies, clear_auth_cookies
 from user_auth.utils.tenant_utils import provision_first_tenant
 from django.http import JsonResponse
@@ -66,7 +68,12 @@ class LoginView(APIView):
             else timedelta(minutes=getattr(settings, 'ACCESS_TOKEN_LIFETIME_MINUTES', 60))
         )
 
-        # Save session with hashed tokens
+        # Compute permission/scope caches from server-side DB joins only.
+        # SECURITY: no client-supplied data is used here.
+        permissions_cache, scope_cache = compute_auth_caches(user)
+
+        # Save session with hashed tokens and auth caches.
+        # token_hint is the first 8 chars of the RAW (pre-hash) access token.
         UserSessions.objects.create(
             id=uuid.uuid4(),
             user=user,
@@ -76,11 +83,40 @@ class LoginView(APIView):
             expires_at=expires_at,
             ip_address=request.META.get('REMOTE_ADDR', ''),
             user_agent=request.META.get('HTTP_USER_AGENT', ''),
+            token_hint=access_token[:8],
+            permissions_cache=permissions_cache,
+            scope_cache=scope_cache,
         )
 
         # Update last login
         user.last_login = timezone.now()
         user.save(update_fields=['last_login'])
+
+        log_auth_event("login.local", request=request, user=user)
+
+        # Resolve primary role name for response (lowest level number = highest privilege)
+        user_role_qs = (
+            UserRoles.objects.filter(user=user)
+            .select_related('role')
+            .order_by('role__level')
+        )
+        role_names = [ur.role.name for ur in user_role_qs]
+        primary_role = role_names[0] if role_names else None
+
+        # Build tenant list (same as MeView) so frontend has engine_tenant_id immediately
+        from tenant_management.models import TenantUsers as TUModel
+        tenant_memberships = TUModel.objects.filter(
+            user=user, is_active=True
+        ).select_related('tenant', 'role')
+        tenants_list = []
+        for tm in tenant_memberships:
+            tenants_list.append({
+                "tenant_id": str(tm.tenant.id),
+                "engine_tenant_id": tm.tenant.engine_tenant_id or str(tm.tenant.id),
+                "tenant_name": tm.tenant.name,
+                "role": tm.role.name if tm.role else "member",
+                "status": tm.tenant.status,
+            })
 
         # Prepare response
         full_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
@@ -91,7 +127,10 @@ class LoginView(APIView):
                 "id": str(user.id),
                 "email": user.email,
                 "name": full_name,
-                "roles": [],  # extend when role model exists
+                "role": primary_role,
+                "roles": role_names,
+                "permissions": permissions_cache,
+                "tenants": tenants_list,
             },
         }
 
@@ -101,9 +140,18 @@ class LoginView(APIView):
         return response
 
 
+_ALLOW_LOCAL_SIGNUP = os.getenv("ALLOW_LOCAL_SIGNUP", "false").lower() in ("true", "1", "yes")
+
+
 @method_decorator(ensure_csrf_cookie, name='dispatch')
 class SignupView(APIView):
     def post(self, request):
+        if not _ALLOW_LOCAL_SIGNUP:
+            return JsonResponse(
+                {"message": "Local account creation is disabled. Use SSO to sign in."},
+                status=403,
+            )
+
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
@@ -144,6 +192,9 @@ class SignupView(APIView):
         expires_at = timezone.now() + timedelta(
             days=getattr(settings, 'REFRESH_TOKEN_LIFETIME_DAYS', 7)
         )
+        # Compute auth caches for the newly registered user (no roles yet, so
+        # permissions_cache will be [] — correct for a brand-new account)
+        signup_permissions, signup_scope = compute_auth_caches(user)
         UserSessions.objects.create(
             id=uuid.uuid4(),
             user=user,
@@ -153,6 +204,9 @@ class SignupView(APIView):
             expires_at=expires_at,
             ip_address=request.META.get('REMOTE_ADDR', ''),
             user_agent=request.META.get('HTTP_USER_AGENT', ''),
+            token_hint=access_token[:8],
+            permissions_cache=signup_permissions,
+            scope_cache=signup_scope,
         )
 
         full_name = f"{first_name} {last_name}".strip()
@@ -171,39 +225,106 @@ class SignupView(APIView):
 
 class MeView(APIView):
     """Return current authenticated user info from cookie session."""
-    def get(self, request):
+
+    def _get_user_response(self, user, session: UserSessions | None = None):
+        from tenant_management.models import TenantUsers
+
+        # Resolve permissions from the active session cache, or fall back to
+        # recomputing from the DB if the session has no cache (old sessions).
+        if session is not None and session.permissions_cache:
+            permissions = session.permissions_cache
+        else:
+            permissions, _ = compute_auth_caches(user)
+
+        # Resolve primary role name (lowest level = highest privilege)
+        user_role_qs = (
+            UserRoles.objects.filter(user=user)
+            .select_related('role')
+            .order_by('role__level')
+        )
+        role_names = [ur.role.name for ur in user_role_qs]
+
+        # Build per-tenant permissions list from the TenantUsers role assignment
+        tenant_memberships = TenantUsers.objects.filter(
+            user=user, is_active=True
+        ).select_related('tenant', 'role__permissions')
+        tenants = []
+        for tm in tenant_memberships:
+            tenant_perm_keys: list = []
+            if tm.role:
+                tenant_perm_keys = sorted(
+                    tm.role.permissions.values_list('key', flat=True)
+                )
+            tenants.append({
+                "tenant_id": str(tm.tenant.id),
+                "engine_tenant_id": tm.tenant.engine_tenant_id or str(tm.tenant.id),
+                "tenant_name": tm.tenant.name,
+                "role": tm.role.name if tm.role else "member",
+                "permissions": list(tenant_perm_keys),
+                "status": tm.tenant.status,
+            })
+
+        return JsonResponse({
+            "id": str(user.id),
+            "email": user.email,
+            "name": f"{user.first_name or ''} {user.last_name or ''}".strip(),
+            "sso_provider": user.sso_provider,
+            "role": role_names[0] if role_names else None,
+            "roles": role_names,
+            "permissions": permissions,
+            "tenants": tenants,
+        })
+
+    def _resolve_user_and_session(self, request):
+        """Return (user, session) tuple or (None, None) if not authenticated."""
         access_token = request.COOKIES.get("access_token")
         if not access_token:
-            return JsonResponse({"message": "Not authenticated"}, status=401)
-
+            return None, None
         sessions = UserSessions.objects.filter(revoked=False).select_related('user')
         for session in sessions:
             if session.expires_at < timezone.now():
                 continue
             if verify_token(access_token, session.token):
-                user = session.user
-                from tenant_management.models import TenantUsers
-                tenant_memberships = TenantUsers.objects.filter(
-                    user=user, is_active=True
-                ).select_related('tenant', 'role')
-                tenants = [
-                    {
-                        "tenant_id": str(tm.tenant.id),
-                        "tenant_name": tm.tenant.name,
-                        "role": tm.role.name if tm.role else "member",
-                        "status": tm.tenant.status,
-                    }
-                    for tm in tenant_memberships
-                ]
-                return JsonResponse({
-                    "id": str(user.id),
-                    "email": user.email,
-                    "name": f"{user.first_name or ''} {user.last_name or ''}".strip(),
-                    "sso_provider": user.sso_provider,
-                    "tenants": tenants,
-                })
+                return session.user, session
+        return None, None
 
-        return JsonResponse({"message": "Invalid or expired session"}, status=401)
+    def get(self, request):
+        user, session = self._resolve_user_and_session(request)
+        if not user:
+            return JsonResponse({"message": "Not authenticated"}, status=401)
+        return self._get_user_response(user, session)
+
+    def patch(self, request):
+        user, session = self._resolve_user_and_session(request)
+        if not user:
+            return JsonResponse({"message": "Not authenticated"}, status=401)
+
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, AttributeError):
+            data = request.data if hasattr(request, 'data') else {}
+
+        allowed_fields = {'first_name', 'last_name'}
+        update_data = {k: v for k, v in data.items() if k in allowed_fields}
+
+        if not update_data:
+            return JsonResponse(
+                {"error": "No valid fields provided. Accepted: first_name, last_name"},
+                status=400,
+            )
+
+        for field, value in update_data.items():
+            if not isinstance(value, str) or not value.strip():
+                return JsonResponse(
+                    {"error": f"{field} must be a non-empty string"},
+                    status=400,
+                )
+
+        for field, value in update_data.items():
+            setattr(user, field, value.strip())
+        user.save(update_fields=list(update_data.keys()))
+
+        return self._get_user_response(user, session)
 
 
 @method_decorator(ensure_csrf_cookie, name='dispatch')
@@ -238,8 +359,19 @@ class RefreshTokenView(APIView):
         new_access_token = generate_token()
         hashed_new_access = hash_token(new_access_token)
 
+        # Update token and backfill token_hint on the refreshed session
         valid_session.token = hashed_new_access
-        valid_session.save(update_fields=["token"])
+        valid_session.token_hint = new_access_token[:8]
+        valid_session.save(update_fields=["token", "token_hint"])
+
+        # Resolve roles for the refreshed user
+        user_role_qs = (
+            UserRoles.objects.filter(user=user)
+            .select_related('role')
+            .order_by('role__level')
+        )
+        role_names = [ur.role.name for ur in user_role_qs]
+        permissions = valid_session.permissions_cache or []
 
         response = JsonResponse({
             "message": "Access token refreshed successfully",
@@ -248,7 +380,9 @@ class RefreshTokenView(APIView):
                 "id": str(user.id),
                 "email": user.email,
                 "name": f"{user.first_name or ''} {user.last_name or ''}".strip(),
-                "roles": [],
+                "role": role_names[0] if role_names else None,
+                "roles": role_names,
+                "permissions": permissions,
             },
         })
         set_auth_cookies(response, new_access_token)  # do NOT reissue refresh token
@@ -288,10 +422,130 @@ class LogoutView(APIView):
 
         # TODO: Later, handle SAML SLO if login_method == "saml"
 
+        log_auth_event("logout", request=request, user=user)
+
         response = JsonResponse({
             "message": "Logout successful",
             "sso": login_method == "saml"
         })
+
+
+class ChangePasswordView(APIView):
+    """POST /api/auth/change-password/ — authenticated password change."""
+
+    def post(self, request):
+        access_token = request.COOKIES.get("access_token")
+        if not access_token:
+            return JsonResponse({"message": "Not authenticated"}, status=401)
+
+        user = None
+        current_session = None
+        sessions = UserSessions.objects.filter(revoked=False).select_related('user')
+        for session in sessions:
+            if session.expires_at < timezone.now():
+                continue
+            if verify_token(access_token, session.token):
+                user = session.user
+                current_session = session
+                break
+
+        if not user:
+            return JsonResponse({"message": "Invalid or expired session"}, status=401)
+
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, AttributeError):
+            data = {}
+
+        current_password = data.get('current_password', '')
+        new_password = data.get('new_password', '')
+
+        if not current_password or not new_password:
+            return JsonResponse(
+                {"error": "current_password and new_password are required"},
+                status=400,
+            )
+
+        if len(new_password) < 8:
+            return JsonResponse(
+                {"error": "new_password must be at least 8 characters"},
+                status=400,
+            )
+
+        if not user.check_password(current_password):
+            return JsonResponse({"error": "Current password incorrect"}, status=400)
+
+        user.set_password(new_password)
+        user.save()
+
+        # Invalidate all sessions so old tokens stop working
+        UserSessions.objects.filter(user=user).delete()
+
+        return JsonResponse(
+            {"message": "Password changed successfully. Please log in again."},
+            status=200,
+        )
+
+
+class UserListView(APIView):
+    """GET /api/users/?tenant_id=X — list members of a tenant (admin only)."""
+
+    def get(self, request):
+        access_token = request.COOKIES.get("access_token")
+        if not access_token:
+            return JsonResponse({"message": "Not authenticated"}, status=401)
+
+        user = None
+        sessions = UserSessions.objects.filter(revoked=False).select_related('user')
+        for session in sessions:
+            if session.expires_at < timezone.now():
+                continue
+            if verify_token(access_token, session.token):
+                user = session.user
+                break
+
+        if not user:
+            return JsonResponse({"message": "Invalid or expired session"}, status=401)
+
+        tenant_id = request.GET.get('tenant_id')
+        if not tenant_id:
+            return JsonResponse(
+                {"error": "tenant_id query parameter is required"},
+                status=400,
+            )
+
+        from tenant_management.models import TenantUsers
+        try:
+            requester_membership = TenantUsers.objects.select_related('role').get(
+                user=user,
+                tenant__id=tenant_id,
+                is_active=True,
+            )
+        except TenantUsers.DoesNotExist:
+            return JsonResponse({"error": "Forbidden"}, status=403)
+
+        if not requester_membership.role or requester_membership.role.name not in ('admin', 'super_admin'):
+            return JsonResponse({"error": "Forbidden"}, status=403)
+
+        memberships = TenantUsers.objects.filter(
+            tenant__id=tenant_id,
+            is_active=True,
+        ).select_related('user', 'role')
+
+        users = []
+        for m in memberships:
+            u = m.user
+            name = f"{u.first_name or ''} {u.last_name or ''}".strip() or u.email
+            users.append({
+                "id": str(u.id),
+                "email": u.email,
+                "name": name,
+                "role": m.role.name if m.role else "member",
+                "status": u.status or "active",
+                "last_login": u.last_login.isoformat() if u.last_login else None,
+            })
+
+        return JsonResponse({"users": users}, status=200)
 
         clear_auth_cookies(response)
         return response

@@ -458,8 +458,8 @@ def _eks_public_api(
                 SET e.attack_path_category = 'privilege_escalation',
                     e.reason = 'eks_pod_service_account'
             """, tid=tenant_id)
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.warning("aws: EKS CONTAINS edge write failed: %s", _e)
 
         if new_uids:
             logger.info(f"aws: EKS public API: {len(new_uids)} clusters → {n} edges")

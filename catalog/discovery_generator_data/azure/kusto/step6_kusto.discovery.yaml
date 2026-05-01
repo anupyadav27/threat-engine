@@ -1,0 +1,463 @@
+version: '1.0'
+provider: azure
+service: kusto
+services:
+  client: kusto
+  module: azure.mgmt.kusto
+discovery:
+- discovery_id: azure.kusto.clusters.list
+  calls:
+  - action: clusters.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      principal_id: '{{ item.principal_id }}'
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      aad_object_id: '{{ item.aad_object_id }}'
+      principal_name: '{{ item.principal_name }}'
+      principal_type: '{{ item.principal_type }}'
+      role: '{{ item.role }}'
+      tenant_id: '{{ item.tenant_id }}'
+      tenant_name: '{{ item.tenant_name }}'
+- discovery_id: azure.kusto.clusters.list_by_resource_group
+  calls:
+  - action: clusters.list_by_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      public_network_access: '{{ item.public_network_access }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      accepted_audiences: '{{ item.accepted_audiences }}'
+      allowed_fqdn_list: '{{ item.allowed_fqdn_list }}'
+      allowed_ip_range_list: '{{ item.allowed_ip_range_list }}'
+      callout_policies: '{{ item.callout_policies }}'
+      data_ingestion_uri: '{{ item.data_ingestion_uri }}'
+      enable_auto_stop: '{{ item.enable_auto_stop }}'
+      enable_disk_encryption: '{{ item.enable_disk_encryption }}'
+      enable_double_encryption: '{{ item.enable_double_encryption }}'
+      enable_purge: '{{ item.enable_purge }}'
+      enable_streaming_ingest: '{{ item.enable_streaming_ingest }}'
+      engine_type: '{{ item.engine_type }}'
+      etag: '{{ item.etag }}'
+      key_vault_properties: '{{ item.key_vault_properties }}'
+      language_extensions: '{{ item.language_extensions }}'
+      migration_cluster: '{{ item.migration_cluster }}'
+      optimized_autoscale: '{{ item.optimized_autoscale }}'
+      private_endpoint_connections: '{{ item.private_endpoint_connections }}'
+      public_ip_type: '{{ item.public_ip_type }}'
+      restrict_outbound_network_access: '{{ item.restrict_outbound_network_access
+        }}'
+      state: '{{ item.state }}'
+      state_reason: '{{ item.state_reason }}'
+      system_data: '{{ item.system_data }}'
+      trusted_external_tenants: '{{ item.trusted_external_tenants }}'
+      uri: '{{ item.uri }}'
+      virtual_cluster_graduation_properties: '{{ item.virtual_cluster_graduation_properties
+        }}'
+      virtual_network_configuration: '{{ item.virtual_network_configuration }}'
+      zone_status: '{{ item.zone_status }}'
+- discovery_id: azure.kusto.clusters.list_skus
+  calls:
+  - action: clusters.list_skus
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      location_info: '{{ item.location_info }}'
+      locations: '{{ item.locations }}'
+      resource_type: '{{ item.resource_type }}'
+      restrictions: '{{ item.restrictions }}'
+      tier: '{{ item.tier }}'
+- discovery_id: azure.kusto.attacheddatabaseconfigurations.list_by_cluster
+  for_each: azure.kusto.clusters.list
+  calls:
+  - action: attacheddatabaseconfigurations.list_by_cluster
+    save_as: response
+    on_error: continue
+    params:
+      cluster_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      base_image_name: '{{ item.base_image_name }}'
+      language: '{{ item.language }}'
+      language_version: '{{ item.language_version }}'
+      requirements_file_content: '{{ item.requirements_file_content }}'
+- discovery_id: azure.kusto.clusterprincipalassignments.list
+  for_each: azure.kusto.clusters.list
+  calls:
+  - action: clusterprincipalassignments.list
+    save_as: response
+    on_error: continue
+    params:
+      cluster_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      principal_id: '{{ item.principal_id }}'
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      aad_object_id: '{{ item.aad_object_id }}'
+      principal_name: '{{ item.principal_name }}'
+      principal_type: '{{ item.principal_type }}'
+      role: '{{ item.role }}'
+      tenant_id: '{{ item.tenant_id }}'
+      tenant_name: '{{ item.tenant_name }}'
+- discovery_id: azure.kusto.clusters.list_callout_policies
+  for_each: azure.kusto.clusters.list
+  calls:
+  - action: clusters.list_callout_policies
+    save_as: response
+    on_error: continue
+    params:
+      cluster_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      callout_id: '{{ item.callout_id }}'
+      callout_type: '{{ item.callout_type }}'
+      callout_uri_regex: '{{ item.callout_uri_regex }}'
+      outbound_access: '{{ item.outbound_access }}'
+- discovery_id: azure.kusto.clusters.list_follower_databases
+  for_each: azure.kusto.clusters.list
+  calls:
+  - action: clusters.list_follower_databases
+    save_as: response
+    on_error: continue
+    params:
+      cluster_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      attached_database_configuration_name: '{{ item.attached_database_configuration_name
+        }}'
+      cluster_resource_id: '{{ item.cluster_resource_id }}'
+      database_name: '{{ item.database_name }}'
+      database_share_origin: '{{ item.database_share_origin }}'
+      table_level_sharing_properties: '{{ item.table_level_sharing_properties }}'
+- discovery_id: azure.kusto.clusters.list_follower_databases_get
+  for_each: azure.kusto.clusters.list
+  calls:
+  - action: clusters.list_follower_databases_get
+    save_as: response
+    on_error: continue
+    params:
+      cluster_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      attached_database_configuration_name: '{{ item.attached_database_configuration_name
+        }}'
+      cluster_resource_id: '{{ item.cluster_resource_id }}'
+      database_name: '{{ item.database_name }}'
+      database_share_origin: '{{ item.database_share_origin }}'
+      table_level_sharing_properties: '{{ item.table_level_sharing_properties }}'
+- discovery_id: azure.kusto.clusters.list_language_extensions
+  for_each: azure.kusto.clusters.list
+  calls:
+  - action: clusters.list_language_extensions
+    save_as: response
+    on_error: continue
+    params:
+      cluster_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      language_extension_custom_image_name: '{{ item.language_extension_custom_image_name
+        }}'
+      language_extension_image_name: '{{ item.language_extension_image_name }}'
+      language_extension_name: '{{ item.language_extension_name }}'
+- discovery_id: azure.kusto.clusters.list_outbound_network_dependencies_endpoints
+  for_each: azure.kusto.clusters.list
+  calls:
+  - action: clusters.list_outbound_network_dependencies_endpoints
+    save_as: response
+    on_error: continue
+    params:
+      cluster_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      category: '{{ item.category }}'
+      endpoints: '{{ item.endpoints }}'
+      etag: '{{ item.etag }}'
+- discovery_id: azure.kusto.clusters.list_skus_by_resource
+  for_each: azure.kusto.clusters.list
+  calls:
+  - action: clusters.list_skus_by_resource
+    save_as: response
+    on_error: continue
+    params:
+      cluster_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      capacity: '{{ item.capacity }}'
+      resource_type: '{{ item.resource_type }}'
+- discovery_id: azure.kusto.databaseprincipalassignments.list
+  for_each: azure.kusto.clusters.list
+  calls:
+  - action: databaseprincipalassignments.list
+    save_as: response
+    on_error: continue
+    params:
+      cluster_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      principal_id: '{{ item.principal_id }}'
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      aad_object_id: '{{ item.aad_object_id }}'
+      principal_name: '{{ item.principal_name }}'
+      principal_type: '{{ item.principal_type }}'
+      role: '{{ item.role }}'
+      tenant_id: '{{ item.tenant_id }}'
+      tenant_name: '{{ item.tenant_name }}'
+- discovery_id: azure.kusto.databases.list_by_cluster
+  for_each: azure.kusto.clusters.list
+  calls:
+  - action: databases.list_by_cluster
+    save_as: response
+    on_error: continue
+    params:
+      cluster_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      base_image_name: '{{ item.base_image_name }}'
+      language: '{{ item.language }}'
+      language_version: '{{ item.language_version }}'
+      requirements_file_content: '{{ item.requirements_file_content }}'
+- discovery_id: azure.kusto.databases.list_principals
+  for_each: azure.kusto.clusters.list
+  calls:
+  - action: databases.list_principals
+    save_as: response
+    on_error: continue
+    params:
+      cluster_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      app_id: '{{ item.app_id }}'
+      email: '{{ item.email }}'
+      fqn: '{{ item.fqn }}'
+      role: '{{ item.role }}'
+      tenant_name: '{{ item.tenant_name }}'
+- discovery_id: azure.kusto.dataconnections.list_by_database
+  for_each: azure.kusto.clusters.list
+  calls:
+  - action: dataconnections.list_by_database
+    save_as: response
+    on_error: continue
+    params:
+      cluster_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      continue_on_errors: '{{ item.continue_on_errors }}'
+      force_update_tag: '{{ item.force_update_tag }}'
+      principal_permissions_action: '{{ item.principal_permissions_action }}'
+      script_content: '{{ item.script_content }}'
+      script_level: '{{ item.script_level }}'
+      script_url: '{{ item.script_url }}'
+      script_url_sas_token: '{{ item.script_url_sas_token }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.kusto.managedprivateendpoints.list
+  for_each: azure.kusto.clusters.list
+  calls:
+  - action: managedprivateendpoints.list
+    save_as: response
+    on_error: continue
+    params:
+      cluster_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      principal_id: '{{ item.principal_id }}'
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      aad_object_id: '{{ item.aad_object_id }}'
+      principal_name: '{{ item.principal_name }}'
+      principal_type: '{{ item.principal_type }}'
+      role: '{{ item.role }}'
+      tenant_id: '{{ item.tenant_id }}'
+      tenant_name: '{{ item.tenant_name }}'
+- discovery_id: azure.kusto.privateendpointconnections.list
+  for_each: azure.kusto.clusters.list
+  calls:
+  - action: privateendpointconnections.list
+    save_as: response
+    on_error: continue
+    params:
+      cluster_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      principal_id: '{{ item.principal_id }}'
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      aad_object_id: '{{ item.aad_object_id }}'
+      principal_name: '{{ item.principal_name }}'
+      principal_type: '{{ item.principal_type }}'
+      role: '{{ item.role }}'
+      tenant_id: '{{ item.tenant_id }}'
+      tenant_name: '{{ item.tenant_name }}'
+- discovery_id: azure.kusto.privatelinkresources.list
+  for_each: azure.kusto.clusters.list
+  calls:
+  - action: privatelinkresources.list
+    save_as: response
+    on_error: continue
+    params:
+      cluster_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      principal_id: '{{ item.principal_id }}'
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      aad_object_id: '{{ item.aad_object_id }}'
+      principal_name: '{{ item.principal_name }}'
+      principal_type: '{{ item.principal_type }}'
+      role: '{{ item.role }}'
+      tenant_id: '{{ item.tenant_id }}'
+      tenant_name: '{{ item.tenant_name }}'
+- discovery_id: azure.kusto.sandboxcustomimages.list_by_cluster
+  for_each: azure.kusto.clusters.list
+  calls:
+  - action: sandboxcustomimages.list_by_cluster
+    save_as: response
+    on_error: continue
+    params:
+      cluster_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      base_image_name: '{{ item.base_image_name }}'
+      language: '{{ item.language }}'
+      language_version: '{{ item.language_version }}'
+      requirements_file_content: '{{ item.requirements_file_content }}'
+- discovery_id: azure.kusto.scripts.list_by_database
+  for_each: azure.kusto.clusters.list
+  calls:
+  - action: scripts.list_by_database
+    save_as: response
+    on_error: continue
+    params:
+      cluster_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      continue_on_errors: '{{ item.continue_on_errors }}'
+      force_update_tag: '{{ item.force_update_tag }}'
+      principal_permissions_action: '{{ item.principal_permissions_action }}'
+      script_content: '{{ item.script_content }}'
+      script_level: '{{ item.script_level }}'
+      script_url: '{{ item.script_url }}'
+      script_url_sas_token: '{{ item.script_url_sas_token }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.kusto.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'

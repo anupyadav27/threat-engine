@@ -1,0 +1,137 @@
+version: '1.0'
+provider: alicloud
+service: alikafka
+checks:
+- rule_id: alicloud.apsaramq.broker.active_deployment_mode
+  for_each: alicloud.apsaramq.broker
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.apsaramq.broker.cluster_deployment_mode
+  for_each: alicloud.apsaramq.broker
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.apsaramq.broker.logging_enabled
+  for_each: alicloud.apsaramq.broker
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.apsaramq.cluster.encryption_at_rest_uses_cmk
+  for_each: alicloud.ack.DescribeClusterAddonsUpgradeStatus
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.kms_key_id
+      op: exists
+- rule_id: alicloud.apsaramq.cluster.in_transit_encryption_enabled
+  for_each: alicloud.ack.DescribeClusterAddonsUpgradeStatus
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.apsaramq.connector.in_transit_encryption_enabled
+  for_each: alicloud.apsaramq.connector
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.apsaramq.fleet.default_internet_access_disabled
+  for_each: alicloud.apsaramq.fleet
+  conditions:
+    var: item.status
+    op: exists
+- rule_id: alicloud.apsaramq.kafka_topic.stream_consumer_auth_required
+  for_each: alicloud.apsaramq.kafka_topic
+  conditions:
+    var: item.status
+    op: exists
+- rule_id: alicloud.apsaramq.kafka_topic.stream_encryption_at_rest_enabled
+  for_each: alicloud.apsaramq.kafka_topic
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.apsaramq.kafka_topic.stream_private_network_only_where_supported
+  for_each: alicloud.apsaramq.kafka_topic
+  conditions:
+    var: item.vpc_id
+    op: exists
+- rule_id: alicloud.apsaramq.queue.auth_required
+  for_each: alicloud.apsaramq.queue
+  conditions:
+    var: item.status
+    op: exists
+- rule_id: alicloud.apsaramq.queue.cross_account_send_receive_restricted
+  for_each: alicloud.apsaramq.queue
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.apsaramq.queue.encryption_at_rest_enabled
+  for_each: alicloud.apsaramq.queue
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.apsaramq.queue.private_network_only_where_supported
+  for_each: alicloud.apsaramq.queue
+  conditions:
+    var: item.vpc_id
+    op: exists
+- rule_id: alicloud.datahub.consumer.access_least_privilege
+  for_each: alicloud.dts.DescribeConsumerChannel
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.datahub.consumer.auth_required
+  for_each: alicloud.dts.DescribeConsumerChannel
+  conditions:
+    var: item.status
+    op: exists
+- rule_id: alicloud.datahub.stream.consumer_auth_required
+  for_each: alicloud.apsaravideo.live_stream
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.datahub.stream.data_retention_30_days_minimum
+  for_each: alicloud.apsaravideo.live_stream
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.datahub.stream.encrypted
+  for_each: alicloud.apsaravideo.live_stream
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.datahub.stream.encryption_at_rest_enabled
+  for_each: alicloud.apsaravideo.live_stream
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.datahub.stream.encryption_enabled
+  for_each: alicloud.apsaravideo.live_stream
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.datahub.stream.least_privilege
+  for_each: alicloud.apsaravideo.live_stream
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.datahub.stream.private_network_only_where_supported
+  for_each: alicloud.apsaravideo.live_stream
+  conditions:
+    var: item.vpc_id
+    op: exists

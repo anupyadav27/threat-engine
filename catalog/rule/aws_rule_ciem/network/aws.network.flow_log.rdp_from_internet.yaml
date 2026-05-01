@@ -1,0 +1,76 @@
+rule_id: aws.network.flow_log.rdp_from_internet
+service: network
+provider: aws
+check_type: log
+severity: critical
+title: 'Network: Rdp From Internet'
+description: RDP access from internet to EC2 instance — remote desktop exposed to public internet.
+rationale: RDP access to cloud VMs enables interactive lateral movement; unauthorized RDP sessions may indicate credential theft or instance compromise.
+threat_category: initial_access
+mitre_tactics:
+- initial_access
+mitre_techniques:
+- T1021.001
+risk_score: 88
+resource: vpc
+source: ciem_rule_generator
+is_active: true
+domain: network_security_and_connectivity
+action_category: create
+log_source_type: cloudtrail
+posture_category: threat_posture
+threat_tags:
+- T1021.001
+- T1021
+- network_security
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: network_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.14
+  - 2.1
+  cis_azure_v2:
+  - 1.2
+  - 2.1
+  nist_800_53_r5:
+  - AC-17
+  - IA-2
+  - SI-3
+  pci_dss_v4:
+  - 8.3
+  - 11.5
+  iso_27001_2022:
+  - A.8.5
+  - A.9.4
+remediation: |
+  1. Disable public RDP access; use Azure Bastion / AWS Systems Manager Session Manager.
+  2. Apply NSG rules to restrict RDP to authorized management IPs only.
+  3. Enable JIT VM access in Defender for Cloud.
+references:
+- https://attack.mitre.org/techniques/T1021/001/
+- https://learn.microsoft.com/en-us/azure/bastion/bastion-overview
+check_config:
+  conditions:
+    all:
+    - field: network.dst_port
+      op: equals
+      value: 3389
+    - field: network.src_ip
+      op: not_starts_with
+      value:
+      - '10.'
+      - 172.16.
+      - 192.168.
+  for_each: log_events
+  log_source_type: cloudtrail
+  type: log
+version: '1.0'

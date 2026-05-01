@@ -1,0 +1,73 @@
+# ==========================================================
+# Discovery YAML — datasync (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 2 | ops: 1 independent, 1 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: datasync
+
+services:
+  client: datasync
+  module: "boto3.client('datasync')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: execution
+    identifier_op: aws.datasync.describe_task
+    identifier_field: CloudWatchLogGroupArn
+    item_var_path: item.CloudWatchLogGroupArn
+    identifier_template: '{cloudwatchloggrouparn}'
+  - resource_type: task
+    identifier_op: aws.datasync.list_tasks
+    identifier_field: TaskArn
+    item_var_path: item.TaskArn
+    identifier_template: '{taskarn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.datasync.list_tasks  ──
+  - discovery_id: aws.datasync.list_tasks
+    calls:
+      - action: list_tasks
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Tasks }}'
+      item:
+        Name: '{{ item.Name }}'
+        ServerProtocol: '{{ item.ServerProtocol }}'
+        Status: '{{ item.Status }}'
+        TaskArn: '{{ item.TaskArn }}'
+        TaskMode: '{{ item.TaskMode }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.datasync.describe_task [dependent] ──
+  - discovery_id: aws.datasync.describe_task
+    for_each: aws.datasync.list_tasks
+    calls:
+      - action: describe_task
+        params:
+          TaskArn: "{{ item.TaskArn }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        CloudWatchLogGroupArn: '{{ item.CloudWatchLogGroupArn }}'
+        DestinationLocationArn: '{{ item.DestinationLocationArn }}'
+        Excludes: '{{ item.Excludes }}'
+        Includes: '{{ item.Includes }}'
+        Name: '{{ item.Name }}'
+        Options: '{{ item.Options }}'
+        Schedule: '{{ item.Schedule }}'
+        SourceLocationArn: '{{ item.SourceLocationArn }}'
+        Status: '{{ item.Status }}'
+        TaskArn: '{{ item.TaskArn }}'
+        TaskReportConfig: '{{ item.TaskReportConfig }}'
+

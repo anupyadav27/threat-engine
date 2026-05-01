@@ -1,0 +1,42 @@
+# ==========================================================
+# Discovery YAML — s3express (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 1 | ops: 1 independent, 0 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: s3express
+
+services:
+  client: s3express
+  module: "boto3.client('s3express')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: directory
+    identifier_op: aws.s3express.list_directory_buckets
+    identifier_field: BucketArn
+    item_var_path: item.BucketArn
+    identifier_template: '{bucketarn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.s3express.list_directory_buckets  ──
+  - discovery_id: aws.s3express.list_directory_buckets
+    calls:
+      - action: list_directory_buckets
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Buckets }}'
+      item:
+        BucketArn: '{{ item.BucketArn }}'
+        BucketRegion: '{{ item.BucketRegion }}'
+        CreationDate: '{{ item.CreationDate }}'
+        Name: '{{ item.Name }}'
+        item: '{{ item }}'
+

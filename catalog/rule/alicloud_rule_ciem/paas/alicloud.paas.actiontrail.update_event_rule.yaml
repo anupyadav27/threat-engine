@@ -1,0 +1,76 @@
+rule_id: alicloud.paas.actiontrail.update_event_rule
+service: paas
+provider: alicloud
+check_type: log
+severity: medium
+title: 'AliCloud EventBridge: Event Rule Modified'
+description: An EventBridge rule was modified. Adversaries alter rule patterns or
+  targets to suppress security alerts or redirect events to attacker-controlled endpoints.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1562
+risk_score: 65
+resource: alicloud_eventbridge_rule
+source: alicloud_ciem_generator
+is_active: true
+domain: configuration_and_change_management
+action_category: modify
+log_source_type: alicloud_actiontrail
+posture_category: security_posture
+threat_tags:
+- T1562
+- defense_evasion
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '1.1'
+  - '1.2'
+  - '1.3'
+  nist_800_53_r5:
+  - AU-2
+  - AU-6
+  - AU-12
+  - SI-4
+  pci_dss_v4:
+  - '10.1'
+  - '10.2'
+  - '10.3'
+  iso_27001_2022:
+  - A.8.15
+  - A.8.16
+  - A.5.28
+remediation: '1. Review the changed rule pattern and targets.
+
+  2. Alert on changes to rules targeting security notification topics.
+
+  3. Use IaC-enforced rule definitions to detect drift.'
+references:
+- https://attack.mitre.org/techniques/T1562/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: eventbridge
+    - field: operation
+      op: equals
+      value: UpdateRule
+version: '1.0'

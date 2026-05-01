@@ -15,11 +15,45 @@ from typing import Any, Dict, List, Optional
 
 import psycopg2
 import psycopg2.extras
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["ui-data"])
+
+# ── Auth imports (engine_auth is COPY shared/auth/ ./engine_auth/ in Dockerfile) ──
+try:
+    from engine_auth.fastapi.dependencies import require_permission
+    from engine_auth.core.models import AuthContext
+    _AUTH_AVAILABLE = True
+except ImportError:
+    _AUTH_AVAILABLE = False
+    AuthContext = None  # type: ignore[assignment,misc]
+
+
+def strip_sensitive_fields(data: List[Dict[str, Any]], auth: Any) -> List[Dict[str, Any]]:
+    """Remove credential and raw-evidence fields based on caller's auth level.
+
+    Args:
+        data: List of compliance finding/control dicts.
+        auth: AuthContext instance (or None when auth is unavailable).
+
+    Returns:
+        New list with sensitive fields removed; original dicts are not mutated.
+    """
+    if not isinstance(data, list):
+        return data
+    stripped = []
+    for row in data:
+        r = dict(row) if not isinstance(row, dict) else row.copy()
+        if auth is not None and auth.level > 1:
+            r.pop("credential_ref", None)
+            r.pop("credential_type", None)
+        if auth is not None and auth.level >= 4:
+            r.pop("raw_data", None)
+            r.pop("evidence", None)
+        stripped.append(r)
+    return stripped
 
 
 def _get_compliance_db_connection():
@@ -60,8 +94,8 @@ def _resolve_latest_report(
                total_controls, controls_passed, controls_failed,
                report_data, created_at, status, provider
         FROM compliance_report
-        WHERE tenant_id = %s
-        ORDER BY created_at DESC
+        WHERE tenant_id = %s AND status = 'completed'
+        ORDER BY completed_at DESC NULLS LAST
         LIMIT 1
         """,
         (tenant_id,),
@@ -689,6 +723,7 @@ def _get_recent_reports(
 async def get_compliance_ui_data(
     tenant_id: str = Query(..., description="Tenant identifier"),
     scan_id: str = Query("latest", description="Scan run ID or 'latest'"),
+    auth: Any = Depends(require_permission("compliance:read") if _AUTH_AVAILABLE else (lambda: None)),
 ) -> Dict[str, Any]:
     """Return all compliance data needed by the frontend in a single response.
 
@@ -766,7 +801,7 @@ async def get_compliance_ui_data(
             "overall_score":     overall_score,
             "posture_summary":   posture,
             "frameworks":        frameworks,
-            "failing_controls":  failing_controls,
+            "failing_controls":  strip_sensitive_fields(failing_controls, auth),
             "per_account_scores": per_account_scores,
             "audit_deadlines":   audit_deadlines,
             "exceptions":        exceptions,

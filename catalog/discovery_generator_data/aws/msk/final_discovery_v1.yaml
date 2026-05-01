@@ -1,0 +1,77 @@
+# ==========================================================
+# Discovery YAML — msk (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 4 | ops: 1 independent, 1 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: msk
+
+services:
+  client: msk
+  module: "boto3.client('msk')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: cluster
+    identifier_op: aws.msk.list_clusters_v2
+    identifier_field: ActiveOperationArn
+    item_var_path: item.ActiveOperationArn
+    identifier_template: '{activeoperationarn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.msk.list_clusters_v2  ──
+  - discovery_id: aws.msk.list_clusters_v2
+    calls:
+      - action: list_clusters_v2
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ClusterInfoList }}'
+      item:
+        ActiveOperationArn: '{{ item.ActiveOperationArn }}'
+        ClusterArn: '{{ item.ClusterArn }}'
+        ClusterName: '{{ item.ClusterName }}'
+        ClusterType: '{{ item.ClusterType }}'
+        CreationTime: '{{ item.CreationTime }}'
+        CurrentVersion: '{{ item.CurrentVersion }}'
+        Provisioned: '{{ item.Provisioned }}'
+        Serverless: '{{ item.Serverless }}'
+        State: '{{ item.State }}'
+        StateInfo: '{{ item.StateInfo }}'
+        Tags: '{{ item.Tags }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.msk.describe_cluster [dependent] ──
+  - discovery_id: aws.msk.describe_cluster
+    for_each: aws.msk.list_clusters_v2
+    calls:
+      - action: describe_cluster_v2
+        params:
+          ClusterArn: "{{ item.ClusterArn }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ClusterInfo }}'
+      item:
+        ActiveOperationArn: '{{ item.ActiveOperationArn }}'
+        ClusterArn: '{{ item.ClusterArn }}'
+        ClusterName: '{{ item.ClusterName }}'
+        ClusterType: '{{ item.ClusterType }}'
+        CreationTime: '{{ item.CreationTime }}'
+        CurrentVersion: '{{ item.CurrentVersion }}'
+        Provisioned: '{{ item.Provisioned }}'
+        Provisioned.ClientAuthentication.Unauthenticated.Enabled: '{{ item.Provisioned.ClientAuthentication.Unauthenticated.Enabled }}'
+        Provisioned.EncryptionInfo.EncryptionInTransit.InCluster: '{{ item.Provisioned.EncryptionInfo.EncryptionInTransit.InCluster }}'
+        Provisioned.EnhancedMonitoring: '{{ item.Provisioned.EnhancedMonitoring }}'
+        Serverless: '{{ item.Serverless }}'
+        State: '{{ item.State }}'
+        StateInfo: '{{ item.StateInfo }}'
+        Tags: '{{ item.Tags }}'
+

@@ -1,0 +1,76 @@
+rule_id: alicloud.network.actiontrail.create_nat_gateway
+service: network
+provider: alicloud
+check_type: log
+severity: medium
+title: 'AliCloud VPC: NAT Gateway Created'
+description: A NAT Gateway was created, enabling outbound internet access from private
+  subnets. Adversaries create NAT gateways to establish command-and-control egress
+  from compromised instances.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: command_and_control
+mitre_tactics:
+- command_and_control
+mitre_techniques:
+- T1572
+risk_score: 60
+resource: alicloud_nat_gateway
+source: alicloud_ciem_generator
+is_active: true
+domain: network_security_and_connectivity
+action_category: create
+log_source_type: alicloud_actiontrail
+posture_category: network_posture
+threat_tags:
+- T1572
+- command_and_control
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '4.1'
+  - '4.2'
+  nist_800_53_r5:
+  - SC-7
+  - AC-17
+  - CM-7
+  pci_dss_v4:
+  - '1.2'
+  - '1.3'
+  - '7.1'
+  iso_27001_2022:
+  - A.8.20
+  - A.8.21
+  - A.8.22
+remediation: '1. Validate the NAT gateway creation was part of an approved architecture
+  change.
+
+  2. Monitor outbound traffic through new NAT gateways for suspicious destinations.
+
+  3. Alert on NAT gateway creation outside normal deployment windows.'
+references:
+- https://attack.mitre.org/techniques/T1572/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: vpc
+    - field: operation
+      op: equals
+      value: CreateNatGateway
+version: '1.0'

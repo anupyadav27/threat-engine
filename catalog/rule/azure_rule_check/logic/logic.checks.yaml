@@ -1,0 +1,34 @@
+version: '1.0'
+provider: azure
+service: logic
+checks:
+- rule_id: azure.logic.apps_workflow.incident_workflow_approval_steps_required_for_destructive_actions
+  for_each: azure.logic.workflows.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.definition.actions[?(@.type == 'ApiConnection' || @.type == 'Http')].inputs[?(@.path contains 'delete'
+        || @.path contains 'drop' || @.path contains 'remove' || @.path contains 'terminate')]
+      op: exists
+      value: null
+    - var: item.properties.definition.actions[?(@.type == 'Approval')]
+      op: exists
+      value: null
+- rule_id: azure.logic.apps_workflow.incident_workflow_integrations_least_privilege
+  for_each: azure.logic.workflows.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.accessControl.triggers.allowedCallerIpAddresses
+      op: exists
+      value: null
+    - var: item.properties.accessControl.triggers.allowedCallerIpAddresses
+      op: not_contains
+      value: '*'
+- rule_id: azure.logic.apps_workflow.incident_workflow_kms_encryption_enabled
+  for_each: azure.logic.workflows.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryption.kmsKeyId
+    op: exists
+    value: null

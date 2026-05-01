@@ -1,0 +1,63 @@
+rule_id: ibm.cos.activity.hmac_key_created
+service: cos
+provider: ibm
+check_type: log
+severity: high
+title: 'IBM COS: HMAC Key Created for Service Credential'
+description: An HMAC key was created for IBM COS S3-compatible access. HMAC keys are long-lived credentials that can be exported and used to access all objects in authorized buckets.
+threat_category: credential_access
+mitre_tactics:
+- credential_access
+mitre_techniques:
+- T1552
+risk_score: 76
+resource: ibm_cos_credential
+domain: identity_and_access_management
+action_category: create
+log_source_type: 
+posture_category: iam_posture
+threat_tags:
+- T1552
+- credential_access
+- secret_exposure
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: true
+  modules:
+  - secrets_management
+  categories:
+  - secrets_exposure
+  - credential_theft
+  priority: high
+  impact:
+    pci: PCI DSS Requirement 12.3 — Implement security awareness program and protect systems
+    gdpr: GDPR Article 32 — Appropriate technical and organizational measures for data security
+    hipaa: §164.306(a) — Ensure confidentiality, integrity, and availability of ePHI
+  sensitive_data_context: |
+  Unauthorized credential access on cos resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks: {}
+remediation: Review and investigate this activity in the IBM Cloud Console and take corrective action.
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_activity
+    - field: operation
+      op: equals
+      value: cloud-object-storage.credential.create
+    - field: request.role
+      op: equals
+      value: Writer

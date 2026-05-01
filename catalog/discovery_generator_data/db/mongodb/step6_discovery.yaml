@@ -1,0 +1,89 @@
+version: '1.0'
+provider: technology
+category: db
+tech_type: mongodb
+display_name: MongoDB
+action_type: command
+cis_benchmark: CIS MongoDB 6.0
+cis_section: '3'
+
+# ─── Authentication & Access ───────────────────────────────────────────────────
+discovery:
+  - discovery_id: mongodb.auth.local_accounts
+    description: Enumerate local user accounts and privilege levels
+    calls:
+      - action: command
+        target: auth.accounts
+        save_as: accounts
+    emit:
+      as: items
+      items: "{{ accounts }}"
+      item:
+        resource_uid: "{{ item.username or item.name or item.id }}"
+        resource_type: mongodb.user_account
+        username: "{{ item.username or item.name }}"
+        is_admin: "{{ item.is_admin or item.privileged }}"
+        last_login: "{{ item.last_login }}"
+
+  - discovery_id: mongodb.auth.password_policy
+    description: Retrieve password policy configuration
+    calls:
+      - action: command
+        target: auth.password_policy
+        save_as: policy
+    emit:
+      as: item
+      item:
+        resource_uid: "mongodb.password_policy"
+        resource_type: mongodb.policy
+        min_length: "{{ policy.min_length }}"
+        require_complexity: "{{ policy.complexity_enabled }}"
+        max_age_days: "{{ policy.max_age_days }}"
+
+# ─── Logging & Auditing ────────────────────────────────────────────────────────
+  - discovery_id: mongodb.logging.audit_config
+    description: Retrieve audit/logging configuration
+    calls:
+      - action: command
+        target: logging.audit_config
+        save_as: audit_cfg
+    emit:
+      as: item
+      item:
+        resource_uid: "mongodb.audit_config"
+        resource_type: mongodb.config
+        audit_enabled: "{{ audit_cfg.enabled }}"
+        log_destination: "{{ audit_cfg.destination }}"
+        log_level: "{{ audit_cfg.level }}"
+
+# ─── Encryption & Transport ────────────────────────────────────────────────────
+  - discovery_id: mongodb.encryption.transport
+    description: Check transport encryption (TLS/SSL) configuration
+    calls:
+      - action: command
+        target: encryption.transport
+        save_as: tls_cfg
+    emit:
+      as: item
+      item:
+        resource_uid: "mongodb.transport_encryption"
+        resource_type: mongodb.config
+        tls_enabled: "{{ tls_cfg.enabled }}"
+        tls_version: "{{ tls_cfg.min_version }}"
+        cert_path: "{{ tls_cfg.cert_path }}"
+
+# ─── Access Controls ──────────────────────────────────────────────────────────
+  - discovery_id: mongodb.acl.admin_privileges
+    description: Identify accounts with administrative or superuser privileges
+    calls:
+      - action: command
+        target: acl.admin_accounts
+        save_as: admins
+    emit:
+      as: items
+      items: "{{ admins }}"
+      item:
+        resource_uid: "{{ item.username or item.name }}"
+        resource_type: mongodb.privileged_account
+        username: "{{ item.username or item.name }}"
+        privilege_level: "{{ item.role or item.level }}"

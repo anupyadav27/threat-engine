@@ -14,11 +14,11 @@ RUN apt-get update \
 WORKDIR /app
 
 # ---- Install dependencies ----
-COPY requirements.txt .
+COPY platform/cspm-backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # ---- Copy project ----
-COPY . .
+COPY platform/cspm-backend/ .
 
 # ---- Expose port ----
 EXPOSE 8000

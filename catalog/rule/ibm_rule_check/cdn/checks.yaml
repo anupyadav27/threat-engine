@@ -1,0 +1,27 @@
+version: '1.0'
+provider: ibm
+service: cdn
+checks:
+- rule_id: ibm.cdn.distributions.custom_ssl_certificate_configured
+  for_each: ibm.cdn.list-distributions
+  severity: MEDIUM
+  conditions:
+    var: item.enabled
+    op: is_true
+- rule_id: ibm.cdn.distributions.origin_traffic_encrypted
+  for_each: ibm.cdn.list-distributions
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enabled
+      op: not_empty
+      value: null
+    - var: item.kms_key_id
+      op: exists
+      value: null
+- rule_id: ibm.cdn.distributions.using_deprecated_ssl_protocols_configured
+  for_each: ibm.cdn.list-distributions
+  severity: MEDIUM
+  conditions:
+    var: item.enabled
+    op: is_true

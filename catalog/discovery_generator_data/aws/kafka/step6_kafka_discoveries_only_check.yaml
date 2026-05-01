@@ -1,0 +1,75 @@
+# discoveries_only_check: 2 kept / 25 removed from 27 total
+# generated_from: step6_kafka.discovery.yaml
+# purpose: only discoveries needed by kafka.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: kafka
+services:
+  client: kafka
+  module: boto3.client
+discovery:
+- discovery_id: aws.kafka.list_clusters
+  calls:
+  - action: list_clusters
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ClusterInfoList }}'
+    item:
+      CreationTime: '{{ item.CreationTime }}'
+      State: '{{ item.State }}'
+      Tags: '{{ item.Tags }}'
+      ActiveOperationArn: '{{ item.ActiveOperationArn }}'
+      BrokerNodeGroupInfo: '{{ item.BrokerNodeGroupInfo }}'
+      ClientAuthentication: '{{ item.ClientAuthentication }}'
+      ClusterArn: '{{ item.ClusterArn }}'
+      ClusterInfo: '{{ item.ClusterInfo }}'
+      ClusterName: '{{ item.ClusterName }}'
+      CurrentBrokerSoftwareInfo: '{{ item.CurrentBrokerSoftwareInfo }}'
+      CurrentVersion: '{{ item.CurrentVersion }}'
+      CustomerActionStatus: '{{ item.CustomerActionStatus }}'
+      EncryptionInfo: '{{ item.EncryptionInfo }}'
+      EnhancedMonitoring: '{{ item.EnhancedMonitoring }}'
+      LoggingInfo: '{{ item.LoggingInfo }}'
+      NumberOfBrokerNodes: '{{ item.NumberOfBrokerNodes }}'
+      OpenMonitoring: '{{ item.OpenMonitoring }}'
+      Rebalancing: '{{ item.Rebalancing }}'
+      StateInfo: '{{ item.StateInfo }}'
+      StorageMode: '{{ item.StorageMode }}'
+      ZookeeperConnectString: '{{ item.ZookeeperConnectString }}'
+      ZookeeperConnectStringTls: '{{ item.ZookeeperConnectStringTls }}'
+- discovery_id: aws.kafka.describe_cluster
+  for_each: aws.kafka.list_clusters
+  calls:
+  - action: describe_cluster
+    params:
+      ClusterArn: '{{ item.ClusterArn }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      CreationTime: '{{ response.ClusterInfo.CreationTime }}'
+      State: '{{ response.ClusterInfo.State }}'
+      Tags: '{{ response.ClusterInfo.Tags }}'
+      ActiveOperationArn: '{{ response.ClusterInfo.ActiveOperationArn }}'
+      BrokerNodeGroupInfo: '{{ response.ClusterInfo.BrokerNodeGroupInfo }}'
+      ClientAuthentication: '{{ response.ClusterInfo.ClientAuthentication }}'
+      ClusterArn: '{{ response.ClusterInfo.ClusterArn }}'
+      ClusterName: '{{ response.ClusterInfo.ClusterName }}'
+      CurrentBrokerSoftwareInfo: '{{ response.ClusterInfo.CurrentBrokerSoftwareInfo
+        }}'
+      CurrentVersion: '{{ response.ClusterInfo.CurrentVersion }}'
+      CustomerActionStatus: '{{ response.ClusterInfo.CustomerActionStatus }}'
+      EncryptionInfo: '{{ response.ClusterInfo.EncryptionInfo }}'
+      EnhancedMonitoring: '{{ response.ClusterInfo.EnhancedMonitoring }}'
+      LoggingInfo: '{{ response.ClusterInfo.LoggingInfo }}'
+      NumberOfBrokerNodes: '{{ response.ClusterInfo.NumberOfBrokerNodes }}'
+      OpenMonitoring: '{{ response.ClusterInfo.OpenMonitoring }}'
+      Rebalancing: '{{ response.ClusterInfo.Rebalancing }}'
+      StateInfo: '{{ response.ClusterInfo.StateInfo }}'
+      StorageMode: '{{ response.ClusterInfo.StorageMode }}'
+      ZookeeperConnectString: '{{ response.ClusterInfo.ZookeeperConnectString }}'
+      ZookeeperConnectStringTls: '{{ response.ClusterInfo.ZookeeperConnectStringTls
+        }}'

@@ -10,6 +10,8 @@ import {
 import Link from 'next/link';
 import { fetchView } from '@/lib/api';
 import { useGlobalFilter } from '@/lib/global-filter-context';
+import { useAuth } from '@/lib/auth-context';
+import { TENANT_ID } from '@/lib/constants';
 import {
   MOCK_DASHBOARD, MOCK_THREATS, MOCK_FRAMEWORKS, MOCK_POSTURE,
 } from '@/lib/mock-data';
@@ -2876,6 +2878,8 @@ export default function DashboardPage() {
   const [findingsByCategoryData, setFindingsByCategoryData] = useState([]);
 
   const { provider: filterProvider } = useGlobalFilter();
+  const { selectedTenant } = useAuth();
+  const tenantId = selectedTenant || TENANT_ID || 'default-tenant';
 
   // Derive severity totals for the donut from findingsByCategoryData
   const severityTotals = useMemo(() => {
@@ -2900,7 +2904,7 @@ export default function DashboardPage() {
     const load = async () => {
       setLoading(true);
       try {
-        const data = await fetchView('dashboard', { provider: filterProvider || undefined });
+        const data = await fetchView('dashboard', { tenant_id: tenantId, provider: filterProvider || undefined });
         if (data.error) { setPageError(data.error); return; }
 
         if (data.kpi)                    setKpiData(data.kpi);
@@ -2998,7 +3002,7 @@ export default function DashboardPage() {
       }
     };
     load();
-  }, [filterProvider]);
+  }, [filterProvider, tenantId]);
 
   // ── Lazy-load domain data on tab switch ────────────────────────────────
   useEffect(() => {
@@ -3008,7 +3012,7 @@ export default function DashboardPage() {
     const config = DOMAIN_VIEWS[activeView];
     if (!config) return;
 
-    fetchView(config.bffView, { provider: filterProvider || undefined })
+    fetchView(config.bffView, { tenant_id: tenantId, provider: filterProvider || undefined })
       .then((data) => {
         if (!data.error) {
           setDomainData((prev) => ({ ...prev, [activeView]: data }));
@@ -3017,7 +3021,7 @@ export default function DashboardPage() {
       .catch((err) => {
         console.warn(`Failed to load ${activeView} data:`, err);
       });
-  }, [activeView, filterProvider, domainData]);
+  }, [activeView, filterProvider, tenantId, domainData]);
 
   // ── Derived KPI helpers ────────────────────────────────────────────────
   const fws = realComplianceFrameworks.length > 0 ? realComplianceFrameworks : [];

@@ -1,0 +1,21 @@
+version: '1.0'
+rule_id: aws.redshift.subnetgroup.redshift_private_subnets_only_configured
+for_each: aws.redshift.describe_cluster_subnet_groups
+severity: HIGH
+conditions:
+  all:
+  - var: item.Subnets[].SubnetId
+    op: exists
+  - any:
+    - var: item.Subnets[].SubnetAvailabilityZone.Name
+      op: not_contains
+      value: us-east-1
+    - var: item.Subnets[].SubnetAvailabilityZone.Name
+      op: not_contains
+      value: us-west-2
+    - var: item.Subnets[].SubnetAvailabilityZone.Name
+      op: not_contains
+      value: eu-west-1
+fixture_validated: false
+fixture_note: 'PASS fixture returned FAIL — wrong field or operator (pass_fixture keys: [''ClusterSubnetGroupName'', ''ClusterSubnetGroups'',
+  ''Description'', ''SubnetGroupStatus'', ''Subnets'', ''SupportedClusterIpAddressTypes'', ''Tags'', ''VpcId''])'

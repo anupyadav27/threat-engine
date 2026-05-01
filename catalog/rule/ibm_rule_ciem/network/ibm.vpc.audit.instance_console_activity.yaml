@@ -1,0 +1,73 @@
+rule_id: ibm.vpc.audit.instance_console_activity
+service: network
+provider: ibm
+check_type: log
+severity: medium
+title: Detect MFA requirement removal and anomalous continuous instance console activity.
+description: Detects MFA removal and anomalous continuous instance console activity.
+rationale: Monitoring this activity is essential for detecting adversary lateral movement
+  against IBM resources. Unauthorized or unexpected API calls may indicate account
+  compromise, privilege escalation, or an active attack chain.
+threat_category: lateral_movement
+mitre_tactics:
+- lateral_movement
+mitre_techniques:
+- T1563
+- T1021.001
+risk_score: 70
+resource: ibm_network_resource
+source: csv_generated
+is_active: true
+domain: logging_monitoring_and_alerting
+action_category: audit_activity
+log_source_type: ibm_activity_tracker
+posture_category: threat_posture
+threat_tags:
+- T1563
+- T1021.001
+- T1021
+- lateral_movement
+- ciem_detection
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: read
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  nist_800_171:
+  - 3.1.10
+remediation: '1. Terminate the suspicious session immediately.
+
+  2. Audit all resources accessed during the session.
+
+  3. Enforce session timeout and MFA for remote access protocols.
+
+  4. Use jump-hosts/bastion hosts with full session recording.
+
+  5. Restrict direct instance access to approved principals only.'
+references:
+- https://attack.mitre.org/techniques/T1563/
+- https://attack.mitre.org/techniques/T1021.001/
+- https://cloud.ibm.com/docs/account?topic=account-iamoverview
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_activity_tracker
+    - field: service
+      op: equals
+      value: is.vpc
+    - field: operation
+      op: in
+      value:
+      - iam-am.policy.delete
+      - is.instance.console.start
+  type: log
+  version: '1.0'

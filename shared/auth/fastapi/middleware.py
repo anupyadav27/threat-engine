@@ -45,9 +45,11 @@ PUBLIC_PATHS = {
 # Path prefixes that don't require authentication (checked with startswith)
 PUBLIC_PREFIXES = (
     "/gateway/",         # Gateway management endpoints (health, services, etc.)
-    "/api/v1/views/",    # BFF view endpoints (accessed via ingress rewrite)
     "/api/v1/health",    # Health check endpoints
     "/argo/",            # Argo Workflows UI (internal tool, no user auth needed)
+    # NOTE: /api/v1/views/ is NOT here — BFF views must be authenticated so
+    # that AuthMiddleware builds X-Auth-Context and forwards it to downstream
+    # engines.  Without this the engines never receive a tenant/user context.
 )
 
 
@@ -77,6 +79,21 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if request.method == "OPTIONS":
             return await call_next(request)
 
+        # If X-Auth-Context is already present (internal service-to-service call from
+        # the API gateway), trust it directly without requiring a session cookie.
+        existing_ctx_header = request.headers.get("x-auth-context") or request.headers.get("X-Auth-Context")
+        if existing_ctx_header:
+            import json as _json_mid
+            try:
+                from engine_auth.core.models import AuthContext as _AC
+                ctx_data = _json_mid.loads(existing_ctx_header)
+                request.state.auth_context = _AC.from_dict(ctx_data)
+                request.state.auth_header = existing_ctx_header
+            except Exception as _ctx_err:
+                logger.error("Invalid X-Auth-Context header: %s", _ctx_err)
+                return JSONResponse(status_code=401, content={"detail": "Invalid auth context"})
+            return await call_next(request)
+
         # Get token from cookie
         raw_token = request.cookies.get("access_token")
         if not raw_token:
@@ -104,20 +121,39 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # Set auth context on request state (for FastAPI dependencies)
         request.state.auth_context = auth_ctx
 
-        # Forward auth context as header to downstream engines
-        # We modify the request scope to add the header
+        # Inject X-Auth-Context into the actual request headers so BFF views
+        # can read it via request.headers.get("X-Auth-Context").
         auth_header = auth_ctx.to_header_json()
-
-        # Store for forwarding
         request.state.auth_header = auth_header
+
+        # Mutate the scope headers list in-place so cached Headers objects see it
+        request.scope["headers"].append((b"x-auth-context", auth_header.encode()))
 
         response = await call_next(request)
         return response
 
     async def _validate_token(self, raw_token: str) -> AuthContext | None:
         """Validate token against auth database using token_hint."""
-        import asyncpg
-        from django.contrib.auth.hashers import check_password
+        import asyncpg, json as _json
+
+        def _j(val, default):
+            """asyncpg returns JSONB as str — decode if needed."""
+            if isinstance(val, str):
+                try:
+                    return _json.loads(val)
+                except Exception:
+                    return default
+            return val if val is not None else default
+
+        def _check_password(raw: str, encoded: str) -> bool:
+            """Verify Django pbkdf2_sha256 hash without requiring Django settings."""
+            import hashlib, base64
+            parts = encoded.split("$")
+            if len(parts) != 4 or parts[0] != "pbkdf2_sha256":
+                return False
+            _, iterations_str, salt, b64hash = parts
+            dk = hashlib.pbkdf2_hmac("sha256", raw.encode(), salt.encode(), int(iterations_str))
+            return base64.b64encode(dk).decode() == b64hash
 
         pool = await self._get_pool()
 
@@ -144,24 +180,31 @@ class AuthMiddleware(BaseHTTPMiddleware):
         )
 
         for row in rows:
-            if check_password(raw_token, row["token"]):
+            if _check_password(raw_token, row["token"]):
                 return AuthContext.from_session_cache(
                     user_id=row["user_id"],
                     email=row["email"],
                     role_name=row["role_name"] or "none",
                     role_level=row["role_level"] or 99,
                     role_scope_level=row["role_scope_level"] or "account",
-                    permissions_cache=row["permissions_cache"] or [],
-                    scope_cache=row["scope_cache"] or {},
+                    permissions_cache=_j(row["permissions_cache"], []),
+                    scope_cache=_j(row["scope_cache"], {}),
                 )
 
-        # Fallback: try sessions without token_hint (old sessions)
+        # Fallback: try sessions without token_hint (old sessions created before
+        # RBAC-01 added the column).  We do a full hash comparison here.
+        # COALESCE in SQL ensures NULL permissions_cache / scope_cache columns
+        # never reach Python as None — they default to empty list / empty object.
         rows = await pool.fetch(
             """
             SELECT
-                s.id, s.token, s.user_id, s.permissions_cache, s.scope_cache,
+                s.id, s.token, s.user_id,
+                COALESCE(s.permissions_cache, '[]'::jsonb)  AS permissions_cache,
+                COALESCE(s.scope_cache,       '{}'::jsonb)  AS scope_cache,
                 u.email,
-                r.name as role_name, r.level as role_level, r.scope_level as role_scope_level
+                r.name       AS role_name,
+                r.level      AS role_level,
+                r.scope_level AS role_scope_level
             FROM user_sessions s
             JOIN users u ON u.id = s.user_id
             LEFT JOIN user_roles ur ON ur.user_id = s.user_id
@@ -175,21 +218,28 @@ class AuthMiddleware(BaseHTTPMiddleware):
         )
 
         for row in rows:
-            if check_password(raw_token, row["token"]):
-                # Backfill token_hint
-                await pool.execute(
-                    "UPDATE user_sessions SET token_hint = $1 WHERE id = $2",
-                    hint,
-                    row["id"],
-                )
+            if _check_password(raw_token, row["token"]):
+                # Backfill token_hint fire-and-forget — do not block on failure
+                try:
+                    await pool.execute(
+                        "UPDATE user_sessions SET token_hint = $1 WHERE id = $2",
+                        hint,
+                        row["id"],
+                    )
+                except Exception as _backfill_err:
+                    logger.warning(
+                        "token_hint backfill failed for session %s: %s",
+                        row["id"],
+                        _backfill_err,
+                    )
                 return AuthContext.from_session_cache(
                     user_id=row["user_id"],
                     email=row["email"],
                     role_name=row["role_name"] or "none",
                     role_level=row["role_level"] or 99,
                     role_scope_level=row["role_scope_level"] or "account",
-                    permissions_cache=row["permissions_cache"] or [],
-                    scope_cache=row["scope_cache"] or {},
+                    permissions_cache=_j(row["permissions_cache"], []),
+                    scope_cache=_j(row["scope_cache"], {}),
                 )
 
         return None

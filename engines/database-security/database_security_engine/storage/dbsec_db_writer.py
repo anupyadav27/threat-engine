@@ -5,28 +5,15 @@ Writes dbsec_report, dbsec_findings, and dbsec_inventory tables
 to the threat_engine_database_security database.
 """
 
-import os
 import json
 import hashlib
 import logging
 from typing import Dict, Any, List
 from datetime import datetime, timezone
 
-import psycopg2
+from engine_common.db_connections import get_dbsec_conn
 
 logger = logging.getLogger(__name__)
-
-
-def _get_dbsec_conn():
-    """Get connection to the Database Security database."""
-    return psycopg2.connect(
-        host=os.getenv("DBSEC_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("DBSEC_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("DBSEC_DB_NAME", "threat_engine_database_security"),
-        user=os.getenv("DBSEC_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("DBSEC_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-    )
 
 
 def generate_finding_id(rule_id: str, resource_uid: str, account_id: str, region: str) -> str:
@@ -54,7 +41,7 @@ def save_findings_to_db(
     Returns:
         Number of findings written.
     """
-    conn = _get_dbsec_conn()
+    conn = get_dbsec_conn()
     now = datetime.now(timezone.utc)
     count = 0
 
@@ -79,8 +66,8 @@ def save_findings_to_db(
                     low_findings = %s,
                     encryption_score = %s,
                     access_control_score = %s,
-                    backup_score = %s,
-                    network_score = %s,
+                    backup_recovery_score = %s,
+                    network_security_score = %s,
                     severity_breakdown = %s::jsonb,
                     service_breakdown = %s::jsonb,
                     domain_breakdown = %s::jsonb,
@@ -121,6 +108,7 @@ def save_findings_to_db(
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                             %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
                     ON CONFLICT (finding_id) DO UPDATE SET
+                        scan_run_id = EXCLUDED.scan_run_id,
                         last_seen_at = EXCLUDED.last_seen_at,
                         status = EXCLUDED.status,
                         severity = EXCLUDED.severity,
@@ -173,7 +161,7 @@ def save_db_inventory(
     Returns:
         Number of inventory entries written.
     """
-    conn = _get_dbsec_conn()
+    conn = get_dbsec_conn()
     count = 0
     try:
         with conn.cursor() as cur:

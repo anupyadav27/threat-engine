@@ -1,0 +1,49 @@
+rule_id: k8s.daemonset.audit.update
+rule_type: ciem
+title: 'DaemonSet: DaemonSet Image or Config Updated'
+scope: daemonset.audit
+domain: container_and_kubernetes_security
+subcategory: container_security
+severity: high
+service: daemonset
+resource: audit
+requirement: Update
+description: Existing DaemonSet modified — image or configuration change affects all
+  nodes simultaneously; may inject malicious code into cluster-wide infrastructure.
+rationale: Adversaries create or modify DaemonSets to run malicious containers on
+  every node in a cluster, achieving persistent code execution across the entire cluster
+  infrastructure. DaemonSet creation in kube-system or with privileged containers
+  is a strong persistence indicator. Detected via K8s audit logs for daemonsets/create
+  in sensitive namespaces.
+remediation: '1. Delete the unauthorized DaemonSet, CronJob, or ServiceAccount immediately.
+
+  2. Audit all resources in kube-system: `kubectl get all -n kube-system`
+
+  3. Enable admission control policies restricting resource creation to known CI/CD
+  identities.
+
+  4. Use RBAC least-privilege: restrict create verbs on DaemonSets/CronJobs to dedicated
+  service accounts.
+
+  5. Monitor for new ServiceAccount creation via Falco or audit log alerting.
+
+  '
+references:
+- https://attack.mitre.org/techniques/T1543/
+- https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/
+compliance:
+- canada_pbmm_moderate_CCCS_SI_3_1
+- canada_pbmm_moderate_CCCS_SI_3_7
+- cis_aws_10.7
+- pci_dss_v4_0_1_5_3_4
+threat_category: persistence
+mitre_tactics:
+- persistence
+- execution
+mitre_techniques:
+- T1543
+risk_score: 78
+action_category: create
+source: default
+metadata_source: auto_generated
+generated_by: k8s_ciem_generator

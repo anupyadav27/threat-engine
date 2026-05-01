@@ -1,0 +1,71 @@
+# ============================================================
+# Discovery YAML — billing (final_discovery v1)
+# Generated: 2026-04-16T09:26:46Z
+# Source: gcp_master_field_catalog.csv
+# Check rules: 33 | ops in scope: 1 (1 independent, 0 dependent)
+# ============================================================
+version: '1.0'
+provider: gcp
+service: billing
+
+services:
+  client: billingbudgets
+  module: "googleapiclient.discovery.build('billingbudgets', 'v1')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: unknown
+    identifier_op: gcp.billingbudgets.billingAccounts.budgets.list
+    identifier_field: budgets[].name
+    item_var_path: item.budgets[].name
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── gcp.billingbudgets.billingAccounts.budgets.list ──
+  - discovery_id: gcp.billingbudgets.billingAccounts.budgets.list
+    calls:
+      - action: billingAccounts.budgets.list
+        params:
+          parent: '{{ project_id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        alertPolicy: '{{ item.alertPolicy }}'
+        amount: '{{ item.amount }}'
+        bindings: '{{ item.bindings }}'
+        budgetFilter: '{{ item.budgetFilter }}'
+        displayName: '{{ item.displayName }}'
+        enabled: '{{ item.enabled }}'
+        name: '{{ item.name }}'
+        notificationChannels: '{{ item.notificationChannels }}'
+        notificationsRule: '{{ item.notificationsRule }}'
+        ownershipScope: '{{ item.ownershipScope }}'
+        state: '{{ item.state }}'
+        thresholdRules: '{{ item.thresholdRules }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── gcp.cloudbilling.billingAccounts.list ──
+  - discovery_id: gcp.cloudbilling.billingAccounts.list
+    calls:
+      - action: billingAccounts.list
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        bigqueryExport: '{{ item.bigqueryExport }}'
+        bindings: '{{ item.bindings }}'
+        costManagement: '{{ item.costManagement }}'
+        displayName: '{{ item.displayName }}'
+        masterBillingAccount: '{{ item.masterBillingAccount }}'
+        name: '{{ item.name }}'
+        open: '{{ item.open }}'
+        parent: '{{ item.parent }}'
+

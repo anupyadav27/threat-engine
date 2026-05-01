@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { GitBranch, ChevronRight, ArrowRight, Database, AlertTriangle } from 'lucide-react';
-import { getFromEngineScan } from '@/lib/api';
+import { fetchView } from '@/lib/api';
+
+const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID || 'default-tenant';
 import KpiCard from '@/components/shared/KpiCard';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import DataTable from '@/components/shared/DataTable';
@@ -111,9 +113,10 @@ export default function DataLineagePage() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const res = await getFromEngineScan('datasec', '/api/v1/data-security/lineage');
-        if (res && !res.error && res.lineage_chains) {
-          setChains(res.lineage_chains);
+        const res = await fetchView('datasec', { tenant_id: TENANT_ID });
+        const lineage = res?.lineage || {};
+        if (lineage.lineage_chains) {
+          setChains(lineage.lineage_chains);
         }
       } catch (err) {
         console.warn('[lineage] fetch error:', err);

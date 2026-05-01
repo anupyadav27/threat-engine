@@ -1,6 +1,9 @@
 # ClusterRole and ClusterRoleBinding for K8s Discovery Scanner
-# Grants read access to namespaces, pods, deployments, services
-# Used by engine-discoveries pod for K8s self-scan
+# Grants read-only access to all resources discovered by K8sDiscoveryScanner handlers:
+#   namespace, pod, deployment, service, configmap, daemonset, ingress,
+#   networkpolicy, persistentvolumeclaim, role, clusterrole, clusterrolebinding,
+#   rolebinding, secret (metadata only — data stripped in scanner), serviceaccount, statefulset
+# Used by engine-sa service account running discovery K8s Jobs on spot nodes.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -9,15 +12,77 @@ metadata:
     app: engine-discoveries
     purpose: k8s-self-scan
 rules:
+# Core API group
 - apiGroups: [""]
   resources:
   - namespaces
   - pods
   - services
+  - configmaps
+  - secrets
+  - serviceaccounts
+  - persistentvolumeclaims
+  - persistentvolumes
+  - nodes
+  - events
+  - resourcequotas
+  - limitranges
   verbs: ["get", "list", "watch"]
+# Apps API group
 - apiGroups: ["apps"]
   resources:
   - deployments
+  - daemonsets
+  - statefulsets
+  - replicasets
+  verbs: ["get", "list", "watch"]
+# Networking API group
+- apiGroups: ["networking.k8s.io"]
+  resources:
+  - ingresses
+  - networkpolicies
+  - ingressclasses
+  verbs: ["get", "list", "watch"]
+# RBAC API group
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources:
+  - roles
+  - rolebindings
+  - clusterroles
+  - clusterrolebindings
+  verbs: ["get", "list", "watch"]
+# Batch API group
+- apiGroups: ["batch"]
+  resources:
+  - jobs
+  - cronjobs
+  verbs: ["get", "list", "watch"]
+# Autoscaling API group
+- apiGroups: ["autoscaling"]
+  resources:
+  - horizontalpodautoscalers
+  verbs: ["get", "list", "watch"]
+# Storage API group
+- apiGroups: ["storage.k8s.io"]
+  resources:
+  - storageclasses
+  - volumeattachments
+  verbs: ["get", "list", "watch"]
+# Certificates API group
+- apiGroups: ["certificates.k8s.io"]
+  resources:
+  - certificatesigningrequests
+  verbs: ["get", "list", "watch"]
+# Policy API group (PodSecurityPolicy — deprecated in 1.21+, still present on older clusters)
+- apiGroups: ["policy"]
+  resources:
+  - poddisruptionbudgets
+  verbs: ["get", "list", "watch"]
+# Admission webhook configurations (cluster-scoped)
+- apiGroups: ["admissionregistration.k8s.io"]
+  resources:
+  - mutatingwebhookconfigurations
+  - validatingwebhookconfigurations
   verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1

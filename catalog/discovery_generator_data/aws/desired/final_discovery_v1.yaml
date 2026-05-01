@@ -1,0 +1,38 @@
+# ==========================================================
+# Discovery YAML — desired (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 2 | ops: 1 independent, 0 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: desired
+
+services:
+  client: desired
+  module: "boto3.client('desired')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: instance
+    identifier_op: aws.desired.describe_instances
+    identifier_field: VpcId
+    item_var_path: item.VpcId
+    identifier_template: '{vpcid}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.desired.describe_instances  ──
+  - discovery_id: aws.desired.describe_instances
+    calls:
+      - action: 
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Reservations[].Instances }}'
+      item:
+        item: '{{ item }}'
+

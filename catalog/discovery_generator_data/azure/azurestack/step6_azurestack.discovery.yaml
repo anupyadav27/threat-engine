@@ -1,0 +1,191 @@
+# Discovery YAML — azurestack (Azure)
+# Generated: 2026-04-15T10:39:29Z
+# Source: step1b_operation_registry.json (qualified ops + dependency chains)
+# Actions use {category}.{method} format for SDK method resolution
+version: '1.0'
+provider: azure
+service: azurestack
+services:
+  client: azurestack
+  module: azure.mgmt.azurestack
+discovery:
+  # ── cloudmanifestfile.list [root] ──
+  - discovery_id: azure.azurestack.cloudmanifestfile.list
+    calls:
+      - action: cloudmanifestfile.list
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        location: '{{ item.location }}'
+        sku: '{{ item.sku }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        zones: '{{ item.zones }}'
+        kind: '{{ item.kind }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+  # ── linkedsubscriptions.list_by_subscription [root] ──
+  - discovery_id: azure.azurestack.linkedsubscriptions.list_by_subscription
+    calls:
+      - action: linkedsubscriptions.list_by_subscription
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        location: '{{ item.location }}'
+        sku: '{{ item.sku }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        zones: '{{ item.zones }}'
+        kind: '{{ item.kind }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+  # ════════════════════════════════════════
+  # Dependent operations (for_each + params)
+  # ════════════════════════════════════════
+  # ── customersubscriptions.list [dependent] ──
+  - discovery_id: azure.azurestack.customersubscriptions.list
+    for_each: azure.azurestack.products.get_product
+    calls:
+      - action: customersubscriptions.list
+        save_as: response
+        on_error: continue
+        params:
+          registration_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        location: '{{ item.location }}'
+        sku: '{{ item.sku }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        zones: '{{ item.zones }}'
+        kind: '{{ item.kind }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+  # ── products.get_products [dependent] ──
+  - discovery_id: azure.azurestack.products.get_products
+    for_each: azure.azurestack.products.get_product
+    calls:
+      - action: products.get_products
+        save_as: response
+        on_error: continue
+        params:
+          registration_name: '{{ item.name }}'
+    emit:
+      as: item
+      item:
+        type: '{{ response.type }}'
+        sku: '{{ response.sku }}'
+        name: '{{ response.name }}'
+        id: '{{ response.id }}'
+        billing_part_number: '{{ response.billing_part_number }}'
+        compatibility: '{{ response.compatibility }}'
+        description: '{{ response.description }}'
+        display_name: '{{ response.display_name }}'
+        etag: '{{ response.etag }}'
+        gallery_item_identity: '{{ response.gallery_item_identity }}'
+        icon_uris: '{{ response.icon_uris }}'
+        legal_terms: '{{ response.legal_terms }}'
+        links: '{{ response.links }}'
+        offer: '{{ response.offer }}'
+        offer_version: '{{ response.offer_version }}'
+        payload_length: '{{ response.payload_length }}'
+        privacy_policy: '{{ response.privacy_policy }}'
+        product_kind: '{{ response.product_kind }}'
+        product_properties: '{{ response.product_properties }}'
+        publisher_display_name: '{{ response.publisher_display_name }}'
+        publisher_identifier: '{{ response.publisher_identifier }}'
+        system_data: '{{ response.system_data }}'
+        vm_extension_type: '{{ response.vm_extension_type }}'
+  # ── products.list [dependent] ──
+  - discovery_id: azure.azurestack.products.list
+    for_each: azure.azurestack.products.get_product
+    calls:
+      - action: products.list
+        save_as: response
+        on_error: continue
+        params:
+          registration_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        location: '{{ item.location }}'
+        sku: '{{ item.sku }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        zones: '{{ item.zones }}'
+        kind: '{{ item.kind }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+  # ── products.list_details [dependent] ──
+  - discovery_id: azure.azurestack.products.list_details
+    for_each: azure.azurestack.products.get_product
+    calls:
+      - action: products.list_details
+        save_as: response
+        on_error: continue
+        params:
+          registration_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        location: '{{ item.location }}'
+        sku: '{{ item.sku }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        zones: '{{ item.zones }}'
+        kind: '{{ item.kind }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+  # ── registrations.get_activation_key [dependent] ──
+  - discovery_id: azure.azurestack.registrations.get_activation_key
+    for_each: azure.azurestack.products.get_product
+    calls:
+      - action: registrations.get_activation_key
+        save_as: response
+        on_error: continue
+        params:
+          registration_name: '{{ item.name }}'
+    emit:
+      as: item
+      item:
+        identity: '{{ response.identity }}'
+        type: '{{ response.type }}'
+        properties: '{{ response.properties }}'
+        location: '{{ response.location }}'
+        sku: '{{ response.sku }}'
+        name: '{{ response.name }}'
+        provisioning_state: '{{ response.provisioning_state }}'
+        zones: '{{ response.zones }}'
+        kind: '{{ response.kind }}'
+        id: '{{ response.id }}'
+        tags: '{{ response.tags }}'
+
+  # ── Unwired dependent ops (no root producer found) ──
+  # SKIP: azure.azurestack.linkedsubscriptions.list_by_resource_group — required_params: ['resource_group']
+  # SKIP: azure.azurestack.products.get_product — required_params: ['resource_group', 'registration_name', 'product_name']
+  # SKIP: azure.azurestack.registrations.list — required_params: ['resource_group']

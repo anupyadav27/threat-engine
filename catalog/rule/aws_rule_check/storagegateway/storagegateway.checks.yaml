@@ -1,0 +1,67 @@
+version: '1.0'
+provider: aws
+service: storagegateway
+checks:
+- rule_id: aws.storagegateway.gateway.encryption_at_rest_enabled
+  for_each: aws.storagegateway.describe_nfs_file_shares
+  severity: HIGH
+  conditions:
+    var: item.KMSEncrypted
+    op: is_true
+    value: null
+- rule_id: aws.storagegateway.gateway.private_network_only_configured
+  for_each: aws.storagegateway.list_gateways
+  severity: HIGH
+  conditions:
+    var: item.Ec2InstanceId
+    op: exists
+    value: null
+- rule_id: aws.storagegateway.gateway.snapshots_enabled
+  for_each: aws.storagegateway.list_volumes
+  severity: MEDIUM
+  conditions:
+    var: item.VolumeRecoveryPointTime
+    op: exists
+    value: null
+- rule_id: aws.storagegateway.resource.fileshare_encryption_enabled
+  for_each: aws.storagegateway.describe_nfs_file_shares
+  severity: HIGH
+  conditions:
+    var: item.KMSEncrypted
+    op: is_true
+    value: null
+- rule_id: aws.storagegateway.volume.encryption_at_rest_enabled
+  for_each: aws.storagegateway.list_volumes
+  severity: HIGH
+  conditions:
+    var: item.VolumeARN
+    op: exists
+    value: null
+- rule_id: aws.storagegateway.volume.private_network_only_configured
+  for_each: aws.storagegateway.list_volumes
+  severity: HIGH
+  conditions:
+    var: item.VolumeAttachmentStatus
+    op: equals
+    value: ACTIVE
+- rule_id: aws.storagegateway.volume.snapshots_enabled
+  for_each: aws.storagegateway.list_volumes
+  severity: MEDIUM
+  conditions:
+    var: item.VolumeRecoveryPointTime
+    op: exists
+    value: null
+- rule_id: aws.storagegateway.volume.snapshots_encrypted
+  for_each: aws.storagegateway.list_volumes
+  severity: HIGH
+  conditions:
+    var: item.VolumeType
+    op: not_equals
+    value: CACHED
+- rule_id: aws.storagegateway.volume.storagegateway_cmk_cmek_configured
+  for_each: aws.storagegateway.list_volumes
+  severity: MEDIUM
+  conditions:
+    var: item.KMSKey
+    op: exists
+    value: null

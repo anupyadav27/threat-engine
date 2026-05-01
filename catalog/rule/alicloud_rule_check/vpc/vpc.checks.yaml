@@ -1,0 +1,32 @@
+version: '1.0'
+provider: alicloud
+service: vpc
+checks:
+- rule_id: alicloud.vpc.vpc.not_default
+  for_each: alicloud.vpc.describe_vpcs
+  severity: MEDIUM
+  conditions:
+    var: item.IsDefault
+    op: is_false
+    value: null
+- rule_id: alicloud.vpc.vpc.available
+  for_each: alicloud.vpc.describe_vpcs
+  severity: MEDIUM
+  conditions:
+    var: item.Status
+    op: equals
+    value: Available
+- rule_id: alicloud.vpc.vpc.name_defined
+  for_each: alicloud.vpc.describe_vpcs
+  severity: LOW
+  conditions:
+    var: item.VpcName
+    op: not_empty
+    value: null
+- rule_id: alicloud.vpc.vpc.cidr_not_unrestricted
+  for_each: alicloud.vpc.describe_vpcs
+  severity: HIGH
+  conditions:
+    var: item.CidrBlock
+    op: not_equals
+    value: 0.0.0.0/0

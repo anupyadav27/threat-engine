@@ -22,7 +22,7 @@ scan_run_id (PK), tenant_id, customer_id, account_id, provider, overall_status, 
 **DROPPED columns**: orchestration_id (renamed → scan_run_id), discovery_scan_id, check_scan_id, inventory_scan_id, threat_scan_id, compliance_scan_id, iam_scan_id, datasec_scan_id
 
 ## Your API
-- **Port**: 8010
+- **Port**: 8008
 - **Base**: `/api/v1/`
 
 ### Account Management
@@ -67,7 +67,7 @@ scan_run_id (PK), tenant_id, customer_id, account_id, provider, overall_status, 
 - **BFF files**: `shared/api_gateway/bff/scans.py`, `dashboard.py`
 - **Engine code**: `engines/onboarding/`
 - **K8s manifest**: `deployment/aws/eks/engines/engine-onboarding.yaml`
-- **Image**: `yadavanup84/threat-engine-onboarding-api:v-full-data`
+- **Image**: `yadavanup84/threat-engine-onboarding-api:v-m6`
 
 ## Pipeline Dependencies
 ```

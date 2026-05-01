@@ -1,0 +1,21 @@
+version: '1.0'
+rule_id: gcp.compute.url_map.rule_group_references_only_approved_managed_sets_where_used
+for_each: gcp.compute.list_url_maps
+severity: MEDIUM
+conditions:
+  all:
+  - var: item.defaultService
+    op: exists
+  - var: item.hostRules[].pathMatcher
+    op: exists
+  - var: item.pathMatchers[].defaultService
+    op: exists
+  - any:
+    - var: item.defaultService
+      op: contains
+      value: global/backendServices/
+    - var: item.hostRules[].pathMatcher
+      op: not_exists
+    - var: item.pathMatchers[].defaultService
+      op: contains
+      value: global/backendServices/

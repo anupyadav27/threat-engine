@@ -493,8 +493,8 @@ def group_iam_findings_to_identities(findings: List[dict]) -> List[dict]:
 
 def normalize_iam_role(r: dict) -> dict:
     fd = r.get("finding_data") or {}
-    uid = r.get("resource_arn") or r.get("resource_uid", "")
-    name = r.get("name") or r.get("resource_id") or uid.rsplit("/", 1)[-1]
+    uid = r.get("resource_arn") or r.get("resource_uid") or ""
+    name = r.get("name") or r.get("resource_id") or (uid.rsplit("/", 1)[-1] if uid else "")
     identity_type = _infer_identity_type(uid, r.get("provider", ""))
     return {
         "name": name,
@@ -514,8 +514,8 @@ def normalize_iam_role(r: dict) -> dict:
 
 def normalize_access_key(k: dict) -> dict:
     fd = k.get("finding_data") or {}
-    uid = k.get("resource_arn") or k.get("resource_uid", "")
-    user = k.get("resource_id") or uid.rsplit("/", 1)[-1]
+    uid = k.get("resource_arn") or k.get("resource_uid") or ""
+    user = k.get("resource_id") or (uid.rsplit("/", 1)[-1] if uid else "")
     return {
         "user": user,
         "rule_id": k.get("rule_id", ""),
@@ -533,8 +533,8 @@ def normalize_access_key(k: dict) -> dict:
 
 def normalize_privilege_escalation(e: dict) -> dict:
     fd = e.get("finding_data") or {}
-    uid = e.get("resource_arn") or e.get("resource_uid", "")
-    name = e.get("resource_id") or uid.rsplit("/", 1)[-1]
+    uid = e.get("resource_arn") or e.get("resource_uid") or ""
+    name = e.get("resource_id") or (uid.rsplit("/", 1)[-1] if uid else "")
     return {
         "id": e.get("finding_id", ""),
         "name": name,

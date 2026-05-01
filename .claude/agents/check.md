@@ -35,7 +35,7 @@ id, service, provider, discoveries_data (JSONB), is_active (boolean), boto3_clie
 - 1918 rules in rule_metadata
 
 ## Full Stack (UI → BFF → API → DB)
-- **UI page**: `/misconfig` → `ui_samples/src/app/misconfig/page.jsx`
+- **UI page**: `/misconfig` → `frontend/src/app/misconfig/page.jsx`
 - **BFF file**: `shared/api_gateway/bff/misconfig.py` → `GET /api/v1/views/misconfig`
 - **BFF calls**: threat engine `/api/v1/ui-data` (enriched check findings with threat severity)
 - **Engine code**: `engines/check/`

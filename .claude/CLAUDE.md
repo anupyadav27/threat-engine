@@ -5,35 +5,63 @@ Comprehensive Cloud Security Posture Management (CSPM) platform for multi-cloud 
 - **Discovery scanning**: Enumerate 40+ cloud services and resources
 - **Compliance evaluation**: Map findings to 13+ frameworks (CIS, NIST, ISO 27001, PCI-DSS, HIPAA, GDPR, SOC 2)
 - **Threat detection**: MITRE ATT&CK technique mapping, risk scoring (0-100)
-- **Security analysis**: IAM posture (57 rules), Data security (62 rules)
-- **Vulnerability scanning**: Multi-language IaC scanning (14 languages)
+- **Network security**: 7-layer topology analysis (isolation → reachability → ACL → SG → LB → WAF → monitoring)
+- **Security analysis**: IAM posture, Data security, CIEM, Vulnerability scanning
 
 ## Repository Structure
 
+```
+threat-engine/
+├── engines/          # All runtime microservices (FastAPI)
+├── platform/         # Django identity & tenant layer
+├── frontend/         # Next.js CSPM portal UI
+├── shared/           # Shared utilities, API gateway, DB schemas
+├── catalog/          # YAML rules + discovery data
+├── deployment/       # EKS manifests + local K8s configs
+└── scripts/          # DB migrations, build helpers
+```
+
 ### Core Engines (`engines/`)
-- `engines/onboarding/`: Multi-cloud account onboarding and credential management (Port 8010)
+- `engines/onboarding/`: Multi-cloud account onboarding and credential management (Port 8008)
 - `engines/discoveries/`: Cloud resource discovery and enumeration (Port 8001)
 - `engines/check/`: Compliance rule evaluation - PASS/FAIL assessment (Port 8002)
 - `engines/inventory/`: Asset normalization, relationships, drift detection (Port 8022)
 - `engines/threat/`: Threat detection, MITRE mapping, attack chains (Port 8020)
 - `engines/compliance/`: Framework reporting and compliance scoring (Port 8000)
-- `engines/iam/`: IAM security posture analysis (Port 8001)
+- `engines/iam/`: IAM security posture analysis
 - `engines/datasec/`: Data security and classification (Port 8003)
 - `engines/secops/`: IaC scanning (14 languages) (Port 8005)
+- `engines/network-security/`: 7-layer network topology analysis (Port 8004)
+- `engines/ciem/`: Cloud Identity and Entitlement Management
+- `engines/risk/`: Risk scoring and blast radius computation
 - `engines/rule/`: YAML rule management (Port 8011)
-- `vulnerability/`: CVE and vulnerability database subsystem
+- `engines/vulnerability/`: Vulnerability scanning (SBOM, DAST, CVE)
+- `engines/fix/secops_fix/`: AI remediation for IaC findings
+- `engines/fix/vul_fix/`: AI remediation for vulnerability findings
+
+### Platform (`platform/`)
+- `platform/cspm-backend/`: Django 6 app — user auth, SSO (SAML/Google), tenant CRUD, audit logs
+
+### Frontend (`frontend/`)
+- Next.js 15 + React 19 CSPM portal
+- `frontend/src/lib/api.js`: `fetchView(page)` → `/gateway/api/v1/views/{page}` (BFF pattern)
+- `frontend/src/lib/constants.js`: `ENGINE_ENDPOINTS` map and nav config
 
 ### Shared Services (`shared/`)
-- `shared/database/`: PostgreSQL schemas, migrations, database config (was `consolidated_services/`)
-- `shared/common/`: Shared Python utilities across all engines (was `engine_common/`)
-- `shared/api_gateway/`: Central API routing and service discovery (was `api_gateway/`)
-- `shared/auth/`: Authentication utilities (was `engine_auth/`)
+- `shared/database/`: PostgreSQL schemas, migrations, database config
+- `shared/common/`: Shared Python utilities across all engines (`engine_common` in Docker)
+- `shared/api_gateway/`: Central API routing + BFF view handlers (`bff/`)
+- `shared/auth/`: Authentication utilities
 
-### Data Catalog
-- `catalog/`: CSP service catalog for inventory (was `data_pythonsdk/`)
+### Data Catalog (`catalog/`)
+- `catalog/rule/`: Check rules per CSP (`aws_rule_check/`, `azure_rule_check/`, etc.)
+- `catalog/discovery_generator_data/`: Step6 discovery YAML files (authoritative source)
+- `catalog/rule/upload_rule_metadata_all_csps.py`: Tags rules with engine metadata in DB
 
 ### Infrastructure
-- `deployment/`: Kubernetes manifests, Docker Compose, AWS configurations
+- `deployment/aws/eks/`: Kubernetes manifests for EKS
+- `deployment/aws/eks/argo/`: Argo Workflow pipeline definitions
+- `deployment/local/`: Local/dev K8s configs and docker-compose
 
 ## Important Paths (Always Use Absolute Paths)
 
@@ -42,214 +70,168 @@ Always use absolute paths: `/Users/apple/Desktop/threat-engine/...`
 
 Key locations:
 - **Database schemas**: `/Users/apple/Desktop/threat-engine/shared/database/schemas/`
-- **Database config**: `/Users/apple/Desktop/threat-engine/shared/database/config/`
+- **Migrations**: `/Users/apple/Desktop/threat-engine/shared/database/migrations/`
 - **Engine implementations**: `/Users/apple/Desktop/threat-engine/engines/*/`
+- **Vulnerability engine**: `/Users/apple/Desktop/threat-engine/engines/vulnerability/`
+- **AI fix engines**: `/Users/apple/Desktop/threat-engine/engines/fix/`
 - **Shared utilities**: `/Users/apple/Desktop/threat-engine/shared/common/`
-- **Kubernetes manifests**: `/Users/apple/Desktop/threat-engine/deployment/aws/eks/`
-- **Docker configs**: `/Users/apple/Desktop/threat-engine/deployment/docker/`
+- **API Gateway + BFF**: `/Users/apple/Desktop/threat-engine/shared/api_gateway/`
+- **Kubernetes manifests (EKS)**: `/Users/apple/Desktop/threat-engine/deployment/aws/eks/`
+- **Argo pipelines**: `/Users/apple/Desktop/threat-engine/deployment/aws/eks/argo/`
+- **Local K8s configs**: `/Users/apple/Desktop/threat-engine/deployment/local/`
+- **Frontend (Next.js)**: `/Users/apple/Desktop/threat-engine/frontend/`
+- **Django identity backend**: `/Users/apple/Desktop/threat-engine/platform/cspm-backend/`
 - **CSP catalog**: `/Users/apple/Desktop/threat-engine/catalog/`
+- **Check rules**: `/Users/apple/Desktop/threat-engine/catalog/rule/{csp}_rule_check/`
+- **Discovery YAMLs**: `/Users/apple/Desktop/threat-engine/catalog/discovery_generator_data/{csp}/`
 
 ## Development Commands
 
 ### Build & Test
 ```bash
-# Build Docker images (build context is repo root)
-docker build -t threat-engine -f engines/discoveries/Dockerfile .
+# Build Docker images (build context is REPO ROOT — always use root)
+docker build -t yadavanup84/<engine>:v-tag -f engines/<engine>/Dockerfile .
 
 # Run tests
 pytest /Users/apple/Desktop/threat-engine/tests/ -v
-
-# Type checking
-mypy /Users/apple/Desktop/threat-engine/src/
-
-# Linting
-pylint /Users/apple/Desktop/threat-engine/engines/*/
 ```
 
 ### Kubernetes Operations
 ```bash
-# Apply all manifests
-kubectl apply -f /Users/apple/Desktop/threat-engine/deployment/aws/eks/
+# Apply manifest
+kubectl apply -f /Users/apple/Desktop/threat-engine/deployment/aws/eks/engines/<engine>.yaml
 
-# Check deployment status
+# Check status
 kubectl get deployments -n threat-engine-engines
+kubectl rollout status deployment/<engine> -n threat-engine-engines
 
 # View logs
-kubectl logs -f -l app=engine-discoveries -n threat-engine-engines
-kubectl logs -f -l app=engine-compliance -n threat-engine-engines
+kubectl logs -f -l app=<engine> -n threat-engine-engines --tail=100
 
-# Port forward for local testing
-kubectl port-forward svc/engine-discoveries 8001:8001 -n threat-engine-engines
-
-# Rollout status
-kubectl rollout status deployment/engine-discoveries -n threat-engine-engines
+# Port forward for local testing (use Python urllib for HTTP, not curl)
+kubectl port-forward svc/<engine> <local-port>:80 -n threat-engine-engines
 ```
 
-### Database Operations
+### Database Access (RDS not publicly accessible)
 ```bash
-# View schemas
-ls -la /Users/apple/Desktop/threat-engine/consolidated_services/database/schemas/
+# Copy SQL to a pod that has DB access, then exec psql inside it
+kubectl cp /tmp/fix.sql threat-engine-engines/<pod>:/tmp/fix.sql
+kubectl exec -n threat-engine-engines <pod> -- psql -h $DISCOVERIES_DB_HOST \
+  -U $DISCOVERIES_DB_USER -d $DISCOVERIES_DB_NAME -f /tmp/fix.sql
 
-# Connect to RDS (via port-forward)
-kubectl port-forward svc/postgres 5432:5432
-psql -h localhost -U postgres -d threat_engine_discoveries
-
-# Run migrations
-python /Users/apple/Desktop/threat-engine/consolidated_services/database/migrate.py
+# Or run Python inline
+kubectl exec -n threat-engine-engines deployment/<engine> -- python3 -c "..."
 ```
 
 ### Git Workflow
 ```bash
-# Always check status first
 git status
-
-# Create feature branch
 git checkout -b feature/description
-
-# View changes
 git diff
-
-# Commit with meaningful messages
-git commit -m "feat(engine-threat): Add MITRE technique T1234 mapping"
+git commit -m "feat(engine-name): description"
 ```
-
-## Code Standards
-
-### Python
-- **Type hints required**: All function arguments and return types (PEP 484)
-- **Docstrings**: Google-style for all public functions and classes
-- **Indentation**: 4 spaces (enforced by Black)
-- **Imports**: stdlib → third-party → local (grouped and sorted alphabetically)
-- **Async**: Use FastAPI async endpoints for I/O operations
-- **Error handling**: Specific exceptions, never bare `except:`
-
-Example:
-```python
-from typing import List, Optional
-import asyncio
-
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-
-async def get_resources(
-    provider: str,
-    service: str,
-    region: Optional[str] = None
-) -> List[dict]:
-    """Retrieve cloud resources from provider.
-
-    Args:
-        provider: Cloud provider ('aws', 'azure', 'gcp')
-        service: Service name (e.g., 'ec2', 'rds')
-        region: Optional region filter
-
-    Returns:
-        List of resource dictionaries
-
-    Raises:
-        HTTPException: If provider authentication fails
-    """
-    pass
-```
-
-### YAML (Kubernetes/Rules)
-- **Indentation**: 2 spaces (NEVER tabs)
-- **Validation**: Run `yamllint <file>` before committing
-- **Comments**: Explain non-obvious configurations
-- **Naming**: Use kebab-case for keys
-
-### SQL
-- **Parameterized queries only**: Never string concatenation
-- **ORM preferred**: Use SQLAlchemy when possible
-- **Migrations**: Atomic, reversible, tested
-- **Indexing**: Add indexes for frequently queried columns
-
-### Docker
-- **Multi-stage builds**: Separate build and runtime stages
-- **Non-root user**: Always run as non-root in production
-- **Layer optimization**: Group related commands to minimize layers
-- **Security scanning**: Use `docker scan` before pushing
 
 ## Architecture Patterns
 
-### Data Flow
+### Data Flow (Pipeline Order)
 ```
-Onboarding → Discovery → Check → Inventory → Threat/Compliance
-  (8010)      (8001)     (8002)    (8022)      (8020/8000)
-                                              ↓
-                                        IAM + DataSec
-                                       (8001 + 8003)
+Onboarding → Discovery → Inventory → Check → Threat → Compliance/IAM/DataSec/Network
+  (8008)      (8001)      (8022)     (8002)  (8020)       (8000/−/8003/8004)
+                                                 ↓
+                                          CIEM + Risk
 ```
 
+### Network Engine — 7-Layer Architecture
+The network engine runs two phases:
+1. **Layer 1** (`run_scan.py`): Load check_findings where `rule_metadata.network_security.applicable=true` (all CSPs, DB-driven)
+2. **Layer 2** (`providers/<csp>.py`): Topology provider with internal sub-layers:
+
+| Sub-layer | Module | What it checks |
+|-----------|--------|----------------|
+| L1 | network_isolation | VPC/VCN segmentation, peering, transit gateways |
+| L2 | network_reachability | Route tables, NAT, public/private subnet marking |
+| L3 | network_acl | NACL / security-list rules at subnet boundary |
+| L4 | security_group_rules | SSH/RDP/DB ports open to 0.0.0.0/0, orphaned SGs |
+| L5 | load_balancer_security | TLS versions, internet-facing LBs without HTTPS |
+| L6 | waf_protection | WAF coverage, OWASP rules, rate limiting |
+| L7 | network_monitoring | VPC Flow Logs, DNS logging, WAF logging |
+
+**AWS** — fully aligned with all 7 sub-layers.
+**Non-AWS** (OCI, AliCloud, GCP, Azure) — flat implementations (v-net-fix10), need refactor to 7-layer model.
+**Key distinction**: Network engine provides `effective_exposure` (L3/L4 reachability). `blast_radius_score` = risk engine. Attack chains = threat engine.
+
 ### Database Design
-- **scan_orchestration**: Central coordination hub — uses `scan_run_id` (was `orchestration_id`)
-- **Engine-specific tables**: Each engine writes to its own schema
-- **Cross-engine linking**: ALL engines use `scan_run_id` (single UUID per pipeline run). No per-engine scan IDs.
-- **Standard columns** (same name in ALL finding tables): `finding_id`, `scan_run_id`, `tenant_id`, `account_id`, `credential_ref`, `credential_type`, `provider`, `region`, `resource_uid`, `resource_type`, `severity`, `status`, `first_seen_at`, `last_seen_at`
-- **Versioning**: `config_hash` for drift detection
+- **scan_orchestration**: Central coordination hub — uses `scan_run_id`
+- **Cross-engine linking**: ALL engines use `scan_run_id` (single UUID per pipeline run)
+- **Standard columns**: `finding_id`, `scan_run_id`, `tenant_id`, `account_id`, `credential_ref`, `credential_type`, `provider`, `region`, `resource_uid`, `resource_type`, `severity`, `status`, `first_seen_at`, `last_seen_at`
+- `rule_discoveries` table is in **check DB** (not discoveries DB). Column: `service` (not `service_name`)
+- JSONB in psycopg2: auto-deserialized to dict — NEVER call `json.loads()` on them
 
 ### API Patterns
 - **FastAPI**: All engines use FastAPI with OpenAPI docs
 - **Health checks**: `/api/v1/health/live` and `/api/v1/health/ready`
-- **Metrics**: `/api/v1/metrics` (Prometheus format)
 - **Versioning**: `/api/v1/` prefix for all endpoints
+
+## Rule Routing
+- **Config/posture rules** → `check` engine (`catalog/rule/{csp}_rule_check/`)
+- **CIEM/log-dependent rules** → `rule_ciem` (log event analysis, not discovery-based)
+- **Network rules** tagged with `network_security.applicable=true` in `rule_metadata` → surfaced by network engine Layer 1
 
 ## Security & Access Control
 
-### Protected Files (Cannot Edit/Read)
+### RBAC Enforcement (live as of 2026-05-01)
+
+All 18 engine images have been rebuilt with `-rbac1` tag suffix and enforce `require_permission()`.
+
+- 5 seeded roles in platform DB (migration 0009): `platform_admin` (l1), `org_admin` (l2), `tenant_admin` (l4), `analyst` (l4), `viewer` (l4)
+- 27 permissions in `feature:action` format (e.g. `discoveries:read`, `scans:create`, `tenants:write`)
+- Auth flow: `access_token` cookie → Gateway `AuthMiddleware` → builds `AuthContext` → sets `X-Auth-Context` header → engine `Depends(require_permission(...))`
+- `DEV_BYPASS_AUTH` has been removed from `middleware.js` and `auth-context.js` — **never add it back**
+- viewer role: 9 read-only permissions; datasec/secops/vuln/ai_security/encryption/dbsec/container return 403 for viewer
+- `strip_sensitive_fields()` removes `credential_ref` and engine-specific fields based on role level
+- Full permission matrix and field-stripping table: `.claude/documentation/RBAC.md`
+
+### Protected Files
 - `.env*` files (contains secrets)
-- `/secrets/` directory
 - Kubernetes secrets
 - AWS credentials (`~/.aws/`)
-- SSH keys (`~/.ssh/`)
-
-### Safety Guardrails
-- **Cannot run**: `rm -rf`, `curl`, `wget`, `sudo`
-- **Requires confirmation**: `kubectl delete`, `docker push`
-- **Read-only AWS commands**: Only `describe-*` and `ls` allowed
 
 ### Before Deployment Checklist
-1. Run security review: Review all changes for secrets, hardcoded credentials
-2. Test locally: `docker run -it <image> /bin/bash`
-3. Validate YAML: `yamllint deployment/aws/eks/`
-4. Check git diff: `git diff deployment/`
-5. Get approval: Create PR for review
+1. Review all changes for secrets/hardcoded credentials
+2. Build image: `docker build ...`
+3. Push image: `docker push ...` (requires confirmation)
+4. Apply manifest: `kubectl apply -f ...`
+5. Verify rollout: `kubectl rollout status ...`
+6. Check logs immediately after deploy
 
 ## Common Workflows
 
 ### Adding a New Engine
-1. Create directory: `/Users/apple/Desktop/threat-engine/engines/newtype/`
-2. Copy template: Use `engines/compliance/` as reference
-3. Implement API server: Follow FastAPI pattern from `api_server.py`
-4. Create database schema: Use standard columns (`finding_id`, `scan_run_id`, `tenant_id`, `account_id`, `credential_ref`, `credential_type`, `provider`, `region`, `resource_uid`, `resource_type`, `severity`, `status`, `first_seen_at`, `last_seen_at`)
-5. Create K8s manifest: `deployment/aws/eks/engines/engine-newtype.yaml`
-6. Engine receives `scan_run_id` from orchestration — no per-engine scan IDs needed
-7. Test locally: Build Docker image and run
-8. Deploy: `kubectl apply -f` the manifest
+1. Create directory: `engines/newtype/`
+2. Implement API server following FastAPI pattern
+3. Use standard DB columns (see above)
+4. Create K8s manifest: `deployment/aws/eks/engines/engine-newtype.yaml`
+5. Engine receives `scan_run_id` from orchestration — no per-engine scan IDs
+6. Build → push → apply → rollout status → check logs
 
 ### Database Schema Changes
-1. Create migration: `/Users/apple/Desktop/threat-engine/shared/database/migrations/`
+1. Create migration: `shared/database/migrations/`
 2. Update schema SQL: `shared/database/schemas/<engine>_schema.sql`
-3. Test migration: `python migrate.py --dry-run`
-4. Apply locally: `python migrate.py`
-5. Review in PR: Database changes require thorough review
-6. Deploy to RDS: Run migration script on production
+3. Apply via kubectl exec on a pod with DB access
 
 ### Deployment to EKS
-1. Update manifests: `deployment/aws/eks/engines/<engine>.yaml`
-2. Review changes: `git diff deployment/`
-3. Build Docker image: `docker build -t yadavanup84/<engine>:v1.x .`
-4. Push to registry: `docker push yadavanup84/<engine>:v1.x` (requires confirmation)
-5. Apply to cluster: `kubectl apply -f deployment/aws/eks/engines/<engine>.yaml`
-6. Monitor rollout: `kubectl rollout status deployment/<engine> -n threat-engine-engines`
-7. Check logs: `kubectl logs -f -l app=<engine> -n threat-engine-engines`
+1. `docker build -t yadavanup84/<engine>:v-tag -f engines/<engine>/Dockerfile .`
+2. `docker push yadavanup84/<engine>:v-tag`
+3. Update image tag in `deployment/aws/eks/engines/<engine>.yaml`
+4. `kubectl apply -f deployment/aws/eks/engines/<engine>.yaml`
+5. `kubectl rollout status deployment/<engine> -n threat-engine-engines`
+6. `kubectl logs -f -l app=<engine> -n threat-engine-engines`
 
 ## Debugging & Troubleshooting
 
 ### Check Database Connection
 ```bash
 kubectl get configmap threat-engine-db-config -o yaml -n threat-engine-engines
-kubectl describe secret external-secret-db-passwords -n threat-engine-engines
 ```
 
 ### View Service Logs
@@ -258,58 +240,41 @@ kubectl logs -f -l app=engine-discoveries -n threat-engine-engines
 kubectl logs -f -l app=engine-threat -n threat-engine-engines --tail=100
 ```
 
-### Port Forward for Local Testing
-```bash
-# Database
-kubectl port-forward svc/postgres 5432:5432 -n threat-engine-engines
-
-# Engine APIs
-kubectl port-forward svc/engine-discoveries 8001:8001 -n threat-engine-engines
-kubectl port-forward svc/engine-compliance 8000:8000 -n threat-engine-engines
-```
-
 ### Common Issues
+**Discovery scan fails:** Check credentials in AWS Secrets Manager, IAM permissions, and logs.
+**Check scan returns no results:** Verify scan_run_id in scan_orchestration, discovery_findings rows, rule_metadata active=true.
+**Network engine 0 findings:** Check rule_metadata.network_security.applicable for CSP rules; check discovery IDs in provider match actual DB IDs.
+**Compliance report empty:** Ensure check_findings exist, rule_control_mapping has mappings, compliance_frameworks has framework.
 
-**Discovery scan fails:**
-1. Check credentials: Verify AWS Secrets Manager contains valid credentials
-2. Check IAM permissions: Ensure role has required read permissions
-3. Review logs: `kubectl logs -f -l app=engine-discoveries`
+## Infrastructure Reference
+- **RDS**: `postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com:5432`
+- **EKS**: `vulnerability-eks-cluster` in `ap-south-1`
+- **Namespace**: `threat-engine-engines`
+- **Argo**: installed in `argo` namespace
+- **ELB**: `a6fff2656f8c845e5a2d8effc1b3e56f-1461670384.ap-south-1.elb.amazonaws.com`
+- **CSPM Portal**: admin@cspm.local / Admin@12345
 
-**Check scan returns no results:**
-1. Verify scan_run_id exists in scan_orchestration table
-2. Check discovery_findings table for resources with that scan_run_id
-3. Validate rule definitions in rule_metadata table
+## External Documentation (`.claude/documentation/`)
+- `INFRASTRUCTURE.md` — AWS/EKS infrastructure details
+- `ARCHITECTURE-DECISIONS.md` — ADRs
+- `SECRETS-CREDENTIALS.md` — Secrets management
+- `DATABASE-SCHEMA.md` — Schema reference
+- `API_REFERENCE_ALL_ENGINES.md` — OpenAPI endpoints
+- `ENGINE-PREREQUISITE-DATA.md` — Seed data, YAML catalogs, ConfigMaps
 
-**Compliance report empty:**
-1. Ensure check_findings exist for that scan_run_id
-2. Verify rule_control_mapping has mappings for framework
-3. Check compliance_frameworks table for framework definition
+## Security Frameworks Constitution
 
-## Important Notes
+These six frameworks are mandatory on all security-relevant work. They are embedded in `bmad-security-architect`, `bmad-security-reviewer`, and `bmad-security-po` agents.
 
-- **Absolute paths**: Each agent session resets working directory
-- **Git status**: Always run before operations to see pending changes
-- **PR reviews**: Complex changes must go through review process
-- **Security reviews**: Changes to auth, secrets, or deployment require security audit
-- **Documentation**: Update this file when architectural decisions change
+| Framework | Scope | Enforced By |
+|-----------|-------|-------------|
+| **OWASP SAMM** (Design/Implementation/Verification) | Every story | bmad-security-architect gate + bmad-security-reviewer checklist |
+| **STRIDE** | Every new engine, endpoint, or DB query | bmad-security-architect threat model |
+| **PASTA** | Engines touching credentials, IAM, network | bmad-security-architect — 7-stage adversary model |
+| **MITRE ATT&CK for Cloud** | Every new finding/check rule | bmad-security-po story template + bmad-security-architect mapping |
+| **MITRE D3FEND** | Validate detection rules have defensive coverage | bmad-security-architect — ATT&CK→D3FEND mapping table |
+| **NIST CSF 2.0** | All engine stories — tag GV/ID/PR/DE/RS/RC | bmad-security-po story template; RS/RC gaps must be filed |
+| **CSA CCM v4** | Every new finding/rule maps to a CCM domain | bmad-security-po story AC + bmad-security-reviewer PR check |
+| **SLSA Level 1-2** | All Docker image builds | bmad-security-reviewer SLSA checklist — pinned base images, no `latest` |
 
-## External Documentation
-
-### Infrastructure & Deployment
-See AWS infrastructure details: @.claude/documentation/INFRASTRUCTURE.md
-See architectural decisions (ADRs): @.claude/documentation/ARCHITECTURE-DECISIONS.md
-See secrets & credentials management: @.claude/documentation/SECRETS-CREDENTIALS.md
-
-### Development Resources
-See database schemas: @.claude/documentation/DATABASE-SCHEMA.md (to be created)
-See deployment guide: @.claude/documentation/DEPLOYMENT.md (to be created)
-See API reference: @.claude/documentation/API-REFERENCE.md (to be created)
-
-### MCP & Setup
-See MCP server setup guide: @.claude/.mcp-setup-guide.md
-
-## Code Examples
-
-See onboarding examples: @.claude/examples/ONBOARDING.md
-See discovery examples: @.claude/examples/DISCOVERY.md
-See threat detection examples: @.claude/examples/THREAT-DETECTION.md
+**How to apply**: Any story touching a new engine, new check rule, new API endpoint, or new DB schema must go through `bmad-security-architect` for design review before dev starts, and `bmad-security-reviewer` after dev completes.

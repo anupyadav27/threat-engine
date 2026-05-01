@@ -9,9 +9,9 @@ Provides:
 """
 
 import os
-import psycopg2
 from typing import Optional
 
+from engine_common.db_connections import get_inventory_conn
 from ..database.connection.database_config import get_database_config
 from ..api.inventory_db_loader import InventoryDBLoader
 
@@ -32,15 +32,7 @@ def _get_loader() -> InventoryDBLoader:
 
 def _get_raw_conn():
     """Return a raw psycopg2 connection to the inventory DB."""
-    db_config = get_database_config("inventory")
-    return psycopg2.connect(
-        host=db_config.host,
-        port=db_config.port,
-        dbname=db_config.database,
-        user=db_config.username,
-        password=db_config.password,
-        connect_timeout=5,
-    )
+    return get_inventory_conn()
 
 
 # ── Graph rendering constants ────────────────────────────────────────────────

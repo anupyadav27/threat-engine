@@ -30,6 +30,44 @@
 
 ---
 
+## Authentication (RBAC — live as of 2026-05-01)
+
+All engine endpoints (except health checks) require authentication via the API Gateway.
+
+### Headers and Cookies
+
+| Mechanism | Details |
+|-----------|---------|
+| `Cookie: access_token=<opaque_hash>` | Sent by the browser. Validated by the gateway against `user_sessions`. |
+| `X-Auth-Context: <base64 JSON>` | Set by the **gateway only** on internal upstream requests. Engines read this header. Clients must NOT set it directly. |
+
+### HTTP Error Codes
+
+| Code | Meaning |
+|------|---------|
+| 401 | Missing cookie, expired session, or revoked token |
+| 403 | Valid session but insufficient permission for the engine, or `tenant_id` not in the user's scope |
+
+### Roles and Permissions
+
+Five roles are seeded in the platform DB (migration 0009):
+
+| Role | Level | Can access |
+|------|-------|-----------|
+| `viewer` | 4 | discoveries/check/threat/inventory/compliance/iam/ciem/network/risk — read only |
+| `analyst` | 4 | all viewer + datasec/secops/vuln/ai_security/encryption/dbsec/container + rules:read |
+| `tenant_admin` | 4 | all analyst + scans:create + users + settings |
+| `org_admin` | 2 | all tenant_admin + scans:delete + tenants:read + rules:write |
+| `platform_admin` | 1 | all permissions including tenants:write |
+
+The gateway builds an `AuthContext` (user_id, email, role, level, permissions[], tenant_ids[])
+and forwards it as `X-Auth-Context` to every engine call. Engines enforce `require_permission()`
+on every endpoint and call `strip_sensitive_fields()` before returning responses.
+
+See `.claude/documentation/RBAC.md` for the full permission matrix and field-stripping table.
+
+---
+
 ## Access URL Patterns
 
 ### External — UI / API clients
@@ -150,6 +188,8 @@ Use the pipeline route for all new integrations.
 
 **Purpose:** Multi-cloud account registration, credential management, and scan scheduling.
 Manages the `cloud_accounts` table and writes to `scan_orchestration`.
+
+**Auth:** `tenants:write` required for account registration; `tenants:read` for listing. viewer: 403 on all write operations.
 
 **Supported providers:** `aws`, `azure`, `gcp`, `oci`, `alicloud`, `ibm`
 
@@ -450,6 +490,8 @@ Content-Type: application/json
 
 **Purpose:** Enumerate cloud resources across 40+ AWS services and write raw findings to the discoveries DB.
 
+**Auth:** requires `discoveries:read`. viewer: `raw_data` and `credential_ref` stripped from responses. analyst: `credential_ref` stripped.
+
 **Supported providers:** `aws` (primary), multi-cloud in progress
 
 **External:** `http://<ELB>/discoveries/...`
@@ -540,6 +582,8 @@ GET http://<ELB>/discoveries/api/v1/discovery/7e3c4d2a-bf91-4f2e-9abc-123456789a
 
 **Purpose:** Evaluate cloud resources against YAML rule definitions. Produces PASS/FAIL findings
 stored in the `threat_engine_check` database.
+
+**Auth:** requires `check:read`. viewer: `evidence` and `credential_ref` stripped. analyst: `credential_ref` stripped.
 
 **Supported providers:** `aws`
 
@@ -654,6 +698,8 @@ GET http://<ELB>/check/api/v1/check/9f2a1b3c-4d5e-6f7a-8b9c-0d1e2f3a4b5c/status
 
 **Purpose:** Normalize discovery findings into structured assets and relationships. Provides
 asset graph queries, drift detection, and account/service summaries.
+
+**Auth:** requires `inventory:read`. viewer: `credential_ref` stripped. No additional field restrictions.
 
 **Supported providers:** `aws`, `azure`, `gcp`, `oci`, `alicloud`, `ibm`
 
@@ -951,6 +997,8 @@ Or pass `discovery_scan_id` directly instead of `orchestration_id`:
 **Purpose:** Map check findings to compliance frameworks and generate compliance reports with
 control-level pass/fail scores.
 
+**Auth:** requires `compliance:read`. No field stripping for any role — all fields visible.
+
 **Supported providers:** `aws`, `azure`, `gcp`
 
 **Supported frameworks:** `cis_aws`, `nist_800_53`, `soc2`, `pci_dss`, `hipaa`, `gdpr`, `iso_27001`, `ccpa`, `aws_well_architected`, `fedramp`, `cmmc`, `swift_csp`, `singapore_mas_trm`
@@ -1121,6 +1169,8 @@ Content-Type: application/json
 **Purpose:** Detect threats, map to MITRE ATT&CK techniques, build attack chains, and provide
 threat intelligence, hunt queries, and blast-radius analysis.
 
+**Auth:** requires `threat:read`. viewer: `credential_ref` stripped. analyst: `credential_ref` stripped.
+
 **Supported providers:** `aws`, `azure`, `gcp`
 
 **External:** `http://<ELB>/threat/...`
@@ -1280,6 +1330,8 @@ Content-Type: application/json
 
 **Purpose:** IAM security posture analysis — detects overprivileged roles, missing MFA,
 weak password policies, and access control misconfigurations. Uses 57 built-in rules.
+
+**Auth:** requires `iam:read`. viewer: `policy_document` and `credential_ref` stripped. analyst: `credential_ref` stripped.
 
 **Supported providers:** `aws`, `azure`, `gcp`
 
@@ -1460,6 +1512,8 @@ Content-Type: application/json
 **Purpose:** Data security posture analysis — detects unencrypted data stores, public access
 misconfigurations, data classification gaps, and residency violations. Uses 62 built-in rules.
 
+**Auth:** requires `datasec:read`. viewer: entire endpoint returns 403. analyst: `finding_data` and `credential_ref` stripped.
+
 **Supported providers:** `aws`, `azure`, `gcp`
 
 **External:** `http://<ELB>/datasec/...`
@@ -1589,6 +1643,8 @@ GET http://<ELB>/datasec/api/v1/data-security/catalog?tenant_id=test-tenant&csp=
 
 **Purpose:** Static analysis security scanning of Infrastructure-as-Code (IaC) across 14 languages.
 Scans Terraform, CloudFormation, Kubernetes manifests, Dockerfiles, and more.
+
+**Auth:** requires `secops:read`. viewer: entire endpoint returns 403. analyst: `credential_ref` stripped. Scan trigger requires `scans:create`.
 
 **External:** `http://<ELB>/secops/...`
 **Internal:** `http://engine-secops:80/...`
@@ -1748,6 +1804,8 @@ GET http://<ELB>/secops/api/v1/secops/scan/sops-20260228-xyz/findings
 **Purpose:** YAML rule management — create, validate, and search compliance rules.
 Internal-only service (no ingress from ELB).
 
+**Auth:** read endpoints require `rules:read`; write/delete endpoints require `rules:write` (org_admin+).
+
 **Internal only:** `http://engine-rule:80/...`
 **ClusterIP:** `10.100.88.168` (port 8011)
 **Database:** Read-only from check engine's rule tables
@@ -1777,6 +1835,8 @@ Internal-only service (no ingress from ELB).
 
 **Purpose:** Central routing and service health aggregation. Also provides orchestration trigger
 and CSP routing configuration.
+
+**Auth:** The gateway itself validates the `access_token` cookie, builds the `AuthContext`, and injects `X-Auth-Context` on all upstream calls. Health endpoints are public. The `/gateway/orchestrate` endpoint requires `scans:create`.
 
 **External:** `http://<ELB>/gateway/...`
 **Internal:** `http://api-gateway:80/...`

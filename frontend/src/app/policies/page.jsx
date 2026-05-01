@@ -12,13 +12,15 @@ import {
   BarChart3,
   AlertTriangle,
 } from 'lucide-react';
-import { getFromEngine } from '@/lib/api';
+import { fetchView } from '@/lib/api';
 import KpiCard from '@/components/shared/KpiCard';
 import FilterBar from '@/components/shared/FilterBar';
 import DataTable from '@/components/shared/DataTable';
 import StatusIndicator from '@/components/shared/StatusIndicator';
 import BarChartComponent from '@/components/charts/BarChartComponent';
 
+
+const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID || 'default-tenant';
 
 /**
  * Enterprise Policy Management Page
@@ -44,12 +46,10 @@ export default function PoliciesPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await getFromEngine('rule', '/api/v1/policies/list', {
-          limit: 100,
-        });
+        const res = await fetchView('policies', { tenant_id: TENANT_ID });
 
-        if (res && !res.error && res.data) {
-          setPolicies(res.data);
+        if (res && !res.error && res.policies) {
+          setPolicies(res.policies);
         } else {
           setError(res?.error || 'Failed to load policies');
         }

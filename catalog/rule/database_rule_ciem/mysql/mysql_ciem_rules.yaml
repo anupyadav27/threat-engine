@@ -1,0 +1,424 @@
+# MYSQL — CIEM Detection Rules
+# Real-time authentication & access event analysis
+# Log source: general_log, error_log
+
+tech_type: mysql
+category: database
+log_source: general_log, error_log
+
+rules:
+
+  - rule_id: tciem.mysql.use_dedicated_least_privileged_account_for_mysql
+    title: "Use Dedicated Least Privileged Account for MySQL Daemon/Service"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '1.2'
+    cis_section: '1'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Create a user which is only used for running MySQL and directly related
+      processes. This user must not have administrative rights to the system.
+      Additionally, it's best to avoid providing shell access to such an account.
+      Shell access can be removed using the following command at a terminal prompt:
+      /usr/sbin/groupadd -g 27 -o -r mysql >/dev/null 2>&1 || : /usr/sbin/useradd -M
+      -N -g mysql -o -r -d /var/lib/mysql -s /bin/false \ -c 'MySQL Server' -u 27
+      mysql >/dev/null 2>&1 || : References: 1.
+      https://dev.mysql.com/doc/refman/8.4/en/changing-mysql-user.html 2.
+      https://dev.mysql.com/doc/refman/8.4/en/server-
+      options.html#option_mysqld_user Additional Information: The root user may be
+      used to start the MySQL service on Linux/UNIX, but then it must be configured
+      to drop privileges by specifying a service specific user in the my.cnf or
+      my.ini file.
+
+  - rule_id: tciem.mysql.interactive_login_is_disabled
+    title: "Ensure Interactive Login is Disabled"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.5'
+    cis_section: '1'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute one of the following commands in a terminal: usermod -s /bin/false
+      mysql Or usermod -s /sbin/nologin mysql
+
+  - rule_id: tciem.mysql.implement_connection_delays_to_limit_failed_login
+    title: "Implement Connection Delays to Limit Failed Login Attempts"
+    severity: high
+    mitre_technique: T1110
+    mitre_tactic: credential_access
+    cis_control: '2.18'
+    cis_section: '2'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: authentication_failure
+      threshold: 5
+      window_seconds: 300
+      group_by: [source_ip, username]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Add the following lines to my.cnf: [mysqld] plugin-load-
+      add=connection_control.so connection-control=FORCE_PLUS_PERMANENT connection-
+      control-failed-login-attempts=FORCE_PLUS_PERMANENT
+      connection_control_failed_connections_threshold=5
+      connection_control_min_connection_delay=60000
+      connection_control_max_connection_delay=1920000 Delays are in milliseconds for
+      server response to failed connection attempt. • 60000 (ms - 1 minute) •
+      1920000 (ms, 32 minutes) For each user set ALTER USER <user>
+      FAILED_LOGIN_ATTEMPTS 12; References: 1.
+      https://dev.mysql.com/doc/refman/8.4/en/connection-control.html
+
+  - rule_id: tciem.mysql.log_bin_basename_files_have_appropriate
+    title: "Ensure 'log_bin_basename' Files Have Appropriate Permissions"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '3.2'
+    cis_section: '3'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following command for each log file location requiring corrected
+      permissions and ownership: chmod 660 <log file> chown mysql:mysql <log file>
+      References: 1. https://dev.mysql.com/doc/refman/8.4/en/password-logging.html
+      2. https://dev.mysql.com/doc/mysql-secure-deployment-guide/8.4/en/secure-
+      deployment-permissions.html
+
+  - rule_id: tciem.mysql.log_error_has_appropriate_permissions
+    title: "Ensure 'log_error' Has Appropriate Permissions"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.3'
+    cis_section: '3'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following command for each log file location requiring corrected
+      permissions and ownership: chmod 600 <log file> chown mysql:mysql <log file>
+      References: 1. https://dev.mysql.com/doc/refman/8.4/en/error-log.html 2.
+      https://dev.mysql.com/doc/mysql-secure-deployment-guide/8.4/en/secure-
+      deployment-permissions.html
+
+  - rule_id: tciem.mysql.slow_query_log_has_appropriate_permissions
+    title: "Ensure 'slow_query_log' Has Appropriate Permissions"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '3.4'
+    cis_section: '3'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Set slow query log to OFF (instead use SYS schema views or query
+      Performance_Schema) SET PERSIST slow_query_log = OFF; If slow query is
+      enabled, execute the following command to correct permissions and ownership:
+      chmod 660 <log file> chown mysql:mysql <log file> Default Value: Slow query
+      log is off by default. References: 1.
+      https://dev.mysql.com/doc/refman/8.4/en/slow-query-log.html
+
+  - rule_id: tciem.mysql.relay_log_basename_files_have_appropriate
+    title: "Ensure 'relay_log_basename' Files Have Appropriate Permissions"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '3.5'
+    cis_section: '3'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following command for each log file location requiring corrected
+      permissions and ownership: chmod 660 <log file> chown mysql:mysql <log file>
+      Default Value: <datadir> + '/' + <hostname> + '-relay-bin'
+
+  - rule_id: tciem.mysql.general_log_file_has_appropriate_permissions
+    title: "Ensure 'general_log_file' Has Appropriate Permissions"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '3.6'
+    cis_section: '3'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      If you can, use MySQL SYS, PERFORMANCE_SCHEMA, or MySQL Auditing as these are
+      more secure options. By default the general_log is disabled (0 or OFF). It's
+      most secure to disable the general_log. To disable the general_log_file: SET
+      PERSIST @@GENERAL_LOG=OFF; If you must use general_log then assure the
+      permissions are correct. Execute the following command for each log file
+      location requiring corrected permissions and ownership: chmod 600
+      <general_log_file> chown mysql:mysql <general_log_file> Default Value: The
+      variable general_log is set to OFF by default. The variable general_log_file
+      is set to <host_name> .log by default. References: 1.
+      https://dev.mysql.com/doc/refman/8.4/en/query-log.html
+
+  - rule_id: tciem.mysql.audit_log_file_has_appropriate_permissions
+    title: "Ensure 'audit_log_file' Has Appropriate Permissions"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '3.9'
+    cis_section: '3'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following commands for the audit_log_file discovered in the audit
+      procedure: chmod 660 <audit_log_file> chown mysql:mysql <audit_log_file>
+
+  - rule_id: tciem.mysql.mysqld_is_not_started_with_skip_grant_tables
+    title: "Ensure 'mysqld' is Not Started With '--skip-grant-tables'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.5'
+    cis_section: '4'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to establish the recommended state: • Open the MySQL
+      configuration (e.g., my.cnf) file and set: skip-grant-tables = FALSE
+      References: 1. http://dev.mysql.com/doc/refman/8.4/en/server-
+      options.html#option_mysqld_skip- grant-tables Additional Information: This
+      option has no SHOW VARIABLES counterpart.
+
+  - rule_id: tciem.mysql.daemon_memcached_plugin_is_disabled
+    title: "Ensure the 'daemon_memcached' Plugin is Disabled"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.7'
+    cis_section: '4'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, issue the following command in the MySQL command-
+      line client: uninstall plugin daemon_memcached; This uninstalls the memcached
+      plugin from the MySQL server. Default Value: disabled References: 1.
+      http://dev.mysql.com/doc/refman/8.4/en/innodb-memcached-security.html
+
+  - rule_id: tciem.mysql.all_events_are_audited
+    title: "Ensure ALL Events are Audited"
+    severity: medium
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '6.6'
+    cis_section: '6'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Create Log All Filter: SELECT audit_log_filter_set_filter('log_all', '{
+      'filter': { 'log': true } }'); Apply to all logins: SELECT
+      audit_log_filter_set_user('%', 'log_all'); References: 1.
+      https://dev.mysql.com/doc/refman/8.4/en/audit-log-filtering.html Additional
+      Information: If an appropriate filter and binding of the filter to users is
+      not in place then audit events related to all events won't be written to the
+      audit log file.
+
+  - rule_id: tciem.mysql.set_audit_log_strategy_to_synchronous_or
+    title: "Set audit_log_strategy to SYNCHRONOUS or SEMISYNCRONOUS"
+    severity: medium
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '6.7'
+    cis_section: '6'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this configuration: 1. Open the MySQL configuration file (my.cnf)
+      2. Navigate to the mysqld section of the configuration file 3. Set
+      audit_log_strategy='SEMISYNCHRONOUS' (or SYNCHRONOUS) Default Value:
+      ASYNCHRONOUS References: 1. https://dev.mysql.com/doc/refman/8.4/en/audit-log-
+      reference.html#sysvar_audit_log_strategy Additional Information: Also consider
+      the load strategy. audit-log= ON, FORCE, or FORCE_PLUS_PERMANENT For example,
+      most secure is to set --audit-log=FORCE_PLUS_PERMANENT This tells the server
+      to load the plugin and prevent it from being removed while the server is
+      running.
+
+  - rule_id: tciem.mysql.audit_plugin_can_t_be_unloaded
+    title: "Ensure the Audit Plugin Can't be Unloaded"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '6.8'
+    cis_section: '6'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, follow these steps: 1. Open the MySQL configuration
+      file (my.cnf) 2. Ensure the following line is found in the mysqld section
+      audit_log = 'FORCE_PLUS_PERMANENT' Default Value: ON References: 1.
+      https://dev.mysql.com/doc/refman/8.4/en/audit-log-
+      reference.html#option_mysqld_audit-log
+
+  - rule_id: tciem.mysql.default_authentication_plugin_is_set_to_a_secure
+    title: "Ensure default_authentication_plugin is Set to a Secure Option"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '7.1'
+    cis_section: '7'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Configure mysql to default to the caching_sha2_password plugin. Require
+      caching_sha2_password plugin to be used by default for new accounts. Edit
+      my.cnf, in the section [mysqld] add:
+      default_authentication_plugin=caching_sha2_password Determine if any users are
+      using mysql_native_password. select host, user, plugin from mysql.user;
+      Migrate these users from mysql_native_password. ALTER USER user IDENTIFIED
+      WITH caching_sha2_password IDENTIFIED BY RANDOM PASSWORD PASSWORD EXPIRE;
+      Provide users the random password value through a secure mechanism - on next
+      login they will be forced to change the password. Default Value: New users
+      default to caching_sha2_password. Migrated users will initially be
+      mysql_native or other authentication method. References: 1.
+      https://dev.mysql.com/doc/refman/8.4/en/upgrading-from-previous-
+      series.html#upgrade-caching-sha2-password-compatibility-issues 2.
+      https://dev.mysql.com/doc/refman/8.4/en/authentication-plugins.html
+
+  - rule_id: tciem.mysql.passwords_are_set_for_all_mysql_accounts
+    title: "Ensure Passwords are Set for All MySQL Accounts"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '7.3'
+    cis_section: '7'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      For each row returned from the audit procedure, reset the password for the
+      given user using the following statement (as an example): ALTER USER
+      <user>@<host> IDENTIFIED BY RANDOM PASSWORD PASSWORD EXPIRE; This resets the
+      password temporarily to a RANDOM string and returns that temporary password as
+      a result. The user can then use this temporary password to login and is forced
+      to set the password to one of their choosing upon login. Note: Replace <user>
+      , <host> with appropriate values. References: 1.
+      https://dev.mysql.com/doc/refman/8.4/en/assigning-passwords.html
+
+  - rule_id: tciem.mysql.no_users_have_wildcard_hostnames
+    title: "Ensure No Users Have Wildcard Hostnames"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '7.6'
+    cis_section: '7'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following actions to remediate this setting: 1. Enumerate all
+      users returned after running the audit procedure. 2. Either ALTER the user's
+      host to be specific or DROP the user.
+
+  - rule_id: tciem.mysql.super_priv_is_not_set_to_y_for_replication_users
+    title: "Ensure 'super_priv' is Not Set to 'Y' for Replication Users"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '9.4'
+    cis_section: '9'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following steps to remediate this setting: 1. Enumerate the
+      replication users found in the result set of the audit procedure 2. For each
+      replication user, issue the following SQL statement (replace repl with your
+      replication user's name): REVOKE SUPER ON *.* FROM 'repl'; Note: Prior to
+      8.0.21 if MySQL Replica Set was used to create the replications administrator
+      (call to dba.configureReplicaSetInstance in MySQL Shell) after performing the
+      above revoke you will need to grant the following dynamic privilege. GRANT
+      REPLICATION_SLAVE_ADMIN ON *.* TO `repl WITH GRANT OPTION; References: 1.
+      https://dev.mysql.com/doc/refman/8.4/en/privileges-provided.html#priv_super 2.
+      https://dev.mysql.com/doc/refman/8.4/en/deploying-innodb-replicasets.html
+

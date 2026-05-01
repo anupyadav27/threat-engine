@@ -1,0 +1,52 @@
+rule_id: aws.dns.query_log.mx_record_lookup
+service: dns
+provider: aws
+check_type: log
+severity: low
+title: 'Route53: Mx Record Lookup'
+description: MX DNS record lookup — mail server discovery.
+rationale: DNS enumeration reveals cloud service hostnames and IP addresses, enabling targeted attack infrastructure mapping and phishing campaign preparation.
+threat_category: discovery
+mitre_tactics:
+- discovery
+mitre_techniques:
+- T1590.002
+risk_score: 25
+resource: route53_zone
+source: default
+is_active: true
+domain: threat_detection
+action_category: create
+log_source_type: 
+posture_category: threat_posture
+threat_tags:
+- T1590.002
+- T1590
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: |
+  1. Review DNS zone transfer settings and restrict access.
+  2. Enable DNS query logging and alert on enumeration patterns.
+  3. Apply DNSSEC on all externally resolvable domains.
+references:
+- https://attack.mitre.org/techniques/T1590/002/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: dns
+    - field: resource_type
+      op: equals
+      value: MX
+version: '1.0'

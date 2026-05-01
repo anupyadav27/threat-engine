@@ -1,0 +1,159 @@
+checks:
+- rule_id: alicloud.alb.deletion.protection
+  for_each: alicloud.alb.deletion
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.alb.hologres_access_control.endpoint_authz_no_anonymous_access
+  for_each: alicloud.alb.hologres_access_control
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.alb.hologres_access_control.endpoint_authz_rbac_least_privilege
+  for_each: alicloud.alb.hologres_access_control
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.alb.hologres_endpoint.endpoint_access_allowed_cidrs_minimized
+  for_each: alicloud.alb.hologres_endpoint
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.alb.hologres_endpoint.endpoint_access_private_only
+  for_each: alicloud.alb.hologres_endpoint
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.alb.hologres_endpoint.endpoint_access_tls_required
+  for_each: alicloud.alb.hologres_endpoint
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.alb.hologres_parameter_group.parameter_group_require_ssl
+  for_each: alicloud.alb.hologres_parameter_group
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.ssl_enabled
+      op: equals
+- rule_id: alicloud.alb.hologres_snapshots.snapshot_cross_region_copy_encrypted
+  for_each: alicloud.alb.hologres_snapshots
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.backup_enabled
+      op: equals
+- rule_id: alicloud.alb.hologres_snapshots.snapshot_encrypted_at_rest_cmek
+  for_each: alicloud.alb.hologres_snapshots
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.kms_key_id
+      op: exists
+- rule_id: alicloud.alb.hologres_snapshots.snapshot_not_publicly_shared
+  for_each: alicloud.alb.hologres_snapshots
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+    - var: item.backup_enabled
+      op: equals
+- rule_id: alicloud.alb.insecure.ssl_ciphers
+  for_each: alicloud.alb.insecure
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.alb.internet.facing
+  for_each: alicloud.cloudfw.DescribeInternetTrafficTrend
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.alb.is.in_multiple_az
+  for_each: alicloud.alb.listener
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.alb.listener.cipher_policy_secure
+  for_each: alicloud.alb.listener
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.alb.listener.facing
+  for_each: alicloud.alb.listener
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.alb.listener.tls_min_1_2
+  for_each: alicloud.alb.listener
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.alb.logging.enabled
+  for_each: alicloud.alb.logging
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.alb.network.lb_access_logs_enabled
+  for_each: alicloud.ack.network_policy
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.alb.network.lb_listener_tls_min_1_2
+  for_each: alicloud.ack.network_policy
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.ssl_enabled
+      op: equals
+    - var: item.min_tls_version
+      op: gte
+- rule_id: alicloud.alb.network.lb_valid_certificate_attached
+  for_each: alicloud.ack.network_policy
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.alb.ssl.listeners
+  for_each: alicloud.actiontrail.oss_bucket_access_logging_enabled
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.alb.target.group_health_check_enabled
+  for_each: alicloud.alb.target
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.alb.target_group.tg_targets_in_private_subnets
+  for_each: alicloud.alb.target_group
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.alb.waf.acl_attached
+  for_each: alicloud.alb.waf
+  conditions:
+    var: item.status
+    op: equals
+    value: Active

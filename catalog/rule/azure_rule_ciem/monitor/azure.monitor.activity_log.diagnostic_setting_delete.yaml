@@ -1,0 +1,85 @@
+rule_id: azure.monitor.activity_log.diagnostic_setting_delete
+service: monitor
+provider: azure
+check_type: log
+severity: critical
+title: 'Monitor: Diagnostic Setting Delete'
+description: Diagnostic setting deleted — resource audit log forwarding to Log Analytics or Storage stopped.
+rationale: 'Adversaries disable or modify cloud logging capabilities to limit visibility into their activities. With sufficient permissions they can disable CloudTrail, delete Azure diagnostic settings, delete log sinks, or modify audit configurations — blinding defenders to all subsequent actions. Detected via: StopLogging, DeleteTrail, UpdateSink, Delete-DiagnosticSetting, license downgrade events, and SaaS audit log disable events.'
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1562.008
+risk_score: 90
+resource: azure_monitor
+source: default
+is_active: true
+domain: logging_monitoring_and_alerting
+action_category: delete
+log_source_type: activity_log
+posture_category: security_posture
+threat_tags:
+- T1562.008
+- T1562
+- defense_evasion
+- log_tampering
+- audit_log
+- monitoring
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: destructive
+  target_type: audit_log
+  blast_radius: resource_group
+  stealth_risk: critical
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 3.1
+  - 3.2
+  - 3.3
+  - 3.4
+  cis_azure_v2:
+  - 5.1
+  - 5.2
+  - 5.3
+  nist_800_53_r5:
+  - AU-2
+  - AU-6
+  - AU-12
+  - SI-4
+  pci_dss_v4:
+  - 10.1
+  - 10.2
+  - 10.3
+  iso_27001_2022:
+  - A.8.15
+  - A.8.16
+  - A.5.28
+detection_events:
+- 'cloudtrail:StopLogging'
+- 'cloudtrail:DeleteTrail'
+- Microsoft.Insights/diagnosticSettings/delete
+- microsoft.aadiam/diagnosticSettings/delete
+- logging.sinks.delete
+remediation: |
+  1. Immediately restore the logging configuration.
+  2. Lock CloudTrail S3 buckets with Object Lock; use immutable Azure Monitor storage.
+  3. Apply SCPs / Azure Policy to prevent logging disruption.
+  4. Configure out-of-band alerting (AWS EventBridge → SNS / Azure Event Grid) for logging changes.
+references:
+- https://attack.mitre.org/techniques/T1562/008/
+- https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-log-file-validation-intro.html
+- https://learn.microsoft.com/en-us/azure/azure-monitor/essentials/diagnostic-settings
+check_config:
+  conditions:
+    all:
+    - field: operation
+      op: equals
+      value: Microsoft.Insights/diagnosticSettings/delete
+  log_source_type: activity_log
+version: '1.0'

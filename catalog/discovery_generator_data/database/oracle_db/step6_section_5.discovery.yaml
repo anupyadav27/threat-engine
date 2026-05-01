@@ -1,0 +1,112 @@
+version: '1.0'
+provider: database
+engine: oracle_db
+category: section_5
+cis_section: '5'
+description: >
+  oracle_db CIS Section 5 — 'EXECUTE' is revoked from 'PUBLIC' on 'Encryption' Packages
+
+discovery:
+
+  - discovery_id: oracle_db.section_5.execute_is_revoked_from_public_on_encryption
+    description: Ensure 'EXECUTE' is revoked from 'PUBLIC' on 'Encryption' Packages
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT TABLE_NAME, PRIVILEGE, GRANTEE FROM DBA_TAB_PRIVS WHERE GRANTEE='PUBLIC' AND PRIVILEGE='EXECUTE' AND TABLE_NAME IN ('DBMS_CRYPTO','DBMS_OBFUSCATION_TOOLKIT', 'DBMS_RANDOM');"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: execute_is_revoked_from_public_on_encryption
+        setting_name: execute_is_revoked_from_public_on_encryption
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: oracle_db.section_5.execute_is_revoked_from_public_on_job_scheduler
+    description: Ensure 'EXECUTE' is revoked from 'PUBLIC' on 'Job Scheduler' Packages
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT TABLE_NAME, PRIVILEGE, GRANTEE FROM DBA_TAB_PRIVS WHERE GRANTEE='PUBLIC' AND PRIVILEGE='EXECUTE' AND TABLE_NAME IN ('DBMS_SCHEDULER','DBMS_JOB');"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: execute_is_revoked_from_public_on_job_scheduler
+        setting_name: execute_is_revoked_from_public_on_job_scheduler
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: oracle_db.section_5.execute_is_revoked_from_public_on_dbms_credential
+    description: Ensure 'EXECUTE' is revoked from 'PUBLIC' on 'DBMS_CREDENTIAL' Package
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT TABLE_NAME, PRIVILEGE, GRANTEE FROM DBA_TAB_PRIVS WHERE GRANTEE='PUBLIC' AND PRIVILEGE='EXECUTE' AND TABLE_NAME = 'DBMS_CREDENTIAL';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: execute_is_revoked_from_public_on_dbms_credential
+        setting_name: execute_is_revoked_from_public_on_dbms_credential
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: oracle_db.section_5.execute_is_not_granted_to_public_on_non_default
+    description: Ensure 'EXECUTE' is not granted to 'PUBLIC' on 'Non- default' Packages
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT TABLE_NAME, PRIVILEGE, GRANTEE FROM DBA_TAB_PRIVS WHERE GRANTEE='PUBLIC' AND PRIVILEGE='EXECUTE' AND TABLE_NAME IN ('DBMS_BACKUP_RESTORE','DBMS_FILE_TRANSFER','DBMS_SYS_SQL','DBMS_REPCAT_SQL_U TL','INITJVMAUX', 'DBMS_AQADM_SYS','DBMS_STREAMS_RPC','DBMS_PRVTAQIM','LTADM', 'DBMS_IJOB','DBMS_PDB_EXEC_SQL');"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: execute_is_not_granted_to_public_on_non_default
+        setting_name: execute_is_not_granted_to_public_on_non_default
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: oracle_db.section_5.any_is_revoked_from_unauthorized_grantee
+    description: Ensure '%ANY%' Is Revoked from Unauthorized 'GRANTEE'
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT GRANTEE, PRIVILEGE FROM DBA_SYS_PRIVS WHERE PRIVILEGE LIKE '%ANY%' AND GRANTEE NOT IN (SELECT USERNAME FROM DBA_USERS WHERE ORACLE_MAINTAINED='Y') AND GRANTEE NOT IN (SELECT ROLE FROM DBA_ROLES WHERE ORACLE_MAINTAINED='Y');"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: any_is_revoked_from_unauthorized_grantee
+        setting_name: any_is_revoked_from_unauthorized_grantee
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: oracle_db.section_5.grant_any_role_is_revoked_from_unauthorized
+    description: Ensure 'GRANT ANY ROLE' Is Revoked from Unauthorized 'GRANTEE'
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT GRANTEE, PRIVILEGE FROM DBA_SYS_PRIVS WHERE PRIVILEGE='GRANT ANY ROLE' AND GRANTEE NOT IN (SELECT USERNAME FROM DBA_USERS WHERE ORACLE_MAINTAINED='Y') AND GRANTEE NOT IN (SELECT ROLE FROM DBA_ROLES WHERE ORACLE_MAINTAINED='Y');"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: grant_any_role_is_revoked_from_unauthorized
+        setting_name: grant_any_role_is_revoked_from_unauthorized
+        value: "{{ result.value }}"
+        expected: ""
+
+

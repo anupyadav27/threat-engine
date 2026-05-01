@@ -129,8 +129,8 @@ def main():
         help="scan_run_id from scan_orchestration table",
     )
     parser.add_argument(
-        "--hierarchy-id", default="588989875114",
-        help="AWS account ID (default: 588989875114)",
+        "--hierarchy-id", required=True,
+        help="Cloud account ID (required)",
     )
     parser.add_argument(
         "--chunks", type=int, default=5,

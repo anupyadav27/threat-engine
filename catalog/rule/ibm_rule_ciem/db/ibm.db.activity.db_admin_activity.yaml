@@ -1,0 +1,48 @@
+rule_id: ibm.db.activity.db_admin_activity
+service: db
+provider: ibm
+check_type: log
+severity: high
+title: 'IBM DB Audit: Privileged Admin Activity'
+description: Privileged database admin activity was recorded in IBM DB audit logs. Unauthorized admin operations can exfiltrate data or modify database schema.
+threat_category: privilege_escalation
+mitre_tactics:
+- privilege_escalation
+mitre_techniques:
+- T1078
+risk_score: 80
+resource: ibm_database_instance
+domain: identity_and_access_management
+action_category: privilege_escalation
+log_source_type: 
+posture_category: iam_posture
+threat_tags:
+- T1078
+- cloud_iam
+- privilege_escalation
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: privilege_change
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: Review and investigate this activity in the IBM Cloud Console and take corrective action.
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_db_audit
+    - field: privilege_used
+      op: in
+      value:
+      - SYSDBA
+      - DBA
+      - SUPERUSER

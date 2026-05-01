@@ -1,0 +1,75 @@
+rule_id: azure.compute.activity_log.vm_run_command
+service: compute
+provider: azure
+check_type: log
+severity: high
+title: 'Compute: Vm Run Command'
+description: VM Run Command executed — arbitrary script executed on virtual machine via Azure management plane.
+rationale: 'Adversaries abuse cloud management services such as AWS Systems Manager (Run Command), Azure VM RunCommand, or Automation Runbooks to execute commands within virtual machines via installed agents — achieving remote code execution through the cloud control plane without requiring network access to the instance. Detected via: SSM RunCommand / Azure RunCommand API calls by unexpected users, command execution outside maintenance windows, and service account-initiated script execution atypical for admin tasks.'
+threat_category: execution
+mitre_tactics:
+- execution
+mitre_techniques:
+- T1651
+risk_score: 82
+resource: azure_vm
+source: default
+is_active: true
+domain: compute_and_workload_security
+action_category: execute
+log_source_type: activity_log
+posture_category: workload_posture
+threat_tags:
+- T1651
+- remote_execution
+- cloud_exec
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: execution
+  target_type: compute_instance
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 3.1
+  - 5.1
+  cis_azure_v2:
+  - 5.1
+  - 6.1
+  nist_800_53_r5:
+  - CM-7
+  - SI-3
+  - AU-12
+  pci_dss_v4:
+  - 6.3
+  - 10.2
+  iso_27001_2022:
+  - A.8.19
+  - A.8.8
+detection_events:
+- 'ssm:SendCommand'
+- Microsoft.Compute/virtualMachines/runCommand/action
+- Microsoft.Automation/automationAccounts/runbooks/publish/action
+- 'ec2:GetConsoleOutput (post-execution evidence gathering)'
+remediation: |
+  1. Restrict Systems Manager Run Command / VM extension write permissions via RBAC.
+  2. Enable logging for all Run Command executions and VM extension deployments.
+  3. Use approved patch management instead of ad-hoc run commands.
+  4. Alert on Run Command / RunShellScript executions by non-standard principals.
+references:
+- https://attack.mitre.org/techniques/T1651/
+- https://docs.aws.amazon.com/systems-manager/latest/userguide/run-command.html
+- https://learn.microsoft.com/en-us/azure/virtual-machines/extensions/overview
+check_config:
+  conditions:
+    all:
+    - field: operation
+      op: equals
+      value: Microsoft.Compute/virtualMachines/runCommand/action
+  log_source_type: activity_log
+version: '1.0'

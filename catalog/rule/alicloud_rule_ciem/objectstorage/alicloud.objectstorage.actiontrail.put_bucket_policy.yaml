@@ -1,0 +1,76 @@
+rule_id: alicloud.objectstorage.actiontrail.put_bucket_policy
+service: objectstorage
+provider: alicloud
+check_type: log
+severity: high
+title: 'AliCloud OSS: Bucket Policy Modified'
+description: An OSS bucket policy was added or updated. Adversaries craft policies
+  that grant cross-account access or allow unauthenticated reads to exfiltrate data.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: data_exfiltration
+mitre_tactics:
+- exfiltration
+mitre_techniques:
+- T1530
+- T1537
+risk_score: 85
+resource: alicloud_oss_bucket
+source: alicloud_ciem_generator
+is_active: true
+domain: data_protection_and_privacy
+action_category: modify
+log_source_type: alicloud_actiontrail
+posture_category: data_security_posture
+threat_tags:
+- T1530
+- T1537
+- exfiltration
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '5.1'
+  - '5.2'
+  nist_800_53_r5:
+  - SC-28
+  - AC-3
+  - AU-9
+  pci_dss_v4:
+  - '3.4'
+  - '3.5'
+  - '6.3'
+  iso_27001_2022:
+  - A.8.10
+  - A.8.24
+remediation: '1. Review the new bucket policy for wildcard principals or public access
+  statements.
+
+  2. Use OSS RAM policy analyzer to verify effective permissions.
+
+  3. Alert on bucket policy changes on buckets containing sensitive data.'
+references:
+- https://attack.mitre.org/techniques/T1530/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: oss
+    - field: operation
+      op: equals
+      value: PutBucketPolicy
+version: '1.0'

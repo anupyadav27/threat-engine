@@ -1,0 +1,22 @@
+version: '1.0'
+provider: k8s
+service: persistentvolume
+services:
+  client: persistentvolume
+  module: kubernetes.client
+discovery:
+- discovery_id: k8s.persistentvolume.list_persistent_volume
+  calls:
+  - action: list_persistent_volume
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+    item:
+      metadata: '{{ item.metadata }}'
+      spec: '{{ item.spec }}'
+      spec.capacity: '{{ item.spec.capacity }}'
+      spec.accessModes: '{{ item.spec.accessModes }}'
+      spec.persistentVolumeReclaimPolicy: '{{ item.spec.persistentVolumeReclaimPolicy }}'
+      spec.storageClassName: '{{ item.spec.storageClassName }}'

@@ -1,0 +1,64 @@
+# discoveries_only_check: 3 kept / 12 removed from 15 total
+# generated_from: step6_workflows.discovery.yaml
+# purpose: only discoveries needed by workflows.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: workflows
+services:
+  client: workflows
+  module: boto3.client
+discovery:
+- discovery_id: aws.workflows.list_activities
+  calls:
+  - action: list_activities
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      activityArn: '{{ response.activityArn }}'
+      creationDate: '{{ response.creationDate }}'
+      encryptionConfiguration: '{{ response.encryptionConfiguration }}'
+      input: '{{ response.input }}'
+      kmsDataKeyReusePeriodSeconds: '{{ response.kmsDataKeyReusePeriodSeconds }}'
+      kmsKeyId: '{{ response.kmsKeyId }}'
+      name: '{{ response.name }}'
+      taskToken: '{{ response.taskToken }}'
+- discovery_id: aws.workflows.list_state_machines
+  calls:
+  - action: list_state_machines
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      creationDate: '{{ response.creationDate }}'
+      definition: '{{ response.definition }}'
+      description: '{{ response.description }}'
+      label: '{{ response.label }}'
+      name: '{{ response.name }}'
+      stateMachineArn: '{{ response.stateMachineArn }}'
+      type: '{{ response.type }}'
+- discovery_id: aws.workflows.describe_state_machine
+  for_each: aws.workflows.list_state_machines
+  calls:
+  - action: describe_state_machine
+    params:
+      stateMachineArn: '{{ item.stateMachineArn }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      definition: '{{ response.definition }}'
+      description: '{{ response.description }}'
+      destinations: '{{ response.destinations }}'
+      includeExecutionData: '{{ response.includeExecutionData }}'
+      label: '{{ response.label }}'
+      level: '{{ response.level }}'
+      loggingConfiguration: '{{ response.loggingConfiguration }}'
+      roleArn: '{{ response.roleArn }}'
+      name: '{{ response.name }}'
+      stateMachineArn: '{{ response.stateMachineArn }}'
+      status: '{{ response.status }}'
+      type: '{{ response.type }}'

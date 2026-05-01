@@ -1,0 +1,273 @@
+version: '1.0'
+provider: technology
+category: db
+tech_type: postgres
+display_name: PostgreSQL
+cis_benchmark: CIS PostgreSQL 15
+
+# action types:
+#   query_setting  → executes "SHOW <param>" — returns single row {param: value}
+#   query_table    → executes full SQL       — returns one or many rows
+#
+# emit_as:
+#   single  → one TechFinding for the whole result (settings, counts)
+#   rows    → one TechFinding per row (users, privileges, hba entries)
+#
+# resource_uid:          static string — for singleton results
+# resource_uid_template: Python .format(**row) — for per-row results
+
+discovery:
+
+  # ── Section 1: Authentication ───────────────────────────────────────────────
+
+  - discovery_id: db.postgres.auth.password_encryption
+    description: "CIS 1.1 — Ensure password_encryption uses scram-sha-256"
+    resource_uid: "postgres.setting.password_encryption"
+    resource_type: postgres.setting
+    action: query_setting
+    sql: "SHOW password_encryption"
+    emit_as: single
+
+  - discovery_id: db.postgres.auth.pg_hba_rules
+    description: "CIS 1.2 — Enumerate pg_hba.conf authentication rules"
+    resource_uid_template: "postgres.hba.{type}.{database}.{user_name}.{address}"
+    resource_type: postgres.hba_rule
+    action: query_table
+    sql: >
+      SELECT type, database::text, user_name::text,
+             address::text, netmask::text, auth_method
+      FROM   pg_hba_file_rules
+      ORDER  BY line_number
+    emit_as: rows
+
+  - discovery_id: db.postgres.auth.superuser_accounts
+    description: "CIS 1.3 — Identify superuser accounts (should be 1: postgres)"
+    resource_uid_template: "postgres.user.{usename}"
+    resource_type: postgres.user
+    action: query_table
+    sql: >
+      SELECT usename, usesuper, usecreatedb, usecreaterole,
+             valuntil, (passwd IS NOT NULL) AS has_password
+      FROM   pg_shadow
+      WHERE  usesuper = true
+    emit_as: rows
+
+  - discovery_id: db.postgres.auth.all_roles
+    description: "Enumerate all roles and their key attributes"
+    resource_uid_template: "postgres.role.{rolname}"
+    resource_type: postgres.role
+    action: query_table
+    sql: >
+      SELECT rolname, rolsuper, rolcreatedb, rolcreaterole,
+             rolinherit, rolcanlogin, rolconnlimit,
+             rolvaliduntil
+      FROM   pg_roles
+      ORDER  BY rolname
+    emit_as: rows
+
+  - discovery_id: db.postgres.auth.role_memberships
+    description: "Enumerate role membership / privilege grants"
+    resource_uid_template: "postgres.grant.{rolname}.{member}"
+    resource_type: postgres.role_grant
+    action: query_table
+    sql: >
+      SELECT r.rolname, m.rolname AS member, a.admin_option
+      FROM   pg_auth_members a
+      JOIN   pg_roles r ON r.oid = a.roleid
+      JOIN   pg_roles m ON m.oid = a.member
+      ORDER  BY r.rolname, m.rolname
+    emit_as: rows
+
+  # ── Section 2: Logging ──────────────────────────────────────────────────────
+
+  - discovery_id: db.postgres.logging.log_connections
+    description: "CIS 3.1 — log_connections should be on"
+    resource_uid: "postgres.setting.log_connections"
+    resource_type: postgres.setting
+    action: query_setting
+    sql: "SHOW log_connections"
+    emit_as: single
+
+  - discovery_id: db.postgres.logging.log_disconnections
+    description: "CIS 3.2 — log_disconnections should be on"
+    resource_uid: "postgres.setting.log_disconnections"
+    resource_type: postgres.setting
+    action: query_setting
+    sql: "SHOW log_disconnections"
+    emit_as: single
+
+  - discovery_id: db.postgres.logging.log_duration
+    description: "CIS 3.3 — log_duration should be on"
+    resource_uid: "postgres.setting.log_duration"
+    resource_type: postgres.setting
+    action: query_setting
+    sql: "SHOW log_duration"
+    emit_as: single
+
+  - discovery_id: db.postgres.logging.log_line_prefix
+    description: "CIS 3.4 — log_line_prefix must include %m %u %d %r"
+    resource_uid: "postgres.setting.log_line_prefix"
+    resource_type: postgres.setting
+    action: query_setting
+    sql: "SHOW log_line_prefix"
+    emit_as: single
+
+  - discovery_id: db.postgres.logging.log_statement
+    description: "CIS 3.5 — log_statement should be ddl or all"
+    resource_uid: "postgres.setting.log_statement"
+    resource_type: postgres.setting
+    action: query_setting
+    sql: "SHOW log_statement"
+    emit_as: single
+
+  - discovery_id: db.postgres.logging.logging_collector
+    description: "Logging collector must be on for file-based audit"
+    resource_uid: "postgres.setting.logging_collector"
+    resource_type: postgres.setting
+    action: query_setting
+    sql: "SHOW logging_collector"
+    emit_as: single
+
+  - discovery_id: db.postgres.logging.log_destination
+    description: "Log destination (stderr / csvlog / syslog)"
+    resource_uid: "postgres.setting.log_destination"
+    resource_type: postgres.setting
+    action: query_setting
+    sql: "SHOW log_destination"
+    emit_as: single
+
+  - discovery_id: db.postgres.logging.pgaudit_installed
+    description: "Check if pgaudit extension is installed"
+    resource_uid: "postgres.extension.pgaudit"
+    resource_type: postgres.extension
+    action: query_table
+    sql: >
+      SELECT name, default_version, installed_version,
+             (installed_version IS NOT NULL) AS is_installed
+      FROM   pg_available_extensions
+      WHERE  name = 'pgaudit'
+    emit_as: single
+
+  # ── Section 3: Encryption ───────────────────────────────────────────────────
+
+  - discovery_id: db.postgres.encryption.ssl_enabled
+    description: "CIS 5.1 — SSL must be enabled"
+    resource_uid: "postgres.setting.ssl"
+    resource_type: postgres.setting
+    action: query_setting
+    sql: "SHOW ssl"
+    emit_as: single
+
+  - discovery_id: db.postgres.encryption.ssl_min_protocol
+    description: "Minimum TLS protocol version"
+    resource_uid: "postgres.setting.ssl_min_protocol_version"
+    resource_type: postgres.setting
+    action: query_setting
+    sql: "SHOW ssl_min_protocol_version"
+    emit_as: single
+
+  - discovery_id: db.postgres.encryption.ssl_ciphers
+    description: "Configured SSL cipher list"
+    resource_uid: "postgres.setting.ssl_ciphers"
+    resource_type: postgres.setting
+    action: query_setting
+    sql: "SHOW ssl_ciphers"
+    emit_as: single
+
+  # ── Section 4: Network ──────────────────────────────────────────────────────
+
+  - discovery_id: db.postgres.network.listen_addresses
+    description: "CIS 6.1 — Restrict listen_addresses (not '*')"
+    resource_uid: "postgres.setting.listen_addresses"
+    resource_type: postgres.setting
+    action: query_setting
+    sql: "SHOW listen_addresses"
+    emit_as: single
+
+  - discovery_id: db.postgres.network.max_connections
+    description: "Maximum client connections"
+    resource_uid: "postgres.setting.max_connections"
+    resource_type: postgres.setting
+    action: query_setting
+    sql: "SHOW max_connections"
+    emit_as: single
+
+  # ── Section 5: Connection Hardening ────────────────────────────────────────
+
+  - discovery_id: db.postgres.hardening.idle_timeout
+    description: "CIS 7.1 — idle_in_transaction_session_timeout should be > 0"
+    resource_uid: "postgres.setting.idle_in_transaction_session_timeout"
+    resource_type: postgres.setting
+    action: query_setting
+    sql: "SHOW idle_in_transaction_session_timeout"
+    emit_as: single
+
+  - discovery_id: db.postgres.hardening.statement_timeout
+    description: "CIS 7.2 — statement_timeout should be > 0"
+    resource_uid: "postgres.setting.statement_timeout"
+    resource_type: postgres.setting
+    action: query_setting
+    sql: "SHOW statement_timeout"
+    emit_as: single
+
+  - discovery_id: db.postgres.hardening.tcp_keepalives
+    description: "TCP keepalive settings for connection hygiene"
+    resource_uid: "postgres.setting.tcp_keepalives_idle"
+    resource_type: postgres.setting
+    action: query_setting
+    sql: "SHOW tcp_keepalives_idle"
+    emit_as: single
+
+  # ── Section 6: Database & Schema Inventory ──────────────────────────────────
+
+  - discovery_id: db.postgres.inventory.databases
+    description: "Enumerate all databases and their access control"
+    resource_uid_template: "postgres.database.{datname}"
+    resource_type: postgres.database
+    action: query_table
+    sql: >
+      SELECT datname, datacl::text, datistemplate,
+             datallowconn, datconnlimit,
+             pg_encoding_to_char(encoding) AS encoding
+      FROM   pg_database
+      WHERE  datistemplate = false
+      ORDER  BY datname
+    emit_as: rows
+
+  - discovery_id: db.postgres.inventory.server_version
+    description: "PostgreSQL server version"
+    resource_uid: "postgres.server.version"
+    resource_type: postgres.server
+    action: query_table
+    sql: "SELECT version(), current_setting('server_version') AS server_version"
+    emit_as: single
+
+  # ── Section 7: Active Session Snapshot (for CIEM correlation) ───────────────
+
+  - discovery_id: db.postgres.sessions.active_connections
+    description: "Current active connections by user and client"
+    resource_uid_template: "postgres.session.{pid}"
+    resource_type: postgres.session
+    action: query_table
+    sql: >
+      SELECT pid, usename, client_addr::text, client_port,
+             backend_start, state, wait_event_type, wait_event,
+             application_name,
+             EXTRACT(EPOCH FROM (NOW() - backend_start))::int AS session_age_seconds
+      FROM   pg_stat_activity
+      WHERE  pid <> pg_backend_pid()
+      ORDER  BY backend_start
+    emit_as: rows
+
+  - discovery_id: db.postgres.sessions.database_stats
+    description: "Database-level connection and error statistics"
+    resource_uid_template: "postgres.dbstat.{datname}"
+    resource_type: postgres.db_stats
+    action: query_table
+    sql: >
+      SELECT datname, numbackends, xact_commit, xact_rollback,
+             deadlocks, conflicts, temp_files, temp_bytes
+      FROM   pg_stat_database
+      WHERE  datname NOT IN ('template0', 'template1')
+      ORDER  BY datname
+    emit_as: rows

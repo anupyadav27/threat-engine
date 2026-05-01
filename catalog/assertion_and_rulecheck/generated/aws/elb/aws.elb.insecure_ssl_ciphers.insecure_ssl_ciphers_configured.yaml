@@ -1,0 +1,14 @@
+version: '1.0'
+rule_id: aws.elb.insecure_ssl_ciphers.insecure_ssl_ciphers_configured
+for_each: aws.elb.describe_load_balancers
+severity: HIGH
+conditions:
+  all:
+  - var: item.ListenerDescriptions[].Listener.SSLCertificateId
+    op: exists
+  - var: item.ListenerDescriptions[].Listener.Protocol
+    op: equals
+    value: HTTPS
+  - var: item.ListenerDescriptions[].PolicyNames
+    op: not_contains
+    value: ELBSecurityPolicy-TLS-1-2-2017-01

@@ -1,0 +1,779 @@
+version: '1.0'
+provider: azure
+service: storage
+checks:
+- rule_id: azure.storage.account.access.key.rotation.check
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.keyCreationTime.key1
+      op: exists
+      value: null
+    - var: item.properties.keyCreationTime.key2
+      op: exists
+      value: null
+    - var: item.properties.keyCreationTime.key1
+      op: lt
+      value: '{{now - 90 days}}'
+    - var: item.properties.keyCreationTime.key2
+      op: lt
+      value: '{{now - 90 days}}'
+- rule_id: azure.storage.account.access.keys.rotation.check
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.keyCreationTime.key1
+      op: exists
+      value: null
+    - var: item.properties.keyCreationTime.key2
+      op: exists
+      value: null
+    - var: item.properties.keyCreationTime.key1
+      op: lt
+      value: '{{now - 90 days}}'
+    - var: item.properties.keyCreationTime.key2
+      op: lt
+      value: '{{now - 90 days}}'
+- rule_id: azure.storage.account.allow.blob.anonymous.access.disabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.allow_blob_public_access
+    op: is_false
+    value: null
+- rule_id: azure.storage.account.blob.anonymous.access.disabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.allow_blob_public_access
+    op: is_false
+    value: null
+- rule_id: azure.storage.account.blob.logging.read.write.delete.enabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.blobServiceProperties.properties.containerDeleteRetentionPolicy.enabled
+      op: is_true
+      value: null
+    - var: item.properties.blobServiceProperties.properties.deleteRetentionPolicy.enabled
+      op: is_true
+      value: null
+- rule_id: azure.storage.account.blob.soft.delete.enabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.deleteRetentionPolicy.enabled
+    op: is_true
+    value: null
+- rule_id: azure.storage.account.blob.versioning.check
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.isVersioningEnabled
+    op: is_true
+    value: null
+- rule_id: azure.storage.account.blob.versioning.enabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.isVersioningEnabled
+    op: is_true
+    value: null
+- rule_id: azure.storage.account.cannot.delete.lock.applied
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.containerDeleteRetentionPolicy.enabled
+    op: is_true
+    value: null
+- rule_id: azure.storage.account.cannot.delete.lock.check
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.lock
+    op: exists
+    value: null
+- rule_id: azure.storage.account.cross.tenant.replication.disabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.allow_cross_tenant_replication
+    op: is_false
+    value: null
+- rule_id: azure.storage.account.data_protection_bucket_access_logging_enabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.isAzureFilesAadIntegrationEnabled
+    op: is_true
+    value: null
+- rule_id: azure.storage.account.data_protection_bucket_block_public_access_enabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.allow_blob_public_access
+    op: is_false
+    value: null
+- rule_id: azure.storage.account.data_protection_bucket_cmk_cmek_configured
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption.key_source
+    op: equals
+    value: Microsoft.Keyvault
+- rule_id: azure.storage.account.data_protection_bucket_encryption_at_rest_enabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption.services.blob.enabled
+    op: is_true
+    value: null
+- rule_id: azure.storage.account.data_protection_bucket_notification_cross_destinations_restricted
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.restrictCrossDestinationDataMovement
+    op: is_true
+    value: null
+- rule_id: azure.storage.account.data_protection_bucket_notification_destination_encrypted
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.encryption.services.blob.enabled
+      op: is_true
+      value: null
+    - var: item.encryption.services.file.enabled
+      op: is_true
+      value: null
+- rule_id: azure.storage.account.data_protection_bucket_notification_destination_least_privilege
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.dataProtection.blobRestoreStatus
+    op: exists
+    value: null
+- rule_id: azure.storage.account.data_protection_bucket_policy_denies_public_and_insecure
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.allow_blob_public_access
+      op: is_false
+      value: null
+    - var: item.minimum_tls_version
+      op: equals
+      value: TLS1_2
+- rule_id: azure.storage.account.data_protection_bucket_policy_deny_insecure_transport
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.enable_https_traffic_only
+    op: is_true
+    value: null
+- rule_id: azure.storage.account.data_protection_bucket_policy_deny_unencrypted_puts
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.allow_blob_public_access
+    op: is_false
+    value: null
+- rule_id: azure.storage.account.data_protection_bucket_policy_no_public_principals
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.allow_blob_public_access
+    op: is_false
+    value: null
+- rule_id: azure.storage.account.data_protection_bucket_policy_no_wildcards_on_actions_or_principals
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.policies[].policy.rules[].actions[].action
+      op: not_contains
+      value: '*'
+    - var: item.properties.policies[].policy.rules[].actions[].principal
+      op: not_contains
+      value: '*'
+- rule_id: azure.storage.account.data_protection_bucket_require_tls_in_transit
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.minimum_tls_version
+    op: in
+    value:
+    - TLS1_2
+    - TLS1_3
+- rule_id: azure.storage.account.data_protection_bucket_versioning_enabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.isVersioningEnabled
+    op: is_true
+    value: null
+- rule_id: azure.storage.account.default.network.access.rule.set.to.deny
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.network_rule_set.default_action
+    op: equals
+    value: Deny
+- rule_id: azure.storage.account.default.to.microsoft.entra.authorization.enabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.defaultToMicrosoftEntraAuthorization
+    op: is_true
+    value: null
+- rule_id: azure.storage.account.disable.shared.key.access.check
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.allowSharedKeyAccess
+    op: is_false
+    value: null
+- rule_id: azure.storage.account.encryption.at.rest.microsoft.managed.keys.enabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption.key_source
+    op: equals
+    value: Microsoft.Storage
+- rule_id: azure.storage.account.encryption.at.rest.with.cmk
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption.key_source
+    op: equals
+    value: Microsoft.Keyvault
+- rule_id: azure.storage.account.encryption.cmk.check
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption.key_source
+    op: equals
+    value: Microsoft.Keyvault
+- rule_id: azure.storage.account.encryption.with.customer.managed.keys
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption.key_source
+    op: equals
+    value: Microsoft.Keyvault
+- rule_id: azure.storage.account.file.shares.soft.delete.retention.policy
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.shareDeleteRetentionPolicy.enabled
+    op: is_true
+    value: null
+- rule_id: azure.storage.account.geo.redundancy.check
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.redundancy
+    op: in
+    value:
+    - GRS
+    - RA-GRS
+    - GZRS
+    - RA-GZRS
+- rule_id: azure.storage.account.geo_redundant
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.redundancyMode
+    op: equals
+    value: GeoRedundant
+- rule_id: azure.storage.account.https.traffic.only.check
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.enable_https_traffic_only
+    op: is_true
+    value: null
+- rule_id: azure.storage.account.infrastructure.encryption.enabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption.services.blob.enabled
+    op: is_true
+    value: null
+- rule_id: azure.storage.account.key.rotation.reminder.enabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.keyCreationTime.key1
+    op: exists
+    value: null
+- rule_id: azure.storage.account.minimum.tls.version
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.minimum_tls_version
+    op: equals
+    value: TLS1_2
+- rule_id: azure.storage.account.network.access.deny.by.default.check
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.network_rule_set.default_action
+    op: equals
+    value: Deny
+- rule_id: azure.storage.account.network.access.public.disabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.network_rule_set.default_action
+    op: not_equals
+    value: Allow
+- rule_id: azure.storage.account.network.bypass.azure.services.enabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.networkRuleSet.bypass
+    op: not_contains
+    value: AzureServices
+- rule_id: azure.storage.account.network.rule.trusted.services.check
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.network_rule_set.default_action
+      op: equals
+      value: Deny
+    - var: item.network_rule_set.bypass
+      op: not_contains
+      value: AzureServices
+- rule_id: azure.storage.account.private.endpoint.approved
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.privateEndpointConnections[].properties.privateLinkServiceConnectionState.status
+    op: contains
+    value: Approved
+- rule_id: azure.storage.account.public.network.access.disabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.publicNetworkAccess
+    op: equals
+    value: Disabled
+- rule_id: azure.storage.account.readonly.lock.check
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.readOnly
+    op: is_true
+    value: null
+- rule_id: azure.storage.account.readonly.lock.compliance.check
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.allow_blob_public_access
+    op: is_false
+    value: null
+- rule_id: azure.storage.account.redundancy.check.geo.redundant
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.redundancy
+    op: in
+    value:
+    - GeoRedundant
+    - GeoZoneRedundant
+- rule_id: azure.storage.account.sas.https.only
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.allow_blob_public_access
+    op: is_false
+    value: null
+- rule_id: azure.storage.account.secure.transfer.enabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.enable_https_traffic_only
+    op: is_true
+    value: null
+- rule_id: azure.storage.account.secure_transport_policy
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.enable_https_traffic_only
+    op: is_true
+    value: null
+- rule_id: azure.storage.account.shared.key.access.disabled.check
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.allowSharedKeyAccess
+    op: is_false
+    value: null
+- rule_id: azure.storage.account.smb.channel.encryption.in.transit
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.protocolSettings.smb.channelEncryption
+    op: exists
+    value: null
+- rule_id: azure.storage.account.smb.channel.encryption.in.transit.aes256gcm
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.protocolSettings.smb.channelEncryption
+    op: equals
+    value: AES-256-GCM
+- rule_id: azure.storage.account.smb.minimum.version.enforcement
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.protocolSettings.smb.versions
+    op: contains
+    value: SMB3.1.1
+- rule_id: azure.storage.account.smb.protocol.version.check
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.protocolSettings.smb.versions[]
+    op: not_contains
+    value: SMB1
+- rule_id: azure.storage.account.soft.delete.configuration.check
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.deleteRetentionPolicy.enabled
+    op: is_true
+    value: null
+- rule_id: azure.storage.account.table.service.logging.rw.delete.enabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.tableServiceConfiguration.logging.delete
+      op: exists
+      value: null
+    - var: item.properties.tableServiceConfiguration.logging.delete.enabled
+      op: is_true
+      value: null
+- rule_id: azure.storage.accounts.private.endpoints.verification
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.privateEndpointConnections[].properties.privateLinkServiceConnectionState.status
+      op: contains
+      value: Approved
+    - var: item.properties.privateEndpointConnections[].properties.provisioningState
+      op: contains
+      value: Succeeded
+- rule_id: azure.storage.blob.data_protection_object_encrypted_at_rest
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption.services.blob.enabled
+    op: is_true
+    value: null
+- rule_id: azure.storage.blob.data_protection_object_not_publicly_readable
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.allow_blob_public_access
+      op: is_false
+      value: null
+    - var: item.properties.allowSharedKeyAccess
+      op: is_false
+      value: null
+- rule_id: azure.storage.blob.data_protection_object_object_lock_or_immutability_enabled_where_supported
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.immutableStorageWithVersioning.enabled
+      op: is_true
+      value: null
+    - var: item.properties.immutableStorageWithVersioning.immutabilityPolicy.state
+      op: exists
+      value: null
+- rule_id: azure.storage.bucket.object.versioning
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.isVersioningEnabled
+    op: is_true
+    value: null
+- rule_id: azure.storage.container.locked.immutability.policy.enabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.immutableStorageWithVersioning.enabled
+    op: is_true
+    value: null
+- rule_id: azure.storage.disk.data_protection_volume_cmk_cmek_configured
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryption.diskEncryptionSetId
+    op: exists
+    value: null
+- rule_id: azure.storage.disk.data_protection_volume_encryption_at_rest_enabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption.services.blob.enabled
+    op: is_true
+    value: null
+- rule_id: azure.storage.disk.data_protection_volume_snapshots_encrypted
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption.services.blob.enabled
+    op: is_true
+    value: null
+- rule_id: azure.storage.file.share.soft.delete.enabled
+  for_each: azure.storage.fileshares.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.shareDeleteRetentionPolicy.enabled
+    op: is_true
+    value: null
+- rule_id: azure.storage.file_share.data_protection_fileshare_encryption_at_rest_enabled
+  for_each: azure.storage.fileshares.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryption
+    op: exists
+    value: null
+- rule_id: azure.storage.file_share.data_protection_fileshare_kms_key_policy_least_privilege
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.encryption.services.file.keyType
+      op: equals
+      value: Account
+    - var: item.encryption.services.file.enabled
+      op: is_true
+      value: null
+- rule_id: azure.storage.file_share.data_protection_fileshare_private_network_only
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.network_rule_set.default_action
+      op: equals
+      value: Deny
+    - var: item.network_rule_set.virtual_network_rules[].id
+      op: exists
+      value: null
+- rule_id: azure.storage.file_share.data_protection_fileshare_snapshots_enabled
+  for_each: azure.storage.fileshares.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.protectionPolicy.policy.snapshot.snapshot
+    op: exists
+    value: null
+- rule_id: azure.storage.nfs.root.squash.check
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.protocolSettings.nfsV3.rootSquash
+    op: exists
+    value: null
+- rule_id: azure.storage.private.endpoint.presence.and.configuration.check
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.privateEndpointConnections[].properties.privateEndpoint.id
+      op: exists
+      value: null
+    - var: item.properties.privateEndpointConnections[].properties.privateLinkServiceConnectionState.status
+      op: equals
+      value: Approved
+- rule_id: azure.storage.queue.data_protection_auth_required
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.queueServices.queueServiceProperties.properties.queueAnalyticsLogging.delete
+    op: is_true
+    value: null
+- rule_id: azure.storage.queue.data_protection_cross_account_send_receive_restricted
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.restrictCrossTenantReplication
+    op: is_true
+    value: null
+- rule_id: azure.storage.queue.data_protection_encryption_at_rest_enabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryption.services.queue.enabled
+    op: is_true
+    value: null
+- rule_id: azure.storage.queue.data_protection_private_network_only_where_supported
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.network_rule_set.default_action
+      op: equals
+      value: Deny
+    - var: item.network_rule_set.virtual_network_rules[].state
+      op: contains
+      value: Succeeded
+- rule_id: azure.storage.queue.logging.read.write.delete.enabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.queueLogging.read.enabled
+      op: is_true
+      value: null
+    - var: item.properties.queueLogging.write.enabled
+      op: is_true
+      value: null
+    - var: item.properties.queueLogging.delete.enabled
+      op: is_true
+      value: null
+- rule_id: azure.storage.s3.dataevents.read.enabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.isSftpEnabled
+    op: is_false
+    value: null
+- rule_id: azure.storage.s3.dataevents.write.enabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.isDataEventsEnabled
+    op: is_true
+    value: null
+- rule_id: azure.storage.sas.expiration.check
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.sasPolicy.sasExpirationPeriod
+    op: exists
+    value: null
+- rule_id: azure.storage.sas.https.only.check
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.allow_blob_public_access
+    op: is_false
+    value: null
+- rule_id: azure.storage.sas.linked.to.stored.access.policy
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.sasPolicy
+    op: exists
+    value: null
+- rule_id: azure.storage.sas.policy.compliance.check
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.sasPolicy
+    op: exists
+    value: null
+- rule_id: azure.storage.sas.token.expiration.check
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.sasPolicy.sasExpirationPeriod
+    op: exists
+    value: null
+- rule_id: azure.storage.snapshot.data_protection_cross_region_copy_encrypted
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption.services.blob.enabled
+    op: is_true
+    value: null
+- rule_id: azure.storage.snapshot.data_protection_encrypted
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption.services.blob.enabled
+    op: is_true
+    value: null
+- rule_id: azure.storage.snapshot.data_protection_not_public
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.allow_blob_public_access
+    op: is_false
+    value: null
+- rule_id: azure.storage.table.data_protection_encryption_at_rest_enabled
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption.services.table.enabled
+    op: is_true
+    value: null
+- rule_id: azure.storage.table.data_protection_global_cross_region_replication_encrypted
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.encryption.services.table.enabled
+      op: is_true
+      value: null
+    - var: item.encryption.services.table.keyType
+      op: equals
+      value: Account
+- rule_id: azure.storage.table.data_protection_global_encryption_at_rest_all_regions
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.encryption.services.table.enabled
+      op: is_true
+      value: null
+- rule_id: azure.storage.table.data_protection_global_pitr_enabled_where_supported
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.isPointInTimeRestoreEnabled
+    op: is_true
+    value: null
+- rule_id: azure.storage.table.data_protection_private_network_only_where_supported
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.network_rule_set.default_action
+      op: equals
+      value: Deny
+    - var: item.network_rule_set.virtual_network_rules[].state
+      op: contains
+      value: succeeded
+- rule_id: azure.storage.table.data_protection_rbac_least_privilege
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.azureFilesIdentityBasedAuthentication
+    op: exists
+    value: null
+- rule_id: azure.storage.threat_custom_identifier.storage_encrypted
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption.services.blob.enabled
+    op: is_true
+    value: null
+- rule_id: azure.storage.threat_ip_set.storage_encrypted
+  for_each: azure.storage.storageaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption.services.blob.enabled
+    op: is_true
+    value: null

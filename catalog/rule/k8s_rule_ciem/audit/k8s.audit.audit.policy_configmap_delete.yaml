@@ -1,0 +1,88 @@
+rule_id: k8s.audit.audit.policy_configmap_delete
+service: audit
+provider: k8s
+check_type: log
+severity: high
+title: 'Audit: Audit Policy ConfigMap Deleted'
+description: ConfigMap containing K8s audit policy deleted — audit logging rules destroyed, potentially disabling audit log capture for sensitive resource categories.
+rationale: 'Adversaries disable or modify cloud logging capabilities to limit visibility into their activities. With sufficient permissions they can disable CloudTrail, delete Azure diagnostic settings, delete log sinks, or modify audit configurations — blinding defenders to all subsequent actions. Detected via: StopLogging, DeleteTrail, UpdateSink, Delete-DiagnosticSetting, license downgrade events, and SaaS audit log disable events.'
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1562.008
+risk_score: 88
+resource: k8s_configmap
+source: default
+is_active: true
+domain: logging_monitoring_and_alerting
+action_category: delete
+posture_category: security_posture
+threat_tags:
+- T1562.008
+- T1562
+- defense_evasion
+- log_tampering
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: destructive
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: critical
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_k8s_v1:
+  - 3.2.1
+  - 3.2.2
+  - 4.2.1
+  nist_800_53_r5:
+  - AU-2
+  - AU-6
+  - AU-12
+  - SI-4
+  pci_dss_v4:
+  - 10.1
+  - 10.2
+  - 10.3
+  iso_27001_2022:
+  - A.8.15
+  - A.8.16
+  - A.5.28
+detection_events:
+- 'cloudtrail:StopLogging'
+- 'cloudtrail:DeleteTrail'
+- Microsoft.Insights/diagnosticSettings/delete
+- microsoft.aadiam/diagnosticSettings/delete
+- logging.sinks.delete
+remediation: |
+  1. Immediately restore the deleted webhook configuration or network policy.
+  2. Apply RBAC to restrict deletion of admission webhooks and audit policies to cluster-admin only.
+  3. Enable Falco rules to alert on webhook configuration deletion and network policy removal.
+  4. Use GitOps (ArgoCD/Flux) to detect and restore unauthorized configuration drift.
+  5. Configure out-of-band audit log export before admission webhook changes take effect.
+references:
+- https://attack.mitre.org/techniques/T1562/008/
+- https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: k8s_audit
+    - field: resource
+      op: equals
+      value: configmaps
+    - field: verb
+      op: equals
+      value: delete
+    - field: namespace
+      op: equals
+      value: kube-system
+    - field: resource_name
+      op: contains
+      value: audit
+version: '1.0'

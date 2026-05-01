@@ -1,0 +1,92 @@
+rule_id: aws.compute.cloudtrail.ec2_import_key_pair
+service: compute
+provider: aws
+check_type: log
+severity: high
+title: 'Compute: EC2 Import Key Pair'
+description: EC2 key pair imported — externally-controlled SSH credential added to account.
+rationale: Private keys embedded in code repositories, CI/CD pipelines, or cloud storage can be harvested to authenticate as services or users.
+threat_category: persistence
+mitre_tactics:
+- persistence
+mitre_techniques:
+- T1552.004
+risk_score: 72
+resource: ec2_instance
+source: default
+is_active: true
+domain: compute_and_workload_security
+action_category: create
+log_source_type: 
+posture_category: iam_posture
+threat_tags:
+- T1552.004
+- T1552
+- persistence
+- backdoor
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: compute_instance
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: true
+  modules:
+  - secrets_management
+  categories:
+  - sensitive_data_access
+  priority: high
+  impact:
+    pci: PCI DSS Requirement 12.3 — Implement security awareness program and protect systems
+    gdpr: GDPR Article 32 — Appropriate technical and organizational measures for data security
+    hipaa: §164.306(a) — Ensure confidentiality, integrity, and availability of ePHI
+  sensitive_data_context: |
+  Unauthorized persistence on compute resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.1
+  - 1.4
+  - 1.16
+  cis_azure_v2:
+  - 1.1
+  - 2.1
+  - 2.9
+  nist_800_53_r5:
+  - AC-2
+  - AC-6
+  - IA-2
+  - SC-7
+  pci_dss_v4:
+  - 7.1
+  - 8.2
+  - 10.2
+  iso_27001_2022:
+  - A.8.2
+  - A.9.2
+  - A.5.18
+remediation: |
+  1. Rotate all affected private keys immediately.
+  2. Scan source code and build artifacts for private key patterns.
+  3. Use HSM-backed key storage (AWS KMS / Azure Key Vault HSM).
+  4. Enforce automated secret scanning in all CI/CD pipelines.
+references:
+- https://attack.mitre.org/techniques/T1552/004/
+- https://docs.aws.amazon.com/kms/latest/developerguide/overview.html
+check_config:
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: ImportKeyPair
+version: '1.0'

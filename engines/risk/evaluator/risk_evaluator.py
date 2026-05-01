@@ -64,10 +64,31 @@ class RiskEvaluator:
 
         # 3. Compute FAIR scenario for each finding
         from engines.risk.models.fair_model import compute_scenario
+        from engines.risk.blast_radius.neo4j_traversal import compute_blast_radius_batch
+
+        # Deduplicate resource UIDs to avoid N Neo4j round-trips for identical assets
+        # Many findings share the same resource (e.g. 50 check rules all fail on one RDS instance)
+        unique_uids: list = list({
+            (finding.get("asset_arn") or finding.get("asset_id") or "")
+            for finding in findings
+        })
+        logger.info("Computing blast radius for %d unique resource UIDs (%d total findings)",
+                    len(unique_uids), len(findings))
+
+        # Batch Neo4j queries with a single driver (reused across all UIDs)
+        blast_radius_cache: Dict[str, Dict[str, Any]] = compute_blast_radius_batch(unique_uids)
 
         scenarios: List[Dict[str, Any]] = []
         for finding in findings:
             scenario = compute_scenario(finding, model_config)
+
+            # Neo4j blast radius — ONLY place in the platform that sets non-zero score
+            # Falls back to 0 if Neo4j is unreachable or graph is empty
+            resource_uid = finding.get("asset_arn") or finding.get("asset_id") or ""
+            br = blast_radius_cache.get(resource_uid, {"blast_radius_score": 0, "sample_targets": []})
+            scenario["blast_radius_score"] = br["blast_radius_score"]
+            scenario["blast_radius_sample"] = br["sample_targets"]
+
             scenarios.append(scenario)
 
         # 4. Write scenarios to risk_scenarios

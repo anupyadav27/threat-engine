@@ -43,8 +43,11 @@ def create_tenant(data: Dict[str, Any]) -> Dict[str, Any]:
         result = dict(cur.fetchone())
         conn.commit()
         return result
-    except psycopg2.errors.UniqueViolation:
+    except psycopg2.errors.UniqueViolation as exc:
         conn.rollback()
+        detail = str(exc)
+        if "tenant_id" in detail or "pkey" in detail:
+            raise ValueError(f"Tenant with id '{data['tenant_id']}' already exists.")
         raise ValueError(
             f"Tenant '{data['tenant_name']}' already exists for this customer."
         )

@@ -1,0 +1,146 @@
+# PALO_ALTO — CIEM Detection Rules
+# Real-time authentication & access event analysis
+# Log source: syslog, Panorama
+
+tech_type: palo_alto
+category: networking
+log_source: syslog, Panorama
+
+rules:
+
+  - rule_id: tciem.palo_alto.login_banner_is_set
+    title: "Ensure 'Login Banner' is set"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.1.2'
+    cis_section: '1'
+    log_source: "syslog, Panorama"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Navigate to Device > Setup > Management > General Settings. Set Login Banner
+      as appropriate for your organization. Default Value: Not configured
+      References: 1. “PAN-OS Administrator's Guide 11.1 (English) - Configuring
+      Logon Banners” - https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-
+      admin/firewall- administration/use-the-web-interface/configure-banners-
+      message-of-the-day- and-logos
+
+  - rule_id: tciem.palo_alto.failed_attempts_and_lockout_time_for
+    title: "Ensure 'Failed Attempts' and 'Lockout Time' for Authentication Profile are properly configured"
+    severity: high
+    mitre_technique: T1110
+    mitre_tactic: credential_access
+    cis_control: '1.4.2'
+    cis_section: '1'
+    log_source: "syslog, Panorama"
+    detection:
+      event_type: authentication_failure
+      threshold: 5
+      window_seconds: 300
+      group_by: [source_ip, username]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Navigate to Device > Authentication Profile. Set Failed Attempts to the non-
+      zero organization-defined value. Set Lockout Time to the non-zero
+      organization-defined value. Default Value: Not configured References: 1. “PAN-
+      OS Administrator's Guide 11.1 (English) - Device - Setup - Management” -
+      https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-web-interface-
+      help/device/device-setup-management# 2. “PAN-OS Administrator's Guide 11.1
+      (English) - Authentication Profile' - https://docs.paloaltonetworks.com/pan-
+      os/11-1/pan-os-web-interface- help/device/device-authentication-profile
+      Additional Information: Both values must be set. If either value is not set,
+      account lockout does not occur.
+
+  - rule_id: tciem.palo_alto.user_id_is_only_enabled_for_internal_trusted
+    title: "Ensure that User-ID is only enabled for internal trusted interfaces"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.3'
+    cis_section: '2'
+    log_source: "syslog, Panorama"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Navigate to Network > Network Profiles > Interface Management. Set User-ID to
+      be checked only for interfaces that are both internal and trusted; uncheck it
+      for all other interfaces. Default Value: By default WMI probing and all User-
+      ID functions are disabled. References: 1. “Customer advisory: Security Impact
+      of User-ID Misconfiguration” - https://live.paloaltonetworks.com/docs/DOC-8125
+      2. “R7-2014-16: Palo Alto Networks User-ID Credential Exposure” -
+      https://blog.rapid7.com/2014/10/14/palo-alto-networks-userid-credential-
+      exposure/ 3. “Best Practices for Securing User-ID Deployments” -
+      https://live.paloaltonetworks.com/docs/DOC-7912 4. “User-ID Best Practices” -
+      https://live.paloaltonetworks.com/docs/DOC-6591 5. “PAN-OS Administrator's
+      Guide 11.1 (English) - Client Probing' -
+      https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-admin/user-id/user-id-
+      concepts/user-mapping/client-probing
+
+  - rule_id: tciem.palo_alto.the_user_id_service_account_does_not_have
+    title: "Ensure that the User-ID service account does not have interactive logon rights"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.6'
+    cis_section: '2'
+    log_source: "syslog, Panorama"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Navigate to Active Directory Group Policies. Set Group Policies to restrict
+      the interactive logon privilege for the User-ID service account. or Navigate
+      to Active Directory Managed Service Accounts. Set Managed Service Accounts to
+      restrict the interactive logon privilege for the User-ID service account.
+      Default Value: Not configured References: 1. “Best Practices for Securing
+      User-ID Deployments” - https://live.paloaltonetworks.com/docs/DOC-7912 2.
+      “PAN-OS Administrator's Guide 11.1 (English) - Configure User Mapping Using
+      the Windows User-ID Agent” - https://docs.paloaltonetworks.com/pan-os/11-
+      1/pan-os-admin/user-id/map-ip-addresses-to-users/configure-user-mapping-
+      using-the-windows-user-id-agent 3. “PAN-OS Administrator's Guide 11.1
+      (English) - Configure User Mapping Using the PAN-OS Integrated User-ID Agent”
+      - https://docs.paloaltonetworks.com/pan- os/11-1/pan-os-admin/user-id/map-ip-
+      addresses-to-users/configure-user- mapping-using-the-pan-os-integrated-user-
+      id-agent 4. “User-ID Best Practices” -
+      https://live.paloaltonetworks.com/docs/DOC-6591
+
+  - rule_id: tciem.palo_alto.access_to_every_url_is_logged
+    title: "Ensure that access to every URL is logged"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '6.10'
+    cis_section: '6'
+    log_source: "syslog, Panorama"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Navigate to Objects > Security Profiles > URL Filtering. For each permitted
+      category, set the Site Access actioun to alert Default Value: A default URL
+      Filtering Security Profile is configured, with the following categories set to
+      'block': abused-drugs adult gambling hacking malware phishing questionable
+      weapons 3 Categories are set to alert in the default policy, and 58 Categories
+      are set to allow (which means they are not logged) References: 1. “PAN-OS
+      Administrator's Guide 11.1 (English) - URL Filtering Best Practices' -
+      https://docs.paloaltonetworks.com/advanced-url-
+      filtering/administration/configuring-url-filtering/url-filtering-best-
+      practices 2. “PAN-OS Administrator's Guide 9.0 (English) - URL Filtering” -
+      https://docs.paloaltonetworks.com/pan-os/9-0/pan-os-admin/url-filtering.html
+

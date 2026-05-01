@@ -8,28 +8,17 @@ GET /api/v1/encryption/remediations
 """
 
 import logging
-import os
 import json
 from typing import Any, Dict, List, Optional
 
-import psycopg2
 from psycopg2.extras import RealDictCursor
 from fastapi import APIRouter, Query, HTTPException
+
+from engine_common.db_connections import get_encryption_conn
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["dependencies"])
-
-
-def _get_encryption_conn():
-    return psycopg2.connect(
-        host=os.getenv("ENCRYPTION_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("ENCRYPTION_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("ENCRYPTION_DB_NAME", "threat_engine_encryption"),
-        user=os.getenv("ENCRYPTION_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("ENCRYPTION_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        connect_timeout=10,
-    )
 
 
 def _resolve_latest_scan(cur, tenant_id: str) -> Optional[str]:
@@ -52,7 +41,7 @@ async def get_key_dependencies(
     """Get all resources that depend on a KMS key."""
     conn = None
     try:
-        conn = _get_encryption_conn()
+        conn = get_encryption_conn()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             scan_run_id = _resolve_latest_scan(cur, tenant_id) if scan_id == "latest" else scan_id
             if not scan_run_id:
@@ -130,7 +119,7 @@ async def get_key_blast_radius(
     """Get blast radius analysis for a KMS key."""
     conn = None
     try:
-        conn = _get_encryption_conn()
+        conn = get_encryption_conn()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             scan_run_id = _resolve_latest_scan(cur, tenant_id) if scan_id == "latest" else scan_id
             if not scan_run_id:
@@ -198,7 +187,7 @@ async def get_blast_radius_summary(
     """Get blast radius summary for all keys."""
     conn = None
     try:
-        conn = _get_encryption_conn()
+        conn = get_encryption_conn()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             scan_run_id = _resolve_latest_scan(cur, tenant_id) if scan_id == "latest" else scan_id
             if not scan_run_id:
@@ -246,7 +235,7 @@ async def get_remediations(
     """Get top-priority remediation recommendations."""
     conn = None
     try:
-        conn = _get_encryption_conn()
+        conn = get_encryption_conn()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             scan_run_id = _resolve_latest_scan(cur, tenant_id) if scan_id == "latest" else scan_id
             if not scan_run_id:

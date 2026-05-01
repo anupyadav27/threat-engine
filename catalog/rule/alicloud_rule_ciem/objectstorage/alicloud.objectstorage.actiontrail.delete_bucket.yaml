@@ -1,0 +1,73 @@
+rule_id: alicloud.objectstorage.actiontrail.delete_bucket
+service: objectstorage
+provider: alicloud
+check_type: log
+severity: critical
+title: 'AliCloud OSS: Bucket Deleted'
+description: An OSS bucket was deleted. Bucket deletion is irreversible — adversaries
+  delete buckets to destroy evidence, deny service, or eliminate compliance records.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: impact
+mitre_tactics:
+- impact
+mitre_techniques:
+- T1485
+risk_score: 90
+resource: alicloud_oss_bucket
+source: alicloud_ciem_generator
+is_active: true
+domain: data_protection_and_privacy
+action_category: delete
+log_source_type: alicloud_actiontrail
+posture_category: data_security_posture
+threat_tags:
+- T1485
+- impact
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '5.1'
+  - '5.2'
+  nist_800_53_r5:
+  - SC-28
+  - AC-3
+  - AU-9
+  pci_dss_v4:
+  - '3.4'
+  - '3.5'
+  - '6.3'
+  iso_27001_2022:
+  - A.8.10
+  - A.8.24
+remediation: '1. Confirm the bucket deletion was authorized.
+
+  2. Check if versioning or OSS object lock was enabled for recoverability.
+
+  3. Alert on all bucket deletions — require out-of-band approval for critical buckets.'
+references:
+- https://attack.mitre.org/techniques/T1485/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: oss
+    - field: operation
+      op: equals
+      value: DeleteBucket
+version: '1.0'

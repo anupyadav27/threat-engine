@@ -1,0 +1,52 @@
+version: '1.0'
+provider: gcp
+service: appengine
+checks:
+- rule_id: gcp.appengine.application.app_env_secrets_from_vault_only
+  for_each: gcp.appengine.apps.services.versions.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.envVariables
+      op: exists
+      value: null
+    - var: item.envVariables
+      op: is_empty
+      value: null
+- rule_id: gcp.appengine.application.app_logging_enabled
+  for_each: gcp.appengine.apps.get
+  severity: MEDIUM
+  conditions:
+    var: item.featureSettings.splitHealthChecks
+    op: is_true
+    value: null
+- rule_id: gcp.appengine.application.app_private_networking_enforced
+  for_each: gcp.appengine.apps.get
+  severity: HIGH
+  conditions:
+    var: item.iap.enabled
+    op: is_true
+    value: null
+- rule_id: gcp.appengine.application.app_tls_min_1_2_enforced
+  for_each: gcp.appengine.apps.get
+  severity: HIGH
+  conditions:
+    var: item.sslPolicy
+    op: in
+    value:
+    - TLS_1_2
+    - TLS_1_3
+- rule_id: gcp.appengine.version.app_version_artifact_encrypted
+  for_each: gcp.appengine.apps.services.versions.list
+  severity: MEDIUM
+  conditions:
+    var: item.deployment.container.image.encryptionKey
+    op: exists
+    value: null
+- rule_id: gcp.appengine.version.app_version_immutable
+  for_each: gcp.appengine.apps.services.versions.list
+  severity: MEDIUM
+  conditions:
+    var: item.appEngineApis
+    op: exists
+    value: null

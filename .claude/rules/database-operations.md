@@ -1,8 +1,11 @@
 ---
 paths:
-  - "consolidated_services/database/**/*.py"
-  - "engine_*/database/**/*.py"
-  - "engine_*/**/database*.py"
+  - "engines/**/database*.py"
+  - "engines/**/*_db*.py"
+  - "engines/**/*_writer*.py"
+  - "shared/database/**/*.py"
+  - "shared/common/db_connections.py"
+  - "shared/common/db_pool.py"
 ---
 
 # Database Operation Standards

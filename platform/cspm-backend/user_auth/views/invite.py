@@ -1,8 +1,9 @@
 """
 Invite flow:
-  POST /api/auth/invite/create/           — admin creates invite (requires access_token cookie)
-  GET  /api/auth/invite/{token}/          — validate invite (public)
-  POST /api/auth/invite/{token}/accept/   — accept invite, create account (public)
+  POST /api/auth/invite/create/              — admin creates invite
+  GET  /api/auth/invite/{token}/             — validate invite (public)
+  GET  /api/auth/invite/{token}/sso/         — redirect to SSO for invite acceptance (AUTH-09)
+  POST /api/auth/invite/{token}/accept/      — accept invite via password or SSO (public)
 """
 import json
 import uuid
@@ -10,7 +11,7 @@ import secrets
 from datetime import timedelta
 
 from django.conf import settings
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseRedirect
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -20,6 +21,7 @@ from user_auth.models import Users, UserSessions, InviteTokens
 from user_auth.utils.auth_utils import generate_token, hash_token, verify_token
 from user_auth.utils.cookie_utils import set_auth_cookies
 from user_auth.utils.email_utils import send_invite_email
+from user_auth.utils.audit_utils import log_auth_event
 
 
 def _current_user(request):
@@ -33,6 +35,19 @@ def _current_user(request):
         if verify_token(access_token, session.token):
             return session.user
     return None
+
+
+def _invite_idp(tenant_id: str):
+    """Return the first active SSO IDP for a tenant, or None."""
+    from tenant_management.models import TenantIDPConfig
+    return (
+        TenantIDPConfig.objects.filter(
+            tenant_id=tenant_id,
+            idp_type__in=("oidc", "google_oauth", "saml"),
+            is_active=True,
+        )
+        .first()
+    )
 
 
 class CreateInviteView(APIView):
@@ -55,7 +70,6 @@ class CreateInviteView(APIView):
         if not email or not tenant_id:
             return JsonResponse({"message": "email and tenant_id are required"}, status=400)
 
-        # Validate tenant exists and user belongs to it
         from tenant_management.models import Tenants, TenantUsers
         try:
             tenant = Tenants.objects.get(id=tenant_id)
@@ -89,6 +103,14 @@ class CreateInviteView(APIView):
         invited_by_name = f"{user.first_name or ''} {user.last_name or ''}".strip() or user.email
         send_invite_email(email, token, tenant.name, invited_by_name)
 
+        log_auth_event(
+            "invite.create",
+            request=request,
+            user=user,
+            tenant_id=tenant_id,
+            extra={"invited_email": email},
+        )
+
         return JsonResponse({
             "message": "Invite sent",
             "email": email,
@@ -111,18 +133,59 @@ class ValidateInviteView(APIView):
         if invite.expires_at < timezone.now():
             return JsonResponse({"message": "This invite has expired"}, status=410)
 
+        idp = _invite_idp(str(invite.tenant_id))
+
         return JsonResponse({
             "email": invite.email,
             "tenant_name": invite.tenant.name,
             "tenant_id": str(invite.tenant.id),
             "role": invite.role.name if invite.role else "Member",
             "expires_at": invite.expires_at.isoformat(),
+            "idp_available": idp is not None,
+            "idp_type": idp.idp_type if idp else None,
         })
+
+
+class InviteSSORedirectView(APIView):
+    """Store invite token in session, then redirect to SSO login (AUTH-09).
+
+    GET /api/auth/invite/{token}/sso/
+    """
+
+    def get(self, request, token):
+        try:
+            invite = InviteTokens.objects.select_related("tenant").get(token=token)
+        except InviteTokens.DoesNotExist:
+            return JsonResponse({"message": "Invalid invite link"}, status=404)
+
+        if invite.used:
+            return JsonResponse({"message": "This invite has already been used"}, status=410)
+
+        if invite.expires_at < timezone.now():
+            return JsonResponse({"message": "This invite has expired"}, status=410)
+
+        idp = _invite_idp(str(invite.tenant_id))
+        if not idp:
+            return JsonResponse({"message": "No SSO configured for this tenant"}, status=404)
+
+        # Stash invite token so OIDC/SAML callbacks can consume it
+        request.session["pending_invite_token"] = token
+
+        if idp.idp_type == "saml":
+            return HttpResponseRedirect(f"/api/auth/saml/{invite.tenant_id}/login/")
+
+        return HttpResponseRedirect(
+            f"/api/auth/oidc/login/?tenant={invite.tenant_id}&redirect_after=/dashboard"
+        )
 
 
 @method_decorator(ensure_csrf_cookie, name='dispatch')
 class AcceptInviteView(APIView):
-    """Accept invite: create account (or link existing) + join tenant."""
+    """Accept invite: create account (or link existing) + join tenant.
+
+    Password is optional when the tenant has an active SSO IDP — in that case
+    the invite can be accepted via the SSO redirect flow instead.
+    """
 
     def post(self, request, token):
         try:
@@ -145,21 +208,22 @@ class AcceptInviteView(APIView):
         first_name = (data.get("first_name") or data.get("firstName") or "").strip()
         last_name = (data.get("last_name") or data.get("lastName") or "").strip()
 
-        # Check if account exists already
+        has_sso = _invite_idp(str(invite.tenant_id)) is not None
+
         try:
             user = Users.objects.get(email=invite.email)
         except Users.DoesNotExist:
-            if len(password) < 8:
+            # New user — require password unless SSO is available
+            if not has_sso and len(password) < 8:
                 return JsonResponse({"message": "Password must be at least 8 characters"}, status=400)
             user = Users.objects.create_user(
                 email=invite.email,
-                password=password,
+                password=password or None,
                 first_name=first_name,
                 last_name=last_name,
                 status="active",
             )
 
-        # Add user to tenant (if not already)
         from tenant_management.models import TenantUsers
         if not TenantUsers.objects.filter(user=user, tenant=invite.tenant).exists():
             from user_auth.utils.tenant_utils import get_or_create_admin_role
@@ -172,11 +236,17 @@ class AcceptInviteView(APIView):
                 is_active=True,
             )
 
-        # Mark invite used
         invite.used = True
         invite.save(update_fields=["used"])
 
-        # Issue session
+        log_auth_event(
+            "invite.accept",
+            request=request,
+            user=user,
+            tenant_id=str(invite.tenant_id),
+            extra={"method": "password"},
+        )
+
         UserSessions.objects.filter(user=user).delete()
         access_token = generate_token()
         refresh_token = generate_token()

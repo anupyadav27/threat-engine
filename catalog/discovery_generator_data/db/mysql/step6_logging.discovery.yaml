@@ -1,0 +1,55 @@
+version: '1.0'
+provider: db
+engine: mysql
+category: logging
+cis_section: '6'
+description: MySQL CIS Section 6 — Logging and Auditing
+
+discovery:
+  - discovery_id: db.mysql.logging.log_error
+    calls:
+      - action: query_setting
+        query: "SHOW VARIABLES LIKE 'log_error';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        setting_name: log_error
+        value: "{{ result.Value }}"
+        expected_not_empty: true
+
+  - discovery_id: db.mysql.logging.general_log
+    calls:
+      - action: query_setting
+        query: "SHOW VARIABLES LIKE 'general_log';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        setting_name: general_log
+        value: "{{ result.Value }}"
+        expected: "OFF"
+
+  - discovery_id: db.mysql.logging.slow_query_log
+    calls:
+      - action: query_setting
+        query: "SHOW VARIABLES LIKE 'slow_query_log';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        setting_name: slow_query_log
+        value: "{{ result.Value }}"
+        expected: "ON"
+
+  - discovery_id: db.mysql.logging.audit_log_policy
+    calls:
+      - action: query_setting
+        query: "SHOW VARIABLES LIKE 'audit_log_policy';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        setting_name: audit_log_policy
+        value: "{{ result.Value }}"
+        expected: ALL

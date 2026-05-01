@@ -1,0 +1,38 @@
+# ==========================================================
+# Discovery YAML — iotdevicedefender (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 1 | ops: 0 independent, 1 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: iotdevicedefender
+
+services:
+  client: iotdevicedefender
+  module: "boto3.client('iotdevicedefender')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  []
+
+checks: []
+
+discovery:
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.iotdevicedefender.list_tags_for_resource [dependent] ──
+  - discovery_id: aws.iotdevicedefender.list_tags_for_resource
+    for_each: aws.iotdevicedefender.describe_custom_metric
+    calls:
+      - action: list_tags_for_resource
+        params:
+          resourceArn: "{{ item.metricArn }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response }}'
+      item:
+        metricArn: '{{ item.metricArn }}'
+        tags: '{{ item.tags }}'
+

@@ -1,0 +1,22 @@
+version: '1.0'
+provider: k8s
+service: networkpolicy
+services:
+  client: networkpolicy
+  module: kubernetes.client
+discovery:
+- discovery_id: k8s.networkpolicy.list_network_policy_for_all_namespaces
+  calls:
+  - action: list_network_policy_for_all_namespaces
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+    item:
+      metadata: '{{ item.metadata }}'
+      spec: '{{ item.spec }}'
+      spec.podSelector: '{{ item.spec.podSelector }}'
+      spec.policyTypes: '{{ item.spec.policyTypes }}'
+      spec.ingress: '{{ item.spec.ingress }}'
+      spec.egress: '{{ item.spec.egress }}'

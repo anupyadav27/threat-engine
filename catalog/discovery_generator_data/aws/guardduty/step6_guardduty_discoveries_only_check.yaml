@@ -1,0 +1,80 @@
+# discoveries_only_check: 4 kept / 34 removed from 38 total
+# generated_from: step6_guardduty.discovery.yaml
+# purpose: only discoveries needed by guardduty.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: guardduty
+services:
+  client: guardduty
+  module: boto3.client
+discovery:
+- discovery_id: aws.guardduty.describe_malware_scans
+  calls:
+  - action: describe_malware_scans
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Scans }}'
+    item:
+      AccountId: '{{ item.AccountId }}'
+      AdminDetectorId: '{{ item.AdminDetectorId }}'
+      AttachedVolumes: '{{ item.AttachedVolumes }}'
+      DetectorId: '{{ item.DetectorId }}'
+      FailureReason: '{{ item.FailureReason }}'
+      FileCount: '{{ item.FileCount }}'
+      ResourceDetails: '{{ item.ResourceDetails }}'
+      ScanEndTime: '{{ item.ScanEndTime }}'
+      ScanId: '{{ item.ScanId }}'
+      ScanResultDetails: '{{ item.ScanResultDetails }}'
+      ScanStartTime: '{{ item.ScanStartTime }}'
+      ScanStatus: '{{ item.ScanStatus }}'
+      ScanType: '{{ item.ScanType }}'
+      TotalBytes: '{{ item.TotalBytes }}'
+      TriggerDetails: '{{ item.TriggerDetails }}'
+- discovery_id: aws.guardduty.describe_organization_configuration
+  calls:
+  - action: describe_organization_configuration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Features }}'
+    item:
+      Name: '{{ item.Name }}'
+      AdditionalConfiguration: '{{ item.AdditionalConfiguration }}'
+      AutoEnable: '{{ item.AutoEnable }}'
+      Enabled: '{{ item.Enabled }}'
+      DataSources: '{{ response.DataSources }}'
+      AutoEnableOrganizationMembers: '{{ response.AutoEnableOrganizationMembers }}'
+      MemberAccountLimitReached: '{{ response.MemberAccountLimitReached }}'
+- discovery_id: aws.guardduty.get_detector
+  calls:
+  - action: get_detector
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Features }}'
+    item:
+      Name: '{{ item.Name }}'
+      Status: '{{ item.Status }}'
+      AdditionalConfiguration: '{{ item.AdditionalConfiguration }}'
+      UpdatedAt: '{{ item.UpdatedAt }}'
+      DataSources: '{{ response.DataSources }}'
+      FindingPublishingFrequency: '{{ response.FindingPublishingFrequency }}'
+      ServiceRole: '{{ response.ServiceRole }}'
+      CreatedAt: '{{ response.CreatedAt }}'
+- discovery_id: aws.guardduty.get_member_detectors
+  calls:
+  - action: get_member_detectors
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.MemberDataSourceConfigurations }}'
+    item:
+      AccountId: '{{ item.AccountId }}'
+      DataSources: '{{ item.DataSources }}'
+      Features: '{{ item.Features }}'
+      MemberDataSourceConfigurations: '{{ item.MemberDataSourceConfigurations }}'

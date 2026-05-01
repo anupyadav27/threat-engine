@@ -3,26 +3,40 @@ Unified UI data endpoint for Container Security Engine.
 """
 
 import logging
-import os
 from typing import Any, Dict, List, Optional
 
-import psycopg2
 from psycopg2.extras import RealDictCursor
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
+
+from engine_common.db_connections import get_container_sec_conn
+
+# ── Auth imports (engine_auth is COPY shared/auth/ ./engine_auth/ in Dockerfile) ──
+# TODO: container:read is not in the 23-key seed; using check:read as fallback.
+# File RBAC-02 amendment to add container:read when product confirms the key name.
+try:
+    from engine_auth.fastapi.dependencies import require_permission
+    from engine_auth.core.models import AuthContext
+    _AUTH_AVAILABLE = True
+except ImportError:
+    _AUTH_AVAILABLE = False
+    AuthContext = None  # type: ignore[assignment,misc]
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["ui-data"])
 
 
-def _get_csec_conn():
-    return psycopg2.connect(
-        host=os.getenv("CSEC_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("CSEC_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("CSEC_DB_NAME", "threat_engine_container_security"),
-        user=os.getenv("CSEC_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("CSEC_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        connect_timeout=10,
-    )
+def _strip_sensitive_fields(data: List[Dict[str, Any]], auth: Any) -> List[Dict[str, Any]]:
+    """Remove credential_ref/credential_type for non-platform-admin callers."""
+    if not isinstance(data, list):
+        return data
+    stripped = []
+    for row in data:
+        r = dict(row) if not isinstance(row, dict) else row.copy()
+        if auth is not None and hasattr(auth, "level") and auth.level > 1:
+            r.pop("credential_ref", None)
+            r.pop("credential_type", None)
+        stripped.append(r)
+    return stripped
 
 
 def _query_scan_trend(cur, tenant_id: str) -> list:
@@ -74,10 +88,11 @@ async def get_container_sec_ui_data(
     tenant_id: str = Query(...),
     scan_id: str = Query(default="latest"),
     limit: int = Query(default=200, ge=1, le=1000),
+    auth: Any = Depends(require_permission("check:read") if _AUTH_AVAILABLE else (lambda: None)),
 ) -> Dict[str, Any]:
     conn = None
     try:
-        conn = _get_csec_conn()
+        conn = get_container_sec_conn()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             scan_run_id = _resolve_latest_scan(cur, tenant_id) if scan_id == "latest" else scan_id
             if not scan_run_id:
@@ -152,6 +167,9 @@ async def get_container_sec_ui_data(
 
             # Scan trend (last 8 scans, oldest-first)
             scan_trend = _query_scan_trend(cur, tenant_id)
+
+        # Strip sensitive fields before returning
+        findings = _strip_sensitive_fields(findings, auth)
 
         return {
             "summary": {

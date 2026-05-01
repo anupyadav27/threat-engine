@@ -1,0 +1,138 @@
+# ============================================================
+# Discovery YAML — appengine (final_discovery v1)
+# Generated: 2026-04-16T09:26:46Z
+# Source: gcp_master_field_catalog.csv
+# Check rules: 13 | ops in scope: 4 (0 independent, 4 dependent)
+# ============================================================
+version: '1.0'
+provider: gcp
+service: appengine
+
+services:
+  client: appengine
+  module: "googleapiclient.discovery.build('appengine', 'v1')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: apps
+    identifier_op: gcp.appengine.apps.listRuntimes
+    identifier_field: runtimes[].name
+    item_var_path: item.runtimes[].name
+    identifier_template: 'apps/{appsId}'
+  - resource_type: unknown
+    identifier_op: gcp.appengine.apps.get
+    identifier_field: id
+    item_var_path: item.id
+  - resource_type: unknown
+    identifier_op: gcp.appengine.apps.get
+    identifier_field: name
+    item_var_path: item.name
+  - resource_type: unknown
+    identifier_op: gcp.appengine.apps.services.list
+    identifier_field: services[].name
+    item_var_path: item.services[].name
+  - resource_type: unknown
+    identifier_op: gcp.appengine.apps.services.versions.list
+    identifier_field: versions[].name
+    item_var_path: item.versions[].name
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── gcp.appengine.apps.listRuntimes ──
+  - discovery_id: gcp.appengine.apps.listRuntimes
+    calls:
+      - action: apps.listRuntimes
+        params:
+          appsId: '{{ item.appsId }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        decommissionedDate: '{{ item.decommissionedDate }}'
+        deprecationDate: '{{ item.deprecationDate }}'
+        displayName: '{{ item.displayName }}'
+        endOfSupportDate: '{{ item.endOfSupportDate }}'
+        environment: '{{ item.environment }}'
+        name: '{{ item.name }}'
+        stage: '{{ item.stage }}'
+        supportedOperatingSystems: '{{ item.supportedOperatingSystems }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── gcp.appengine.apps.get [dependent] ──
+  - discovery_id: gcp.appengine.apps.get
+    for_each: gcp.appengine.apps.listRuntimes
+    calls:
+      - action: apps.get
+        params:
+          appsId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        authDomain: '{{ response.authDomain }}'
+        codeBucket: '{{ response.codeBucket }}'
+        databaseType: '{{ response.databaseType }}'
+        defaultBucket: '{{ response.defaultBucket }}'
+        defaultCookieExpiration: '{{ response.defaultCookieExpiration }}'
+        defaultHostname: '{{ response.defaultHostname }}'
+        dispatchRules: '{{ response.dispatchRules }}'
+        featureSettings: '{{ response.featureSettings }}'
+        gcrDomain: '{{ response.gcrDomain }}'
+        generatedCustomerMetadata: '{{ response.generatedCustomerMetadata }}'
+        iap: '{{ response.iap }}'
+        id: '{{ response.id }}'
+        locationId: '{{ response.locationId }}'
+        name: '{{ response.name }}'
+        serviceAccount: '{{ response.serviceAccount }}'
+        servingStatus: '{{ response.servingStatus }}'
+        sslPolicy: '{{ response.sslPolicy }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── gcp.appengine.apps.services.list [dependent] ──
+  - discovery_id: gcp.appengine.apps.services.list
+    for_each: gcp.appengine.apps.listRuntimes
+    calls:
+      - action: apps.services.list
+        params:
+          appsId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        services: '{{ response.services }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── gcp.appengine.apps.services.versions.list [dependent] ──
+  - discovery_id: gcp.appengine.apps.services.versions.list
+    for_each: gcp.appengine.apps.services.list
+    calls:
+      - action: apps.services.versions.list
+        params:
+          appsId: '{{ item.name }}'
+          servicesId: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        automaticScaling: '{{ item.automaticScaling }}'
+        betaSettings: '{{ item.betaSettings }}'
+        createTime: '{{ item.createTime }}'
+        deployment: '{{ item.deployment }}'
+        diskUsageBytes: '{{ item.diskUsageBytes }}'
+        env: '{{ item.env }}'
+        envVariables: '{{ item.envVariables }}'
+        name: '{{ item.name }}'
+        network: '{{ item.network }}'
+        servingStatus: '{{ item.servingStatus }}'
+        versionUrl: '{{ item.versionUrl }}'
+        versions: '{{ response.versions }}'
+        vpcAccessConnector: '{{ item.vpcAccessConnector }}'
+

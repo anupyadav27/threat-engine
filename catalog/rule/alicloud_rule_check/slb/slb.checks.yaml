@@ -1,0 +1,32 @@
+version: '1.0'
+provider: alicloud
+service: slb
+checks:
+- rule_id: alicloud.slb.loadbalancer.active
+  for_each: alicloud.slb.describe_load_balancers
+  severity: MEDIUM
+  conditions:
+    var: item.LoadBalancerStatus
+    op: equals
+    value: active
+- rule_id: alicloud.slb.loadbalancer.internal_facing
+  for_each: alicloud.slb.describe_load_balancers
+  severity: HIGH
+  conditions:
+    var: item.AddressType
+    op: equals
+    value: intranet
+- rule_id: alicloud.slb.loadbalancer.name_defined
+  for_each: alicloud.slb.describe_load_balancers
+  severity: LOW
+  conditions:
+    var: item.LoadBalancerName
+    op: not_empty
+    value: null
+- rule_id: alicloud.slb.loadbalancer.address_defined
+  for_each: alicloud.slb.describe_load_balancers
+  severity: INFO
+  conditions:
+    var: item.Address
+    op: not_empty
+    value: null

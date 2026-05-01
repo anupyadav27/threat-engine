@@ -1,0 +1,26 @@
+version: '1.0'
+provider: azure
+service: managementgroups
+checks:
+# ═══════════════════════════════════════════
+# Management Groups — azure.managementgroups.managementgroups.list
+# Fields: id, name, type, location, tags, sku, identity, properties, provisioning_state, kind, zones
+# ═══════════════════════════════════════════
+- rule_id: azure.managementgroups.group.properties_configured
+  for_each: azure.managementgroups.managementgroups.list
+  conditions:
+    var: item.properties
+    op: not_empty
+
+- rule_id: azure.managementgroups.group.provisioning_succeeded
+  for_each: azure.managementgroups.managementgroups.list
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.managementgroups.group.tags_configured
+  for_each: azure.managementgroups.managementgroups.list
+  conditions:
+    var: item.tags
+    op: not_empty

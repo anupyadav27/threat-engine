@@ -1,0 +1,85 @@
+rule_id: aws.eks.audit_log.audit.networkpolicy_modify
+service: eks
+provider: aws
+check_type: log
+severity: medium
+title: 'EKS: Networkpolicy Modify'
+description: Kubernetes NetworkPolicy modified — pod-to-pod network access controls changed.
+rationale: Weakening or disabling cloud security policies reduces the enforcement surface for compliance controls and may allow prohibited actions to succeed silently.
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1562.007
+risk_score: 55
+resource: eks_cluster
+source: default
+is_active: true
+domain: logging_monitoring_and_alerting
+action_category: modify
+log_source_type: 
+posture_category: security_posture
+threat_tags:
+- T1562.007
+- T1562
+- defense_evasion
+- log_tampering
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: critical
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 3.1
+  - 3.2
+  - 3.3
+  - 3.4
+  cis_azure_v2:
+  - 5.1
+  - 5.2
+  - 5.3
+  nist_800_53_r5:
+  - AU-2
+  - AU-6
+  - AU-12
+  - SI-4
+  pci_dss_v4:
+  - 10.1
+  - 10.2
+  - 10.3
+  iso_27001_2022:
+  - A.8.15
+  - A.8.16
+  - A.5.28
+remediation: |
+  1. Restore disabled policy assignments and investigate the actor.
+  2. Apply RBAC restrictions so only authorized principals can modify security policies.
+  3. Enable activity log alerts for all policy assignment changes.
+  4. Use Azure Policy / AWS Config mandatory enforcement modes.
+references:
+- https://attack.mitre.org/techniques/T1562/007/
+- https://learn.microsoft.com/en-us/azure/governance/policy/overview
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: in
+      value:
+      - create
+      - patch
+      - update
+      - delete
+    - field: resource.type
+      op: equals
+      value: networkpolicies
+version: '1.0'

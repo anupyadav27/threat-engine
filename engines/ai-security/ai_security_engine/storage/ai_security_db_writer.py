@@ -15,19 +15,9 @@ from datetime import datetime, timezone
 import psycopg2
 from psycopg2.extras import execute_values, Json
 
+from engine_common.db_connections import get_ai_security_conn
+
 logger = logging.getLogger(__name__)
-
-
-def _get_ai_security_conn():
-    """Get connection to the AI Security database."""
-    return psycopg2.connect(
-        host=os.getenv("AI_SECURITY_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("AI_SECURITY_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("AI_SECURITY_DB_NAME", "threat_engine_ai_security"),
-        user=os.getenv("AI_SECURITY_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("AI_SECURITY_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-    )
 
 
 def generate_finding_id(rule_id: str, resource_uid: str, account_id: str, region: str) -> str:
@@ -331,6 +321,8 @@ class AISecurityDBWriter:
             )
             VALUES %s
             ON CONFLICT (finding_id) DO UPDATE SET
+                scan_run_id = EXCLUDED.scan_run_id,
+                tenant_id = EXCLUDED.tenant_id,
                 severity = EXCLUDED.severity,
                 status = EXCLUDED.status,
                 detail = EXCLUDED.detail,
@@ -549,7 +541,7 @@ def save_findings_to_db(
     Returns:
         Number of findings written.
     """
-    conn = _get_ai_security_conn()
+    conn = get_ai_security_conn()
     now = datetime.now(timezone.utc)
     count = 0
 
@@ -633,6 +625,8 @@ def save_findings_to_db(
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                             %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (finding_id) DO UPDATE SET
+                        scan_run_id = EXCLUDED.scan_run_id,
+                        tenant_id = EXCLUDED.tenant_id,
                         severity = EXCLUDED.severity,
                         status = EXCLUDED.status,
                         detail = EXCLUDED.detail,
@@ -675,6 +669,113 @@ def save_findings_to_db(
         conn.close()
 
 
+def save_atlas_findings(
+    findings: List[Dict[str, Any]],
+    conn,
+) -> int:
+    """Batch upsert ATLAS-mapped findings into ai_security_findings.
+
+    Writes atlas_technique, pillar, atlas_detail, and blast_radius_score
+    in addition to the standard finding columns.  Uses a provided open
+    connection (caller manages commit/rollback).
+
+    Args:
+        findings: List of ATLAS finding dicts produced by provider.analyze().
+        conn: Open psycopg2 connection to the AI security DB.
+
+    Returns:
+        Number of findings upserted.
+    """
+    if not findings:
+        return 0
+
+    now = datetime.now(timezone.utc)
+    count = 0
+
+    try:
+        with conn.cursor() as cur:
+            for f in findings:
+                finding_id = f.get("finding_id") or generate_finding_id(
+                    f.get("rule_id", ""),
+                    f.get("resource_uid", ""),
+                    f.get("account_id", ""),
+                    f.get("region", ""),
+                )
+                atlas_detail = f.get("atlas_detail") or {}
+                cur.execute(
+                    """
+                    INSERT INTO ai_security_findings (
+                        finding_id, scan_run_id, tenant_id,
+                        rule_id, resource_id, resource_type, resource_uid,
+                        ml_service, model_type,
+                        severity, status, category,
+                        title, detail, remediation,
+                        frameworks, mitre_techniques,
+                        account_id, region, provider,
+                        pillar, atlas_technique, atlas_detail, blast_radius_score,
+                        first_seen_at, last_seen_at
+                    )
+                    VALUES (
+                        %s, %s, %s,
+                        %s, %s, %s, %s,
+                        %s, %s,
+                        %s, %s, %s,
+                        %s, %s, %s,
+                        %s, %s,
+                        %s, %s, %s,
+                        %s, %s, %s::jsonb, %s,
+                        %s, %s
+                    )
+                    ON CONFLICT (finding_id) DO UPDATE SET
+                        scan_run_id        = EXCLUDED.scan_run_id,
+                        severity           = EXCLUDED.severity,
+                        status             = EXCLUDED.status,
+                        detail             = EXCLUDED.detail,
+                        pillar             = EXCLUDED.pillar,
+                        atlas_technique    = EXCLUDED.atlas_technique,
+                        atlas_detail       = EXCLUDED.atlas_detail,
+                        blast_radius_score = EXCLUDED.blast_radius_score,
+                        last_seen_at       = EXCLUDED.last_seen_at
+                    """,
+                    (
+                        finding_id,
+                        f.get("scan_run_id"),
+                        f.get("tenant_id"),
+                        f.get("rule_id"),
+                        f.get("resource_uid"),   # resource_id = resource_uid for ATLAS findings
+                        f.get("resource_type"),
+                        f.get("resource_uid"),
+                        f.get("ml_service"),
+                        f.get("model_type"),
+                        f.get("severity", "MEDIUM"),
+                        f.get("status", "FAIL"),
+                        f.get("pillar"),          # reuse category column for pillar label
+                        f.get("title"),
+                        f.get("detail"),
+                        None,                    # remediation
+                        [],                      # frameworks
+                        [],                      # mitre_techniques
+                        f.get("account_id"),
+                        f.get("region"),
+                        f.get("provider"),
+                        f.get("pillar"),
+                        f.get("atlas_technique"),
+                        json.dumps(atlas_detail),
+                        0,                       # blast_radius_score ALWAYS 0
+                        f.get("first_seen_at") or now,
+                        f.get("last_seen_at") or now,
+                    ),
+                )
+                count += 1
+        conn.commit()
+        logger.info("save_atlas_findings: upserted %d ATLAS findings", count)
+        return count
+    except Exception:
+        conn.rollback()
+        logger.exception("save_atlas_findings: DB upsert failed")
+        raise
+
+
 def save_ai_inventory(
     scan_run_id: str,
     tenant_id: str,
@@ -690,7 +791,7 @@ def save_ai_inventory(
     Returns:
         Number of inventory entries written.
     """
-    conn = _get_ai_security_conn()
+    conn = get_ai_security_conn()
     count = 0
     now = datetime.now(timezone.utc)
     try:

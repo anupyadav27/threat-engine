@@ -1,0 +1,205 @@
+version: '1.0'
+provider: aws
+service: ssm
+checks:
+- rule_id: aws.ssm.automation.change_audit_logging_enabled
+  for_each: aws.ssm.describe_automation_executions
+  severity: MEDIUM
+  conditions:
+    var: item.LogFile
+    op: exists
+    value: null
+- rule_id: aws.ssm.automation.rbac_least_privilege
+  for_each: aws.ssm.describe_automation_executions
+  severity: HIGH
+  conditions:
+    var: item.AutomationExecutionMetadataList
+    op: exists
+    value: null
+- rule_id: aws.ssm.automation.remediation_roles_least_privilege
+  for_each: aws.ssm.describe_automation_executions
+  severity: HIGH
+  conditions:
+    var: item.AutomationExecutionMetadataList[].Role
+    op: not_contains
+    value: '*'
+- rule_id: aws.ssm.automation.ssm_artifacts_encrypted_and_private
+  for_each: aws.ssm.describe_automation_executions
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Outputs.S3OutputLocation.OutputS3BucketName
+      op: exists
+      value: null
+    - var: item.Outputs.S3OutputLocation.OutputS3KeyPrefix
+      op: exists
+      value: null
+    - any:
+      - var: item.Outputs.S3OutputLocation.OutputS3EncryptionOption
+        op: equals
+        value: SSE_KMS
+      - var: item.Outputs.S3OutputLocation.OutputS3EncryptionOption
+        op: equals
+        value: SSE_S3
+    - var: item.Outputs.S3OutputLocation.OutputS3Region
+      op: exists
+      value: null
+- rule_id: aws.ssm.automation.ssm_storage_encrypted_and_private
+  for_each: aws.ssm.describe_parameters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Type
+      op: equals
+      value: SecureString
+    - var: item.KeyId
+      op: exists
+      value: null
+- rule_id: aws.ssm.automation.versioning_and_immutability_enabled
+  for_each: aws.ssm.describe_automation_executions
+  severity: LOW
+  conditions:
+    var: item.DocumentVersion
+    op: exists
+    value: null
+- rule_id: aws.ssm.baseline.ssm_conformance_pack_deployed_configured
+  for_each: aws.ssm.describe_patch_baselines
+  severity: MEDIUM
+  conditions:
+    var: item.BaselineIdentities
+    op: not_empty
+    value: null
+- rule_id: aws.ssm.baseline.ssm_parameters_configured
+  for_each: aws.ssm.describe_parameters
+  severity: MEDIUM
+  conditions:
+    var: item
+    op: not_empty
+    value: null
+- rule_id: aws.ssm.document.change_audit_logging_enabled
+  for_each: aws.ssm.describe_parameters
+  severity: MEDIUM
+  conditions:
+    var: item.Policies
+    op: exists
+    value: null
+- rule_id: aws.ssm.document.rbac_least_privilege
+  for_each: aws.ssm.describe_parameters
+  severity: HIGH
+  conditions:
+    var: item.Policies
+    op: exists
+    value: null
+- rule_id: aws.ssm.document.ssm_secrets_encrypted
+  for_each: aws.ssm.describe_parameters
+  severity: HIGH
+  conditions:
+    var: item.KeyId
+    op: exists
+    value: null
+- rule_id: aws.ssm.document.ssm_storage_encrypted_and_private
+  for_each: aws.ssm.describe_parameters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.KeyId
+      op: exists
+      value: null
+    - var: item.Type
+      op: equals
+      value: SecureString
+- rule_id: aws.ssm.maintenance_window.ssm_window_configured
+  for_each: aws.ssm.describe_maintenance_windows
+  severity: MEDIUM
+  conditions:
+    var: item.WindowId
+    op: exists
+    value: null
+- rule_id: aws.ssm.managed.ssm_compliant_patching_configured
+  for_each: aws.ssm.describe_maintenance_windows
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Enabled
+      op: is_true
+      value: null
+    - var: item.Schedule
+      op: exists
+      value: null
+- rule_id: aws.ssm.patchbaseline.ssm_approval_rules_configured
+  for_each: aws.ssm.describe_patch_baselines
+  severity: MEDIUM
+  conditions:
+    var: item.ApprovalRules
+    op: not_empty
+    value: null
+- rule_id: aws.ssm.patchbaseline.ssm_baseline_defined_for_os_families_configured
+  for_each: aws.ssm.describe_patch_baselines
+  severity: MEDIUM
+  conditions:
+    var: item.BaselineIdentities
+    op: not_empty
+    value: null
+- rule_id: aws.ssm.patchbaseline.ssm_exemptions_have_expiry_and_owner_configured
+  for_each: aws.ssm.describe_patch_baselines
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.ApprovalRules.PatchFilterGroup.PatchFilters[].Values
+      op: not_empty
+      value: null
+    - var: item.ApprovalRules.PatchFilterGroup.PatchFilters[].Key
+      op: equals
+      value: PATCH_SET
+    - var: item.ApprovalRules.PatchFilterGroup.PatchFilters[].Values
+      op: contains
+      value: EXEMPTION_EXPIRY
+    - var: item.ApprovalRules.PatchFilterGroup.PatchFilters[].Values
+      op: contains
+      value: EXEMPTION_OWNER
+- rule_id: aws.ssm.patchbaseline.ssm_maintenance_windows_configured
+  for_each: aws.ssm.describe_maintenance_windows
+  severity: MEDIUM
+  conditions:
+    var: item.WindowIdentities
+    op: not_empty
+    value: null
+- rule_id: aws.ssm.patchbaseline.ssm_required_controls_present
+  for_each: aws.ssm.describe_patch_baselines
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.ApprovedPatches
+      op: not_empty
+      value: null
+    - var: item.ApprovedPatchesComplianceLevel
+      op: exists
+      value: null
+- rule_id: aws.ssm.patchgroup.ssm_approval_rules_configured
+  for_each: aws.ssm.describe_patch_baselines
+  severity: MEDIUM
+  conditions:
+    var: item.ApprovalRules
+    op: not_empty
+    value: null
+- rule_id: aws.ssm.patchgroup.ssm_baseline_defined_for_os_families_configured
+  for_each: aws.ssm.describe_patch_baselines
+  severity: MEDIUM
+  conditions:
+    var: item.PatchGroups
+    op: not_empty
+    value: null
+- rule_id: aws.ssm.patchgroup.ssm_maintenance_windows_configured
+  for_each: aws.ssm.describe_maintenance_windows
+  severity: MEDIUM
+  conditions:
+    var: item.WindowIdentities
+    op: not_empty
+    value: null
+- rule_id: aws.ssm.restapi.public_access_restricted
+  for_each: aws.ssm.describe_parameters
+  severity: HIGH
+  conditions:
+    var: item.Policies
+    op: exists
+    value: null

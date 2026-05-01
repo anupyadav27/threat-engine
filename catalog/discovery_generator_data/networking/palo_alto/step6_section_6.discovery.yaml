@@ -1,0 +1,283 @@
+version: '1.0'
+provider: networking
+engine: palo_alto
+category: section_6
+cis_section: '6'
+description: >
+  palo_alto CIS Section 6 — antivirus profiles are set to reset-both on all decoders except 'imap' and 'pop3'
+
+discovery:
+
+  - discovery_id: palo_alto.section_6.antivirus_profiles_are_set_to_reset_both_on_all
+    description: Ensure that antivirus profiles are set to reset-both on all decoders except 'imap' and 'pop3'
+    calls:
+      - action: run_command
+        command: "Navigate to Objects \u003e Security Profiles \u003e Antivirus Verify that antivirus profiles have all decoders set to reset-both for both Action and Wildfire Action. If imap and pop3 are required in the organization, verify that the imap and pop3 decoders are set to alert for both Action and Wildfire Action."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: antivirus_profiles_are_set_to_reset_both_on_all
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_6.an_anti_spyware_profile_is_configured_to_block_on
+    description: Ensure an anti-spyware profile is configured to block on all spyware severity levels, categories, and threats
+    calls:
+      - action: run_command
+        command: "Navigate to Objects \u003e Security Profiles \u003e Anti-Spyware. Verify a rule exists within the anti-spyware profile that is configured to perform the reset-both on any Severity level, any Category, and any Threat Name."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: an_anti_spyware_profile_is_configured_to_block_on
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_6.dns_sinkholing_is_configured_on_all_anti_spyware
+    description: Ensure DNS sinkholing is configured on all anti-spyware profiles in use
+    calls:
+      - action: run_command
+        command: "Navigate to Objects \u003e Security Profiles \u003e Anti-Spyware. Within the each anti-spyware profile, under its DNS Policies tab, verify the Signature Source List: default-paloalto-dns should have as its Policy Action set to sinkhole If licensed, the DNS Security should have as its Policy Action set to sinkhole Verify the \u0027Sinkhole IPv4\u0027 IP address is correct. This should be set to sinkhole.paloaltnetworks.com, or if an internal host is set then that host IP or FQDN should be in that field Verify the \u0027Sinkhole IPv6\u0027 IP address is correct. This should be set to IPv6 Loopback IP (::1), or if an internal DNS Sinkhole host is set then that host IP or FQDN should be in that field Navigate to Policies \u003e Security Policies For each outbound security Policy, in the Actions tab, verify that the Anti-Spyware setting includes the Spyware Profile created, either explicitly or as a Group Profile To verify correct operation of DNS Security, from an internal station make a DNS request to each of the following hosts: \u2022 test-malware.testpanw.com to test Malware DNS Signature checks \u2022 test-c2.testpanw.com to test C2 DNS Signature checks \u2022 test-dga.testpanw.com to test DGA (Domain Generation Algorithm) DNS attack checks \u2022 test-dnstun.testpanw.com to test DNS Tunneling attack checks Each of these DNS requests should be redirected to the configured DNS Sinkhole server IP address Each of these DNS requests should appear in the firewall logs, under Monitor \u003e Logs \u003e Threat. If configured, each of these requests should generate an alert in the organization\u0027s SIEM."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: dns_sinkholing_is_configured_on_all_anti_spyware
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_6.a_secure_anti_spyware_profile_is_applied_to_all
+    description: Ensure a secure anti-spyware profile is applied to all security policies permitting traffic to the Internet
+    calls:
+      - action: run_command
+        command: "Navigate to Objects \u003e Security Profiles \u003e Anti-Spyware. Also navigate to Policies \u003e Security. Verify there are one or more anti-spyware profiles that collectively apply to all inside to outside traffic from any address to any address and any application and service."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: a_secure_anti_spyware_profile_is_applied_to_all
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_6.a_vulnerability_protection_profile_is_set_to
+    description: Ensure a Vulnerability Protection Profile is set to block attacks against critical and high vulnerabilities, and set to default on medium, low, and informational vulnerabilities
+    calls:
+      - action: run_command
+        command: "Navigate to Objects \u003e Security Profiles \u003e Vulnerability Protection. Verify a Vulnerability Protection Profile is set to block attacks against any critical or high vulnerabilities (minimum), and set to default on attacks against any medium, low, or informational vulnerabilities."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: a_vulnerability_protection_profile_is_set_to
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_6.a_secure_vulnerability_protection_profile_is
+    description: Ensure a secure Vulnerability Protection Profile is applied to all security rules allowing traffic
+    calls:
+      - action: run_command
+        command: "Navigate to Policies \u003e Security. For each Policy, under the Actions tab, select Vulnerability Protection. Verify either the \u0027Strict\u0027 or the \u0027Default\u0027 profile is selected, or a custom profile that complies with the organization\u0027s policies, legal and regulatory requirements."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: a_secure_vulnerability_protection_profile_is
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_6.pan_db_url_filtering_is_used
+    description: Ensure that PAN-DB URL Filtering is used
+    calls:
+      - action: run_command
+        command: "Navigate to Device \u003e Licenses. Click on PAN-DB URL Filtering. Verify Active is set to Yes."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: pan_db_url_filtering_is_used
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_6.url_filtering_uses_the_action_of_block_or
+    description: Ensure that URL Filtering uses the action of “block” or “override” on the URL categories
+    calls:
+      - action: run_command
+        command: "Navigate to Objects \u003e Security Profiles \u003e URL Filtering. Verify that all URL categories designated by the organization are listed, and the action is set to Block."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: url_filtering_uses_the_action_of_block_or
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_6.all_http_header_logging_options_are_enabled
+    description: Ensure all HTTP Header Logging options are enabled
+    calls:
+      - action: run_command
+        command: "Navigate to Objects \u003e Security Profiles \u003e URL Filtering \u003e URL Filtering Profile \u003e URL Filtering Settings. Verify these four settings: a. Log container page only box is un-checked b. User-Agent box is checked c. Referer box is checked d. X-Forwarded-For box is checked"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: all_http_header_logging_options_are_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_6.secure_url_filtering_is_enabled_for_all_security
+    description: Ensure secure URL filtering is enabled for all security policies allowing traffic to the Internet
+    calls:
+      - action: run_command
+        command: "To Verify URL Filtering: For each Security Policy that transits traffic to the public internet, navigate to Policies \u003e Security \u003e Security Profiles \u003e [Policy Name] \u003e Actions. Verify there is a URL Filtering profile that complies with the policies of the organization is applied to all Security Policies that transit traffic to the public internet."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: secure_url_filtering_is_enabled_for_all_security
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_6.alerting_after_a_threshold_of_credit_card_or
+    description: Ensure alerting after a threshold of credit card or Social Security numbers is detected is enabled
+    calls:
+      - action: run_command
+        command: "Navigate to Objects \u003e Custom Objects \u003e Data Patterns. Verify an appropriate Data Pattern has been created that accounts for sensitive information within your organization. In most cases this will include Credit Card Numbers, and your jurisdiction\u0027s equivalent of Social Insurance Numbers. In many cases these can simply be picked from the list of Predefined Patterns. Navigate to Objects \u003e Security Profiles \u003e Data Filtering. Verify an appropriate Data Filtering Profile has been created, using the created Data Patterns. Ensure that an Alert Threshold is set that generates alerts appropriately. A typical starting value for Alert Threshold is 20, but this should be adjusted after appropriate testing."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: alerting_after_a_threshold_of_credit_card_or
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_6.a_secure_data_filtering_profile_is_applied_to_all
+    description: Ensure a secure Data Filtering profile is applied to all security policies allowing traffic to or from the Internet
+    calls:
+      - action: run_command
+        command: "Navigate to Objects \u003e Custom Objects \u003e Data Patterns. Verify that the patterns defined match the various data that you wish to monitor or make blocking decisions on. Navigate to Objects \u003e Security Profiles \u003e Data Filtering For each Filtering Profile, verify that the Data Patterns defined matches the data you wish to monitor, with appropriate values for Alert Threshold (typically 20), Block Threshold (typically 0) and Log Severity. Finally, navigate to Policies \u003e Security. Open all appropriate policies, for each Policy choose the Actions tab, and verify that the appropriate Data Filtering Policy is applied (either as an individual Profile or as part of a Group Profile)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: a_secure_data_filtering_profile_is_applied_to_all
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_6.a_zone_protection_profile_with_an_enabled_syn
+    description: Ensure that a Zone Protection Profile with an enabled SYN Flood Action of SYN Cookies is attached to all untrusted zones
+    calls:
+      - action: run_command
+        command: "From GUI: Navigate to Network \u003e Network Profiles \u003e Zone Protection \u003e Zone Protection Profile \u003e Flood Protection tab. Verify the SYN box is checked. Verify the Action dropdown is SYN Cookies. Verify Alert is 20000 (or appropriate for org). Verify Activate is 25000 (50% of maximum for firewall model). Verify Maximum is 1000000 (or appropriate for org). Navigate to Network \u003e Zones. Open the zone facing any untrusted network. Verify that Zone Protection has the Zone Protection Profile set to the Profile created."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: a_zone_protection_profile_with_an_enabled_syn
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_6.a_zone_protection_profile_with_tuned_flood
+    description: Ensure that a Zone Protection Profile with tuned Flood Protection settings enabled for all flood types is attached to all untrusted zones
+    calls:
+      - action: run_command
+        command: "In the GUI: Navigate to Network \u003e Network Profiles \u003e Zone Protection \u003e Flood Protection. Ensure that all settings are enabled with at least the default values. Navigate to Network \u003e Zones, select each untrusted zone in turn, and ensure that the Zone Protection Profile is set."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: a_zone_protection_profile_with_tuned_flood
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_6.all_zones_have_zone_protection_profiles_with_all
+    description: Ensure that all zones have Zone Protection Profiles with all Reconnaissance Protection settings enabled, tuned, and set to appropriate actions
+    calls:
+      - action: run_command
+        command: "Navigate to Network \u003e Network Profiles \u003e Zone Protection \u003e Zone Protection Profile \u003e Reconnaissance Protection. Verify that TCP Port Scan is enabled, its Action is set to block-ip, its Interval is set to 5, and its Threshold is set to 20. For block-ip, ensure the \u0027Track By\u0027 is set to source and \u0027Duration\u0027 is set to 600 seconds. Verify that Host Sweep is enabled, its Action is set to block, its Interval is set to 10, and its Threshold is set to 30. Verify that UDP Port Scan is enabled, its Action is set to alert, its Interval is set to 10, and its Threshold is set to 20."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: all_zones_have_zone_protection_profiles_with_all
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_6.all_zones_have_zone_protection_profiles_that_drop
+    description: Ensure all zones have Zone Protection Profiles that drop specially crafted packets
+    calls:
+      - action: run_command
+        command: "Navigate to Network \u003e Network Profiles \u003e Zone Protection \u003e Zone Protection Profile \u003e Packet Based Attack Protection \u003e TCP/IP Drop. Verify Spoofed IP address is checked. Verify Mismatched overlapping TCP segment is checked. Under IP Option Drop, verify that Strict Source Routing, Loose Source Routing, and Malformed are all checked. Additional options may also be checked."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: all_zones_have_zone_protection_profiles_that_drop
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_6.user_credential_submission_uses_the_action_of
+    description: Ensure that User Credential Submission uses the action of “block” or “continue” on the URL categories
+    calls:
+      - action: run_command
+        command: "Navigate to Objects \u003e Security Profiles \u003e URL Filtering. Choose the Categories tab. Verify that the User Credential Submitting action on all enabled URL categories is set to either block or continue. Under the User Credential Detection tab ensure the User Credential Detection is set to a value appropriate to your organization, and is not set to Disabled. Verify that the Log Severity value is set to a value appropriate to your organization and your logging or SIEM solution."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: user_credential_submission_uses_the_action_of
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_6.wildfire_inline_ml_on_antivirus_profiles_are_set
+    description: Ensure that 'Wildfire Inline ML' on antivirus profiles are set to enable for all file types
+    calls:
+      - action: run_command
+        command: "Navigate to Objects \u003e Security Profiles \u003e Antivirus Go to Wildfire Inline ML tab. Verify that all Action Setting are set to enable (inherit per-protocol actions)."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: wildfire_inline_ml_on_antivirus_profiles_are_set
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_6.inline_cloud_analysis_on_vulnerability_protection
+    description: Ensure that 'Inline Cloud Analysis' on Vulnerability Protection profiles are enabled if 'Advanced Threat Prevention' is available
+    calls:
+      - action: run_command
+        command: "Navigate to Objects \u003e Security Profiles \u003e Vulnerability Protection Go to Inline Cloud Analysis tab. Verify that it is enabled and all Model action is set as alert."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: inline_cloud_analysis_on_vulnerability_protection
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_6.cloud_inline_categorization_on_url_filtering
+    description: Ensure that 'Cloud Inline Categorization' on URL Filtering profiles are enabled if 'Advanced Threat Prevention' is available
+    calls:
+      - action: run_command
+        command: "Navigate to Objects \u003e Security Profiles \u003e URL Filtering Go to Inline Categorization tab. Verify that it is enabled for both Enable local inline categorization and Enable cloud inline categorization."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: cloud_inline_categorization_on_url_filtering
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_6.inline_cloud_analysis_on_anti_spyware_profiles
+    description: Ensure that 'Inline Cloud Analysis' on Anti-Spyware profiles are enabled if 'Advanced Threat Prevention' is available
+    calls:
+      - action: run_command
+        command: "Navigate to Objects \u003e Security Profiles \u003e Anti-Spyware Go to Inline Cloud Analysis tab. Verify that it is enabled and all Model action is set as reset-both."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: inline_cloud_analysis_on_anti_spyware_profiles
+        value: "{{ result.stdout }}"
+        expected: ""
+

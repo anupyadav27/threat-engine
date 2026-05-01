@@ -4,58 +4,29 @@ Single call to rule engine /ui-data (was 4 separate calls).
 """
 
 from typing import Optional, Dict
-
-from fastapi import APIRouter, Query
-
-import os
 import logging
-import psycopg2
-from psycopg2.extras import RealDictCursor
 
-from ._shared import fetch_many, safe_get, mock_fallback, is_empty_or_health
+from fastapi import APIRouter, Query, Request
+
+from ._shared import fetch_many, safe_get
 from ._transforms import normalize_rule
 from ._page_context import rules_page_context, rules_filter_schema
 
 logger = logging.getLogger("api-gateway.bff")
-
-
-def _get_rules_from_db(provider_filter=None, limit=500):
-    """Query rule_metadata from check DB directly."""
-    try:
-        conn = psycopg2.connect(
-            host=os.getenv("CHECK_DB_HOST", ""),
-            port=os.getenv("CHECK_DB_PORT", "5432"),
-            dbname=os.getenv("CHECK_DB_NAME", "threat_engine_check"),
-            user=os.getenv("CHECK_DB_USER", "postgres"),
-            password=os.getenv("CHECK_DB_PASSWORD", ""),
-            connect_timeout=5,
-        )
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            where = "WHERE provider = %s" if provider_filter else ""
-            params = [provider_filter, limit] if provider_filter else [limit]
-            cur.execute(f"""
-                SELECT rule_id, title, description, severity, service, provider,
-                       compliance_frameworks, remediation, domain, threat_category
-                FROM rule_metadata
-                {where}
-                ORDER BY severity, service, rule_id
-                LIMIT %s
-            """, params)
-            return [dict(r) for r in cur.fetchall()]
-        conn.close()
-    except Exception as e:
-        logger.warning("Failed to query rule_metadata: %s", e)
-        return []
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
 
 @router.get("/rules")
 async def view_rules(
+    request: Request,
     tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
 ):
     """Single endpoint returning everything the rules page needs."""
+
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 
     params: Dict[str, str] = {"tenant_id": tenant_id, "limit": "500"}
     if provider:
@@ -63,41 +34,13 @@ async def view_rules(
 
     results = await fetch_many([
         ("rule", "/api/v1/rules/ui-data", params),
-    ])
+    ], auth_headers=fwd_headers)
 
     data = results[0] or {}
-
-    # Mock fallback when engine data is empty
-    if is_empty_or_health(data):
-        m = mock_fallback("rules")
-        if m is not None:
-            return m
 
     # Normalize rules from rule engine
     raw_rules = safe_get(data, "rules", [])
     rules = [normalize_rule(r) for r in raw_rules]
-
-    # If rule engine returned nothing, query check DB directly
-    if not rules:
-        db_rules = _get_rules_from_db(provider_filter=provider.lower() if provider else None, limit=500)
-        rules = []
-        for r in db_rules:
-            cf = r.get("compliance_frameworks") or {}
-            frameworks = list(cf.keys()) if isinstance(cf, dict) else (cf if isinstance(cf, list) else [])
-            rules.append({
-                "rule_id": r.get("rule_id", ""),
-                "title": r.get("title") or r.get("description", ""),
-                "description": r.get("description", ""),
-                "severity": r.get("severity", "medium"),
-                "service": r.get("service", ""),
-                "provider": (r.get("provider") or "").upper(),
-                "status": "active",
-                "rule_type": "built-in",
-                "frameworks": frameworks,
-                "domain": r.get("domain", ""),
-                "threat_category": r.get("threat_category", ""),
-                "remediation": r.get("remediation", ""),
-            })
 
     # Filter by provider if specified
     if provider and raw_rules:

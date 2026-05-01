@@ -2,25 +2,14 @@
 DB-driven rule loader for AI Security engine.
 Reads rules from ai_security_rules table in threat_engine_ai_security database.
 """
-import os
 import logging
 from typing import Dict, List, Optional, Any
 
-import psycopg2
 from psycopg2.extras import RealDictCursor
 
+from engine_common.db_connections import get_ai_security_conn
+
 logger = logging.getLogger(__name__)
-
-
-def _get_ai_security_conn():
-    """Create a connection to the AI security database."""
-    return psycopg2.connect(
-        host=os.getenv("AI_SECURITY_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("AI_SECURITY_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        database=os.getenv("AI_SECURITY_DB_NAME", "threat_engine_ai_security"),
-        user=os.getenv("AI_SECURITY_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("AI_SECURITY_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-    )
 
 
 class AIRuleLoader:
@@ -45,7 +34,7 @@ class AIRuleLoader:
             mitre_techniques, remediation.
         """
         try:
-            conn = _get_ai_security_conn()
+            conn = get_ai_security_conn()
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(
                     """

@@ -25,26 +25,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
 from engine_common.logger import setup_logger
 from engine_common.orchestration import get_orchestration_metadata
-from engine_common.retention import cleanup_old_scans
+from engine_common.db_connections import get_dbsec_conn
 
 logger = setup_logger(__name__, engine_name="dbsec-scanner")
 
 
-def _get_dbsec_conn():
-    import psycopg2
-    return psycopg2.connect(
-        host=os.getenv("DBSEC_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("DBSEC_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("DBSEC_DB_NAME", "threat_engine_database_security"),
-        user=os.getenv("DBSEC_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("DBSEC_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-    )
-
-
 def _update_report_status(scan_run_id: str, status: str, error: str = None):
     try:
-        conn = _get_dbsec_conn()
+        conn = get_dbsec_conn()
         with conn.cursor() as cur:
             if error:
                 cur.execute(
@@ -64,7 +52,7 @@ def _update_report_status(scan_run_id: str, status: str, error: str = None):
 
 def _create_report_row(scan_run_id: str, tenant_id: str, provider: str):
     try:
-        conn = _get_dbsec_conn()
+        conn = get_dbsec_conn()
         with conn.cursor() as cur:
             cur.execute(
                 "INSERT INTO tenants (tenant_id, tenant_name) VALUES (%s, %s) ON CONFLICT DO NOTHING",
@@ -111,29 +99,58 @@ def main():
         logger.info(f"Resolved: tenant={tenant_id} provider={provider} account={account_id}")
 
         _create_report_row(scan_run_id, tenant_id, provider)
+
+        # Provider guard — routes to the appropriate CSP provider module
+        from database_security_engine.providers import get_provider as get_db_provider
+        db_provider = get_db_provider(provider)
+        if not db_provider.is_supported():
+            logger.info(
+                f"Database-security: provider='{provider}' not yet supported — completing with 0 findings"
+            )
+            _update_report_status(scan_run_id, "completed")
+            return
+
         start = datetime.now(timezone.utc)
 
         # 2. Load data from source databases
-        from database_security_engine.input.discovery_reader import DBDiscoveryReader
-        from database_security_engine.input.check_reader import DBCheckReader
-        from database_security_engine.input.datasec_reader import DBDataSecReader
+        from database_security_engine.input.discovery_reader import DiscoveryReader as DBDiscoveryReader
+        from database_security_engine.input.check_reader import CheckReader as DBCheckReader
+        from database_security_engine.input.datasec_reader import DataSecReader as DBDataSecReader
 
         disc_reader = DBDiscoveryReader()
         check_reader = DBCheckReader()
         datasec_reader = DBDataSecReader()
 
         try:
-            # Discovery: all database services
+            # Discovery: all database services for this CSP
             discovery_resources = disc_reader.load_all_db_resources(
-                scan_run_id, tenant_id, account_id or None
+                scan_run_id, tenant_id, account_id or None, services=db_provider.discovery_services
             )
             total_disc = sum(len(v) for v in discovery_resources.values())
             logger.info(f"Discovery: {total_disc} resources across {len(discovery_resources)} services")
+            if total_disc == 0:
+                logger.warning(
+                    f"[DIAGNOSTIC] 0 database resources found for scan_run_id={scan_run_id} "
+                    f"tenant={tenant_id} account={account_id}. "
+                    "Likely causes: (1) RDS/DynamoDB/Redshift not present in scanned regions, "
+                    "(2) discovery service failed — check service_scan_attempts table for "
+                    "status=failed/access_denied on rds/dynamodb/redshift/elasticache/neptune/aurora, "
+                    "(3) scan_run_id mismatch between discovery and this engine."
+                )
+            else:
+                for svc, items in discovery_resources.items():
+                    if items:
+                        logger.info(f"  {svc}: {len(items)} resources")
 
             # Check findings
             check_findings = check_reader.load_db_check_findings(scan_run_id, tenant_id)
             rule_metadata = check_reader.load_rule_metadata()
             logger.info(f"Check: {len(check_findings)} findings, {len(rule_metadata)} rules")
+            if check_findings == 0 and total_disc > 0:
+                logger.warning(
+                    f"[DIAGNOSTIC] 0 check findings but {total_disc} discovered resources. "
+                    "Check engine may not have processed this scan_run_id yet."
+                )
 
             # DataSec classification
             datasec_data = datasec_reader.load_db_classification(scan_run_id, tenant_id)
@@ -252,23 +269,38 @@ def main():
             if uid and uid not in datasec_classification:
                 datasec_classification[uid] = df
 
+        flat_resources = [r for items in discovery_resources.values() for r in items]
         db_inventory = build_db_inventory(
-            discovery_resources, findings, datasec_classification
+            flat_resources, findings, list(datasec_classification.values())
         )
         logger.info(f"Inventory: {len(db_inventory)} databases")
 
         # 5. Compute posture scores
         scores = compute_posture_scores(findings, db_inventory)
-        logger.info(f"Posture: overall={scores.get('posture_score', 0)}")
+        logger.info(f"Posture: overall={scores.get('overall_score', 0)}")
 
         # 6. Attack surface analysis
-        attack_surface = analyze_attack_surface(db_inventory, datasec_classification)
+        attack_surface = analyze_attack_surface(db_inventory, list(datasec_classification.values()))
         logger.info(f"Attack surface: {len(attack_surface)} findings")
+
+        # Map attack surface risk_type → security_domain
+        _RISK_DOMAIN_MAP = {
+            "public_access":              "access_control",
+            "sensitive_data_public_access": "access_control",
+            "no_iam_authentication":      "access_control",
+            "no_encryption_at_rest":      "encryption",
+            "sensitive_data_unencrypted": "encryption",
+            "no_audit_logging":           "audit_logging",
+            "no_backup_protection":       "backup_recovery",
+            "no_vpc_isolation":           "network_security",
+            "no_multi_az":                "configuration",
+        }
 
         # Add attack surface findings to main list
         for asf in attack_surface:
+            risk_type = asf.get("risk_type", "attack_surface")
             asf_id = generate_finding_id(
-                asf.get("attack_type", "attack_surface"),
+                risk_type,
                 asf.get("resource_uid", ""),
                 asf.get("account_id", ""),
                 asf.get("region", ""),
@@ -283,14 +315,18 @@ def main():
                 "credential_type": metadata.get("credential_type"),
                 "db_engine": asf.get("db_engine"),
                 "db_service": asf.get("db_service"),
-                "security_domain": asf.get("security_domain", "access_control"),
+                "security_domain": _RISK_DOMAIN_MAP.get(risk_type, "access_control"),
                 "severity": asf.get("severity", "HIGH"),
                 "status": "FAIL",
-                "rule_id": None,
+                "rule_id": risk_type,
                 "title": asf.get("title", ""),
                 "description": asf.get("description", ""),
-                "remediation": asf.get("remediation", ""),
-                "finding_data": asf.get("finding_data", {}),
+                "remediation": asf.get("recommendation", asf.get("remediation", "")),
+                "finding_data": {
+                    "risk_type": risk_type,
+                    "data_classification": asf.get("data_classification"),
+                    "detected_at": asf.get("detected_at"),
+                },
             })
 
         # 7. Build summary
@@ -312,8 +348,10 @@ def main():
             else:
                 fail_count += 1
 
+        posture_score = int(scores.get("overall_score", 0))
         summary = {
             **scores,
+            "posture_score": posture_score,
             "total_databases": len(db_inventory),
             "total_findings": len(findings),
             "critical_findings": sev_counts["critical"],
@@ -324,6 +362,9 @@ def main():
             "fail_count": fail_count,
             "findings_by_service": service_counts,
             "findings_by_domain": domain_counts,
+            # aliases for the DB writer (uses domain_breakdown / service_breakdown)
+            "domain_breakdown": domain_counts,
+            "service_breakdown": service_counts,
             "coverage_by_service": {svc: len(res) for svc, res in discovery_resources.items()},
             "attack_surface_count": len(attack_surface),
         }
@@ -348,15 +389,16 @@ def main():
 
         logger.info(
             f"Database security scan completed: {scan_run_id} — "
-            f"score={scores.get('posture_score', 0)}, {len(findings)} findings, "
+            f"score={posture_score}, {len(findings)} findings, "
             f"{len(db_inventory)} databases in {duration:.1f}s"
         )
 
-        # 10. Retention cleanup
+        # Retention: archive old scans to S3, keep last 5 in DB
         try:
-            cleanup_old_scans("database_security", tenant_id, keep=3)
-        except Exception as e:
-            logger.warning(f"Retention cleanup failed: {e}")
+            from engine_common.retention import run_retention
+            run_retention("dbsec", scan_run_id)
+        except Exception as _ret_err:
+            logger.warning("Retention cleanup skipped: %s", _ret_err)
 
     except Exception as e:
         logger.error(f"Database security scan FAILED: {e}", exc_info=True)

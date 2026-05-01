@@ -13,9 +13,9 @@ import datetime
 import logging
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
-from ._shared import ENGINE_URLS, ENGINE_TIMEOUTS, DEFAULT_TIMEOUT, fetch_many, safe_get, mock_fallback, is_empty_or_health
+from ._shared import ENGINE_URLS, ENGINE_TIMEOUTS, DEFAULT_TIMEOUT, fetch_many, safe_get
 from ._transforms import normalize_asset, apply_global_filters, _safe_upper
 from ._page_context import inventory_page_context, inventory_filter_schema
 
@@ -48,6 +48,7 @@ def _type_from_arn(arn: str) -> str:
 
 @router.get("/inventory")
 async def view_inventory(
+    request: Request,
     tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
@@ -58,12 +59,15 @@ async def view_inventory(
 ):
     """Asset list + summary for the inventory page."""
 
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
     # ── 4 parallel calls: inventory + threat detections + threat summary + onboarding
     results = await fetch_many([
         ("inventory",  "/api/v1/inventory/ui-data",  {"tenant_id": tenant_id, "scan_run_id": scan_run_id, "limit": str(min(limit, 2000)), "offset": str(offset)}),
         ("threat",     "/api/v1/threat/ui-data",     {"tenant_id": tenant_id, "scan_run_id": "latest", "limit": str(limit)}),
         ("onboarding", "/api/v1/cloud-accounts", {"tenant_id": tenant_id}),
-    ])
+    ], auth_headers=fwd_headers)
 
     inventory_data, threat_data, onboarding_data = results
 
@@ -71,16 +75,6 @@ async def view_inventory(
     inventory_data = inventory_data if isinstance(inventory_data, dict) else {}
     threat_data = threat_data if isinstance(threat_data, dict) else {}
     onboarding_data = onboarding_data if isinstance(onboarding_data, dict) else {}
-
-    # Mock fallback when engine data is empty or has no assets
-    _has_assets = (
-        isinstance(inventory_data, dict)
-        and bool(inventory_data.get("assets") or inventory_data.get("summary", {}).get("total_assets", 0))
-    )
-    if is_empty_or_health(inventory_data) or not _has_assets:
-        m = mock_fallback("inventory")
-        if m is not None:
-            return m
 
     # ── Build threat-findings lookup: resource_uid → {critical,high,medium,low,risk_score}
     threat_by_resource: Dict[str, Dict[str, Any]] = {}
@@ -546,6 +540,7 @@ def _build_drift_timeline(
 
 @router.get("/inventory/asset/{resource_uid:path}")
 async def view_asset_detail(
+    request: Request,
     resource_uid: str,
     tenant_id: str = Query(...),
     scan_run_id: str = Query("latest"),
@@ -561,10 +556,14 @@ async def view_asset_detail(
     The :path converter is greedy, so sub-route suffixes are dispatched
     manually (same pattern used by the inventory engine).
     """
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
     # ── Sub-route dispatch (greedy :path swallows suffixes) ────────────
     if resource_uid.endswith("/blast-radius"):
         actual_uid = resource_uid[: -len("/blast-radius")]
         return await view_blast_radius(
+            request=request,
             resource_uid=actual_uid,
             tenant_id=tenant_id,
             scan_run_id=scan_run_id,
@@ -588,7 +587,7 @@ async def view_asset_detail(
          {"tenant_id": tenant_id, "scan_run_id": scan_run_id}),
         ("inventory",  f"/api/v1/inventory/assets/{enc_uid}/relationships",
          {"tenant_id": tenant_id, "scan_run_id": scan_run_id, "depth": "2"}),
-    ])
+    ], auth_headers=fwd_headers)
 
     inventory_data, check_data, threat_data, compliance_data, rels_data = results
 
@@ -699,6 +698,7 @@ async def _fetch_posture_for_nodes(
 
 @router.get("/inventory/asset/{resource_uid:path}/blast-radius")
 async def view_blast_radius(
+    request: Request,
     resource_uid: str,
     tenant_id: str = Query(...),
     scan_run_id: str = Query("latest"),
@@ -714,6 +714,9 @@ async def view_blast_radius(
     from urllib.parse import quote
     import httpx as _httpx
     import json as _json
+
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 
     # Safely resolve max_depth to a plain int — when called from sub-route dispatch
     # (not via FastAPI dependency injection) the default value is the raw Query()
@@ -733,10 +736,14 @@ async def view_blast_radius(
     safe_uid = quote(resource_uid, safe="/:@!$&'()*+,;=")
     neo4j_url = f"{threat_base}/api/v1/graph/blast-radius/{safe_uid}"
     neo4j_params = {"tenant_id": tenant_id, "max_hops": str(depth)}
+    _blast_headers: Dict[str, str] = {}
+    if fwd_headers:
+        _blast_headers.update(fwd_headers)
     try:
         async with _httpx.AsyncClient() as _client:
             _resp = await _client.get(
                 neo4j_url, params=neo4j_params,
+                headers=_blast_headers,
                 timeout=ENGINE_TIMEOUTS.get("threat", DEFAULT_TIMEOUT)
             )
             if _resp.status_code != 200:
@@ -978,6 +985,7 @@ async def _batch_posture_for_nodes(
 
 @router.get("/inventory/taxonomy")
 async def view_inventory_taxonomy(
+    request: Request,
     csp: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
     min_priority: int = Query(5, ge=1, le=5),
@@ -987,6 +995,9 @@ async def view_inventory_taxonomy(
     Passthrough to inventory engine's /api/v1/inventory/taxonomy endpoint.
     Used by the UI to know how to group/color/nest resources in architecture diagrams.
     """
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
     params: Dict[str, str] = {"min_priority": str(min_priority)}
     if csp:
         params["csp"] = csp
@@ -995,7 +1006,7 @@ async def view_inventory_taxonomy(
 
     results = await fetch_many([
         ("inventory", "/api/v1/inventory/taxonomy", params),
-    ])
+    ], auth_headers=fwd_headers)
 
     data = results[0]
     if not isinstance(data, dict):
@@ -1005,6 +1016,7 @@ async def view_inventory_taxonomy(
 
 @router.get("/inventory/architecture")
 async def view_inventory_architecture(
+    request: Request,
     tenant_id: Optional[str] = Query(None),
     scan_run_id: str = Query("latest"),
     max_priority: int = Query(3, ge=1, le=5),
@@ -1016,6 +1028,9 @@ async def view_inventory_architecture(
     Step 2: Batch-fetch posture for all assets in the hierarchy
     Step 3: Merge posture counts into each node
     """
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
     params: Dict[str, str] = {
         "scan_run_id": scan_run_id,
         "max_priority": str(max_priority),
@@ -1028,7 +1043,7 @@ async def view_inventory_architecture(
 
     results = await fetch_many([
         ("inventory", "/api/v1/inventory/architecture", params),
-    ])
+    ], auth_headers=fwd_headers)
 
     arch_data = results[0]
     if not isinstance(arch_data, dict) or not arch_data.get("accounts"):
@@ -1129,6 +1144,7 @@ def _merge_posture_into_hierarchy(
 
 @router.get("/inventory/graph")
 async def view_inventory_graph(
+    request: Request,
     tenant_id: str = Query(...),
     depth: int = Query(5, ge=1, le=10),
     limit: int = Query(2000, ge=1, le=5000),
@@ -1142,6 +1158,9 @@ async def view_inventory_graph(
     Step 3: Merge posture data into each node.
     Step 4: Return enriched response ready for the architecture diagram UI.
     """
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
     # Step 1: Get graph from inventory engine
     params: Dict[str, str] = {
         "tenant_id": tenant_id,
@@ -1155,7 +1174,7 @@ async def view_inventory_graph(
 
     graph_results = await fetch_many([
         ("inventory", "/api/v1/inventory/runs/latest/graph", params),
-    ])
+    ], auth_headers=fwd_headers)
 
     graph_data = graph_results[0]
     if not isinstance(graph_data, dict) or "nodes" not in graph_data:

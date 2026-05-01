@@ -92,20 +92,41 @@ class OCIAuditParser(BaseParser):
         Returns:
             Flattened event dict with _service and _operation helpers
         """
-        data = raw.get("data", raw)
+        # Support both formats:
+        #   camelCase (Object Storage): {"data": {"eventType": ..., "identity": ..., ...}}
+        #   snake_case (direct API):    {"event_type": ..., "source": ..., "data": {"identity": ..., ...}}
+        inner = raw.get("data") or {}
+        if isinstance(inner, dict):
+            data = inner
+        else:
+            data = {}
 
-        # Extract eventType: "com.oraclecloud.computeapi.LaunchInstance"
-        event_type = data.get("eventType", "")
+        def _get(*dicts_and_keys):
+            """Try each (dict, key) pair; return first non-empty value."""
+            for d, *keys in dicts_and_keys:
+                for k in keys:
+                    v = d.get(k)
+                    if v:
+                        return v
+            return ""
+
+        # Extract eventType — top-level in direct API, inside data in OS logs
+        event_type = _get(
+            (data, "eventType"),
+            (raw,  "event_type", "eventType"),
+        )
         parts = event_type.rsplit(".", 1)
         operation = parts[-1] if len(parts) > 1 else event_type
 
-        # Extract service from eventType or source field
-        # e.g., "com.oraclecloud.computeapi" from eventType (lowercased for rule matching)
-        service = ".".join(parts[:-1]).lower() if len(parts) > 1 else data.get("source", "").lower()
+        # Source — top-level in both formats
+        source_val = raw.get("source") or data.get("source", "")
 
-        identity = data.get("identity", {})
-        request = data.get("request", {})
-        response = data.get("response", {})
+        # Extract service from eventType or source
+        service = ".".join(parts[:-1]).lower() if len(parts) > 1 else source_val.lower()
+
+        identity = data.get("identity") or {}
+        request = data.get("request") or {}
+        response = data.get("response") or {}
 
         # Derive outcome from HTTP response status
         status_str = response.get("status", "")
@@ -121,15 +142,15 @@ class OCIAuditParser(BaseParser):
             "_service": service,
             "_operation": operation,
             "_outcome": _outcome,
-            "source": data.get("source", ""),
-            "eventTime": data.get("eventTime", ""),
+            "source": source_val,
+            "eventTime": _get((data, "eventTime"), (raw, "event_time", "eventTime")),
 
-            # Actor / identity
-            "principalId": identity.get("principalId", ""),
-            "principalName": identity.get("principalName", ""),
-            "ipAddress": identity.get("ipAddress", ""),
-            "tenantId": identity.get("tenantId", ""),
-            "userAgent": identity.get("userAgent", ""),
+            # Actor / identity (camelCase from OS logs; snake_case from direct API)
+            "principalId": identity.get("principalId") or identity.get("principal_id", ""),
+            "principalName": identity.get("principalName") or identity.get("principal_name", ""),
+            "ipAddress": identity.get("ipAddress") or identity.get("ip_address", ""),
+            "tenantId": identity.get("tenantId") or identity.get("tenant_id", ""),
+            "userAgent": identity.get("userAgent") or identity.get("user_agent", ""),
             "credentials": identity.get("credentials", {}),
 
             # Request
@@ -140,12 +161,12 @@ class OCIAuditParser(BaseParser):
 
             # Response
             "responseStatus": response.get("status", ""),
-            "responseTime": response.get("responseTime", ""),
+            "responseTime": response.get("responseTime") or response.get("response_time", ""),
             "responseHeaders": response.get("headers", {}),
 
             # Resource
-            "resourceId": data.get("resourceId", ""),
-            "compartmentId": data.get("compartmentId", ""),
+            "resourceId": _get((data, "resourceId", "resource_id"), (raw, "resource_id")),
+            "compartmentId": _get((data, "compartmentId", "compartment_id"), (raw, "compartment_id")),
 
             # State change
             "stateChange": data.get("stateChange", {}),

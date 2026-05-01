@@ -1,0 +1,51 @@
+# Auto-generated: check rules for IBM ciem from test-rulecheck_python_code
+version: '1.0'
+provider: ibm
+service: ciem
+checks:
+- rule_id: ibm.ciem.chain.data_exfiltration_via_cos
+  for_each: ibm.cos.list_buckets
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.Encryption
+      op: exists
+    - var: item.Encryption.Algorithm
+      op: equals
+      value: AES256
+    - var: item.PublicAccessBlockConfiguration
+      op: exists
+    - var: item.PublicAccessBlockConfiguration.BlockPublicAcls
+      op: is_true
+    - var: item.PublicAccessBlockConfiguration.BlockPublicPolicy
+      op: is_true
+    - var: item.PublicAccessBlockConfiguration.IgnorePublicAcls
+      op: is_true
+    - var: item.PublicAccessBlockConfiguration.RestrictPublicBuckets
+      op: is_true
+- rule_id: ibm.ciem.chain.defense_evasion_log_destroy
+  for_each: ibm.ciem.chain.defense_evasion_log_destroy
+  severity: CRITICAL
+  conditions:
+    var: item.LogRetentionEnabled
+    op: is_true
+- rule_id: ibm.ciem.chain.privilege_escalation_via_trusted_profile
+  for_each: ibm.iam.list_trusted_profiles
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.Policies[].Roles[].RoleName
+      op: not_contains
+      value: Administrator
+    - var: item.Policies[].Roles[].RoleName
+      op: not_contains
+      value: Manager
+    - var: item.Policies[].Roles[].RoleName
+      op: not_contains
+      value: Editor
+    - var: item.Policies[].Roles[].RoleName
+      op: not_contains
+      value: Operator
+    - var: item.Policies[].Roles[].RoleName
+      op: not_contains
+      value: Viewer

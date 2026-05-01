@@ -1,0 +1,314 @@
+version: '1.0'
+provider: gcp
+service: dataflow
+checks:
+- rule_id: gcp.dataflow.job.definition_signed_and_verified
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: MEDIUM
+  conditions:
+    var: item.environment.sdkPipelineOptions.definitionSignedAndVerified
+    op: is_true
+    value: null
+- rule_id: gcp.dataflow.job.definition_storage_encrypted
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: MEDIUM
+  conditions:
+    var: item.environment.sdkPipelineOptions.defaultProject
+    op: exists
+    value: null
+- rule_id: gcp.dataflow.job.definition_storage_private
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: MEDIUM
+  conditions:
+    var: item.environment.tempLocation
+    op: contains
+    value: gs://
+- rule_id: gcp.dataflow.job.definition_version_immutability_enforced
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: MEDIUM
+  conditions:
+    var: item.environment.sdkPipelineOptions.jobType
+    op: equals
+    value: JOB_TYPE_BATCH
+- rule_id: gcp.dataflow.job.object_environment_no_plaintext_secrets
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.environment.sdkPipelineOptions
+      op: exists
+      value: null
+    - var: item.environment.sdkPipelineOptions
+      op: not_contains
+      value: password
+    - var: item.environment.sdkPipelineOptions
+      op: not_contains
+      value: secret
+    - var: item.environment.sdkPipelineOptions
+      op: not_contains
+      value: key
+- rule_id: gcp.dataflow.job.object_execution_role_least_privilege
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: HIGH
+  conditions:
+    var: item.environment.serviceAccountEmail
+    op: exists
+    value: null
+- rule_id: gcp.dataflow.job.object_logging_enabled
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: MEDIUM
+  conditions:
+    var: item.environment.sdkPipelineOptions.enableStreamingEngine
+    op: is_true
+    value: null
+- rule_id: gcp.dataflow.job.object_network_private_only
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: MEDIUM
+  conditions:
+    var: item.environment.serviceAccountOptions.accessScopes[]
+    op: not_contains
+    value: https://www.googleapis.com/auth/cloud-platform
+- rule_id: gcp.dataflow.job.pipeline_artifacts_private_and_encrypted
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.environment.sdkPipelineOptions.pipelineArtifactBucket
+      op: exists
+      value: null
+    - var: item.environment.sdkPipelineOptions.pipelineArtifactBucket
+      op: contains
+      value: private.googleapis.com
+    - var: item.environment.sdkPipelineOptions.pipelineArtifactBucket
+      op: contains
+      value: encrypted
+- rule_id: gcp.dataflow.job.pipeline_execution_roles_least_privilege
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.environment.serviceAccountEmail
+      op: exists
+      value: null
+    - var: item.environment.serviceAccountEmail
+      op: not_equals
+      value: default
+- rule_id: gcp.dataflow.job.pipeline_kms_encryption_enabled
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: HIGH
+  conditions:
+    var: item.environment.sdkPipelineOptions.defaultKmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.dataflow.job.pipeline_logs_and_metrics_enabled
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.environment
+      op: exists
+      value: null
+    - var: item.environment.enableStreamingEngine
+      op: is_true
+      value: null
+    - var: item.environment.enableHotKeyLogging
+      op: is_true
+      value: null
+- rule_id: gcp.dataflow.job.pipeline_private_networking_enforced
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.environment.network
+      op: exists
+      value: null
+    - var: item.environment.subnetwork
+      op: exists
+      value: null
+- rule_id: gcp.dataflow.parameter.parameter_allowed_values_defined_where_applicable
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: MEDIUM
+  conditions:
+    var: item.environment
+    op: exists
+    value: null
+- rule_id: gcp.dataflow.parameter.parameter_attributes_no_plaintext_secrets
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: HIGH
+  conditions:
+    var: item.environment
+    op: exists
+    value: null
+- rule_id: gcp.dataflow.parameter.parameter_binding_only_expected_params_bound
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: MEDIUM
+  conditions:
+    var: item.environment.additionalExperiments
+    op: not_contains
+    value: enable_streaming_engine
+- rule_id: gcp.dataflow.parameter.parameter_binding_secret_refs_resolved_at_runtime
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.environment
+      op: exists
+      value: null
+    - var: item.environment.sdkPipelineOptions
+      op: exists
+      value: null
+    - var: item.environment.sdkPipelineOptions.options
+      op: exists
+      value: null
+    - var: item.environment.sdkPipelineOptions.options.parameters
+      op: exists
+      value: null
+    - any:
+      - var: item.environment.sdkPipelineOptions.options.parameters[].value
+        op: not_contains
+        value: projects/
+      - var: item.environment.sdkPipelineOptions.options.parameters[].value
+        op: not_contains
+        value: secretManagerVersions/
+- rule_id: gcp.dataflow.parameter.parameter_binding_sensitive_params_not_logged
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.environment.sdkPipelineOptions
+      op: exists
+      value: null
+    - var: item.environment.sdkPipelineOptions
+      op: contains
+      value: skipLoggingParameter
+- rule_id: gcp.dataflow.parameter.parameter_constraint_allowlist_defined_when_applicable
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: MEDIUM
+  conditions:
+    var: item.environment.sdkPipelineOptions.parameters
+    op: exists
+    value: null
+- rule_id: gcp.dataflow.parameter.parameter_constraint_max_length_defined_when_applicable
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: MEDIUM
+  conditions:
+    var: item.environment.workerPools[].poolArgs.containerSpec.imageRepositoryConfig
+    op: exists
+    value: null
+- rule_id: gcp.dataflow.parameter.parameter_constraint_min_length_defined_when_applicable
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.environment.workerPools[].poolArgs.containerSpec.image
+      op: exists
+      value: null
+    - var: item.environment.workerPools[].poolArgs.containerSpec.image
+      op: length_gte
+      value: '1'
+- rule_id: gcp.dataflow.parameter.parameter_constraint_pattern_defined_when_applicable
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: MEDIUM
+  conditions:
+    var: item.environment
+    op: exists
+    value: null
+- rule_id: gcp.dataflow.parameter.parameter_default_not_sensitive
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.environment.sdkPipelineOptions.defaultEnvironment
+      op: exists
+      value: null
+    - var: item.environment.sdkPipelineOptions.defaultEnvironment
+      op: not_contains
+      value: password
+    - var: item.environment.sdkPipelineOptions.defaultEnvironment
+      op: not_contains
+      value: secret
+    - var: item.environment.sdkPipelineOptions.defaultEnvironment
+      op: not_contains
+      value: key
+- rule_id: gcp.dataflow.parameter.parameter_max_length_defined_where_applicable
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: MEDIUM
+  conditions:
+    var: item.environment.workerPools[].poolArgs.parameters.maxLength
+    op: exists
+    value: null
+- rule_id: gcp.dataflow.parameter.parameter_metadata_disallowed_attribute_keys_blocked
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: MEDIUM
+  conditions:
+    var: item.environment.sdkPipelineOptions.parameters.metadata.disallowedAttributeKeys
+    op: not_exists
+    value: null
+- rule_id: gcp.dataflow.parameter.parameter_metadata_sensitive_keys_require_secret_type
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.environment.sdkPipelineOptions.parameters
+      op: exists
+      value: null
+    - var: item.environment.sdkPipelineOptions.parameters[].key
+      op: not_contains
+      value: password
+    - var: item.environment.sdkPipelineOptions.parameters[].key
+      op: not_contains
+      value: secret
+    - var: item.environment.sdkPipelineOptions.parameters[].key
+      op: not_contains
+      value: key
+    - var: item.environment.sdkPipelineOptions.parameters[].key
+      op: not_contains
+      value: token
+    - var: item.environment.sdkPipelineOptions.parameters[].key
+      op: not_contains
+      value: credential
+- rule_id: gcp.dataflow.parameter.parameter_metadata_values_not_plaintext_secret
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.environment.sdkPipelineOptions.parameters
+      op: exists
+      value: null
+    - var: item.environment.sdkPipelineOptions.parameters
+      op: not_contains
+      value: password
+    - var: item.environment.sdkPipelineOptions.parameters
+      op: not_contains
+      value: secret
+    - var: item.environment.sdkPipelineOptions.parameters
+      op: not_contains
+      value: key
+- rule_id: gcp.dataflow.parameter.parameter_min_length_defined_where_applicable
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: MEDIUM
+  conditions:
+    var: item.environment.workerPools[].poolArgs.containerSpec.image
+    op: length_gte
+    value: '1'
+- rule_id: gcp.dataflow.parameter.parameter_pattern_defined_where_applicable
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: MEDIUM
+  conditions:
+    var: item.environment
+    op: exists
+    value: null
+- rule_id: gcp.dataflow.parameter.parameter_type_set
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: MEDIUM
+  conditions:
+    var: item.environment.sdkPipelineOptions.parameters[].type
+    op: exists
+    value: null
+- rule_id: gcp.dataflow.parameter.parameter_value_from_secrets_manager_when_sensitive
+  for_each: gcp.dataflow.projects.locations.jobs.list
+  severity: HIGH
+  conditions:
+    var: item.environment.sdkPipelineOptions.parameters[].value
+    op: not_contains
+    value: projects/

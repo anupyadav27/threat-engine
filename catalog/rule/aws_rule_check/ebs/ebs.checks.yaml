@@ -1,0 +1,103 @@
+version: '1.0'
+provider: aws
+service: ebs
+checks:
+- rule_id: aws.ebs.snapshot.ebs_cmk_cmek_configured
+  for_each: aws.ec2.describe_snapshots
+  severity: MEDIUM
+  conditions:
+    var: item.Encrypted
+    op: is_true
+    value: null
+- rule_id: aws.ebs.snapshot.ebs_cross_region_copy_encrypted
+  for_each: aws.ec2.describe_snapshots
+  severity: HIGH
+  conditions:
+    var: item.Encrypted
+    op: is_true
+    value: null
+- rule_id: aws.ebs.snapshot.ebs_s_encrypted
+  for_each: aws.ec2.describe_snapshots
+  severity: HIGH
+  conditions:
+    var: item.Encrypted
+    op: is_true
+    value: null
+- rule_id: aws.ebs.snapshot.encryption_at_rest_enabled
+  for_each: aws.ec2.describe_snapshots
+  severity: HIGH
+  conditions:
+    var: item.Encrypted
+    op: is_true
+    value: null
+- rule_id: aws.ebs.snapshot.not_public_configured
+  for_each: aws.ec2.describe_snapshots
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Attributes[].CreateVolumePermission[].Group
+      op: not_contains
+      value: all
+- rule_id: aws.ebs.snapshot.s_not_public_configured
+  for_each: aws.ec2.describe_snapshots
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Attributes[].CreateVolumePermission[].Group
+      op: not_contains
+      value: all
+- rule_id: aws.ebs.snapshot.snapshots_encrypted
+  for_each: aws.ec2.describe_snapshots
+  severity: HIGH
+  conditions:
+    var: item.Encrypted
+    op: is_true
+    value: null
+- rule_id: aws.ebs.snapshot.snapshots_not_public_configured
+  for_each: aws.ec2.describe_snapshots
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Attributes[].CreateVolumePermission[].Group
+      op: not_contains
+      value: all
+- rule_id: aws.ebs.volume.backup_configured
+  for_each: aws.ec2.describe_volumes
+  severity: MEDIUM
+  conditions:
+    var: item.BackupEnabled
+    op: is_true
+    value: null
+- rule_id: aws.ebs.volume.ebs_cmk_cmek_configured
+  for_each: aws.ec2.describe_volumes
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.KmsKeyId
+      op: exists
+      value: null
+    - var: item.KmsKeyId
+      op: not_contains
+      value: alias/aws/ebs
+- rule_id: aws.ebs.volume.encryption_at_rest_enabled
+  for_each: aws.ec2.describe_volumes
+  severity: HIGH
+  conditions:
+    var: item.Encrypted
+    op: is_true
+    value: null
+- rule_id: aws.ebs.volume.snapshots_encrypted
+  for_each: aws.ec2.describe_snapshots
+  severity: HIGH
+  conditions:
+    var: item.Encrypted
+    op: is_true
+    value: null
+- rule_id: aws.ebs.volume.snapshots_not_public_configured
+  for_each: aws.ec2.describe_snapshots
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Attributes[].CreateVolumePermission[].Group
+      op: not_contains
+      value: all

@@ -85,7 +85,11 @@ class CloudAccount(Base):
     account_name            = Column(String(255), nullable=False)
     account_number          = Column(String(255))          # provider-detected ID
     account_hierarchy_name  = Column(String(255))          # display path in org tree
-    provider                = Column(String(50), nullable=False)   # aws/azure/gcp/oci/alicloud/ibm/k8s
+    account_category        = Column(String(50), nullable=False, default='cloud')
+    # cloud | database
+    provider                = Column(String(50), nullable=False)
+    # cloud: aws/azure/gcp/oci/alicloud/ibm/k8s
+    # database: postgres/mysql/mssql/mongodb/oracle
 
     # Credentials (stored in Secrets Manager)
     credential_type         = Column(String(50), nullable=False)   # iam_role/access_key/service_principal/...
@@ -137,6 +141,7 @@ class CloudAccount(Base):
             'tenant_id':                    self.tenant_id,
             'account_name':                 self.account_name,
             'account_number':               self.account_number,
+            'account_category':             self.account_category,
             'provider':                     self.provider,
             'credential_type':              self.credential_type,
             'credential_ref':               self.credential_ref,

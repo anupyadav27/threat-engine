@@ -1,0 +1,83 @@
+# ============================================================
+# Discovery YAML — secretmanager (final_discovery v1)
+# Generated: 2026-04-16T09:26:48Z
+# Source: gcp_master_field_catalog.csv
+# Check rules: 45 | ops in scope: 2 (2 independent, 0 dependent)
+# ============================================================
+version: '1.0'
+provider: gcp
+service: secretmanager
+
+services:
+  client: secretmanager
+  module: "googleapiclient.discovery.build('secretmanager', 'v1')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: unknown
+    identifier_op: gcp.secretmanager.projects.secrets.list
+    identifier_field: secrets[].name
+    item_var_path: item.secrets[].name
+  - resource_type: unknown
+    identifier_op: gcp.secretmanager.projects.secrets.versions.list
+    identifier_field: versions[].name
+    item_var_path: item.versions[].name
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── gcp.secretmanager.projects.secrets.list ──
+  - discovery_id: gcp.secretmanager.projects.secrets.list
+    calls:
+      - action: projects.secrets.list
+        params:
+          parent: '{{ project_id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        __self__: '{{ item.__self__ }}'
+        annotations: '{{ item.annotations }}'
+        bindings: '{{ item.bindings }}'
+        createTime: '{{ item.createTime }}'
+        customerManagedEncryption: '{{ item.customerManagedEncryption }}'
+        expireTime: '{{ item.expireTime }}'
+        labels: '{{ item.labels }}'
+        name: '{{ item.name }}'
+        replication: '{{ item.replication }}'
+        rotation: '{{ item.rotation }}'
+        tags: '{{ item.tags }}'
+        topics: '{{ item.topics }}'
+        totalSize: '{{ item.totalSize }}'
+        ttl: '{{ item.ttl }}'
+        versionAliases: '{{ item.versionAliases }}'
+        versionDestroyTtl: '{{ item.versionDestroyTtl }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── gcp.secretmanager.projects.secrets.versions.list ──
+  - discovery_id: gcp.secretmanager.projects.secrets.versions.list
+    calls:
+      - action: projects.secrets.versions.list
+        params:
+          parent: '{{ project_id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        clientSpecifiedPayloadChecksum: '{{ item.clientSpecifiedPayloadChecksum }}'
+        createTime: '{{ item.createTime }}'
+        customerManagedEncryption: '{{ item.customerManagedEncryption }}'
+        destroyTime: '{{ item.destroyTime }}'
+        name: '{{ item.name }}'
+        replication: '{{ item.replication }}'
+        replicationStatus: '{{ item.replicationStatus }}'
+        scheduledDestroyTime: '{{ item.scheduledDestroyTime }}'
+        state: '{{ item.state }}'
+        totalSize: '{{ item.totalSize }}'
+

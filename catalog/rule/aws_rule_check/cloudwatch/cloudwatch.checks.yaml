@@ -1,0 +1,824 @@
+version: '1.0'
+provider: aws
+service: cloudwatch
+checks:
+- rule_id: aws.cloudwatch.alarm.alert_destinations_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.AlarmActions
+      op: not_empty
+      value: null
+    - var: item.InsufficientDataActions
+      op: not_empty
+      value: null
+- rule_id: aws.cloudwatch.alarm.alerts_for_backup_failures_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.AlarmName
+      op: contains
+      value: backup
+    - var: item.AlarmDescription
+      op: contains
+      value: backup
+- rule_id: aws.cloudwatch.alarm.alerts_for_replication_lag_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: ReplicaLag
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: replication_lag
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: ReplicationLag
+- rule_id: aws.cloudwatch.alarm.alerts_for_rpo_rto_breach_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.AlarmActions
+      op: not_empty
+      value: null
+    - var: item.AlarmDescription
+      op: contains
+      value: RPO
+- rule_id: aws.cloudwatch.alarm.cloudwatch_alarm_actions_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: LOW
+  conditions:
+    var: item.AlarmActions
+    op: not_empty
+    value: null
+- rule_id: aws.cloudwatch.alarm.cloudwatch_alarm_critical_s_enabled
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.Enabled
+    op: is_true
+    value: null
+- rule_id: aws.cloudwatch.alarm.destinations_authenticated_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.AlarmActions
+    op: not_empty
+    value: null
+- rule_id: aws.cloudwatch.alarm_cpu_utilization_configured.alarm_cloudwatch_alarm_cpu_utilization_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: CPUUtilization
+    - var: item.MetricAlarms[].AlarmActions
+      op: not_empty
+      value: null
+- rule_id: aws.cloudwatch.alarm_memory_utilization_configured.alarm_cloudwatch_alarm_memory_utilization_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: MemoryUtilization
+    - var: item.MetricAlarms[].AlarmName
+      op: contains
+      value: memory
+- rule_id: aws.cloudwatch.alarmconfigured.alarm_cloudwatch_alarm_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.MetricAlarms
+    op: not_empty
+    value: null
+- rule_id: aws.cloudwatch.anomalydetector.alerts_configured
+  for_each: aws.cloudwatch.describe_anomaly_detectors
+  severity: MEDIUM
+  conditions:
+    var: item.AnomalyDetectors
+    op: not_empty
+    value: null
+- rule_id: aws.cloudwatch.anomalydetector.cloudwatch_detectors_enabled
+  for_each: aws.cloudwatch.describe_anomaly_detectors
+  severity: MEDIUM
+  conditions:
+    var: item.StateValue
+    op: exists
+    value: null
+- rule_id: aws.cloudwatch.anomalydetector.cloudwatch_training_data_sources_approved_configured
+  for_each: aws.cloudwatch.describe_anomaly_detectors
+  severity: MEDIUM
+  conditions:
+    var: item.AnomalyDetectors[].Configuration
+    op: exists
+    value: null
+- rule_id: aws.cloudwatch.bucket.policy_changes_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.AlarmName
+      op: contains
+      value: S3BucketPolicyChange
+    - var: item.AlarmName
+      op: contains
+      value: BucketPolicyChange
+- rule_id: aws.cloudwatch.changes.to_network_acls_alarm_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.MetricAlarms[?(@.MetricName == 'NetworkAclEventCount' && @.Namespace
+        == 'AWS/EC2')]
+      op: not_empty
+      value: null
+    - var: item.CompositeAlarms[?(@.AlarmRule =~ /.*NetworkAclEventCount.*/)]
+      op: not_empty
+      value: null
+- rule_id: aws.cloudwatch.changes.to_network_gateways_alarm_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: NetworkGatewayEventCount
+    - var: item.MetricAlarms[].AlarmActions
+      op: not_empty
+      value: null
+- rule_id: aws.cloudwatch.changes.to_network_route_tables_alarm_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: RouteTableChangeEvent
+    - var: item.MetricAlarms[].AlarmName
+      op: contains
+      value: route
+    - var: item.MetricAlarms[].AlarmName
+      op: contains
+      value: RouteTable
+- rule_id: aws.cloudwatch.changes.to_vpcs_alarm_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: VpcEvent
+    - var: item.MetricAlarms[].AlarmActions
+      op: not_empty
+      value: null
+- rule_id: aws.cloudwatch.changes_to_vpcs_alarm_configured.changes_to_vpcs_alarm_configured_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.MetricAlarms[?(@.MetricName == 'VpcEventCount' && @.Namespace == 'AWS/Events'
+        && contains(@.AlarmActions, 'arn:aws:sns'))]
+      op: not_empty
+      value: null
+    - var: item.CompositeAlarms[?(@.AlarmRule && contains(@.AlarmRule, 'VPC') && contains(@.AlarmActions,
+        'arn:aws:sns'))]
+      op: not_empty
+      value: null
+- rule_id: aws.cloudwatch.dashboard.cloudwatch_sharing_restricted_to_org_configured
+  for_each: aws.cloudwatch.list_dashboards
+  severity: MEDIUM
+  conditions:
+    var: item.DashboardEntries[].DashboardArn
+    op: not_contains
+    value: arn:aws:cloudwatch::*:dashboard/
+- rule_id: aws.cloudwatch.dashboard.cloudwatch_sso_required
+  for_each: aws.cloudwatch.list_dashboards
+  severity: MEDIUM
+  conditions:
+    var: item.DashboardBody
+    op: contains
+    value: sso
+- rule_id: aws.cloudwatch.dashboard.public_embeds_disabled
+  for_each: aws.cloudwatch.list_dashboards
+  severity: HIGH
+  conditions:
+    var: item.DashboardEntries[].DashboardArn
+    op: not_contains
+    value: arn:aws:cloudwatch::dashboard/public
+- rule_id: aws.cloudwatch.destination.endpoint_private_networking_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.MetricAlarms[].AlarmActions[]
+      op: contains
+      value: arn:aws:cloudwatch
+    - var: item.MetricAlarms[].AlarmActions[]
+      op: not_contains
+      value: public
+- rule_id: aws.cloudwatch.destination.iam_policy_least_privilege
+  for_each: aws.cloudwatch.describe_alarms
+  severity: HIGH
+  conditions:
+    var: item.AlarmActions
+    op: not_contains
+    value: arn:aws:iam::*:role/*
+- rule_id: aws.cloudwatch.destination.tls_min_1_2_enforced
+  for_each: aws.cloudwatch.describe_alarms
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.MetricAlarms[].AlarmActions[]
+      op: contains
+      value: arn:aws:cloudwatch:us-east-1:123456789012:alarm:example-name
+    - var: item.MetricAlarms[].AlarmArn
+      op: exists
+      value: null
+- rule_id: aws.cloudwatch.group.cloudwatch_configuration_changes_monitored
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.AlarmName
+      op: contains
+      value: Config
+    - var: item.AlarmName
+      op: contains
+      value: config
+- rule_id: aws.cloudwatch.group.cloudwatch_log_edr_log_delivery_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.AlarmActions
+    op: not_empty
+    value: null
+- rule_id: aws.cloudwatch.group.cloudwatch_log_no_secrets_in_logs_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.MetricAlarms[].AlarmActions
+    op: not_empty
+    value: null
+- rule_id: aws.cloudwatch.group.kms_encryption_enabled
+  for_each: aws.logs.describe_log_groups
+  severity: HIGH
+  conditions:
+    var: item.KmsKeyId
+    op: exists
+    value: null
+- rule_id: aws.cloudwatch.group.not_publicly_accessible_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: HIGH
+  conditions:
+    var: item.MetricAlarms[].ActionsEnabled
+    op: is_true
+    value: null
+- rule_id: aws.cloudwatch.group.retention_policy_configured
+  for_each: aws.logs.describe_log_groups
+  severity: HIGH
+  conditions:
+    var: item.retentionInDays
+    op: exists
+    value: null
+- rule_id: aws.cloudwatch.insightsquery.cloudwatch_storage_encrypted
+  for_each: aws.cloudwatch.describe_insight_rules
+  severity: HIGH
+  conditions:
+    var: item.ApplyOnTransformedLogs
+    op: exists
+    value: null
+- rule_id: aws.cloudwatch.insightsquery.rbac_least_privilege
+  for_each: aws.cloudwatch.describe_insight_rules
+  severity: HIGH
+  conditions:
+    var: item.ManagedRule
+    op: exists
+    value: null
+- rule_id: aws.cloudwatch.log.group_kms_encryption_enabled
+  for_each: aws.logs.describe_log_groups
+  severity: HIGH
+  conditions:
+    var: item.KmsKeyId
+    op: exists
+    value: null
+- rule_id: aws.cloudwatch.log.group_retention_policy_specific_days_enabled
+  for_each: aws.logs.describe_log_groups
+  severity: HIGH
+  conditions:
+    var: item.RetentionInDays
+    op: exists
+    value: null
+- rule_id: aws.cloudwatch.log.metric_alarm_kms_cmk_deletion_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.MetricAlarms[].AlarmActions[]
+      op: contains
+      value: kms:ScheduleKeyDeletion
+    - var: item.CompositeAlarms[].AlarmActions[]
+      op: contains
+      value: kms:ScheduleKeyDeletion
+- rule_id: aws.cloudwatch.log.metric_filter_authentication_failures_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: CRITICAL
+  conditions:
+    any:
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: AuthenticationFailure
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: AuthenticationFailures
+- rule_id: aws.cloudwatch.log.metric_filter_for_s3_bucket_policy_changes_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: S3BucketPolicyEventCount
+    - var: item.MetricAlarms[].AlarmDescription
+      op: contains
+      value: S3 bucket policy change
+- rule_id: aws.cloudwatch.log.metric_filter_policy_changes_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: policy
+    - var: item.MetricAlarms[].AlarmName
+      op: contains
+      value: policy
+- rule_id: aws.cloudwatch.log.metric_filter_security_group_changes_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: SecurityGroupChanges
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: securitygroup
+- rule_id: aws.cloudwatch.log.metric_filter_sign_in_without_mfa_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: CRITICAL
+  conditions:
+    any:
+    - var: item.AlarmName
+      op: contains
+      value: SignInWithoutMFA
+    - var: item.AlarmDescription
+      op: contains
+      value: SignInWithoutMFA
+    - var: item.AlarmRule
+      op: contains
+      value: SignInWithoutMFA
+- rule_id: aws.cloudwatch.log.metric_filter_unauthorized_api_calls_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.AlarmName
+      op: contains
+      value: UnauthorizedAPICalls
+    - var: item.AlarmDescription
+      op: contains
+      value: UnauthorizedAPICalls
+- rule_id: aws.cloudwatch.log.metric_log_metric_alarm_aws_config_configuration_changes_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.MetricAlarms[?(@.MetricName == 'ConfigRulesComplianceChange' && @.Namespace
+        == 'AWS/Config')]
+      op: not_empty
+      value: null
+    - var: item.MetricAlarms[?(@.MetricName == 'ConfigRulesComplianceChange' && @.Namespace
+        == 'AWS/Config')].AlarmActions
+      op: not_empty
+      value: null
+- rule_id: aws.cloudwatch.log.metric_log_metric_alarm_cloudtrail_configuration_changes_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.MetricAlarms[?(@.MetricName == 'CloudTrailConfigurationChanges')]
+      op: exists
+      value: null
+    - var: item.CompositeAlarms[?(@.AlarmRule contains 'CloudTrailConfigurationChanges')]
+      op: exists
+      value: null
+- rule_id: aws.cloudwatch.log.metric_log_metric_filter_root_usage_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.MetricAlarms[?(@.MetricName == 'RootUsage' && @.Namespace == 'AWS/Logs')].AlarmName
+      op: exists
+      value: null
+    - var: item.CompositeAlarms[?(@.AlarmRule contains 'RootUsage' && @.AlarmRule
+        contains 'AWS/Logs')].AlarmName
+      op: exists
+      value: null
+- rule_id: aws.cloudwatch.log_metric_filter_alarm_configured.log_metric_log_metric_filter_alarm_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.MetricAlarms
+    op: not_empty
+    value: null
+- rule_id: aws.cloudwatch.log_metric_filter_authentication_failures.log_metric_filter_authentication_failures_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: authentication_failures
+    - var: item.MetricAlarms[].AlarmName
+      op: contains
+      value: authentication_failures
+- rule_id: aws.cloudwatch.log_metric_filter_aws_organizations_changes.log_metric_log_metric_filter_aws_organizations_changes_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: AWSOrganizations
+    - var: item.CompositeAlarms[].AlarmRule
+      op: contains
+      value: AWSOrganizations
+- rule_id: aws.cloudwatch.log_metric_filter_disable_or_scheduled_deletion_of_kms_cmk.metric_alarm_kms_cmk_deletion_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.AlarmName
+      op: contains
+      value: KMS
+    - var: item.AlarmName
+      op: contains
+      value: CMK
+    - var: item.AlarmName
+      op: contains
+      value: KeyDeletion
+    - var: item.AlarmName
+      op: contains
+      value: KeyDisable
+- rule_id: aws.cloudwatch.log_metric_filter_root_usage.log_metric_log_metric_filter_root_usage_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: RootAccountUsage
+    - var: item.CompositeAlarms[].AlarmRule
+      op: contains
+      value: RootAccountUsage
+- rule_id: aws.cloudwatch.log_metric_filter_sign_in_without_mfa.log_metric_filter_sign_in_without_mfa_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: SignInWithoutMFA
+    - var: item.CompositeAlarms[].AlarmRule
+      op: contains
+      value: SignInWithoutMFA
+- rule_id: aws.cloudwatch.log_metric_filter_unauthorized_api_calls.log_metric_filter_unauthorized_api_calls_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: UnauthorizedAPICalls
+    - var: item.CompositeAlarms[].AlarmRule
+      op: contains
+      value: UnauthorizedAPICalls
+- rule_id: aws.cloudwatch.loggroup.encryption_at_rest_cmek_configured
+  for_each: aws.logs.describe_log_groups
+  severity: HIGH
+  conditions:
+    var: item.KmsKeyId
+    op: exists
+    value: null
+- rule_id: aws.cloudwatch.loggroup.log_cross_account_destinations_restricted
+  for_each: aws.logs.describe_log_groups
+  severity: MEDIUM
+  conditions:
+    var: item.destinationArn
+    op: not_exists
+    value: null
+- rule_id: aws.cloudwatch.loggroup.log_destination_encrypted
+  for_each: aws.logs.describe_log_groups
+  severity: HIGH
+  conditions:
+    var: item.KmsKeyId
+    op: exists
+    value: null
+- rule_id: aws.cloudwatch.loggroup.log_destination_least_privilege
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.AlarmActions
+    op: not_contains
+    value: '*'
+- rule_id: aws.cloudwatch.loggroup.log_immutability_or_object_lock_if_supported
+  for_each: aws.logs.describe_log_groups
+  severity: MEDIUM
+  conditions:
+    var: item.RetentionInDays
+    op: exists
+    value: null
+- rule_id: aws.cloudwatch.loggroup.rbac_least_privilege
+  for_each: aws.logs.describe_log_groups
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.retentionInDays
+      op: exists
+      value: null
+    - var: item.retentionInDays
+      op: gte
+      value: 30
+- rule_id: aws.cloudwatch.loggroup.retention_days_minimum
+  for_each: aws.logs.describe_log_groups
+  severity: LOW
+  conditions:
+    var: item.RetentionInDays
+    op: gte
+    value: '365'
+- rule_id: aws.cloudwatch.logstream.encryption_at_rest_enabled
+  for_each: aws.logs.describe_log_groups
+  severity: HIGH
+  conditions:
+    var: item.KmsKeyId
+    op: exists
+    value: null
+- rule_id: aws.cloudwatch.logstream.ingestion_auth_required
+  for_each: aws.logs.describe_log_groups
+  severity: MEDIUM
+  conditions:
+    var: item.LogGroups[].KmsKeyId
+    op: exists
+    value: null
+- rule_id: aws.cloudwatch.logstream.log_cross_account_destinations_restricted
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.AlarmActions[].AlarmArn
+    op: not_contains
+    value: 'arn:aws:logs:'
+- rule_id: aws.cloudwatch.logstream.log_destination_encrypted
+  for_each: aws.logs.describe_log_groups
+  severity: HIGH
+  conditions:
+    var: item.kmsKeyId
+    op: exists
+    value: null
+- rule_id: aws.cloudwatch.logstream.log_destination_least_privilege
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.AlarmActions
+    op: not_contains
+    value: '*'
+- rule_id: aws.cloudwatch.logstream.retention_days_minimum
+  for_each: aws.logs.describe_log_groups
+  severity: LOW
+  conditions:
+    all:
+    - var: item.RetentionInDays
+      op: gte
+      value: '30'
+- rule_id: aws.cloudwatch.metric.admin_activity_logging_enabled
+  for_each: aws.cloudwatch.describe_alarms
+  severity: HIGH
+  conditions:
+    var: item.AlarmName
+    op: exists
+    value: null
+- rule_id: aws.cloudwatch.metric.alerts_for_anomalies_configured
+  for_each: aws.cloudwatch.describe_anomaly_detectors
+  severity: MEDIUM
+  conditions:
+    var: item.AnomalyDetectors
+    op: not_empty
+    value: null
+- rule_id: aws.cloudwatch.metric.api_access_log_fields_identity_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.MetricAlarms[].Metrics[].MetricStat.Metric.Dimensions[?(@.Name == 'log-field'
+      && @.Value == 'identity')]
+    op: not_empty
+    value: null
+- rule_id: aws.cloudwatch.metric.api_access_log_sink_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.MetricAlarms[].AlarmName
+      op: contains
+      value: API
+    - var: item.MetricAlarms[].AlarmName
+      op: contains
+      value: Access
+    - var: item.MetricAlarms[].AlarmName
+      op: contains
+      value: Log
+- rule_id: aws.cloudwatch.metric.api_access_logging_enabled
+  for_each: aws.cloudwatch.describe_alarms
+  severity: HIGH
+  conditions:
+    var: item.MetricAlarms[].MetricName
+    op: contains
+    value: ApiAccessLogging
+- rule_id: aws.cloudwatch.metric.api_execution_logging_level_minimum_error_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: ApiExecutionLoggingLevel
+    - var: item.MetricAlarms[?(@.MetricName contains 'ApiExecutionLoggingLevel')].ComparisonOperator
+      op: equals
+      value: GreaterThanOrEqualToThreshold
+    - var: item.MetricAlarms[?(@.MetricName contains 'ApiExecutionLoggingLevel')].Threshold
+      op: lte
+      value: 3
+- rule_id: aws.cloudwatch.metric.api_logs_retention_days_minimum
+  for_each: aws.logs.describe_log_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.logGroupName
+      op: contains
+      value: API-Gateway-Execution-Logs
+    - var: item.retentionInDays
+      op: gte
+      value: '365'
+- rule_id: aws.cloudwatch.metric.flow_logging_enabled
+  for_each: aws.cloudwatch.describe_alarms
+  severity: HIGH
+  conditions:
+    var: item.Enabled
+    op: is_true
+    value: null
+- rule_id: aws.cloudwatch.metric.logs_retention_days_minimum
+  for_each: aws.logs.describe_log_groups
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.retentionInDays
+      op: gte
+      value: '30'
+- rule_id: aws.cloudwatch.metric.query_access_logging_enabled
+  for_each: aws.cloudwatch.describe_alarms
+  severity: HIGH
+  conditions:
+    var: item.MetricAlarms[].LoggingEnabled
+    op: is_true
+    value: null
+- rule_id: aws.cloudwatch.metricfilter.kms_key_deletion_disable_detected_filter_present
+  for_each: aws.cloudwatch.describe_alarms
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: kms_key_deletion_disable_detected
+    - var: item.MetricAlarms[].Enabled
+      op: is_true
+      value: null
+- rule_id: aws.cloudwatch.metricfilter.metric_log_console_root_login_detected_filter_present
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: ConsoleRootLogin
+    - var: item.MetricAlarms[].AlarmDescription
+      op: contains
+      value: ConsoleRootLogin
+- rule_id: aws.cloudwatch.metricfilter.network_acl_or_sg_change_detected_filter_present
+  for_each: aws.cloudwatch.describe_alarms
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.MetricAlarms[?(@.MetricName == 'NetworkAclEventCount' || @.MetricName
+        == 'SecurityGroupEventCount')].AlarmName
+      op: exists
+      value: null
+    - var: item.CompositeAlarms[?(@.AlarmRule contains 'NetworkAclEventCount' || @.AlarmRule
+        contains 'SecurityGroupEventCount')].AlarmName
+      op: exists
+      value: null
+- rule_id: aws.cloudwatch.network.cloudwatch_alarm_acls_alarm_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.MetricAlarms[].AlarmActions
+      op: not_empty
+      value: null
+    - var: item.CompositeAlarms[].AlarmActions
+      op: not_empty
+      value: null
+- rule_id: aws.cloudwatch.network.gateways_alarm_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: NetworkGateway
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: Gateway
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: VPN
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: Vpn
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: DirectConnect
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: Direct Connect
+- rule_id: aws.cloudwatch.network.route_tables_alarm_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: RouteTable
+    - var: item.MetricAlarms[].MetricName
+      op: contains
+      value: route
+- rule_id: aws.cloudwatch.policy.cloudwatch_configuration_changes_monitored
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.AlarmName
+      op: contains
+      value: CloudTrail
+    - var: item.AlarmName
+      op: contains
+      value: Config
+    - var: item.AlarmName
+      op: contains
+      value: configuration
+- rule_id: aws.cloudwatch.resource.log_cloudwatch_log_analysis_enabled
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.AlarmActions
+    op: not_empty
+    value: null
+- rule_id: aws.cloudwatch.resource.metric_alarm_metric_alarm_aws_config_configuration_changes_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.MetricAlarms[?(@.MetricName == 'ConfigRulesComplianceChange' && @.Namespace
+        == 'AWS/Config')]
+      op: not_empty
+      value: null
+    - var: item.MetricAlarms[?(@.MetricName == 'ConfigurationChanges' && @.Namespace
+        == 'AWS/Config')]
+      op: not_empty
+      value: null
+- rule_id: aws.cloudwatch.resource.metric_alarm_metric_alarm_cloudtrail_configuration_changes_configured
+  for_each: aws.cloudwatch.describe_alarms
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.MetricAlarms[?(@.MetricName == 'CloudTrailConfigurationChanges')]
+      op: exists
+      value: null
+    - var: item.CompositeAlarms[?(@.AlarmRule contains 'CloudTrailConfigurationChanges')]
+      op: exists
+      value: null

@@ -1,0 +1,79 @@
+rule_id: azure.iam.entra_audit.app_oauth_consent
+service: iam
+provider: azure
+check_type: log
+severity: critical
+title: 'IAM: App Oauth Consent'
+description: OAuth2 consent granted to application — application can act on behalf of user or access tenant data.
+rationale: 'Cloud account compromise enables access to all resources within the account''s permission scope. Attackers leverage valid credentials to avoid detection and pivot across cloud services.'
+threat_category: initial_access
+mitre_tactics:
+- initial_access
+- persistence
+mitre_techniques:
+- T1078.004
+- T1550.001
+risk_score: 88
+resource: entra_app
+source: default
+is_active: true
+domain: threat_detection
+action_category: create
+log_source_type: entra_audit
+posture_category: threat_posture
+threat_tags:
+- T1078.004
+- T1550.001
+- T1078
+- T1550
+- cloud_iam
+- identity
+risk_indicators:
+  actor_type: iam_user_or_role
+  action_type: write
+  target_type: iam_identity
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: true
+  modules:
+  - policy_analysis
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.14
+  - 2.1
+  cis_azure_v2:
+  - 1.2
+  - 2.1
+  nist_800_53_r5:
+  - AC-17
+  - IA-2
+  - SI-3
+  pci_dss_v4:
+  - 8.3
+  - 11.5
+  iso_27001_2022:
+  - A.8.5
+  - A.9.4
+remediation: |
+  1. Immediately suspend the compromised account and revoke active sessions.
+  2. Reset credentials and enforce MFA enrollment.
+  3. Review all API calls and resource accesses made by the account.
+  4. Investigate sign-in logs for source IP and geolocation anomalies.
+  5. Enable Microsoft Entra ID Protection / AWS GuardDuty credential anomaly alerts.
+references:
+- https://attack.mitre.org/techniques/T1078/004/
+- https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+- https://learn.microsoft.com/en-us/azure/active-directory/identity-protection/overview-identity-protection
+- https://attack.mitre.org/techniques/T1550/001/
+check_config:
+  conditions:
+    all:
+    - field: operation
+      op: equals
+      value: microsoft.directory/oAuth2PermissionGrants/allProperties/update
+  log_source_type: entra_audit
+version: '1.0'

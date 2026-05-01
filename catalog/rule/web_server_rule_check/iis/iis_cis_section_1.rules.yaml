@@ -1,0 +1,128 @@
+tech_type: iis
+category: web_server
+cis_benchmark: CIS Microsoft IIS 10 v1.2.1
+cis_section: '1'
+
+rules:
+
+  - rule_id: iis.cis.1.l1_ensure_host_headers_are_on_all_sites
+    title: "(L1) Ensure 'Host headers' are on all sites"
+    severity: high
+    automation_type: automated
+    cis_control: '1.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: iis.section_1.l1_ensure_host_headers_are_on_all_sites
+    assertion:
+      field: port
+      operator: exists
+      expected: "no"
+    remediation: >
+      Obtain a listing of all sites by using the following appcmd.exe command: Enter
+      the following command in AppCmd.exe to configure the host header:
+      %systemroot%\system32\inetsrv\appcmd.exe set config -
+      section:system.applicationHost/sites /'[name='<website
+      name>'].bindings.[protocol='http',bindingInformation='*:80:<host
+      header>'].bindingInformation:'*:80:<host header>'' /commit:apphost OR Enter
+      the following command in PowerShell to configure the host header: Set-
+      WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST' -filter
+      'system.applicationHost/sites/site[@name='<website
+      name>']/bindings/binding[@protocol='http' and @bindingInformation='*:80:']' -
+      name 'bindingInformation' -value '*:80:<host header value>' OR Perform the
+      following in IIS Manager to configure host headers for the Default Web Site:
+      1. Open IIS Manager 2. In the Connections pane expand the Sites node and
+      select Default Web Site 3. In the Actions pane click Bindings 4. In the Site
+      Bindings dialog box, select the binding for which host headers are going to be
+      configured, Port 80 in this example 5. Click Edit 6. Under host name, enter
+      the sites FQDN, such as <www.examplesite.com> 7. Click OK, then Close Note:
+      Requiring a host header may impair site functionality for HTTP/1.0 clients.
+      Default Value: By default, host headers are not required or set up
+      automatically. References: 1. http://technet.microsoft.com/en-
+      us/library/cc753195%28WS.10%29.aspx 2. http://crypto.stanford.edu/dns/dns-
+      rebinding.pdf 3. http://www.sslshopper.com/article-ssl-host-headers-in-
+      iis-7.html 4. http://blogs.iis.net/thomad/archive/2008/01/25/ssl-certificates-
+      on-sites-with-host- headers.aspx 5. https://www.iis.net/learn/get-
+      started/whats-new-in-iis-10/wildcard-host-header- support
+    compliance:
+      - cis_iis_10_v1_2_1_1_2
+
+  - rule_id: iis.cis.1.l1_ensure_directory_browsing_is_set_to_disabled
+    title: "(L1) Ensure 'Directory browsing' is set to Disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '1.3'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: iis.section_1.l1_ensure_directory_browsing_is_set_to_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Directory Browsing can be set by using the UI, running appcmd.exe commands, by
+      editing configuration files directly, or by writing WMI scripts. To disable
+      directory browsing at the server level using an appcmd.exe command: Enter the
+      following command in AppCmd.exe to configure:
+      %systemroot%\system32\inetsrv\appcmd set config /section:directoryBrowse
+      /enabled:false OR Enter the following command in PowerShell to configure: Set-
+      WebConfigurationProperty -Filter system.webserver/directorybrowse -PSPath
+      iis:\ -Name Enabled -Value False Default Value: In IIS, directory browsing is
+      disabled by default. References: 1. http://technet.microsoft.com/en-
+      us/library/cc725840%28WS.10%29.aspx 2. http://technet.microsoft.com/en-
+      us/library/cc731109%28WS.10%29.aspx
+    compliance:
+      - cis_iis_10_v1_2_1_1_3
+
+  - rule_id: iis.cis.1.l1_ensure_unique_application_pools_is_set_for
+    title: "(L1) Ensure 'unique application pools' is set for sites"
+    severity: high
+    automation_type: automated
+    cis_control: '1.5'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: iis.section_1.l1_ensure_unique_application_pools_is_set_for
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "true"
+    remediation: >
+      The following appcmd.exe command will set the application pool for a given
+      application: %systemroot%\system32\inetsrv\appcmd set app '<website name>/'
+      /applicationpool:<apppool name> The output of this command will be similar to
+      the following: APP object 'Default Web Site/' changed
+      (applicationPool:DefaultAppPool) Run the above command to ensure a unique
+      application pool is assigned for each site listed OR Enter the following
+      command in PowerShell to configure: Set-ItemProperty -Path
+      'IIS:\Sites\<website name>' -Name applicationPool - Value <apppool name> OR 1.
+      Open IIS Manager 2. Open the Sites node underneath the machine node 3. Select
+      the Site to be changed 4. In the Actions pane, select Basic Settings 5. Click
+      the Select… box next to the Application Pool text box 6. Select the desired
+      Application Pool 7. Once selected, click OK Default Value: By default, all
+      Sites created will use the Default Application Pool (DefaultAppPool).
+      References: 1. http://technet.microsoft.com/en-
+      us/library/cc753449%28WS.10%29.aspx 2.
+      http://blogs.iis.net/tomwoolums/archive/2008/12/17/iis-7-0-application-
+      pools.aspx 3. http://learn.iis.net/page.aspx/624/application-pool-identities/
+    compliance:
+      - cis_iis_10_v1_2_1_1_5
+
+  - rule_id: iis.cis.1.l1_ensure_webdav_feature_is_disabled
+    title: "(L1) Ensure' WebDav' feature is disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '1.7'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: iis.section_1.l1_ensure_webdav_feature_is_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      To disable this feature using PowerShell, enter the following command:
+      Uninstall-WindowsFeature Web-DAV-Publishing Verify that Success is True
+      Default Value: The default state of WebDAV Publishing is disabled
+    compliance:
+      - cis_iis_10_v1_2_1_1_7
+
+

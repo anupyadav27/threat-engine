@@ -1,0 +1,282 @@
+version: '1.0'
+provider: aws
+service: waf
+checks:
+- rule_id: aws.waf.ipset.waf_cidrs_valid_and_minimized_configured
+  for_each: aws.waf.get_ip_set
+  severity: MEDIUM
+  conditions:
+    var: item.Addresses
+    op: not_empty
+    value: null
+- rule_id: aws.waf.ipset.waf_cross_account_sharing_restricted
+  for_each: aws.waf.get_ip_set
+  severity: MEDIUM
+  conditions:
+    var: item.IPSetDescriptors[].IPSetDescriptorType
+    op: not_contains
+    value: AWS::Account
+- rule_id: aws.waf.ipset.waf_not_empty_configured
+  for_each: aws.waf.get_ip_set
+  severity: MEDIUM
+  conditions:
+    var: item.Addresses
+    op: not_empty
+    value: null
+- rule_id: aws.waf.ipset.waf_sources_trusted_configured
+  for_each: aws.waf.get_ip_set
+  severity: MEDIUM
+  conditions:
+    var: item.Addresses
+    op: not_empty
+    value: null
+- rule_id: aws.waf.ipset.waf_storage_encrypted
+  for_each: aws.waf.get_ip_set
+  severity: HIGH
+  conditions:
+    var: item.Addresses
+    op: exists
+    value: null
+- rule_id: aws.waf.ipset.waf_used_by_at_least_one_rule_configured
+  for_each: aws.waf.get_ip_set
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.IPSetDescriptors
+      op: not_empty
+      value: null
+    - var: item.Addresses
+      op: not_empty
+      value: null
+- rule_id: aws.waf.ipset.waf_used_by_detectors_configured
+  for_each: aws.waf.get_ip_set
+  severity: MEDIUM
+  conditions:
+    var: item.IPSetDescriptors
+    op: not_empty
+    value: null
+- rule_id: aws.waf.regexpatternset.waf_no_overly_broad_patterns_configured
+  for_each: aws.waf.get_regex_pattern_set
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.RegexPatternStrings
+      op: not_empty
+      value: null
+    - any:
+      - var: item.RegexPatternStrings
+        op: not_contains
+        value: .*
+      - var: item.RegexPatternStrings
+        op: not_contains
+        value: ^.*$
+      - var: item.RegexPatternStrings
+        op: not_contains
+        value: .*?
+      - var: item.RegexPatternStrings
+        op: not_contains
+        value: ^.*?$
+- rule_id: aws.waf.regexpatternset.waf_not_empty_configured
+  for_each: aws.waf.get_regex_pattern_set
+  severity: MEDIUM
+  conditions:
+    var: item.RegexPatternStrings
+    op: not_empty
+    value: null
+- rule_id: aws.waf.regexpatternset.waf_used_by_at_least_one_rule_configured
+  for_each: aws.waf.get_regex_pattern_set
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.Rules[].RegexPatternSetId
+      op: contains
+      value: item.RegexPatternSetId
+- rule_id: aws.waf.resource.global_webacl_logging_enabled
+  for_each: aws.waf.get_web_acl
+  severity: MEDIUM
+  conditions:
+    var: item.LoggingConfiguration.LogDestinationConfigs
+    op: exists
+    value: null
+- rule_id: aws.waf.rule.waf_has_effective_action_not_count_only_configured
+  for_each: aws.waf.get_web_acl
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.DefaultAction
+      op: not_equals
+      value: COUNT
+    - var: item.Rules[].Action
+      op: not_equals
+      value: COUNT
+- rule_id: aws.waf.rule.waf_priority_unique_within_web_acl_configured
+  for_each: aws.waf.get_web_acl
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Rules
+      op: not_empty
+      value: null
+    - var: item.Rules[].Priority
+      op: not_empty
+      value: null
+    - var: item.Rules
+      op: length_gte
+      value: 2
+    - var: item.Rules
+      op: custom_unique
+- rule_id: aws.waf.rule.waf_references_valid_ip_or_regex_sets_only_configured
+  for_each: aws.waf.get_web_acl
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Rules[].Statement.IPSetReferenceStatement.IPSetForwardedIPConfig
+      op: not_exists
+      value: null
+    - var: item.Rules[].Statement.RegexPatternSetReferenceStatement.RegexPatternSetForwardedIPConfig
+      op: not_exists
+      value: null
+- rule_id: aws.waf.rulegroup.waf_no_permit_all_rule_configured
+  for_each: aws.waf.get_web_acl
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Rules
+      op: not_empty
+      value: null
+    - any:
+      - var: item.Rules[].Action.Type
+        op: not_equals
+        value: ALLOW
+      - var: item.Rules[].Statement
+        op: not_contains
+        value: ALLOW
+- rule_id: aws.waf.rulegroup.waf_references_only_approved_managed_sets_where_used_configured
+  for_each: aws.waf.get_web_acl
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Rules[].Statement.ManagedRuleGroupStatement.ExcludedRules
+      op: not_empty
+      value: null
+    - var: item.Rules[].Statement.ManagedRuleGroupStatement.RuleActionOverrides
+      op: not_empty
+      value: null
+- rule_id: aws.waf.rulegroup.waf_unique_priorities_configured
+  for_each: aws.waf.get_rule_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Rules
+      op: exists
+      value: null
+    - var: item.Rules[].Priority
+      op: not_empty
+      value: null
+    - var: item.Rules[].Priority
+      op: length_gte
+      value: 1
+    - all:
+      - var: item.Rules[].Priority
+        op: in
+        value: item.Rules[].Priority
+      - var: item.Rules[].Priority
+        op: not_equals
+        value: item.Rules[].Priority
+- rule_id: aws.waf.rulegroup.waf_visibility_config_enabled
+  for_each: aws.waf.get_rule_group
+  severity: MEDIUM
+  conditions:
+    var: item.VisibilityConfig
+    op: exists
+    value: null
+- rule_id: aws.waf.webacl.logging_enabled
+  for_each: aws.waf.get_web_acl
+  severity: HIGH
+  conditions:
+    var: item.LoggingConfiguration.LogDestinationConfigs
+    op: exists
+    value: null
+- rule_id: aws.waf.webacl.policy_store_encrypted
+  for_each: aws.waf.get_web_acl
+  severity: HIGH
+  conditions:
+    var: item.Policy
+    op: exists
+    value: null
+- rule_id: aws.waf.webacl.rule_groups_enabled
+  for_each: aws.waf.get_web_acl
+  severity: MEDIUM
+  conditions:
+    var: item.Rules
+    op: not_empty
+    value: null
+- rule_id: aws.waf.webacl.waf_attached_to_cdn_configured
+  for_each: aws.waf.get_web_acl
+  severity: MEDIUM
+  conditions:
+    var: item.WebACLArn
+    op: exists
+    value: null
+- rule_id: aws.waf.webacl.waf_block_actions_not_count_only_configured
+  for_each: aws.waf.get_web_acl
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Rules
+      op: not_empty
+      value: null
+    - var: item.Rules[].Action.Type
+      op: not_contains
+      value: COUNT
+- rule_id: aws.waf.webacl.waf_ip_rate_limit_rules_configured_if_supported
+  for_each: aws.waf.get_web_acl
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.Rules[].RuleLabels[].Name
+      op: contains
+      value: rate-based
+    - var: item.Rules[].Name
+      op: contains
+      value: rate
+- rule_id: aws.waf.webacl.waf_managed_rule_sets_enabled
+  for_each: aws.waf.get_web_acl
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Rules[].ManagedRuleGroupStatement
+      op: exists
+      value: null
+    - var: item.Rules[].ManagedRuleGroupStatement.VendorName
+      op: equals
+      value: AWS
+- rule_id: aws.waf.webacl.waf_no_permit_all_configured
+  for_each: aws.waf.get_web_acl
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.DefaultAction
+      op: not_equals
+      value: ALLOW
+    - var: item.Rules[].Action
+      op: not_contains
+      value: ALLOW
+- rule_id: aws.waf.webacl.waf_no_permit_any_configured
+  for_each: aws.waf.get_web_acl
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.DefaultAction
+      op: exists
+      value: null
+    - var: item.DefaultAction
+      op: not_equals
+      value: ALLOW
+- rule_id: aws.waf.webacl.waf_policies_present
+  for_each: aws.waf.get_web_acl
+  severity: MEDIUM
+  conditions:
+    var: item.Rules
+    op: not_empty
+    value: null

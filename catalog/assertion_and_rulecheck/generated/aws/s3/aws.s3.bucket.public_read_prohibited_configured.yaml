@@ -1,0 +1,17 @@
+version: '1.0'
+rule_id: aws.s3.bucket.public_read_prohibited_configured
+for_each: aws.s3.get_bucket_acl
+severity: HIGH
+conditions:
+  any:
+  - var: item.Grantee
+    op: not_exists
+  - all:
+    - var: item.Grantee
+      op: exists
+    - var: item.Grantee
+      op: not_equals
+      value: http://acs.amazonaws.com/groups/global/AllUsers
+    - var: item.Permission
+      op: not_equals
+      value: READ

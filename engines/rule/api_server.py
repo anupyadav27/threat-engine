@@ -37,8 +37,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize API
-rule_builder_api = RuleBuilderAPI()
+# Initialize API — non-fatal if pythonsdk-database is missing (ui-data endpoint uses check DB directly)
+try:
+    rule_builder_api = RuleBuilderAPI()
+except Exception as _rule_init_err:
+    import logging as _log
+    _log.getLogger(__name__).warning("RuleBuilderAPI unavailable: %s", _rule_init_err)
+    rule_builder_api = None
 
 # In-memory rule storage (use DB in production)
 rules_storage = {}
@@ -268,6 +273,9 @@ async def generate_rule(request: RuleCreateRequest):
 @app.get("/api/v1/rules/{rule_id}")
 async def get_rule(rule_id: str):
     """Get specific rule details"""
+    # ui-data is registered after this route so this route captures it first — forward it
+    if rule_id == "ui-data":
+        return await rules_ui_data()
     if rule_id not in rules_storage:
         raise HTTPException(status_code=404, detail="Rule not found")
     
@@ -392,6 +400,237 @@ async def list_service_rules(provider: str, service: str):
         "total": len(service_rules)
     }
 
+
+# =============================================================================
+# User Rules — stored in user_check_rules + user_check_discoveries (check DB)
+# =============================================================================
+
+class UserRuleRequest(BaseModel):
+    """Payload sent by the Rule Builder wizard to persist a user-created rule."""
+    rule_id: str
+    service: str
+    provider: str
+    severity: str = "medium"
+    category: Optional[str] = "configuration"
+    title: str
+    description: Optional[str] = ""
+    for_each: str                           # discovery_id this rule iterates over
+    conditions: Dict[str, Any]              # condition tree as JSON object
+    condition_logic: str = "all"            # all | any
+    frameworks: List[str] = []
+    # Discovery fields
+    discovery_id: str
+    discovery_action: str                   # yaml_action / python_method
+    discovery_items_for: Optional[str] = None
+    discovery_item_fields: Dict[str, Any] = {}
+    # Multi-tenancy
+    tenant_id: Optional[str] = None
+    customer_id: Optional[str] = None
+
+
+class DuplicateCheckRequest(BaseModel):
+    """Check whether any user rule already uses a given for_each value."""
+    service: str
+    provider: str
+    for_each: str                           # discovery_id to check against
+    tenant_id: Optional[str] = None
+
+
+@app.post("/api/v1/user-rules/check-duplicate")
+async def check_user_rule_duplicate(request: DuplicateCheckRequest):
+    """Return any user_check_rules that already iterate over the same discovery."""
+    try:
+        conn = _get_check_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        try:
+            clauses = [
+                "service = %s", "provider = %s",
+                "for_each = %s", "is_active = TRUE",
+            ]
+            params: list = [request.service, request.provider, request.for_each]
+            if request.tenant_id:
+                clauses.append("tenant_id = %s")
+                params.append(request.tenant_id)
+
+            cur.execute(
+                f"SELECT rule_id, title, severity, created_at "
+                f"FROM user_check_rules WHERE {' AND '.join(clauses)}",
+                params,
+            )
+            rows = [dict(r) for r in cur.fetchall()]
+            # Serialise datetimes
+            for r in rows:
+                if r.get("created_at"):
+                    r["created_at"] = r["created_at"].isoformat()
+            return {"duplicates": rows}
+        finally:
+            cur.close()
+            conn.close()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/user-rules")
+async def create_user_rule(request: UserRuleRequest):
+    """
+    Insert a user-created rule into user_check_rules and its discovery into
+    user_check_discoveries.  Uses ON CONFLICT DO UPDATE so re-saving the same
+    rule_id is idempotent (updates metadata, conditions).
+    """
+    try:
+        conn = _get_check_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        try:
+            # Build check_config compatible with the check engine expectation
+            check_config = {
+                "for_each": request.for_each,
+                "conditions": request.conditions,
+                "condition_logic": request.condition_logic,
+            }
+
+            # ── user_check_rules ────────────────────────────────────────────
+            cur.execute(
+                """
+                INSERT INTO user_check_rules
+                    (rule_id, service, provider, severity, category, title, description,
+                     for_each, conditions, condition_logic, frameworks,
+                     check_config, source, generated_by, tenant_id, customer_id)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'user','rule_builder',%s,%s)
+                ON CONFLICT (rule_id, tenant_id) DO UPDATE SET
+                    severity        = EXCLUDED.severity,
+                    category        = EXCLUDED.category,
+                    title           = EXCLUDED.title,
+                    description     = EXCLUDED.description,
+                    for_each        = EXCLUDED.for_each,
+                    conditions      = EXCLUDED.conditions,
+                    condition_logic = EXCLUDED.condition_logic,
+                    frameworks      = EXCLUDED.frameworks,
+                    check_config    = EXCLUDED.check_config,
+                    updated_at      = NOW()
+                RETURNING id, rule_id, created_at, updated_at
+                """,
+                (
+                    request.rule_id, request.service, request.provider,
+                    request.severity.lower(), request.category,
+                    request.title, request.description,
+                    request.for_each,
+                    psycopg2.extras.Json(request.conditions),
+                    request.condition_logic,
+                    psycopg2.extras.Json(request.frameworks),
+                    psycopg2.extras.Json(check_config),
+                    request.tenant_id, request.customer_id,
+                ),
+            )
+            rule_row = dict(cur.fetchone())
+
+            # ── user_check_discoveries ──────────────────────────────────────
+            discoveries_data = [
+                {
+                    "discovery_id": request.discovery_id,
+                    "calls": [
+                        {
+                            "action": request.discovery_action,
+                            "save_as": "response",
+                            "on_error": "continue",
+                        }
+                    ],
+                    "emit": {
+                        "as": "item",
+                        "items_for": request.discovery_items_for,
+                        "item": request.discovery_item_fields,
+                    },
+                }
+            ]
+            cur.execute(
+                """
+                INSERT INTO user_check_discoveries
+                    (discovery_id, service, provider, action, items_for, item_fields,
+                     discoveries_data, source, generated_by, tenant_id, customer_id)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,'user','rule_builder',%s,%s)
+                ON CONFLICT (discovery_id, tenant_id) DO NOTHING
+                RETURNING id, discovery_id, created_at
+                """,
+                (
+                    request.discovery_id, request.service, request.provider,
+                    request.discovery_action, request.discovery_items_for,
+                    psycopg2.extras.Json(request.discovery_item_fields),
+                    psycopg2.extras.Json(discoveries_data),
+                    request.tenant_id, request.customer_id,
+                ),
+            )
+            disc_result = cur.fetchone()
+            disc_row = dict(disc_result) if disc_result else {"discovery_id": request.discovery_id}
+
+            conn.commit()
+
+            # Serialise datetimes
+            for row in (rule_row, disc_row):
+                for k in ("created_at", "updated_at"):
+                    if row.get(k) and hasattr(row[k], "isoformat"):
+                        row[k] = row[k].isoformat()
+
+            return {
+                "success": True,
+                "rule": rule_row,
+                "discovery": disc_row,
+                "message": f"Rule '{request.rule_id}' saved to user_check_rules",
+            }
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cur.close()
+            conn.close()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/user-rules")
+async def list_user_rules(
+    provider: Optional[str] = None,
+    service: Optional[str] = None,
+    tenant_id: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+):
+    """List user-created rules from user_check_rules, newest first."""
+    try:
+        conn = _get_check_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        try:
+            clauses = ["is_active = TRUE"]
+            params: list = []
+            if provider:
+                clauses.append("provider = %s")
+                params.append(provider)
+            if service:
+                clauses.append("service = %s")
+                params.append(service)
+            if tenant_id:
+                clauses.append("tenant_id = %s")
+                params.append(tenant_id)
+
+            cur.execute(
+                f"SELECT * FROM user_check_rules WHERE {' AND '.join(clauses)} "
+                f"ORDER BY created_at DESC LIMIT %s OFFSET %s",
+                params + [limit, offset],
+            )
+            rows = [dict(r) for r in cur.fetchall()]
+            for r in rows:
+                for k in ("created_at", "updated_at"):
+                    if r.get(k) and hasattr(r[k], "isoformat"):
+                        r[k] = r[k].isoformat()
+            return {"rules": rows, "total": len(rows)}
+        finally:
+            cur.close()
+            conn.close()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Health checks
+# =============================================================================
 
 @app.get("/api/v1/health/live")
 async def liveness_check():

@@ -36,6 +36,9 @@ CREATE TABLE IF NOT EXISTS check_report (
 
 CREATE TABLE IF NOT EXISTS check_findings (
     id SERIAL PRIMARY KEY,
+    finding_id TEXT GENERATED ALWAYS AS (
+        substring(encode(sha256((rule_id || '|' || COALESCE(resource_uid, '') || '|' || scan_run_id)::bytea), 'hex'), 1, 16)
+    ) STORED,
     scan_run_id VARCHAR(255) NOT NULL,
     customer_id VARCHAR(255) NOT NULL,
     tenant_id VARCHAR(255) NOT NULL,
@@ -157,6 +160,7 @@ CREATE TABLE IF NOT EXISTS rule_discoveries (
 CREATE INDEX IF NOT EXISTS idx_cr_customer_tenant ON check_report(customer_id, tenant_id);
 CREATE INDEX IF NOT EXISTS idx_cr_timestamp ON check_report(first_seen_at DESC);
 
+CREATE INDEX IF NOT EXISTS idx_cf_finding_id ON check_findings(finding_id);
 CREATE INDEX IF NOT EXISTS idx_cf_scan ON check_findings(scan_run_id, rule_id);
 CREATE INDEX IF NOT EXISTS idx_cf_tenant ON check_findings(tenant_id, account_id);
 CREATE INDEX IF NOT EXISTS idx_cf_status ON check_findings(status, first_seen_at DESC);

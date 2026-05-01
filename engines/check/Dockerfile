@@ -18,20 +18,18 @@ COPY engines/check/common/ ./common/
 # ── Providers layer (CSP-specific evaluators) ─────────────────────────────────
 COPY engines/check/providers/ ./providers/
 
-# ── Legacy engine_check_aws (YAML rule files, utils, config) ──────────────────
-# The check engine loads YAML check/discovery definitions from:
-#   engine_check/engine_check_aws/services/<service>/checks/
-#   engine_check/engine_check_aws/services/<service>/discoveries/
-# Keep these available so the engine can merge YAML base rules with DB rules.
-COPY engines/check/engine_check_aws/services/ ./engine_check/engine_check_aws/services/
-COPY engines/check/engine_check_aws/utils/    ./engine_check/engine_check_aws/utils/
-COPY engines/check/engine_check_aws/config/   ./engine_check/engine_check_aws/config/
+# Rules are loaded exclusively from the rule_checks DB table at runtime.
+# engine_check_*/services/ YAML files live in catalog/rule/ (source of truth for DB seeding)
+# and are NOT copied into the image.
 
 # ── Run scan entry point (for K8s Job execution) ───────────────────────────
 COPY engines/check/run_scan.py ./run_scan.py
 
 # ── Shared utilities (destination matches Python imports: engine_common.*) ────
 COPY shared/common/ ./engine_common/
+
+# ── Auth module (destination matches Python imports: engine_auth.*) ───────────
+COPY shared/auth/ ./engine_auth/
 
 # ── Consolidated services (orchestration_client) ──────────────────────────────
 COPY shared/database/ ./consolidated_services/database/

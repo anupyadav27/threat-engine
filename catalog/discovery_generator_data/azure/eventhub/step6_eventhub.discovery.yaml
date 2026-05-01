@@ -1,0 +1,507 @@
+version: '1.0'
+provider: azure
+service: eventhub
+services:
+  client: eventhub
+  module: azure.mgmt.eventhub.v2018_01_01_preview
+discovery:
+- discovery_id: azure.eventhub.clusters.list_available_cluster_region
+  calls:
+  - action: clusters.list_available_cluster_region
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.eventhub.clusters.list_by_resource_group
+  calls:
+  - action: clusters.list_by_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      status: '{{ item.status }}'
+      id: '{{ item.id }}'
+      encryption: '{{ item.encryption }}'
+      tags: '{{ item.tags }}'
+      cluster_arm_id: '{{ item.cluster_arm_id }}'
+      created_at: '{{ item.created_at }}'
+      is_auto_inflate_enabled: '{{ item.is_auto_inflate_enabled }}'
+      kafka_enabled: '{{ item.kafka_enabled }}'
+      maximum_throughput_units: '{{ item.maximum_throughput_units }}'
+      metric_id: '{{ item.metric_id }}'
+      service_bus_endpoint: '{{ item.service_bus_endpoint }}'
+      updated_at: '{{ item.updated_at }}'
+      zone_redundant: '{{ item.zone_redundant }}'
+- discovery_id: azure.eventhub.namespaces.list
+  calls:
+  - action: namespaces.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      private_endpoint: '{{ item.private_endpoint }}'
+      private_link_service_connection_state: '{{ item.private_link_service_connection_state
+        }}'
+- discovery_id: azure.eventhub.namespaces.list_by_resource_group
+  calls:
+  - action: namespaces.list_by_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      status: '{{ item.status }}'
+      id: '{{ item.id }}'
+      encryption: '{{ item.encryption }}'
+      tags: '{{ item.tags }}'
+      cluster_arm_id: '{{ item.cluster_arm_id }}'
+      created_at: '{{ item.created_at }}'
+      is_auto_inflate_enabled: '{{ item.is_auto_inflate_enabled }}'
+      kafka_enabled: '{{ item.kafka_enabled }}'
+      maximum_throughput_units: '{{ item.maximum_throughput_units }}'
+      metric_id: '{{ item.metric_id }}'
+      service_bus_endpoint: '{{ item.service_bus_endpoint }}'
+      updated_at: '{{ item.updated_at }}'
+      zone_redundant: '{{ item.zone_redundant }}'
+- discovery_id: azure.eventhub.clusters.list_namespaces
+  for_each: azure.eventhub.clusters.list_by_resource_group
+  calls:
+  - action: clusters.list_namespaces
+    save_as: response
+    on_error: continue
+    params:
+      cluster_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.eventhub.consumergroups.list_by_event_hub
+  for_each: azure.eventhub.namespaces.list
+  calls:
+  - action: consumergroups.list_by_event_hub
+    save_as: response
+    on_error: continue
+    params:
+      namespace_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      created_at: '{{ item.created_at }}'
+      updated_at: '{{ item.updated_at }}'
+      user_metadata: '{{ item.user_metadata }}'
+- discovery_id: azure.eventhub.disasterrecoveryconfigs.get_authorization_rule
+  for_each: azure.eventhub.namespaces.list
+  calls:
+  - action: disasterrecoveryconfigs.get_authorization_rule
+    save_as: response
+    on_error: continue
+    params:
+      namespace_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.eventhub.disasterrecoveryconfigs.list
+  for_each: azure.eventhub.namespaces.list
+  calls:
+  - action: disasterrecoveryconfigs.list
+    save_as: response
+    on_error: continue
+    params:
+      namespace_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      private_endpoint: '{{ item.private_endpoint }}'
+      private_link_service_connection_state: '{{ item.private_link_service_connection_state
+        }}'
+- discovery_id: azure.eventhub.disasterrecoveryconfigs.list_authorization_rules
+  for_each: azure.eventhub.namespaces.list
+  calls:
+  - action: disasterrecoveryconfigs.list_authorization_rules
+    save_as: response
+    on_error: continue
+    params:
+      namespace_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      rights: '{{ item.rights }}'
+- discovery_id: azure.eventhub.disasterrecoveryconfigs.list_keys
+  for_each: azure.eventhub.namespaces.list
+  calls:
+  - action: disasterrecoveryconfigs.list_keys
+    save_as: response
+    on_error: continue
+    params:
+      namespace_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.eventhub.eventhubs.get_authorization_rule
+  for_each: azure.eventhub.namespaces.list
+  calls:
+  - action: eventhubs.get_authorization_rule
+    save_as: response
+    on_error: continue
+    params:
+      namespace_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.eventhub.eventhubs.list_authorization_rules
+  for_each: azure.eventhub.namespaces.list
+  calls:
+  - action: eventhubs.list_authorization_rules
+    save_as: response
+    on_error: continue
+    params:
+      namespace_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      rights: '{{ item.rights }}'
+- discovery_id: azure.eventhub.eventhubs.list_by_namespace
+  for_each: azure.eventhub.namespaces.list
+  calls:
+  - action: eventhubs.list_by_namespace
+    save_as: response
+    on_error: continue
+    params:
+      namespace_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      status: '{{ item.status }}'
+      id: '{{ item.id }}'
+      capture_description: '{{ item.capture_description }}'
+      created_at: '{{ item.created_at }}'
+      message_retention_in_days: '{{ item.message_retention_in_days }}'
+      partition_count: '{{ item.partition_count }}'
+      partition_ids: '{{ item.partition_ids }}'
+      updated_at: '{{ item.updated_at }}'
+- discovery_id: azure.eventhub.eventhubs.list_keys
+  for_each: azure.eventhub.namespaces.list
+  calls:
+  - action: eventhubs.list_keys
+    save_as: response
+    on_error: continue
+    params:
+      namespace_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.eventhub.namespaces.get_authorization_rule
+  for_each: azure.eventhub.namespaces.list
+  calls:
+  - action: namespaces.get_authorization_rule
+    save_as: response
+    on_error: continue
+    params:
+      namespace_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.eventhub.namespaces.get_ip_filter_rule
+  for_each: azure.eventhub.namespaces.list
+  calls:
+  - action: namespaces.get_ip_filter_rule
+    save_as: response
+    on_error: continue
+    params:
+      namespace_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.eventhub.namespaces.get_network_rule_set
+  for_each: azure.eventhub.namespaces.list
+  calls:
+  - action: namespaces.get_network_rule_set
+    save_as: response
+    on_error: continue
+    params:
+      namespace_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.eventhub.namespaces.get_virtual_network_rule
+  for_each: azure.eventhub.namespaces.list
+  calls:
+  - action: namespaces.get_virtual_network_rule
+    save_as: response
+    on_error: continue
+    params:
+      namespace_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.eventhub.namespaces.list_authorization_rules
+  for_each: azure.eventhub.namespaces.list
+  calls:
+  - action: namespaces.list_authorization_rules
+    save_as: response
+    on_error: continue
+    params:
+      namespace_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      rights: '{{ item.rights }}'
+- discovery_id: azure.eventhub.namespaces.list_ip_filter_rules
+  for_each: azure.eventhub.namespaces.list
+  calls:
+  - action: namespaces.list_ip_filter_rules
+    save_as: response
+    on_error: continue
+    params:
+      namespace_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      action: '{{ item.action }}'
+      filter_name: '{{ item.filter_name }}'
+      ip_mask: '{{ item.ip_mask }}'
+- discovery_id: azure.eventhub.namespaces.list_keys
+  for_each: azure.eventhub.namespaces.list
+  calls:
+  - action: namespaces.list_keys
+    save_as: response
+    on_error: continue
+    params:
+      namespace_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.eventhub.namespaces.list_virtual_network_rules
+  for_each: azure.eventhub.namespaces.list
+  calls:
+  - action: namespaces.list_virtual_network_rules
+    save_as: response
+    on_error: continue
+    params:
+      namespace_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      virtual_network_subnet_id: '{{ item.virtual_network_subnet_id }}'
+- discovery_id: azure.eventhub.privateendpointconnections.list
+  for_each: azure.eventhub.namespaces.list
+  calls:
+  - action: privateendpointconnections.list
+    save_as: response
+    on_error: continue
+    params:
+      namespace_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      private_endpoint: '{{ item.private_endpoint }}'
+      private_link_service_connection_state: '{{ item.private_link_service_connection_state
+        }}'
+- discovery_id: azure.event.list_available_cluster_region
+  calls:
+  - action: list_available_cluster_region
+    save_as: list_available_cluster_region_response
+  emit:
+    items_for: '{{ list_available_cluster_region_response.value }}'
+    as: item
+    item:
+      location: '{{ item.location }}'
+- discovery_id: azure.event.list_by_resource_group
+  calls:
+  - action: list_by_resource_group
+    save_as: list_by_resource_group_response
+  emit:
+    items_for: '{{ list_by_resource_group_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'
+      sku: '{{ item.sku }}'
+      system_data: '{{ item.system_data }}'
+      created_at: '{{ item.created_at }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      updated_at: '{{ item.updated_at }}'
+      metric_id: '{{ item.metric_id }}'
+      status: '{{ item.status }}'
+      supports_scaling: '{{ item.supports_scaling }}'
+- discovery_id: azure.notification.list_available_cluster_region
+  calls:
+  - action: list_available_cluster_region
+    save_as: list_available_cluster_region_response
+  emit:
+    items_for: '{{ list_available_cluster_region_response.value }}'
+    as: item
+    item:
+      location: '{{ item.location }}'

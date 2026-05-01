@@ -9,9 +9,9 @@ Single call to engine-container-sec/api/v1/container-security/ui-data.
 
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
-from ._shared import fetch_many, fetch_all_check_findings, safe_get, mock_fallback, is_empty_or_health
+from ._shared import fetch_many, fetch_all_check_findings, safe_get, is_empty_or_health
 from ._transforms import apply_global_filters
 from ._page_context import container_security_page_context, container_security_filter_schema
 
@@ -20,6 +20,7 @@ router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
 @router.get("/container-security")
 async def view_container_security(
+    request: Request,
     tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
@@ -28,12 +29,15 @@ async def view_container_security(
 ):
     """Single endpoint returning everything the container security page needs."""
 
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
     results = await fetch_many([
         ("container_sec", "/api/v1/container-security/ui-data", {
             "tenant_id": tenant_id,
             "scan_id": scan_id,
         }),
-    ])
+    ], auth_headers=fwd_headers)
 
     csec_data = results[0]
     if not isinstance(csec_data, dict):
@@ -45,13 +49,9 @@ async def view_container_security(
         check_raw = await fetch_all_check_findings({
             "tenant_id": tenant_id,
             "domain": "container_and_kubernetes_security",
-        })
+        }, auth_headers=fwd_headers)
         if check_raw:
             csec_data = {"findings": check_raw, "clusters": [], "summary": {}}
-        else:
-            m = mock_fallback("container_security")
-            if m is not None:
-                return m
 
     summary = safe_get(csec_data, "summary", {})
 
@@ -140,11 +140,9 @@ async def view_container_security(
                 ],
             },
         ],
-        "data": {
-            "clusters": filtered_clusters,
-            "findings": filtered_findings,
-            "domain_scores": domain_scores,
-        },
+        "clusters":     filtered_clusters,
+        "findings":     filtered_findings,
+        "domain_scores": domain_scores,
         "domainBreakdown": safe_get(csec_data, "domain_breakdown", []),
         "scanTrend": safe_get(csec_data, "scan_trend", []),
     }

@@ -1,0 +1,59 @@
+# discoveries_only_check: 2 kept / 23 removed from 25 total
+# generated_from: step6_elastic.discovery.yaml
+# purpose: only discoveries needed by elastic.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: elastic
+services:
+  client: elastic
+  module: boto3.client
+discovery:
+- discovery_id: aws.elastic.list_domain_names
+  calls:
+  - action: list_domain_names
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      DomainName: '{{ response.DomainName }}'
+      EngineType: '{{ response.EngineType }}'
+- discovery_id: aws.elastic.describe_elasticsearch_domains
+  for_each: aws.elastic.list_domain_names
+  calls:
+  - action: describe_elasticsearch_domains
+    params:
+      DomainNames: '{{ item.DomainNames }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      ARN: '{{ response.ARN }}'
+      AccessPolicies: '{{ response.AccessPolicies }}'
+      AdvancedOptions: '{{ response.AdvancedOptions }}'
+      AdvancedSecurityOptions: '{{ response.AdvancedSecurityOptions }}'
+      AutoTuneOptions: '{{ response.AutoTuneOptions }}'
+      ChangeProgressDetails: '{{ response.ChangeProgressDetails }}'
+      CognitoOptions: '{{ response.CognitoOptions }}'
+      Created: '{{ response.Created }}'
+      Deleted: '{{ response.Deleted }}'
+      DomainEndpointOptions: '{{ response.DomainEndpointOptions }}'
+      DomainId: '{{ response.DomainId }}'
+      DomainName: '{{ response.DomainName }}'
+      DomainProcessingStatus: '{{ response.DomainProcessingStatus }}'
+      DomainStatusList: '{{ response.DomainStatusList }}'
+      EBSOptions: '{{ response.EBSOptions }}'
+      ElasticsearchClusterConfig: '{{ response.ElasticsearchClusterConfig }}'
+      ElasticsearchVersion: '{{ response.ElasticsearchVersion }}'
+      EncryptionAtRestOptions: '{{ response.EncryptionAtRestOptions }}'
+      Endpoint: '{{ response.Endpoint }}'
+      Endpoints: '{{ response.Endpoints }}'
+      LogPublishingOptions: '{{ response.LogPublishingOptions }}'
+      ModifyingProperties: '{{ response.ModifyingProperties }}'
+      NodeToNodeEncryptionOptions: '{{ response.NodeToNodeEncryptionOptions }}'
+      Processing: '{{ response.Processing }}'
+      ServiceSoftwareOptions: '{{ response.ServiceSoftwareOptions }}'
+      SnapshotOptions: '{{ response.SnapshotOptions }}'
+      UpgradeProcessing: '{{ response.UpgradeProcessing }}'
+      VPCOptions: '{{ response.VPCOptions }}'

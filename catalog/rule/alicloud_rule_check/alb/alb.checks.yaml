@@ -1,0 +1,174 @@
+version: '1.0'
+provider: alicloud
+service: alb
+checks:
+- rule_id: alicloud.alb.deletion.protection
+  for_each: alicloud.alb.deletion
+  severity: MEDIUM
+  conditions:
+    var: item.deletion_protection
+    op: is_true
+    value: null
+- rule_id: alicloud.alb.hologres_access_control.endpoint_authz_no_anonymous_access
+  for_each: alicloud.alb.hologres_endpoint
+  severity: MEDIUM
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: anonymous
+- rule_id: alicloud.alb.hologres_access_control.endpoint_authz_rbac_least_privilege
+  for_each: alicloud.alb.hologres_access_control
+  severity: HIGH
+  conditions:
+    var: item.permissions
+    op: not_empty
+    value: null
+- rule_id: alicloud.alb.hologres_endpoint.endpoint_access_allowed_cidrs_minimized
+  for_each: alicloud.alb.hologres_endpoint
+  severity: MEDIUM
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.alb.hologres_endpoint.endpoint_access_private_only
+  for_each: alicloud.alb.hologres_endpoint
+  severity: MEDIUM
+  conditions:
+    var: item.internet_facing
+    op: is_false
+    value: null
+- rule_id: alicloud.alb.hologres_endpoint.endpoint_access_tls_required
+  for_each: alicloud.alb.hologres_endpoint
+  severity: HIGH
+  conditions:
+    var: item.ssl_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.alb.hologres_parameter_group.parameter_group_require_ssl
+  for_each: alicloud.alb.hologres_endpoint
+  severity: MEDIUM
+  conditions:
+    var: item.ssl_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.alb.hologres_snapshots.snapshot_cross_region_copy_encrypted
+  for_each: alicloud.alb.hologres_endpoint
+  severity: HIGH
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.alb.hologres_snapshots.snapshot_encrypted_at_rest_cmek
+  for_each: alicloud.alb.hologres_endpoint
+  severity: HIGH
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.alb.hologres_snapshots.snapshot_not_publicly_shared
+  for_each: alicloud.alb.hologres_access_control
+  severity: HIGH
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: public
+- rule_id: alicloud.alb.insecure.ssl_ciphers
+  for_each: alicloud.alb.DescribeZones
+  severity: MEDIUM
+  conditions:
+    var: item.min_tls_version
+    op: gte
+    value: '1.2'
+- rule_id: alicloud.alb.internet.facing
+  for_each: alicloud.alb.DescribeZones
+  severity: MEDIUM
+  conditions:
+    var: item.internet_facing
+    op: is_false
+    value: null
+- rule_id: alicloud.alb.is.in_multiple_az
+  for_each: alicloud.alb.DescribeZones
+  severity: MEDIUM
+  conditions:
+    var: item.zones[].ZoneId
+    op: length_gte
+    value: 2
+- rule_id: alicloud.alb.listener.cipher_policy_secure
+  for_each: alicloud.alb.DescribeZones
+  severity: MEDIUM
+  conditions:
+    var: item.min_tls_version
+    op: gte
+    value: '1.2'
+- rule_id: alicloud.alb.listener.facing
+  for_each: alicloud.alb.DescribeZones
+  severity: MEDIUM
+  conditions:
+    var: item.internet_facing
+    op: is_false
+    value: null
+- rule_id: alicloud.alb.listener.tls_min_1_2
+  for_each: alicloud.alb.DescribeZones
+  severity: HIGH
+  conditions:
+    var: item.min_tls_version
+    op: gte
+    value: '1.2'
+- rule_id: alicloud.alb.logging.enabled
+  for_each: alicloud.alb.DescribeZones
+  severity: MEDIUM
+  conditions:
+    var: item.logging_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.alb.network.lb_access_logs_enabled
+  for_each: alicloud.alb.DescribeZones
+  severity: MEDIUM
+  conditions:
+    var: item.logging_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.alb.network.lb_listener_tls_min_1_2
+  for_each: alicloud.alb.DescribeZones
+  severity: HIGH
+  conditions:
+    var: item.min_tls_version
+    op: in
+    value:
+    - '1.2'
+    - '1.3'
+- rule_id: alicloud.alb.network.lb_valid_certificate_attached
+  for_each: alicloud.alb.DescribeZones
+  severity: MEDIUM
+  conditions:
+    var: item.ssl_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.alb.ssl.listeners
+  for_each: alicloud.alb.DescribeZones
+  severity: MEDIUM
+  conditions:
+    var: item.ssl_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.alb.target.group_health_check_enabled
+  for_each: alicloud.alb.GetHealthCheckTemplateAttribute
+  severity: MEDIUM
+  conditions:
+    var: item.id
+    op: exists
+    value: null
+- rule_id: alicloud.alb.target_group.tg_targets_in_private_subnets
+  for_each: alicloud.alb.DescribeZones
+  severity: MEDIUM
+  conditions:
+    var: item.internet_facing
+    op: is_false
+    value: null
+- rule_id: alicloud.alb.waf.acl_attached
+  for_each: alicloud.alb.DescribeZones
+  severity: MEDIUM
+  conditions:
+    var: item.waf_acl_attached
+    op: is_true
+    value: null

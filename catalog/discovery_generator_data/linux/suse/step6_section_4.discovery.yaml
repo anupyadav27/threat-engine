@@ -1,0 +1,179 @@
+version: '1.0'
+provider: linux
+engine: suse
+category: section_4
+cis_section: '4'
+description: >
+  suse CIS Section 4 — a single firewall configuration utility is in use
+
+discovery:
+
+  - discovery_id: suse.section_4.a_single_firewall_configuration_utility_is_in_use
+    description: Ensure a single firewall configuration utility is in use
+    calls:
+      - action: run_command
+        command: "Run the following script to verify that a single firewall utility is in use on the system: #!/usr/bin/env bash { active_firewall=() firewalls=(\u0027firewalld\u0027 \u0027susefirewall2\u0027) # Determine which firewall is in use for firewall in \u0027${firewalls[@]}\u0027; do case $firewall in firewalld|susefirewall2) cmd=$firewall esac if command -v $cmd \u0026\u003e /dev/null \u0026\u0026 systemctl is-enabled --quiet $firewall \u0026\u0026 systemctl is-active --quiet $firewall; then active_firewall+=(\u0027$firewall\u0027) fi done # Display audit results if [ ${#active_firewall[@]} -eq 1 ]; then printf \u0027%s\\n\u0027 \u0027\u0027 \u0027Audit Results:\u0027 \u0027 ** PASS **\u0027 \u0027 - A single firewall is in use follow the recommendation in ${active_firewall[0]} subsection ONLY\u0027 elif [ ${#active_firewall[@]} -eq 0 ]; then printf \u0027%s\\n\u0027 \u0027\u0027 \u0027 Audit Results:\u0027 \u0027 ** FAIL **\u0027 \u0027- No firewall in use or unable to determine firewall status\u0027 else printf \u0027%s\\n\u0027 \u0027\u0027 \u0027 Audit Results:\u0027 \u0027 ** FAIL **\u0027 \u0027 - Multiple firewalls are in use: ${active_firewall[*]}\u0027 fi } `"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: a_single_firewall_configuration_utility_is_in_use
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_4.firewalld_is_installed
+    description: Ensure firewalld is installed
+    calls:
+      - action: run_command
+        command: "Run the following command to verify firewalld is installed: # rpm -q firewalld firewalld-\u003cversion\u003e"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: firewalld_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_4.firewalld_loopback_traffic_is_configured
+    description: Ensure firewalld loopback traffic is configured
+    calls:
+      - action: run_command
+        command: "Run the following script to verify that the loopback interface is configured: \u2022 rule family=ipv4 source address=\u0027127.0.0.1\u0027 destination not address=\u0027127.0.0.1\u0027 drop \u2022 rule family=ipv6 source address=\u0027::1\u0027 destination not address=\u0027::1\u0027 drop \u2022 rule family=ipv6 source address=\u0027::1\u0027 destination not address=\u0027::1\u0027 drop #!/usr/bin/env bash { l_output=\u0027\u0027 l_output2=\u0027\u0027 l_hbfw=\u0027\u0027 if systemctl is-enabled firewalld.service | grep -q \u0027enabled\u0027; then echo -e \u0027\\n - FirewallD is in use on the system\u0027 \u0026\u0026 l_hbfw=\u0027fwd\u0027 elif systemctl is-enabled nftables.service 2\u003e/dev/null | grep -q \u0027enabled\u0027; then echo -e \u0027\\n - nftables is in use on the system \\n - Recommendation is NA\u0027 \u0026\u0026 l_hbfw=\u0027nft\u0027 else echo -e \u0027\\n - Error - Neither FirewallD or NFTables is enabled\\n - Please follow recommendation: \\\u0027Ensure a single firewall configuration utility is in use\\\u0027\u0027 fi if [ \u0027$l_hbfw\u0027 = \u0027fwd\u0027 ]; then if nft list ruleset | awk \u0027/hook\\s+input\\s+/,/\\}\\s*(#.*)?$/\u0027 | grep -Pq -- \u0027\\H+\\h+\u0027lo\u0027\\h+accept\u0027; then l_output=\u0027$l_output\\n - Network traffic to the loopback address is correctly set to accept\u0027 else l_output2=\u0027$l_output2\\n - Network traffic to the loopback address is not set to accept\u0027 fi l_ipsaddr=\u0027$(nft list ruleset | awk \u0027/filter_IN_public_deny|hook\\s+input\\s+/,/\\}\\s*(#.*)?$/\u0027 | grep -P -- \u0027ip\\h+saddr\u0027)\u0027 if grep -Pq -- \u0027ip\\h+saddr\\h+127\\.0\\.0\\.0\\/8\\h+(counter\\h+packets\\h+\\d+\\h+bytes\\h+\\d+\\h+)?drop\u0027 \u003c\u003c\u003c \u0027$l_ipsaddr\u0027 || grep -Pq -- \u0027ip\\h+daddr\\h+\\!\\=\\h+127\\.0\\.0\\.1\\h+ip\\h+saddr\\h+127\\.0\\.0\\.1\\h+drop\u0027 \u003c\u003c\u003c \u0027$l_ipsaddr\u0027; then l_output=\u0027$l_output\\n - IPv4 network traffic from loopback address correctly set to drop\u0027 else l_output2=\u0027$l_output2\\n - IPv4 network traffic from loopback address not set to drop\u0027 fi if grep -Pq -- \u0027^\\h*0\\h*$\u0027 /sys/module/ipv6/parameters/disable; then l_ip6saddr=\u0027$(nft list ruleset | awk \u0027/filter_IN_public_deny|hook input/,/}/\u0027 | grep \u0027ip6 saddr\u0027)\u0027 if grep -Pq \u0027ip6\\h+saddr\\h+::1\\h+(counter\\h+packets\\h+\\d+\\h+bytes\\h+\\d+\\h+)?drop\u0027 \u003c\u003c\u003c \u0027$l_ip6saddr\u0027 || grep -Pq -- \u0027ip6\\h+daddr\\h+\\!=\\h+::1\\h+ip6\\h+saddr\\h+::1\\h+drop\u0027 \u003c\u003c\u003c \u0027$l_ip6saddr\u0027; then l_output=\u0027$l_output\\n - IPv6 network traffic from loopback address correctly set to drop\u0027 else l_output2=\u0027$l_output2\\n - IPv6 network traffic from loopback address not set to drop\u0027 fi fi fi if [ \u0027$l_hbfw\u0027 = \u0027nft\u0027 ] || [ -z \u0027$l_output2\u0027 ]; then echo -e \u0027\\n- Audit Result:\\n *** PASS ***\\n$l_output\u0027 else echo -e \u0027\\n- Audit Result:\\n *** FAIL ***\\n$l_output2\\n\\n - Correctly set:\\n$l_output\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: firewalld_loopback_traffic_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_4.default_zone_is_set
+    description: Ensure default zone is set
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that the default zone adheres to company policy: # firewall-cmd --get-default-zone"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: default_zone_is_set
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_4.firewalld_service_is_enabled_and_running
+    description: Ensure firewalld service is enabled and running
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that firewalld is enabled: # systemctl is-enabled firewalld enabled Run the following command to verify that firewalld is running # firewall-cmd --state running"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: firewalld_service_is_enabled_and_running
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_4.rsyslog_is_installed
+    description: Ensure rsyslog is installed
+    calls:
+      - action: run_command
+        command: "Run the following command to Verify rsyslog is installed: # rpm -q rsyslog rsyslog-\u003cversion\u003e"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: rsyslog_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_4.rsyslog_service_is_enabled_and_running
+    description: Ensure rsyslog Service is enabled and running
+    calls:
+      - action: run_command
+        command: "Run one of the following commands to verify rsyslog is enabled: # systemctl is-enabled rsyslog enabled Run the following command to verify that rsyslog is running: # systemctl status rsyslog | grep \u0027active (running) \u0027 Active: active (running) since \u003cDay date time\u003e"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: rsyslog_service_is_enabled_and_running
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_4.rsyslog_default_file_permissions_configured
+    description: Ensure rsyslog default file permissions configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that $FileCreateMode is 0640 or more restrictive: # grep ^\\$FileCreateMode /etc/rsyslog.conf /etc/rsyslog.d/*.conf $FileCreateMode 0640 Verify that no results return with a less restrictive file mode"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: rsyslog_default_file_permissions_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_4.rsyslog_is_configured_to_send_logs_to_a_remote
+    description: Ensure rsyslog is configured to send logs to a remote log host
+    calls:
+      - action: run_command
+        command: "Review the /etc/rsyslog.conf and /etc/rsyslog.d/*.conf files and verify that logs are sent to a central host (where loghost.example.com is the name of your central log host): # grep \u0027^*.*[^I][^I]*@\u0027 /etc/rsyslog.conf /etc/rsyslog.d/*.conf *.* @@loghost.example.com"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: rsyslog_is_configured_to_send_logs_to_a_remote
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_4.journald_is_configured_to_send_logs_to_rsyslog
+    description: Ensure journald is configured to send logs to rsyslog
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: journald_is_configured_to_send_logs_to_rsyslog
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_4.journald_is_configured_to_compress_large_log_files
+    description: Ensure journald is configured to compress large log files
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: journald_is_configured_to_compress_large_log_files
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_4.journald_is_configured_to_write_logfiles_to
+    description: Ensure journald is configured to write logfiles to persistent disk
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: journald_is_configured_to_write_logfiles_to
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_4.permissions_on_all_logfiles_are_configured
+    description: Ensure permissions on all logfiles are configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that other has no permissions on any files and group does not have write or execute permissions on any files: # find /var/log -type f -perm /g+wx,o+rwx -exec ls -l {} \\; Nothing should be returned."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: permissions_on_all_logfiles_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+

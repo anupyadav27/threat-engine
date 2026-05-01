@@ -1,0 +1,60 @@
+version: '1.0'
+provider: azure
+service: cosmos
+checks:
+- rule_id: azure.cosmos.database.autoscale_enabled
+  for_each: azure.cosmosdb.databaseaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.automaticFailover
+    op: is_true
+    value: null
+- rule_id: azure.cosmos.database.backup_enabled
+  for_each: azure.cosmosdb.databaseaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.BackupPolicy.BackupPolicyType
+    op: exists
+    value: null
+- rule_id: azure.cosmos.database.encryption_enabled
+  for_each: azure.cosmosdb.databaseaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.disableLocalAuth
+    op: is_false
+    value: null
+- rule_id: azure.cosmos.database.geo_redundant
+  for_each: azure.cosmosdb.databaseaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.EnableMultipleWriteLocations
+    op: is_true
+    value: null
+- rule_id: azure.cosmos.database.global_tables_enabled
+  for_each: azure.cosmosdb.databaseaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.EnableMultipleWriteLocations
+    op: is_false
+    value: null
+- rule_id: azure.cosmos.database.pitr_enabled
+  for_each: azure.cosmosdb.databaseaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.BackupPolicy.PolicyType
+    op: equals
+    value: Continuous
+- rule_id: azure.cosmos.table.kms_cmk_encryption_enabled
+  for_each: azure.cosmosdb.databaseaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.Encryption.KeyEncryptionKeyId
+    op: exists
+    value: null
+- rule_id: azure.cosmos.table.pitr_enabled
+  for_each: azure.cosmosdb.databaseaccounts.list
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.continuousBackupRestorePointInTimeRestoreEnabled
+    op: is_true
+    value: null

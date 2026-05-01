@@ -1,0 +1,262 @@
+tech_type: microsoft_365
+category: cloud_saas
+cis_benchmark: CIS Microsoft 365 v5.0.0
+cis_section: '7'
+
+rules:
+
+  - rule_id: microsoft_365.cis.7.l1_ensure_modern_authentication_for_sharepoint
+    title: "(L1) Ensure modern authentication for SharePoint applications is required"
+    severity: high
+    automation_type: automated
+    cis_control: '7.2.1'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: microsoft_365.section_7.l1_ensure_modern_authentication_for_sharepoint
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      To remediate using the UI: 1. Navigate to SharePoint admin center
+      https://admin.microsoft.com/sharepoint. 2. Click to expand Policies select
+      Access control. 3. Select Apps that don't use modern authentication. 4. Select
+      the radio button for Block access. 5. Click Save. To remediate using
+      PowerShell: 1. Connect to SharePoint Online using Connect-SPOService -Url
+      https://tenant-admin.sharepoint.com replacing tenant with your value. 2. Run
+      the following SharePoint Online PowerShell command: Set-SPOTenant
+      -LegacyAuthProtocolsEnabled $false Default Value: True (Apps that don't use
+      modern authentication are allowed) References: 1.
+      https://learn.microsoft.com/en-us/powershell/module/sharepoint-online/set-
+      spotenant?view=sharepoint-ps
+    compliance:
+      - cis_microsoft_365_v5_0_0_7_2_1
+
+  - rule_id: microsoft_365.cis.7.l1_ensure_external_content_sharing_is_restricted
+    title: "(L1) Ensure external content sharing is restricted"
+    severity: high
+    automation_type: automated
+    cis_control: '7.2.3'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: microsoft_365.section_7.l1_ensure_external_content_sharing_is_restricted
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "true"
+    remediation: >
+      To remediate using the UI: 1. Navigate to SharePoint admin center
+      https://admin.microsoft.com/sharepoint 2. Click to expand Policies > Sharing.
+      3. Locate the External sharing section. 4. Under SharePoint, move the slider
+      bar to New and existing guests or a less permissive level. o OneDrive will
+      also be moved to the same level and can never be more permissive than
+      SharePoint. To remediate using PowerShell: 1. Connect to SharePoint Online
+      service using Connect-SPOService. 2. Run the following cmdlet to establish the
+      minimum recommended state: Set-SPOTenant -SharingCapability
+      ExternalUserSharingOnly Note: Other acceptable values for this parameter that
+      are more restrictive include: Disabled and ExistingExternalUserSharingOnly.
+      Default Value: Anyone (ExternalUserAndGuestSharing) References: 1.
+      https://learn.microsoft.com/en-us/sharepoint/turn-external-sharing-on-or-off
+      2. https://learn.microsoft.com/en-us/powershell/module/sharepoint-online/set-
+      spotenant?view=sharepoint-ps
+    compliance:
+      - cis_microsoft_365_v5_0_0_7_2_3
+
+  - rule_id: microsoft_365.cis.7.l2_ensure_onedrive_content_sharing_is_restricted
+    title: "(L2) Ensure OneDrive content sharing is restricted"
+    severity: medium
+    automation_type: automated
+    cis_control: '7.2.4'
+    cis_section: '7'
+    profile_applicability: "Level 2"
+    scope: microsoft_365.section_7.l2_ensure_onedrive_content_sharing_is_restricted
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      To remediate using the UI: 1. Navigate to SharePoint admin center
+      https://admin.microsoft.com/sharepoint 2. Click to expand Policies > Sharing.
+      3. Locate the External sharing section. 4. Under OneDrive, set the slider bar
+      to Only people in your organization. To remediate using PowerShell: 1. Connect
+      to SharePoint Online service using Connect-SPOService. 2. Run the following
+      cmdlet: Set-SPOTenant -OneDriveSharingCapability Disabled Alternative
+      remediation method using PowerShell: 1. Connect to SharePoint Online. 2. Run
+      one of the following: # Replace [tenant] with your tenant id Set-SPOSite
+      -Identity https://[tenant]-my.sharepoint.com/ -SharingCapability Disabled # Or
+      run this to filter to the specific site without supplying the tenant name.
+      $OneDriveSite = Get-SPOSite -Filter { Url -like '*-my.sharepoint.com/' } Set-
+      SPOSite -Identity $OneDriveSite -SharingCapability Disabled Default Value:
+      Anyone (ExternalUserAndGuestSharing) References: 1.
+      https://learn.microsoft.com/en-us/powershell/module/sharepoint-online/set-
+      spotenant?view=sharepoint-ps#-onedrivesharingcapability
+    compliance:
+      - cis_microsoft_365_v5_0_0_7_2_4
+
+  - rule_id: microsoft_365.cis.7.l2_ensure_that_sharepoint_guest_users_cannot
+    title: "(L2) Ensure that SharePoint guest users cannot share items they don't own"
+    severity: medium
+    automation_type: automated
+    cis_control: '7.2.5'
+    cis_section: '7'
+    profile_applicability: "Level 2"
+    scope: microsoft_365.section_7.l2_ensure_that_sharepoint_guest_users_cannot
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      To remediate using the UI: 1. Navigate to SharePoint admin center
+      https://admin.microsoft.com/sharepoint 2. Click to expand Policies then select
+      Sharing. 3. Expand More external sharing settings, uncheck Allow guests to
+      share items they don't own. 4. Click Save. To remediate using PowerShell: 1.
+      Connect to SharePoint Online service using Connect-SPOService. 2. Run the
+      following SharePoint Online PowerShell command: Set-SPOTenant
+      -PreventExternalUsersFromResharing $True Default Value: Checked (False)
+      References: 1. https://learn.microsoft.com/en-us/sharepoint/turn-external-
+      sharing-on-or-off 2. https://learn.microsoft.com/en-us/sharepoint/external-
+      sharing-overview
+    compliance:
+      - cis_microsoft_365_v5_0_0_7_2_5
+
+  - rule_id: microsoft_365.cis.7.l2_ensure_sharepoint_external_sharing_is_managed
+    title: "(L2) Ensure SharePoint external sharing is managed through domain whitelist/blacklists"
+    severity: medium
+    automation_type: automated
+    cis_control: '7.2.6'
+    cis_section: '7'
+    profile_applicability: "Level 2"
+    scope: microsoft_365.section_7.l2_ensure_sharepoint_external_sharing_is_managed
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      To remediate using the UI: 1. Navigate to SharePoint admin center
+      https://admin.microsoft.com/sharepoint. 2. Expand Policies then click Sharing.
+      3. Expand More external sharing settings and check Limit external sharing by
+      domain. 4. Select Add domains to add a list of approved domains. 5. Click Save
+      at the bottom of the page. To remediate using PowerShell: 1. Connect to
+      SharePoint Online using Connect-SPOService. 2. Run the following PowerShell
+      command: Set-SPOTenant -SharingDomainRestrictionMode AllowList -
+      SharingAllowedDomainList 'domain1.com domain2.com' Default Value: Limit
+      external sharing by domain is unchecked SharingDomainRestrictionMode: None
+      SharingDomainRestrictionMode: <Undefined> References: 1.
+      https://learn.microsoft.com/en-us/sharepoint/turn-external-sharing-on-or-
+      off?WT.mc_id=365AdminCSH_spo#more-external-sharing-settings
+    compliance:
+      - cis_microsoft_365_v5_0_0_7_2_6
+
+  - rule_id: microsoft_365.cis.7.l1_ensure_link_sharing_is_restricted_in
+    title: "(L1) Ensure link sharing is restricted in SharePoint and OneDrive"
+    severity: high
+    automation_type: automated
+    cis_control: '7.2.7'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: microsoft_365.section_7.l1_ensure_link_sharing_is_restricted_in
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      To remediate using the UI: 1. Navigate to SharePoint admin center
+      https://admin.microsoft.com/sharepoint 2. Click to expand Policies > Sharing.
+      3. Scroll to File and folder links. 4. Set Choose the type of link that's
+      selected by default when users share files and folders in SharePoint and
+      OneDrive to Specific people (only the people the user specifies) or Only
+      people in your organization. To remediate using PowerShell: 1. Connect to
+      SharePoint Online using Connect-SPOService. 2. Run the following PowerShell
+      command: Set-SPOTenant -DefaultSharingLinkType Direct 3. Or, to set a more
+      restrictive state: Set-SPOTenant -DefaultSharingLinkType Internal Default
+      Value: Only people in your organization (Internal) References: 1.
+      https://learn.microsoft.com/en-us/powershell/module/sharepoint-online/set-
+      spotenant?view=sharepoint-ps
+    compliance:
+      - cis_microsoft_365_v5_0_0_7_2_7
+
+  - rule_id: microsoft_365.cis.7.l1_ensure_the_sharepoint_default_sharing_link
+    title: "(L1) Ensure the SharePoint default sharing link permission is set"
+    severity: high
+    automation_type: automated
+    cis_control: '7.2.11'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: microsoft_365.section_7.l1_ensure_the_sharepoint_default_sharing_link
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      To remediate using the UI: 1. Navigate to SharePoint admin center
+      https://admin.microsoft.com/sharepoint 2. Click to expand Policies > Sharing.
+      3. Scroll to File and folder links . 4. Set Choose the permission that's
+      selected by default for sharing links to View. To remediate using PowerShell:
+      1. Connect to SharePoint Online service using Connect-SPOService. 2. Run the
+      following cmdlet: Set-SPOTenant -DefaultLinkPermission View Default Value:
+      DefaultLinkPermission : Edit References: 1. https://learn.microsoft.com/en-
+      us/sharepoint/turn-external-sharing-on-or-off#file- and-folder-links
+    compliance:
+      - cis_microsoft_365_v5_0_0_7_2_11
+
+  - rule_id: microsoft_365.cis.7.l2_ensure_office_365_sharepoint_infected_files
+    title: "(L2) Ensure Office 365 SharePoint infected files are disallowed for download"
+    severity: medium
+    automation_type: automated
+    cis_control: '7.3.1'
+    cis_section: '7'
+    profile_applicability: "Level 2"
+    scope: microsoft_365.section_7.l2_ensure_office_365_sharepoint_infected_files
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      To remediate using PowerShell: 1. Connect to SharePoint Online using Connect-
+      SPOService -Url https://tenant-admin.sharepoint.com, replacing 'tenant' with
+      the appropriate value. 2. Run the following PowerShell command to set the
+      recommended value: Set-SPOTenant –DisallowInfectedFileDownload $true Note: The
+      Global Reader role cannot access SharePoint using PowerShell according to
+      Microsoft. See the reference section for more information. Default Value:
+      False References: 1. https://learn.microsoft.com/en-us/defender-
+      office-365/safe-attachments-for-spo- odfb-teams-configure?view=o365-worldwide
+      2. https://learn.microsoft.com/en-us/defender-office-365/anti-malware-
+      protection- for-spo-odfb-teams-about?view=o365-worldwide 3.
+      https://learn.microsoft.com/en-us/entra/identity/role-based-access-
+      control/permissions-reference#global-reader
+    compliance:
+      - cis_microsoft_365_v5_0_0_7_3_1
+
+  - rule_id: microsoft_365.cis.7.l2_ensure_onedrive_sync_is_restricted_for
+    title: "(L2) Ensure OneDrive sync is restricted for unmanaged devices"
+    severity: medium
+    automation_type: automated
+    cis_control: '7.3.2'
+    cis_section: '7'
+    profile_applicability: "Level 2"
+    scope: microsoft_365.section_7.l2_ensure_onedrive_sync_is_restricted_for
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "on"
+    remediation: >
+      To remediate using the UI: 1. Navigate to SharePoint admin center
+      https://admin.microsoft.com/sharepoint 2. Click Settings then select OneDrive
+      - Sync. 3. Check the Allow syncing only on computers joined to specific
+      domains. 4. Use the Get-ADDomain PowerShell command on the on-premises server
+      to obtain the GUID for each on-premises domain. 5. Click Save. To remediate
+      using PowerShell: 1. Connect to SharePoint Online using Connect-SPOService 2.
+      Run the following PowerShell command and provide the DomainGuids from the Get-
+      AADomain command: Set-SPOTenantSyncClientRestriction -Enable -DomainGuids
+      '786548DD-877B-4760- A749-6B1EFBC1190A; 877564FF-877B-4760-A749-6B1EFBC1190A'
+      Note: Utilize the -BlockMacSync:$true parameter if you are not using
+      conditional access to ensure Macs cannot sync. Default Value: By default there
+      are no restrictions applied to the syncing of OneDrive.
+      TenantRestrictionEnabled : False AllowedDomainList : {} References: 1.
+      https://learn.microsoft.com/en-us/sharepoint/allow-syncing-only-on-specific-
+      domains 2. https://learn.microsoft.com/en-us/powershell/module/sharepoint-
+      online/set- spotenantsyncclientrestriction?view=sharepoint-ps
+    compliance:
+      - cis_microsoft_365_v5_0_0_7_3_2
+
+

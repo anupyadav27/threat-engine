@@ -1,0 +1,66 @@
+version: '1.0'
+provider: data
+engine: snowflake
+category: section_1
+cis_section: '1'
+description: >
+  snowflake CIS Section 1 — Snowflake SCIM integration is configured to automatically provision and deprovision users and groups (i.e. roles)
+
+discovery:
+
+  - discovery_id: snowflake.section_1.snowflake_scim_integration_is_configured_to
+    description: Ensure Snowflake SCIM integration is configured to automatically provision and deprovision users and groups (i.e. roles)
+    calls:
+      - action: query_table
+        query: "SELECT * FROM TABLE(result_scan(last_query_id())) WHERE ('type' like 'SCIM%') AND 'enabled' = true;"
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        check: snowflake_scim_integration_is_configured_to
+        value: "{{ item.value }}"
+        expected: ""
+
+  - discovery_id: snowflake.section_1.service_accounts_use_key_pair_authentication
+    description: Ensure that service accounts use key pair authentication
+    calls:
+      - action: query_table
+        query: "select tr.object_name from snowflake.account_usage.tag_references tr left join snowflake.account_usage.users u on tr.object_name = u.name where tr.tag_name = 'ACCOUNT_TYPE' and tr.tag_value = 'service' and tr.domain = 'USER' and u.deleted_on is null and (u.has_password = true OR has_rsa_public_key = false);"
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        check: service_accounts_use_key_pair_authentication
+        value: "{{ item.value }}"
+        expected: ""
+
+  - discovery_id: snowflake.section_1.authentication_key_pairs_are_rotated_every_180
+    description: Ensure authentication key pairs are rotated every 180 days
+    calls:
+      - action: query_table
+        query: "SELECT END_TIME AS SET_TIME, UPPER(REGEXP_SUBSTR(QUERY_TEXT, 'USER\\s+'?([\\w]+)'?', 1, 1, 'i', 1)) AS PROCESSED_USERNAME, QUERY_TEXT FROM SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY WHERE EXECUTION_STATUS = 'SUCCESS' AND QUERY_TYPE IN ('ALTER_USER', 'CREATE_USER') AND TO_DATE(SET_TIME) < DATEADD(day, -180, CURRENT_DATE()) AND (QUERY_TEXT ILIKE '%rsa_public_key%' OR QUERY_TEXT ILIKE '%rsa_public_key_2%') ), EXTRACTED_KEYS AS ( SELECT SET_TIME, PROCESSED_USERNAME, CASE WHEN POSITION('rsa_public_key' IN LOWER(QUERY_TEXT)) > 0 THEN 'rsa_public_key' WHEN POSITION('rsa_public_key_2' IN LOWER(QUERY_TEXT)) > 0 THEN 'rsa_public_key_2' ELSE NULL END AS RSA_KEY_NAME FROM FILTERED_QUERY_HISTORY WHERE POSITION('rsa_public_key' IN LOWER(QUERY_TEXT)) > 0 OR POSITION('rsa_public_key_2' IN LOWER(QUERY_TEXT)) > 0 ), RECENT_KEYS AS ( SELECT EK.SET_TIME, EK.PROCESSED_USERNAME AS USERNAME, EK.RSA_KEY_NAME AS RSA_PUBLIC_KEY, ROW_NUMBER() OVER (PARTITION BY ek.processed_username, ek.rsa_key_name ORDER BY ek.set_time DESC) AS rnum FROM EXTRACTED_KEYS EK INNER JOIN SNOWFLAKE.ACCOUNT_USAGE.USERS AU ON EK.PROCESSED_USERNAME = AU.NAME WHERE AU.DELETED_ON IS NULL AND AU.DISABLED = FALSE AND EK.RSA_KEY_NAME IS NOT NULL ) -- Select the most recent RSA key name for each user SELECT SET_TIME, USERNAME, RSA_PUBLIC_KEY FROM RECENT_KEYS WHERE RNUM = 1;"
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        check: authentication_key_pairs_are_rotated_every_180
+        value: "{{ item.value }}"
+        expected: ""
+
+  - discovery_id: snowflake.section_1.the_idle_session_timeout_is_set_to_15_minutes_or
+    description: Ensure that the idle session timeout is set to 15 minutes or less for users with the ACCOUNTADMIN and SECURITYADMIN roles
+    calls:
+      - action: query_table
+        query: "SELECT DISTINCT GRANTEE_NAME FROM SNOWFLAKE.ACCOUNT_USAGE.GRANTS_TO_USERS WHERE DELETED_ON IS NULL AND ROLE IN ('ACCOUNTADMIN','SECURITYADMIN') AND DELETED_ON IS NULL ) --CHECK IF THERE IS AN ACTIVE SESSION POLICY OF 15 MINUTES CREATED FOR USERS , POLICY_REFS AS ( SELECT * FROM SNOWFLAKE.ACCOUNT_USAGE.POLICY_REFERENCES AS A LEFT JOIN SNOWFLAKE.ACCOUNT_USAGE.SESSION_POLICIES AS B ON A.POLICY_ID = B.ID WHERE A.POLICY_KIND = 'SESSION_POLICY' AND A.POLICY_STATUS = 'ACTIVE' AND A.REF_ENTITY_DOMAIN = 'USER' AND B.DELETED IS NULL AND B.SESSION_IDLE_TIMEOUT_MINS <= 15 ) --SHOW ALL PRIVILEGED USERS THAT DO NOT HAVE THE SESSION POLICY APPLIED SELECT A.*, B.POLICY_ID, B.POLICY_KIND, B.POLICY_STATUS, B.SESSION_IDLE_TIMEOUT_MINS FROM PRIV_USERS AS A LEFT JOIN POLICY_REFS AS B ON A.GRANTEE_NAME = B.REF_ENTITY_NAME WHERE B.POLICY_ID IS NULL;"
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        check: the_idle_session_timeout_is_set_to_15_minutes_or
+        value: "{{ item.value }}"
+        expected: ""
+

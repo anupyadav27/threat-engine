@@ -1,0 +1,118 @@
+version: '1.0'
+provider: alicloud
+service: cfw
+checks:
+- rule_id: alicloud.cfw.ipset.ip_set_cidrs_valid_and_minimized
+  for_each: alicloud.cfw.ipset
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.cidrs
+      op: not_empty
+      value: null
+    - var: item.cidrs[]
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: alicloud.cfw.ipset.ip_set_cross_account_sharing_restricted
+  for_each: alicloud.cfw.ipset
+  severity: MEDIUM
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.cfw.microsegmentation.microseg_endpoint_policies_applied
+  for_each: alicloud.cfw.microsegmentation
+  severity: MEDIUM
+  conditions:
+    var: item.status
+    op: equals
+    value: ACTIVE
+- rule_id: alicloud.cfw.microsegmentation.microseg_identity_aware_policies_enabled
+  for_each: alicloud.cfw.microsegmentation
+  severity: MEDIUM
+  conditions:
+    var: item.permissions
+    op: exists
+    value: null
+- rule_id: alicloud.cfw.network.firewall_logging_enabled
+  for_each: alicloud.cfw.DescribePolicyAdvancedConfig
+  severity: MEDIUM
+  conditions:
+    var: item.logging_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.cfw.network.firewall_no_permit_any_any
+  for_each: alicloud.cfw.DescribeVpcFirewallControlPolicy
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.security_group_rules[].source
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.security_group_rules[].destination
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: alicloud.cfw.policy.access_control_no_permit_all
+  for_each: alicloud.cfw.DescribeVpcFirewallControlPolicy
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.security_group_rules[].permissions
+      op: not_contains
+      value: permit_all
+- rule_id: alicloud.cfw.policy.access_control_policies_present
+  for_each: alicloud.cfw.DescribeVpcFirewallControlPolicy
+  severity: MEDIUM
+  conditions:
+    var: item
+    op: not_empty
+    value: null
+- rule_id: alicloud.cfw.policy.access_control_policy_store_encrypted
+  for_each: alicloud.cfw.DescribeVpcFirewallControlPolicy
+  severity: HIGH
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.cfw.threat_analysis.anomaly_destinations_encrypted
+  for_each: alicloud.cfw.threat_analysis
+  severity: HIGH
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.cfw.threat_analysis.anomaly_detectors_enabled
+  for_each: alicloud.cfw.threat_analysis
+  severity: MEDIUM
+  conditions:
+    var: item.anomaly_detectors_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.cfw.traffic_analysis.alert_destinations_configured
+  for_each: alicloud.cfw.threat_analysis
+  severity: MEDIUM
+  conditions:
+    var: item.alert_destinations
+    op: not_empty
+    value: null
+- rule_id: alicloud.cfw.traffic_analysis.ids_ips_enabled_where_supported
+  for_each: alicloud.cfw.threat_analysis
+  severity: MEDIUM
+  conditions:
+    var: item.status
+    op: equals
+    value: ACTIVE
+- rule_id: alicloud.cfw.waf_ip_sets.ip_set_sources_trusted
+  for_each: alicloud.cfw.ipset
+  severity: MEDIUM
+  conditions:
+    var: item.ip_set_sources_trusted
+    op: exists
+    value: null
+- rule_id: alicloud.cfw.waf_ip_sets.ip_set_storage_encrypted
+  for_each: alicloud.cfw.ipset
+  severity: HIGH
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null

@@ -1,0 +1,62 @@
+rule_id: gcp.sql.activity.export_instance
+rule_type: ciem
+title: 'Cloud SQL: Database Export Executed'
+scope: sql.activity
+domain: storage_and_database_security
+subcategory: data_security
+severity: high
+service: sql
+resource: activity
+requirement: Export Instance
+description: Cloud SQL database exported to GCS — full database dump created, which
+  may contain PII, credentials, or sensitive business data.
+rationale: 'Adversaries access data from cloud object storage (S3, Azure Blob, GCS)
+  which may be misconfigured with overly permissive policies exposing PII, medical
+  records, financial data, or credentials. Bulk download followed by external transfer
+  indicates active data theft. Detected via: unusual object access patterns from new
+  IAM users or roles, OAuth token grants to external apps preceding high-volume downloads,
+  and GetObject events from anomalous IPs or user agents.'
+remediation: '1. Audit and revoke the IAM binding granting public or broad access
+  to the resource.
+
+  2. Enable VPC Service Controls to restrict data exfiltration to approved perimeters.
+
+  3. Configure DLP inspection on Cloud Storage and BigQuery for sensitive data.
+
+  4. Set up Cloud Monitoring alerts on bulk data read operations by unexpected principals.
+
+  5. Enable CMEK for storage and BigQuery to prevent data use without key access.
+
+  '
+references:
+- https://attack.mitre.org/techniques/T1530/
+- https://cloud.google.com/storage/docs/audit-logging
+- https://cloud.google.com/bigquery/docs/audit-logging
+compliance:
+  cis_gcp_v2:
+  - 5.1
+  - 5.2
+  - 7.1
+  nist_800_53_r5:
+  - AC-4
+  - DM-2
+  - SI-4
+  pci_dss_v4:
+  - 3.1
+  - 4.1
+  - 7.1
+  iso_27001_2022:
+  - A.8.12
+  - A.5.12
+  - A.8.10
+threat_category: data_exfiltration
+mitre_tactics:
+- collection
+- exfiltration
+mitre_techniques:
+- T1530
+risk_score: 80
+action_category: exfiltration
+source: default
+metadata_source: auto_generated
+generated_by: gcp_ciem_generator

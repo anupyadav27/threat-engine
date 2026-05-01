@@ -1,0 +1,60 @@
+rule_id: gcp.bigquery.audit.public_query
+service: bigquery
+provider: gcp
+check_type: log
+severity: medium
+title: 'BigQuery: Query Executed Against Public Dataset by Unknown Principal'
+description: A query job was executed against a public BigQuery dataset by an external/unrecognized principal, potentially enumerating data.
+rationale: Adversaries abuse bigquery operations to achieve discovery in GCP environments. Detected via Cloud Admin Activity or Data Access audit logs.
+threat_category: discovery
+mitre_tactics:
+- discovery
+mitre_techniques:
+- T1526
+risk_score: 58
+resource: gcp_bigquery_table
+source: default
+is_active: true
+domain: threat_detection
+action_category: create
+log_source_type: 
+posture_category: threat_posture
+threat_tags:
+- T1526
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: |
+  1. Immediately restore the deleted or modified logging/security configuration.
+  2. Apply Org Policy to prevent log sink deletion: `logging.restrictSinkCreation`.
+  3. Use Cloud Storage Bucket Lock on log export buckets to prevent deletion.
+  4. Configure out-of-band alerting via Pub/Sub → Cloud Functions for audit log changes.
+  5. Enable Security Command Center Premium for threat detection on defense evasion events.
+references:
+- https://attack.mitre.org/techniques/T1526/
+- https://cloud.google.com/logging/docs/audit
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: bigquery.googleapis.com
+    - field: operation
+      op: equals
+      value: google.cloud.bigquery.v2.JobService.InsertJob
+    - field: authenticationInfo.principalEmail
+      op: not_contains
+      value: .gserviceaccount.com
+version: '1.0'

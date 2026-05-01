@@ -1,0 +1,271 @@
+version: '1.0'
+provider: azure
+service: redis
+services:
+  client: redis
+  module: azure.mgmt.redis
+discovery:
+- discovery_id: azure.redis.redis.list_by_resource_group
+  calls:
+  - action: redis.list_by_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      public_network_access: '{{ item.public_network_access }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      minimum_tls_version: '{{ item.minimum_tls_version }}'
+      zones: '{{ item.zones }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      access_keys: '{{ item.access_keys }}'
+      disable_access_key_authentication: '{{ item.disable_access_key_authentication
+        }}'
+      enable_non_ssl_port: '{{ item.enable_non_ssl_port }}'
+      host_name: '{{ item.host_name }}'
+      instances: '{{ item.instances }}'
+      linked_servers: '{{ item.linked_servers }}'
+      port: '{{ item.port }}'
+      private_endpoint_connections: '{{ item.private_endpoint_connections }}'
+      redis_configuration: '{{ item.redis_configuration }}'
+      redis_version: '{{ item.redis_version }}'
+      replicas_per_master: '{{ item.replicas_per_master }}'
+      replicas_per_primary: '{{ item.replicas_per_primary }}'
+      shard_count: '{{ item.shard_count }}'
+      ssl_port: '{{ item.ssl_port }}'
+      static_ip: '{{ item.static_ip }}'
+      subnet_id: '{{ item.subnet_id }}'
+      tenant_settings: '{{ item.tenant_settings }}'
+      update_channel: '{{ item.update_channel }}'
+      zonal_allocation_policy: '{{ item.zonal_allocation_policy }}'
+- discovery_id: azure.redis.redis.list_by_subscription
+  calls:
+  - action: redis.list_by_subscription
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      public_network_access: '{{ item.public_network_access }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      minimum_tls_version: '{{ item.minimum_tls_version }}'
+      zones: '{{ item.zones }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      access_keys: '{{ item.access_keys }}'
+      disable_access_key_authentication: '{{ item.disable_access_key_authentication
+        }}'
+      enable_non_ssl_port: '{{ item.enable_non_ssl_port }}'
+      host_name: '{{ item.host_name }}'
+      instances: '{{ item.instances }}'
+      linked_servers: '{{ item.linked_servers }}'
+      port: '{{ item.port }}'
+      private_endpoint_connections: '{{ item.private_endpoint_connections }}'
+      redis_configuration: '{{ item.redis_configuration }}'
+      redis_version: '{{ item.redis_version }}'
+      replicas_per_master: '{{ item.replicas_per_master }}'
+      replicas_per_primary: '{{ item.replicas_per_primary }}'
+      shard_count: '{{ item.shard_count }}'
+      ssl_port: '{{ item.ssl_port }}'
+      static_ip: '{{ item.static_ip }}'
+      subnet_id: '{{ item.subnet_id }}'
+      tenant_settings: '{{ item.tenant_settings }}'
+      update_channel: '{{ item.update_channel }}'
+      zonal_allocation_policy: '{{ item.zonal_allocation_policy }}'
+- discovery_id: azure.redis.accesspolicy.list
+  for_each: azure.redis.redis.list_by_subscription
+  calls:
+  - action: accesspolicy.list
+    save_as: response
+    on_error: continue
+    params:
+      cache_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      private_endpoint: '{{ item.private_endpoint }}'
+      private_link_service_connection_state: '{{ item.private_link_service_connection_state
+        }}'
+- discovery_id: azure.redis.accesspolicyassignment.list
+  for_each: azure.redis.redis.list_by_subscription
+  calls:
+  - action: accesspolicyassignment.list
+    save_as: response
+    on_error: continue
+    params:
+      cache_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      private_endpoint: '{{ item.private_endpoint }}'
+      private_link_service_connection_state: '{{ item.private_link_service_connection_state
+        }}'
+- discovery_id: azure.redis.firewallrules.list
+  for_each: azure.redis.redis.list_by_subscription
+  calls:
+  - action: firewallrules.list
+    save_as: response
+    on_error: continue
+    params:
+      cache_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      private_endpoint: '{{ item.private_endpoint }}'
+      private_link_service_connection_state: '{{ item.private_link_service_connection_state
+        }}'
+- discovery_id: azure.redis.linkedserver.list
+  for_each: azure.redis.redis.list_by_subscription
+  calls:
+  - action: linkedserver.list
+    save_as: response
+    on_error: continue
+    params:
+      name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      private_endpoint: '{{ item.private_endpoint }}'
+      private_link_service_connection_state: '{{ item.private_link_service_connection_state
+        }}'
+- discovery_id: azure.redis.patchschedules.list_by_redis_resource
+  for_each: azure.redis.redis.list_by_subscription
+  calls:
+  - action: patchschedules.list_by_redis_resource
+    save_as: response
+    on_error: continue
+    params:
+      cache_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      schedule_entries: '{{ item.schedule_entries }}'
+- discovery_id: azure.redis.privateendpointconnections.list
+  for_each: azure.redis.redis.list_by_subscription
+  calls:
+  - action: privateendpointconnections.list
+    save_as: response
+    on_error: continue
+    params:
+      cache_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      private_endpoint: '{{ item.private_endpoint }}'
+      private_link_service_connection_state: '{{ item.private_link_service_connection_state
+        }}'
+- discovery_id: azure.redis.privatelinkresources.list_by_redis_cache
+  for_each: azure.redis.redis.list_by_subscription
+  calls:
+  - action: privatelinkresources.list_by_redis_cache
+    save_as: response
+    on_error: continue
+    params:
+      cache_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      group_id: '{{ item.group_id }}'
+      required_members: '{{ item.required_members }}'
+      required_zone_names: '{{ item.required_zone_names }}'
+- discovery_id: azure.redis.redis.list_keys
+  for_each: azure.redis.redis.list_by_subscription
+  calls:
+  - action: redis.list_keys
+    save_as: response
+    on_error: continue
+    params:
+      name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.redis.redis.list_upgrade_notifications
+  for_each: azure.redis.redis.list_by_subscription
+  calls:
+  - action: redis.list_upgrade_notifications
+    save_as: response
+    on_error: continue
+    params:
+      name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      timestamp: '{{ item.timestamp }}'
+      upsell_notification: '{{ item.upsell_notification }}'
+- discovery_id: azure.redis.list_by_subscription
+  calls:
+  - action: list_by_subscription
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'
