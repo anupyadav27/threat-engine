@@ -79,6 +79,7 @@ export const NAV_ITEMS = [
     children: [
       { label: 'Assets', href: '/inventory' },
       { label: 'Architecture', href: '/inventory/architecture' },
+      { label: 'Security Graph', href: '/inventory/graph' },
     ],
   },
   {
@@ -180,6 +181,20 @@ export const NAV_ITEMS = [
       { label: 'Notifications', href: '/settings/notifications' },
     ],
   },
+  {
+    label: 'Billing',
+    href: '/billing',
+    icon: 'CreditCard',
+    permission: 'billing:read',
+    roles: ['org_admin', 'tenant_admin'],
+  },
+  {
+    label: 'Admin Dashboard',
+    href: '/admin/dashboard',
+    icon: 'LayoutGrid',
+    permission: 'platform:admin',
+    roles: ['platform_admin'],
+  },
 ];
 
 // Engine calls route through Next.js rewrites -> NLB -> nginx ingress -> engine.
@@ -201,4 +216,18 @@ export const ENGINE_ENDPOINTS = {
   vulnerability: '/vulnerability',
   cnapp: '/cnapp',
   cwpp: '/cwpp',
+  billing: '/gateway',
+  platformAdmin: '/gateway',
+};
+
+// Engines that require a paid tier to access.
+// UI uses this to grey out nav items and show upgrade tooltip.
+export const GATED_ENGINES = {
+  datasec:           { requiredTier: 'pro',        label: 'Data Security' },
+  secops:            { requiredTier: 'pro',        label: 'Code Security' },
+  vulnerability:     { requiredTier: 'pro',        label: 'Vulnerability' },
+  'ai-security':     { requiredTier: 'enterprise', label: 'AI Security' },
+  encryption:        { requiredTier: 'enterprise', label: 'Encryption' },
+  'database-security': { requiredTier: 'enterprise', label: 'Database Security' },
+  'container-security': { requiredTier: 'enterprise', label: 'Container Security' },
 };

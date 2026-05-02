@@ -39,6 +39,8 @@ ENGINE_URLS: Dict[str, str] = {
     "vulnerability": os.getenv("VULNERABILITY_ENGINE_URL",  "http://engine-vulnerability"),
     # K8s service exposes port 80 → targetPort 8007
     "dbsec":         os.getenv("DBSEC_ENGINE_URL",          "http://engine-dbsec"),
+    "billing":        os.getenv("BILLING_ENGINE_URL",         "http://engine-billing:8040"),
+    "platform_admin": os.getenv("PLATFORM_ADMIN_ENGINE_URL",  "http://engine-platform-admin:8041"),
 }
 
 # Convenience constants for backward compat
@@ -54,7 +56,7 @@ RULE_URL = ENGINE_URLS["rule"]
 
 # Per-engine timeout overrides (seconds)
 ENGINE_TIMEOUTS: Dict[str, float] = {
-    "threat": 10.0,
+    "threat": 30.0,
     "inventory": 10.0,
     "compliance": 8.0,
     "iam": 15.0,
@@ -71,6 +73,9 @@ ENGINE_TIMEOUTS: Dict[str, float] = {
     "network": 15.0,
     "dbsec": 10.0,
     "encryption": 10.0,
+    "billing": 10.0,
+    "platform_admin": 15.0,
+    "vulnerability": 30.0,   # severity stats scans 5k+ rows joined with scans table
 }
 
 DEFAULT_TIMEOUT = float(os.getenv("BFF_ENGINE_TIMEOUT", "8"))

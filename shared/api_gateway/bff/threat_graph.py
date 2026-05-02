@@ -193,6 +193,8 @@ async def view_threat_graph(
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 
+    # Only call summary + subgraph — attack-paths and orca-paths hit Neo4j OOM
+    # at the 250MB transaction memory limit when run concurrently with subgraph.
     results = await fetch_many([
         ("threat", "/api/v1/graph/summary", {
             "tenant_id": tenant_id,
@@ -201,25 +203,9 @@ async def view_threat_graph(
             "tenant_id": tenant_id,
             "max_nodes": "300",
         }),
-        ("threat", "/api/v1/graph/attack-paths", {
-            "tenant_id": tenant_id,
-            "max_hops": "5",
-            "min_severity": "low",
-        }),
-        ("threat", "/api/v1/graph/attack-paths", {
-            "tenant_id": tenant_id,
-            "max_hops": "5",
-            "min_severity": "low",
-            "entry_point": "all",
-        }),
-        ("threat", "/api/v1/graph/orca-paths", {
-            "tenant_id": tenant_id,
-            "max_hops": "5",
-            "min_severity": "medium",
-        }),
     ], auth_headers=fwd_headers)
 
-    summary_data, subgraph_data, inet_paths_data, all_paths_data, orca_data = results
+    summary_data, subgraph_data = results
 
     if not isinstance(summary_data, dict):
         summary_data = {}
@@ -232,34 +218,16 @@ async def view_threat_graph(
 
     if isinstance(sub_nodes, list) and len(sub_nodes) > 0:
         nodes = sub_nodes
-        # Ensure every edge has edge_kind
         raw_edges = sub_edges if isinstance(sub_edges, list) else []
         edges = [
             {**e, "edge_kind": e.get("edge_kind") or _infer_edge_kind(e.get("type", ""))}
             for e in raw_edges
         ]
     else:
-        # Fallback: build from attack paths
-        if not isinstance(inet_paths_data, dict):
-            inet_paths_data = {}
-        if not isinstance(all_paths_data, dict):
-            all_paths_data = {}
+        nodes, edges = [], []
 
-        inet_paths = safe_get(inet_paths_data, "attack_paths", []) or []
-        if not isinstance(inet_paths, list):
-            inet_paths = []
-        all_paths = safe_get(all_paths_data, "attack_paths", []) or []
-        if not isinstance(all_paths, list):
-            all_paths = []
-
-        nodes, edges = _build_graph_from_paths(inet_paths, all_paths, [])
-
-    # Orca paths for path-card panel
+    # Orca paths disabled — /graph/orca-paths causes Neo4j OOM at 250MB limit
     orca_paths = []
-    if isinstance(orca_data, dict):
-        orca_paths = orca_data.get("paths") or []
-    if not isinstance(orca_paths, list):
-        orca_paths = []
 
     # KPIs
     node_counts = safe_get(summary_data, "node_counts", {})
