@@ -1,5 +1,86 @@
 # Threat Engine Development Guide
 
+## AGENT AUTO-ROUTING — Read Before Every Task
+
+**Claude must self-select the right specialist agent before doing any work. Never work on engine code without loading its agent.**
+
+### Step 1 — Identify the target
+| User mentions... | Auto-load this agent |
+|------------------|---------------------|
+| discovery, disc, `engine-discoveries` | `discoveries` |
+| inventory, assets, relationships | `inventory` |
+| check, rules, PASS/FAIL, rule_metadata | `check` |
+| threat, MITRE, attack path, Neo4j | `threat` |
+| compliance, CIS, NIST, framework score | `compliance` |
+| network, SG, VPC, topology, 7-layer | `network-security` |
+| IAM, identity, MFA, policy, root account | `iam` |
+| CIEM, entitlement, CloudTrail behavior | `ciem` |
+| risk, FAIR, exposure, blast radius score | `risk` |
+| datasec, data security, DSPM, S3 classification | `datasec` |
+| vulnerability, CVE, SBOM, agent-based | `vulnerability` |
+| secops, SAST, DAST, SCA, IaC scan | `secops` |
+| onboarding, cloud account, scan orchestration | `onboarding` |
+| CNAPP, unified posture | `cnapp` |
+| CWPP, workload protection | `cwpp` |
+| container security, EKS, K8s RBAC | `container-security` |
+| encryption, KMS, certificates, TLS | `encryption` |
+| database security, RDS, audit logging | `dbsec` |
+| AI security, SageMaker, Bedrock, ML | `ai-security` |
+| billing, subscription, Stripe | `billing` |
+| platform admin, org management | `platform-admin` |
+| pipeline monitor, scan progress, SSE | `pipeline-monitor` |
+| technology engine, tech-check, 34 techs | `technology-engine` |
+| secops fix, AI code fix, SAST remediation | `secops-fix` |
+| vuln fix, Ansible playbook, CVE fix | `vul-fix` |
+| multi-engine, pipeline order, Argo | `cspm-engine-orchestrator` |
+
+### Step 2 — Spawn the agent (required)
+Use `subagent_type: "<agent-name>"` when invoking via the Agent tool. The agent file lives at `.claude/agents/<agent-name>.md`. Load it as context before touching any code for that engine.
+
+### Step 3 — Apply security gates automatically
+- Any PR touching endpoint / auth / DB / HTTP → also invoke `bmad-security-reviewer`
+- Any new engine design → also invoke `bmad-security-architect` first
+- Any new check rule or security engine story → also invoke `bmad-security-po`
+
+**If the task spans multiple engines** → start with `cspm-engine-orchestrator` to establish cross-engine context, then spawn per-engine agents as needed.
+
+**If the user gives no engine context** → ask which engine before proceeding.
+
+---
+
+## CONSTITUTION — Read First
+
+**Every agent and every code change is governed by the CSPM Platform Constitution.**
+Full rules at: `.claude/documentation/CSPM_CONSTITUTION.md`
+Agent routing rules: `.claude/documentation/AGENT_BINDING.md`
+Testing & quality gates: `.claude/documentation/TESTING_QUALITY.md`
+
+Key non-negotiables (memorize these):
+- **Multi-tenant always** — every DB query scoped by `tenant_id` from `AuthContext`
+- **Database-first** — schema is defined before code; standard columns are mandatory on every findings table
+- **BFF for charts/aggregates** — `fetchView(page)` only; never add fallback/mock data in BFF
+- **Engine gateway for tables** — paginated raw findings go direct to engine via gateway
+- **No DEV_BYPASS_AUTH** — ever, for any reason
+- **No `latest` image tag** — ever, in any K8s manifest
+- **RBAC at every layer** — Gateway → Engine → DB; `require_permission()` on every endpoint
+- **JSONB is already a dict** — never call `json.loads()` on psycopg2 JSONB results
+- **UI competes with Wiz/Orca** — skeleton screens, risk score prominent, severity colors consistent, side-panel drilldown
+
+Agent binding rules (memorize these):
+- **cspm-security-reviewer + bmad-security-reviewer** — mandatory on every PR with endpoint/auth/DB/HTTP code
+- **bmad-security-architect** — mandatory on every new engine or credential/IAM/network endpoint (design gate)
+- **bmad-security-po** — mandatory on every security engine story or check rule story
+- **cspm-orchestrator** — always the entry point; reads AGENT_BINDING.md before routing
+- **cspm-standards-guardian** — checks every design/story for constitution violations before dev starts
+
+Quality gate rules (memorize these):
+- **10-level quality stack** — Static → Unit → Code Review → Security Review → Integration → QA → Deploy → Post-Deploy
+- **No gate skipping** — every level must pass before the next opens; failed gate returns to dev
+- **BFF contract coverage = 100%** — every view handler has a contract test
+- **RBAC coverage = 100%** — all 5 roles × all engine endpoints tested
+- **Post-deploy = mandatory** — health check + log check + BFF smoke after every rollout; fail → immediate rollback
+- **Rule regression = 0 drift** — baseline `tests/regression/baselines/rule_finding_counts.json` must not change without explicit update
+
 ## Project Overview
 Comprehensive Cloud Security Posture Management (CSPM) platform for multi-cloud environments supporting AWS, Azure, GCP, OCI, AliCloud, and IBM Cloud with:
 - **Discovery scanning**: Enumerate 40+ cloud services and resources

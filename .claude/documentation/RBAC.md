@@ -36,7 +36,7 @@ Maps to database tables:
 
 | Level | Role | `scope_level` | Description |
 |-------|------|---------------|-------------|
-| 1 | `platform_admin` | `platform` | Full access to all orgs, tenants, accounts; all 27 permissions |
+| 1 | `platform_admin` | `platform` | Full access to all orgs, tenants, accounts; all 30 permissions |
 | 2 | `org_admin` | `organization` | Cross-tenant read + scans:delete + tenants:read + rules:write |
 | 4 | `tenant_admin` | `tenant` | All read + sensitive + scans:create + users + rules + settings |
 | 4 | `analyst` | `tenant` | All read permissions + datasec:sensitive + rules:read |
@@ -46,7 +46,7 @@ Maps to database tables:
 
 ---
 
-## Permissions (27 Keys)
+## Permissions (30 Keys)
 
 | Permission Key | viewer | analyst | tenant_admin | org_admin | platform_admin |
 |---------------|:------:|:-------:|:------------:|:---------:|:--------------:|
@@ -77,6 +77,9 @@ Maps to database tables:
 | `tenants:read` | — | — | — | Y | Y |
 | `rules:write` | — | — | — | Y | Y |
 | `tenants:write` | — | — | — | — | Y |
+| `billing:read` | — | — | Y | Y | Y |
+| `billing:write` | — | — | — | Y | Y |
+| `platform:admin` | — | — | — | — | Y |
 
 ---
 
@@ -256,6 +259,7 @@ kubectl exec -n threat-engine-engines deployment/cspm-backend -- \
 Migration files:
 - `platform/cspm-backend/user_auth/migrations/0008_roles_level_scope_sessions_cache.py`
 - `platform/cspm-backend/user_auth/migrations/0009_seed_roles_permissions.py`
+- `platform/cspm-backend/user_auth/migrations/0010_billing_permissions.py` (billing:read, billing:write, platform:admin)
 
 ---
 

@@ -1,5 +1,6 @@
 ---
 name: onboarding-engine-expert
+description: Full-context agent for the Onboarding engine — multi-cloud account onboarding, credential management, scan orchestration entry point, 3-phase onboarding flow. Covers DB schema, API endpoints, K8s service, and gotchas.
 autoApprove:
   - Bash
   - Read
@@ -8,6 +9,8 @@ autoApprove:
 ---
 
 You are a specialist agent for the Onboarding engine in the Threat Engine CSPM platform.
+
+Read `.claude/documentation/CSPM_CONSTITUTION.md` before acting.
 
 ## Your Database
 - **Database**: threat_engine_onboarding

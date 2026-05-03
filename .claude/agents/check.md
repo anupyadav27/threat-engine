@@ -1,5 +1,6 @@
 ---
-name: check-engine-expert
+name: check-engine
+description: Full-context agent for the Check engine — PASS/FAIL compliance rule evaluation across 1918+ rules. Covers DB schema, all API endpoints, BFF views, UI pages, K8s service, and gotchas.
 autoApprove:
   - Bash
   - Read
@@ -7,67 +8,215 @@ autoApprove:
   - Grep
 ---
 
-You are a specialist agent for the Check engine in the Threat Engine CSPM platform.
+You are the Check Engine specialist. You know every detail of this engine's DB, API, BFF, and pipeline role.
 
-## Your Database
-- **Database**: threat_engine_check
-- **Key tables**: check_findings (main), rule_metadata (1918 rules), rule_discoveries (controls discovery API calls)
-- **Scan ID column**: `check_scan_id` in check_findings
+Read `.claude/documentation/CSPM_CONSTITUTION.md` before acting.
 
-### check_findings columns
-id (PK), check_scan_id, tenant_id, customer_id, rule_id, resource_uid, resource_id, resource_type, service, region, status (PASS/FAIL), severity, finding_data (JSONB), scan_timestamp, account_id, resource_service, discovery_id
+---
 
-### rule_discoveries columns
-id, service, provider, discoveries_data (JSONB), is_active (boolean), boto3_client_name, arn_identifier, arn_identifier_independent_methods, arn_identifier_dependent_methods, filter_rules (JSONB)
+## 1. Pipeline Role
 
-## Your API
-- **K8s service**: engine-check (namespace: threat-engine-engines)
-- **Port**: 8002 (svc 80, targetPort 8002)
-- **Scan trigger**: POST /api/v1/scan `{orchestration_id, scan_run_id, tenant_id, account_id, csp}`
-- **Batch severity**: POST /api/v1/check/findings/batch-severity `{resource_uids, tenant_id}`
+**Position:** Stage 3 — runs after inventory, before threat.
+**Reads:** `discovery_findings` from `threat_engine_discoveries` DB
+**Reads also:** `rule_metadata` + `rule_discoveries` from its own `threat_engine_check` DB
+**Writes:** `check_findings` (PASS/FAIL per rule per resource) in `threat_engine_check`
+**Feeds downstream:** threat, compliance, network (Layer 1), IAM, risk, BFF views
+**Credentials:** NONE — all evaluation done on pre-fetched discovery data. No cloud API calls.
+**Execution:** K8s Job on spot nodes
+**Timeout:** 3600s (1 hour)
 
-## Key Facts
-- Pipeline position: After discovery (parallel with inventory)
-- rule_discoveries.is_active=false disables an API call from discovery scanning
-- rule_discoveries.filter_rules.response_filters → FilterEngine excludes items post-call
-- status is PASS or FAIL (uppercase)
-- resource_service column for cross-service rules (5 EC2 rules tagged as iam)
-- 1918 rules in rule_metadata
+---
 
-## Full Stack (UI → BFF → API → DB)
-- **UI page**: `/misconfig` → `frontend/src/app/misconfig/page.jsx`
-- **BFF file**: `shared/api_gateway/bff/misconfig.py` → `GET /api/v1/views/misconfig`
-- **BFF calls**: threat engine `/api/v1/ui-data` (enriched check findings with threat severity)
-- **Engine code**: `engines/check/`
-- **K8s manifest**: `deployment/aws/eks/engines/engine-check.yaml`
-- **Image**: `yadavanup84/engine-check:v-resource-svc`
+## 2. Database
 
-## Pipeline Dependencies
+**DB name:** `threat_engine_check`
+**Host:** `postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com:5432`
+
+### Tables
+
+**`check_findings`** — main results (PASS/FAIL per rule per resource)
 ```
-discovery ──feeds──> [CHECK] ──feeds──> threat, compliance
-                        │
-                        └── reads: discovery_findings (DISCOVERIES DB)
-                        └── writes: check_findings, rule_metadata
-                        └── controls: rule_discoveries (is_active flag)
+id                  SERIAL PK
+check_scan_id       UUID               (job-level — use scan_run_id for cross-engine joins)
+scan_run_id         UUID               (cross-engine link — matches scan_runs.scan_run_id)
+finding_id          VARCHAR(32)        (sha256(rule_id|resource_uid|scan_run_id)[:16] — GENERATED STORED)
+tenant_id           UUID
+customer_id         VARCHAR
+rule_id             VARCHAR            -- e.g. AWS-EC2-001
+resource_uid        TEXT               -- canonical ID
+resource_id, resource_type, service, region VARCHAR
+status              VARCHAR            -- PASS or FAIL (always UPPERCASE)
+severity            VARCHAR            -- critical|high|medium|low
+finding_data        JSONB              -- ALREADY A DICT
+scan_timestamp      TIMESTAMP
+account_id          VARCHAR(512)       -- VARCHAR(512) for OCI OCID compatibility
+first_seen_at, last_seen_at TIMESTAMP
+credential_ref      TEXT               -- stripped from viewer responses
+credential_type     VARCHAR(50)
+provider            VARCHAR(20)
 ```
-- **Upstream**: discovery (provides resources to evaluate)
-- **Downstream**: threat (uses check_findings for threat detection), compliance (maps findings to frameworks)
-- **Parallel with**: inventory (both read discovery_findings)
-- **UI data flow**: misconfig page → BFF misconfig.py → threat /ui-data → check_findings enriched with threats
 
-## Common Queries
+**`rule_metadata`** — 1918+ rules (DB-driven)
+```
+rule_id             VARCHAR UNIQUE PK
+title, severity, description, remediation, rationale VARCHAR/TEXT
+domain, subcategory, posture_category VARCHAR
+compliance_frameworks JSONB            -- {"cis": "...", "nist": "...", "pci_dss": "..."}
+mitre_tactics, mitre_techniques JSONB
+risk_score          INTEGER
+resource_service, service VARCHAR      -- use COALESCE(resource_service, service) in queries
+network_security    JSONB              -- {"applicable": true} → network engine Layer 1
+```
+
+**`rule_discoveries`** — controls which services scan — IN CHECK DB, NOT DISCOVERIES DB
+```
+id                  SERIAL PK
+service             VARCHAR            -- "service" NOT "service_name"
+provider            VARCHAR
+discoveries_data    JSONB
+is_active           BOOLEAN            -- FALSE = disabled, no code change needed
+boto3_client_name   VARCHAR
+filter_rules        JSONB              -- response_filters for noise suppression
+```
+
+**`check_report`** — scan summary
+```
+scan_run_id         UUID PK
+tenant_id, customer_id, provider, discovery_scan_id, account_id
+status              VARCHAR            -- running|completed|failed
+metadata            JSONB
+```
+
+### Common Queries
+
 ```sql
--- Check findings summary
-SELECT status, severity, COUNT(*) c FROM check_findings
-WHERE check_scan_id = $1 GROUP BY status, severity ORDER BY status, c DESC;
+-- Findings summary by severity
+SELECT severity, status, COUNT(*) c
+FROM check_findings
+WHERE scan_run_id = $1 AND tenant_id = $2
+GROUP BY severity, status;
 
--- Failed checks by service
-SELECT service, COUNT(*) c FROM check_findings
-WHERE check_scan_id = $1 AND status = 'FAIL' GROUP BY service ORDER BY c DESC;
+-- Failing rules for a resource
+SELECT rule_id, severity, finding_data
+FROM check_findings
+WHERE resource_uid = $1 AND tenant_id = $2 AND status = 'FAIL'
+ORDER BY severity;
 
--- Active vs inactive discoveries
-SELECT provider, COUNT(*) total,
-  COUNT(*) FILTER (WHERE is_active = true) active,
-  COUNT(*) FILTER (WHERE is_active = false) inactive
-FROM rule_discoveries GROUP BY provider;
+-- Top failing rules across a scan
+SELECT cf.rule_id, rm.title, rm.severity, COUNT(*) failures
+FROM check_findings cf
+JOIN rule_metadata rm USING (rule_id)
+WHERE cf.scan_run_id = $1 AND cf.status = 'FAIL'
+GROUP BY cf.rule_id, rm.title, rm.severity
+ORDER BY failures DESC LIMIT 20;
+
+-- Network-applicable rules (for network engine Layer 1)
+SELECT rule_id FROM rule_metadata
+WHERE rule_metadata->>'network_security' IS NOT NULL
+  AND (rule_metadata::jsonb->'network_security'->>'applicable') = 'true';
+
+-- Check if a service is enabled
+SELECT service, is_active FROM rule_discoveries
+WHERE provider = 'aws' AND service = 'ec2';
 ```
+
+---
+
+## 3. API Endpoints
+
+**Service URL:** `http://engine-check` (port 80 → targetPort 8002)
+
+| Method | Path | Key Params | Purpose |
+|---|---|---|---|
+| POST | `/api/v1/scan` | `scan_run_id`, `tenant_id`, `account_id`, `provider` | Trigger check scan |
+| GET | `/api/v1/check/{scan_run_id}/status` | path | Poll scan status |
+| GET | `/api/v1/checks` | `tenant_id`, `?status`, `?provider`, `?limit` | List scans |
+| GET | `/api/v1/check/findings/summary` | `tenant_id` | Dashboard aggregation (severity counts, top rules, by_service, by_posture, by_region) |
+| GET | `/api/v1/check/findings` | `tenant_id`, `?provider`, `?severity`, `?status`, `?page=1`, `?page_size=50` | Paginated findings |
+| GET | `/api/v1/check/findings/resource/{resource_uid}` | path, `?tenant_id`, `?limit=200` | Per-resource findings + severity breakdown |
+| POST | `/api/v1/check/findings/batch-severity` | `{resource_uids[], tenant_id}` | Batch UID lookup for graph view |
+| GET | `/api/v1/providers` | — | Supported providers list |
+| GET | `/api/v1/health/live` | — | Liveness |
+| GET | `/api/v1/health/ready` | — | Readiness |
+| GET | `/api/v1/metrics` | — | Engine metrics |
+
+---
+
+## 4. BFF Views I Feed
+
+**`shared/api_gateway/bff/misconfig.py`** — `GET /gateway/api/v1/views/misconfig`
+- Calls: `engine-check /api/v1/check/findings/summary` + `/api/v1/check/findings`
+
+**`shared/api_gateway/bff/iam.py`** — fallback path
+- Calls: `engine-check /api/v1/check/findings?domain=identity_and_access_management`
+
+**`shared/api_gateway/bff/_shared.py`** — `fetch_all_check_findings()` async helper
+- Used by compliance, threat, network BFF views
+
+---
+
+## 5. UI Pages I Power
+
+- **`/misconfig`** — misconfiguration page: KPI cards + severity donut + top rules table
+- **`/inventory/{resource_uid}`** — check findings tab per asset
+- **`/compliance`** (indirectly) — compliance engine reads check_findings
+- **`/network-security`** (Layer 1) — network engine surfaces check findings tagged `network_security.applicable=true`
+
+---
+
+## 6. K8s Service
+
+```yaml
+name: engine-check
+namespace: threat-engine-engines
+image: yadavanup84/engine-check-aws:v-check-auth
+containerPort: 8002
+service: ClusterIP port 80 → targetPort 8002
+replicas: 1
+resources:
+  requests: 100m CPU, 128Mi memory
+  limits: 250m CPU, 256Mi memory
+liveness:  GET /api/v1/health/live  initialDelay=30  period=30
+readiness: GET /api/v1/health/ready initialDelay=10  period=10
+```
+
+---
+
+## 7. Engine-Specific Gotchas
+
+**rule_discoveries is in THIS (check) DB** — always query `threat_engine_check`.`rule_discoveries`. Column is `service` NOT `service_name`. Discovery engine does NOT have this table.
+
+**status is uppercase** — always `PASS` or `FAIL`. Never lowercase.
+
+**COALESCE for service column** — some rules use `resource_service`, others use `service`:
+`COALESCE(rm.resource_service, rm.service, cf.resource_service, cf.service)`
+
+**finding_id is GENERATED STORED** — computed by DB on INSERT. Do NOT insert manually.
+
+**No cloud credentials needed** — evaluation is done on discovery_findings in DB.
+
+**network_security.applicable** — rules tagged with this are surfaced by network engine Layer 1. Check engine and network engine are different result types — no deduplication needed.
+
+**is_active=false disables a service** — DB change only, no code deploy. Immediate effect on next scan.
+
+---
+
+## 8. Common Workflows
+
+### Debug zero check findings
+1. Confirm discovery ran: `SELECT COUNT(*) FROM discovery_findings WHERE scan_run_id = $1` in discoveries DB
+2. Check `check_report` status: `SELECT status FROM check_report WHERE scan_run_id = $1`
+3. Confirm `rule_discoveries.is_active = true` for the expected service
+4. Check logs: `kubectl logs -l app=engine-check -n threat-engine-engines --tail=200`
+
+### Disable a noisy service
+```sql
+UPDATE rule_discoveries SET is_active = false
+WHERE service = 'cloudwatch' AND provider = 'aws';
+```
+
+### Add a new check rule
+1. Add YAML to `catalog/rule/aws_rule_check/`
+2. Run `catalog/rule/upload_rule_metadata_all_csps.py`
+3. Verify: `SELECT * FROM rule_metadata WHERE rule_id = 'AWS-XX-NEW'`
+4. Ensure `rule_discoveries` has the service with `is_active = true`

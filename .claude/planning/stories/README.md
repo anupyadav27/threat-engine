@@ -9,9 +9,8 @@ Pass story files to `bmad-dev` to implement. Pass sprint prompt files to `bmad-s
 
 ## Active Sprints
 
-| Sprint | Prompt File | Status |
+| Sprint | Story Files | Status |
 |--------|-------------|--------|
-| Enterprise Engine Platform Hardening (DataSec/DBSec/Container/Risk/AI/CNAPP) | `../SPRINT_engine_platform_hardening.md` | stories generated, ready to implement |
 
 ## Completed Sprints
 
@@ -32,44 +31,13 @@ Pass story files to `bmad-dev` to implement. Pass sprint prompt files to `bmad-s
 | Enterprise Engine Platform Hardening (ENG-10–15) | 2026-05-01 | DataSec 8-module DSPM, DBSec 5-pillar, Container-Sec CIS K8s 7-layer, Risk FAIR+Neo4j blast radius, AI-Security MITRE ATLAS 5-pillar, CNAPP graceful degradation fix — all deployed |
 | Engine Quality Gaps (ENG-16/17/18/19) | 2026-04-30 | K8s check 18,948 findings; OCI IAM 7 findings; AliCloud network 7 findings (1/layer); check_findings.finding_id schema standardized across 4 engines |
 | RBAC Sprint — Role-Based Access Control Enforcement (RBAC-01–08) | 2026-05-01 | Django migrations 0008+0009 applied; 5 roles + 27 permissions seeded; require_permission() wired across all 18 engines with -rbac1 tags; BFF X-Auth-Context forwarding + cache key role isolation; frontend API-driven permissions; DEV_BYPASS_AUTH removed |
-
-## Enterprise Engine Platform Hardening — Story Files
-
-| ID | File | Engine | Target Tag | Status |
-|----|------|--------|------------|--------|
-| ENG-10 | `ENG-10_datasec_dspm_enterprise.md` | DataSec (8-module DSPM) | `v-dspm-enterprise` | ready |
-| ENG-11 | `ENG-11_dbsec_5pillar_enterprise.md` | DBSec (5-pillar) | `v-dbsec-enterprise` | ready |
-| ENG-12 | `ENG-12_container_sec_cis_k8s.md` | Container-Sec (CIS K8s 7-layer) | `v-container-enterprise` | ready |
-| ENG-13 | `ENG-13_risk_fair_neo4j.md` | Risk (FAIR model + Neo4j blast radius) | `v-risk-enterprise` | ready |
-| ENG-14 | `ENG-14_ai_security_atlas.md` | AI-Security (MITRE ATLAS 5-pillar) | `v-ai-enterprise` | ready |
-| ENG-15 | `ENG-15_cnapp_graceful_degradation.md` | CNAPP/CWPP (graceful degradation fix) | `v-cnapp-graceful` | ready |
-
-## RBAC Sprint — Role-Based Access Control Enforcement — Story Files
-
-### Sprint 1 — Foundation (deploy in order)
-
-| ID | File | Component | Target | Status |
-|----|------|-----------|--------|--------|
-| RBAC-01 | `RBAC-01_django_rbac_schema_migration.md` | Django DB migration (roles + sessions) | No Docker — Django migrate | ready |
-| RBAC-02 | `RBAC-02_seed_roles_permissions.md` | Django data migration — 5 roles, 23 perms, matrix | No Docker — Django migrate | ready |
-| RBAC-03 | `RBAC-03_populate_auth_caches_login.md` | Login cache population + MeView real permissions | No Docker — Django code change | ready |
-
-### Sprint 2 — Engine Authorization Wiring
-
-| ID | File | Engines | Target Tags | Status |
-|----|------|---------|-------------|--------|
-| RBAC-04 | `RBAC-04_engine_auth_core_findings.md` | check, discoveries, threat, inventory, compliance | `*-rbac1` suffix on each | ready |
-| RBAC-05 | `RBAC-05_engine_auth_security_analysis.md` | iam, ciem, network-security, risk | `*-rbac1` suffix on each | ready |
-| RBAC-06 | `RBAC-06_engine_auth_enterprise_engines.md` | datasec, secops, vulnerability, ai-security, encryption, dbsec, container-sec, fix/* | `*-rbac1` suffix on each | ready |
-
-### Sprint 3 — Gateway and Frontend
-
-| ID | File | Component | Target Tag | Status |
-|----|------|-----------|------------|--------|
-| RBAC-07 | `RBAC-07_bff_auth_context_forwarding.md` | BFF auth header forwarding + cache key role isolation | `v-bff-iam-fix-rbac1` | ready |
-| RBAC-08 | `RBAC-08_frontend_api_driven_permissions.md` | Frontend API-driven permissions + DEV_BYPASS removal | `v-no-mock-data-rbac1` | ready |
-
----
+| Billing & Subscription Sprint (BILL-01–08) | 2026-05-02 | Billing DB + seed data; billing engine (Stripe Checkout); gateway subscription enforcement; Django permission extensions; platform-admin engine; billing portal frontend; grandfathering + trial hardening — `v-billing-3`, `v-padmin-2`, `v-backend-billing2` |
+| UIUX Sprint 1 — Billing + Admin Dashboard (UIUX-01–05) | 2026-05-02 | Billing two-column layout + RadioTierCard + UsageMeter intelligence (75%/90% thresholds, upgrade hints); Admin engine grouping by pipeline stage + clickable MetricCard filters + ActionPopover (focus trap, 3s auto-dismiss) + 30s auto-refresh — deployed as `yadavanup84/cspm-frontend:v-uiux-sprint2` |
+| Backend API Fixes (BE-01–03) | 2026-05-02 | PATCH /api/auth/me/ (name update); POST /api/auth/change-password/ (session invalidation); GET /api/users/?tenant_id= (admin-scoped listing); LogoutView cookie-clear bug fixed — `v-backend-be123` |
+| Threat UI Sprint (THREAT-UI-01–04) | 2026-05-02 | Command Room scenario list + signal badges + KPI header; Scenario Detail Panel 4-chapter right drawer; Trends & Posture Delta 90-day chart; Threat Narrative Engine LLM Step 7 + chain_of_consequence in DB — `v-threat-ui-fix1`, `v-narrative-1` |
+| Auth / SSO Sprint (AUTH-01–13) | 2026-05-03 | TenantIDPConfig model, OIDC/SAML/Google flows, IDP REST API, break-glass auth, Google-first login page, invite SSO, onboarding wizard (6-step), Okta migration command, audit log, workspace switcher customer_id fix — `v-auth-sprint1` + `v-auth-wizard1` |
+| UI / BFF Wiring Sprint (UI-01–11b) | 2026-05-03 | useViewFetch hook, Next.js auth middleware, AI-security CSP param fix, vulnerability BFF handler, compliance remediation page, MOCK_TENANTS removed from dashboard, psycopg2 removed from BFF scans, profile + users pages wired to real APIs — `v-ui-sprint1` (frontend + gateway) |
+| CSPM Agent Framework Sprint | 2026-05-03 | 27 full-context CSPM agent files (`.claude/agents/`) + 11 CSPM command skills (`.claude/commands/`) — complete coverage of all 25 engines, 3 governance docs (CSPM_CONSTITUTION, AGENT_BINDING, TESTING_QUALITY). All frontmatter validated, every engine has dedicated agent with DB schema, API endpoints, BFF calls, K8s service, and gotchas. |
 
 ## Story Naming
 
