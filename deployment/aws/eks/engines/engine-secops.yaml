@@ -170,46 +170,6 @@ spec:
           periodSeconds: 10
           failureThreshold: 3
 
-      - name: s3-sync
-        image: amazon/aws-cli:2.15.30
-        command: ["/bin/sh", "-c"]
-        args:
-          - |
-            while true; do
-              # Sync input FROM S3
-              aws s3 sync "s3://${S3_BUCKET}/secops/input/" /app/scan_input/ \
-                --region ${AWS_REGION} --delete 2>/dev/null || true
-              # Sync output TO S3
-              if [ -d "/app/scan_output" ] && [ "$(ls -A /app/scan_output 2>/dev/null)" ]; then
-                aws s3 sync /app/scan_output/ "s3://${S3_BUCKET}/secops/output/" \
-                  --region ${AWS_REGION} --exclude "*.tmp" --exclude "*.lock" --delete 2>/dev/null
-              fi
-              sleep 30
-            done
-        env:
-        - name: S3_BUCKET
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-bucket
-        - name: AWS_REGION
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-region
-        volumeMounts:
-        - name: scan-input
-          mountPath: /app/scan_input
-        - name: scan-output
-          mountPath: /app/scan_output
-        resources:
-          requests:
-            memory: "64Mi"
-            cpu: "25m"
-          limits:
-            memory: "128Mi"
-            cpu: "100m"
-
       volumes:
       - name: scan-input
         emptyDir: {}

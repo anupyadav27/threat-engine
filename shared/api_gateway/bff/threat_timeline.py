@@ -12,6 +12,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, Request
 
+from ._auth import resolve_tenant_id
 from ._shared import fetch_many, safe_get
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
@@ -39,7 +40,6 @@ def _parse_ts(ts_str: Optional[str]) -> Optional[datetime]:
 @router.get("/threats/timeline")
 async def threat_timeline_view(
     request: Request,
-    tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
@@ -51,6 +51,7 @@ async def threat_timeline_view(
     orchestration to construct a chronological event feed.
     """
 
+    tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 

@@ -46,7 +46,7 @@ export default function PoliciesPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetchView('policies', { tenant_id: TENANT_ID });
+        const res = await fetchView('policies');
 
         if (res && !res.error && res.policies) {
           setPolicies(res.policies);

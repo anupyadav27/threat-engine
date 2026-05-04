@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Query, Request
 
+from ._auth import resolve_tenant_id
 from ._shared import ENGINE_URLS, ENGINE_TIMEOUTS, DEFAULT_TIMEOUT, fetch_many, safe_get
 from ._transforms import normalize_asset, apply_global_filters, _safe_upper
 from ._page_context import inventory_page_context, inventory_filter_schema
@@ -49,7 +50,6 @@ def _type_from_arn(arn: str) -> str:
 @router.get("/inventory")
 async def view_inventory(
     request: Request,
-    tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
@@ -59,6 +59,7 @@ async def view_inventory(
 ):
     """Asset list + summary for the inventory page."""
 
+    tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 
@@ -542,7 +543,6 @@ def _build_drift_timeline(
 async def view_asset_detail(
     request: Request,
     resource_uid: str,
-    tenant_id: str = Query(...),
     scan_run_id: str = Query("latest"),
 ):
     """Asset detail with cross-engine enrichment via HTTP fan-out.
@@ -556,6 +556,7 @@ async def view_asset_detail(
     The :path converter is greedy, so sub-route suffixes are dispatched
     manually (same pattern used by the inventory engine).
     """
+    tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 
@@ -700,7 +701,6 @@ async def _fetch_posture_for_nodes(
 async def view_blast_radius(
     request: Request,
     resource_uid: str,
-    tenant_id: str = Query(...),
     scan_run_id: str = Query("latest"),
     max_depth: int = Query(3, ge=1, le=5),
 ):
@@ -711,6 +711,7 @@ async def view_blast_radius(
     Normalises the Neo4j response into the UI-expected format:
       nodes[], edges[], origin, total_impacted, impact_summary, toxic_combos
     """
+    tenant_id = resolve_tenant_id(request)
     from urllib.parse import quote
     import httpx as _httpx
     import json as _json
@@ -1017,7 +1018,6 @@ async def view_inventory_taxonomy(
 @router.get("/inventory/architecture")
 async def view_inventory_architecture(
     request: Request,
-    tenant_id: Optional[str] = Query(None),
     scan_run_id: str = Query("latest"),
     max_priority: int = Query(3, ge=1, le=5),
     csp: Optional[str] = Query(None),
@@ -1028,16 +1028,16 @@ async def view_inventory_architecture(
     Step 2: Batch-fetch posture for all assets in the hierarchy
     Step 3: Merge posture counts into each node
     """
+    tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 
     params: Dict[str, str] = {
+        "tenant_id": tenant_id,
         "scan_run_id": scan_run_id,
         "max_priority": str(max_priority),
         "include_relationships": "true",
     }
-    if tenant_id:
-        params["tenant_id"] = tenant_id
     if csp:
         params["csp"] = csp
 
@@ -1145,7 +1145,6 @@ def _merge_posture_into_hierarchy(
 @router.get("/inventory/graph")
 async def view_inventory_graph(
     request: Request,
-    tenant_id: str = Query(...),
     depth: int = Query(5, ge=1, le=10),
     limit: int = Query(2000, ge=1, le=5000),
     provider: Optional[str] = Query(None),
@@ -1158,6 +1157,7 @@ async def view_inventory_graph(
     Step 3: Merge posture data into each node.
     Step 4: Return enriched response ready for the architecture diagram UI.
     """
+    tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 

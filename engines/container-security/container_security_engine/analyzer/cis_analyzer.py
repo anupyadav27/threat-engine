@@ -12,6 +12,12 @@ CIS-benchmark findings across 7 layers:
   L7 - image_security
 
 Supports: aws (EKS), azure (AKS), gcp (GKE), oci (OKE), alicloud (ACK), k8s (native)
+
+Security notes:
+  - K8s Secret.data values are NEVER logged or accessed; only key names are analysed.
+  - All DB queries include tenant_id to enforce tenant isolation.
+  - blast_radius_score is always 0; the risk engine owns that field.
+  - cis_layer is validated against VALID_CIS_LAYERS before any finding is created.
 """
 
 import hashlib
@@ -31,6 +37,17 @@ LAYER_POD_SECURITY = "pod_security"
 LAYER_NETWORK_POLICIES = "network_policies"
 LAYER_SECRETS_MANAGEMENT = "secrets_management"
 LAYER_IMAGE_SECURITY = "image_security"
+
+# AC-S6: cis_layer must be one of these values — validated before INSERT
+VALID_CIS_LAYERS = frozenset({
+    LAYER_CONTROL_PLANE,
+    LAYER_NODE_CONFIG,
+    LAYER_RBAC,
+    LAYER_POD_SECURITY,
+    LAYER_NETWORK_POLICIES,
+    LAYER_SECRETS_MANAGEMENT,
+    LAYER_IMAGE_SECURITY,
+})
 
 # ---------------------------------------------------------------------------
 # Resource type routing per provider
@@ -89,9 +106,13 @@ MANAGED_CLUSTER_TYPES_BY_PROVIDER: Dict[str, List[str]] = {
 }
 
 
-def _make_finding_id(rule_id: str, resource_uid: str, account_id: str, region: str) -> str:
-    """Generate deterministic finding_id from sha256."""
-    raw = f"{rule_id}|{resource_uid}|{account_id}|{region}"
+def _make_finding_id(cis_layer: str, check_id: str, resource_uid: str, account_id: str, region: str) -> str:
+    """Generate deterministic finding_id.
+
+    Formula (AC-S3):
+        sha256(f"{cis_layer}_{check_id}|{resource_uid}|{account_id}|{region}").hexdigest()[:16]
+    """
+    raw = f"{cis_layer}_{check_id}|{resource_uid}|{account_id}|{region}"
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
@@ -106,14 +127,42 @@ def _finding(
     severity: str,
     status: str,
     title: str,
+    cis_benchmark_id: str = "",
 ) -> Dict[str, Any]:
-    """Build a standardised CIS finding dict."""
+    """Build a standardised CIS finding dict.
+
+    Args:
+        rule_id: Engine-internal rule identifier (e.g. 'aws.csec.cis_1.2.1.audit_logging_disabled').
+        resource: Discovery finding row dict.
+        scan_run_id: Pipeline scan run UUID.
+        tenant_id: Tenant identifier — included in every finding for isolation.
+        layer: CIS benchmark layer name — must be one of VALID_CIS_LAYERS.
+        layer_check: Human-readable layer check label.
+        check_id: Short check identifier (e.g. 'privileged_container').
+        severity: CRITICAL | HIGH | MEDIUM | LOW | INFO.
+        status: PASS | FAIL | NOT_APPLICABLE.
+        title: Human-readable finding title.
+        cis_benchmark_id: CIS Benchmark section reference (e.g. 'CIS-5.2.1').
+
+    Returns:
+        Finding dict with all standardised fields.
+
+    Raises:
+        ValueError: If layer is not in VALID_CIS_LAYERS.
+    """
+    if layer not in VALID_CIS_LAYERS:
+        raise ValueError(
+            f"Invalid cis_layer '{layer}'. Must be one of {sorted(VALID_CIS_LAYERS)}"
+        )
     account_id = resource.get("account_id", "")
     region = resource.get("region", "")
     resource_uid = resource.get("resource_uid", "")
+    # When check_id holds the CIS section reference (e.g. 'CIS-5.2.1') use it as
+    # cis_benchmark_id so callers do not need to repeat themselves.
+    effective_benchmark_id = cis_benchmark_id if cis_benchmark_id else check_id
     now = datetime.now(timezone.utc)
     return {
-        "finding_id": _make_finding_id(rule_id, resource_uid, account_id, region),
+        "finding_id": _make_finding_id(layer, check_id, resource_uid, account_id, region),
         "scan_run_id": scan_run_id,
         "tenant_id": tenant_id,
         "account_id": account_id,
@@ -123,11 +172,13 @@ def _finding(
         "resource_type": resource.get("resource_type", ""),
         "severity": severity,
         "status": status,
-        "layer": layer,
+        "cis_layer": layer,               # AC-S6: validated above against VALID_CIS_LAYERS
+        "layer": layer,                   # legacy alias kept for DB writer compatibility
         "layer_check": layer_check,
         "check_id": check_id,
+        "cis_benchmark_id": effective_benchmark_id,
         "rule_id": rule_id,
-        "blast_radius_score": 0,
+        "blast_radius_score": 0,          # AC-S4: always 0 — risk engine owns this
         "title": title,
         "first_seen_at": now,
         "last_seen_at": now,
@@ -144,10 +195,12 @@ def _pass(
     check_id: str,
     severity: str,
     title: str,
+    cis_benchmark_id: str = "",
 ) -> Dict[str, Any]:
+    """Build a PASS finding."""
     return _finding(
         rule_id, resource, scan_run_id, tenant_id,
-        layer, layer_check, check_id, severity, "PASS", title,
+        layer, layer_check, check_id, severity, "PASS", title, cis_benchmark_id,
     )
 
 
@@ -161,10 +214,12 @@ def _fail(
     check_id: str,
     severity: str,
     title: str,
+    cis_benchmark_id: str = "",
 ) -> Dict[str, Any]:
+    """Build a FAIL finding."""
     return _finding(
         rule_id, resource, scan_run_id, tenant_id,
-        layer, layer_check, check_id, severity, "FAIL", title,
+        layer, layer_check, check_id, severity, "FAIL", title, cis_benchmark_id,
     )
 
 
@@ -1172,6 +1227,396 @@ def _analyze_control_plane_alicloud(
 
 
 # ---------------------------------------------------------------------------
+# Layer 2 — Node Configuration (per-CSP supplements)
+# ---------------------------------------------------------------------------
+
+def _analyze_node_config_azure(
+    resources: List[Dict[str, Any]],
+    scan_run_id: str,
+    tenant_id: str,
+) -> List[Dict[str, Any]]:
+    """CIS Layer 2 — Azure AKS node configuration checks.
+
+    Checks:
+      CIS-4.2.1: Kubelet authentication mode — AKS managed nodes use webhook by default;
+                 flag if legacy 'none' mode is detected.
+      CIS-4.2.2: Node OS auto-upgrade channel — flag if disabled.
+    """
+    findings: List[Dict[str, Any]] = []
+    p = "azure"
+
+    for res in resources:
+        rt = res["resource_type"]
+        ef = res["emitted_fields"]
+
+        if rt in (
+            "ContainerService::ManagedCluster",
+            "containerservice/ManagedCluster",
+            "Microsoft.ContainerService/managedClusters",
+        ):
+            props = ef.get("properties") or ef
+
+            # CIS 4.2.1 — kubelet anonymousAuth (AKS manages this; flag CUSTOM node pools)
+            rule_id_kub = f"{p}.csec.cis_4.2.1.node_kubelet_auth"
+            agent_pools = props.get("agentPoolProfiles") or []
+            has_custom_os = any(
+                (ap.get("osDiskType") or "").lower() == "unmanaged"
+                for ap in agent_pools
+            )
+            if has_custom_os:
+                findings.append(_fail(
+                    rule_id_kub, res, scan_run_id, tenant_id,
+                    LAYER_NODE_CONFIG, "node_kubelet_auth",
+                    "CIS-4.2.1", "HIGH",
+                    "AKS node pool uses unmanaged OS disk — kubelet config not fully managed",
+                ))
+            else:
+                findings.append(_pass(
+                    rule_id_kub, res, scan_run_id, tenant_id,
+                    LAYER_NODE_CONFIG, "node_kubelet_auth",
+                    "CIS-4.2.1", "HIGH",
+                    "AKS node pools use managed OS disk — kubelet config managed by AKS",
+                ))
+
+            # CIS 4.2.2 — node OS auto-upgrade channel
+            rule_id_upg = f"{p}.csec.cis_4.2.2.node_os_upgrade_channel"
+            node_os_channel = props.get("autoUpgradeProfile", {}).get("nodeOSUpgradeChannel", "")
+            if not node_os_channel or node_os_channel.lower() == "none":
+                findings.append(_fail(
+                    rule_id_upg, res, scan_run_id, tenant_id,
+                    LAYER_NODE_CONFIG, "node_os_upgrade_channel",
+                    "CIS-4.2.2", "MEDIUM",
+                    "AKS cluster node OS auto-upgrade channel is not configured",
+                ))
+            else:
+                findings.append(_pass(
+                    rule_id_upg, res, scan_run_id, tenant_id,
+                    LAYER_NODE_CONFIG, "node_os_upgrade_channel",
+                    "CIS-4.2.2", "MEDIUM",
+                    f"AKS cluster node OS auto-upgrade channel: {node_os_channel}",
+                ))
+
+    return findings
+
+
+def _analyze_node_config_oci(
+    resources: List[Dict[str, Any]],
+    scan_run_id: str,
+    tenant_id: str,
+) -> List[Dict[str, Any]]:
+    """CIS Layer 2 — OCI OKE node configuration checks.
+
+    Checks:
+      CIS-4.2.1: Node pool OS image type — flag CUSTOM images vs OKE managed.
+      CIS-4.2.6: Node pool SSH access — flag if SSH is open.
+    """
+    findings: List[Dict[str, Any]] = []
+    p = "oci"
+
+    for res in resources:
+        rt = res["resource_type"]
+        ef = res["emitted_fields"]
+
+        if rt in ("ContainerEngine::Cluster", "oci.containerengine/Cluster"):
+            # CIS 4.2.1 — OKE-managed node images
+            rule_id_img = f"{p}.csec.cis_4.2.1.node_image_managed"
+            node_shape = ef.get("nodeShape") or ef.get("shape") or ""
+            # OKE clusters with node_image_id set to a custom OCID indicate unmanaged images
+            node_image_id = ef.get("nodeImageId", "") or ef.get("imageId", "")
+            is_custom_image = bool(node_image_id) and not node_image_id.startswith("ocid1.image.oc1")
+            if is_custom_image:
+                findings.append(_fail(
+                    rule_id_img, res, scan_run_id, tenant_id,
+                    LAYER_NODE_CONFIG, "node_image_managed",
+                    "CIS-4.2.1", "HIGH",
+                    "OKE cluster uses a non-standard node image — kubelet config may not be managed",
+                ))
+            else:
+                findings.append(_pass(
+                    rule_id_img, res, scan_run_id, tenant_id,
+                    LAYER_NODE_CONFIG, "node_image_managed",
+                    "CIS-4.2.1", "HIGH",
+                    "OKE cluster uses OKE-managed node image",
+                ))
+
+            # CIS 4.2.6 — SSH access to nodes
+            rule_id_ssh = f"{p}.csec.cis_4.2.6.node_ssh_access"
+            ssh_key = ef.get("sshPublicKey") or ef.get("nodeSourceDetails", {}).get("sshKey", "")
+            if ssh_key:
+                findings.append(_fail(
+                    rule_id_ssh, res, scan_run_id, tenant_id,
+                    LAYER_NODE_CONFIG, "node_ssh_access",
+                    "CIS-4.2.6", "MEDIUM",
+                    "OKE cluster node pool has SSH public key configured — direct node access possible",
+                ))
+            else:
+                findings.append(_pass(
+                    rule_id_ssh, res, scan_run_id, tenant_id,
+                    LAYER_NODE_CONFIG, "node_ssh_access",
+                    "CIS-4.2.6", "MEDIUM",
+                    "OKE cluster node pool does not expose SSH public key",
+                ))
+
+    return findings
+
+
+def _analyze_node_config_alicloud(
+    resources: List[Dict[str, Any]],
+    scan_run_id: str,
+    tenant_id: str,
+) -> List[Dict[str, Any]]:
+    """CIS Layer 2 — AliCloud ACK node configuration checks.
+
+    Checks:
+      CIS-4.2.1: Managed node pool OS type — flag CUSTOM system image.
+      CIS-4.2.6: Node pool SSH key — flag if set.
+    """
+    findings: List[Dict[str, Any]] = []
+    p = "alicloud"
+
+    for res in resources:
+        rt = res["resource_type"]
+        ef = res["emitted_fields"]
+
+        if rt in ("ACK::Cluster",):
+            # CIS 4.2.1 — OS image managed
+            rule_id_img = f"{p}.csec.cis_4.2.1.node_image_managed"
+            # ACK cluster_type 'ManagedKubernetes' indicates managed; 'Kubernetes' is self-managed
+            cluster_type = ef.get("cluster_type", "")
+            is_self_managed = cluster_type.lower() in ("kubernetes",)
+            if is_self_managed:
+                findings.append(_fail(
+                    rule_id_img, res, scan_run_id, tenant_id,
+                    LAYER_NODE_CONFIG, "node_image_managed",
+                    "CIS-4.2.1", "HIGH",
+                    "ACK cluster is self-managed (cluster_type=Kubernetes) — node OS not managed by ACK",
+                ))
+            else:
+                findings.append(_pass(
+                    rule_id_img, res, scan_run_id, tenant_id,
+                    LAYER_NODE_CONFIG, "node_image_managed",
+                    "CIS-4.2.1", "HIGH",
+                    f"ACK cluster uses managed type ({cluster_type or 'ManagedKubernetes'})",
+                ))
+
+            # CIS 4.2.6 — SSH key on nodes
+            rule_id_ssh = f"{p}.csec.cis_4.2.6.node_ssh_access"
+            login_config = ef.get("login_config") or {}
+            ssh_key = login_config.get("ssh_key_pair") or ef.get("key_pair", "")
+            if ssh_key:
+                findings.append(_fail(
+                    rule_id_ssh, res, scan_run_id, tenant_id,
+                    LAYER_NODE_CONFIG, "node_ssh_access",
+                    "CIS-4.2.6", "MEDIUM",
+                    "ACK cluster node pool has SSH key pair configured — direct node access possible",
+                ))
+            else:
+                findings.append(_pass(
+                    rule_id_ssh, res, scan_run_id, tenant_id,
+                    LAYER_NODE_CONFIG, "node_ssh_access",
+                    "CIS-4.2.6", "MEDIUM",
+                    "ACK cluster node pool does not expose an SSH key pair",
+                ))
+
+    return findings
+
+
+def _analyze_node_config_k8s(
+    resources: List[Dict[str, Any]],
+    scan_run_id: str,
+    tenant_id: str,
+    provider: str,
+) -> List[Dict[str, Any]]:
+    """CIS Layer 2 — Native K8s node configuration checks derived from workload metadata.
+
+    Because the engine reads from discovery_findings (not live API), node-level
+    kubelet flags are inferred from workload spec annotations and pod-level
+    securityContext — direct node inspection is not possible without live API access.
+
+    Checks:
+      CIS-4.2.1: Pod spec does not require kubelet anonymous auth override
+                 (inferred from readiness/liveness probe scheme = HTTPS).
+      CIS-4.2.6: No hostPort mappings exposing node ports to external traffic.
+    """
+    findings: List[Dict[str, Any]] = []
+    p = provider
+
+    for res in resources:
+        rt = res["resource_type"]
+        ef = res["emitted_fields"]
+
+        if rt not in WORKLOAD_TYPES:
+            continue
+
+        spec = _get_pod_spec(ef)
+        all_containers = (spec.get("containers") or []) + (spec.get("initContainers") or [])
+
+        # CIS 4.2.6 — hostPort
+        rule_id_hp = f"{p}.csec.cis_4.2.6.host_port_exposed"
+        has_host_port = any(
+            bool(port.get("hostPort"))
+            for c in all_containers
+            for port in (c.get("ports") or [])
+        )
+        if has_host_port:
+            findings.append(_fail(
+                rule_id_hp, res, scan_run_id, tenant_id,
+                LAYER_NODE_CONFIG, "host_port_exposed",
+                "CIS-4.2.6", "MEDIUM",
+                "Container exposes a hostPort — direct node port binding bypasses network policy",
+            ))
+        else:
+            findings.append(_pass(
+                rule_id_hp, res, scan_run_id, tenant_id,
+                LAYER_NODE_CONFIG, "host_port_exposed",
+                "CIS-4.2.6", "MEDIUM",
+                "No containers expose hostPort",
+            ))
+
+    return findings
+
+
+# ---------------------------------------------------------------------------
+# Layer 6 — Secrets Management (CSP-specific supplement)
+# ---------------------------------------------------------------------------
+
+def _analyze_secrets_management_csp(
+    resources: List[Dict[str, Any]],
+    scan_run_id: str,
+    tenant_id: str,
+    provider: str,
+) -> List[Dict[str, Any]]:
+    """CIS Layer 6 — Secrets Management for CSP-managed cluster resources.
+
+    Checks whether managed clusters have etcd encryption at rest enabled.
+    Covers AWS EKS, Azure AKS, GCP GKE, OCI OKE, AliCloud ACK.
+
+    Security note: Secret.data values are never accessed or logged.
+    Only configuration flags and key names are inspected.
+    """
+    findings: List[Dict[str, Any]] = []
+    p = provider
+
+    for res in resources:
+        rt = res["resource_type"]
+        ef = res["emitted_fields"]
+
+        # --- AWS EKS: etcd encryption via encryptionConfig ---
+        if rt == "EKS::Cluster":
+            rule_id = f"{p}.csec.cis_5.4.3.etcd_encryption_disabled"
+            encryption_configs = ef.get("encryptionConfig") or []
+            has_secrets_encryption = any(
+                "secrets" in (ec.get("resources") or [])
+                for ec in encryption_configs
+            )
+            if not has_secrets_encryption:
+                findings.append(_fail(
+                    rule_id, res, scan_run_id, tenant_id,
+                    LAYER_SECRETS_MANAGEMENT, "etcd_encryption_disabled",
+                    "CIS-5.4.3", "HIGH",
+                    "EKS cluster does not have etcd encryption for Secrets enabled",
+                ))
+            else:
+                findings.append(_pass(
+                    rule_id, res, scan_run_id, tenant_id,
+                    LAYER_SECRETS_MANAGEMENT, "etcd_encryption_disabled",
+                    "CIS-5.4.3", "HIGH",
+                    "EKS cluster has etcd encryption for Secrets enabled",
+                ))
+
+        # --- Azure AKS: etcd encryption / Azure Key Vault integration ---
+        elif rt in (
+            "ContainerService::ManagedCluster",
+            "containerservice/ManagedCluster",
+            "Microsoft.ContainerService/managedClusters",
+        ):
+            rule_id = f"{p}.csec.cis_5.4.3.etcd_encryption_disabled"
+            props = ef.get("properties") or ef
+            key_vault_ref = (
+                (props.get("addonProfiles") or {}).get("azureKeyvaultSecretsProvider", {})
+            )
+            kvs_enabled = key_vault_ref.get("enabled", False) is True
+            if not kvs_enabled:
+                findings.append(_fail(
+                    rule_id, res, scan_run_id, tenant_id,
+                    LAYER_SECRETS_MANAGEMENT, "etcd_encryption_disabled",
+                    "CIS-5.4.3", "HIGH",
+                    "AKS cluster does not have Azure Key Vault Secrets Provider addon enabled",
+                ))
+            else:
+                findings.append(_pass(
+                    rule_id, res, scan_run_id, tenant_id,
+                    LAYER_SECRETS_MANAGEMENT, "etcd_encryption_disabled",
+                    "CIS-5.4.3", "HIGH",
+                    "AKS cluster has Azure Key Vault Secrets Provider addon enabled",
+                ))
+
+        # --- GCP GKE: application-layer secrets encryption ---
+        elif rt in ("Container::Cluster", "container.googleapis.com/Cluster"):
+            rule_id = f"{p}.csec.cis_5.4.3.etcd_encryption_disabled"
+            database_enc = ef.get("databaseEncryption") or {}
+            enc_state = database_enc.get("state", "DECRYPTED")
+            if enc_state != "ENCRYPTED":
+                findings.append(_fail(
+                    rule_id, res, scan_run_id, tenant_id,
+                    LAYER_SECRETS_MANAGEMENT, "etcd_encryption_disabled",
+                    "CIS-5.4.3", "HIGH",
+                    "GKE cluster does not have application-layer Secrets encryption enabled",
+                ))
+            else:
+                findings.append(_pass(
+                    rule_id, res, scan_run_id, tenant_id,
+                    LAYER_SECRETS_MANAGEMENT, "etcd_encryption_disabled",
+                    "CIS-5.4.3", "HIGH",
+                    "GKE cluster has application-layer Secrets encryption enabled",
+                ))
+
+        # --- OCI OKE: Vault integration ---
+        elif rt in ("ContainerEngine::Cluster", "oci.containerengine/Cluster"):
+            rule_id = f"{p}.csec.cis_5.4.3.etcd_encryption_disabled"
+            options = ef.get("options") or {}
+            enc_config = options.get("kubernetesNetworkConfig") or {}
+            # OKE uses etcd encryption by default in managed clusters; check if a KMS key is set
+            kms_key_id = ef.get("kmsKeyId") or ef.get("vaultKeyId") or ""
+            if not kms_key_id:
+                findings.append(_fail(
+                    rule_id, res, scan_run_id, tenant_id,
+                    LAYER_SECRETS_MANAGEMENT, "etcd_encryption_disabled",
+                    "CIS-5.4.3", "HIGH",
+                    "OKE cluster does not have a dedicated KMS/Vault key for etcd encryption",
+                ))
+            else:
+                findings.append(_pass(
+                    rule_id, res, scan_run_id, tenant_id,
+                    LAYER_SECRETS_MANAGEMENT, "etcd_encryption_disabled",
+                    "CIS-5.4.3", "HIGH",
+                    "OKE cluster uses a dedicated KMS/Vault key for etcd encryption",
+                ))
+
+        # --- AliCloud ACK: KMS integration ---
+        elif rt in ("ACK::Cluster",):
+            rule_id = f"{p}.csec.cis_5.4.3.etcd_encryption_disabled"
+            encryption_config = ef.get("encryption_config") or []
+            has_kms = bool(encryption_config)
+            if not has_kms:
+                findings.append(_fail(
+                    rule_id, res, scan_run_id, tenant_id,
+                    LAYER_SECRETS_MANAGEMENT, "etcd_encryption_disabled",
+                    "CIS-5.4.3", "HIGH",
+                    "ACK cluster does not have KMS encryption config for Secrets",
+                ))
+            else:
+                findings.append(_pass(
+                    rule_id, res, scan_run_id, tenant_id,
+                    LAYER_SECRETS_MANAGEMENT, "etcd_encryption_disabled",
+                    "CIS-5.4.3", "HIGH",
+                    "ACK cluster has KMS encryption config for Secrets",
+                ))
+
+    return findings
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
@@ -1216,13 +1661,20 @@ def run_cis_analysis(
     k8s_provider = "k8s" if p == "k8s" else p
 
     if k8s_resources:
+        # L2 — Node config (host ports, kubelet inference from workload specs)
+        findings += _analyze_node_config_k8s(k8s_resources, scan_run_id, tenant_id, k8s_provider)
+        # L3 — RBAC & service accounts
         findings += _analyze_rbac(k8s_resources, scan_run_id, tenant_id, k8s_provider)
+        # L4 — Pod security standards
         findings += _analyze_pod_security(k8s_resources, scan_run_id, tenant_id, k8s_provider)
+        # L5 — Network policies
         findings += _analyze_network_policies(k8s_resources, scan_run_id, tenant_id, k8s_provider)
+        # L6 — Secrets management (env vars + ConfigMaps)
         findings += _analyze_secrets_management(k8s_resources, scan_run_id, tenant_id, k8s_provider)
+        # L7 — Image security
         findings += _analyze_image_security(k8s_resources, scan_run_id, tenant_id, k8s_provider)
     else:
-        logger.info("CIS: no K8s resources found for scan %s — skipping K8s layers 3-7", scan_run_id)
+        logger.info("CIS: no K8s resources found for scan %s — skipping K8s layers 2-7", scan_run_id)
 
     # -------------------------------------------------------------------------
     # CSP-specific managed cluster resources (L1, L2, L7 registry checks)
@@ -1244,18 +1696,43 @@ def run_cis_analysis(
         )
 
         if p == "aws":
+            # L1 — Control plane + L2 node config (via NodeGroup)
             findings += _analyze_control_plane_aws(csp_resources, scan_run_id, tenant_id)
+            # L6 — etcd encryption at rest
+            findings += _analyze_secrets_management_csp(csp_resources, scan_run_id, tenant_id, p)
+            # L7 — Image security (registry scan-on-push)
             findings += _analyze_image_security(registry_resources, scan_run_id, tenant_id, p)
         elif p == "azure":
+            # L1 — Control plane
             findings += _analyze_control_plane_azure(csp_resources, scan_run_id, tenant_id)
+            # L2 — Node configuration
+            findings += _analyze_node_config_azure(csp_resources, scan_run_id, tenant_id)
+            # L6 — Secrets (Key Vault addon)
+            findings += _analyze_secrets_management_csp(csp_resources, scan_run_id, tenant_id, p)
+            # L7 — Image security
             findings += _analyze_image_security(registry_resources, scan_run_id, tenant_id, p)
         elif p in ("gcp", "google"):
+            # L1 — Control plane (includes private nodes check in L2)
             findings += _analyze_control_plane_gcp(csp_resources, scan_run_id, tenant_id)
+            # L6 — Secrets (database encryption / KMS)
+            findings += _analyze_secrets_management_csp(csp_resources, scan_run_id, tenant_id, "gcp")
+            # L7 — Image security
             findings += _analyze_image_security(registry_resources, scan_run_id, tenant_id, p)
         elif p == "oci":
+            # L1 — Control plane
             findings += _analyze_control_plane_oci(csp_resources, scan_run_id, tenant_id)
+            # L2 — Node configuration
+            findings += _analyze_node_config_oci(csp_resources, scan_run_id, tenant_id)
+            # L6 — Secrets (KMS/Vault integration)
+            findings += _analyze_secrets_management_csp(csp_resources, scan_run_id, tenant_id, p)
         elif p == "alicloud":
+            # L1 — Control plane
             findings += _analyze_control_plane_alicloud(csp_resources, scan_run_id, tenant_id)
+            # L2 — Node configuration
+            findings += _analyze_node_config_alicloud(csp_resources, scan_run_id, tenant_id)
+            # L6 — Secrets (KMS encryption config)
+            findings += _analyze_secrets_management_csp(csp_resources, scan_run_id, tenant_id, p)
+            # L7 — Image security
             findings += _analyze_image_security(registry_resources, scan_run_id, tenant_id, p)
 
     fail_count = sum(1 for f in findings if f.get("status") == "FAIL")

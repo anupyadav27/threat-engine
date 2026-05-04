@@ -19,11 +19,13 @@ async def get(
     url: str,
     params: Optional[Dict[str, Any]] = None,
     timeout: float = DEFAULT_TIMEOUT,
+    auth_header: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """GET a JSON endpoint; returns None on any error (engine unavailable, timeout, etc.)."""
+    headers = {"X-Auth-Context": auth_header} if auth_header else {}
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
-            resp = await client.get(url, params=params)
+            resp = await client.get(url, params=params, headers=headers)
             resp.raise_for_status()
             return resp.json()
     except httpx.TimeoutException:

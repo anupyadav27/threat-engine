@@ -10,6 +10,12 @@ import asyncio
 import os
 
 from engine_onboarding.api import cloud_accounts_router, health_router, credentials_router, tenants_router, schedules_router, scan_runs_router
+try:
+    from engine_onboarding.api.agents import router as agents_router
+    _AGENTS_ROUTER_AVAILABLE = True
+except Exception:
+    _AGENTS_ROUTER_AVAILABLE = False
+    agents_router = None
 from engine_onboarding.config import settings
 from engine_onboarding.database.connection import init_db, check_connection
 try:
@@ -17,6 +23,14 @@ try:
 except ImportError:
     _configure_telemetry = None
 from engine_onboarding.scheduler.scheduler_service import SchedulerService
+
+# Auth middleware (engine_auth is COPY shared/auth/ ./engine_auth/ in Dockerfile)
+try:
+    from engine_auth.fastapi.middleware import AuthMiddleware
+    _AUTH_AVAILABLE = True
+except ImportError:
+    AuthMiddleware = None
+    _AUTH_AVAILABLE = False
 
 # Path prefix when running behind ingress rewrite (/onboarding -> /)
 ROOT_PATH = (os.getenv("ROOT_PATH", "") or "").rstrip("/")
@@ -75,6 +89,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# AuthMiddleware validates X-Auth-Context on every non-health route
+if _AUTH_AVAILABLE and AuthMiddleware:
+    app.add_middleware(AuthMiddleware)
+
 # Include routers
 app.include_router(health_router)
 app.include_router(tenants_router)
@@ -82,6 +100,8 @@ app.include_router(cloud_accounts_router)
 app.include_router(credentials_router)
 app.include_router(schedules_router)
 app.include_router(scan_runs_router)
+if _AGENTS_ROUTER_AVAILABLE and agents_router:
+    app.include_router(agents_router)
 
 # Include unified UI data router
 try:

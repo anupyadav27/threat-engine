@@ -17,6 +17,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, Request
 
+from ._auth import resolve_tenant_id
 from ._shared import fetch_many, safe_get, is_empty_or_health
 from ._page_context import cnapp_page_context, cnapp_filter_schema
 
@@ -26,13 +27,13 @@ router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 @router.get("/cnapp")
 async def view_cnapp(
     request: Request,
-    tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
     scan_id: str = Query("latest"),
 ):
     """Single endpoint returning everything the CNAPP unified view page needs."""
 
+    tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 

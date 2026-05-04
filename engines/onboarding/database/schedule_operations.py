@@ -14,7 +14,8 @@ from engine_onboarding.database.connection import get_db_connection
 # ── Allowed update fields ─────────────────────────────────────────────────────
 _ALLOWED_UPDATE = {
     "schedule_name", "cron_expression", "timezone", "enabled",
-    "include_regions", "include_services", "exclude_services", "engines_requested",
+    "include_regions", "exclude_regions", "include_services", "exclude_services",
+    "engines_requested",
     "next_run_at", "last_run_at", "run_count", "success_count", "failure_count",
     "notify_on_success", "notify_on_failure", "notification_emails",
     "updated_at",
@@ -26,8 +27,8 @@ def create_schedule(data: Dict[str, Any]) -> Dict[str, Any]:
     Create a new scan schedule.
 
     Required: account_id, tenant_id, customer_id, cron_expression
-    Optional: schedule_name, timezone, enabled, include_regions, include_services,
-              exclude_services, engines_requested, notify_*, notification_emails,
+    Optional: schedule_name, timezone, enabled, include_regions, exclude_regions,
+              include_services, exclude_services, engines_requested, notify_*,
               next_run_at
     """
     conn = get_db_connection()
@@ -44,7 +45,8 @@ def create_schedule(data: Dict[str, Any]) -> Dict[str, Any]:
             INSERT INTO schedules (
                 schedule_id, account_id, tenant_id, customer_id,
                 schedule_name, cron_expression, timezone, enabled,
-                include_regions, include_services, exclude_services, engines_requested,
+                include_regions, exclude_regions, include_services, exclude_services,
+                engines_requested,
                 next_run_at,
                 notify_on_success, notify_on_failure, notification_emails,
                 created_at, updated_at
@@ -52,6 +54,7 @@ def create_schedule(data: Dict[str, Any]) -> Dict[str, Any]:
                 %s, %s, %s, %s,
                 %s, %s, %s, %s,
                 %s, %s, %s, %s,
+                %s,
                 %s,
                 %s, %s, %s,
                 %s, %s
@@ -68,6 +71,7 @@ def create_schedule(data: Dict[str, Any]) -> Dict[str, Any]:
                 data.get("timezone", "UTC"),
                 data.get("enabled", True),
                 json.dumps(data["include_regions"]) if data.get("include_regions") is not None else None,
+                json.dumps(data["exclude_regions"]) if data.get("exclude_regions") is not None else None,
                 json.dumps(data["include_services"]) if data.get("include_services") is not None else None,
                 json.dumps(data["exclude_services"]) if data.get("exclude_services") is not None else None,
                 json.dumps(data.get("engines_requested", default_engines)),
@@ -197,6 +201,32 @@ def delete_schedule(schedule_id: str) -> bool:
     except Exception:
         conn.rollback()
         raise
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_active_schedules_for_tenant(tenant_id: str, limit: int = 20) -> List[Dict[str, Any]]:
+    """Return all enabled schedules for a tenant (used by run-all endpoint)."""
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute(
+            """
+            SELECT s.*, ca.provider, ca.credential_type, ca.credential_ref
+            FROM schedules s
+            JOIN cloud_accounts ca ON ca.account_id = s.account_id
+            WHERE s.tenant_id = %s
+              AND s.enabled = true
+              AND ca.account_status = 'active'
+              AND ca.credential_ref IS NOT NULL
+              AND ca.credential_ref <> ''
+            ORDER BY s.created_at ASC
+            LIMIT %s
+            """,
+            (tenant_id, limit),
+        )
+        return [dict(row) for row in cur.fetchall()]
     finally:
         cur.close()
         conn.close()

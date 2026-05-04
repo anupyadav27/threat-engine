@@ -15,12 +15,14 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework.views import APIView
 
 from user_auth.models import Users, PasswordResetTokens, UserSessions
+from user_auth.throttles import SignupRateThrottle
 from user_auth.utils.email_utils import send_password_reset_email
 
 
 @method_decorator(ensure_csrf_cookie, name='dispatch')
 class PasswordResetRequestView(APIView):
     """Accepts an email, sends a reset link if account exists. Always 200 to avoid email enumeration."""
+    throttle_classes = [SignupRateThrottle]
 
     def post(self, request):
         try:

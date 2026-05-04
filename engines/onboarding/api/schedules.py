@@ -2,11 +2,26 @@
 Schedules API
 Manages scan schedules for cloud accounts.
 """
+import os
 import uuid
 from datetime import datetime, timezone
-from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Query
+from typing import Any, List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+
+try:
+    from engine_auth.fastapi.dependencies import require_permission, get_auth_context
+    from engine_auth.core.models import AuthContext
+    _AUTH_AVAILABLE = True
+except ImportError:
+    _AUTH_AVAILABLE = False
+    AuthContext = Any
+    def require_permission(perm: str):  # type: ignore[misc]
+        async def _noop():
+            return None
+        return _noop
+    async def get_auth_context():  # type: ignore[misc]
+        return None
 
 from engine_onboarding.database.schedule_operations import (
     create_schedule,
@@ -14,6 +29,7 @@ from engine_onboarding.database.schedule_operations import (
     list_schedules,
     update_schedule,
     delete_schedule,
+    get_active_schedules_for_tenant,
 )
 from engine_onboarding.database.cloud_accounts_operations import get_cloud_account
 
@@ -67,6 +83,7 @@ class ScheduleCreate(BaseModel):
     timezone:            str             = "UTC"
     enabled:             bool            = True
     include_regions:     Optional[List[str]] = None
+    exclude_regions:     Optional[List[str]] = None
     include_services:    Optional[List[str]] = None
     exclude_services:    Optional[List[str]] = None
     engines_requested:   List[str]       = ALL_ENGINES
@@ -82,6 +99,7 @@ class ScheduleUpdate(BaseModel):
     timezone:            Optional[str]           = None
     enabled:             Optional[bool]          = None
     include_regions:     Optional[List[str]]     = None
+    exclude_regions:     Optional[List[str]]     = None
     include_services:    Optional[List[str]]     = None
     exclude_services:    Optional[List[str]]     = None
     engines_requested:   Optional[List[str]]     = None
@@ -108,7 +126,10 @@ async def get_presets():
 
 
 @router.post("", status_code=201)
-async def create_schedule_endpoint(body: ScheduleCreate):
+async def create_schedule_endpoint(
+    body: ScheduleCreate,
+    _: Any = Depends(require_permission("scans:create")),
+):
     """Create a new schedule for a cloud account."""
     account = get_cloud_account(body.account_id)
     if not account:
@@ -138,8 +159,13 @@ async def list_schedules_endpoint(
     enabled_only: bool          = Query(False),
     limit:        int           = Query(100, ge=1, le=500),
     offset:       int           = Query(0, ge=0),
+    auth: Any = Depends(get_auth_context),
+    _: Any = Depends(require_permission("scans:read")),
 ):
     """List schedules with optional filters."""
+    # Enforce tenant scope from auth context — prevent cross-tenant reads
+    if auth and getattr(auth, "engine_tenant_id", None):
+        tenant_id = auth.engine_tenant_id
     try:
         schedules = list_schedules(
             account_id=account_id,
@@ -156,7 +182,10 @@ async def list_schedules_endpoint(
 
 
 @router.get("/{schedule_id}")
-async def get_schedule_endpoint(schedule_id: str):
+async def get_schedule_endpoint(
+    schedule_id: str,
+    _: Any = Depends(require_permission("scans:read")),
+):
     """Get a schedule by ID."""
     schedule = get_schedule(schedule_id)
     if not schedule:
@@ -165,7 +194,11 @@ async def get_schedule_endpoint(schedule_id: str):
 
 
 @router.patch("/{schedule_id}")
-async def update_schedule_endpoint(schedule_id: str, body: ScheduleUpdate):
+async def update_schedule_endpoint(
+    schedule_id: str,
+    body: ScheduleUpdate,
+    _: Any = Depends(require_permission("scans:create")),
+):
     """Update a schedule."""
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
 
@@ -193,7 +226,10 @@ async def update_schedule_endpoint(schedule_id: str, body: ScheduleUpdate):
 
 
 @router.delete("/{schedule_id}", status_code=200)
-async def delete_schedule_endpoint(schedule_id: str):
+async def delete_schedule_endpoint(
+    schedule_id: str,
+    _: Any = Depends(require_permission("scans:create")),
+):
     """Delete a schedule."""
     deleted = delete_schedule(schedule_id)
     if not deleted:
@@ -202,7 +238,10 @@ async def delete_schedule_endpoint(schedule_id: str):
 
 
 @router.post("/{schedule_id}/enable")
-async def enable_schedule(schedule_id: str):
+async def enable_schedule(
+    schedule_id: str,
+    _: Any = Depends(require_permission("scans:create")),
+):
     """Enable a schedule."""
     schedule = update_schedule(schedule_id, {"enabled": True})
     if not schedule:
@@ -211,7 +250,10 @@ async def enable_schedule(schedule_id: str):
 
 
 @router.post("/{schedule_id}/disable")
-async def disable_schedule(schedule_id: str):
+async def disable_schedule(
+    schedule_id: str,
+    _: Any = Depends(require_permission("scans:create")),
+):
     """Disable a schedule without deleting it."""
     schedule = update_schedule(schedule_id, {"enabled": False})
     if not schedule:
@@ -220,7 +262,10 @@ async def disable_schedule(schedule_id: str):
 
 
 @router.post("/{schedule_id}/run-now", status_code=202)
-async def run_now(schedule_id: str):
+async def run_now(
+    schedule_id: str,
+    _: Any = Depends(require_permission("scans:create")),
+):
     """
     Trigger an immediate on-demand scan run for this schedule.
     Creates a scan_run record and fires the Argo workflow.
@@ -275,4 +320,90 @@ async def run_now(schedule_id: str):
         "scan_run_id": scan_run_id,
         "account_id":  schedule["account_id"],
         "provider":    account["provider"],
+    }
+
+
+# ── Bulk run-all endpoint ─────────────────────────────────────────────────────
+
+_MAX_BULK_SCANS = int(os.getenv("MAX_CONCURRENT_SCANS", "10"))
+_HARD_MAX       = 20
+
+
+@router.post("/run-all", status_code=202)
+async def run_all_schedules(
+    tenant_id: str = Query(..., description="Trigger all active schedules for this tenant"),
+    limit:     int = Query(10, ge=1, le=_HARD_MAX, description="Max concurrent scans to fire"),
+    auth: Any = Depends(get_auth_context),
+    _: Any = Depends(require_permission("scans:create")),
+):
+    """
+    Trigger immediate scans for ALL active schedules in a tenant.
+
+    Capped at MAX_CONCURRENT_SCANS (default 10, hard max 20).
+    Argo failures are non-fatal — the scan_run record is still created
+    and the caller can use the returned scan_run_ids to monitor progress.
+    """
+    if auth and getattr(auth, "engine_tenant_id", None):
+        tenant_id = auth.engine_tenant_id  # always use the authenticated tenant
+
+    cap = min(limit, _MAX_BULK_SCANS, _HARD_MAX)
+    schedules = get_active_schedules_for_tenant(tenant_id, limit=cap)
+    if not schedules:
+        return {"triggered": 0, "scan_run_ids": [], "message": "No active schedules with valid credentials found"}
+
+    from engine_onboarding.database.scan_run_operations import create_scan_run
+    from engine_onboarding.scheduler.argo_client import ArgoClient
+
+    argo = ArgoClient()
+    triggered = []
+    errors = []
+
+    for sched in schedules:
+        scan_run_id = str(uuid.uuid4())
+        account_id  = sched["account_id"]
+        try:
+            create_scan_run({
+                "scan_run_id":       scan_run_id,
+                "customer_id":       sched["customer_id"],
+                "tenant_id":         sched["tenant_id"],
+                "account_id":        account_id,
+                "schedule_uuid":     str(sched["schedule_id"]),
+                "provider":          sched["provider"],
+                "credential_type":   sched["credential_type"],
+                "credential_ref":    sched["credential_ref"],
+                "scan_type":         "full",
+                "trigger_type":      "manual",
+                "engines_requested": sched.get("engines_requested") or ALL_ENGINES,
+                "include_regions":   sched.get("include_regions"),
+                "exclude_regions":   sched.get("exclude_regions"),
+                "include_services":  sched.get("include_services"),
+                "exclude_services":  sched.get("exclude_services"),
+            })
+        except Exception as exc:
+            logger.error("run-all: failed to create scan_run for account %s: %s", account_id, exc)
+            errors.append({"account_id": account_id, "error": str(exc)})
+            continue
+
+        try:
+            argo.submit_pipeline(
+                scan_run_id=scan_run_id,
+                tenant_id=sched["tenant_id"],
+                account_id=account_id,
+                provider=sched["provider"],
+                credential_type=sched["credential_type"],
+                credential_ref=sched["credential_ref"],
+                include_regions=sched.get("include_regions") if isinstance(sched.get("include_regions"), list) else None,
+                include_services=sched.get("include_services") if isinstance(sched.get("include_services"), list) else None,
+            )
+        except Exception as exc:
+            logger.warning("run-all: Argo submit failed for %s (%s): %s", scan_run_id, account_id, exc)
+
+        triggered.append({"scan_run_id": scan_run_id, "account_id": account_id})
+
+    logger.info("run-all triggered %d scans for tenant %s", len(triggered), tenant_id)
+    return {
+        "triggered":    len(triggered),
+        "scan_run_ids": triggered,
+        "errors":       errors,
+        "cap":          cap,
     }

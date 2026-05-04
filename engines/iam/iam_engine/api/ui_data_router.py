@@ -88,12 +88,32 @@ def _resolve_latest_scan_run_id(
     Returns:
         The latest scan_run_id string, or None if no report exists.
     """
+    # Skip orphaned reports (completed status but no backing findings rows)
     cur.execute(
         """
-        SELECT scan_run_id
-        FROM iam_report
-        WHERE tenant_id = %s AND status = 'completed'
-        ORDER BY generated_at DESC NULLS LAST
+        SELECT r.scan_run_id
+        FROM iam_report r
+        WHERE r.tenant_id = %s AND r.status = 'completed'
+          AND EXISTS (
+              SELECT 1 FROM iam_findings f
+              WHERE f.scan_run_id = r.scan_run_id AND f.tenant_id = r.tenant_id
+          )
+        ORDER BY r.generated_at DESC NULLS LAST
+        LIMIT 1
+        """,
+        (tenant_id,),
+    )
+    row = cur.fetchone()
+    if row:
+        return row["scan_run_id"]
+    # Fallback: latest scan_run_id directly from findings table
+    cur.execute(
+        """
+        SELECT scan_run_id, COUNT(*) AS cnt
+        FROM iam_findings
+        WHERE tenant_id = %s
+        GROUP BY scan_run_id
+        ORDER BY MAX(last_seen_at) DESC NULLS LAST, cnt DESC
         LIMIT 1
         """,
         (tenant_id,),
@@ -367,7 +387,10 @@ async def get_iam_ui_data(
             #   role_management  → roles
             #   access_control   → access_keys
             #   least_privilege  → privilege_escalation
-            roles = _query_findings_by_module(cur, scan_run_id, tenant_id, "role_management", limit)
+            roles = (
+                _query_findings_by_module(cur, scan_run_id, tenant_id, "role_management", limit) or
+                _query_findings_by_module(cur, scan_run_id, tenant_id, "access_control", limit)
+            )
             access_keys = _query_findings_by_module(cur, scan_run_id, tenant_id, "access_control", limit)
             privilege_escalation = _query_findings_by_module(cur, scan_run_id, tenant_id, "least_privilege", limit)
             service_accounts = _query_service_account_findings(cur, scan_run_id, tenant_id, limit)

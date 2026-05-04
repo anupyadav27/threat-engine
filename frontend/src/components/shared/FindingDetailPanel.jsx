@@ -65,7 +65,9 @@ export default function FindingDetailPanel({ finding, onClose, context = {} }) {
   const domain      = finding.domain        || finding.security_domain   || finding.posture_category || finding.encryption_domain || '';
   const riskScore   = finding.risk_score    ?? null;
   const description = finding.description   || finding.rationale     || '';
-  const remediation = finding.remediation   || '';
+  const _r = finding.remediation;
+  const remediation = typeof _r === 'string' ? _r
+    : _r?.summary || (Array.isArray(_r?.steps) ? _r.steps.join('\n') : '') || '';
   const accountId   = finding.account_id    || finding.account       || finding.hierarchy_id || '';
   const provider    = (finding.provider     || 'aws').toUpperCase();
 

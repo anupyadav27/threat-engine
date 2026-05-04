@@ -1,6 +1,6 @@
 'use client';
 
-import { API_BASE, TENANT_ID, ENGINE_ENDPOINTS, CSP_DEFAULT, SCAN_ID_DEFAULT } from './constants';
+import { API_BASE, ENGINE_ENDPOINTS, CSP_DEFAULT, SCAN_ID_DEFAULT } from './constants';
 
 /**
  * Build a URL from a path string. Handles both absolute (production) and
@@ -22,11 +22,6 @@ function makeUrl(path) {
 export async function fetchApi(enginePath, options = {}) {
   try {
     const url = makeUrl(`${API_BASE}${enginePath}`);
-
-    // Add tenant_id to query params if not already present
-    if (TENANT_ID && !url.searchParams.has('tenant_id')) {
-      url.searchParams.append('tenant_id', TENANT_ID);
-    }
 
     const defaultHeaders = {
       'Content-Type': 'application/json',
@@ -75,11 +70,6 @@ export async function getFromEngine(engine, path, params = {}) {
       url.searchParams.append(key, String(value));
     }
   });
-
-  // Add tenant_id if not present
-  if (TENANT_ID && !url.searchParams.has('tenant_id')) {
-    url.searchParams.append('tenant_id', TENANT_ID);
-  }
 
   try {
     const response = await fetch(url.toString(), {
@@ -172,11 +162,6 @@ export async function postToEngine(engine, path, body = {}) {
   }
 
   const url = makeUrl(`${API_BASE}${enginePrefix}${path}`);
-
-  // Add tenant_id if not present
-  if (TENANT_ID && !url.searchParams.has('tenant_id')) {
-    url.searchParams.append('tenant_id', TENANT_ID);
-  }
 
   try {
     const response = await fetch(url.toString(), {

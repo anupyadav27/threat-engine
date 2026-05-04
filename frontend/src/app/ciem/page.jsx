@@ -521,7 +521,7 @@ export default function CiemPage() {
         kpiGroups={[]}
         insightRow={insightStrip || null}
         tabData={tabData}
-        loading={false}
+        loading={loading}
         error={error}
         defaultTab="overview"
         hideHeader

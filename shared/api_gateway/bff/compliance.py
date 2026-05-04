@@ -11,6 +11,7 @@ from typing import Optional, Dict, Any, List
 
 from fastapi import APIRouter, Query, Request
 
+from ._auth import resolve_tenant_id
 from ._shared import fetch_many, safe_get
 from ._transforms import normalize_framework, normalize_failing_control
 from ._page_context import compliance_page_context, compliance_filter_schema
@@ -24,7 +25,6 @@ MATRIX_FRAMEWORKS = ["CIS", "NIST", "SOC2", "PCI", "HIPAA", "ISO", "GDPR"]
 @router.get("/compliance")
 async def view_compliance(
     request: Request,
-    tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
@@ -32,6 +32,7 @@ async def view_compliance(
 ):
     """Single endpoint returning everything the compliance page needs."""
 
+    tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
     role_level = auth_level_from_header(auth_ctx_header)
@@ -341,17 +342,111 @@ async def view_compliance(
     return result
 
 
+SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}
+
+
+@router.get("/compliance/remediation")
+async def view_compliance_remediation(
+    request: Request,
+    provider: Optional[str] = Query(None),
+    account: Optional[str] = Query(None),
+    severity: Optional[str] = Query(None),
+    limit: int = Query(100),
+):
+    """Remediation Queue — failing controls sorted by severity.
+
+    Fetches failing_controls from the compliance engine and enriches them
+    with affected account info so the UI can render a prioritised work queue.
+    """
+    tenant_id = resolve_tenant_id(request)
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
+    results = await fetch_many([
+        ("compliance", "/api/v1/compliance/ui-data", {"tenant_id": tenant_id, "scan_id": "latest"}),
+        ("onboarding", "/api/v1/cloud-accounts",     {"tenant_id": tenant_id}),
+    ], auth_headers=fwd_headers)
+
+    compliance_data, onboarding_data = results
+    compliance_data = compliance_data if isinstance(compliance_data, dict) else {}
+    onboarding_data = onboarding_data if isinstance(onboarding_data, dict) else {}
+
+    # Build a lookup: account_id → account display name
+    raw_accounts = onboarding_data.get("accounts", [])
+    if not isinstance(raw_accounts, list):
+        raw_accounts = []
+    account_names: Dict[str, str] = {
+        a.get("account_id", ""): (a.get("account_name") or a.get("account_id", ""))
+        for a in raw_accounts
+        if isinstance(a, dict) and a.get("account_id")
+    }
+
+    # Pull failing controls from compliance engine response
+    raw_fc = compliance_data.get("failing_controls", [])
+    if not isinstance(raw_fc, list):
+        raw_fc = []
+
+    failing_controls = []
+    for c in raw_fc:
+        if not isinstance(c, dict):
+            continue
+        raw_sev = (c.get("severity") or "LOW").upper()
+        acct_id = c.get("account") or c.get("account_id", "")
+        last_checked = c.get("last_checked") or c.get("last_seen_at") or c.get("assessed_at")
+        failing_controls.append({
+            "framework":             c.get("framework") or c.get("framework_id", ""),
+            "control_id":            c.get("control_id", ""),
+            "control_title":         c.get("title") or c.get("control_name", ""),
+            "severity":              raw_sev,
+            "affected_accounts":     [acct_id] if acct_id else [],
+            "affected_account_count": 1 if acct_id else 0,
+            "last_checked":          last_checked,
+        })
+
+    # Optional filters
+    if severity:
+        sev_upper = severity.upper()
+        failing_controls = [c for c in failing_controls if c["severity"] == sev_upper]
+    if provider:
+        # The failing_controls list does not carry provider; skip silently (no data to filter)
+        pass
+    if account:
+        failing_controls = [
+            c for c in failing_controls
+            if account in c.get("affected_accounts", [])
+        ]
+
+    # Sort: CRITICAL → HIGH → MEDIUM → LOW → INFO
+    failing_controls.sort(key=lambda x: SEVERITY_ORDER.get(x.get("severity", "INFO"), 99))
+
+    # Enforce limit
+    failing_controls = failing_controls[:limit]
+
+    # Severity breakdown counts
+    by_severity: Dict[str, int] = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
+    for c in failing_controls:
+        sev = c.get("severity", "LOW")
+        if sev in by_severity:
+            by_severity[sev] += 1
+
+    return {
+        "failingControls": failing_controls,
+        "totalFailing": len(failing_controls),
+        "bySeverity": by_severity,
+    }
+
+
 @router.get("/compliance/framework/{framework_id}")
 async def view_framework_detail(
     request: Request,
     framework_id: str,
-    tenant_id: str = Query(...),
     scan_run_id: str = Query("latest"),
 ):
     """Framework detail view — controls grouped by family with assessment status.
 
     Calls compliance engine /framework/{framework_id}/assessment.
     """
+    tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 
@@ -378,11 +473,11 @@ async def view_framework_detail(
 async def view_framework_report(
     request: Request,
     framework_id: str,
-    tenant_id: str = Query(...),
     scan_run_id: str = Query("latest"),
     format: str = Query("json"),
 ):
     """Framework compliance report — full data for export (CSV/JSON)."""
+    tenant_id = resolve_tenant_id(request)
     from fastapi.responses import StreamingResponse
 
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)

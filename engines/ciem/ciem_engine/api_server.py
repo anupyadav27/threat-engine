@@ -13,6 +13,7 @@ Endpoints:
   GET  /api/v1/ciem/dashboard             — Dashboard summary (counts, trends)
   GET  /api/v1/ciem/identities            — Identity risk summary
   GET  /api/v1/ciem/top-rules             — Top triggered rules
+  GET  /api/v1/ciem/log-sources           — Log source coverage status
   GET  /api/v1/ciem/report/{scan_run_id}  — Scan report
 
   GET  /api/v1/health/live                — Liveness probe
@@ -242,7 +243,9 @@ def _fetch_all_accounts() -> List[dict]:
 
 
 @app.post("/api/v1/scan/all")
-async def start_all_accounts_ciem():
+async def start_all_accounts_ciem(
+    auth: Any = Depends(require_permission("ciem:read") if _AUTH_AVAILABLE else (lambda: None)),
+):
     """Start CIEM log collection for ALL active cloud accounts.
 
     Called by the CIEM CronWorkflow every hour. Fetches all accounts
@@ -342,13 +345,116 @@ async def start_all_accounts_ciem():
     }
 
 
+@app.post("/api/v1/internal/scan/all")
+async def start_all_accounts_ciem_internal():
+    """Internal-only: start CIEM log collection for ALL active cloud accounts.
+
+    Identical to POST /api/v1/scan/all but has NO auth dependency.
+    Called by the Argo CronWorkflow from inside the cluster, which does
+    not carry an access_token cookie or X-Auth-Context header.
+
+    NOTE: This path is intentionally NOT routed through the API gateway —
+    it is cluster-internal only (engine-ciem service, port 80).
+    Do not expose it externally.
+    """
+    accounts = _fetch_all_accounts()
+
+    if not accounts:
+        logger.warning("internal/scan/all: no active cloud accounts found")
+        return {"jobs_created": 0, "jobs_skipped": 0, "accounts": []}
+
+    logger.info(f"internal/scan/all: found {len(accounts)} active accounts — spawning CIEM Jobs")
+
+    jobs_created = []
+    skipped = []
+
+    for acct in accounts:
+        account_id  = acct.get("account_id") or acct.get("account_number") or ""
+        tenant_id   = acct.get("tenant_id") or "default-tenant"
+        provider    = (acct.get("provider") or "aws").lower()
+        cred_type   = acct.get("credential_type") or "access_key"
+        cred_ref    = acct.get("credential_ref") or acct.get("parent_credential_ref") or ""
+        scan_run_id = str(uuid.uuid4())
+
+        if not account_id:
+            logger.warning(
+                f"internal/scan/all: skipping account with empty account_id "
+                f"for tenant={tenant_id} provider={provider}"
+            )
+            skipped.append({"account_id": "", "error": "empty account_id"})
+            continue
+
+        try:
+            conn_onb2 = get_onboarding_conn()
+            with conn_onb2.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO tenants (tenant_id, customer_id, tenant_name) VALUES (%s, %s, %s) ON CONFLICT (tenant_id) DO NOTHING",
+                    (tenant_id, tenant_id, tenant_id),
+                )
+                cur.execute("""
+                    INSERT INTO scan_runs
+                        (scan_run_id, tenant_id, account_id, provider,
+                         credential_type, credential_ref,
+                         overall_status, engines_requested, engines_completed,
+                         created_at, started_at)
+                    VALUES (%s, %s, %s, %s, %s, %s,
+                            'running', '["ciem"]'::jsonb, '{}'::jsonb,
+                            NOW(), NOW())
+                    ON CONFLICT (scan_run_id) DO NOTHING
+                """, (scan_run_id, tenant_id, account_id, provider, cred_type, cred_ref))
+            conn_onb2.commit()
+            conn_onb2.close()
+        except Exception as rec_err:
+            logger.warning(f"Could not create scan record for {account_id}: {rec_err}")
+
+        try:
+            from kubernetes import client as k8s_client
+            _lookback = os.getenv("LOG_LOOKBACK_HOURS", "1")
+            _max_events = os.getenv("LOG_MAX_EVENTS", "500000")
+            job_name = create_engine_job(
+                engine_name="log-collection",
+                scan_id=scan_run_id,
+                scan_run_id=scan_run_id,
+                image=SCANNER_IMAGE,
+                cpu_request=SCANNER_CPU,
+                mem_request=SCANNER_MEM,
+                mem_limit=SCANNER_MEM_LIMIT,
+                active_deadline_seconds=7200,
+                use_spot=True,
+                extra_env=[
+                    k8s_client.V1EnvVar(name="LOG_LOOKBACK_HOURS", value=_lookback),
+                    k8s_client.V1EnvVar(name="LOG_MAX_EVENTS", value=_max_events),
+                ],
+            )
+            jobs_created.append({
+                "scan_run_id": scan_run_id,
+                "account_id": account_id,
+                "tenant_id": tenant_id,
+                "provider": provider,
+                "job": job_name,
+            })
+            logger.info(
+                f"internal/scan/all: created Job {job_name} "
+                f"for account={account_id} provider={provider}"
+            )
+        except Exception as job_err:
+            logger.error(f"internal/scan/all: failed to create Job for account={account_id}: {job_err}")
+            skipped.append({"account_id": account_id, "error": str(job_err)})
+
+    return {
+        "jobs_created": len(jobs_created),
+        "jobs_skipped": len(skipped),
+        "accounts": jobs_created,
+        "skipped": skipped,
+    }
+
+
 # ═══════════════════════════════════════════════════════════════
 # CIEM Findings & Dashboard
 # ═══════════════════════════════════════════════════════════════
 
 @app.get("/api/v1/ciem/findings")
 async def query_findings(
-    tenant_id: str = Query(...),
     scan_run_id: Optional[str] = Query(None),
     severity: Optional[str] = Query(None),
     rule_source: Optional[str] = Query(None),
@@ -363,6 +469,11 @@ async def query_findings(
 ):
     """Query CIEM detection findings with filters."""
     import psycopg2.extras
+    tenant_id = (
+        getattr(auth, "engine_tenant_id", None)
+        or getattr(auth, "tenant_id", None)
+        or "default-tenant"
+    )
     conn = get_ciem_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -506,10 +617,15 @@ def _query_ciem_scan_trend(cur, tenant_id: str) -> list:
 
 @app.get("/api/v1/ciem/dashboard")
 async def ciem_dashboard(
-    tenant_id: str = Query(...),
     scan_run_id: Optional[str] = Query(None),
+    auth: Any = Depends(require_permission("ciem:read") if _AUTH_AVAILABLE else (lambda: None)),
 ):
     """CIEM dashboard — summary counts, severity breakdown, engine breakdown, trends."""
+    tenant_id = (
+        getattr(auth, "engine_tenant_id", None)
+        or getattr(auth, "tenant_id", None)
+        or "default-tenant"
+    )
     import psycopg2.extras
     conn = get_ciem_conn()
     try:
@@ -598,11 +714,16 @@ async def ciem_dashboard(
 
 @app.get("/api/v1/ciem/identities")
 async def identity_summary(
-    tenant_id: str = Query(...),
     scan_run_id: Optional[str] = Query(None),
     limit: int = Query(50, le=500),
+    auth: Any = Depends(require_permission("ciem:read") if _AUTH_AVAILABLE else (lambda: None)),
 ):
     """Identity risk summary — top actors by finding count and severity."""
+    tenant_id = (
+        getattr(auth, "engine_tenant_id", None)
+        or getattr(auth, "tenant_id", None)
+        or "default-tenant"
+    )
     import psycopg2.extras
     conn = get_ciem_conn()
     try:
@@ -643,11 +764,16 @@ async def identity_summary(
 
 @app.get("/api/v1/ciem/top-rules")
 async def top_rules(
-    tenant_id: str = Query(...),
     scan_run_id: Optional[str] = Query(None),
     limit: int = Query(20, le=100),
+    auth: Any = Depends(require_permission("ciem:read") if _AUTH_AVAILABLE else (lambda: None)),
 ):
     """Top triggered detection rules by finding count."""
+    tenant_id = (
+        getattr(auth, "engine_tenant_id", None)
+        or getattr(auth, "tenant_id", None)
+        or "default-tenant"
+    )
     import psycopg2.extras
     conn = get_ciem_conn()
     try:
@@ -677,6 +803,96 @@ async def top_rules(
         return {"rules": rules, "count": len(rules)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+@app.get("/api/v1/ciem/log-sources")
+async def log_sources(
+    auth: Any = Depends(require_permission("ciem:read") if _AUTH_AVAILABLE else (lambda: None)),
+) -> Dict[str, Any]:
+    """Return log source coverage status for the CIEM logSources tab.
+
+    Aggregates ciem_findings by source_type and account, deriving an
+    active/stale/unknown status based on last_seen_at recency (48h threshold).
+    Excludes findings where finding_data->>'source_type' IS NULL.
+
+    Returns:
+        Dict with 'sources' list and 'total' count. Each source entry contains:
+        log_type, source_name, provider, account_id, finding_count,
+        last_seen_at (ISO), first_ingested_at (ISO), status.
+    """
+    import time
+    import psycopg2.extras
+    from datetime import datetime, timezone, timedelta
+
+    tenant_id = (
+        getattr(auth, "engine_tenant_id", None)
+        or getattr(auth, "tenant_id", None)
+        or "default-tenant"
+    )
+
+    STALE_THRESHOLD = timedelta(hours=48)
+    t_start = time.monotonic()
+    conn = get_ciem_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SET statement_timeout = 5000")
+            cur.execute("""
+                SELECT
+                    finding_data->>'source_type'           AS log_type,
+                    finding_data->>'log_source'            AS source_name,
+                    provider,
+                    account_id,
+                    COUNT(*)                               AS finding_count,
+                    MAX(last_seen_at)                      AS last_seen_at,
+                    MIN(first_seen_at)                     AS first_ingested_at
+                FROM ciem_findings
+                WHERE tenant_id = %s
+                  AND finding_data->>'source_type' IS NOT NULL
+                GROUP BY
+                    finding_data->>'source_type',
+                    finding_data->>'log_source',
+                    provider,
+                    account_id
+                ORDER BY log_type, account_id
+                LIMIT 500
+            """, [tenant_id])
+            rows = [dict(r) for r in cur.fetchall()]
+
+        now = datetime.now(timezone.utc)
+        for row in rows:
+            last_seen = row.get("last_seen_at")
+            if last_seen is None:
+                row["status"] = "unknown"
+            elif (now - last_seen) < STALE_THRESHOLD:
+                row["status"] = "active"
+            else:
+                row["status"] = "stale"
+            # source_name fallback: use log_type when log_source not populated
+            if not row.get("source_name"):
+                row["source_name"] = row.get("log_type", "unknown")
+            # Convert datetime objects to ISO strings for JSON serialisation
+            if isinstance(last_seen, datetime):
+                row["last_seen_at"] = last_seen.isoformat()
+            first = row.get("first_ingested_at")
+            if isinstance(first, datetime):
+                row["first_ingested_at"] = first.isoformat()
+
+        duration_ms = round((time.monotonic() - t_start) * 1000)
+        logger.info(
+            "log_sources called",
+            extra={
+                "tenant_id": tenant_id,
+                "result_count": len(rows),
+                "caller_level": getattr(auth, "level", "unknown"),
+                "duration_ms": duration_ms,
+            },
+        )
+        return {"sources": rows, "total": len(rows)}
+    except Exception as e:
+        logger.error("log_sources query failed", extra={"tenant_id": tenant_id}, exc_info=True)
+        return {"sources": [], "total": 0}
     finally:
         conn.close()
 

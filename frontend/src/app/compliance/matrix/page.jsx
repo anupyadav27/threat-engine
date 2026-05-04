@@ -36,7 +36,7 @@ export default function ComplianceMatrixPage() {
   const [view, setView] = useState('config'); // config | ciem | combined
 
   useEffect(() => {
-    fetchView('compliance/matrix', { tenant_id: TENANT_ID || 'default-tenant', view })
+    fetchView('compliance/matrix', { view })
       .then(d => setMatrix(d?.matrix || {}))
       .catch(() => {})
       .finally(() => setLoading(false));

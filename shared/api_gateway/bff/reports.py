@@ -13,6 +13,7 @@ from typing import Dict
 
 from fastapi import APIRouter, Query, Request
 
+from ._auth import resolve_tenant_id
 from ._shared import fetch_many, safe_get
 from ._transforms import normalize_report, normalize_scheduled_report, _safe_upper
 
@@ -22,10 +23,10 @@ router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 @router.get("/reports")
 async def view_reports(
     request: Request,
-    tenant_id: str = Query(...),
 ):
     """Single endpoint returning everything the reports page needs."""
 
+    tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 

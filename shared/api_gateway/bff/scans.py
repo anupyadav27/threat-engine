@@ -13,6 +13,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, Request
 
+from ._auth import resolve_tenant_id
 from ._shared import fetch_many, safe_get
 from ._transforms import _safe_upper
 from ._page_context import scans_page_context
@@ -65,13 +66,13 @@ def _cron_to_frequency(cron):
 @router.get("/scans")
 async def view_scans(
     request: Request,
-    tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=200),
 ):
     """Scan history, scheduled scans, and coverage -- built from onboarding/ui-data."""
 
+    tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 
@@ -272,7 +273,8 @@ async def view_scans(
         success_count = a.get("schedule_success_count", 0) or 0
         failure_count = a.get("schedule_failure_count", 0) or 0
         cb["total"] += max(run_count, 1)
-        cb["completed"] += success_count or (1 if (a.get("last_scan_status") or "").lower() in ("completed", "active", "validated") else 0)
+        scan_status = (a.get("last_scan_status") or a.get("account_status") or a.get("account_onboarding_status") or "").lower()
+        cb["completed"] += success_count or (1 if scan_status in ("completed", "active", "validated") else 0)
         cb["failed"] += failure_count
         cb["resources"] += a.get("total_resources", 0) or 0
         cb["findings"] += a.get("total_findings", 0) or 0

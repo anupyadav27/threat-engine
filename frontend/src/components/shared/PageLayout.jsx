@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import { ChevronDown, Info, AlertCircle } from 'lucide-react';
 import DataTable from './DataTable';
 import FilterBar from './FilterBar';
+import LoadingSkeleton from './LoadingSkeleton';
 
 /**
  * Standardized page layout for all CSPM pages.
@@ -91,8 +92,13 @@ export default function PageLayout({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--accent-primary)' }} />
+      <div className="space-y-4">
+        <div className="flex gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="flex-1 h-20 rounded-lg animate-pulse" style={{ backgroundColor: 'var(--bg-card)' }} />
+          ))}
+        </div>
+        <LoadingSkeleton rows={8} cols={5} />
       </div>
     );
   }

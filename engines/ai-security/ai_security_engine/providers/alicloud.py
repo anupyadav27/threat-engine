@@ -9,34 +9,81 @@ from .base import BaseAISecurityProvider
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# AliCloud resource types present in discovery_findings.
-# AliCloud PAI (Platform for AI) resource types are not yet enumerated by
-# the discovery scanner.  We apply AI governance checks against the resource
-# types that ARE present (RAM roles/users, VPC, SecurityGroup, KMS keys)
-# to ensure AI workloads meet minimum ATLAS posture.
+# Valid ATLAS values (AC-S6, AC-S7)
 # ---------------------------------------------------------------------------
+VALID_PILLARS = frozenset({
+    "model_security",
+    "training_data_security",
+    "inference_security",
+    "supply_chain",
+    "ai_governance",
+})
+
+ATLAS_TECHNIQUES: Dict[str, Dict[str, str]] = {
+    "AML.T0000": ("inference_security",     "HIGH",     "Model Evasion",        "Adversary crafts inputs to evade model detection."),
+    "AML.T0001": ("training_data_security", "CRITICAL", "Data Poisoning",       "Adversary injects malicious data into training set."),
+    "AML.T0002": ("inference_security",     "HIGH",     "Model Inversion",      "Adversary extracts training data from model outputs."),
+    "AML.T0003": ("model_security",         "MEDIUM",   "Model Stealing",       "Adversary replicates model via repeated queries."),
+    "AML.T0004": ("supply_chain",           "CRITICAL", "Backdoor ML Model",    "Adversary implants hidden trigger in model weights."),
+    "AML.T0005": ("training_data_security", "CRITICAL", "Poison Training Data", "Adversary corrupts training data pipeline."),
+}
+
+VALID_TECHNIQUES = frozenset(ATLAS_TECHNIQUES.keys())
+
+# ---------------------------------------------------------------------------
+# AliCloud AI/ML resource types consumed from discovery_findings (story spec)
+# ---------------------------------------------------------------------------
+ALICLOUD_AI_RESOURCE_TYPES = {
+    "PAI::Workspace",
+    "MachineLearning::Job",
+    "NLP::Model",
+    "Vision::Model",
+    # Proxy resource types present in discovery_findings
+    "alicloud.ram/Role",
+    "alicloud.ram/User",
+    "alicloud.vpc/Vpc",
+    "alicloud.ecs/SecurityGroup",
+    "alicloud.kms/Key",
+}
 
 
-def _make_finding_id(rule_id: str, resource_uid: str, account_id: str, region: str) -> str:
-    """Deterministic finding_id: sha256(rule_id|resource_uid|account_id|region)[:16]."""
-    raw = f"{rule_id}|{resource_uid}|{account_id}|{region}"
+def _make_finding_id(atlas_pillar: str, atlas_technique: Optional[str],
+                     resource_uid: str, account_id: str, region: str) -> str:
+    """Deterministic finding_id per AC-S3.
+
+    sha256(f"{atlas_pillar}_{atlas_technique}|{resource_uid}|{account_id}|{region}")[:16]
+    """
+    technique_part = atlas_technique or "none"
+    raw = f"{atlas_pillar}_{technique_part}|{resource_uid}|{account_id}|{region}"
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
+def _validate_pillar(pillar: str) -> str:
+    """Validate atlas_pillar (AC-S6)."""
+    if pillar not in VALID_PILLARS:
+        logger.warning("Unknown atlas_pillar '%s' — defaulting to ai_governance", pillar)
+        return "ai_governance"
+    return pillar
+
+
+def _validate_technique(technique: Optional[str]) -> Optional[str]:
+    """Validate atlas_technique (AC-S7). Unknown techniques logged at WARNING."""
+    if technique is None:
+        return None
+    if technique not in VALID_TECHNIQUES:
+        logger.warning("Unknown atlas_technique '%s' — dropping technique field", technique)
+        return None
+    return technique
 
 
 def _atlas_detail(technique_id: Optional[str]) -> Dict[str, str]:
     """Return atlas_detail dict for a given technique ID."""
-    atlas_map = {
-        "AML.T0000": ("Model Evasion", "Adversary crafts inputs to evade model detection."),
-        "AML.T0001": ("Data Poisoning", "Adversary injects malicious data into training set."),
-        "AML.T0002": ("Model Inversion", "Adversary extracts training data from model outputs."),
-        "AML.T0003": ("Model Stealing", "Adversary replicates model via repeated queries."),
-        "AML.T0004": ("Backdoor ML Model", "Adversary implants hidden trigger in model weights."),
-        "AML.T0005": ("Poison Training Data", "Adversary corrupts training data pipeline."),
-    }
     if not technique_id:
         return {}
-    name, desc = atlas_map.get(technique_id, ("", ""))
-    return {"technique_id": technique_id, "technique_name": name, "description": desc}
+    row = ATLAS_TECHNIQUES.get(technique_id)
+    if not row:
+        return {}
+    return {"technique_id": technique_id, "technique_name": row[2], "description": row[3]}
 
 
 def _finding(
@@ -55,9 +102,12 @@ def _finding(
     status: str = "FAIL",
 ) -> Dict[str, Any]:
     """Build a complete ATLAS finding dict for AliCloud."""
+    validated_pillar = _validate_pillar(pillar)
+    validated_technique = _validate_technique(atlas_technique)
     now = datetime.now(timezone.utc)
     return {
-        "finding_id": _make_finding_id(rule_id, resource_uid, account_id, region),
+        "finding_id": _make_finding_id(validated_pillar, validated_technique,
+                                        resource_uid, account_id, region),
         "scan_run_id": scan_run_id,
         "tenant_id": tenant_id,
         "account_id": account_id,
@@ -67,9 +117,10 @@ def _finding(
         "resource_type": resource_type,
         "severity": severity,
         "status": status,
-        "pillar": pillar,
-        "atlas_technique": atlas_technique,
-        "atlas_detail": _atlas_detail(atlas_technique),
+        "atlas_pillar": validated_pillar,
+        "pillar": validated_pillar,
+        "atlas_technique": validated_technique,
+        "atlas_detail": _atlas_detail(validated_technique),
         "blast_radius_score": 0,
         "rule_id": rule_id,
         "title": title,
@@ -80,17 +131,12 @@ def _finding(
 
 
 class AliCloudAISecurityProvider(BaseAISecurityProvider):
-    """AliCloud AI security provider.
+    """AliCloud AI security provider — MITRE ATLAS 5-pillar.
 
-    AliCloud PAI (Platform for AI), EAS (Elastic Algorithm Service), and
-    ALINLP resource types are not yet enumerated by the discovery scanner.
-    This provider applies ATLAS-mapped checks against the AliCloud resources
-    that ARE present:
-    - alicloud.ram/Role — model identity and over-privilege
-    - alicloud.ram/User — AI service account posture
-    - alicloud.vpc/Vpc — AI workload network isolation
-    - alicloud.ecs/SecurityGroup — inference endpoint exposure
-    - alicloud.kms/Key — model encryption and key governance
+    Queries discovery_findings for AliCloud PAI/ML resource types
+    (PAI::Workspace, MachineLearning::*, NLP::*, Vision::*) and proxy
+    resource types (RAM roles, VPC, SecurityGroup, KMS keys) to ensure
+    AI workloads meet minimum ATLAS posture.
     """
 
     @property
@@ -111,11 +157,11 @@ class AliCloudAISecurityProvider(BaseAISecurityProvider):
         discoveries_conn: Any,
         check_conn: Optional[Any] = None,
     ) -> List[Dict[str, Any]]:
-        """Produce MITRE ATLAS findings for AliCloud resources.
+        """Produce MITRE ATLAS findings for AliCloud AI/ML resources.
 
-        Applies AI governance and security checks to AliCloud proxy resource
-        types (RAM, VPC, SecurityGroup, KMS) that are present in
-        discovery_findings.
+        Queries discovery_findings for native AliCloud PAI resource types and
+        proxy resource types (RAM, VPC, SecurityGroup, KMS) with tenant_id
+        filter on all queries (AC-S1).
 
         Args:
             scan_run_id: Current pipeline scan run identifier.
@@ -147,15 +193,16 @@ class AliCloudAISecurityProvider(BaseAISecurityProvider):
             logger.error("AliCloud AI analyze(): DB query failed: %s", exc)
             return findings
 
-        logger.info(
-            "AliCloud AI analyze(): %d resource rows for scan %s", len(rows), scan_run_id
-        )
+        logger.info("AliCloud AI analyze(): %d resource rows for scan %s", len(rows), scan_run_id)
 
         resource_types_seen = {r[1] for r in rows}
         has_ram_role = "alicloud.ram/Role" in resource_types_seen
         has_vpc = "alicloud.vpc/Vpc" in resource_types_seen
         has_sg = "alicloud.ecs/SecurityGroup" in resource_types_seen
         has_kms = "alicloud.kms/Key" in resource_types_seen
+        has_pai_workspace = "PAI::Workspace" in resource_types_seen
+        has_nlp_model = "NLP::Model" in resource_types_seen
+        has_vision_model = "Vision::Model" in resource_types_seen
 
         acct_uid = f"alicloud:{account_id}:ai_governance"
 
@@ -165,11 +212,110 @@ class AliCloudAISecurityProvider(BaseAISecurityProvider):
             r_region = res_region or "cn-hangzhou"
 
             # ------------------------------------------------------------------
+            # Pillar 1 — Model Security: PAI::Workspace
+            # ------------------------------------------------------------------
+            if resource_type == "PAI::Workspace":
+                workspace_type = ef.get("WorkspaceType") or ef.get("workspaceType", "")
+                status_val = ef.get("Status") or ef.get("status", "")
+
+                # Public workspace type → model stealing risk
+                if workspace_type in ("Public", "public"):
+                    findings.append(_finding(
+                        rule_id="alicloud.ai_sec.model_security.pai_workspace_public",
+                        resource_uid=resource_uid,
+                        resource_type=resource_type,
+                        account_id=account_id,
+                        region=r_region,
+                        tenant_id=tenant_id,
+                        scan_run_id=scan_run_id,
+                        severity="HIGH",
+                        pillar="model_security",
+                        atlas_technique="AML.T0003",
+                        title="AliCloud PAI Workspace is public type — model stealing risk",
+                        detail=(
+                            f"WorkspaceType='{workspace_type}'. Public PAI workspaces expose "
+                            "model artifacts and training pipelines to unauthorized access."
+                        ),
+                    ))
+
+                # Workspace without tags → governance gap
+                tags = ef.get("Tags") or ef.get("tags") or []
+                if not tags:
+                    findings.append(_finding(
+                        rule_id="alicloud.ai_sec.ai_governance.pai_workspace_no_tags",
+                        resource_uid=resource_uid,
+                        resource_type=resource_type,
+                        account_id=account_id,
+                        region=r_region,
+                        tenant_id=tenant_id,
+                        scan_run_id=scan_run_id,
+                        severity="LOW",
+                        pillar="ai_governance",
+                        atlas_technique=None,
+                        title="AliCloud PAI Workspace has no tags — AI governance gap",
+                        detail=(
+                            "No tags on PAI Workspace. Tags should include data-owner, "
+                            "environment, and cost-center for AI governance compliance."
+                        ),
+                    ))
+
+            # ------------------------------------------------------------------
+            # Pillar 3 — Inference Security: NLP::Model
+            # ------------------------------------------------------------------
+            if resource_type == "NLP::Model":
+                # Check if endpoint is public
+                endpoint = ef.get("ServiceEndpoint") or ef.get("endpoint", "")
+                model_status = ef.get("ModelStatus") or ef.get("status", "")
+
+                if model_status in ("Running", "Online"):
+                    findings.append(_finding(
+                        rule_id="alicloud.ai_sec.inference_security.nlp_model_running_check",
+                        resource_uid=resource_uid,
+                        resource_type=resource_type,
+                        account_id=account_id,
+                        region=r_region,
+                        tenant_id=tenant_id,
+                        scan_run_id=scan_run_id,
+                        severity="HIGH",
+                        pillar="inference_security",
+                        atlas_technique="AML.T0000",
+                        title="AliCloud NLP Model is running — verify endpoint auth and rate limiting",
+                        detail=(
+                            "NLP model is in Running/Online state. Ensure endpoint authentication "
+                            "and rate limiting are configured to prevent model evasion attacks."
+                        ),
+                    ))
+
+            # ------------------------------------------------------------------
+            # Pillar 3 — Inference Security: Vision::Model
+            # ------------------------------------------------------------------
+            if resource_type == "Vision::Model":
+                model_status = ef.get("Status") or ef.get("status", "")
+                if model_status in ("Running", "Online", "Deployed"):
+                    findings.append(_finding(
+                        rule_id="alicloud.ai_sec.inference_security.vision_model_public_endpoint",
+                        resource_uid=resource_uid,
+                        resource_type=resource_type,
+                        account_id=account_id,
+                        region=r_region,
+                        tenant_id=tenant_id,
+                        scan_run_id=scan_run_id,
+                        severity="HIGH",
+                        pillar="inference_security",
+                        atlas_technique="AML.T0002",
+                        title="AliCloud Vision Model is deployed — verify output filtering for model inversion",
+                        detail=(
+                            "Vision model is deployed and actively serving inference requests. "
+                            "Implement output filtering and differential privacy to prevent "
+                            "model inversion attacks reconstructing training images."
+                        ),
+                    ))
+
+            # ------------------------------------------------------------------
             # Pillar 1 — Model Security: RAM Role checks
             # ------------------------------------------------------------------
             if resource_type == "alicloud.ram/Role":
                 role_name = ef.get("RoleName") or ef.get("roleName", "")
-                # Overly permissive AI service role (AdministratorAccess or *:*)
                 policies = ef.get("AttachedPolicies") or ef.get("Policies") or []
                 has_admin_policy = any(
                     ("Administrator" in str(p) or "*:*" in str(p))
@@ -194,7 +340,6 @@ class AliCloudAISecurityProvider(BaseAISecurityProvider):
                         ),
                     ))
                 else:
-                    # Emit governance PASS for this role
                     findings.append(_finding(
                         rule_id="alicloud.ai_sec.model_security.ram_role_admin_policy",
                         resource_uid=resource_uid,
@@ -220,7 +365,10 @@ class AliCloudAISecurityProvider(BaseAISecurityProvider):
                     if not isinstance(perm, dict):
                         continue
                     direction = perm.get("Direction", "")
-                    source_cidr = perm.get("SourceCidrIp", "") or perm.get("SourceGroupId", "")
+                    source_cidr = (
+                        perm.get("SourceCidrIp", "")
+                        or perm.get("SourceGroupId", "")
+                    )
                     policy = perm.get("Policy", "")
                     port_range = perm.get("PortRange", "")
 
@@ -253,8 +401,6 @@ class AliCloudAISecurityProvider(BaseAISecurityProvider):
             # ------------------------------------------------------------------
             if resource_type == "alicloud.kms/Key":
                 key_state = ef.get("KeyState") or ef.get("keyState", "")
-                key_usage = ef.get("KeyUsage") or ef.get("keyUsage", "")
-                # Disabled or pending deletion key → training data encryption at risk
                 if key_state in ("Disabled", "PendingDeletion"):
                     findings.append(_finding(
                         rule_id="alicloud.ai_sec.training_data_security.kms_key_disabled",
@@ -336,25 +482,46 @@ class AliCloudAISecurityProvider(BaseAISecurityProvider):
                 ),
             ))
 
-        # Pillar 4 — Supply Chain: PAI service not enumerated
-        findings.append(_finding(
-            rule_id="alicloud.ai_sec.supply_chain.pai_service_not_enumerated",
-            resource_uid=acct_uid,
-            resource_type="AliCloudAccount",
-            account_id=account_id,
-            region="cn-hangzhou",
-            tenant_id=tenant_id,
-            scan_run_id=scan_run_id,
-            severity="MEDIUM",
-            pillar="supply_chain",
-            atlas_technique="AML.T0004",
-            title="AliCloud PAI/EAS service not yet enumerated by discovery scanner",
-            detail=(
-                "AliCloud PAI Workspaces, EAS model deployments, and ALINLP resources are "
-                "not yet in discovery_findings. Enable PAI/EAS discovery to evaluate "
-                "model provenance and supply-chain integrity."
-            ),
-        ))
+        if not has_pai_workspace:
+            findings.append(_finding(
+                rule_id="alicloud.ai_sec.supply_chain.pai_workspace_not_enumerated",
+                resource_uid=acct_uid,
+                resource_type="AliCloudAccount",
+                account_id=account_id,
+                region="cn-hangzhou",
+                tenant_id=tenant_id,
+                scan_run_id=scan_run_id,
+                severity="MEDIUM",
+                pillar="supply_chain",
+                atlas_technique="AML.T0004",
+                title="AliCloud PAI Workspace not found in discovery — supply chain assessment limited",
+                detail=(
+                    "PAI::Workspace resources not found in discovery_findings. "
+                    "Enable PAI/EAS discovery to evaluate model provenance and "
+                    "supply-chain integrity."
+                ),
+            ))
+
+        # Pillar 2 — Training data: no KMS and no NLP/Vision models means OSS check limited
+        if not has_kms and not has_nlp_model and not has_vision_model:
+            findings.append(_finding(
+                rule_id="alicloud.ai_sec.training_data_security.no_ai_models_found",
+                resource_uid=acct_uid,
+                resource_type="AliCloudAccount",
+                account_id=account_id,
+                region="cn-hangzhou",
+                tenant_id=tenant_id,
+                scan_run_id=scan_run_id,
+                severity="MEDIUM",
+                pillar="training_data_security",
+                atlas_technique="AML.T0001",
+                title="No AliCloud NLP/Vision models or KMS keys found — training data security gap",
+                detail=(
+                    "No NLP::Model, Vision::Model, or KMS keys detected. "
+                    "Enable AliCloud NLP and Vision service discovery to assess "
+                    "training data poisoning exposure."
+                ),
+            ))
 
         logger.info(
             "AliCloud AI analyze(): produced %d ATLAS findings for scan %s",

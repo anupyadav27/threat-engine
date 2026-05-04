@@ -144,6 +144,7 @@ def normalize_threat(t: dict) -> dict:
     mitre_technique = all_techniques[0] if all_techniques else ""
     mitre_tactic = all_tactics[0] if all_tactics else ""
     resource_type = t.get("resource_type", "")
+    resource_uid = t.get("resource_uid", "")
     return {
         "id": det_id,
         "detection_id": det_id,
@@ -162,8 +163,10 @@ def normalize_threat(t: dict) -> dict:
         "finding_count": t.get("finding_count", 0),
         "provider": _safe_upper(provider),
         "account": account,
+        "accountId": account,
         "region": region,
-        "resource_uid": t.get("resource_uid", ""),
+        "resource_uid": resource_uid,
+        "resourceUid": resource_uid,
         "resource_type": resource_type,
         "resourceType": resource_type,
         "status": t.get("status", "active"),
@@ -200,8 +203,9 @@ def build_mitre_matrix(threats: List[dict]) -> Dict[str, list]:
     """Group normalized threats into MITRE ATT&CK matrix: {tactic: [{id, name, severity, count}]}."""
     matrix: Dict[str, dict] = {}
     for t in threats:
-        tactic = t.get("mitre_tactic", "")
-        technique = t.get("mitre_technique", "")
+        # support both singular (normalized) and plural (raw) field names
+        tactic = t.get("mitre_tactic") or (t.get("mitre_tactics") or [""])[0]
+        technique = t.get("mitre_technique") or (t.get("mitre_techniques") or [""])[0]
         if not tactic or not technique:
             continue
         if tactic not in matrix:
@@ -719,17 +723,31 @@ def build_misconfig_heatmap(findings: List[dict]) -> List[dict]:
 # ── Risk ─────────────────────────────────────────────────────────────────────
 
 def normalize_risk_scenario(s: dict) -> dict:
+    scenario_name = s.get("scenario_name") or s.get("title", "")
+    risk_rating = _safe_lower(s.get("risk_rating"))
+    risk_score = s.get("risk_score") or s.get("score", 0)
+    blast_radius = s.get("blast_radius") or s.get("blast_radius_score", 0)
     return {
-        "scenario_name": s.get("scenario_name", ""),
+        # snake_case (risk page reads these)
+        "scenario_id": s.get("scenario_id", ""),
+        "scenario_name": scenario_name,
         "threat_category": s.get("threat_category", ""),
         "probability": s.get("probability", 0),
         "expected_loss": s.get("expected_loss", 0),
         "worst_case_loss": s.get("worst_case_loss", 0),
-        "risk_rating": _safe_lower(s.get("risk_rating")),
+        "risk_rating": risk_rating,
+        "risk_score": risk_score,
+        "blast_radius": blast_radius,
         "threat_event_frequency": s.get("threat_event_frequency", 0),
         "vulnerability": s.get("vulnerability", 0),
         "loss_magnitude": s.get("loss_magnitude", 0),
         "account": s.get("account", ""),
+        # camelCase aliases
+        "scenarioId": s.get("scenario_id", ""),
+        "title": scenario_name,
+        "riskScore": risk_score,
+        "riskRating": risk_rating,
+        "blastRadius": blast_radius,
     }
 
 

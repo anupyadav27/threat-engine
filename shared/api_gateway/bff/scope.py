@@ -9,6 +9,7 @@ from typing import Optional, Dict, Any, List
 
 from fastapi import APIRouter, Query, Request
 
+from ._auth import resolve_tenant_id_optional
 from ._shared import fetch_many, safe_get
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
@@ -17,9 +18,9 @@ router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 @router.get("/scope")
 async def view_scope(
     request: Request,
-    tenant_id: Optional[str] = Query(None),
 ):
     """Global scope context for the top-of-page selector bar."""
+    tenant_id = resolve_tenant_id_optional(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 

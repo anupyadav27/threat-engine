@@ -13,6 +13,7 @@ from typing import Optional, Dict, List
 
 from fastapi import APIRouter, Query, Request
 
+from ._auth import resolve_tenant_id
 from ._shared import fetch_many, safe_get
 from ._cache import cache_key, cached_view, TTL_THREATS, auth_level_from_header
 from ._transforms import (
@@ -39,7 +40,6 @@ def _enrich_threats_provider(threats, account_provider_map, default_provider="")
 @router.get("/threats")
 async def view_threats(
     request: Request,
-    tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
@@ -47,6 +47,7 @@ async def view_threats(
 ):
     """BFF view for /threats page — detection-level data."""
 
+    tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
     role_level = auth_level_from_header(auth_ctx_header)
@@ -100,24 +101,34 @@ async def view_threats(
     raw_findings = safe_get(threat_data, "findings", []) or []
     threat_findings = [
         {
-            "finding_id":      f.get("finding_id", ""),
-            "rule_id":         f.get("rule_id", ""),
-            "title":           f.get("rule_id", ""),  # rule_id doubles as title
-            "threat_category": f.get("threat_category", ""),
-            "severity":        (f.get("severity") or "medium").lower(),
-            "status":          (f.get("status") or "FAIL").upper(),
-            "resource_type":   f.get("resource_type", ""),
-            "resource_uid":    f.get("resource_uid", ""),
-            "account_id":      f.get("account_id", ""),
-            "account":         f.get("account_id", ""),
-            "region":          f.get("region", ""),
-            "mitre_tactics":   f.get("mitre_tactics", []),
+            "finding_id":       f.get("finding_id", ""),
+            "rule_id":          f.get("rule_id", ""),
+            "ruleId":           f.get("rule_id", ""),
+            "title":            f.get("rule_id", ""),
+            "threat_category":  f.get("threat_category", ""),
+            "severity":         (f.get("severity") or "medium").lower(),
+            "status":           (f.get("status") or "FAIL").upper(),
+            # snake_case (backward compat for detail page fallbacks)
+            "resource_type":    f.get("resource_type", ""),
+            "resource_uid":     f.get("resource_uid", ""),
+            "account_id":       f.get("account_id", ""),
+            "account":          f.get("account_id", ""),
+            "region":           f.get("region", ""),
+            "mitre_tactics":    f.get("mitre_tactics", []),
             "mitre_techniques": f.get("mitre_techniques", []),
-            "provider":        _safe_upper(
+            "first_seen_at":    f.get("first_seen_at"),
+            "last_seen_at":     f.get("last_seen_at"),
+            # camelCase (frontend reads these)
+            "resourceType":     f.get("resource_type", ""),
+            "resourceUid":      f.get("resource_uid", ""),
+            "accountId":        f.get("account_id", ""),
+            "mitreTactics":     f.get("mitre_tactics", []),
+            "mitreTechniqueIds": f.get("mitre_techniques", []),
+            "detectedAt":       f.get("first_seen_at"),
+            "lastSeen":         f.get("last_seen_at"),
+            "provider":         _safe_upper(
                 account_provider_map.get(f.get("account_id", ""), default_provider)
             ),
-            "first_seen_at":   f.get("first_seen_at"),
-            "last_seen_at":    f.get("last_seen_at"),
         }
         for f in raw_findings
     ]

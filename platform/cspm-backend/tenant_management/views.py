@@ -13,9 +13,16 @@ from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.views import APIView
 
-from .models import Tenants, TenantIDPConfig
-from .serializers import TenantSerializer, TenantIDPConfigSerializer
+from .models import Tenants, TenantIDPConfig, CsmGroups, GroupMembers, TenantGroupAccess, AccountGroupAccess
+from .serializers import (
+    TenantSerializer, TenantIDPConfigSerializer,
+    GroupSerializer, GroupMemberSerializer,
+    TenantGroupAccessSerializer, AccountGroupAccessSerializer,
+)
 from .filters import build_tenant_query
+from user_auth.drf_auth import CookieTokenAuthentication
+from user_auth.drf_permissions import HasPermission
+from user_auth.throttles import IDPByDomainRateThrottle
 from user_auth.utils.audit_utils import log_auth_event
 from user_auth.utils.idp_validation import validate_idp_config
 
@@ -38,6 +45,14 @@ class TenantViewSet(
 ):
     serializer_class = TenantSerializer
     pagination_class = TenantsPagination
+    authentication_classes = [CookieTokenAuthentication]
+    permission_classes = [HasPermission("tenants:read")]
+
+    def get_permissions(self):
+        write_actions = {"create", "update", "partial_update", "destroy"}
+        if self.action in write_actions:
+            return [HasPermission("tenants:write")()]
+        return [HasPermission("tenants:read")()]
 
     def get_queryset(self):
         return build_tenant_query(self.request.query_params, user=self.request.user)
@@ -90,7 +105,10 @@ class TenantViewSet(
 
     @action(detail=False, methods=["get"])
     def export(self, request):
-        queryset = self.filter_queryset(self.get_queryset())
+        # Double-filter: queryset already scoped by role; also limit to explicitly
+        # allowed tenant IDs so CSV/XLSX never leaks rows from a concurrent write race.
+        allowed_ids = _user_tenant_ids(request.user) if request.user else []
+        queryset = self.filter_queryset(self.get_queryset()).filter(id__in=allowed_ids)
 
         sort_by = request.query_params.get("sort_by", "created_at")
         order = request.query_params.get("order", "desc")
@@ -159,7 +177,9 @@ def _resolve_request_user(request):
     access_token = request.COOKIES.get("access_token")
     if not access_token:
         return None
-    sessions = UserSessions.objects.filter(revoked=False).select_related("user")
+    sessions = UserSessions.objects.filter(
+        revoked=False, token_hint=access_token[:8]
+    ).select_related("user")
     for session in sessions:
         if session.expires_at < timezone.now():
             continue
@@ -212,6 +232,24 @@ class TenantIDPConfigListCreateView(APIView):
         tenant_id = body.get("tenant_id", "")
         if tenant_id not in [str(t) for t in _user_tenant_ids(user)]:
             return JsonResponse({"message": "Forbidden — not a member of this tenant"}, status=403)
+
+        # Cross-org check: org_admin may not configure IDPs for tenants in another org
+        try:
+            target_tenant = Tenants.objects.get(id=tenant_id)
+            user_customer_id = getattr(user, "customer_id", None) or str(user.id)
+            from user_auth.models import UserRoles
+            user_role_name = (
+                UserRoles.objects.filter(user=user)
+                .select_related("role")
+                .order_by("role__level")
+                .values_list("role__name", flat=True)
+                .first()
+            )
+            if user_role_name != "platform_admin":
+                if target_tenant.customer_id and target_tenant.customer_id != user_customer_id:
+                    return JsonResponse({"message": "Forbidden — cross-org IDP configuration"}, status=403)
+        except Tenants.DoesNotExist:
+            return JsonResponse({"message": "Tenant not found"}, status=404)
 
         idp_type = body.get("idp_type", "")
         config = dict(body.get("config", {}))
@@ -385,15 +423,17 @@ class TenantIDPByDomainView(APIView):
 
     GET /api/v1/tenants/idp-by-domain/?domain=acme.com
 
-    Returns {"tenant_id": "<uuid>", "idp_type": "...", "idp_name": "..."} when found,
-    or {"tenant_id": null} when no match.  No authentication required — callers
-    use the result to redirect to the correct SSO flow.
+    Returns {"redirect_url": "...", "idp_type": "...", "idp_name": "..."} when found,
+    or {"redirect_url": null} when no match.  No authentication required.
+    tenant_id is intentionally omitted — callers must use redirect_url directly.
     """
+
+    throttle_classes = [IDPByDomainRateThrottle]
 
     def get(self, request) -> JsonResponse:
         domain = request.GET.get("domain", "").strip().lower()
         if not domain:
-            return JsonResponse({"tenant_id": None}, status=200)
+            return JsonResponse({"redirect_url": None}, status=200)
 
         config = (
             TenantIDPConfig.objects.filter(
@@ -404,13 +444,347 @@ class TenantIDPByDomainView(APIView):
             .first()
         )
         if not config:
-            return JsonResponse({"tenant_id": None}, status=200)
+            return JsonResponse({"redirect_url": None}, status=200)
+
+        tid = str(config.tenant_id)
+        idp_type = config.idp_type
+        if idp_type == "saml":
+            redirect_url = f"/api/auth/saml/{tid}/login/"
+        elif idp_type in ("oidc", "google_oauth"):
+            redirect_url = f"/api/auth/oidc/login/?tenant={tid}"
+        elif idp_type == "microsoft":
+            redirect_url = "/api/auth/microsoft/login/"
+        else:
+            redirect_url = f"/api/auth/oidc/login/?tenant={tid}"
 
         return JsonResponse(
             {
-                "tenant_id": str(config.tenant_id),
-                "idp_type": config.idp_type,
+                "redirect_url": redirect_url,
+                "idp_type": idp_type,
                 "idp_name": config.idp_name,
             },
             status=200,
         )
+
+
+class ResyncTenantView(APIView):
+    """POST /api/v1/tenants/{tenant_id}/resync/
+
+    Re-enqueue the onboarding sync task for a tenant whose status is 'sync_failed'.
+    Restricted to platform_admin only.
+    """
+
+    def post(self, request, tenant_id: str) -> JsonResponse:
+        user = _resolve_request_user(request)
+        if user is None:
+            return JsonResponse({"message": "Authentication required"}, status=401)
+
+        from user_auth.models import UserRoles
+        user_role = (
+            UserRoles.objects.filter(user=user)
+            .select_related("role")
+            .order_by("role__level")
+            .first()
+        )
+        if not user_role or user_role.role.name != "platform_admin":
+            return JsonResponse({"message": "Forbidden"}, status=403)
+
+        try:
+            tenant = Tenants.objects.get(id=tenant_id)
+        except Tenants.DoesNotExist:
+            return JsonResponse({"message": "Not found"}, status=404)
+
+        if tenant.status == "active":
+            return JsonResponse({"message": "Tenant is already active"}, status=409)
+
+        from user_auth.celery_tasks import sync_tenant_to_onboarding
+        sync_tenant_to_onboarding.apply_async(
+            args=[tenant_id, str(tenant.customer_id or tenant_id)],
+            queue="tenant-sync",
+        )
+        log_auth_event(
+            "tenant.resync_enqueued",
+            request=request,
+            user=user,
+            tenant_id=tenant_id,
+        )
+        return JsonResponse({"message": "Resync enqueued"}, status=200)
+
+
+# ── D-4: Org profile ──────────────────────────────────────────────────────────
+
+class OrgProfileView(APIView):
+    """GET/PATCH /api/v1/org/profile/ — read/update org display name."""
+    authentication_classes = [CookieTokenAuthentication]
+    permission_classes     = [HasPermission("orgs:read")]
+
+    def get(self, request):
+        user = request.user
+        customer_id = getattr(user, "customer_id", None) or str(user.id)
+        tenants = list(
+            Tenants.objects.filter(customer_id=customer_id)
+            .values("id", "name", "status", "tenant_type")
+        )
+        return Response({
+            "customer_id":   customer_id,
+            "email":         user.email,
+            "display_name":  user.get_full_name() or user.email,
+            "tenants":       tenants,
+        })
+
+    def patch(self, request):
+        from user_auth.drf_permissions import HasPermission as _HP
+        _HP("orgs:write")().has_permission(request, self)
+        name = (request.data.get("display_name") or "").strip()
+        if name:
+            parts = name.split(" ", 1)
+            request.user.first_name = parts[0]
+            request.user.last_name  = parts[1] if len(parts) > 1 else ""
+            request.user.save(update_fields=["first_name", "last_name"])
+        return Response({"updated": True})
+
+
+# ── D-1: Group management ─────────────────────────────────────────────────────
+
+def _user_customer_id(user) -> str:
+    return getattr(user, "customer_id", None) or str(user.id)
+
+
+class GroupViewSet(viewsets.ModelViewSet):
+    """CRUD for customer-scoped groups. customer_id is ALWAYS server-side."""
+    authentication_classes = [CookieTokenAuthentication]
+    permission_classes     = [HasPermission("groups:read")]
+    serializer_class       = GroupSerializer
+
+    def get_queryset(self):
+        customer_id = _user_customer_id(self.request.user)
+        if not customer_id:
+            return CsmGroups.objects.none()
+        from user_auth.models import UserRoles
+        role = UserRoles.objects.filter(user=self.request.user).select_related("role").order_by("role__level").first()
+        if role and role.role.level == 1:  # platform_admin — see all
+            return CsmGroups.objects.all().order_by("name")
+        return CsmGroups.objects.filter(customer_id=customer_id).order_by("name")
+
+    def get_permissions(self):
+        if self.action in ("create", "update", "partial_update", "destroy"):
+            return [HasPermission("groups:write")()]
+        return super().get_permissions()
+
+    def perform_create(self, serializer):
+        serializer.save(
+            customer_id=_user_customer_id(self.request.user),
+            created_by=self.request.user,
+        )
+
+
+class GroupMemberViewSet(viewsets.ModelViewSet):
+    """Nested under /groups/{group_pk}/members/."""
+    authentication_classes = [CookieTokenAuthentication]
+    permission_classes     = [HasPermission("groups:write")]
+    serializer_class       = GroupMemberSerializer
+    http_method_names      = ["get", "post", "delete", "head", "options"]
+
+    def _get_group(self):
+        from django.shortcuts import get_object_or_404
+        return get_object_or_404(
+            CsmGroups,
+            pk=self.kwargs["group_pk"],
+            customer_id=_user_customer_id(self.request.user),
+        )
+
+    def get_queryset(self):
+        return GroupMembers.objects.filter(group=self._get_group()).select_related("user")
+
+    def perform_create(self, serializer):
+        from django.shortcuts import get_object_or_404
+        from user_auth.models import Users
+        group   = self._get_group()
+        user_id = self.request.data.get("user_id")
+        user    = get_object_or_404(Users, id=user_id)
+        serializer.save(group=group, user=user)
+
+
+# ── D-2: Invite flow ─────────────────────────────────────────────────────────
+
+class InviteCreateView(APIView):
+    """POST /api/v1/invites/ — create an invite for an email to a tenant with a role."""
+    authentication_classes = [CookieTokenAuthentication]
+    permission_classes     = [HasPermission("users:write")]
+
+    def post(self, request):
+        import secrets as _secrets
+        from datetime import timedelta
+        from django.shortcuts import get_object_or_404
+        from user_auth.models import Roles, InviteTokens
+        from user_auth.utils.email_utils import send_invite_email
+        from user_auth.utils.audit_utils import log_auth_event
+
+        email     = (request.data.get("email") or "").strip().lower()
+        tenant_id = request.data.get("tenant_id")
+        role_name = request.data.get("role", "viewer")
+
+        if not email or not tenant_id:
+            return Response({"error": "email and tenant_id are required"}, status=400)
+
+        customer_id = _user_customer_id(request.user)
+        tenant = get_object_or_404(Tenants, id=tenant_id, customer_id=customer_id)
+
+        # Cap role — inviter cannot grant higher than their own level
+        from user_auth.models import UserRoles
+        inviter_role = (
+            UserRoles.objects.filter(user=request.user)
+            .select_related("role")
+            .order_by("role__level")
+            .first()
+        )
+        inviter_level = inviter_role.role.level if inviter_role else 99
+        target_role = Roles.objects.filter(name=role_name).first()
+        if not target_role or target_role.level < inviter_level:
+            # Silently cap to viewer
+            target_role = Roles.objects.filter(name="viewer").first()
+
+        raw_token = _secrets.token_urlsafe(32)
+        invite = InviteTokens.objects.create(
+            token=raw_token,
+            email=email,
+            tenant=tenant,
+            role=target_role,
+            invited_by=request.user,
+            expires_at=timezone.now() + timedelta(days=7),
+            used=False,
+        )
+        try:
+            send_invite_email(email, invite_token=raw_token, tenant_name=tenant.name, invited_by=request.user.email)
+        except Exception:
+            pass  # non-fatal — invite record created, email may be queued
+
+        log_auth_event("invite.created", request=request, user=request.user, tenant_id=tenant_id)
+        return Response({"id": str(invite.id), "email": email, "expires_at": invite.expires_at.isoformat()}, status=201)
+
+
+class InviteDetailView(APIView):
+    """GET /api/v1/invites/{token}/ — validate invite token (public endpoint for UI pre-check)."""
+
+    def get(self, request, token: str):
+        from user_auth.models import InviteTokens
+        try:
+            invite = InviteTokens.objects.select_related("tenant", "role").get(token=token)
+        except InviteTokens.DoesNotExist:
+            return Response({"valid": False, "reason": "not_found"}, status=404)
+        if invite.used:
+            return Response({"valid": False, "reason": "already_used"}, status=410)
+        if invite.expires_at < timezone.now():
+            return Response({"valid": False, "reason": "expired"}, status=410)
+        return Response({
+            "valid":       True,
+            "email":       invite.email,
+            "tenant_name": invite.tenant.name if invite.tenant else None,
+            "role":        invite.role.name if invite.role else "viewer",
+            "expires_at":  invite.expires_at.isoformat(),
+        })
+
+
+class InviteAcceptView(APIView):
+    """POST /api/v1/invites/{token}/accept/ — accept invite (authenticated user)."""
+    authentication_classes = [CookieTokenAuthentication]
+
+    def post(self, request, token: str):
+        from user_auth.models import InviteTokens
+        from user_auth.utils.tenant_utils import accept_invite_membership
+        from user_auth.utils.audit_utils import log_auth_event
+
+        try:
+            invite = InviteTokens.objects.select_related("tenant").get(token=token)
+        except InviteTokens.DoesNotExist:
+            return Response({"error": "Invite not found"}, status=404)
+        if invite.used:
+            return Response({"error": "Invite already used"}, status=409)
+        if invite.expires_at < timezone.now():
+            return Response({"error": "Invite expired"}, status=410)
+
+        result = accept_invite_membership(user=request.user, invite=invite)
+        invite.used = True
+        invite.save(update_fields=["used"])
+
+        cross_org = result.get("cross_org_invite", False) if isinstance(result, dict) else False
+        if cross_org:
+            log_auth_event("invite.cross_org_capped", request=request, user=request.user)
+
+        return Response({"joined": True, "cross_org": cross_org})
+
+
+# ── D-3: Group access assignment ──────────────────────────────────────────────
+
+class TenantGroupAccessView(APIView):
+    """POST/GET /api/v1/tenants/{tenant_id}/group-access/ and DELETE /{access_id}/"""
+    authentication_classes = [CookieTokenAuthentication]
+    permission_classes     = [HasPermission("tenants:write")]
+
+    def _get_tenant(self, request, tenant_id: str):
+        from django.shortcuts import get_object_or_404
+        return get_object_or_404(Tenants, id=tenant_id, customer_id=_user_customer_id(request.user))
+
+    def get(self, request, tenant_id: str):
+        self.permission_classes = [HasPermission("tenants:read")]
+        tenant  = self._get_tenant(request, tenant_id)
+        accesses = TenantGroupAccess.objects.filter(tenant=tenant).select_related("group", "role")
+        return Response(TenantGroupAccessSerializer(accesses, many=True).data)
+
+    def post(self, request, tenant_id: str):
+        from django.shortcuts import get_object_or_404
+        from user_auth.models import Roles
+        tenant   = self._get_tenant(request, tenant_id)
+        group    = get_object_or_404(CsmGroups, id=request.data.get("group_id"), customer_id=_user_customer_id(request.user))
+        role     = get_object_or_404(Roles, name=request.data.get("role", "viewer"))
+        access, created = TenantGroupAccess.objects.get_or_create(
+            group=group, tenant=tenant, defaults={"role": role}
+        )
+        if not created:
+            access.role = role
+            access.save(update_fields=["role"])
+        return Response(TenantGroupAccessSerializer(access).data, status=201 if created else 200)
+
+    def delete(self, request, tenant_id: str, access_id: str):
+        from django.shortcuts import get_object_or_404
+        tenant = self._get_tenant(request, tenant_id)
+        access = get_object_or_404(TenantGroupAccess, id=access_id, tenant=tenant)
+        access.delete()
+        return Response(status=204)
+
+
+class AccountGroupAccessView(APIView):
+    """POST/GET/DELETE for /api/v1/tenants/{tenant_id}/accounts/{account_id}/group-access/"""
+    authentication_classes = [CookieTokenAuthentication]
+    permission_classes     = [HasPermission("tenants:write")]
+
+    def _get_tenant(self, request, tenant_id: str):
+        from django.shortcuts import get_object_or_404
+        return get_object_or_404(Tenants, id=tenant_id, customer_id=_user_customer_id(request.user))
+
+    def get(self, request, tenant_id: str, account_id: str):
+        self.permission_classes = [HasPermission("tenants:read")]
+        tenant   = self._get_tenant(request, tenant_id)
+        accesses = AccountGroupAccess.objects.filter(tenant=tenant, account_id=account_id).select_related("group", "role")
+        return Response(AccountGroupAccessSerializer(accesses, many=True).data)
+
+    def post(self, request, tenant_id: str, account_id: str):
+        from django.shortcuts import get_object_or_404
+        from user_auth.models import Roles
+        tenant   = self._get_tenant(request, tenant_id)
+        group    = get_object_or_404(CsmGroups, id=request.data.get("group_id"), customer_id=_user_customer_id(request.user))
+        role     = get_object_or_404(Roles, name=request.data.get("role", "viewer"))
+        access, created = AccountGroupAccess.objects.get_or_create(
+            group=group, tenant=tenant, account_id=account_id, defaults={"role": role}
+        )
+        if not created:
+            access.role = role
+            access.save(update_fields=["role"])
+        return Response(AccountGroupAccessSerializer(access).data, status=201 if created else 200)
+
+    def delete(self, request, tenant_id: str, account_id: str, access_id: str):
+        from django.shortcuts import get_object_or_404
+        tenant = self._get_tenant(request, tenant_id)
+        access = get_object_or_404(AccountGroupAccess, id=access_id, tenant=tenant, account_id=account_id)
+        access.delete()
+        return Response(status=204)

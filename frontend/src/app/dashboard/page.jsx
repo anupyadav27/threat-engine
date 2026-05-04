@@ -11,7 +11,8 @@ import Link from 'next/link';
 import { fetchView } from '@/lib/api';
 import { useGlobalFilter } from '@/lib/global-filter-context';
 import { useAuth } from '@/lib/auth-context';
-import { TENANT_ID } from '@/lib/constants';
+import { useTenant } from '@/lib/tenant-context';
+import { useViewFetch } from '@/lib/use-view-fetch';
 import {
   MOCK_DASHBOARD, MOCK_THREATS, MOCK_FRAMEWORKS, MOCK_POSTURE,
 } from '@/lib/mock-data';
@@ -30,58 +31,6 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList, ReferenceLine,
 } from 'recharts';
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   MULTI-TENANT DATA — each tenant has accounts + per-tenant aggregate domain
-   scores + per-account domain scores. BFF: replace with /api/v1/tenants/{id}/posture
-   ═══════════════════════════════════════════════════════════════════════════ */
-const DS = (c,t,i,m,d,n,cs,r) => ({ compliance:c, threats:t, iam:i, misconfigs:m, dataSec:d, network:n, codeSec:cs, risk:r });
-const DC = (i,t,m,d,cs,r,n,c) => ({ iam:i, threats:t, misconfigs:m, dataSec:d, codeSec:cs, risk:r, network:n, compliance:c });
-
-const MOCK_TENANTS = [
-  {
-    id:'acme', name:'Acme Corp', criticals:23,
-    domainScores: DS(76,58,42,71,63,69,55,48),
-    domainCritical: DC(9,6,5,3,4,7,2,0),
-    accounts:[
-      { id:'aws-prod',  name:'AWS Production',  provider:'aws',   status:'healthy', regions:8, resources:9412,  criticals:12, score:82, lastScan:'2h ago',  nextScan:'~4h',  scanState:'ok',     credentialStatus:'valid',    credentialNote:'Expires in 87d', coverage:100,
-        domainScores: DS(78,61,44,73,65,71,57,50), domainCritical: DC(4,3,2,1,2,3,1,0) },
-      { id:'aws-stg',   name:'AWS Staging',     provider:'aws',   status:'healthy', regions:3, resources:1843,  criticals:4,  score:74, lastScan:'4h ago',  nextScan:'~2h',  scanState:'ok',     credentialStatus:'valid',    credentialNote:'Expires in 71d', coverage:98,
-        domainScores: DS(74,55,38,70,60,67,52,45), domainCritical: DC(3,2,2,1,1,2,1,0) },
-      { id:'azure-crp', name:'Azure Corp',      provider:'azure', status:'healthy', regions:4, resources:1247,  criticals:7,  score:71, lastScan:'1h ago',  nextScan:'~5h',  scanState:'ok',     credentialStatus:'expiring', credentialNote:'Expires in 12d', coverage:100,
-        domainScores: DS(75,57,40,69,62,68,54,47), domainCritical: DC(2,1,1,1,1,2,0,0) },
-      { id:'gcp-ana',   name:'GCP Analytics',   provider:'gcp',   status:'warning', regions:2, resources:345,   criticals:0,  score:0,  lastScan:'3d ago',  nextScan:'N/A',  scanState:'failed', credentialStatus:'expired',  credentialNote:'Re-auth required',  coverage:0,
-        statusDetail:'Credential expired — re-auth needed',
-        domainScores: DS(0,0,0,0,0,0,0,0), domainCritical: DC(0,0,0,0,0,0,0,0) },
-    ],
-  },
-  {
-    id:'techcorp', name:'TechCorp Inc', criticals:15,
-    domainScores: DS(68,71,55,63,58,74,61,52),
-    domainCritical: DC(5,4,3,2,1,0,0,0),
-    accounts:[
-      { id:'az-ent',  name:'Azure Enterprise', provider:'azure', status:'healthy', regions:6, resources:3240, criticals:9, score:68, lastScan:'3h ago', nextScan:'~3h', scanState:'ok',    credentialStatus:'valid',   credentialNote:'Expires in 55d', coverage:100,
-        domainScores: DS(67,72,54,62,57,75,61,51), domainCritical: DC(3,2,2,1,1,0,0,0) },
-      { id:'aws-dev', name:'AWS DevOps',        provider:'aws',   status:'healthy', regions:2, resources:890,  criticals:6, score:71, lastScan:'5h ago', nextScan:'~1h', scanState:'ok',    credentialStatus:'valid',   credentialNote:'Expires in 43d', coverage:97,
-        domainScores: DS(69,70,56,64,59,73,61,53), domainCritical: DC(2,2,1,1,0,0,0,0) },
-    ],
-  },
-  {
-    id:'financeco', name:'Finance Co', criticals:8,
-    domainScores: DS(82,74,71,79,76,80,68,73),
-    domainCritical: DC(2,3,1,2,0,0,0,0),
-    accounts:[
-      { id:'gcp-prim', name:'GCP Primary',    provider:'gcp',   status:'healthy', regions:3, resources:1560, criticals:3, score:79, lastScan:'1h ago', nextScan:'~5h', scanState:'ok',    credentialStatus:'valid',   credentialNote:'Expires in 102d', coverage:100,
-        domainScores: DS(83,75,72,80,77,81,69,74), domainCritical: DC(1,2,1,1,0,0,0,0) },
-      { id:'aws-comp', name:'AWS Compliance', provider:'aws',   status:'healthy', regions:4, resources:2100, criticals:5, score:76, lastScan:'2h ago', nextScan:'~4h', scanState:'ok',    credentialStatus:'valid',   credentialNote:'Expires in 68d',  coverage:100,
-        domainScores: DS(81,73,70,78,75,79,67,72), domainCritical: DC(1,1,0,1,0,0,0,0) },
-      { id:'az-bkp',  name:'Azure Backup',   provider:'azure', status:'warning', regions:1, resources:340,  criticals:0, score:0,  lastScan:'7d ago', nextScan:'N/A', scanState:'stale', credentialStatus:'valid',   credentialNote:'Expires in 30d',  coverage:0,
-        statusDetail:'Scan not running — check agent',
-        domainScores: DS(0,0,0,0,0,0,0,0), domainCritical: DC(0,0,0,0,0,0,0,0) },
-    ],
-  },
-];
-const ALL_DOMAIN_SCORES   = DS(76,58,42,71,63,69,55,48);
-const ALL_DOMAIN_CRITICAL = DC(9,6,5,3,4,7,2,0);
 
 /* ═══════════════════════════════════════════════════════════════════════════
    SEVERITY BADGE — reusable inline badge for table cells
@@ -693,17 +642,8 @@ const DOMAIN_VIEWS = {
         /* ═══ FOOTER — Top Affected Accounts (by threat severity) ═══ */
         footer: (() => {
           const SEV_C3 = { critical:'#ef4444', high:'#f97316', medium:'#f59e0b', low:'#10b981' };
-          /* Rank accounts by threat domain criticals + overall criticals as weight */
-          const ranked = MOCK_TENANTS.flatMap(t =>
-            t.accounts.map(acc => {
-              const threatCrit  = acc.domainCritical?.threats  || 0;
-              const threatScore = acc.domainScores?.threats    || 0;
-              const highProxy   = Math.round(acc.criticals * 1.6);
-              const medProxy    = Math.round(acc.criticals * 2.8);
-              const weight      = threatCrit * 4 + acc.criticals * 3 + highProxy;
-              return { ...acc, tenantName: t.name, tenantId: t.id, threatCrit, threatScore, highProxy, medProxy, weight };
-            })
-          ).sort((a, b) => b.weight - a.weight).slice(0, 6);
+          /* Accounts data comes from BFF — show empty state until backend provides per-account threat data */
+          const ranked = [];
 
           const maxWeight = ranked[0]?.weight || 1;
 
@@ -817,12 +757,7 @@ const DOMAIN_VIEWS = {
               <div className="px-5 py-2 border-t flex items-center gap-3 flex-wrap"
                 style={{ borderColor:'var(--border-primary)', backgroundColor:'var(--bg-secondary)' }}>
                 <span className="text-xs" style={{ color:'var(--text-muted)' }}>
-                  <span className="font-semibold" style={{ color:'#ef4444' }}>
-                    {MOCK_TENANTS.flatMap(t=>t.accounts).reduce((s,a)=>s+(a.criticals||0),0)}
-                  </span> total criticals ·{' '}
-                  <span className="font-semibold" style={{ color:'var(--text-secondary)' }}>
-                    {MOCK_TENANTS.flatMap(t=>t.accounts).length}
-                  </span> accounts monitored
+                  Account-level threat data available once BFF per-account endpoint is live
                 </span>
               </div>
             </>
@@ -932,17 +867,11 @@ const DOMAIN_VIEWS = {
            Framework Scores bar + Top Failing Accounts list
            ═══════════════════════════════════════════════════════════ */
         right: (() => {
-          /* Per-account compliance score — derived from domainScores.compliance */
-          const accountRows = MOCK_TENANTS.flatMap(t =>
-            t.accounts
-              .filter(a => (a.domainScores?.compliance || 0) > 0)
-              .map(a => ({
-                name: a.name, provider: a.provider, tenant: t.name,
-                score: a.domainScores.compliance,
-                criticals: a.domainCritical?.compliance || 0,
-                failingControls: Math.round((1 - a.domainScores.compliance / 100) * 50),
-              }))
-          ).sort((a,b) => a.score - b.score).slice(0, 5); // worst first
+          /* Per-account compliance score — provided by BFF when available */
+          const accountRows = (d.accountCompliance || [])
+            .filter(a => (a.score || 0) > 0)
+            .sort((a, b) => a.score - b.score)
+            .slice(0, 5);
 
           return (
             <>
@@ -1419,17 +1348,9 @@ const DOMAIN_VIEWS = {
         /* ═══ BOTTOM RIGHT — "Which accounts have worst IAM posture?"
                Ranked by IAM domain score, lowest first ═══ */
         bottomRight: (() => {
-          const iamAccounts = MOCK_TENANTS.flatMap(t =>
-            t.accounts
-              .filter(a => (a.domainScores?.iam || 0) > 0)
-              .map(a => ({
-                name: a.name, provider: a.provider, tenant: t.name,
-                score: a.domainScores.iam,
-                criticals: a.domainCritical?.iam || 0,
-                mfaIssues: Math.round((1 - a.domainScores.iam / 100) * 8),
-                staleKeys: Math.round((1 - a.domainScores.iam / 100) * 5),
-              }))
-          ).sort((a,b) => a.score - b.score);
+          const iamAccounts = (d.accountIam || [])
+            .filter(a => (a.score || 0) > 0)
+            .sort((a, b) => a.score - b.score);
 
           const scoreC = (s) => s >= 75 ? '#22c55e' : s >= 50 ? '#f97316' : '#ef4444';
 
@@ -2020,15 +1941,7 @@ const DOMAIN_VIEWS = {
 
         /* ══ RIGHT: Security Group Risk by Account ══════════════════════════════ */
         right: (() => {
-          const sgAccounts = MOCK_TENANTS.flatMap(t =>
-            t.accounts.filter(a => a.resources > 0).map((a, idx) => {
-              const base    = Math.round(a.resources / 100);
-              const unrest  = Math.max(0, Math.round(base * (1.2 - (a.score||60)/100) + idx));
-              const unused  = Math.round(base * 0.4 + idx * 2);
-              const total   = Math.round(base * 3 + 10);
-              return { name:a.name, provider:a.provider, total, unrest, unused, score:a.score||0 };
-            })
-          ).sort((a,b) => b.unrest - a.unrest);
+          const sgAccounts = (d.sgAccountRisk || []).sort((a, b) => b.unrest - a.unrest);
           const totalUnrest = sgAccounts.reduce((s,a)=>s+a.unrest,0);
           const totalUnused = sgAccounts.reduce((s,a)=>s+a.unused,0);
           const totalSGs    = sgAccounts.reduce((s,a)=>s+a.total,0);
@@ -2252,15 +2165,7 @@ const DOMAIN_VIEWS = {
 
         /* ══ BOTTOM LEFT: Risk by Account ════════════════════════════════════════ */
         bottomLeft: (() => {
-          const riskAccounts = MOCK_TENANTS.flatMap(t =>
-            t.accounts.filter(a => a.resources > 0).map((a, idx) => {
-              const riskScore   = Math.max(0, 100 - (a.score || 50));
-              const exposure    = Math.round((riskScore / 100) * 800000 + idx * 50000);
-              const scenarios   = Math.max(1, Math.round(riskScore / 15) + idx % 3);
-              const critScenarios = Math.max(0, Math.round(riskScore / 30));
-              return { name:a.name, provider:a.provider, tenant:t.name, riskScore, exposure, scenarios, critScenarios };
-            })
-          ).sort((a, b) => b.riskScore - a.riskScore);
+          const riskAccounts = (d.accountRisk || []).sort((a, b) => b.riskScore - a.riskScore);
           const fmtK = (v) => v >= 1000000 ? `$${(v/1000000).toFixed(1)}M` : `$${(v/1000).toFixed(0)}K`;
           const RC = (s) => s >= 50 ? '#ef4444' : s >= 30 ? '#f97316' : '#f59e0b';
           return (
@@ -2831,55 +2736,71 @@ function DomainDashboard({ view, data }) {
    MAIN DASHBOARD PAGE
    ═══════════════════════════════════════════════════════════════════════════ */
 export default function DashboardPage() {
-  const [loading, setLoading] = useState(true);
-  const [pageError, setPageError] = useState(null);
   const [activeView, setActiveView] = useState('overview');
   const [domainData, setDomainData] = useState({});
 
-  /* ── Tenant / Account filter (shared by Domain Breakdown + Cloud Health) ── */
+  /* ── Real tenant context from TenantContext ── */
+  const { tenants, activeTenant: contextActiveTenant, setActiveTenant: setContextActiveTenant } = useTenant();
+
+  /* ── Tenant / Account filter (UI state — tenant pill selector in filter bar) ── */
   const [selectedTenantId,  setSelectedTenantId]  = useState('all');
   const [selectedAccountId, setSelectedAccountId] = useState('all');
 
   /* Which tenant groups are collapsed in the "All tenants" view — starts all expanded */
   const [collapsedTenants, setCollapsedTenants] = useState(new Set());
-  const toggleTenantCollapse = (tenantId) =>
+  const toggleTenantCollapse = (tid) =>
     setCollapsedTenants(prev => {
       const next = new Set(prev);
-      next.has(tenantId) ? next.delete(tenantId) : next.add(tenantId);
+      next.has(tid) ? next.delete(tid) : next.add(tid);
       return next;
     });
 
-  const activeTenant  = useMemo(() => MOCK_TENANTS.find(t => t.id === selectedTenantId) ?? null, [selectedTenantId]);
-  const activeAccount = useMemo(() => activeTenant?.accounts.find(a => a.id === selectedAccountId) ?? null, [activeTenant, selectedAccountId]);
+  /* activeTenant here is the currently selected tenant pill (for filter-bar drill-down),
+     not the workspace switcher. Keep them independent. */
+  const activeTenant  = useMemo(() => tenants.find(t => t.tenant_id === selectedTenantId) ?? null, [tenants, selectedTenantId]);
+  const activeAccount = null; // account-level drill-down not available without BFF per-account endpoint
 
-  /* Domain scores based on filter level */
-  const activeDomainScores   = activeAccount?.domainScores   ?? activeTenant?.domainScores   ?? ALL_DOMAIN_SCORES;
-  const activeDomainCritical = activeAccount?.domainCritical ?? activeTenant?.domainCritical ?? ALL_DOMAIN_CRITICAL;
+  /* Total criticals for active context — from BFF data */
+  const activeCriticals = 0;
 
+  /* ── BFF fetch for overview via useViewFetch (auto tenant + global filters) ── */
+  const { data: bffData, loading: bffLoading, error: bffError } = useViewFetch('dashboard');
 
-  /* Accounts to list in Cloud Account Health */
-  const displayAccounts = activeTenant?.accounts ?? null; // null = show all tenants grouped
+  /* Extract data slices from BFF response */
+  const kpiData              = bffData?.kpi                || {};
+  const securityScoreTrendData = bffData?.securityScoreTrendData || [];
+  const realComplianceFrameworks = bffData?.frameworks     || [];
+  const mitreTopTechniques   = bffData?.mitreTopTechniques || [];
+  const toxicCombos          = bffData?.toxicCombinations  || [];
+  const remediationSLA       = bffData?.remediationSLA     || [];
+  const riskyResources       = bffData?.riskyResources     || [];
+  const criticalAlerts       = bffData?.criticalAlerts     || [];
+  const cloudHealthData      = bffData?.cloudHealthData    || [];
+  const findingsByCategoryData = bffData?.findingsByCategoryData || [];
 
-  /* Total criticals for active context */
-  const activeCriticals = activeAccount?.criticals
-    ?? activeTenant?.criticals
-    ?? MOCK_TENANTS.reduce((s, t) => s + t.criticals, 0);
-
-  // BFF data slices (overview)
-  const [kpiData, setKpiData] = useState({});
-  const [securityScoreTrendData, setSecurityScoreTrendData] = useState([]);
-  const [realComplianceFrameworks, setRealComplianceFrameworks] = useState([]);
-  const [mitreTopTechniques, setMitreTopTechniques] = useState([]);
-  const [toxicCombos, setToxicCombos] = useState([]);
-  const [remediationSLA, setRemediationSLA] = useState([]);
-  const [riskyResources, setRiskyResources] = useState([]);
-  const [criticalAlerts, setCriticalAlerts] = useState([]);
-  const [cloudHealthData, setCloudHealthData] = useState([]);
-  const [findingsByCategoryData, setFindingsByCategoryData] = useState([]);
+  const loading    = bffLoading;
+  const pageError  = bffError;
 
   const { provider: filterProvider } = useGlobalFilter();
-  const { selectedTenant } = useAuth();
-  const tenantId = selectedTenant || TENANT_ID || 'default-tenant';
+
+  // ── Lazy-load domain data on tab switch ────────────────────────────────
+  useEffect(() => {
+    if (activeView === 'overview') return;
+    if (domainData[activeView]) return; // already cached
+
+    const config = DOMAIN_VIEWS[activeView];
+    if (!config) return;
+
+    fetchView(config.bffView, filterProvider ? { provider: filterProvider } : {})
+      .then((data) => {
+        if (!data.error) {
+          setDomainData((prev) => ({ ...prev, [activeView]: data }));
+        }
+      })
+      .catch((err) => {
+        console.warn(`Failed to load ${activeView} data:`, err);
+      });
+  }, [activeView, filterProvider, domainData]);
 
   // Derive severity totals for the donut from findingsByCategoryData
   const severityTotals = useMemo(() => {
@@ -2898,130 +2819,6 @@ export default function DashboardPage() {
     () => mitreTopTechniques.slice(0, 5).map((t) => ({ name: `${t.id} ${t.name}`, value: t.count })),
     [mitreTopTechniques],
   );
-
-  // ── Single BFF fetch for overview ──────────────────────────────────────
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      try {
-        const data = await fetchView('dashboard', { tenant_id: tenantId, provider: filterProvider || undefined });
-        if (data.error) { setPageError(data.error); return; }
-
-        if (data.kpi)                    setKpiData(data.kpi);
-        else setKpiData({
-          totalAssets: MOCK_DASHBOARD.total_assets,
-          criticalHighFindings: MOCK_DASHBOARD.critical_threats + MOCK_DASHBOARD.high_threats,
-          complianceScore: Math.round(MOCK_DASHBOARD.compliance_score),
-          activeThreats: MOCK_DASHBOARD.total_threats,
-          internetExposed: 156,
-          mttr: 4.2, slaCompliance: 87, attackSurfaceScore: 34,
-          criticalHighFindingsChange: +3, complianceScoreChange: +2,
-        });
-        if (data.securityScoreTrendData) setSecurityScoreTrendData(data.securityScoreTrendData);
-        else setSecurityScoreTrendData(
-          /* 30-day per-engine trends + overall aggregate */
-          Array.from({ length: 30 }, (_, i) => {
-            const t = i / 29;
-            const wave = (phase, amp) => Math.round(Math.sin(i / 4 + phase) * amp);
-            const engines = {
-              compliance: Math.min(100, Math.max(0, Math.round(68 + t * 8  + wave(0,   3)))),
-              threats:    Math.min(100, Math.max(0, Math.round(52 + t * 6  + wave(1,   4)))),
-              iam:        Math.min(100, Math.max(0, Math.round(44 - t * 2  + wave(0.5, 3)))),
-              misconfigs: Math.min(100, Math.max(0, Math.round(65 + t * 6  + wave(2,   3)))),
-              dataSec:    Math.min(100, Math.max(0, Math.round(58 + t * 5  + wave(1.5, 3)))),
-              network:    Math.min(100, Math.max(0, Math.round(63 + t * 6  + wave(3,   4)))),
-              codeSec:    Math.min(100, Math.max(0, Math.round(50 + t * 5  + wave(2.5, 3)))),
-              risk:       Math.min(100, Math.max(0, Math.round(52 - t * 4  + wave(1,   3)))),
-            };
-            const vals = Object.values(engines);
-            const overall = Math.round(vals.reduce((s, v) => s + v, 0) / vals.length);
-            return {
-              date: new Date(2024, 0, i + 1).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-              overall,
-              ...engines,
-            };
-          })
-        );
-        if (data.frameworks)             setRealComplianceFrameworks(data.frameworks);
-        else setRealComplianceFrameworks(MOCK_FRAMEWORKS);
-        if (data.mitreTopTechniques)     setMitreTopTechniques(data.mitreTopTechniques);
-        else setMitreTopTechniques([
-          {id:'T1530',name:'Data from Cloud Storage',count:28},
-          {id:'T1190',name:'Exploit Public-Facing App',count:21},
-          {id:'T1078',name:'Valid Accounts',count:19},
-          {id:'T1562',name:'Impair Defenses',count:15},
-          {id:'T1548',name:'Privilege Escalation',count:12},
-        ]);
-        if (data.toxicCombinations)      setToxicCombos(data.toxicCombinations);
-        else setToxicCombos([
-          {id:'tc-1',title:'Public S3 + Admin IAM Role',riskScore:96,description:'Publicly exposed S3 bucket combined with overly permissive IAM role enables data exfiltration.',provider:'AWS',affectedResources:3},
-          {id:'tc-2',title:'Exposed RDS + No Encryption',riskScore:89,description:'Internet-accessible RDS instance storing unencrypted sensitive data.',provider:'AWS',affectedResources:1},
-          {id:'tc-3',title:'Open Security Group + Privilege Escalation',riskScore:82,description:'Security group allows 0.0.0.0/0 on SSH combined with instance with pass-role permissions.',provider:'AWS',affectedResources:5},
-        ]);
-        if (data.remediationSLA)         setRemediationSLA(data.remediationSLA);
-        else setRemediationSLA([
-          {severity:'Critical',slaTarget:'24h',openCount:4,withinSLA:2,breached:2,compliant:50},
-          {severity:'High',slaTarget:'72h',openCount:23,withinSLA:19,breached:4,compliant:82.6},
-          {severity:'Medium',slaTarget:'7d',openCount:118,withinSLA:107,breached:11,compliant:90.7},
-          {severity:'Low',slaTarget:'30d',openCount:234,withinSLA:231,breached:3,compliant:98.7},
-        ]);
-        if (data.riskyResources)         setRiskyResources(data.riskyResources);
-        else setRiskyResources([
-          {resource:'s3-prod-eu-sensitive',type:'S3 Bucket',provider:'AWS',region:'eu-west-1',findings:8,riskScore:96,owner:'platform-team',age:'47d'},
-          {resource:'rds-master-prod',type:'RDS Instance',provider:'AWS',region:'us-east-1',findings:5,riskScore:91,owner:'data-team',age:'32d'},
-          {resource:'iam-admin-break-glass',type:'IAM Role',provider:'AWS',region:'global',findings:6,riskScore:88,owner:'security-team',age:'89d'},
-          {resource:'ec2-bastion-host',type:'EC2 Instance',provider:'AWS',region:'us-east-1',findings:4,riskScore:84,owner:'infra-team',age:'12d'},
-          {resource:'sg-allow-all-443',type:'Security Group',provider:'AWS',region:'ap-south-1',findings:3,riskScore:79,owner:'network-team',age:'24d'},
-          {resource:'lambda-data-processor',type:'Lambda',provider:'AWS',region:'us-east-1',findings:3,riskScore:74,owner:'dev-team',age:'7d'},
-          {resource:'cloudtrail-disabled-bucket',type:'CloudTrail',provider:'AWS',region:'us-west-2',findings:2,riskScore:71,owner:'security-team',age:'15d'},
-          {resource:'azure-vm-jumpbox',type:'Virtual Machine',provider:'Azure',region:'eastus',findings:3,riskScore:68,owner:'cloud-ops',age:'4d'},
-        ]);
-        if (data.criticalAlerts)         setCriticalAlerts(data.criticalAlerts);
-        /* TODO: swap to data.cloudHealthData once BFF returns enriched fields
-           (criticals, score, lastScan, coverage, statusDetail).
-           BFF currently returns criticals:0 for all accounts so we always use mock. */
-        setCloudHealthData([
-          { name:'AWS Production', provider:'aws',   status:'healthy', credStatus:'valid',   regions:8, resources:9412, criticals:12, score:82, lastScan:'2h ago', coverage:100 },
-          { name:'AWS Staging',    provider:'aws',   status:'healthy', credStatus:'valid',   regions:3, resources:1843, criticals:4,  score:74, lastScan:'4h ago', coverage:98  },
-          { name:'Azure Corp',     provider:'azure', status:'healthy', credStatus:'valid',   regions:4, resources:1247, criticals:7,  score:71, lastScan:'1h ago', coverage:100 },
-          { name:'GCP Analytics',  provider:'gcp',   status:'warning', credStatus:'warning', regions:2, resources:345,  criticals:0,  score:0,  lastScan:'3d ago', coverage:0, statusDetail:'Credential expired — re-auth needed' },
-        ]);
-        if (data.findingsByCategoryData) setFindingsByCategoryData(data.findingsByCategoryData);
-        else setFindingsByCategoryData([
-          {category:'IAM',critical:12,high:28,medium:45,low:18},
-          {category:'Storage',critical:8,high:15,medium:32,low:24},
-          {category:'Network',critical:5,high:19,medium:38,low:12},
-          {category:'Compute',critical:4,high:11,medium:22,low:9},
-          {category:'Database',critical:3,high:9,medium:17,low:6},
-        ]);
-      } catch (err) {
-        console.warn('Dashboard fetch error:', err);
-        setPageError(err.message || 'Failed to load dashboard');
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, [filterProvider, tenantId]);
-
-  // ── Lazy-load domain data on tab switch ────────────────────────────────
-  useEffect(() => {
-    if (activeView === 'overview') return;
-    if (domainData[activeView]) return; // already cached
-
-    const config = DOMAIN_VIEWS[activeView];
-    if (!config) return;
-
-    fetchView(config.bffView, { tenant_id: tenantId, provider: filterProvider || undefined })
-      .then((data) => {
-        if (!data.error) {
-          setDomainData((prev) => ({ ...prev, [activeView]: data }));
-        }
-      })
-      .catch((err) => {
-        console.warn(`Failed to load ${activeView} data:`, err);
-      });
-  }, [activeView, filterProvider, tenantId, domainData]);
 
   // ── Derived KPI helpers ────────────────────────────────────────────────
   const fws = realComplianceFrameworks.length > 0 ? realComplianceFrameworks : [];
@@ -3485,91 +3282,133 @@ export default function DashboardPage() {
           ]} />
       </div>
 
+      {/* [2c] FIRST-SCAN CTA — shown only when no scan has ever run ─────── */}
+      {!loading && !bffData?.scanMeta?.scanRunId && tenants.length > 0 && (
+        <div className="rounded-xl border overflow-hidden flex items-center gap-5 px-6 py-4"
+          style={{ backgroundColor: 'rgba(59,130,246,0.06)', borderColor: 'rgba(59,130,246,0.3)' }}>
+          <div className="w-1 self-stretch rounded-full flex-shrink-0" style={{ backgroundColor: '#3b82f6' }} />
+          <Shield className="w-8 h-8 flex-shrink-0" style={{ color: '#3b82f6', opacity: 0.7 }} />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold" style={{ color: 'var(--text-primary)', marginBottom: 2 }}>
+              No scan has run yet
+            </p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)', maxWidth: 560 }}>
+              All metrics are showing demo data. Run a discovery scan to populate real findings, threat detections, and compliance scores across your connected cloud accounts.
+            </p>
+          </div>
+          <Link href="/scans"
+            className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-lg flex-shrink-0"
+            style={{ backgroundColor: '#3b82f6', color: '#fff' }}>
+            Run First Scan <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+      )}
+
+      {/* [2d] SCAN-RAN-BUT-EMPTY state — scan completed, no data returned ── */}
+      {!loading && bffData?.scanMeta?.scanRunId && !bffData?.scanMeta?.hasData && tenants.length > 0 && (
+        <div className="rounded-xl border overflow-hidden flex items-center gap-5 px-6 py-4"
+          style={{ backgroundColor: 'rgba(245,158,11,0.06)', borderColor: 'rgba(245,158,11,0.3)' }}>
+          <div className="w-1 self-stretch rounded-full flex-shrink-0" style={{ backgroundColor: '#f59e0b' }} />
+          <AlertCircle className="w-8 h-8 flex-shrink-0" style={{ color: '#f59e0b', opacity: 0.7 }} />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold" style={{ color: 'var(--text-primary)', marginBottom: 2 }}>
+              Scan completed — no findings yet
+            </p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)', maxWidth: 560 }}>
+              The latest scan ran (ID: <span className="font-mono" style={{ color: 'var(--text-secondary)' }}>{bffData.scanMeta.scanRunId.slice(0, 8)}…</span>) but returned no data.
+              Check that discovery completed successfully and the check engine has processed results.
+            </p>
+          </div>
+          <Link href="/scans"
+            className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-lg flex-shrink-0"
+            style={{ backgroundColor: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.4)' }}>
+            View Scans <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+      )}
+
       {/* [3] TENANT/ACCOUNT FILTER + POSTURE HERO + CLOUD HEALTH ─────────── */}
 
       {/* ── Shared filter bar ── */}
-      <div className="rounded-xl border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-        <div className="flex flex-wrap items-center gap-3 px-5 py-3">
-          {/* Section label */}
-          <span className="text-xs font-semibold uppercase tracking-wider flex-shrink-0"
-            style={{ color: 'var(--text-muted)' }}>Scope:</span>
+      {tenants.length === 0 ? (
+        /* Empty state — no workspaces yet */
+        <div className="rounded-xl border px-5 py-8 flex flex-col items-center gap-3 text-center"
+          style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+          <Shield className="w-8 h-8" style={{ color: 'var(--text-muted)' }} />
+          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>No workspaces connected</p>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            Connect a cloud account to start scanning for security findings.
+          </p>
+          <Link href="/onboarding"
+            className="text-xs font-semibold px-4 py-2 rounded-lg"
+            style={{ backgroundColor: 'var(--accent-primary)', color: '#fff' }}>
+            Connect Cloud Account
+          </Link>
+        </div>
+      ) : (
+        <div className="rounded-xl border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+          <div className="flex flex-wrap items-center gap-3 px-5 py-3">
+            {/* Section label */}
+            <span className="text-xs font-semibold uppercase tracking-wider flex-shrink-0"
+              style={{ color: 'var(--text-muted)' }}>Scope:</span>
 
-          {/* Tenant pills */}
-          <div className="flex flex-wrap items-center gap-2 flex-1">
-            {/* All tenants pill */}
-            <button
-              onClick={() => { setSelectedTenantId('all'); setSelectedAccountId('all'); }}
-              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full border transition-all"
-              style={{
-                backgroundColor: selectedTenantId === 'all' ? '#3b82f620' : 'transparent',
-                borderColor:     selectedTenantId === 'all' ? '#3b82f6'   : 'var(--border-primary)',
-                color:           selectedTenantId === 'all' ? '#3b82f6'   : 'var(--text-secondary)',
-              }}>
-              All Tenants
-              <span className="text-xs px-1.5 py-0.5 rounded-full font-bold"
-                style={{ backgroundColor: selectedTenantId === 'all' ? '#3b82f630' : 'var(--bg-tertiary)', color: selectedTenantId === 'all' ? '#3b82f6' : 'var(--text-muted)' }}>
-                {MOCK_TENANTS.length}
-              </span>
-            </button>
-
-            {/* Per-tenant pills */}
-            {MOCK_TENANTS.map(t => {
-              const isActive = selectedTenantId === t.id;
-              return (
-                <button key={t.id}
-                  onClick={() => { setSelectedTenantId(t.id); setSelectedAccountId('all'); }}
-                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full border transition-all"
-                  style={{
-                    backgroundColor: isActive ? '#8b5cf620' : 'transparent',
-                    borderColor:     isActive ? '#8b5cf6'   : 'var(--border-primary)',
-                    color:           isActive ? '#8b5cf6'   : 'var(--text-secondary)',
-                  }}>
-                  {t.name}
-                  {t.criticals > 0 && (
-                    <span className="text-xs font-bold" style={{ color: '#ef4444' }}>▲{t.criticals}</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Account dropdown — only when a tenant is selected */}
-          {selectedTenantId !== 'all' && activeTenant && (
-            <div className="flex items-center gap-2 flex-shrink-0 border-l pl-3"
-              style={{ borderColor: 'var(--border-primary)' }}>
-              <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>Account:</span>
-              <select
-                value={selectedAccountId}
-                onChange={e => setSelectedAccountId(e.target.value)}
-                className="text-xs rounded-lg px-2 py-1.5 border outline-none cursor-pointer"
-                style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}>
-                <option value="all">All Accounts ({activeTenant.accounts.length})</option>
-                {activeTenant.accounts.map(acc => (
-                  <option key={acc.id} value={acc.id}>
-                    {acc.name} — {acc.status === 'warning' ? '⚠ Warning' : `${acc.criticals} criticals`}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Active filter label */}
-          {(selectedTenantId !== 'all' || selectedAccountId !== 'all') && (
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <span className="text-xs px-2 py-1 rounded font-medium"
-                style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
-                {activeAccount ? `${activeTenant.name} / ${activeAccount.name}` : activeTenant?.name}
-              </span>
+            {/* Tenant pills */}
+            <div className="flex flex-wrap items-center gap-2 flex-1">
+              {/* All tenants pill */}
               <button
                 onClick={() => { setSelectedTenantId('all'); setSelectedAccountId('all'); }}
-                className="text-xs px-2 py-1 rounded border transition-colors hover:opacity-80"
-                style={{ borderColor: 'var(--border-primary)', color: 'var(--text-muted)' }}>
-                Clear ×
+                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full border transition-all"
+                style={{
+                  backgroundColor: selectedTenantId === 'all' ? '#3b82f620' : 'transparent',
+                  borderColor:     selectedTenantId === 'all' ? '#3b82f6'   : 'var(--border-primary)',
+                  color:           selectedTenantId === 'all' ? '#3b82f6'   : 'var(--text-secondary)',
+                }}>
+                All Workspaces
+                <span className="text-xs px-1.5 py-0.5 rounded-full font-bold"
+                  style={{ backgroundColor: selectedTenantId === 'all' ? '#3b82f630' : 'var(--bg-tertiary)', color: selectedTenantId === 'all' ? '#3b82f6' : 'var(--text-muted)' }}>
+                  {tenants.length}
+                </span>
               </button>
+
+              {/* Per-tenant pills */}
+              {tenants.map(t => {
+                const isActive = selectedTenantId === t.tenant_id;
+                return (
+                  <button key={t.tenant_id}
+                    onClick={() => { setSelectedTenantId(t.tenant_id); setSelectedAccountId('all'); }}
+                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full border transition-all"
+                    style={{
+                      backgroundColor: isActive ? '#8b5cf620' : 'transparent',
+                      borderColor:     isActive ? '#8b5cf6'   : 'var(--border-primary)',
+                      color:           isActive ? '#8b5cf6'   : 'var(--text-secondary)',
+                    }}>
+                    {t.tenant_name}
+                    {t.account_count > 0 && (
+                      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{t.account_count} accts</span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
-          )}
+
+            {/* Active filter label */}
+            {selectedTenantId !== 'all' && (
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <span className="text-xs px-2 py-1 rounded font-medium"
+                  style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
+                  {activeTenant?.tenant_name ?? selectedTenantId}
+                </span>
+                <button
+                  onClick={() => { setSelectedTenantId('all'); setSelectedAccountId('all'); }}
+                  className="text-xs px-2 py-1 rounded border transition-colors hover:opacity-80"
+                  style={{ borderColor: 'var(--border-primary)', color: 'var(--text-muted)' }}>
+                  Clear ×
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* [4] DOMAIN TAB SWITCHER ─────────────────────────────────────────── */}
       <div className="rounded-xl border overflow-hidden" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
@@ -3607,24 +3446,24 @@ export default function DashboardPage() {
               <span className="text-xs font-bold tracking-widest uppercase" style={{ color: 'var(--accent-primary)' }}>DOMAIN HEALTH</span>
               <span className="text-xs mx-1" style={{ color: 'var(--border-primary)' }}>·</span>
               <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Aggregate posture score per security domain — click to drill down</span>
-              {(activeAccount || activeTenant) && (
+              {activeTenant && (
                 <span className="text-xs font-semibold px-2 py-0.5 rounded ml-1"
                   style={{ backgroundColor: '#8b5cf620', color: '#8b5cf6' }}>
-                  {activeAccount ? `${activeTenant.name} / ${activeAccount.name}` : activeTenant?.name}
+                  {activeTenant.tenant_name}
                 </span>
               )}
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 divide-x divide-y sm:divide-y-0"
               style={{ borderColor: 'var(--border-primary)' }}>
               {[
-                { label: 'Threats',     Icon: AlertTriangle,  color: '#ef4444', score: activeDomainScores.threats    ?? 58, href: '/threats'    },
-                { label: 'IAM',         Icon: KeyRound,       color: '#f59e0b', score: activeDomainScores.iam         ?? MOCK_POSTURE.domainScores.iam, href: '/iam' },
-                { label: 'Compliance',  Icon: ClipboardCheck, color: '#22c55e', score: activeDomainScores.compliance  ?? MOCK_POSTURE.domainScores.compliance, href: '/compliance' },
-                { label: 'Assets',      Icon: Server,         color: '#06b6d4', score: 85,                              href: '/inventory'  },
-                { label: 'Risk',        Icon: TrendingUp,     color: '#8b5cf6', score: activeDomainScores.risk        ?? MOCK_POSTURE.domainScores.misconfigs, href: '/risk' },
-                { label: 'Data Sec',    Icon: Database,       color: '#10b981', score: activeDomainScores.dataSec     ?? MOCK_POSTURE.domainScores.dataSec, href: '/datasec' },
-                { label: 'Network',     Icon: Network,        color: '#0ea5e9', score: activeDomainScores.network     ?? 80, href: '/network'   },
-                { label: 'Code Sec',    Icon: Code,           color: '#a78bfa', score: activeDomainScores.codeSec     ?? 84, href: '/codesec'   },
+                { label: 'Threats',     Icon: AlertTriangle,  color: '#ef4444', score: kpiData.threatScore    ?? 58, href: '/threats'    },
+                { label: 'IAM',         Icon: KeyRound,       color: '#f59e0b', score: kpiData.iamScore       ?? MOCK_POSTURE.domainScores.iam, href: '/iam' },
+                { label: 'Compliance',  Icon: ClipboardCheck, color: '#22c55e', score: kpiData.complianceScore ?? MOCK_POSTURE.domainScores.compliance, href: '/compliance' },
+                { label: 'Assets',      Icon: Server,         color: '#06b6d4', score: 85,                     href: '/inventory'  },
+                { label: 'Risk',        Icon: TrendingUp,     color: '#8b5cf6', score: kpiData.riskScore       ?? MOCK_POSTURE.domainScores.misconfigs, href: '/risk' },
+                { label: 'Data Sec',    Icon: Database,       color: '#10b981', score: kpiData.dataSecScore    ?? MOCK_POSTURE.domainScores.dataSec, href: '/datasec' },
+                { label: 'Network',     Icon: Network,        color: '#0ea5e9', score: kpiData.networkScore    ?? 80, href: '/network'   },
+                { label: 'Code Sec',    Icon: Code,           color: '#a78bfa', score: kpiData.codeSecScore    ?? 84, href: '/codesec'   },
               ].map((dom) => {
                 const sc = dom.score >= 75 ? '#22c55e' : dom.score >= 50 ? '#f97316' : '#ef4444';
                 const sl = dom.score >= 75 ? 'Good'    : dom.score >= 50 ? 'Fair'    : 'Poor';
@@ -3693,24 +3532,22 @@ export default function DashboardPage() {
 
           {/* ══ E: TOP AFFECTED ACCOUNTS · Risk-ranked account leaderboard ═══ */}
           {(() => {
-            /* Flatten all accounts, compute a risk weight (criticals×4 + highs×2 + mediums×1),
-               sort descending, take top 7 */
-            const rankedAccounts = MOCK_TENANTS.flatMap(t =>
-              t.accounts.map(acc => {
-                const ds = acc.domainScores || {};
-                const dc = acc.domainCritical || {};
-                // sum domain criticals as a proxy for high/medium — use criticals directly
-                const critTotal = acc.criticals || 0;
-                // derive high/medium from domain critical counts (they track criticals)
-                const highProxy   = Math.round(critTotal * 1.8);
-                const mediumProxy = Math.round(critTotal * 3.2);
-                const riskWeight  = critTotal * 4 + highProxy * 2 + mediumProxy;
-                // avg domain score
-                const scores = Object.values(ds).filter(v => v > 0);
-                const avgScore = scores.length ? Math.round(scores.reduce((s,v)=>s+v,0)/scores.length) : 0;
-                return { ...acc, tenant: t, critTotal, highProxy, mediumProxy, riskWeight, avgScore };
-              })
-            ).sort((a, b) => b.riskWeight - a.riskWeight).slice(0, 7);
+            /* Use BFF risky_resources data to build ranked account list */
+            const rankedAccounts = (riskyResources || []).slice(0, 7).map((r, idx) => ({
+              id: r.resource || `acc-${idx}`,
+              name: r.resource || 'Unknown',
+              provider: (r.provider || 'aws').toLowerCase(),
+              status: 'healthy',
+              scanState: 'ok',
+              regions: 1,
+              resources: 0,
+              critTotal: r.findings || 0,
+              highProxy: Math.round((r.findings || 0) * 1.8),
+              mediumProxy: Math.round((r.findings || 0) * 3.2),
+              riskWeight: (r.riskScore || 0),
+              avgScore: Math.max(0, 100 - (r.riskScore || 0)),
+              tenant: { tenant_id: '', tenant_name: r.owner || '' },
+            }));
 
             const maxRisk = rankedAccounts[0]?.riskWeight || 1;
             const SEV_C = { critical:'#ef4444', high:'#f97316', medium:'#f59e0b', low:'#10b981' };
@@ -3852,13 +3689,12 @@ export default function DashboardPage() {
                           )}
                         </div>
 
-                        {/* Drill-in button — sets the filter */}
-                        <button
-                          onClick={() => { setSelectedTenantId(acc.tenant.id); setSelectedAccountId(acc.id); }}
+                        {/* Drill-in button */}
+                        <Link href="/inventory"
                           className="hidden md:flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg border flex-shrink-0 transition-colors hover:border-opacity-80"
                           style={{ borderColor: 'var(--border-primary)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-secondary)' }}>
                           View <ArrowRight className="w-3 h-3" />
-                        </button>
+                        </Link>
 
                       </div>
                     );
@@ -3870,17 +3706,16 @@ export default function DashboardPage() {
                   style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-secondary)' }}>
                   <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                     <span className="font-semibold" style={{ color: '#ef4444' }}>
-                      {MOCK_TENANTS.flatMap(t => t.accounts).reduce((s, a) => s + (a.criticals || 0), 0)}
-                    </span> total criticals across{' '}
+                      {rankedAccounts.reduce((s, a) => s + (a.critTotal || 0), 0)}
+                    </span> total findings across{' '}
                     <span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>
-                      {MOCK_TENANTS.flatMap(t => t.accounts).length}
-                    </span> accounts
+                      {rankedAccounts.length}
+                    </span> top risky resources
                   </span>
                   <span className="text-xs" style={{ color: 'var(--border-primary)' }}>·</span>
                   <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                     ranked by{' '}
-                    <span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>risk weight</span>
-                    {' '}(critical×4 + high×2 + medium×1)
+                    <span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>risk score</span>
                   </span>
                 </div>
               </div>
@@ -3917,37 +3752,36 @@ export default function DashboardPage() {
       {/* ── [5] CLOUD ACCOUNT HEALTH · Overview only — driven by active filter ── */}
       {activeView === 'overview' && (() => {
         /* ── Derived aggregates for "all tenants" summary view ── */
-        const allAccounts = MOCK_TENANTS.flatMap(t => t.accounts);
+        /* Use cloudHealthData from BFF or fall back to cloudHealthData state */
+        const allAccounts = cloudHealthData;
         const totalAccounts  = allAccounts.length;
         const healthyAccounts = allAccounts.filter(a => a.status === 'healthy').length;
-        const scanOkAccounts  = allAccounts.filter(a => a.scanState === 'ok').length;
-        const credIssueAccounts = allAccounts.filter(a => a.credentialStatus !== 'valid').length;
+        const scanOkAccounts  = allAccounts.filter(a => a.credStatus === 'valid').length;
+        const credIssueAccounts = allAccounts.filter(a => a.credStatus !== 'valid').length;
         const totalResources  = allAccounts.reduce((s, a) => s + (a.resources || 0), 0);
 
-        /* Per-tenant aggregate for tenant-summary rows */
-        const tenantRows = MOCK_TENANTS.map(t => {
-          const accs = t.accounts;
-          const healthy   = accs.filter(a => a.status === 'healthy').length;
-          const scanOk    = accs.filter(a => a.scanState === 'ok').length;
-          const credOk    = accs.filter(a => a.credentialStatus === 'valid').length;
-          const credExp   = accs.filter(a => a.credentialStatus === 'expiring').length;
-          const credBad   = accs.filter(a => a.credentialStatus === 'expired').length;
-          const lastScanArr = accs.map(a => a.lastScan).filter(Boolean);
-          const lastScan = lastScanArr[0] ?? '—';
-          const hasIssue = healthy < accs.length || scanOk < accs.length || credBad > 0;
-          return { ...t, healthy, scanOk, credOk, credExp, credBad, lastScan, hasIssue, accs };
-        });
+        /* Per-workspace aggregate for workspace-summary rows — derive from tenants list */
+        const tenantRows = tenants.map(t => ({
+          id: t.tenant_id,
+          name: t.tenant_name,
+          healthy: t.account_count || 0,
+          scanOk: t.account_count || 0,
+          credOk: t.account_count || 0,
+          credExp: 0,
+          credBad: 0,
+          lastScan: '—',
+          hasIssue: false,
+          accs: [],
+        }));
 
         /* ── What to render based on active filter ── */
         const isAllTenants  = selectedTenantId === 'all';
-        const isSingleAccount = !!activeAccount;
+        const isSingleAccount = false; // account-level drill-down requires BFF per-account endpoint
 
         /* Header context badge */
-        const filterBadge = isSingleAccount
-          ? `${activeTenant.name}  /  ${activeAccount.name}`
-          : activeTenant
-            ? activeTenant.name
-            : `All Tenants (${MOCK_TENANTS.length})`;
+        const filterBadge = activeTenant
+          ? activeTenant.tenant_name
+          : `All Workspaces (${tenants.length})`;
 
         return (
           <div className="rounded-xl border overflow-hidden" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
@@ -4054,7 +3888,7 @@ export default function DashboardPage() {
 
                     {/* Drill-in → sets the tenant filter */}
                     <button
-                      onClick={() => { setSelectedTenantId(tr.id); setSelectedAccountId('all'); }}
+                      onClick={() => { setSelectedTenantId(tr.id || tr.tenant_id); setSelectedAccountId('all'); }}
                       className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg border flex-shrink-0 transition-colors hover:border-opacity-80"
                       style={{ borderColor: 'var(--border-primary)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-secondary)' }}>
                       View accounts
@@ -4063,19 +3897,20 @@ export default function DashboardPage() {
                   </div>
                 ))}
               </div>
-            ) : isSingleAccount ? (
-              /* ══ SINGLE ACCOUNT: full detail card ══ */
-              <div className="p-4">
-                <CloudAccountCard account={activeAccount} />
-              </div>
             ) : (
-              /* ══ SINGLE TENANT: all accounts as full cards ══ */
+              /* ══ SINGLE WORKSPACE: show BFF cloudHealthData accounts for this workspace ══ */
               <div className="p-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {displayAccounts.map(acc => (
-                    <CloudAccountCard key={acc.id} account={acc} />
-                  ))}
-                </div>
+                {cloudHealthData.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                    {cloudHealthData.map((acc, idx) => (
+                      <CloudAccountCard key={acc.name || idx} account={acc} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-center py-4" style={{ color: 'var(--text-muted)' }}>
+                    No account data available — run a scan to populate.
+                  </p>
+                )}
               </div>
             )}
 
@@ -4096,7 +3931,7 @@ export default function DashboardPage() {
                   onClick={() => { setSelectedTenantId('all'); setSelectedAccountId('all'); }}
                   className="ml-auto text-xs px-2 py-1 rounded border transition-colors hover:opacity-80"
                   style={{ borderColor: 'var(--border-primary)', color: 'var(--text-muted)' }}>
-                  ← All tenants
+                  ← All workspaces
                 </button>
               )}
             </div>

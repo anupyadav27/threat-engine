@@ -1,55 +1,60 @@
-# tenant_management/filters.py
+"""Tenant queryset filtering — role-aware scoping with customer_id org boundary."""
 from django.db.models import Q
+
 from .models import Tenants
-from user_auth.models import Roles
 
 ALLOWED_FILTERS = {"status", "plan", "region"}
 SEARCH_SUFFIX = "_search"
 ALLOWED_LOOKUPS = {"iexact", "icontains", "istartswith", "gte", "lte", "gt", "lt"}
 
 
-def user_has_developer_role(user):
-    if not user or not user.is_authenticated:
-        return False
-    return Roles.objects.filter(
-        userroles__user=user,
-        name__iexact="developer"  # or however you identify it
-    ).exists()
+def _role_name(user) -> str | None:
+    """Return the highest-privilege role name for the user, or None."""
+    from user_auth.models import UserRoles
+    ur = (
+        UserRoles.objects.filter(user=user)
+        .select_related("role")
+        .order_by("role__level")
+        .first()
+    )
+    return ur.role.name if ur and ur.role else None
 
 
 def build_tenant_query(params, user=None):
     base_query = Q()
 
-    # Exact filters
     for param in ALLOWED_FILTERS:
         if param in params and params[param]:
             base_query &= Q(**{f"{param}__iexact": str(params[param]).strip()})
 
-    # Search filters (field_search=value → field__icontains)
     for param, value in params.items():
         if param.endswith(SEARCH_SUFFIX) and value:
             field_name = param[: -len(SEARCH_SUFFIX)]
             if hasattr(Tenants, field_name):
                 base_query &= Q(**{f"{field_name}__icontains": str(value).strip()})
 
-    # Dynamic lookups (field__lookup=value)
     for param, value in params.items():
         if "__" in param and not param.endswith(SEARCH_SUFFIX):
             parts = param.split("__", 1)
             if len(parts) == 2:
                 field, lookup = parts
-                if (
-                    hasattr(Tenants, field)
-                    and lookup in ALLOWED_LOOKUPS
-                    and value
-                ):
+                if hasattr(Tenants, field) and lookup in ALLOWED_LOOKUPS and value:
                     base_query &= Q(**{param: value})
 
-    queryset = Tenants.objects.filter(base_query)
+    if not user or not getattr(user, "is_authenticated", False):
+        return Tenants.objects.none()
 
-    # Scoping: full access for developers, scoped otherwise
-    if user and user.is_authenticated and not user_has_developer_role(user):
-        tenant_ids = user.tenant_users.values_list("tenant_id", flat=True)
-        queryset = queryset.filter(id__in=tenant_ids)
+    role = _role_name(user)
 
-    return queryset
+    if role == "platform_admin":
+        # Full visibility across all orgs
+        return Tenants.objects.filter(base_query)
+
+    if role == "org_admin":
+        # Scoped to own org via customer_id
+        customer_id = getattr(user, "customer_id", None) or str(user.id)
+        return Tenants.objects.filter(base_query, customer_id=customer_id)
+
+    # tenant_admin / analyst / viewer — scoped to explicit membership only
+    tenant_ids = user.tenant_users.filter(is_active=True).values_list("tenant_id", flat=True)
+    return Tenants.objects.filter(base_query, id__in=tenant_ids)

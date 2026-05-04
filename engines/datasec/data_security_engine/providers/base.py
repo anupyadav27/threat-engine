@@ -49,25 +49,29 @@ class BaseDataSecProvider(ABC):
     ) -> List[Dict[str, Any]]:
         """Read discovery_findings for this CSP and produce structured DSPM findings.
 
-        Each subclass overrides this to implement all 8 DSPM modules:
-          1. classification   — PII/PHI/FINANCIAL/CONFIDENTIAL label detection
-          2. encryption       — at-rest encryption posture
-          3. access_control   — public access flags
-          4. data_residency   — region compliance (EU for GDPR, US for HIPAA)
-          5. activity_logging — audit/access logging enabled
-          6. lifecycle        — versioning, retention, backup
-          7. data_lineage     — cross-service data flow patterns
-          8. governance_score — aggregate DSPM score per resource
+        Each subclass overrides this to implement all 8 DSPM modules (ENG-10):
+          1. data_classification  — PII/PHI/FINANCIAL/CONFIDENTIAL label detection
+          2. encryption_posture   — at-rest + in-transit encryption (CMEK preferred)
+          3. access_control       — public access flags, overly permissive policies
+          4. data_residency       — region compliance (EU for GDPR, US for HIPAA)
+          5. activity_logging     — audit/access logging enabled
+          6. data_lifecycle       — versioning, retention, backup
+          7. data_lineage         — cross-service data flow patterns
+          8. governance_scoring   — aggregate DSPM score per resource
+
+        All SELECT queries on discovery_findings MUST include AND tenant_id = %s.
+        blast_radius_score MUST always be 0 — the risk engine owns this field.
+        finding_id = sha256(f"{rule_id}|{resource_uid}|{account_id}|{region}")[:16]
 
         Args:
             scan_run_id: Pipeline scan run identifier.
             tenant_id: Tenant scoping for all DB queries.
             account_id: Cloud account identifier.
             discoveries_conn: psycopg2 connection to discoveries DB.
-            check_conn: psycopg2 connection to check DB.
+            check_conn: psycopg2 connection to check DB (unused by most providers).
 
         Returns:
-            List of finding dicts — one per (resource, module) pair that FAILs.
+            List of finding dicts — one per (resource, module) pair.
             Each dict must include: finding_id, scan_run_id, tenant_id, account_id,
             provider, region, resource_uid, resource_type, severity, status,
             dspm_module, classification_labels, encryption_status, public_access,

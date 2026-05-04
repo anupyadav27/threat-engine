@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { NAV_ITEMS } from '@/lib/constants';
 import { useTheme } from '@/lib/theme-context';
+import { useThreatBadge } from '@/lib/threat-badge-context';
 
 const ICON_MAP = {
   LayoutDashboard,
@@ -80,6 +81,7 @@ export default function Sidebar({ collapsed = false, onToggle }) {
   const pathname   = usePathname();
   const { theme, toggleTheme } = useTheme();
   const [expanded, setExpanded] = useState({});
+  const { badgeCounts } = useThreatBadge();
 
   // Tracks the expanded width the user has dragged to
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_W);
@@ -238,7 +240,7 @@ export default function Sidebar({ collapsed = false, onToggle }) {
                     backgroundColor: active ? 'var(--sidebar-active)' : 'transparent',
                     color:           active ? 'var(--sidebar-active-text)' : 'var(--text-tertiary)',
                     borderLeft:      !collapsed && active
-                      ? '3px solid var(--sidebar-active-text)'
+                      ? `3px solid ${item.accentColor || 'var(--sidebar-active-text)'}`
                       : !collapsed ? '3px solid transparent' : 'none',
                   }}
                   onMouseEnter={(e) => { if (!active) e.currentTarget.style.backgroundColor = 'var(--sidebar-hover)'; }}
@@ -246,6 +248,22 @@ export default function Sidebar({ collapsed = false, onToggle }) {
                 >
                   {Icon && <Icon size={18} className="flex-shrink-0" />}
                   {!collapsed && <span className="truncate">{item.label}</span>}
+                  {!collapsed && item.badgeKey && badgeCounts[item.badgeKey] > 0 && (
+                    <span style={{
+                      marginLeft: 'auto',
+                      marginRight: 8,
+                      backgroundColor: item.accentColor || '#EA580C',
+                      color: '#fff',
+                      borderRadius: 9999,
+                      fontSize: 10,
+                      fontWeight: 700,
+                      padding: '1px 6px',
+                      lineHeight: '16px',
+                      flexShrink: 0,
+                    }}>
+                      {badgeCounts[item.badgeKey] > 99 ? '99+' : badgeCounts[item.badgeKey]}
+                    </span>
+                  )}
                 </Link>
 
                 {!collapsed && hasChildren && (

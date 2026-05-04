@@ -10,6 +10,7 @@ import DataTable from '@/components/shared/DataTable';
 import SearchBar from '@/components/shared/SearchBar';
 import FilterBar from '@/components/shared/FilterBar';
 import { useToast } from '@/lib/toast-context';
+import InviteUserModal from '@/components/settings/InviteUserModal';
 
 
 const ROLE_COLORS = {
@@ -58,6 +59,7 @@ export default function UsersPage() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showInviteModal, setShowInviteModal] = useState(false);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -153,6 +155,14 @@ export default function UsersPage() {
       cell: (info) => (
         <div className="flex items-center gap-2">
           <button
+            onClick={() => router.push(`/settings/users/${info.row.original.id}/accounts`)}
+            className="p-2 rounded-lg transition-colors hover:opacity-75"
+            style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border-primary)' }}
+            title="Manage account access"
+          >
+            <ShieldCheck size={14} />
+          </button>
+          <button
             onClick={() => toast.info(`Edit user: ${info.row.original.name}`)}
             className="p-2 rounded-lg transition-colors hover:opacity-75"
             style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border-primary)' }}
@@ -186,7 +196,7 @@ export default function UsersPage() {
           </p>
         </div>
         <button
-          onClick={() => router.push('/settings/users/add')}
+          onClick={() => setShowInviteModal(true)}
           className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors text-white"
           style={{ backgroundColor: 'var(--accent-primary)' }}
         >
@@ -240,6 +250,12 @@ export default function UsersPage() {
           emptyMessage="No users match your search"
         />
       </div>
+      {showInviteModal && (
+        <InviteUserModal
+          onClose={() => setShowInviteModal(false)}
+          onInvited={() => { setShowInviteModal(false); }}
+        />
+      )}
     </div>
   );
 }

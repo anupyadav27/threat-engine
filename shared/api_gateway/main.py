@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from engine_common.logger import setup_logger, LogContext
 from engine_common.middleware import RequestLoggingMiddleware, CorrelationIDMiddleware
 from engine_auth.fastapi.middleware import AuthMiddleware
+from subscription_middleware import SubscriptionMiddleware
 
 # Import orchestration (local module)
 try:
@@ -209,8 +210,20 @@ SERVICE_ROUTES = {
     "vulnerability": {
         "url": os.getenv("VULNERABILITY_ENGINE_URL", "http://engine-vulnerability"),
         "prefix": "/api/v1/vulnerabilities",
-        "prefixes": ["/api/v1/vulnerabilities", "/api/v1/agents", "/api/v1/reports"],
+        "prefixes": ["/api/v1/vulnerabilities", "/api/v1/agents", "/api/v1/reports", "/api/v1/scans", "/vulnerability"],
         "health_endpoint": "/health"
+    },
+    "billing": {
+        "url": os.getenv("BILLING_ENGINE_URL", "http://engine-billing:8040"),
+        "prefix": "/api/v1/billing",
+        "prefixes": ["/api/v1/billing"],
+        "health_endpoint": "/api/v1/health/live"
+    },
+    "platform-admin": {
+        "url": os.getenv("PLATFORM_ADMIN_ENGINE_URL", "http://engine-platform-admin:8041"),
+        "prefix": "/api/v1/padmin",
+        "prefixes": ["/api/v1/padmin"],
+        "health_endpoint": "/api/v1/health/live"
     },
 }
 
@@ -279,8 +292,16 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Add middleware (order matters: last added = first executed)
-# 1. CORS — must be outermost to handle preflight
+# Add middleware (order matters: last added = first executed in ASGI).
+# Each add_middleware call wraps the previous stack, making it the new
+# outermost layer. Outermost = first to execute on inbound requests.
+#
+# Execution order (inbound):
+#   AuthMiddleware → SubscriptionMiddleware → RequestLoggingMiddleware
+#   → CorrelationIDMiddleware → CORSMiddleware → route handler
+#
+# Registration order (reversed from execution order):
+# 1. CORS — innermost; last to see request, first to see response
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -292,8 +313,15 @@ app.add_middleware(
 app.add_middleware(CorrelationIDMiddleware)
 # 3. Request logging
 app.add_middleware(RequestLoggingMiddleware, engine_name="api-gateway")
-# 4. Auth — validate access_token cookie, build AuthContext, set X-Auth-Context
-#    Skips: /gateway/*, health endpoints, public auth endpoints, OPTIONS
+# 4. Subscription — enforces plan limits, injects X-Subscription-Context.
+#    Must be INNER relative to AuthMiddleware: AuthMiddleware (outer/first)
+#    populates X-Auth-Context in scope["headers"] before SubscriptionMiddleware
+#    reads it.  Registered here (before AuthMiddleware) so it is wrapped by
+#    AuthMiddleware, i.e. AuthMiddleware runs first on every request.
+app.add_middleware(SubscriptionMiddleware)
+# 5. Auth — outermost; runs first on every request. Validates access_token
+#    cookie, builds AuthContext, appends X-Auth-Context to scope["headers"].
+#    Skips: /gateway/*, health endpoints, public auth endpoints, OPTIONS.
 app.add_middleware(AuthMiddleware)
 
 # BFF views router — provides aggregated, UI-ready endpoints under /api/v1/views/
@@ -506,6 +534,9 @@ async def route_requests(request: Request, call_next):
                 internal_path = request.url.path[len("/api/v1/configscan"):]
                 if not internal_path.startswith("/"):
                     internal_path = "/" + internal_path
+            elif request.url.path.startswith("/vulnerability/"):
+                # Strip /vulnerability prefix — engine listens at /api/v1/...
+                internal_path = request.url.path[len("/vulnerability"):]
             else:
                 internal_path = request.url.path
 

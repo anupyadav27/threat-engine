@@ -28,6 +28,7 @@
 #   │ ai-security          │ aws, azure, gcp                               │
 #   │ network-security     │ aws, azure, gcp, k8s, oci, alicloud (all 6)   │
 #   │ risk                 │ all (aggregates whatever other engines wrote) │
+#   │ threat-narrative     │ all (best-effort; skips if LLM key not configured)  │
 #   └──────────────────────┴───────────────────────────────────────────────┘
 #
 # ADDING A NEW ENGINE:
@@ -551,7 +552,35 @@ spec:
           - name: timeout
             value: "14400"
 
-      # Step 7: mark complete — always runs after risk (success or failure)
+      # Step 7: threat-narrative — LLM narrative generation (best-effort)
+      # Runs only after risk succeeds. If this step fails, the pipeline is
+      # still marked complete — narrative columns remain NULL and frontend
+      # renders fallback text. Do NOT add this to mark-complete depends.
+      - name: threat-narrative
+        depends: "risk.Succeeded"
+        templateRef:
+          name: cspm-templates-primitives
+          template: trigger-and-poll
+        arguments:
+          parameters:
+          - name: engine
+            value: threat-narrative
+          - name: trigger-url
+            value: "http://engine-threat-narrative/api/v1/generate/{{workflow.parameters.scan-run-id}}"
+          - name: poll-url
+            value: "http://engine-threat-narrative/api/v1/health/ready"
+          - name: payload
+            value: |
+              {
+                "scan_run_id": "{{workflow.parameters.scan-run-id}}",
+                "tenant_id":   "{{workflow.parameters.tenant-id}}"
+              }
+          - name: timeout
+            value: "3600"
+
+      # Step 8: mark complete — always runs after risk (success or failure)
+      # NOTE: threat-narrative is intentionally NOT in this depends clause.
+      # The pipeline must complete regardless of narrative generation outcome.
       - name: mark-complete
         depends: "risk.Succeeded || risk.Failed || risk.Errored"
         templateRef:

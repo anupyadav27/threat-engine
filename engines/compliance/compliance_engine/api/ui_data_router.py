@@ -88,14 +88,19 @@ def _resolve_latest_report(
     Returns:
         The report row as a dict, or None if no report exists.
     """
+    # Skip orphaned reports (no backing findings rows)
     cur.execute(
         """
-        SELECT scan_run_id, tenant_id, check_scan_id,
-               total_controls, controls_passed, controls_failed,
-               report_data, created_at, status, provider
-        FROM compliance_report
-        WHERE tenant_id = %s AND status = 'completed'
-        ORDER BY completed_at DESC NULLS LAST
+        SELECT r.scan_run_id, r.tenant_id, r.check_scan_id,
+               r.total_controls, r.controls_passed, r.controls_failed,
+               r.report_data, r.created_at, r.status, r.provider
+        FROM compliance_report r
+        WHERE r.tenant_id = %s AND r.status = 'completed'
+          AND EXISTS (
+              SELECT 1 FROM compliance_findings f
+              WHERE f.scan_run_id = r.scan_run_id AND f.tenant_id = r.tenant_id
+          )
+        ORDER BY r.completed_at DESC NULLS LAST
         LIMIT 1
         """,
         (tenant_id,),

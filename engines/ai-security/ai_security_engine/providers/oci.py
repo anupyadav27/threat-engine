@@ -9,34 +9,79 @@ from .base import BaseAISecurityProvider
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# OCI resource types present in discovery_findings.
-# OCI DataScience resource types are not yet enumerated by the discovery
-# scanner.  We apply AI governance checks against the OCI proxy resource
-# types that ARE present (audit events, security lists, object storage,
-# VCN/RouteTable) to ensure AI workloads meet minimum ATLAS posture.
+# Valid ATLAS values (AC-S6, AC-S7)
 # ---------------------------------------------------------------------------
+VALID_PILLARS = frozenset({
+    "model_security",
+    "training_data_security",
+    "inference_security",
+    "supply_chain",
+    "ai_governance",
+})
+
+ATLAS_TECHNIQUES: Dict[str, Dict[str, str]] = {
+    "AML.T0000": ("inference_security",     "HIGH",     "Model Evasion",        "Adversary crafts inputs to evade model detection."),
+    "AML.T0001": ("training_data_security", "CRITICAL", "Data Poisoning",       "Adversary injects malicious data into training set."),
+    "AML.T0002": ("inference_security",     "HIGH",     "Model Inversion",      "Adversary extracts training data from model outputs."),
+    "AML.T0003": ("model_security",         "MEDIUM",   "Model Stealing",       "Adversary replicates model via repeated queries."),
+    "AML.T0004": ("supply_chain",           "CRITICAL", "Backdoor ML Model",    "Adversary implants hidden trigger in model weights."),
+    "AML.T0005": ("training_data_security", "CRITICAL", "Poison Training Data", "Adversary corrupts training data pipeline."),
+}
+
+VALID_TECHNIQUES = frozenset(ATLAS_TECHNIQUES.keys())
+
+# ---------------------------------------------------------------------------
+# OCI AI/ML resource types consumed from discovery_findings (story spec)
+# ---------------------------------------------------------------------------
+OCI_AI_RESOURCE_TYPES = {
+    "DataScience::Model",
+    "DataScience::Project",
+    "AnomalyDetection::Model",
+    # Proxy resource types present in discovery_findings
+    "oci.audit/Event",
+    "oci.core/SecurityList",
+    "oci.objectstorage/Bucket",
+    "oci.core/Vcn",
+}
 
 
-def _make_finding_id(rule_id: str, resource_uid: str, account_id: str, region: str) -> str:
-    """Deterministic finding_id: sha256(rule_id|resource_uid|account_id|region)[:16]."""
-    raw = f"{rule_id}|{resource_uid}|{account_id}|{region}"
+def _make_finding_id(atlas_pillar: str, atlas_technique: Optional[str],
+                     resource_uid: str, account_id: str, region: str) -> str:
+    """Deterministic finding_id per AC-S3.
+
+    sha256(f"{atlas_pillar}_{atlas_technique}|{resource_uid}|{account_id}|{region}")[:16]
+    """
+    technique_part = atlas_technique or "none"
+    raw = f"{atlas_pillar}_{technique_part}|{resource_uid}|{account_id}|{region}"
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
+def _validate_pillar(pillar: str) -> str:
+    """Validate atlas_pillar (AC-S6)."""
+    if pillar not in VALID_PILLARS:
+        logger.warning("Unknown atlas_pillar '%s' — defaulting to ai_governance", pillar)
+        return "ai_governance"
+    return pillar
+
+
+def _validate_technique(technique: Optional[str]) -> Optional[str]:
+    """Validate atlas_technique (AC-S7). Unknown techniques logged at WARNING."""
+    if technique is None:
+        return None
+    if technique not in VALID_TECHNIQUES:
+        logger.warning("Unknown atlas_technique '%s' — dropping technique field", technique)
+        return None
+    return technique
 
 
 def _atlas_detail(technique_id: Optional[str]) -> Dict[str, str]:
     """Return atlas_detail dict for a given technique ID."""
-    atlas_map = {
-        "AML.T0000": ("Model Evasion", "Adversary crafts inputs to evade model detection."),
-        "AML.T0001": ("Data Poisoning", "Adversary injects malicious data into training set."),
-        "AML.T0002": ("Model Inversion", "Adversary extracts training data from model outputs."),
-        "AML.T0003": ("Model Stealing", "Adversary replicates model via repeated queries."),
-        "AML.T0004": ("Backdoor ML Model", "Adversary implants hidden trigger in model weights."),
-        "AML.T0005": ("Poison Training Data", "Adversary corrupts training data pipeline."),
-    }
     if not technique_id:
         return {}
-    name, desc = atlas_map.get(technique_id, ("", ""))
-    return {"technique_id": technique_id, "technique_name": name, "description": desc}
+    row = ATLAS_TECHNIQUES.get(technique_id)
+    if not row:
+        return {}
+    return {"technique_id": technique_id, "technique_name": row[2], "description": row[3]}
 
 
 def _finding(
@@ -55,9 +100,12 @@ def _finding(
     status: str = "FAIL",
 ) -> Dict[str, Any]:
     """Build a complete ATLAS finding dict for OCI."""
+    validated_pillar = _validate_pillar(pillar)
+    validated_technique = _validate_technique(atlas_technique)
     now = datetime.now(timezone.utc)
     return {
-        "finding_id": _make_finding_id(rule_id, resource_uid, account_id, region),
+        "finding_id": _make_finding_id(validated_pillar, validated_technique,
+                                        resource_uid, account_id, region),
         "scan_run_id": scan_run_id,
         "tenant_id": tenant_id,
         "account_id": account_id,
@@ -67,9 +115,10 @@ def _finding(
         "resource_type": resource_type,
         "severity": severity,
         "status": status,
-        "pillar": pillar,
-        "atlas_technique": atlas_technique,
-        "atlas_detail": _atlas_detail(atlas_technique),
+        "atlas_pillar": validated_pillar,
+        "pillar": validated_pillar,
+        "atlas_technique": validated_technique,
+        "atlas_detail": _atlas_detail(validated_technique),
         "blast_radius_score": 0,
         "rule_id": rule_id,
         "title": title,
@@ -80,15 +129,13 @@ def _finding(
 
 
 class OCIAISecurityProvider(BaseAISecurityProvider):
-    """OCI AI security provider.
+    """OCI AI security provider — MITRE ATLAS 5-pillar.
 
-    OCI DataScience (notebooks, models, jobs) resource types are not yet
-    enumerated by the discovery scanner.  This provider applies ATLAS-mapped
-    checks against the OCI proxy resource types that ARE present:
-    - oci.audit/Event — governance and logging coverage
-    - oci.core/SecurityList — inference endpoint exposure
-    - oci.objectstorage/Bucket — training data security
-    - oci.core/Vcn — network isolation
+    Queries discovery_findings for OCI DataScience and AnomalyDetection
+    resource types (DataScience::Model, DataScience::Project,
+    AnomalyDetection::Model) and proxy resource types (audit events,
+    security lists, object storage, VCN) to ensure AI workloads meet
+    minimum ATLAS posture.
     """
 
     @property
@@ -109,11 +156,11 @@ class OCIAISecurityProvider(BaseAISecurityProvider):
         discoveries_conn: Any,
         check_conn: Optional[Any] = None,
     ) -> List[Dict[str, Any]]:
-        """Produce MITRE ATLAS findings for OCI resources.
+        """Produce MITRE ATLAS findings for OCI AI/ML resources.
 
-        Applies AI governance and security checks to OCI proxy resource types
-        (audit events, security lists, object storage, VCN) that are present
-        in discovery_findings.
+        Queries discovery_findings for native OCI DataScience resource types
+        and proxy resource types (audit, security lists, object storage, VCN)
+        with tenant_id filter on all queries (AC-S1).
 
         Args:
             scan_run_id: Current pipeline scan run identifier.
@@ -145,15 +192,16 @@ class OCIAISecurityProvider(BaseAISecurityProvider):
             logger.error("OCI AI analyze(): DB query failed: %s", exc)
             return findings
 
-        logger.info(
-            "OCI AI analyze(): %d resource rows for scan %s", len(rows), scan_run_id
-        )
+        logger.info("OCI AI analyze(): %d resource rows for scan %s", len(rows), scan_run_id)
 
         resource_types_seen = {r[1] for r in rows}
         has_audit = "oci.audit/Event" in resource_types_seen
         has_seclist = "oci.core/SecurityList" in resource_types_seen
         has_bucket = "oci.objectstorage/Bucket" in resource_types_seen
         has_vcn = "oci.core/Vcn" in resource_types_seen
+        has_datascience_model = "DataScience::Model" in resource_types_seen
+        has_datascience_project = "DataScience::Project" in resource_types_seen
+        has_anomaly_model = "AnomalyDetection::Model" in resource_types_seen
 
         acct_uid = f"oci:{account_id}:ai_governance"
 
@@ -163,15 +211,129 @@ class OCIAISecurityProvider(BaseAISecurityProvider):
             r_region = res_region or "ap-mumbai-1"
 
             # ------------------------------------------------------------------
+            # Pillar 1 — Model Security: DataScience::Model
+            # ------------------------------------------------------------------
+            if resource_type == "DataScience::Model":
+                # No custom metadata → governance / provenance gap
+                custom_metadata = ef.get("customMetadataList") or []
+                if not custom_metadata:
+                    findings.append(_finding(
+                        rule_id="oci.ai_sec.model_security.datascience_model_no_metadata",
+                        resource_uid=resource_uid,
+                        resource_type=resource_type,
+                        account_id=account_id,
+                        region=r_region,
+                        tenant_id=tenant_id,
+                        scan_run_id=scan_run_id,
+                        severity="MEDIUM",
+                        pillar="model_security",
+                        atlas_technique="AML.T0003",
+                        title="OCI DataScience Model has no custom metadata — model lineage tracking gap",
+                        detail=(
+                            "No customMetadataList on model artifact. Model provenance, training "
+                            "data references, and signing information should be recorded in metadata."
+                        ),
+                    ))
+
+                # Lifecycle state not Active → governance review needed
+                lifecycle = ef.get("lifecycleState", "")
+                if lifecycle and lifecycle not in ("ACTIVE",):
+                    findings.append(_finding(
+                        rule_id="oci.ai_sec.ai_governance.datascience_model_non_active",
+                        resource_uid=resource_uid,
+                        resource_type=resource_type,
+                        account_id=account_id,
+                        region=r_region,
+                        tenant_id=tenant_id,
+                        scan_run_id=scan_run_id,
+                        severity="LOW",
+                        pillar="ai_governance",
+                        atlas_technique=None,
+                        title=f"OCI DataScience Model in non-active lifecycle state: {lifecycle}",
+                        detail=(
+                            f"Model lifecycleState='{lifecycle}'. Non-active models should be "
+                            "reviewed and either promoted or archived to maintain governance posture."
+                        ),
+                    ))
+
+            # ------------------------------------------------------------------
+            # Pillar 2 — Training Data Security: DataScience::Project
+            # ------------------------------------------------------------------
+            if resource_type == "DataScience::Project":
+                # Project without description → governance gap (model card equivalent)
+                description = ef.get("description", "")
+                if not description:
+                    findings.append(_finding(
+                        rule_id="oci.ai_sec.training_data_security.datascience_project_no_description",
+                        resource_uid=resource_uid,
+                        resource_type=resource_type,
+                        account_id=account_id,
+                        region=r_region,
+                        tenant_id=tenant_id,
+                        scan_run_id=scan_run_id,
+                        severity="LOW",
+                        pillar="training_data_security",
+                        atlas_technique="AML.T0005",
+                        title="OCI DataScience Project has no description — training data provenance gap",
+                        detail=(
+                            "No project description. DataScience Projects should document "
+                            "training data sources and data classification to enable poisoning detection."
+                        ),
+                    ))
+
+                # No free-form tags → governance gap
+                freeform_tags = ef.get("freeformTags") or {}
+                if not freeform_tags:
+                    findings.append(_finding(
+                        rule_id="oci.ai_sec.ai_governance.datascience_project_no_tags",
+                        resource_uid=resource_uid,
+                        resource_type=resource_type,
+                        account_id=account_id,
+                        region=r_region,
+                        tenant_id=tenant_id,
+                        scan_run_id=scan_run_id,
+                        severity="LOW",
+                        pillar="ai_governance",
+                        atlas_technique=None,
+                        title="OCI DataScience Project has no freeform tags — AI governance gap",
+                        detail=(
+                            "No freeformTags on project. Tags should include data-owner, "
+                            "data-classification, and cost-center for AI governance compliance."
+                        ),
+                    ))
+
+            # ------------------------------------------------------------------
+            # Pillar 4 — Supply Chain: AnomalyDetection::Model
+            # ------------------------------------------------------------------
+            if resource_type == "AnomalyDetection::Model":
+                model_training_results = ef.get("modelTrainingResults") or {}
+                if not model_training_results:
+                    findings.append(_finding(
+                        rule_id="oci.ai_sec.supply_chain.anomaly_model_no_training_results",
+                        resource_uid=resource_uid,
+                        resource_type=resource_type,
+                        account_id=account_id,
+                        region=r_region,
+                        tenant_id=tenant_id,
+                        scan_run_id=scan_run_id,
+                        severity="HIGH",
+                        pillar="supply_chain",
+                        atlas_technique="AML.T0004",
+                        title="OCI AnomalyDetection Model has no training results recorded — provenance gap",
+                        detail=(
+                            "No modelTrainingResults on anomaly detection model. Training results "
+                            "including data hash and metrics should be recorded to detect backdoor "
+                            "model substitution in the supply chain."
+                        ),
+                    ))
+
+            # ------------------------------------------------------------------
             # Pillar 5 — AI Governance: Audit event analysis
             # ------------------------------------------------------------------
             if resource_type == "oci.audit/Event":
                 event_type = ef.get("eventType", "") or ef.get("type", "")
-                # DataScience API calls in audit events — check for unauthenticated access
                 if "datascience" in event_type.lower() or "datasci" in event_type.lower():
-                    source_ip = ef.get("sourceIPAddress", "")
                     principal = ef.get("principalName", "") or ef.get("subject", "")
-
                     if not principal:
                         findings.append(_finding(
                             rule_id="oci.ai_sec.ai_governance.datascience_unauthenticated_event",
@@ -206,7 +368,6 @@ class OCIAISecurityProvider(BaseAISecurityProvider):
                     max_port = dest_port_range.get("max", 0)
                     min_port = dest_port_range.get("min", 0)
 
-                    # Ingress from 0.0.0.0/0 on any port
                     if source in ("0.0.0.0/0", "::/0"):
                         findings.append(_finding(
                             rule_id="oci.ai_sec.inference_security.seclist_public_ingress",
@@ -314,7 +475,6 @@ class OCIAISecurityProvider(BaseAISecurityProvider):
                 ),
             ))
 
-        # Pillar 1 — Model Security: no supply-chain control without SecList
         if not has_seclist:
             findings.append(_finding(
                 rule_id="oci.ai_sec.model_security.no_security_list",
@@ -334,25 +494,25 @@ class OCIAISecurityProvider(BaseAISecurityProvider):
                 ),
             ))
 
-        # Pillar 4 — Supply Chain
-        findings.append(_finding(
-            rule_id="oci.ai_sec.supply_chain.datascience_service_not_enumerated",
-            resource_uid=acct_uid,
-            resource_type="OCITenancy",
-            account_id=account_id,
-            region="ap-mumbai-1",
-            tenant_id=tenant_id,
-            scan_run_id=scan_run_id,
-            severity="MEDIUM",
-            pillar="supply_chain",
-            atlas_technique="AML.T0004",
-            title="OCI DataScience service not yet enumerated by discovery scanner",
-            detail=(
-                "OCI DataScience Models, Notebooks, and Projects are not yet in "
-                "discovery_findings. Enable OCI DataScience discovery to evaluate "
-                "model provenance and supply chain integrity."
-            ),
-        ))
+        if not has_datascience_model:
+            findings.append(_finding(
+                rule_id="oci.ai_sec.supply_chain.datascience_model_not_enumerated",
+                resource_uid=acct_uid,
+                resource_type="OCITenancy",
+                account_id=account_id,
+                region="ap-mumbai-1",
+                tenant_id=tenant_id,
+                scan_run_id=scan_run_id,
+                severity="MEDIUM",
+                pillar="supply_chain",
+                atlas_technique="AML.T0004",
+                title="OCI DataScience Model not found in discovery — supply chain assessment limited",
+                detail=(
+                    "DataScience::Model resources not found in discovery_findings. "
+                    "Enable OCI DataScience discovery to evaluate model provenance and "
+                    "supply chain integrity."
+                ),
+            ))
 
         logger.info(
             "OCI AI analyze(): produced %d ATLAS findings for scan %s",

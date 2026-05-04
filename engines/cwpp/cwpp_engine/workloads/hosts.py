@@ -38,25 +38,28 @@ MIDDLEWARE_KEYWORDS = {
 }
 
 
-async def fetch(scan_run_id: str, tenant_id: str) -> Dict[str, Any]:
+async def fetch(scan_run_id: str, tenant_id: str, auth_header: Optional[str] = None) -> Dict[str, Any]:
     """Fetch host/VM/middleware workload data from vul_engine + sbom_engine."""
 
     # 1. Recent host agent scans
     scans_data = await get(
         f"{VUL_ENGINE_URL}/api/v1/scans/",
         params={"limit": 50},
+        auth_header=auth_header,
     )
 
     # 2. Vulnerability findings (OS + middleware CVEs)
     vulns_data = await get(
         f"{VUL_ENGINE_URL}/api/v1/vulnerabilities/",
         params={"limit": 200},
+        auth_header=auth_header,
     )
 
     # 3. SBOM documents (dependency CVEs — library level)
     sbom_data = await get(
         f"{SBOM_ENGINE_URL}/api/v1/sbom/",
         params={"limit": 50},
+        auth_header=auth_header,
     )
 
     if scans_data is None and vulns_data is None and sbom_data is None:

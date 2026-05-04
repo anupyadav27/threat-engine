@@ -273,7 +273,13 @@ function FindingDetailPanel({ finding, onClose }) {
                 style={{ backgroundColor: 'rgba(59,130,246,0.06)', borderColor: 'rgba(59,130,246,0.2)', color: 'var(--text-secondary)' }}>
                 <div className="flex items-start gap-2">
                   <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" style={{ color: '#3b82f6' }} />
-                  <span style={{ whiteSpace: 'pre-wrap' }}>{finding.remediation}</span>
+                  <span style={{ whiteSpace: 'pre-wrap' }}>
+                    {typeof finding.remediation === 'string'
+                      ? finding.remediation
+                      : finding.remediation?.summary
+                        || (Array.isArray(finding.remediation?.steps) ? finding.remediation.steps.join('\n') : '')
+                        || ''}
+                  </span>
                 </div>
               </div>
             </section>
@@ -485,7 +491,7 @@ function TopFailingRulesChart({ topRules }) {
       </h3>
       <div className="space-y-1.5">
         {topRules.length === 0 && (
-          <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No data</p>
+          <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No failing rules yet — run a check scan to populate this list.</p>
         )}
         {topRules.slice(0, 8).map((rule) => {
           const maxCount = topRules[0]?.count || 1;
@@ -534,7 +540,7 @@ function TopFailingServicesChart({ topServices }) {
       </h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {topServices.length === 0 && (
-          <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No data</p>
+          <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No service data — run a check scan to see failing services.</p>
         )}
         {topServices.map((svc) => {
           const barW    = Math.round((svc.fail / maxFail) * 100);
@@ -585,7 +591,7 @@ function ServiceBreakdownChart({ byService }) {
       </h3>
       <div className="space-y-2.5">
         {byService.length === 0 && (
-          <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No data</p>
+          <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No service breakdown yet — run a check scan to populate this chart.</p>
         )}
         {byService.slice(0, 10).map((svc) => {
           const maxCount = byService[0]?.total || 1;

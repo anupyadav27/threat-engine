@@ -22,6 +22,8 @@ class Tenants(models.Model):
     engine_tenant_id = models.CharField(max_length=255, blank=True, default='')
 
     status = models.CharField(max_length=50, default="active")
+    tenant_type = models.CharField(max_length=50, default='cloud')
+    customer_id = models.CharField(max_length=255, null=True, blank=True, db_index=True)
     plan = models.CharField(max_length=100, blank=True, null=True)
 
     contact_email = models.EmailField(blank=True, null=True)
@@ -84,6 +86,56 @@ class TenantUsers(models.Model):
         return f"{self.user.email} → {self.tenant.name}"
 
 
+class UserAccountAccess(models.Model):
+    """
+    Explicit account-level access grant for a user within a tenant.
+
+    When rows exist for a user, AuthContext.account_ids is populated with only
+    those account_ids, restricting engine queries to those accounts.
+    When no rows exist, account_ids = None (unrestricted within the tenant).
+
+    account_id: cloud provider account ID (AWS account number, Azure subscription
+                UUID, GCP project ID, etc.).
+    """
+    id = models.TextField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='account_access',
+    )
+    tenant = models.ForeignKey(
+        Tenants,
+        on_delete=models.CASCADE,
+        related_name='account_access',
+    )
+    account_id = models.CharField(max_length=512)
+    role = models.ForeignKey(
+        Roles,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='account_access_grants',
+    )
+    granted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='account_grants_given',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'user_account_access'
+        unique_together = ('user', 'tenant', 'account_id')
+        indexes = [
+            models.Index(fields=['user', 'tenant']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email} → {self.tenant.name} → {self.account_id}"
+
+
 class TenantIDPConfig(models.Model):
     """Per-tenant identity provider configuration.
 
@@ -125,4 +177,68 @@ class TenantIDPConfig(models.Model):
 
     def __str__(self):
         return f"{self.tenant.name} / {self.idp_type} / {self.idp_name}"
+
+
+class CsmGroups(models.Model):
+    """User group scoped to an org (customer_id). Groups can be granted access to tenants/accounts."""
+    id = models.TextField(primary_key=True, default=uuid.uuid4, editable=False)
+    customer_id = models.CharField(max_length=255, db_index=True)
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='groups_created',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'csm_groups'
+        unique_together = ('customer_id', 'name')
+        indexes = [models.Index(fields=['customer_id'])]
+
+    def __str__(self):
+        return f"{self.customer_id}/{self.name}"
+
+
+class GroupMembers(models.Model):
+    id = models.TextField(primary_key=True, default=uuid.uuid4, editable=False)
+    group = models.ForeignKey(CsmGroups, on_delete=models.CASCADE, related_name='members')
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='group_memberships',
+    )
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'group_members'
+        unique_together = ('group', 'user')
+
+
+class TenantGroupAccess(models.Model):
+    id = models.TextField(primary_key=True, default=uuid.uuid4, editable=False)
+    group = models.ForeignKey(CsmGroups, on_delete=models.CASCADE, related_name='tenant_access')
+    tenant = models.ForeignKey(Tenants, on_delete=models.CASCADE, related_name='group_access')
+    role = models.ForeignKey(Roles, on_delete=models.PROTECT, related_name='tenant_group_grants')
+    granted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'tenant_group_access'
+        unique_together = ('group', 'tenant')
+
+
+class AccountGroupAccess(models.Model):
+    id = models.TextField(primary_key=True, default=uuid.uuid4, editable=False)
+    group = models.ForeignKey(CsmGroups, on_delete=models.CASCADE, related_name='account_access')
+    tenant = models.ForeignKey(Tenants, on_delete=models.CASCADE, related_name='account_group_access')
+    account_id = models.CharField(max_length=512)
+    role = models.ForeignKey(Roles, on_delete=models.PROTECT, related_name='account_group_grants')
+    granted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'account_group_access'
+        unique_together = ('group', 'tenant', 'account_id')
 

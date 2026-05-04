@@ -1,0 +1,932 @@
+# Account Type Auth Requirements Catalog
+# Version: 1.0.0  Date: 2026-05-03
+#
+# This file is the single source of truth for:
+#   - Which account_types exist and what they scan
+#   - What credential method(s) each technology requires
+#   - What the admin must prepare BEFORE starting onboarding
+#   - Which fields the onboarding wizard should render
+#   - How credentials are validated
+#   - Whether the type uses direct API access, IAM role, or an agent
+#
+# Read by:
+#   - Frontend wizard (dynamically render credential form)
+#   - Onboarding engine validators (know what to call)
+#   - Documentation generator
+#   - Pre-onboarding checklist generator (show admin what to prepare)
+#
+# auth_model values:
+#   api_secret    - static credentials (access key + secret, service principal, API key)
+#   iam_role      - assume-role / workload identity (no stored secret)
+#   agent         - PKCE bootstrap, agent installed on target, no cloud creds needed
+#   git_token     - PAT / SSH key / OAuth for Git repository access
+#   file_upload   - credential file upload (kubeconfig, service account JSON, OCI config)
+
+version: "1.0.0"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CLOUD CSP — Direct cloud provider scanning
+# tenant_type: cloud
+# ─────────────────────────────────────────────────────────────────────────────
+
+account_types:
+
+  # ── AWS ──────────────────────────────────────────────────────────────────
+  - id: aws
+    label: "Amazon Web Services"
+    tenant_type: cloud
+    provider: aws
+    icon: aws
+    auth_models:
+      - id: access_key
+        label: "Access Key + Secret"
+        auth_model: api_secret
+        recommended: false
+        description: >
+          IAM user with programmatic access. Suitable for single-account setups
+          or when cross-account assume-role is not available.
+        admin_prerequisites:
+          - step: "Create an IAM user (or use an existing service user)"
+            detail: "IAM → Users → Add user → Programmatic access only"
+          - step: "Attach the AWS-managed SecurityAudit policy to the user"
+            detail: "Policy ARN: arn:aws:iam::aws:policy/SecurityAudit"
+          - step: "Attach the AWS-managed ReadOnlyAccess policy (optional, for broader discovery)"
+            detail: "Policy ARN: arn:aws:iam::aws:policy/ReadOnlyAccess"
+          - step: "Generate access key credentials"
+            detail: "IAM → User → Security credentials → Create access key → Copy Access Key ID + Secret"
+        credential_fields:
+          - name: access_key_id
+            label: "Access Key ID"
+            type: text
+            placeholder: "AKIAIOSFODNN7EXAMPLE"
+            required: true
+            sensitive: false
+          - name: secret_access_key
+            label: "Secret Access Key"
+            type: password
+            placeholder: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+            required: true
+            sensitive: true
+        validation:
+          method: sts_get_caller_identity
+          also_calls: ec2_describe_regions
+          extracts: account_id
+        required_permissions:
+          - "sts:GetCallerIdentity"
+          - "ec2:DescribeRegions"
+          - "SecurityAudit (AWS managed policy)"
+
+      - id: iam_role
+        label: "IAM Role (Assume-Role)"
+        auth_model: iam_role
+        recommended: true
+        description: >
+          Cross-account IAM role assumed by the CSPM platform's own AWS account.
+          No long-lived secrets stored. Recommended for production.
+        admin_prerequisites:
+          - step: "Create a cross-account IAM role in the target AWS account"
+            detail: >
+              IAM → Roles → Create role → Another AWS account
+              Trusted account ID: 588989875114 (CSPM platform account)
+              Add external ID: use the value shown in the wizard
+          - step: "Attach the SecurityAudit managed policy to the role"
+            detail: "Policy ARN: arn:aws:iam::aws:policy/SecurityAudit"
+          - step: "Copy the Role ARN from the role's summary page"
+            detail: "Format: arn:aws:iam::123456789012:role/CSPMAuditRole"
+          - step: "(Optional) Note the External ID you chose — you'll paste it in the wizard"
+        credential_fields:
+          - name: role_arn
+            label: "Role ARN"
+            type: text
+            placeholder: "arn:aws:iam::123456789012:role/CSPMAuditRole"
+            required: true
+            sensitive: false
+          - name: external_id
+            label: "External ID"
+            type: text
+            placeholder: "your-chosen-external-id"
+            required: false
+            sensitive: false
+          - name: session_name
+            label: "Session Name"
+            type: text
+            placeholder: "cspm-audit-session"
+            required: false
+            sensitive: false
+        validation:
+          method: sts_assume_role_then_get_caller_identity
+          extracts: account_id
+        required_permissions:
+          - "sts:AssumeRole (on CSPM platform account → this role)"
+          - "SecurityAudit (AWS managed policy on this role)"
+
+    scope_capabilities:
+      regions: true
+      services: true
+      exclude_services: true
+      engines: [discovery, inventory, check, threat, compliance, iam, datasec, network, risk]
+
+  # ── Azure ─────────────────────────────────────────────────────────────────
+  - id: azure
+    label: "Microsoft Azure"
+    tenant_type: cloud
+    provider: azure
+    icon: azure
+    auth_models:
+      - id: service_principal
+        label: "Service Principal (Client Secret)"
+        auth_model: api_secret
+        recommended: true
+        description: >
+          Azure App Registration with a client secret. Grants the CSPM platform
+          read-only access to an Azure subscription.
+        admin_prerequisites:
+          - step: "Register an app in Azure Active Directory"
+            detail: >
+              Azure Portal → Azure Active Directory → App registrations
+              → New registration → Name: CSPM-Audit → Single tenant
+          - step: "Create a client secret for the app registration"
+            detail: >
+              App registration → Certificates & secrets → New client secret
+              → Set expiry → Copy the secret value immediately (shown once)
+          - step: "Note the Application (client) ID and Directory (tenant) ID"
+            detail: "Shown on the app registration Overview page"
+          - step: "Assign the Reader role to the app on the target subscription"
+            detail: >
+              Subscriptions → {your subscription} → Access control (IAM)
+              → Add role assignment → Reader → Assign to: your app registration
+          - step: "Note the Subscription ID"
+            detail: "Subscriptions → {your subscription} → Subscription ID"
+        credential_fields:
+          - name: client_id
+            label: "Application (Client) ID"
+            type: text
+            placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+            required: true
+            sensitive: false
+          - name: client_secret
+            label: "Client Secret"
+            type: password
+            placeholder: "your-client-secret-value"
+            required: true
+            sensitive: true
+          - name: tenant_id
+            label: "Directory (Tenant) ID"
+            type: text
+            placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+            required: true
+            sensitive: false
+          - name: subscription_id
+            label: "Subscription ID"
+            type: text
+            placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+            required: true
+            sensitive: false
+        validation:
+          method: subscription_client_get
+          extracts: subscription_display_name
+        required_permissions:
+          - "Reader role on subscription (Azure RBAC)"
+
+    scope_capabilities:
+      regions: true     # resource groups / locations
+      services: true
+      exclude_services: true
+      engines: [discovery, inventory, check, threat, compliance, iam, datasec, network, risk]
+
+  # ── GCP ──────────────────────────────────────────────────────────────────
+  - id: gcp
+    label: "Google Cloud Platform"
+    tenant_type: cloud
+    provider: gcp
+    icon: gcp
+    auth_models:
+      - id: service_account_json
+        label: "Service Account JSON Key"
+        auth_model: file_upload
+        recommended: true
+        description: >
+          GCP service account with a JSON key file. The key file contains all
+          necessary auth fields — upload the downloaded JSON file directly.
+        admin_prerequisites:
+          - step: "Create a service account in the target GCP project"
+            detail: >
+              GCP Console → IAM & Admin → Service Accounts → Create
+              Name: cspm-audit-sa → Create and continue
+          - step: "Grant the Viewer role to the service account on the project"
+            detail: >
+              IAM & Admin → IAM → Add principal → your service account email
+              → Role: Viewer (or Security Reviewer for deeper access)
+          - step: "Create and download a JSON key for the service account"
+            detail: >
+              Service Accounts → select account → Keys → Add Key → JSON
+              → Download the .json file
+        credential_fields:
+          - name: service_account_json
+            label: "Service Account JSON Key File"
+            type: file
+            accept: ".json"
+            required: true
+            sensitive: true
+        validation:
+          method: resourcemanager_get_project
+          extracts: project_id, project_number
+        required_permissions:
+          - "roles/viewer OR roles/iam.securityReviewer on project"
+
+    scope_capabilities:
+      regions: true
+      services: true
+      exclude_services: true
+      engines: [discovery, inventory, check, threat, compliance, iam, datasec, network, risk]
+
+  # ── OCI ──────────────────────────────────────────────────────────────────
+  - id: oci
+    label: "Oracle Cloud Infrastructure"
+    tenant_type: cloud
+    provider: oci
+    icon: oci
+    auth_models:
+      - id: config_file
+        label: "OCI Config + Private Key"
+        auth_model: file_upload
+        recommended: true
+        description: >
+          OCI CLI config file paired with the private key PEM. Both files are
+          required — upload them as separate files.
+        admin_prerequisites:
+          - step: "Create or locate an OCI API signing key pair"
+            detail: >
+              OCI Console → Profile (top-right) → API keys → Add API key
+              → Generate API key pair → Download both files
+          - step: "Note the config file contents (fingerprint, tenancy OCID, user OCID, region)"
+            detail: >
+              After uploading the public key, OCI shows you the config file snippet
+              with all required fields — copy it to a file called 'config'
+          - step: "Ensure the OCI user has read access to all relevant compartments"
+            detail: >
+              Identity & Security → Policies → Statements:
+              Allow group Auditors to read all-resources in tenancy
+        credential_fields:
+          - name: config_file
+            label: "OCI Config File"
+            type: file
+            accept: ".cfg,.config,*"
+            required: true
+            sensitive: false
+          - name: key_pem
+            label: "Private Key (PEM)"
+            type: file
+            accept: ".pem"
+            required: true
+            sensitive: true
+        validation:
+          method: oci_identity_get_user
+          extracts: tenancy_ocid
+        required_permissions:
+          - "Allow group to read all-resources in tenancy (OCI policy)"
+
+    scope_capabilities:
+      regions: true
+      services: true
+      exclude_services: true
+      engines: [discovery, inventory, check, threat, compliance, iam, datasec, network, risk]
+
+  # ── AliCloud ─────────────────────────────────────────────────────────────
+  - id: alicloud
+    label: "Alibaba Cloud"
+    tenant_type: cloud
+    provider: alicloud
+    icon: alicloud
+    auth_models:
+      - id: access_key
+        label: "Access Key + Secret"
+        auth_model: api_secret
+        recommended: true
+        description: >
+          RAM user access key with ReadOnlyAccess policy.
+        admin_prerequisites:
+          - step: "Create a RAM user for CSPM in the Alibaba Cloud console"
+            detail: "RAM console → Users → Create User → Programmatic access"
+          - step: "Attach the ReadOnlyAccess system policy to the RAM user"
+            detail: "RAM console → Users → select user → Add Permissions → ReadOnlyAccess"
+          - step: "Create an access key for the RAM user"
+            detail: "RAM console → Users → select user → Authentication → Create AccessKey → Copy both values"
+        credential_fields:
+          - name: access_key_id
+            label: "Access Key ID"
+            type: text
+            placeholder: "LTAI5t..."
+            required: true
+            sensitive: false
+          - name: access_key_secret
+            label: "Access Key Secret"
+            type: password
+            required: true
+            sensitive: true
+        validation:
+          method: alicloud_sts_get_caller_identity
+          extracts: account_id
+        required_permissions:
+          - "AliyunSTSAssumeRoleAccess"
+          - "ReadOnlyAccess (RAM system policy)"
+
+    scope_capabilities:
+      regions: true
+      services: true
+      exclude_services: true
+      engines: [discovery, inventory, check, threat, compliance, iam, datasec, network, risk]
+
+  # ── IBM Cloud ─────────────────────────────────────────────────────────────
+  - id: ibm
+    label: "IBM Cloud"
+    tenant_type: cloud
+    provider: ibm
+    icon: ibm
+    auth_models:
+      - id: api_key
+        label: "IBM Cloud API Key"
+        auth_model: api_secret
+        recommended: true
+        description: >
+          IBM Cloud API key for a service ID with Viewer role on the account.
+        admin_prerequisites:
+          - step: "Create a Service ID in IBM Cloud IAM"
+            detail: "IBM Cloud console → Manage → Access (IAM) → Service IDs → Create"
+          - step: "Assign the Viewer role to the Service ID on the account"
+            detail: "IAM → Service IDs → select ID → Access → Assign access → All account management services → Viewer"
+          - step: "Create an API key for the Service ID"
+            detail: "Service IDs → select ID → API keys → Create → Copy the key (shown once)"
+        credential_fields:
+          - name: api_key
+            label: "IBM Cloud API Key"
+            type: password
+            required: true
+            sensitive: true
+        validation:
+          method: resource_controller_list_instances
+          extracts: account_id
+        required_permissions:
+          - "Viewer role on account (IBM Cloud IAM)"
+
+    scope_capabilities:
+      regions: true
+      services: true
+      exclude_services: true
+      engines: [discovery, inventory, check, threat, compliance, iam, datasec, network, risk]
+
+  # ── Kubernetes (External Cluster) ─────────────────────────────────────────
+  - id: k8s_kubeconfig
+    label: "Kubernetes (External Cluster)"
+    tenant_type: cloud
+    provider: k8s
+    icon: k8s
+    auth_models:
+      - id: kubeconfig
+        label: "Kubeconfig File"
+        auth_model: file_upload
+        recommended: true
+        description: >
+          Kubeconfig file with cluster credentials. The service account or user
+          referenced in the kubeconfig needs cluster-reader access.
+        admin_prerequisites:
+          - step: "Create a ClusterRole with read-only access (or use existing cluster-reader)"
+            detail: |
+              kubectl create clusterrole cspm-reader \
+                --verb=get,list,watch \
+                --resource='*'
+          - step: "Create a ServiceAccount for CSPM"
+            detail: |
+              kubectl create serviceaccount cspm-scanner -n kube-system
+          - step: "Bind the ClusterRole to the ServiceAccount"
+            detail: |
+              kubectl create clusterrolebinding cspm-reader-binding \
+                --clusterrole=cspm-reader \
+                --serviceaccount=kube-system:cspm-scanner
+          - step: "Generate a kubeconfig for the ServiceAccount"
+            detail: |
+              TOKEN=$(kubectl -n kube-system create token cspm-scanner)
+              kubectl config set-credentials cspm-scanner --token=$TOKEN
+              # Export the kubeconfig and upload it
+        credential_fields:
+          - name: kubeconfig
+            label: "Kubeconfig File"
+            type: file
+            accept: ".yaml,.yml,.conf,*"
+            required: true
+            sensitive: true
+        validation:
+          method: k8s_list_namespace
+          extracts: cluster_server_url
+        required_permissions:
+          - "cluster-reader ClusterRole (or custom read-only ClusterRole)"
+
+    scope_capabilities:
+      regions: false
+      services: true   # namespaces
+      exclude_services: true
+      engines: [discovery, inventory, check, threat, compliance, container_security, risk]
+
+  # ── Kubernetes (In-Cluster) ───────────────────────────────────────────────
+  - id: k8s_in_cluster
+    label: "Kubernetes (In-Cluster / Same Cluster)"
+    tenant_type: cloud
+    provider: k8s
+    icon: k8s
+    auth_models:
+      - id: in_cluster
+        label: "In-Cluster Service Account"
+        auth_model: iam_role     # uses pod identity — no external creds
+        recommended: false
+        description: >
+          Uses the CSPM engine pod's own service account to scan the cluster it
+          runs in. No credential file needed — only the ClusterRoleBinding must
+          be created.
+        admin_prerequisites:
+          - step: "Ensure the cspm-backend service account has cluster-reader access"
+            detail: |
+              kubectl create clusterrolebinding cspm-in-cluster-reader \
+                --clusterrole=cluster-admin \
+                --serviceaccount=threat-engine-engines:cspm-backend
+              # Minimum: cluster-reader; full discovery needs cluster-admin
+        credential_fields: []   # no fields — uses pod service account
+        validation:
+          method: k8s_list_namespace
+          extracts: cluster_name_from_env
+        required_permissions:
+          - "ClusterRoleBinding for the scanner pod's service account"
+
+    scope_capabilities:
+      regions: false
+      services: true
+      exclude_services: true
+      engines: [discovery, inventory, check, threat, compliance, container_security, risk]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECOPS — Source code / IaC repository scanning
+# tenant_type: secops
+# auth_model: git_token
+# ─────────────────────────────────────────────────────────────────────────────
+
+  # ── GitHub ────────────────────────────────────────────────────────────────
+  - id: github
+    label: "GitHub"
+    tenant_type: secops
+    provider: github
+    icon: github
+    auth_models:
+      - id: pat
+        label: "Personal Access Token (PAT)"
+        auth_model: git_token
+        recommended: false
+        description: >
+          GitHub PAT with repo read scope. Simple but tied to a personal account.
+          Use GitHub App for organization-wide scanning.
+        admin_prerequisites:
+          - step: "Generate a GitHub Personal Access Token"
+            detail: >
+              GitHub → Settings → Developer settings → Personal access tokens
+              → Tokens (classic) → Generate new token
+              Scopes required: repo (read), read:org (if scanning org repos)
+        credential_fields:
+          - name: token
+            label: "Personal Access Token"
+            type: password
+            required: true
+            sensitive: true
+          - name: repo_url
+            label: "Repository URL"
+            type: text
+            placeholder: "https://github.com/org/repo"
+            required: true
+            sensitive: false
+          - name: branch
+            label: "Branch to Scan"
+            type: text
+            placeholder: "main"
+            required: false
+            sensitive: false
+
+      - id: github_app
+        label: "GitHub App (Organization)"
+        auth_model: git_token
+        recommended: true
+        description: >
+          GitHub App installation — no PAT needed, works at org level,
+          fine-grained permissions, auto-renewing tokens.
+        admin_prerequisites:
+          - step: "Install the CSPM GitHub App on your organization"
+            detail: >
+              The CSPM platform GitHub App will be listed in the wizard.
+              Click 'Install GitHub App' → authorize → select repositories
+        credential_fields:
+          - name: installation_id
+            label: "GitHub App Installation ID"
+            type: text
+            required: true
+            sensitive: false
+            hint: "Auto-populated after GitHub App install — do not edit manually"
+
+      - id: ssh_key
+        label: "SSH Key"
+        auth_model: git_token
+        recommended: false
+        description: >
+          SSH deploy key added to the repository with read access.
+        admin_prerequisites:
+          - step: "Generate an SSH key pair"
+            detail: "ssh-keygen -t ed25519 -C 'cspm-scanner'"
+          - step: "Add the public key as a Deploy Key on the GitHub repository"
+            detail: "Repository → Settings → Deploy keys → Add deploy key → Read access only"
+          - step: "Paste the private key in the wizard"
+        credential_fields:
+          - name: ssh_private_key
+            label: "SSH Private Key (PEM)"
+            type: textarea
+            required: true
+            sensitive: true
+          - name: repo_url
+            label: "Repository SSH URL"
+            type: text
+            placeholder: "git@github.com:org/repo.git"
+            required: true
+            sensitive: false
+
+    validation:
+      method: git_list_refs
+      extracts: default_branch, repo_size_mb
+    required_permissions:
+      - "repo: read (for private repos)"
+      - "read:org (for organization repos)"
+    scope_capabilities:
+      regions: false
+      services: false   # branches instead
+      branches: true
+      engines: [secops]
+
+  # ── GitLab ────────────────────────────────────────────────────────────────
+  - id: gitlab
+    label: "GitLab"
+    tenant_type: secops
+    provider: gitlab
+    icon: gitlab
+    auth_models:
+      - id: pat
+        label: "Personal Access Token"
+        auth_model: git_token
+        recommended: false
+        admin_prerequisites:
+          - step: "Create a GitLab Personal Access Token"
+            detail: >
+              GitLab → User Settings → Access Tokens
+              Scopes: read_repository, read_api
+        credential_fields:
+          - name: token
+            label: "Personal Access Token"
+            type: password
+            required: true
+            sensitive: true
+          - name: repo_url
+            label: "Repository URL"
+            type: text
+            placeholder: "https://gitlab.com/group/project"
+            required: true
+
+      - id: deploy_token
+        label: "Deploy Token (Repository)"
+        auth_model: git_token
+        recommended: true
+        admin_prerequisites:
+          - step: "Create a GitLab Deploy Token on the project"
+            detail: >
+              Project → Settings → Repository → Deploy tokens
+              Name: cspm-scanner, Scopes: read_repository
+          - step: "Copy the username and token value"
+        credential_fields:
+          - name: username
+            label: "Deploy Token Username"
+            type: text
+            required: true
+          - name: token
+            label: "Deploy Token"
+            type: password
+            required: true
+            sensitive: true
+          - name: repo_url
+            label: "Repository URL"
+            type: text
+            required: true
+
+    validation:
+      method: git_list_refs
+      extracts: default_branch
+    scope_capabilities:
+      regions: false
+      branches: true
+      engines: [secops]
+
+  # ── Bitbucket ─────────────────────────────────────────────────────────────
+  - id: bitbucket
+    label: "Bitbucket"
+    tenant_type: secops
+    provider: bitbucket
+    icon: bitbucket
+    auth_models:
+      - id: app_password
+        label: "App Password"
+        auth_model: git_token
+        recommended: true
+        admin_prerequisites:
+          - step: "Create a Bitbucket App Password"
+            detail: >
+              Bitbucket → Personal settings → App passwords → Create
+              Permissions: Repositories: Read
+        credential_fields:
+          - name: username
+            label: "Bitbucket Username"
+            type: text
+            required: true
+          - name: app_password
+            label: "App Password"
+            type: password
+            required: true
+            sensitive: true
+          - name: repo_url
+            label: "Repository URL"
+            type: text
+            placeholder: "https://bitbucket.org/workspace/repo"
+            required: true
+
+    validation:
+      method: git_list_refs
+      extracts: default_branch
+    scope_capabilities:
+      regions: false
+      branches: true
+      engines: [secops]
+
+  # ── Azure DevOps ──────────────────────────────────────────────────────────
+  - id: azure_devops
+    label: "Azure DevOps"
+    tenant_type: secops
+    provider: azure_devops
+    icon: azure_devops
+    auth_models:
+      - id: pat
+        label: "Personal Access Token"
+        auth_model: git_token
+        recommended: true
+        admin_prerequisites:
+          - step: "Create an Azure DevOps PAT"
+            detail: >
+              Azure DevOps → User Settings → Personal access tokens → New Token
+              Scopes: Code (Read)
+        credential_fields:
+          - name: organization
+            label: "Organization Name"
+            type: text
+            placeholder: "your-org"
+            required: true
+          - name: project
+            label: "Project Name"
+            type: text
+            required: true
+          - name: token
+            label: "Personal Access Token"
+            type: password
+            required: true
+            sensitive: true
+
+    validation:
+      method: git_list_refs
+      extracts: default_branch
+    scope_capabilities:
+      regions: false
+      branches: true
+      engines: [secops]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VULNERABILITY — Agent-based vulnerability scanning
+# tenant_type: vulnerability
+# auth_model: agent  (PKCE bootstrap — no cloud credentials stored)
+# ─────────────────────────────────────────────────────────────────────────────
+
+  - id: vulnerability_agent
+    label: "Vulnerability Scan (Agent)"
+    tenant_type: vulnerability
+    provider: agent
+    icon: vulnerability
+    auth_models:
+      - id: agent
+        label: "Vulnerability Agent"
+        auth_model: agent
+        recommended: true
+        description: >
+          Install the CSPM Vulnerability Agent on the target system. No cloud
+          credentials required — the agent uses a PKCE bootstrap token and
+          reports back to the platform. Scans packages, containers, and SBOMs
+          for CVEs.
+        admin_prerequisites:
+          - step: "Ensure the target system has outbound HTTPS (port 443) access to the CSPM platform"
+            detail: "The agent needs to reach the onboarding engine API to register and post results"
+          - step: "Ensure you have sudo/root access on the target system for installation"
+            detail: "The agent installer requires elevated privileges to install as a system service"
+          - step: "Note the target system's OS (Linux/Windows/macOS) — installer command varies"
+        credential_fields: []  # no credential form — wizard shows install command instead
+        agent_install:
+          show_install_command: true
+          platforms:
+            - os: linux
+              command: |
+                curl -sSL https://install.cspm.io/vuln-agent | sudo bash \
+                  --registration-id {registration_id} \
+                  --verifier {code_verifier}
+            - os: docker
+              command: |
+                docker run -d --name cspm-vuln-agent \
+                  -e REGISTRATION_ID={registration_id} \
+                  -e CODE_VERIFIER={code_verifier} \
+                  yadavanup84/cspm-vuln-agent:latest
+          bootstrap_ttl_minutes: 15
+          validation: agent_heartbeat   # account active once first heartbeat received
+    scope_capabilities:
+      regions: false
+      services: false
+      engines: [vulnerability]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DATABASE — Agent-based database security scanning
+# tenant_type: database
+# auth_model: agent
+# ─────────────────────────────────────────────────────────────────────────────
+
+  - id: database_agent
+    label: "Database Security (Agent)"
+    tenant_type: database
+    provider: agent
+    icon: database
+    auth_models:
+      - id: agent
+        label: "Database Security Agent"
+        auth_model: agent
+        recommended: true
+        description: >
+          Install the CSPM Database Agent on the host where the database runs
+          (or on a host with network access to the DB). The agent connects to
+          the database with a read-only user you configure locally — credentials
+          are NOT sent to the CSPM platform. Supports MySQL, PostgreSQL, MSSQL,
+          Oracle, MongoDB, Redis, Cassandra.
+        admin_prerequisites:
+          - step: "Create a read-only database user for the CSPM agent"
+            detail: |
+              MySQL:      CREATE USER 'cspm'@'localhost' IDENTIFIED BY '...';
+                          GRANT SELECT ON *.* TO 'cspm'@'localhost';
+              PostgreSQL: CREATE USER cspm WITH PASSWORD '...';
+                          GRANT CONNECT ON DATABASE yourdb TO cspm;
+                          GRANT USAGE ON SCHEMA public TO cspm;
+              MSSQL:      CREATE LOGIN cspm WITH PASSWORD='...';
+                          ALTER SERVER ROLE sysadmin ADD MEMBER cspm; -- or db_datareader
+          - step: "Ensure the agent host has network access to the database port"
+            detail: "Default ports: MySQL 3306, PostgreSQL 5432, MSSQL 1433, Oracle 1521"
+          - step: "Ensure outbound HTTPS (port 443) from the agent host to the CSPM platform"
+        credential_fields: []
+        agent_install:
+          show_install_command: true
+          platforms:
+            - os: linux
+              command: |
+                curl -sSL https://install.cspm.io/db-agent | sudo bash \
+                  --registration-id {registration_id} \
+                  --verifier {code_verifier}
+            - os: docker
+              command: |
+                docker run -d --name cspm-db-agent \
+                  -e REGISTRATION_ID={registration_id} \
+                  -e CODE_VERIFIER={code_verifier} \
+                  yadavanup84/cspm-db-agent:latest
+          bootstrap_ttl_minutes: 15
+          validation: agent_heartbeat
+    scope_capabilities:
+      regions: false
+      services: false
+      engines: [dbsec]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MIDDLEWARE — Agent-based middleware / web server scanning
+# tenant_type: middleware
+# auth_model: agent
+# ─────────────────────────────────────────────────────────────────────────────
+
+  - id: middleware_agent
+    label: "Middleware / Web Server (Agent)"
+    tenant_type: middleware
+    provider: agent
+    icon: middleware
+    auth_models:
+      - id: agent
+        label: "Middleware Security Agent"
+        auth_model: agent
+        recommended: true
+        description: >
+          Install the CSPM Middleware Agent on the host running Nginx, Apache,
+          Tomcat, IIS, or other middleware. Reads config files and checks
+          security posture without exposing config content to the platform.
+          Supports: Nginx, Apache HTTPD, Apache Tomcat, IIS, HAProxy, Envoy.
+        admin_prerequisites:
+          - step: "Ensure the agent has read access to middleware config directories"
+            detail: |
+              Nginx:  /etc/nginx/
+              Apache: /etc/apache2/ or /etc/httpd/
+              Tomcat: $CATALINA_HOME/conf/
+              IIS:    %SystemRoot%\System32\inetsrv\config\
+          - step: "Ensure outbound HTTPS (port 443) from the agent host to the CSPM platform"
+        credential_fields: []
+        agent_install:
+          show_install_command: true
+          platforms:
+            - os: linux
+              command: |
+                curl -sSL https://install.cspm.io/mw-agent | sudo bash \
+                  --registration-id {registration_id} \
+                  --verifier {code_verifier}
+          bootstrap_ttl_minutes: 15
+          validation: agent_heartbeat
+    scope_capabilities:
+      regions: false
+      services: false
+      engines: [check]   # middleware rules run through check engine
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TECHNOLOGY — Technology inventory and security posture
+# tenant_type: technology
+# ─────────────────────────────────────────────────────────────────────────────
+
+  - id: k8s_technology
+    label: "Kubernetes (Technology Inventory)"
+    tenant_type: technology
+    provider: k8s
+    icon: k8s
+    auth_models:
+      - id: kubeconfig
+        label: "Kubeconfig File"
+        auth_model: file_upload
+        recommended: true
+        description: >
+          Technology engine K8s scanning — deeper than cloud_csp K8s.
+          Covers Helm charts, operators, CRDs, workload security, SBOM.
+        admin_prerequisites:
+          - step: "Same as cloud_csp k8s_kubeconfig — cluster-reader ClusterRole + kubeconfig"
+        credential_fields:
+          - name: kubeconfig
+            label: "Kubeconfig File"
+            type: file
+            accept: ".yaml,.yml,.conf,*"
+            required: true
+            sensitive: true
+        validation:
+          method: k8s_list_namespace
+          extracts: cluster_server_url
+    scope_capabilities:
+      regions: false
+      services: true   # namespaces
+      engines: [technology]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# QUICK REFERENCE — Auth model summary
+# ─────────────────────────────────────────────────────────────────────────────
+
+auth_model_summary:
+  api_secret:
+    description: "Static credentials stored encrypted in AWS Secrets Manager"
+    types: [aws_access_key, azure_service_principal, alicloud_access_key, ibm_api_key]
+    creds_stored: true
+    rotation_needed: true
+    expiry_check: true
+
+  iam_role:
+    description: "Assume-role or workload identity — no long-lived secret stored"
+    types: [aws_iam_role, k8s_in_cluster]
+    creds_stored: false
+    rotation_needed: false
+    expiry_check: false
+
+  file_upload:
+    description: "Credential file (JSON, PEM, kubeconfig) stored encrypted in Secrets Manager"
+    types: [gcp_service_account_json, oci_config_file, k8s_kubeconfig]
+    creds_stored: true
+    rotation_needed: true
+    expiry_check: true
+
+  git_token:
+    description: "Git repository token (PAT, deploy token, SSH key)"
+    types: [github_pat, github_app, gitlab_pat, gitlab_deploy_token, bitbucket_app_password, azure_devops_pat, ssh_key]
+    creds_stored: true
+    rotation_needed: true
+    expiry_check: true
+
+  agent:
+    description: "Agent-based — PKCE bootstrap token, no cloud credentials stored on platform"
+    types: [vulnerability_agent, database_agent, middleware_agent]
+    creds_stored: false     # creds live on agent host only
+    rotation_needed: false
+    expiry_check: false     # validated by agent heartbeat

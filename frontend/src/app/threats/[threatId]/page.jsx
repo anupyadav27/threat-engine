@@ -294,6 +294,7 @@ export default function ThreatDetailPage() {
   const [data, setData] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState(null);
+  const [activeTab, setActiveTab] = useState('overview');
 
   // Fetch threat detail from BFF
   const fetchData = useCallback(async () => {
@@ -492,8 +493,6 @@ export default function ThreatDetailPage() {
   }
 
   const { threat, exposure, mitre, affectedResources, supportingFindings, attackPath, blastRadius, remediation, timeline, evidence, riskBreakdown } = data;
-
-  const [activeTab, setActiveTab] = useState('overview');
 
   const TABS = [
     { id: 'overview', label: 'Overview' },

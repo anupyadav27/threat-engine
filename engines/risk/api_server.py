@@ -304,28 +304,53 @@ async def get_risk_status(scan_run_id: str):
 @app.get("/api/v1/scenarios/{scan_id}")
 async def get_scenarios(
     scan_id: str,
+    tenant_id: Optional[str] = Query(None),
     tier: Optional[str] = None,
     engine: Optional[str] = None,
     limit: int = 100,
 ):
-    """List risk scenarios for a scan with optional filters."""
+    """List risk scenarios for a scan with optional filters.
+
+    AC-S2: tenant_id filter applied on all risk_scenarios SELECT queries.
+    When tenant_id is omitted the query filters by scan_id only (internal use).
+    """
     conn = get_risk_conn()
     cursor = conn.cursor()
     try:
-        query = """
-            SELECT scenario_id::text, source_finding_id, source_engine,
-                   asset_id, asset_arn, asset_type, scenario_type,
-                   title, rule_id,
-                   data_records_at_risk, data_sensitivity,
-                   loss_event_frequency,
-                   primary_loss_likely, regulatory_fine_max,
-                   total_exposure_min, total_exposure_max, total_exposure_likely,
-                   risk_tier, calculation_model,
-                   account_id, region, csp
-            FROM risk_scenarios
-            WHERE risk_scan_id = %s::uuid
-        """
-        params = [scan_id]
+        # AC-S2: always include tenant_id filter when provided
+        if tenant_id:
+            query = """
+                SELECT scenario_id::text, source_finding_id, source_engine,
+                       asset_id, asset_arn, asset_type, scenario_type,
+                       data_records_at_risk, data_sensitivity,
+                       loss_event_frequency,
+                       primary_loss_likely, regulatory_fine_max,
+                       total_exposure_min, total_exposure_max, total_exposure_likely,
+                       risk_tier, calculation_model,
+                       account_id, region, csp,
+                       blast_radius_score, fair_lef, fair_lm, fair_risk_score,
+                       regulatory_flags, mitre_techniques, attack_path
+                FROM risk_scenarios
+                WHERE risk_scan_id = %s::uuid
+                  AND tenant_id = %s
+            """
+            params: list = [scan_id, tenant_id]
+        else:
+            query = """
+                SELECT scenario_id::text, source_finding_id, source_engine,
+                       asset_id, asset_arn, asset_type, scenario_type,
+                       data_records_at_risk, data_sensitivity,
+                       loss_event_frequency,
+                       primary_loss_likely, regulatory_fine_max,
+                       total_exposure_min, total_exposure_max, total_exposure_likely,
+                       risk_tier, calculation_model,
+                       account_id, region, csp,
+                       blast_radius_score, fair_lef, fair_lm, fair_risk_score,
+                       regulatory_flags, mitre_techniques, attack_path
+                FROM risk_scenarios
+                WHERE risk_scan_id = %s::uuid
+            """
+            params = [scan_id]
 
         if tier:
             query += " AND risk_tier = %s"
@@ -878,7 +903,8 @@ async def risk_scenarios(
     if not scan_id:
         return {"data": []}
 
-    raw = await get_scenarios(scan_id, limit=limit)
+    # AC-S2: pass tenant_id so get_scenarios enforces AND tenant_id = %s filter
+    raw = await get_scenarios(scan_id, tenant_id=tenant_id, limit=limit)
     # Normalise to what the UI expects
     data = []
     for r in raw:

@@ -57,7 +57,8 @@ class RiskReporter:
         logger.info("Risk Reporter started: scan_id=%s", scan_id)
 
         # 1. Load all scenarios for this scan
-        scenarios = self._load_scenarios(scan_id)
+        # AC-S2: tenant_id filter enforced inside _load_scenarios
+        scenarios = self._load_scenarios(scan_id, tenant_id)
         logger.info("Loaded %d scenarios for reporting", len(scenarios))
 
         # 2. Aggregate
@@ -269,8 +270,18 @@ class RiskReporter:
     # Data loading
     # ------------------------------------------------------------------
 
-    def _load_scenarios(self, scan_id: str) -> List[Dict[str, Any]]:
-        """Load all risk scenarios for this scan."""
+    def _load_scenarios(self, scan_id: str, tenant_id: str = "") -> List[Dict[str, Any]]:
+        """Load all risk scenarios for this scan.
+
+        AC-S2: query always includes AND tenant_id = %s to prevent cross-tenant leakage.
+
+        Args:
+            scan_id: The risk_scan_id UUID.
+            tenant_id: Tenant identifier — mandatory for row-level isolation.
+
+        Returns:
+            List of scenario dicts for aggregation.
+        """
         scenarios: List[Dict[str, Any]] = []
         cursor = self._risk_conn.cursor()
         try:
@@ -289,7 +300,8 @@ class RiskReporter:
                     account_id, region, csp
                 FROM risk_scenarios
                 WHERE risk_scan_id = %s::uuid
-            """, (scan_id,))
+                  AND tenant_id = %s
+            """, (scan_id, tenant_id))
 
             for row in cursor.fetchall():
                 scenarios.append({

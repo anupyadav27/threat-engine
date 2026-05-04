@@ -212,6 +212,10 @@ class BaseDBSecProvider(ABC):
         """Compute deterministic finding_id.
 
         Format: sha256(rule_id|resource_uid|account_id|region)[:16]
+
+        Note: ``rule_id`` must already contain the pillar name (e.g.
+        ``aws.dbsec.network_exposure.db_instance``) so that findings from
+        different pillars on the same resource produce different IDs.
         """
         raw = f"{rule_id}|{resource_uid}|{account_id}|{region}"
         return hashlib.sha256(raw.encode()).hexdigest()[:16]
@@ -230,6 +234,13 @@ class BaseDBSecProvider(ABC):
     ) -> Dict[str, Any]:
         """Build a complete finding dict from common fields.
 
+        The ``finding_id`` is computed as:
+        ``sha256(f"{pillar}_{rule_id}|{resource_uid}|{account_id}|{region}")[:16]``
+
+        Prefixing with ``pillar_`` ensures cross-pillar collisions cannot
+        occur even when multiple pillars produce findings for the same
+        rule_id/resource combination (AC-S3).
+
         Args:
             scan_run_id: Pipeline scan run identifier.
             tenant_id: Tenant identifier.
@@ -246,12 +257,28 @@ class BaseDBSecProvider(ABC):
         Returns:
             Complete finding dict ready for DB insertion.
         """
+        _VALID_PILLARS = {
+            "network_exposure",
+            "encryption",
+            "authentication",
+            "audit_activity",
+            "compliance_posture",
+        }
+        if pillar not in _VALID_PILLARS:
+            raise ValueError(
+                f"Invalid pillar '{pillar}'. Must be one of {sorted(_VALID_PILLARS)}"
+            )
+
         now = datetime.now(timezone.utc)
         resource_uid = resource["resource_uid"]
         region = resource["region"] or ""
         eff_account = account_id or resource.get("account_id", "")
 
-        finding_id = self._make_finding_id(rule_id, resource_uid, eff_account, region)
+        # Include pillar prefix in the hash key to prevent cross-pillar ID
+        # collisions on the same resource (AC-S3).
+        finding_id = self._make_finding_id(
+            f"{pillar}_{rule_id}", resource_uid, eff_account, region
+        )
 
         return {
             "finding_id": finding_id,

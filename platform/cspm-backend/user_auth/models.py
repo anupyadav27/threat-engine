@@ -34,6 +34,7 @@ class Users(AbstractBaseUser, PermissionsMixin):
     last_name = models.TextField(blank=True, null=True)
     status = models.TextField(blank=True, null=True)
     is_break_glass = models.BooleanField(default=False)
+    customer_id = models.CharField(max_length=255, null=True, blank=True, db_index=True)
     last_login = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -78,7 +79,7 @@ class UserSessions(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     session_index = models.TextField(blank=True, null=True)
-    token_hint = models.CharField(max_length=8, null=True, blank=True, db_index=False)
+    token_hint = models.CharField(max_length=8, null=True, blank=True, db_index=True)  # WARN-01: indexed for fast pre-filter before PBKDF2 verify
     permissions_cache = models.JSONField(default=list)
     scope_cache = models.JSONField(default=dict)
 
@@ -215,6 +216,40 @@ class InviteTokens(models.Model):
     class Meta:
         db_table = 'invite_tokens'
         indexes = [models.Index(fields=['token']), models.Index(fields=['email'])]
+
+
+class UserAdminScope(models.Model):
+    """
+    Records what scope a user administers.
+    scope_type: 'organization' | 'tenant' | 'account'
+    scope_id:   customer_id (for org), tenant_id (for tenant), account_id (for account)
+    """
+    id = models.TextField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='admin_scopes',
+    )
+    role = models.ForeignKey(
+        Roles,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+    scope_type = models.CharField(max_length=50)
+    scope_id = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'user_admin_scope'
+        indexes = [
+            models.Index(fields=['user', 'scope_type']),
+            models.Index(fields=['scope_type', 'scope_id']),
+        ]
+
+    def __str__(self):
+        return f"{self.user_id} → {self.scope_type}:{self.scope_id}"
 
 
 class PasswordResetTokens(models.Model):

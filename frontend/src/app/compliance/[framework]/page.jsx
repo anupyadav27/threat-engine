@@ -279,7 +279,7 @@ export default function FrameworkDetailPage() {
     setLoading(true);
     setError(null);
 
-    fetchView(`compliance/framework/${encodeURIComponent(frameworkId)}`, { tenant_id: TENANT_ID || 'default-tenant' })
+    fetchView(`compliance/framework/${encodeURIComponent(frameworkId)}`)
       .then((d) => {
         if (d?.families) {
           // Transform families-based response to flat controls list

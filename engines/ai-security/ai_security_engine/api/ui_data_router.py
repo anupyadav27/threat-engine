@@ -45,11 +45,36 @@ def _strip_sensitive_fields(data: List[Dict[str, Any]], auth: Any) -> List[Dict[
 
 
 def _resolve_latest_scan(cur, tenant_id: str) -> Optional[str]:
-    """Resolve 'latest' to the most recent completed scan_run_id for a tenant."""
+    """Resolve 'latest' to the most recent completed scan_run_id for a tenant.
+
+    Skips orphaned reports (completed status but no backing findings rows).
+    Falls back to ai_security_findings directly when no valid report exists.
+    """
     cur.execute(
-        """SELECT scan_run_id FROM ai_security_report
-           WHERE tenant_id = %s AND status = 'completed'
-           ORDER BY completed_at DESC LIMIT 1""",
+        """
+        SELECT r.scan_run_id FROM ai_security_report r
+        WHERE r.tenant_id = %s AND r.status = 'completed'
+          AND EXISTS (
+              SELECT 1 FROM ai_security_findings f
+              WHERE f.scan_run_id = r.scan_run_id AND f.tenant_id = r.tenant_id
+          )
+        ORDER BY r.completed_at DESC NULLS LAST LIMIT 1
+        """,
+        (tenant_id,),
+    )
+    row = cur.fetchone()
+    if row:
+        return str(row["scan_run_id"])
+    # Fallback: find latest scan_run_id directly from findings table
+    cur.execute(
+        """
+        SELECT scan_run_id, COUNT(*) AS cnt
+        FROM ai_security_findings
+        WHERE tenant_id = %s
+        GROUP BY scan_run_id
+        ORDER BY MAX(last_seen_at) DESC NULLS LAST, cnt DESC
+        LIMIT 1
+        """,
         (tenant_id,),
     )
     row = cur.fetchone()
@@ -185,6 +210,10 @@ async def get_ai_security_ui_data(
             # 8. Top failing rules from report JSONB
             top_failing_rules = report.get("top_failing_rules") or []
 
+            # 9. Coverage — computed live from ai_security_findings
+            #    All queries are scoped to tenant_id + scan_run_id (parameterized).
+            coverage = _compute_coverage(cur, scan_run_id, tenant_id)
+
         # -- Strip sensitive fields before assembling response -----------------
         findings = _strip_sensitive_fields(findings, auth)
         inventory = _strip_sensitive_fields(inventory, auth)
@@ -203,14 +232,7 @@ async def get_ai_security_ui_data(
                 "low_findings": report.get("low_findings", 0),
                 "pass_count": report.get("pass_count", 0),
                 "fail_count": report.get("fail_count", 0),
-                "coverage": {
-                    "vpc_isolation_pct": float(report.get("vpc_isolation_pct", 0)),
-                    "encryption_rest_pct": float(report.get("encryption_rest_pct", 0)),
-                    "encryption_transit_pct": float(report.get("encryption_transit_pct", 0)),
-                    "model_card_pct": float(report.get("model_card_pct", 0)),
-                    "monitoring_pct": float(report.get("monitoring_pct", 0)),
-                    "guardrails_pct": float(report.get("guardrails_pct", 0)),
-                },
+                "coverage": coverage,
                 "started_at": str(report.get("started_at", "")),
                 "completed_at": str(report.get("completed_at", "")),
             },
@@ -233,6 +255,109 @@ async def get_ai_security_ui_data(
                 conn.close()
             except Exception:
                 pass
+
+
+def _compute_coverage(cur: Any, scan_run_id: str, tenant_id: str) -> Dict[str, int]:
+    """Compute coverage percentages live from ai_security_findings.
+
+    All six keys are derived from pillar and status columns.
+    Every query is scoped to both tenant_id and scan_run_id (parameterized).
+
+    Args:
+        cur: psycopg2 cursor (RealDictCursor).
+        scan_run_id: The scan run identifier.
+        tenant_id: Tenant identifier — included in every WHERE clause.
+
+    Returns:
+        Dict with six integer coverage percentages, each clamped to 0-100.
+    """
+    def _pct(numerator: int, denominator: int) -> int:
+        """Safe integer percentage, clamped to 0-100."""
+        if denominator <= 0:
+            return 0
+        return max(0, min(100, round((numerator / denominator) * 100)))
+
+    # Total findings for this scan (denominator for vpc/encryption/model_card/vpc_isolation)
+    cur.execute(
+        """SELECT COUNT(*) AS total
+           FROM ai_security_findings
+           WHERE scan_run_id = %s AND tenant_id = %s""",
+        (scan_run_id, tenant_id),
+    )
+    total = int((cur.fetchone() or {}).get("total") or 0)
+
+    # encryption_rest_pct — model_security pillar PASS / total
+    cur.execute(
+        """SELECT COUNT(*) AS n
+           FROM ai_security_findings
+           WHERE scan_run_id = %s AND tenant_id = %s
+             AND pillar = 'model_security' AND status = 'PASS'""",
+        (scan_run_id, tenant_id),
+    )
+    enc_rest_pass = int((cur.fetchone() or {}).get("n") or 0)
+
+    # encryption_transit_pct — inference_security pillar PASS / total
+    cur.execute(
+        """SELECT COUNT(*) AS n
+           FROM ai_security_findings
+           WHERE scan_run_id = %s AND tenant_id = %s
+             AND pillar = 'inference_security' AND status = 'PASS'""",
+        (scan_run_id, tenant_id),
+    )
+    enc_transit_pass = int((cur.fetchone() or {}).get("n") or 0)
+
+    # model_card_pct — ai_governance pillar PASS / total
+    cur.execute(
+        """SELECT COUNT(*) AS n
+           FROM ai_security_findings
+           WHERE scan_run_id = %s AND tenant_id = %s
+             AND pillar = 'ai_governance' AND status = 'PASS'""",
+        (scan_run_id, tenant_id),
+    )
+    model_card_pass = int((cur.fetchone() or {}).get("n") or 0)
+
+    # monitoring_pct — 100 if any ai_governance finding exists, else 0
+    cur.execute(
+        """SELECT COUNT(*) AS n
+           FROM ai_security_findings
+           WHERE scan_run_id = %s AND tenant_id = %s
+             AND pillar = 'ai_governance'""",
+        (scan_run_id, tenant_id),
+    )
+    monitoring_present = int((cur.fetchone() or {}).get("n") or 0)
+
+    # guardrails_pct — inference_security PASS / inference_security total
+    cur.execute(
+        """SELECT
+               COUNT(*) FILTER (WHERE status = 'PASS') AS pass_n,
+               COUNT(*) AS total_n
+           FROM ai_security_findings
+           WHERE scan_run_id = %s AND tenant_id = %s
+             AND pillar = 'inference_security'""",
+        (scan_run_id, tenant_id),
+    )
+    row = cur.fetchone() or {}
+    guardrails_pass  = int(row.get("pass_n") or 0)
+    guardrails_total = int(row.get("total_n") or 0)
+
+    # vpc_isolation_pct — supply_chain pillar PASS / total
+    cur.execute(
+        """SELECT COUNT(*) AS n
+           FROM ai_security_findings
+           WHERE scan_run_id = %s AND tenant_id = %s
+             AND pillar = 'supply_chain' AND status = 'PASS'""",
+        (scan_run_id, tenant_id),
+    )
+    vpc_pass = int((cur.fetchone() or {}).get("n") or 0)
+
+    return {
+        "vpc_isolation_pct":      _pct(vpc_pass, total),
+        "encryption_rest_pct":    _pct(enc_rest_pass, total),
+        "encryption_transit_pct": _pct(enc_transit_pass, total),
+        "model_card_pct":         _pct(model_card_pass, total),
+        "monitoring_pct":         100 if monitoring_present > 0 else 0,
+        "guardrails_pct":         _pct(guardrails_pass, guardrails_total),
+    }
 
 
 def _empty_response() -> Dict[str, Any]:

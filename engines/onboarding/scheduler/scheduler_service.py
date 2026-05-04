@@ -145,6 +145,7 @@ class SchedulerService:
                 "trigger_type":      "scheduled",
                 "engines_requested": engines,
                 "include_regions":   sched.get("include_regions"),
+                "exclude_regions":   sched.get("exclude_regions"),
                 "include_services":  sched.get("include_services"),
                 "exclude_services":  sched.get("exclude_services"),
             })

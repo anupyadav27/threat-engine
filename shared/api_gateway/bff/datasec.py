@@ -20,6 +20,7 @@ from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Query, Request
 
+from ._auth import resolve_tenant_id
 from ._shared import fetch_many, fetch_all_check_findings, safe_get, is_empty_or_health
 from ._transforms import (
     normalize_datastore, normalize_classification, normalize_dlp_violation,
@@ -61,7 +62,6 @@ def _split_by_module(check_findings: List[dict]) -> Dict[str, list]:
 @router.get("/datasec")
 async def view_datasec(
     request: Request,
-    tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
@@ -75,6 +75,7 @@ async def view_datasec(
     - check engine   (data_protection_and_privacy domain, always reliable)
     """
 
+    tenant_id = resolve_tenant_id(request)
     effective_csp = csp or (provider.lower() if provider else "aws")
 
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)

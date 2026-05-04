@@ -11,6 +11,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, Request
 
+from ._auth import resolve_tenant_id
 from ._shared import fetch_many, fetch_all_check_findings, safe_get, is_empty_or_health
 from ._cache import cache_key, cached_view, TTL_IAM, auth_level_from_header
 from ._transforms import (
@@ -26,13 +27,13 @@ router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 @router.get("/iam")
 async def view_iam(
     request: Request,
-    tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
     csp: str = Query("aws"),
     scan_id: str = Query("latest"),
 ):
+    tenant_id = resolve_tenant_id(request)
     effective_csp = csp or (provider.lower() if provider else "aws")
 
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)

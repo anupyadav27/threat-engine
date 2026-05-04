@@ -718,7 +718,7 @@ export default function IamSecurityPage() {
         kpiGroups={[]}
         insightRow={kpiStripNode || null}
         tabData={tabData}
-        loading={false}
+        loading={loading}
         error={error}
         defaultTab="overview"
         onRowClick={handleRowClick}

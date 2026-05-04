@@ -11,12 +11,16 @@ Architecture:
         dashboard.py            -- /views/dashboard  (cross-engine)
         inventory.py            -- /views/inventory
         threats.py              -- /views/threats  (Threat Detection — merged overview + analytics)
-        threat_detail.py        -- /views/threats/{threat_id}
+        threat_command_room.py      -- /views/threat-command-room  (Command Room landing)
+        threat_scenario_detail.py   -- /views/threat-scenario/{id}  (4-chapter drawer)
+        threat_detail.py            -- /views/threats/{threat_id}
         threat_attack_paths.py  -- /views/threats/attack-paths
         threat_blast_radius.py  -- /views/threats/blast-radius
         threat_graph.py         -- /views/threats/graph
         threat_toxic_combos.py  -- /views/threats/toxic-combinations
         threat_timeline.py      -- /views/threats/timeline
+        threat_posture_delta.py -- /views/threat-posture-delta  (Trends & Posture Delta)
+                                   /views/threat-trend           (90-day trend chart data)
         compliance.py           -- /views/compliance
         iam.py                  -- /views/iam
         datasec.py              -- /views/datasec
@@ -35,6 +39,8 @@ Architecture:
         cnapp.py                -- /views/cnapp  (unified CNAPP dashboard)
         cwpp.py                 -- /views/cwpp   (workload protection platform)
         vulnerability.py        -- /views/vulnerability (agent scan overview)
+        billing.py              -- /views/billing  (billing portal — org_admin)
+        platform_admin.py       -- /views/platform-admin  (operator dashboard — platform_admin)
 """
 
 from fastapi import APIRouter
@@ -42,12 +48,16 @@ from fastapi import APIRouter
 from .dashboard import router as dashboard_router
 from .inventory import router as inventory_router
 from .threats import router as threats_router
+from .threat_command_room import router as threat_command_room_router
 from .threat_detail import router as threat_detail_router
+from .threat_scenario_detail import router as threat_scenario_detail_router
 from .threat_attack_paths import router as threat_attack_paths_router
 from .threat_blast_radius import router as threat_blast_radius_router
 from .threat_graph import router as threat_graph_router
 from .threat_toxic_combos import router as threat_toxic_combos_router
 from .threat_timeline import router as threat_timeline_router
+from .threat_posture_delta import router as threat_posture_delta_router
+from .threat_mitre_heatmap import router as threat_mitre_heatmap_router
 from .compliance import router as compliance_router
 from .iam import router as iam_router
 from .datasec import router as datasec_router
@@ -70,6 +80,8 @@ from .container_security import router as container_security_router
 from .cnapp import router as cnapp_router
 from .cwpp import router as cwpp_router
 from .vulnerability import router as vulnerability_router
+from .billing import router as billing_router
+from .platform_admin import router as platform_admin_router
 
 # Combined router — include this in main.py
 router = APIRouter()
@@ -81,11 +93,15 @@ for _sub in (
     dashboard_router,
     inventory_router,
     threats_router,
+    threat_command_room_router,
+    threat_scenario_detail_router,
     threat_attack_paths_router,
     threat_blast_radius_router,
     threat_graph_router,
     threat_toxic_combos_router,
     threat_timeline_router,
+    threat_posture_delta_router,
+    threat_mitre_heatmap_router,
     threat_detail_router,
     compliance_router,
     iam_router,
@@ -109,5 +125,7 @@ for _sub in (
     cnapp_router,
     cwpp_router,
     vulnerability_router,
+    billing_router,
+    platform_admin_router,
 ):
     router.include_router(_sub)

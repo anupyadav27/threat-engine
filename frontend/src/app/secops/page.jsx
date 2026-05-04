@@ -101,7 +101,7 @@ function SeverityBar({ counts }) {
   if (total === 0) {
     return (
       <div className="text-sm text-center py-4" style={{ color: 'var(--text-tertiary)' }}>
-        No findings data available
+        No IaC findings yet — trigger a SecOps scan to detect misconfigurations across your repositories.
       </div>
     );
   }
@@ -352,7 +352,7 @@ function EngineDonut({ data }) {
   if (!data || data.length === 0) {
     return (
       <div className="flex items-center justify-center h-32 text-sm" style={{ color: 'var(--text-tertiary)' }}>
-        No data available
+        No scan engine data — run a SecOps scan to see findings by engine.
       </div>
     );
   }
@@ -360,7 +360,7 @@ function EngineDonut({ data }) {
   if (total === 0) {
     return (
       <div className="flex items-center justify-center h-32 text-sm" style={{ color: 'var(--text-tertiary)' }}>
-        No findings recorded
+        No findings recorded for this scan — all checks passed or no rules matched.
       </div>
     );
   }
@@ -815,7 +815,7 @@ export default function SecOpsPage() {
     setError(null);
     try {
       const [bff, sca] = await Promise.all([
-        fetchView('secops', { tenant_id: TENANT_ID }).catch(() => ({})),
+        fetchView('secops').catch(() => ({})),
         fetchApi(`${SCA_BASE}`, { headers: { 'X-API-Key': SCA_API_KEY } }).catch(() => []),
       ]);
       setSastScans(bff?.sastScans || []);

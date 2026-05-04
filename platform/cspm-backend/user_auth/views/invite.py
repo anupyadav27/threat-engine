@@ -18,10 +18,11 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework.views import APIView
 
 from user_auth.models import Users, UserSessions, InviteTokens
-from user_auth.utils.auth_utils import generate_token, hash_token, verify_token
+from user_auth.utils.auth_utils import compute_auth_caches, generate_token, hash_token, verify_token
 from user_auth.utils.cookie_utils import set_auth_cookies
 from user_auth.utils.email_utils import send_invite_email
 from user_auth.utils.audit_utils import log_auth_event
+from user_auth.utils.tenant_utils import accept_invite_membership
 
 
 def _current_user(request):
@@ -224,20 +225,7 @@ class AcceptInviteView(APIView):
                 status="active",
             )
 
-        from tenant_management.models import TenantUsers
-        if not TenantUsers.objects.filter(user=user, tenant=invite.tenant).exists():
-            from user_auth.utils.tenant_utils import get_or_create_admin_role
-            role = invite.role or get_or_create_admin_role()
-            TenantUsers.objects.create(
-                id=str(uuid.uuid4()),
-                tenant=invite.tenant,
-                user=user,
-                role=role,
-                is_active=True,
-            )
-
-        invite.used = True
-        invite.save(update_fields=["used"])
+        accept_invite_membership(user, invite)
 
         log_auth_event(
             "invite.accept",
@@ -253,6 +241,7 @@ class AcceptInviteView(APIView):
         expires_at = timezone.now() + timedelta(
             days=getattr(settings, "REFRESH_TOKEN_LIFETIME_DAYS", 7)
         )
+        permissions_cache, scope_cache = compute_auth_caches(user)
         UserSessions.objects.create(
             id=uuid.uuid4(),
             user=user,
@@ -262,6 +251,9 @@ class AcceptInviteView(APIView):
             expires_at=expires_at,
             ip_address=request.META.get("REMOTE_ADDR", ""),
             user_agent=request.META.get("HTTP_USER_AGENT", ""),
+            token_hint=access_token[:8],
+            permissions_cache=permissions_cache,
+            scope_cache=scope_cache,
         )
 
         response = JsonResponse({

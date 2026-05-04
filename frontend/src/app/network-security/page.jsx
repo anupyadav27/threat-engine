@@ -11,6 +11,7 @@ import PageLayout from '@/components/shared/PageLayout';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
 import FindingDetailPanel from '@/components/shared/FindingDetailPanel';
+import SecurityRelationshipGraphPage from '../inventory/graph/page';
 
 // ── Colour palette ────────────────────────────────────────────────────────────
 const C = {
@@ -596,6 +597,7 @@ export default function NetworkSecurityPage() {
     internet_exposure:{ data: internetExposure, columns: findingsColumns },
     topology:         { data: topology,         columns: findingsColumns },
     waf:              { data: waf,              columns: findingsColumns },
+    graph:            { renderTab: () => <SecurityRelationshipGraphPage /> },
   }), [findings, securityGroups, internetExposure, topology, waf, findingsColumns, serviceOptions]);
 
   const pageContext = {
@@ -608,6 +610,7 @@ export default function NetworkSecurityPage() {
       { id: 'internet_exposure', label: 'Internet Exposure', count: internetExposure.length  },
       { id: 'topology',          label: 'VPC Topology',      count: topology.length          },
       { id: 'waf',               label: 'WAF / DDoS',        count: waf.length               },
+      { id: 'graph',             label: 'Security Graph'                                     },
     ],
   };
 
@@ -658,7 +661,7 @@ export default function NetworkSecurityPage() {
         kpiGroups={[]}
         insightRow={insightStrip}
         tabData={tabData}
-        loading={false}
+        loading={loading}
         error={error}
         defaultTab="overview"
         onRowClick={handleRowClick}

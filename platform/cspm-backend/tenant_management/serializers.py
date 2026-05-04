@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Tenants, TenantIDPConfig
+from .models import Tenants, TenantIDPConfig, CsmGroups, GroupMembers, TenantGroupAccess, AccountGroupAccess
 
 
 class TenantSerializer(serializers.ModelSerializer):
@@ -7,9 +7,52 @@ class TenantSerializer(serializers.ModelSerializer):
         model = Tenants
         fields = [
             "id", "name", "description", "status", "plan",
-            "contact_email", "region", "created_at", "updated_at",
+            "contact_email", "region", "tenant_type", "customer_id",
+            "created_at", "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = ["id", "customer_id", "created_at", "updated_at"]
+
+
+class GroupSerializer(serializers.ModelSerializer):
+    member_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CsmGroups
+        fields = ["id", "customer_id", "name", "description", "member_count", "created_at", "updated_at"]
+        read_only_fields = ["id", "customer_id", "created_at", "updated_at"]
+
+    def get_member_count(self, obj):
+        return obj.members.count()
+
+
+class GroupMemberSerializer(serializers.ModelSerializer):
+    user_email = serializers.CharField(source="user.email", read_only=True)
+    user_id = serializers.CharField(write_only=True)
+
+    class Meta:
+        model = GroupMembers
+        fields = ["id", "user_id", "user_email", "added_at"]
+        read_only_fields = ["id", "user_email", "added_at"]
+
+
+class TenantGroupAccessSerializer(serializers.ModelSerializer):
+    group_name = serializers.CharField(source="group.name", read_only=True)
+    role_name  = serializers.CharField(source="role.name", read_only=True)
+
+    class Meta:
+        model = TenantGroupAccess
+        fields = ["id", "group", "group_name", "tenant", "role", "role_name", "granted_at"]
+        read_only_fields = ["id", "group_name", "role_name", "granted_at"]
+
+
+class AccountGroupAccessSerializer(serializers.ModelSerializer):
+    group_name = serializers.CharField(source="group.name", read_only=True)
+    role_name  = serializers.CharField(source="role.name", read_only=True)
+
+    class Meta:
+        model = AccountGroupAccess
+        fields = ["id", "group", "group_name", "tenant", "account_id", "role", "role_name", "granted_at"]
+        read_only_fields = ["id", "group_name", "role_name", "granted_at"]
 
 
 class TenantIDPConfigSerializer(serializers.ModelSerializer):

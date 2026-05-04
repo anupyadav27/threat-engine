@@ -11,6 +11,7 @@ from typing import Optional, Dict, List
 
 from fastapi import APIRouter, Query, Request
 
+from ._auth import resolve_tenant_id
 from ._shared import fetch_many, safe_get
 from ._transforms import apply_global_filters
 from ._page_context import ai_security_page_context, ai_security_filter_schema
@@ -121,7 +122,6 @@ def _normalize_shadow_ai_item(item: dict) -> dict:
 @router.get("/ai-security")
 async def view_ai_security(
     request: Request,
-    tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
@@ -130,6 +130,7 @@ async def view_ai_security(
 ):
     """Single endpoint returning everything the AI Security page needs."""
 
+    tenant_id = resolve_tenant_id(request)
     effective_csp = csp or (provider.lower() if provider else "aws")
 
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)

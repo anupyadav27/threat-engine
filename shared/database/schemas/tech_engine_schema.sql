@@ -14,9 +14,11 @@ CREATE TABLE IF NOT EXISTS tech_credentials (
     host            VARCHAR(500) NOT NULL,
     port            INTEGER,
     display_name    VARCHAR(255),
-    credential_type VARCHAR(50)  NOT NULL,  -- username_password|ssh_key|api_token|oauth|...
-    credential_ref  VARCHAR(500) NOT NULL,  -- Secrets Manager ARN
-    status          VARCHAR(50)  NOT NULL DEFAULT 'active',
+    credential_type  VARCHAR(50)  NOT NULL,  -- username_password|ssh_key|ssh_password|api_token|oauth|...
+    credential_ref   VARCHAR(500) NOT NULL,  -- Secrets Manager ARN
+    sudo_required    BOOLEAN      DEFAULT false,
+    ssh_private_key  TEXT         DEFAULT NULL,  -- RESERVED: key lives in Secrets Manager; ARN in credential_ref
+    status           VARCHAR(50)  NOT NULL DEFAULT 'active',
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE (tenant_id, tech_type, host)

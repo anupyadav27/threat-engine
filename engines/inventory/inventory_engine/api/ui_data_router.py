@@ -105,13 +105,19 @@ def _resolve_scan_run_id(
         # Fallback: maybe the value IS a scan_run_id already.
         return scan_run_id
 
-    # "latest" — pick the most recent completed report for this tenant.
-    # Fall back to any report, then to inventory_findings directly.
+    # "latest" — pick the most recent completed report that ALSO has findings rows.
+    # Fall back to any report with findings, then to inventory_findings directly.
+    # Verify findings exist before accepting a report-based scan_run_id to avoid
+    # returning a report whose write phase failed (report written, findings missing).
     cursor.execute(
         """
-        SELECT scan_run_id
-        FROM inventory_report
-        WHERE tenant_id = %s AND status = 'completed' AND total_assets > 0
+        SELECT r.scan_run_id
+        FROM inventory_report r
+        WHERE r.tenant_id = %s AND r.status = 'completed' AND r.total_assets > 0
+          AND EXISTS (
+              SELECT 1 FROM inventory_findings f
+              WHERE f.scan_run_id = r.scan_run_id AND f.tenant_id = r.tenant_id
+          )
         ORDER BY created_at DESC LIMIT 1
         """,
         (tenant_id,),

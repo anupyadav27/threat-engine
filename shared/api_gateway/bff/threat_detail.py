@@ -9,6 +9,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, Request
 
+from ._auth import resolve_tenant_id
 from ._shared import fetch_many, safe_get
 from ._transforms import normalize_threat, _safe_lower
 
@@ -230,7 +231,6 @@ def _build_timeline(threat: dict, normalized: dict, analysis: dict) -> list:
 async def view_threat_detail(
     request: Request,
     threat_id: str,
-    tenant_id: str = Query(...),
 ):
     """BFF view for threat detail page — single endpoint for the entire page.
 
@@ -240,6 +240,7 @@ async def view_threat_detail(
     blast radius, risk breakdown, evidence, remediation, and timeline.
     """
 
+    tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 

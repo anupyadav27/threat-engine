@@ -1,70 +1,24 @@
 """BFF view: /network-security page.
 
-Primary:  engine-network /api/v1/network-security/ui-data
-Fallback: engine-check  /api/v1/check/findings?domain=network_security_and_connectivity
+Primary source: engine-network /api/v1/network-security/ui-data
 
-All network-security pages (Security Groups, Internet Exposure, Topology, WAF)
-are filtered sub-views of the same check findings — split here by service.
+The engine classifies findings into security_groups, internet_exposure, waf,
+and topology sub-tab arrays using network_layer / effective_exposure columns.
+No BFF-side re-classification or check-engine fallback is performed — see
+ADR-NET-01 and the no-bff-fallbacks constitution.
 """
 
-from typing import Optional, List
+from typing import Optional
 
 from fastapi import APIRouter, Query, Request
 
-from ._shared import fetch_many, fetch_all_check_findings, safe_get, is_empty_or_health
+from ._auth import resolve_tenant_id
+from ._shared import fetch_many, safe_get
 from ._cache import cache_key, cached_view, TTL_NETWORK, auth_level_from_header
-from ._transforms import apply_global_filters, normalize_check_finding
+from ._transforms import apply_global_filters
 from ._page_context import network_security_page_context, network_security_filter_schema
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
-
-# ── Service sets for sub-table classification ──────────────────────────────
-_WAF_SVCS      = frozenset({'waf', 'wafv2', 'shield', 'globalaccelerator', 'networkfirewall'})
-_TOPOLOGY_SVCS = frozenset({'vpc', 'vpcflowlogs', 'directconnect', 'route53', 'transitgateway'})
-_EXPOSURE_SVCS = frozenset({'elb', 'elbv2', 'cloudfront', 'eip', 'lightsail'})
-_SG_SVCS       = frozenset({'ec2'})
-
-
-def _classify(f: dict) -> str:
-    """Classify a check/network finding into a network sub-table."""
-    svc  = (f.get('service')          or '').lower()
-    rt   = (f.get('resource_type')    or '').lower().replace('-', '').replace('_', '')
-    rule = (f.get('rule_id')          or '').lower()
-    cat  = (f.get('posture_category') or '').lower()
-    layer = (f.get('network_layer')   or '').lower()
-
-    # WAF / DDoS
-    if (svc in _WAF_SVCS or 'waf' in svc or 'shield' in svc
-            or 'waf' in rule or 'shield' in rule or 'firewall' in rule
-            or '.dos' in rule or 'networkfirewall' in rule or 'networkfirewall' in rt):
-        return 'waf'
-
-    # VPC / Topology
-    if (svc in _TOPOLOGY_SVCS or 'vpc' in rule or 'flowlog' in rule
-            or 'vcn' in rule or 'route_table' in rule or 'topology' in rule
-            or 'transit' in rule or 'directconnect' in rule
-            or 'vcn' in rt or 'routetable' in rt
-            or layer in ('network_isolation', 'network_reachability')):
-        return 'topology'
-
-    # Internet Exposure
-    if (svc in _EXPOSURE_SVCS or 'public' in cat or 'exposure' in cat
-            or 'public' in rule or 'internet' in rule or 'exposure' in rule
-            or 'ingress.tls' in rule or 'ingress.controller' in rule
-            or 'eip' in rule or 'publicip' in rt
-            or layer in ('load_balancer_security',)):
-        return 'exposure'
-
-    # Security Groups / network ACLs
-    if (svc in _SG_SVCS
-            or 'securitygroup' in rt or 'security_group' in rule or '.sg.' in rule or '_sg_' in rule
-            or 'security_list' in rule or 'security_list' in rt
-            or 'network_policy' in rule or 'network.restrict' in rule
-            or 'nacl' in rule or 'networkacl' in rt
-            or layer in ('network_acl', 'security_group_rules')):
-        return 'sg'
-
-    return 'general'
 
 
 def _enrich_for_ui(f: dict) -> dict:
@@ -81,29 +35,9 @@ def _enrich_for_ui(f: dict) -> dict:
     return f
 
 
-def _check_findings_to_net_data(findings: List[dict]) -> dict:
-    """Split flat check findings list into the net_data sub-table structure."""
-    sgs, exposure, topology, waf = [], [], [], []
-    for f in findings:
-        t = _classify(f)
-        if t == 'sg':         sgs.append(f)
-        elif t == 'topology': topology.append(f)
-        elif t == 'exposure': exposure.append(f)
-        elif t == 'waf':      waf.append(f)
-    return {
-        "findings":         findings,
-        "security_groups":  sgs,
-        "internet_exposure": exposure,
-        "topology":         topology,
-        "waf":              waf,
-        "summary":          {},
-    }
-
-
 @router.get("/network-security")
 async def view_network_security(
     request: Request,
-    tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
@@ -111,6 +45,7 @@ async def view_network_security(
 ):
     """Single endpoint returning everything the network security page needs."""
 
+    tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
     role_level = auth_level_from_header(auth_ctx_header)
@@ -131,38 +66,17 @@ async def view_network_security(
     if not isinstance(net_data, dict):
         net_data = {}
 
-    # ── Fallback: use check engine filtered by network domain ───────────────
-    # Also fall back when engine returns a valid structure but 0 findings
-    if is_empty_or_health(net_data) or not safe_get(net_data, "findings", []):
-        check_raw = await fetch_all_check_findings({
-            "tenant_id": tenant_id,
-            "domain": "network_security_and_connectivity",
-        }, auth_headers=fwd_headers)
-        if check_raw:
-            normalized = [_enrich_for_ui(normalize_check_finding(f)) for f in check_raw]
-            net_data = _check_findings_to_net_data(normalized)
-
     summary = safe_get(net_data, "summary", {})
 
     # -- Findings ----------------------------------------------------------------
     raw_findings = safe_get(net_data, "findings", [])
     filtered_findings = apply_global_filters(raw_findings, provider, account, region)
 
-    # -- Sub-tab classification --------------------------------------------------
-    # Network engine may return findings but empty sub-tab arrays (it leaves
-    # classification to the consumer).  Re-classify whenever sub-tabs are empty
-    # but findings are present so the UI tabs are always populated.
+    # -- Sub-tab arrays (engine-classified) -------------------------------------
     raw_sg       = safe_get(net_data, "security_groups",   [])
     raw_exposure = safe_get(net_data, "internet_exposure",  [])
     raw_topology = safe_get(net_data, "topology",           [])
     raw_waf      = safe_get(net_data, "waf",                [])
-
-    if raw_findings and not (raw_sg or raw_exposure or raw_topology or raw_waf):
-        sub = _check_findings_to_net_data(raw_findings)
-        raw_sg       = sub["security_groups"]
-        raw_exposure = sub["internet_exposure"]
-        raw_topology = sub["topology"]
-        raw_waf      = sub["waf"]
 
     # -- Security Groups ---------------------------------------------------------
     filtered_sg = apply_global_filters(raw_sg, provider, account, region)
@@ -170,8 +84,11 @@ async def view_network_security(
     # -- Internet Exposure -------------------------------------------------------
     filtered_exposure = apply_global_filters(raw_exposure, provider, account, region)
 
-    # -- Topology ----------------------------------------------------------------
+    # -- Topology (findings sub-tab) --------------------------------------------
     topology = apply_global_filters(raw_topology, provider, account, region)
+
+    # -- Topology Snapshots (VPC snapshot dicts) --------------------------------
+    topology_snapshots = safe_get(net_data, "topology_snapshots", [])
 
     # -- WAF ---------------------------------------------------------------------
     filtered_waf = apply_global_filters(raw_waf, provider, account, region)
@@ -274,11 +191,12 @@ async def view_network_security(
                 "items": module_items,
             },
         ],
-        "findings":         filtered_findings,
-        "security_groups":  filtered_sg,
+        "findings":          filtered_findings,
+        "security_groups":   filtered_sg,
         "internet_exposure": filtered_exposure,
-        "topology":         topology,
-        "waf":              filtered_waf,
+        "topology":          topology,
+        "topology_snapshots": topology_snapshots,
+        "waf":               filtered_waf,
         "domainBreakdown": safe_get(net_data, "domain_breakdown", []),
         "scanTrend":        safe_get(net_data, "scan_trend",       []),
     }

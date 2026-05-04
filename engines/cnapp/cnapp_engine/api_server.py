@@ -37,6 +37,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .pillars import cspm, ciem, cwpp, dspm, network, threat, appsec
 from .core.aggregator import compute_cnapp_score, risk_band
+from .core.pillar_health import (
+    CNAPP_PILLAR_HEALTH_ENDPOINTS,
+    check_pillar_health,
+    fetch_all_pillar_scores,
+    extract_score_from_response,
+    extract_findings_count,
+)
 
 try:
     import sys as _sys
@@ -255,6 +262,101 @@ async def posture_score(
             }
             for r in results
         },
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+# ── Unified CNAPP score (graceful degradation) ────────────────────────────────
+
+# Maps logical pillar names → source engine key used in pillar_health.py
+_SCORE_PILLAR_MAP = {
+    "cloud_security":    "check",
+    "network_security":  "network",
+    "data_security":     "datasec",
+    "identity_security": "iam",
+    "workload_security": "container_sec",
+    "risk_posture":      "risk",
+    "ai_security":       "ai_security",
+    "db_security":       "dbsec",
+}
+
+
+@app.get("/api/v1/cnapp/score")
+async def cnapp_score(
+    scan_run_id: str = Query(..., description="scan_run_id to scope all pillar score queries"),
+    tenant_id: str = Query(default="default-tenant"),
+    provider: str = Query(default="aws"),
+):
+    """
+    Unified CNAPP score with graceful degradation.
+
+    Steps:
+      1. Health-check all 8 pillar engines concurrently (5s timeout each).
+      2. For available pillars only, fetch score data (5s timeout each, tenant_id scoped).
+      3. Compute overall_score from available pillars only — unavailable pillars
+         contribute score=None and are excluded from the denominator.
+      4. Return available_pillars / total_pillars so operators can see coverage.
+
+    Unavailable pillar → score=null, findings=null, reason="engine_unavailable".
+    If ALL pillars unavailable → overall_score=null.
+    """
+    # Step 1 — parallel health checks (5s per pillar)
+    health = await check_pillar_health(CNAPP_PILLAR_HEALTH_ENDPOINTS)
+
+    # Step 2 — parallel score fetches for available pillars only (tenant_id scoped)
+    # Maps source key → raw response dict
+    score_data = await fetch_all_pillar_scores(health, scan_run_id, tenant_id)
+
+    # Step 3 — build pillar dict with the unified logical names
+    pillars: Dict[str, Any] = {}
+    available_scores: list = []
+
+    for pillar_name, source_key in _SCORE_PILLAR_MAP.items():
+        is_available = health.get(source_key, False)
+        raw = score_data.get(source_key)
+
+        if not is_available:
+            pillars[pillar_name] = {
+                "score": None,
+                "findings": None,
+                "source": source_key,
+                "reason": "engine_unavailable",
+            }
+            continue
+
+        score = extract_score_from_response(source_key, raw)
+        findings = extract_findings_count(source_key, raw)
+
+        if score is not None:
+            available_scores.append(score)
+
+        pillars[pillar_name] = {
+            "score": score,
+            "findings": findings,
+            "source": source_key,
+            "reason": None,
+        }
+
+    # Step 4 — compute overall score from available pillars only (AC-S3, AC-S6)
+    if available_scores:
+        overall_score: Optional[int] = round(sum(available_scores) / len(available_scores))
+    else:
+        overall_score = None  # All pillars down — never return 0
+
+    available_count = sum(
+        1 for p in pillars.values() if p["score"] is not None
+    )
+    total_count = len(_SCORE_PILLAR_MAP)
+
+    return {
+        "overall_score": overall_score,
+        "provider": provider,
+        "scan_run_id": scan_run_id,
+        "tenant_id": tenant_id,
+        "risk_band": risk_band(overall_score),
+        "pillars": pillars,
+        "available_pillars": available_count,
+        "total_pillars": total_count,
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
 

@@ -11,6 +11,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, Request
 
+from ._auth import resolve_tenant_id
 from ._shared import fetch_many, fetch_all_check_findings, safe_get, is_empty_or_health
 from ._transforms import apply_global_filters
 from ._page_context import database_security_page_context, database_security_filter_schema
@@ -21,7 +22,6 @@ router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 @router.get("/database-security")
 async def view_database_security(
     request: Request,
-    tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
@@ -29,6 +29,7 @@ async def view_database_security(
 ):
     """Single endpoint returning everything the database security page needs."""
 
+    tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 

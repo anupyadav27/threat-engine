@@ -234,6 +234,17 @@ def save_container_inventory(
         conn.close()
 
 
+_VALID_CIS_LAYERS = frozenset({
+    "control_plane",
+    "node_config",
+    "rbac",
+    "pod_security",
+    "network_policies",
+    "secrets_management",
+    "image_security",
+})
+
+
 def save_cis_findings_to_db(
     scan_run_id: str,
     tenant_id: str,
@@ -243,6 +254,10 @@ def save_cis_findings_to_db(
     credential_type: str = None,
 ) -> int:
     """Save CIS benchmark findings produced by cis_analyzer to container_sec_findings.
+
+    AC-S6: cis_layer is validated against _VALID_CIS_LAYERS before each INSERT.
+    AC-S4: blast_radius_score is always 0 — stored in finding_data only, never a column.
+    AC-S2: Secret.data values are never present in findings; only config flags are stored.
 
     Args:
         scan_run_id: Pipeline scan run identifier.
@@ -261,6 +276,7 @@ def save_cis_findings_to_db(
     conn = get_container_sec_conn()
     now = datetime.now(timezone.utc)
     count = 0
+    skipped = 0
 
     try:
         with conn.cursor() as cur:
@@ -270,6 +286,16 @@ def save_cis_findings_to_db(
             )
 
             for f in cis_findings:
+                # AC-S6: validate cis_layer before INSERT
+                cis_layer = f.get("cis_layer") or f.get("layer", "")
+                if cis_layer not in _VALID_CIS_LAYERS:
+                    logger.warning(
+                        "Skipping finding with invalid cis_layer=%r (finding_id=%s)",
+                        cis_layer, f.get("finding_id"),
+                    )
+                    skipped += 1
+                    continue
+
                 cur.execute("""
                     INSERT INTO container_sec_findings (
                         finding_id, scan_run_id, tenant_id, account_id,
@@ -301,18 +327,20 @@ def save_cis_findings_to_db(
                     f.get("region"),
                     f["resource_uid"],
                     f["resource_type"],
-                    f.get("layer"),          # reuse layer as container_service for CIS findings
-                    f.get("layer"),          # reuse layer as security_domain for CIS findings
+                    cis_layer,    # container_service reused for CIS layer name
+                    cis_layer,    # security_domain reused for CIS layer name
                     f.get("severity", "HIGH"),
                     f.get("status", "FAIL"),
                     f.get("rule_id"),
                     json.dumps({
                         "title": f.get("title", ""),
-                        "blast_radius_score": 0,
-                        "layer": f.get("layer"),
+                        "blast_radius_score": 0,    # AC-S4: always 0
+                        "cis_layer": cis_layer,
+                        "cis_benchmark_id": f.get("cis_benchmark_id", ""),
                         "check_id": f.get("check_id"),
+                        "layer_check": f.get("layer_check"),
                     }, default=str),
-                    f.get("layer"),
+                    cis_layer,
                     f.get("layer_check"),
                     f.get("check_id"),
                     f.get("first_seen_at", now),
@@ -322,7 +350,8 @@ def save_cis_findings_to_db(
 
         conn.commit()
         logger.info(
-            "Saved %d CIS findings for provider=%s scan=%s", count, provider, scan_run_id
+            "Saved %d CIS findings for provider=%s scan=%s (%d skipped — invalid cis_layer)",
+            count, provider, scan_run_id, skipped,
         )
         return count
     except Exception:

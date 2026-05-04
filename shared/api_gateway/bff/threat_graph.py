@@ -15,6 +15,7 @@ from typing import Dict, List, Optional, Set
 
 from fastapi import APIRouter, Query, Request
 
+from ._auth import resolve_tenant_id
 from ._shared import fetch_many, safe_get
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
@@ -179,7 +180,6 @@ def _build_graph_from_paths(
 @router.get("/threats/graph")
 async def view_threat_graph(
     request: Request,
-    tenant_id: str = Query(...),
 ):
     """BFF view for the threat graph visualization page.
 
@@ -190,6 +190,7 @@ async def view_threat_graph(
     Also fetches orca_paths for the Orca-style attack path cards.
     """
 
+    tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 
@@ -271,7 +272,6 @@ async def view_threat_graph(
 @router.get("/threats/graph/filtered")
 async def view_threat_graph_filtered(
     request: Request,
-    tenant_id: str = Query(...),
     resource_type: Optional[str] = Query(None),
     security_status: Optional[str] = Query(None),
     connected_to: Optional[str] = Query(None),
@@ -286,6 +286,7 @@ async def view_threat_graph_filtered(
     Returns {nodes, edges, total_nodes, total_edges, matched_nodes, cypher_summary}
     with edge_kind on every edge for two-layer rendering.
     """
+    tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 

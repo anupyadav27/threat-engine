@@ -63,15 +63,36 @@ def compute_auth_caches(user: Any) -> Tuple[List[str], dict]:
     from user_auth.models import UserRoles as _UR
     platform_admin = _UR.objects.filter(user=user, role__level=1).exists()
     if platform_admin:
-        scope_cache: dict = {"tenant_ids": None, "account_ids": None}
+        from tenant_management.models import Tenants
+        first_tenant = Tenants.objects.order_by("created_at").first()
+        default_engine_tenant_id = (
+            first_tenant.engine_tenant_id or str(first_tenant.id)
+        ) if first_tenant else None
+        scope_cache: dict = {
+            "tenant_ids": None,
+            "account_ids": None,
+            "engine_tenant_id": default_engine_tenant_id,
+        }
     else:
-        tenant_ids = list(
+        memberships = (
             TenantUsers.objects.filter(user=user, is_active=True)
-            .values_list("tenant_id", flat=True)
+            .select_related("tenant")
+        )
+        engine_tenant_ids = []
+        for m in memberships:
+            eid = m.tenant.engine_tenant_id or str(m.tenant.id)
+            engine_tenant_ids.append(eid)
+        # Resolve account_ids: explicit grants restrict to specific accounts;
+        # no grants means unrestricted (None) within the tenant.
+        from tenant_management.models import UserAccountAccess
+        account_grants = list(
+            UserAccountAccess.objects.filter(user=user)
+            .values_list("account_id", flat=True)
         )
         scope_cache = {
-            "tenant_ids": [str(tid) for tid in tenant_ids],
-            "account_ids": None,
+            "tenant_ids": engine_tenant_ids,
+            "engine_tenant_id": engine_tenant_ids[0] if engine_tenant_ids else None,
+            "account_ids": account_grants if account_grants else None,
         }
 
     return permissions_cache, scope_cache

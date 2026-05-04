@@ -73,10 +73,35 @@ def _query_scan_trend(cur, tenant_id: str) -> list:
 
 
 def _resolve_latest_scan(cur, tenant_id: str) -> Optional[str]:
+    """Resolve 'latest' to the most recent scan_run_id for a tenant.
+
+    Skips orphaned reports (no backing findings). Falls back to container_sec_findings.
+    """
     cur.execute(
-        """SELECT scan_run_id FROM container_sec_report
-           WHERE tenant_id = %s AND status = 'completed'
-           ORDER BY generated_at DESC LIMIT 1""",
+        """
+        SELECT r.scan_run_id FROM container_sec_report r
+        WHERE r.tenant_id = %s AND r.status = 'completed'
+          AND EXISTS (
+              SELECT 1 FROM container_sec_findings f
+              WHERE f.scan_run_id = r.scan_run_id AND f.tenant_id = r.tenant_id
+          )
+        ORDER BY r.generated_at DESC NULLS LAST LIMIT 1
+        """,
+        (tenant_id,),
+    )
+    row = cur.fetchone()
+    if row:
+        return row["scan_run_id"]
+    # Fallback: latest scan_run_id directly from findings
+    cur.execute(
+        """
+        SELECT scan_run_id, COUNT(*) AS cnt
+        FROM container_sec_findings
+        WHERE tenant_id = %s
+        GROUP BY scan_run_id
+        ORDER BY MAX(last_seen_at) DESC NULLS LAST, cnt DESC
+        LIMIT 1
+        """,
         (tenant_id,),
     )
     row = cur.fetchone()
@@ -101,9 +126,7 @@ async def get_container_sec_ui_data(
             # Report
             cur.execute("SELECT * FROM container_sec_report WHERE scan_run_id = %s AND tenant_id = %s LIMIT 1",
                         (scan_run_id, tenant_id))
-            report = cur.fetchone()
-            if not report:
-                return _empty_response()
+            report = cur.fetchone() or {}
 
             # Inventory
             cur.execute(

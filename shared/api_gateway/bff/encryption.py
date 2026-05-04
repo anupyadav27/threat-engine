@@ -11,6 +11,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, Request
 
+from ._auth import resolve_tenant_id
 from ._shared import fetch_many, fetch_all_check_findings, safe_get, is_empty_or_health
 from ._transforms import apply_global_filters
 from ._page_context import encryption_page_context, encryption_filter_schema
@@ -21,7 +22,6 @@ router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 @router.get("/encryption")
 async def view_encryption(
     request: Request,
-    tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
@@ -29,6 +29,7 @@ async def view_encryption(
 ):
     """Single endpoint returning everything the encryption security page needs."""
 
+    tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 
@@ -75,10 +76,10 @@ async def view_encryption(
     filtered_resources = apply_global_filters(raw_resources, provider, account, region)
 
     # ── Keys ─────────────────────────────────────────────────────────────────
-    keys = safe_get(enc_data, "keys", [])
+    keys = safe_get(enc_data, "keys", []) or safe_get(enc_data, "key_inventory", [])
 
     # ── Certificates ─────────────────────────────────────────────────────────
-    certificates = safe_get(enc_data, "certificates", [])
+    certificates = safe_get(enc_data, "certificates", []) or safe_get(enc_data, "cert_inventory", [])
 
     # ── Findings ─────────────────────────────────────────────────────────────
     raw_findings = safe_get(enc_data, "findings", [])
@@ -103,8 +104,8 @@ async def view_encryption(
             (encrypted_resources / total_resources * 100), 1
         ) if total_resources else 0
 
-    keys_count = safe_get(summary, "keys_count", len(keys))
-    certs_count = safe_get(summary, "certificates_count", len(certificates))
+    keys_count = safe_get(summary, "keys_count", None) or safe_get(summary, "total_keys", len(keys))
+    certs_count = safe_get(summary, "certificates_count", None) or safe_get(summary, "total_certificates", len(certificates))
 
     expiring_certs = safe_get(summary, "expiring_certificates_30d", None)
     if expiring_certs is None:

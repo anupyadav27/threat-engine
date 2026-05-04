@@ -50,6 +50,18 @@ ATLAS_TECHNIQUES: Dict[str, Dict[str, str]] = {
     },
 }
 
+# Valid ATLAS pillar names (AC-S6).
+VALID_PILLARS = frozenset({
+    "model_security",
+    "training_data_security",
+    "inference_security",
+    "supply_chain",
+    "ai_governance",
+})
+
+# Valid ATLAS technique IDs (AC-S7).
+VALID_TECHNIQUES = frozenset(ATLAS_TECHNIQUES.keys())
+
 # ---------------------------------------------------------------------------
 # Resource types targeted by this provider
 # ---------------------------------------------------------------------------
@@ -66,11 +78,56 @@ AWS_AI_SERVICES = {
     "rekognition",
 }
 
+# Discovery resource_type values for AWS AI/ML (story spec)
+AWS_AI_RESOURCE_TYPES = {
+    "SageMaker::Model",
+    "SageMaker::Endpoint",
+    "SageMaker::NotebookInstance",
+    "Bedrock::Model",
+    "Comprehend::Classifier",
+    "Rekognition::Collection",
+    # Lower-cased variants as emitted by scanner
+    "notebook_instance",
+    "transform_job",
+    "inference_profile",
+    "model_invocation_logging_configuration",
+    "prompt_router",
+    "resource_catalog",
+}
 
-def _make_finding_id(rule_id: str, resource_uid: str, account_id: str, region: str) -> str:
-    """Deterministic finding_id: sha256(rule_id|resource_uid|account_id|region)[:16]."""
-    raw = f"{rule_id}|{resource_uid}|{account_id}|{region}"
+
+def _make_finding_id(atlas_pillar: str, atlas_technique: Optional[str],
+                     resource_uid: str, account_id: str, region: str) -> str:
+    """Deterministic finding_id per AC-S3.
+
+    sha256(f"{atlas_pillar}_{atlas_technique}|{resource_uid}|{account_id}|{region}")[:16]
+    When atlas_technique is None (governance checks without a technique),
+    the prefix is just the pillar name.
+    """
+    technique_part = atlas_technique or "none"
+    raw = f"{atlas_pillar}_{technique_part}|{resource_uid}|{account_id}|{region}"
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
+def _validate_pillar(pillar: str) -> str:
+    """Validate atlas_pillar against known set (AC-S6). Returns pillar unchanged."""
+    if pillar not in VALID_PILLARS:
+        logger.warning("Unknown atlas_pillar '%s' — defaulting to ai_governance", pillar)
+        return "ai_governance"
+    return pillar
+
+
+def _validate_technique(technique: Optional[str]) -> Optional[str]:
+    """Validate atlas_technique against known set (AC-S7).
+
+    Unknown techniques are logged at WARNING (not CRITICAL) and dropped.
+    """
+    if technique is None:
+        return None
+    if technique not in VALID_TECHNIQUES:
+        logger.warning("Unknown atlas_technique '%s' — dropping technique field", technique)
+        return None
+    return technique
 
 
 def _atlas_detail(technique_id: Optional[str]) -> Dict[str, str]:
@@ -98,11 +155,15 @@ def _finding(
     atlas_technique: Optional[str],
     title: str,
     detail: str,
+    status: str = "FAIL",
 ) -> Dict[str, Any]:
     """Build a complete ATLAS finding dict."""
+    validated_pillar = _validate_pillar(pillar)
+    validated_technique = _validate_technique(atlas_technique)
     now = datetime.now(timezone.utc)
     return {
-        "finding_id": _make_finding_id(rule_id, resource_uid, account_id, region),
+        "finding_id": _make_finding_id(validated_pillar, validated_technique,
+                                        resource_uid, account_id, region),
         "scan_run_id": scan_run_id,
         "tenant_id": tenant_id,
         "account_id": account_id,
@@ -111,10 +172,12 @@ def _finding(
         "resource_uid": resource_uid,
         "resource_type": resource_type,
         "severity": severity,
-        "status": "FAIL",
-        "pillar": pillar,
-        "atlas_technique": atlas_technique,
-        "atlas_detail": _atlas_detail(atlas_technique),
+        "status": status,
+        # Both field names so db_writer can read either
+        "atlas_pillar": validated_pillar,
+        "pillar": validated_pillar,
+        "atlas_technique": validated_technique,
+        "atlas_detail": _atlas_detail(validated_technique),
         "blast_radius_score": 0,
         "rule_id": rule_id,
         "title": title,
@@ -228,22 +291,21 @@ class AWSAISecurityProvider(BaseAISecurityProvider):
                     ))
                 else:
                     # PASS finding so pillar coverage is recorded
-                    now = datetime.now(timezone.utc)
-                    fid = _make_finding_id(
-                        "aws.ai_sec.model_security.notebook_root_access",
-                        resource_uid, account_id, region,
-                    )
-                    findings.append({
-                        **_finding(
-                            "aws.ai_sec.model_security.notebook_root_access",
-                            resource_uid, resource_type, account_id, region,
-                            tenant_id, scan_run_id, "CRITICAL", "model_security",
-                            "AML.T0003", "SageMaker notebook root access check",
-                            "RootAccess is disabled — compliant.",
-                        ),
-                        "status": "PASS",
-                        "finding_id": fid,
-                    })
+                    findings.append(_finding(
+                        rule_id="aws.ai_sec.model_security.notebook_root_access",
+                        resource_uid=resource_uid,
+                        resource_type=resource_type,
+                        account_id=account_id,
+                        region=region,
+                        tenant_id=tenant_id,
+                        scan_run_id=scan_run_id,
+                        severity="CRITICAL",
+                        pillar="model_security",
+                        atlas_technique="AML.T0003",
+                        title="SageMaker notebook root access check",
+                        detail="RootAccess is disabled — compliant.",
+                        status="PASS",
+                    ))
 
                 # DirectInternetAccess enabled → HIGH
                 if ef.get("DirectInternetAccess") == "Enabled":

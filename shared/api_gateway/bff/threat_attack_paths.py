@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Query, Request
 
+from ._auth import resolve_tenant_id
 from ._shared import fetch_many, safe_get
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
@@ -213,7 +214,6 @@ def _normalize_orca_path(op: Dict[str, Any]) -> Dict[str, Any]:
 @router.get("/threats/attack-paths")
 async def view_threat_attack_paths(
     request: Request,
-    tenant_id: str = Query(...),
     scan_run_id: Optional[str] = Query(None),
     min_path_score: int = Query(0, ge=0, le=100),
 ):
@@ -223,6 +223,7 @@ async def view_threat_attack_paths(
     Neo4j paths include per-node finding_count and threat_count for badge rendering.
     """
 
+    tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 

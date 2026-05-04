@@ -707,10 +707,10 @@ export default function AttackPathsPage() {
           {attackPaths.length === 0 ? (
             <EmptyState
               icon={<Network className="w-12 h-12" />}
-              title={hasFilter ? 'No paths match these filters' : 'No Attack Paths'}
+              title={hasFilter ? 'No paths match these filters' : 'No Attack Paths Detected'}
               description={hasFilter
                 ? 'Try adjusting the chain type or severity filter.'
-                : 'No attack paths detected. Run a threat scan to analyze your infrastructure.'}
+                : 'No multi-step attack paths were detected in this scan. Attack paths appear when a resource is reachable from the internet AND has a critical misconfiguration or active threat finding. Ensure a full pipeline scan (Discovery → Check → Threat) has completed.'}
             />
           ) : (
             <div className="space-y-3">

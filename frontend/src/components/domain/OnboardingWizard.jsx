@@ -1,26 +1,39 @@
 'use client';
 /**
- * OnboardingWizard — 5-step cloud account onboarding
+ * OnboardingWizard — multi-step cloud/agent account onboarding
  *
- * Step 1: Select tenant workspace, account name, provider + auth method
- * Step 2: Enter credentials (fields per provider)
- * Step 3: Validate — auto-runs, shows progress + result
- * Step 4: Configure scan schedule (presets, engines, regions, notifications)
- * Step 5: Summary — review everything, launch
+ * Account types:
+ *   cloud_csp   — Cloud providers (AWS, Azure, GCP, OCI, AliCloud, IBM, K8s)
+ *   database    — Self-hosted DB engines (postgres, mysql, mssql, mongodb, oracle)
+ *   vulnerability — Agent-based CVE / SBOM scanning (phones-home via token)
+ *   secops      — SAST / DAST / IaC scanning from a Git repository
+ *   middleware  — Application middleware security monitoring (agent-based)
  *
- * API calls (onboarding engine):
- *   POST  /api/v1/cloud-accounts                        → create account record
- *   POST  /api/v1/cloud-accounts/{id}/credentials       → store + validate creds
- *   POST  /api/v1/schedules                             → create schedule
+ * Flows:
+ *   cloud_csp / database : 1 → 2 (credentials) → 3 (validate) → 4 (schedule) → 5 (summary)
+ *   secops               : 1 → 2 (git repo) → 3 (validate git) → 4 (schedule) → 5 (summary)
+ *   vulnerability / middleware : 1 → 2 (agent install) → 4 (schedule) → 5 (summary)
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ChevronDown, Download, X, CheckCircle2, XCircle, Loader2,
-  Calendar, Clock, Globe, Layers, Bell, ChevronRight,
+  Calendar, Clock, Globe, Layers, Bell, ChevronRight, Copy, Check,
 } from 'lucide-react';
 import { postToEngine, getFromEngine } from '@/lib/api';
 import { useTenant } from '@/lib/tenant-context';
+
+// ── Account type catalogue ────────────────────────────────────────────────────
+
+const ACCOUNT_TYPE_OPTIONS = [
+  { key: 'cloud_csp',     icon: '☁️',  label: 'Cloud Provider',   desc: 'AWS, Azure, GCP, OCI, AliCloud, IBM, K8s' },
+  { key: 'vulnerability', icon: '🔍',  label: 'Vulnerability',    desc: 'Agent-based CVE scanning & SBOM' },
+  { key: 'secops',        icon: '🔒',  label: 'SecOps / Code',    desc: 'SAST, DAST, IaC scanning via Git repo' },
+  { key: 'database',      icon: '🗄️', label: 'Database',         desc: 'PostgreSQL, MySQL, SQL Server, MongoDB, Oracle' },
+  { key: 'middleware',    icon: '⚙️',  label: 'Middleware',       desc: 'Application middleware security monitoring' },
+];
+
+const AGENT_ACCOUNT_TYPES = new Set(['vulnerability', 'middleware']);
 
 // ── Provider catalogue ────────────────────────────────────────────────────────
 
@@ -42,7 +55,13 @@ const DB_PROVIDERS = {
   oracle:   { name: 'Oracle DB',  full: 'Oracle Database',        color: '#C74634' },
 };
 
-const PROVIDERS = { ...CLOUD_PROVIDERS, ...DB_PROVIDERS };
+const PROVIDERS = {
+  ...CLOUD_PROVIDERS,
+  ...DB_PROVIDERS,
+  git:   { name: 'Git',   full: 'Git Repository',       color: '#F05032' },
+  agent: { name: 'Agent', full: 'Agent-based scanning', color: '#8B5CF6' },
+};
+
 const DB_PROVIDER_SET = new Set(Object.keys(DB_PROVIDERS));
 
 // ── Auth methods + credential fields per provider ─────────────────────────────
@@ -58,12 +77,15 @@ const AUTH_METHODS = {
   alicloud: [{ value: 'access_key',        label: 'Access Key',        desc: 'Alibaba Cloud access key pair' }],
   ibm:      [{ value: 'api_key',           label: 'API Key',           desc: 'IBM Cloud API key' }],
   k8s:      [{ value: 'kubeconfig',        label: 'Kubeconfig',        desc: 'Kubernetes cluster config' }],
-  // Database providers — all use username_password except mongodb (connection_string)
   postgres: [{ value: 'username_password', label: 'Username / Password', desc: 'Direct DB credentials' }],
   mysql:    [{ value: 'username_password', label: 'Username / Password', desc: 'Direct DB credentials' }],
   mssql:    [{ value: 'username_password', label: 'Username / Password', desc: 'Direct DB credentials' }],
   mongodb:  [{ value: 'connection_string', label: 'Connection URI',       desc: 'mongodb:// or mongodb+srv:// URI' }],
   oracle:   [{ value: 'username_password', label: 'Username / Password', desc: 'Direct DB credentials' }],
+  git: [
+    { value: 'pat_token', label: 'Personal Access Token', desc: 'GitHub / GitLab / Bitbucket PAT' },
+    { value: 'ssh_key',   label: 'SSH Key',               desc: 'Deploy key (read-only access)' },
+  ],
 };
 
 const CREDENTIAL_FIELDS = {
@@ -103,7 +125,6 @@ const CREDENTIAL_FIELDS = {
   k8s_kubeconfig: [
     { key: 'kubeconfig', label: 'Kubeconfig YAML', placeholder: 'apiVersion: v1\nkind: Config\n…', secret: true, textarea: true },
   ],
-  // Database credential fields
   postgres_username_password: [
     { key: 'host',     label: 'Host',     placeholder: '192.168.1.10 or db.internal', secret: false },
     { key: 'port',     label: 'Port',     placeholder: '5432',                         secret: false },
@@ -128,7 +149,7 @@ const CREDENTIAL_FIELDS = {
     { key: 'instance', label: 'Instance', placeholder: 'SQLEXPRESS (optional)',        secret: false, optional: true },
   ],
   mongodb_connection_string: [
-    { key: 'uri', label: 'Connection URI', placeholder: 'mongodb://username:password@host:27017/dbname', secret: true, textarea: false },
+    { key: 'uri', label: 'Connection URI', placeholder: 'mongodb://username:password@host:27017/dbname', secret: true },
   ],
   oracle_username_password: [
     { key: 'host',         label: 'Host',         placeholder: '192.168.1.10 or db.internal', secret: false },
@@ -136,6 +157,16 @@ const CREDENTIAL_FIELDS = {
     { key: 'service_name', label: 'Service Name', placeholder: 'ORCL or XE',                  secret: false },
     { key: 'username',     label: 'Username',     placeholder: 'system',                       secret: false },
     { key: 'password',     label: 'Password',     placeholder: '••••',                         secret: true  },
+  ],
+  git_pat_token: [
+    { key: 'repo_url',    label: 'Repository URL', placeholder: 'https://github.com/org/repo', secret: false },
+    { key: 'pat_token',   label: 'Personal Access Token', placeholder: 'ghp_…',               secret: true  },
+    { key: 'branch',      label: 'Branch',         placeholder: 'main (default)',               secret: false, optional: true },
+  ],
+  git_ssh_key: [
+    { key: 'repo_url',    label: 'Repository URL', placeholder: 'git@github.com:org/repo.git', secret: false },
+    { key: 'private_key', label: 'SSH Private Key', placeholder: '-----BEGIN OPENSSH PRIVATE KEY-----…', secret: true, textarea: true },
+    { key: 'branch',      label: 'Branch',          placeholder: 'main (default)',              secret: false, optional: true },
   ],
 };
 
@@ -156,15 +187,19 @@ const CRON_PRESETS = [
 
 const ALL_ENGINES    = ['discovery', 'check', 'inventory', 'threat', 'compliance', 'iam', 'datasec'];
 const DB_ENGINES     = ['dbsec'];
-const ENGINE_LABELS = {
-  discovery:  { label: 'Discovery',   desc: 'Enumerate cloud resources' },
-  check:      { label: 'Check',       desc: 'Evaluate compliance rules' },
-  inventory:  { label: 'Inventory',   desc: 'Normalize + track assets' },
-  threat:     { label: 'Threat',      desc: 'MITRE ATT&CK mapping' },
-  compliance: { label: 'Compliance',  desc: 'Framework reports (CIS, NIST…)' },
-  iam:        { label: 'IAM',         desc: 'IAM posture analysis' },
-  datasec:    { label: 'Data Sec',    desc: 'Data classification & security' },
-  dbsec:      { label: 'DB Security', desc: 'CIS DB benchmark checks' },
+const SECOPS_ENGINES = ['secops'];
+const VULN_ENGINES   = ['vulnerability'];
+const ENGINE_LABELS  = {
+  discovery:     { label: 'Discovery',     desc: 'Enumerate cloud resources' },
+  check:         { label: 'Check',         desc: 'Evaluate compliance rules' },
+  inventory:     { label: 'Inventory',     desc: 'Normalize + track assets' },
+  threat:        { label: 'Threat',        desc: 'MITRE ATT&CK mapping' },
+  compliance:    { label: 'Compliance',    desc: 'Framework reports (CIS, NIST…)' },
+  iam:           { label: 'IAM',           desc: 'IAM posture analysis' },
+  datasec:       { label: 'Data Sec',      desc: 'Data classification & security' },
+  dbsec:         { label: 'DB Security',   desc: 'CIS DB benchmark checks' },
+  secops:        { label: 'SecOps',        desc: 'SAST / DAST / IaC scanning' },
+  vulnerability: { label: 'Vulnerability', desc: 'CVE scanning & SBOM analysis' },
 };
 
 const COMMON_TIMEZONES = [
@@ -172,6 +207,26 @@ const COMMON_TIMEZONES = [
   'Europe/London', 'Europe/Berlin', 'Asia/Kolkata', 'Asia/Tokyo',
   'Asia/Singapore', 'Australia/Sydney',
 ];
+
+// ── Step configuration per account type ──────────────────────────────────────
+
+function getStepConfig(accountType) {
+  if (AGENT_ACCOUNT_TYPES.has(accountType)) {
+    return [
+      { n: 1, label: 'Account Setup' },
+      { n: 2, label: 'Install Agent' },
+      { n: 4, label: 'Schedule' },
+      { n: 5, label: 'Summary' },
+    ];
+  }
+  return [
+    { n: 1, label: 'Account Setup' },
+    { n: 2, label: accountType === 'secops' ? 'Repository' : 'Credentials' },
+    { n: 3, label: 'Validate' },
+    { n: 4, label: 'Schedule' },
+    { n: 5, label: 'Summary' },
+  ];
+}
 
 // ── Reusable field ────────────────────────────────────────────────────────────
 
@@ -196,10 +251,18 @@ function Field({ def, value, onChange }) {
   );
 }
 
-// ── Step 1: Provider selection ────────────────────────────────────────────────
+// ── Step 1: Account type + provider selection ─────────────────────────────────
 
 function Step1({ form, setForm }) {
   const { tenants } = useTenant();
+  const isAgentType   = AGENT_ACCOUNT_TYPES.has(form.accountType);
+  const isSecops      = form.accountType === 'secops';
+  const showProviders = form.accountType === 'cloud_csp' || form.accountType === 'database';
+  const providerMap   = form.accountType === 'database' ? DB_PROVIDERS : CLOUD_PROVIDERS;
+
+  function selectType(key) {
+    setForm(f => ({ ...f, accountType: key, provider: '', authMethod: '', credentials: {} }));
+  }
 
   return (
     <div className="space-y-5">
@@ -225,62 +288,73 @@ function Step1({ form, setForm }) {
           Account Name <span className="text-red-400">*</span>
         </label>
         <input type="text" value={form.accountName} onChange={e => setForm(f => ({ ...f, accountName: e.target.value }))}
-          placeholder="e.g. Production AWS, Dev Azure"
+          placeholder="e.g. Production AWS, Dev Vulnerability Scanner"
           className="w-full px-3 py-2 rounded-lg text-sm outline-none"
           style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-primary)', color: 'var(--text-primary)' }} />
       </div>
 
-      {/* Category tabs */}
+      {/* Account type grid */}
       <div>
         <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
           Account Type <span className="text-red-400">*</span>
         </label>
-        <div className="flex gap-2 mb-3">
-          {[
-            { key: 'cloud',    label: '☁️ Cloud Provider' },
-            { key: 'database', label: '🗄️ Database' },
-          ].map(cat => (
-            <button key={cat.key}
-              onClick={() => setForm(f => ({ ...f, accountCategory: cat.key, provider: '', authMethod: '' }))}
-              className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
-              style={{
-                border: `2px solid ${form.accountCategory === cat.key ? 'var(--accent-primary)' : 'var(--border-primary)'}`,
-                backgroundColor: form.accountCategory === cat.key ? 'rgba(59,130,246,0.08)' : 'var(--bg-tertiary)',
-                color: form.accountCategory === cat.key ? 'var(--accent-primary)' : 'var(--text-secondary)',
-              }}>
-              {cat.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Provider grid */}
-      {form.accountCategory && (
-      <div>
-        <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
-          {form.accountCategory === 'database' ? 'Database Engine' : 'Cloud Provider'} <span className="text-red-400">*</span>
-        </label>
-        <div className="grid grid-cols-4 gap-2">
-          {Object.entries(form.accountCategory === 'database' ? DB_PROVIDERS : CLOUD_PROVIDERS).map(([key, p]) => {
-            const selected = form.provider === key;
+        <div className="grid grid-cols-3 gap-2">
+          {ACCOUNT_TYPE_OPTIONS.map(opt => {
+            const selected = form.accountType === opt.key;
             return (
-              <button key={key} onClick={() => setForm(f => ({ ...f, provider: key, authMethod: '' }))}
-                className="flex flex-col items-center gap-1.5 p-3 rounded-lg text-center transition-all"
+              <button key={opt.key} onClick={() => selectType(opt.key)}
+                className="flex flex-col gap-1 p-3 rounded-lg text-left transition-all"
                 style={{
-                  border: `2px solid ${selected ? p.color : 'var(--border-primary)'}`,
-                  backgroundColor: selected ? `${p.color}18` : 'var(--bg-tertiary)',
+                  border: `2px solid ${selected ? 'var(--accent-primary)' : 'var(--border-primary)'}`,
+                  backgroundColor: selected ? 'rgba(59,130,246,0.08)' : 'var(--bg-tertiary)',
                 }}>
-                <span className="text-xs font-bold" style={{ color: selected ? p.color : 'var(--text-secondary)' }}>{p.name}</span>
-                <span className="text-[9px] leading-tight" style={{ color: 'var(--text-muted)' }}>{p.full}</span>
+                <span className="text-lg">{opt.icon}</span>
+                <span className="text-xs font-bold" style={{ color: selected ? 'var(--accent-primary)' : 'var(--text-primary)' }}>
+                  {opt.label}
+                </span>
+                <span className="text-[9px] leading-tight" style={{ color: 'var(--text-muted)' }}>{opt.desc}</span>
               </button>
             );
           })}
         </div>
       </div>
+
+      {/* Agent types: no further config needed in Step 1 */}
+      {isAgentType && form.accountType && (
+        <div className="flex items-start gap-3 p-3 rounded-lg text-xs"
+          style={{ backgroundColor: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)', color: 'var(--text-secondary)' }}>
+          <span className="text-base">📦</span>
+          <span>An install command will be generated in the next step. Deploy the agent in your target environment to begin scanning.</span>
+        </div>
       )}
 
-      {/* Auth method */}
-      {form.provider && (
+      {/* Provider grid — cloud_csp or database */}
+      {showProviders && (
+        <div>
+          <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
+            {form.accountType === 'database' ? 'Database Engine' : 'Cloud Provider'} <span className="text-red-400">*</span>
+          </label>
+          <div className="grid grid-cols-4 gap-2">
+            {Object.entries(providerMap).map(([key, p]) => {
+              const selected = form.provider === key;
+              return (
+                <button key={key} onClick={() => setForm(f => ({ ...f, provider: key, authMethod: '' }))}
+                  className="flex flex-col items-center gap-1.5 p-3 rounded-lg text-center transition-all"
+                  style={{
+                    border: `2px solid ${selected ? p.color : 'var(--border-primary)'}`,
+                    backgroundColor: selected ? `${p.color}18` : 'var(--bg-tertiary)',
+                  }}>
+                  <span className="text-xs font-bold" style={{ color: selected ? p.color : 'var(--text-secondary)' }}>{p.name}</span>
+                  <span className="text-[9px] leading-tight" style={{ color: 'var(--text-muted)' }}>{p.full}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Auth method — cloud_csp or database */}
+      {showProviders && form.provider && (
         <div>
           <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
             Authentication Method <span className="text-red-400">*</span>
@@ -305,11 +379,39 @@ function Step1({ form, setForm }) {
           </div>
         </div>
       )}
+
+      {/* SecOps: git auth method */}
+      {isSecops && (
+        <div>
+          <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
+            Git Authentication Method <span className="text-red-400">*</span>
+          </label>
+          <div className="space-y-2">
+            {AUTH_METHODS['git'].map(m => {
+              const selected = form.authMethod === m.value;
+              return (
+                <button key={m.value} onClick={() => setForm(f => ({ ...f, provider: 'git', authMethod: m.value, credentials: {} }))}
+                  className="w-full flex items-start gap-3 p-3 rounded-lg text-left transition-all"
+                  style={{ border: `2px solid ${selected ? '#F05032' : 'var(--border-primary)'}`, backgroundColor: selected ? 'rgba(240,80,50,0.06)' : 'var(--bg-tertiary)' }}>
+                  <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center`}
+                    style={{ borderColor: selected ? '#F05032' : 'var(--border-primary)' }}>
+                    {selected && <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#F05032' }} />}
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{m.label}</div>
+                    <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{m.desc}</div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// ── Step 2: Credential fields ─────────────────────────────────────────────────
+// ── Step 2: Credential fields (cloud_csp / database / secops) ─────────────────
 
 function Step2({ form, setForm }) {
   const fields   = getFields(form.provider, form.authMethod);
@@ -334,10 +436,151 @@ function Step2({ form, setForm }) {
         </div>
       )}
 
+      {form.provider === 'git' && (
+        <div className="flex items-start gap-2 px-3 py-2 rounded-lg text-xs"
+          style={{ backgroundColor: 'rgba(240,80,50,0.06)', border: '1px solid rgba(240,80,50,0.2)', color: 'var(--text-secondary)' }}>
+          <span>The scanner will clone your repository and run SAST / IaC / dependency checks. Grant read-only access.</span>
+        </div>
+      )}
+
       {fields.map(def => (
         <Field key={def.key} def={def} value={form.credentials[def.key]}
           onChange={(k, v) => setForm(f => ({ ...f, credentials: { ...f.credentials, [k]: v } }))} />
       ))}
+    </div>
+  );
+}
+
+// ── Step 2 (agent types): Agent setup — create account + issue token ──────────
+
+function AgentSetupStep({ form, customerId, accountId, setAccountId, agentToken, setAgentToken }) {
+  const [phase, setPhase]   = useState('creating'); // creating | ready | error
+  const [error, setError]   = useState(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function setup() {
+      try {
+        // 1. Create account record
+        const created = await postToEngine('onboarding', '/api/v1/cloud-accounts', {
+          customer_id:  customerId,
+          tenant_id:    form.tenantId,
+          account_name: form.accountName,
+          account_type: form.accountType,
+          provider:     'agent',
+        });
+        if (cancelled) return;
+        if (created.error || !created.account_id) {
+          setError(created.error || 'Failed to create account');
+          setPhase('error');
+          return;
+        }
+        const aid = created.account_id;
+        setAccountId(aid);
+
+        // 2. Issue agent bootstrap token
+        const tokenResp = await postToEngine('onboarding', `/api/v1/cloud-accounts/${aid}/agent-token`, {
+          account_id:  aid,
+          customer_id: customerId,
+          tenant_id:   form.tenantId,
+        });
+        if (cancelled) return;
+        if (tokenResp.error) {
+          setError(tokenResp.error);
+          setPhase('error');
+          return;
+        }
+        setAgentToken(tokenResp);
+        setPhase('ready');
+      } catch (err) {
+        if (!cancelled) { setError(err.message || 'Unexpected error'); setPhase('error'); }
+      }
+    }
+    setup();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function copyCommand() {
+    navigator.clipboard.writeText(agentToken?.install_command || '');
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  const typeLabel = ACCOUNT_TYPE_OPTIONS.find(o => o.key === form.accountType)?.label || form.accountType;
+
+  if (phase === 'creating') {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-10">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-400" />
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Creating account and generating install token…</p>
+      </div>
+    );
+  }
+
+  if (phase === 'error') {
+    return (
+      <div className="p-4 rounded-lg" style={{ backgroundColor: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)' }}>
+        <p className="text-sm font-medium text-red-400">Failed to set up agent account</p>
+        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{error}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Success banner */}
+      <div className="flex items-center gap-3 p-3 rounded-lg"
+        style={{ backgroundColor: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)' }}>
+        <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0" />
+        <div>
+          <p className="text-sm font-medium text-green-400">{typeLabel} account created</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+            Account ID: <span className="font-mono">{accountId?.slice(0, 8)}…</span>
+            {' · '}Token expires in <span className="font-medium">{agentToken?.ttl_minutes || 15} minutes</span>
+          </p>
+        </div>
+      </div>
+
+      {/* Instructions */}
+      <div>
+        <p className="text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>
+          Run this command on your target host to install and register the agent:
+        </p>
+        <div className="relative">
+          <pre className="text-xs font-mono p-4 rounded-lg overflow-x-auto leading-relaxed"
+            style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-primary)', color: '#86efac' }}>
+            {agentToken?.install_command}
+          </pre>
+          <button onClick={copyCommand}
+            className="absolute top-2 right-2 p-1.5 rounded flex items-center gap-1 text-xs transition-all"
+            style={{
+              backgroundColor: copied ? 'rgba(34,197,94,0.15)' : 'var(--bg-card)',
+              border: `1px solid ${copied ? 'rgba(34,197,94,0.4)' : 'var(--border-primary)'}`,
+              color: copied ? '#4ade80' : 'var(--text-muted)',
+            }}>
+            {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+        </div>
+      </div>
+
+      {/* What happens next */}
+      <div className="space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>What happens next</p>
+        {[
+          { icon: '1', text: 'Run the command above on your host — the agent installs and phones home.' },
+          { icon: '2', text: 'The token is valid for 15 minutes for initial registration only.' },
+          { icon: '3', text: 'After registration, the agent receives a 30-day session token automatically.' },
+          { icon: '4', text: 'Configure a scan schedule in the next step. First scan runs immediately after agent activates.' },
+        ].map(({ icon, text }) => (
+          <div key={icon} className="flex items-start gap-2.5">
+            <span className="w-5 h-5 rounded-full text-xs font-bold flex-shrink-0 flex items-center justify-center mt-0.5"
+              style={{ backgroundColor: 'rgba(139,92,246,0.15)', color: '#a78bfa' }}>{icon}</span>
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{text}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -399,8 +642,16 @@ function Step3({ steps, result, form }) {
 
 // ── Step 4: Schedule configuration ───────────────────────────────────────────
 
-function Step4({ schedule, setSchedule, isDbAccount }) {
-  const availableEngines = isDbAccount ? DB_ENGINES : ALL_ENGINES;
+function Step4({ schedule, setSchedule, accountType }) {
+  const engineMap = {
+    cloud_csp:     ALL_ENGINES,
+    database:      DB_ENGINES,
+    secops:        SECOPS_ENGINES,
+    vulnerability: VULN_ENGINES,
+    middleware:    VULN_ENGINES,
+  };
+  const availableEngines = engineMap[accountType] || ALL_ENGINES;
+
   const selectedPreset = CRON_PRESETS.find(p => p.cron === schedule.cron_expression && p.key !== 'custom') || CRON_PRESETS.find(p => p.key === 'custom');
   const [preset, setPreset] = useState(selectedPreset?.key || 'weekly');
 
@@ -443,7 +694,6 @@ function Step4({ schedule, setSchedule, isDbAccount }) {
           ))}
         </div>
 
-        {/* Custom cron input */}
         {preset === 'custom' && (
           <div className="mt-3">
             <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Cron Expression</label>
@@ -543,19 +793,23 @@ function Step4({ schedule, setSchedule, isDbAccount }) {
 // ── Step 5: Summary ───────────────────────────────────────────────────────────
 
 function Step5({ form, schedule, accountId, result, launching, launchError }) {
-  const provider   = PROVIDERS[form.provider];
-  const isDb       = DB_PROVIDER_SET.has(form.provider);
-  const authLabel  = AUTH_METHODS[form.provider]?.find(m => m.value === form.authMethod)?.label;
-  const freqPreset = CRON_PRESETS.find(p => p.cron === schedule.cron_expression)?.label || schedule.cron_expression;
+  const provider    = PROVIDERS[form.provider];
+  const typeOption  = ACCOUNT_TYPE_OPTIONS.find(o => o.key === form.accountType);
+  const isAgent     = AGENT_ACCOUNT_TYPES.has(form.accountType);
+  const isSecops    = form.accountType === 'secops';
+  const authLabel   = AUTH_METHODS[form.provider]?.find(m => m.value === form.authMethod)?.label;
+  const freqPreset  = CRON_PRESETS.find(p => p.cron === schedule.cron_expression)?.label || schedule.cron_expression;
 
   const sections = [
     {
-      icon:  isDb ? '🗄️' : '☁️',
-      title: isDb ? 'Database Account' : 'Cloud Account',
+      icon:  typeOption?.icon || '☁️',
+      title: `${typeOption?.label || 'Cloud'} Account`,
       rows: [
-        { label: 'Account Name', value: form.accountName },
-        { label: 'Provider', value: `${provider?.name} — ${provider?.full}` },
-        { label: 'Auth Method', value: authLabel },
+        { label: 'Account Name',  value: form.accountName },
+        { label: 'Account Type',  value: typeOption?.label },
+        !isAgent && { label: 'Provider',   value: provider ? `${provider.name} — ${provider.full}` : '—' },
+        !isAgent && !isSecops && { label: 'Auth Method', value: authLabel || '—' },
+        isSecops && { label: 'Git Auth',   value: authLabel || '—' },
         result?.account_number && { label: 'Account ID', value: result.account_number, mono: true },
         { label: 'Account Record', value: accountId?.slice(0, 8) + '…', mono: true },
       ].filter(Boolean),
@@ -573,7 +827,7 @@ function Step5({ form, schedule, accountId, result, launching, launchError }) {
     {
       icon: '⚙️',
       title: 'Engines',
-      rows: [{ label: 'Selected', value: schedule.engines_requested.map(e => ENGINE_LABELS[e]?.label).join(', ') }],
+      rows: [{ label: 'Selected', value: schedule.engines_requested.map(e => ENGINE_LABELS[e]?.label).join(', ') || '—' }],
     },
   ];
 
@@ -617,21 +871,31 @@ function Step5({ form, schedule, accountId, result, launching, launchError }) {
 
 // ── Wizard shell ──────────────────────────────────────────────────────────────
 
-const STEP_LABELS = ['Select Provider', 'Credentials', 'Validate', 'Schedule', 'Summary'];
-
 export default function OnboardingWizard({ onComplete = () => {}, onCancel = () => {} }) {
   const { customerId } = useTenant();
 
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
-    tenantId:        '',
-    accountName:     '',
-    accountCategory: '',
-    provider:        '',
-    authMethod:      '',
-    credentials:     {},
+    tenantId:    '',
+    accountName: '',
+    accountType: '',    // cloud_csp | vulnerability | secops | database | middleware
+    provider:    '',    // set by Step1 for CSP/DB/secops; 'agent' for vuln/middleware
+    authMethod:  '',
+    credentials: {},
   });
+
+  const isAgentType = AGENT_ACCOUNT_TYPES.has(form.accountType);
+  const isSecops    = form.accountType === 'secops';
   const isDbAccount = DB_PROVIDER_SET.has(form.provider);
+
+  const defaultEngines = {
+    cloud_csp:     ALL_ENGINES,
+    database:      DB_ENGINES,
+    secops:        SECOPS_ENGINES,
+    vulnerability: VULN_ENGINES,
+    middleware:    VULN_ENGINES,
+  };
+
   const [schedule, setSchedule] = useState({
     cron_expression:   '0 2 * * 0',
     timezone:          'UTC',
@@ -641,35 +905,43 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
     notify_on_success: false,
   });
 
-  // Step 3 state
+  // Step 3 state (validation flow — CSP / DB / secops)
   const [validationSteps, setValidationSteps] = useState([]);
-  const [result, setResult] = useState(null);
-  const [accountId, setAccountId] = useState(null);
+  const [result, setResult]                   = useState(null);
+  const [accountId, setAccountId]             = useState(null);
+
+  // Step 2 state (agent flow)
+  const [agentToken, setAgentToken] = useState(null);
 
   // Step 5 state
-  const [launching, setLaunching] = useState(false);
+  const [launching, setLaunching]   = useState(false);
   const [launchError, setLaunchError] = useState(null);
+
+  // Step indicator config
+  const stepConfig = getStepConfig(form.accountType);
 
   function updateVStep(i, patch) {
     setValidationSteps(prev => prev.map((s, idx) => idx === i ? { ...s, ...patch } : s));
   }
 
   async function runValidation() {
+    const providerLabel  = PROVIDERS[form.provider]?.name || form.provider;
+    const connectingLabel = isSecops ? 'Connecting to Git repository…' : `Connecting to ${providerLabel}…`;
     const steps = [
       { label: 'Creating account record…', status: 'running' },
-      { label: `Connecting to ${PROVIDERS[form.provider]?.name}…`, status: 'pending' },
-      { label: 'Validating credentials…', status: 'pending' },
+      { label: connectingLabel,            status: 'pending' },
+      { label: 'Validating credentials…',  status: 'pending' },
     ];
     setValidationSteps(steps);
     setResult(null);
 
     try {
       const created = await postToEngine('onboarding', '/api/v1/cloud-accounts', {
-        customer_id:      customerId,
-        tenant_id:        form.tenantId,
-        account_name:     form.accountName,
-        account_category: form.accountCategory,
-        provider:         form.provider,
+        customer_id:  customerId,
+        tenant_id:    form.tenantId,
+        account_name: form.accountName,
+        account_type: form.accountType,
+        provider:     form.provider,
       });
 
       if (created.error || !created.account_id) {
@@ -720,8 +992,9 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
 
       onComplete({
         accountId,
-        scheduleId: sched.schedule_id,
-        provider:   form.provider,
+        scheduleId:  sched.schedule_id,
+        accountType: form.accountType,
+        provider:    form.provider,
         accountName: form.accountName,
       });
     } catch (err) {
@@ -733,32 +1006,60 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
 
   async function handleNext() {
     if (step === 1) {
-      if (!form.tenantId || !form.accountName.trim() || !form.provider || !form.authMethod) return;
+      if (!step1Valid) return;
+      // Pre-set engines for account type
+      setSchedule(s => ({ ...s, engines_requested: [...(defaultEngines[form.accountType] || ALL_ENGINES)] }));
       setStep(2);
     } else if (step === 2) {
-      const allFilled = getFields(form.provider, form.authMethod)
-        .filter(f => !f.optional)
-        .every(f => form.credentials[f.key]?.trim());
-      if (!allFilled) return;
-      setStep(3);
-      await runValidation();
+      if (isAgentType) {
+        // Agent setup happens in the AgentSetupStep component itself.
+        // accountId is set by AgentSetupStep via setAccountId.
+        // Skip step 3, go directly to schedule.
+        setStep(4);
+      } else {
+        // cloud_csp / database / secops: validate credentials
+        const allFilled = getFields(form.provider, form.authMethod)
+          .filter(f => !f.optional)
+          .every(f => form.credentials[f.key]?.trim());
+        if (!allFilled) return;
+        setStep(3);
+        await runValidation();
+      }
     } else if (step === 3 && result?.success) {
-      // Pre-select the right engine set for the account type
-      setSchedule(s => ({
-        ...s,
-        engines_requested: isDbAccount ? [...DB_ENGINES] : [...ALL_ENGINES],
-      }));
       setStep(4);
     } else if (step === 4) {
       setStep(5);
     }
   }
 
-  const step1Valid = form.tenantId && form.accountName.trim() && form.accountCategory && form.provider && form.authMethod;
-  const step2Valid = getFields(form.provider, form.authMethod)
-    .filter(f => !f.optional)
-    .every(f => form.credentials[f.key]?.trim());
+  // Validation rules for the Next button
+  const step1Valid = (() => {
+    if (!form.tenantId || !form.accountName.trim() || !form.accountType) return false;
+    if (isAgentType) return true;
+    if (isSecops) return !!form.authMethod;
+    return !!(form.provider && form.authMethod);
+  })();
+
+  const step2Valid = isAgentType
+    ? true  // agent setup auto-runs; button always enabled to proceed
+    : getFields(form.provider, form.authMethod)
+        .filter(f => !f.optional)
+        .every(f => form.credentials[f.key]?.trim());
+
   const step4Valid = schedule.engines_requested.length > 0 && schedule.cron_expression.trim();
+
+  // Dynamic title for the header
+  const wizardTitle = (() => {
+    if (!form.accountType) return 'Add Account';
+    const opt = ACCOUNT_TYPE_OPTIONS.find(o => o.key === form.accountType);
+    return `Add ${opt?.label || ''} Account`;
+  })();
+
+  // Display index for the step indicator (position in stepConfig array)
+  function displayIndex(n) {
+    return stepConfig.findIndex(s => s.n === n);
+  }
+  const currentDisplayIndex = displayIndex(step);
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
@@ -769,7 +1070,7 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
         <div className="flex items-center justify-between px-6 py-4 border-b"
           style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-secondary)' }}>
           <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
-            {isDbAccount ? 'Add Database Account' : 'Add Cloud Account'}
+            {wizardTitle}
           </h2>
           <button onClick={onCancel} className="p-1 rounded hover:bg-white/10">
             <X className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
@@ -778,22 +1079,21 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
 
         {/* Step indicator */}
         <div className="flex items-center gap-0 px-6 py-3 border-b overflow-x-auto" style={{ borderColor: 'var(--border-primary)' }}>
-          {STEP_LABELS.map((label, i) => {
-            const n = i + 1;
-            const done   = n < step;
-            const active = n === step;
+          {stepConfig.map((sc, i) => {
+            const done   = currentDisplayIndex > i;
+            const active = currentDisplayIndex === i;
             return (
-              <div key={n} className="flex items-center flex-shrink-0">
+              <div key={sc.n} className="flex items-center flex-shrink-0">
                 <div className="flex items-center gap-1.5">
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${done ? 'bg-green-500 text-white' : active ? 'bg-blue-500 text-white' : 'text-gray-500'}`}
                     style={{ border: done || active ? 'none' : '2px solid var(--border-primary)' }}>
-                    {done ? '✓' : n}
+                    {done ? '✓' : i + 1}
                   </div>
                   <span className="text-xs font-medium whitespace-nowrap" style={{ color: active ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                    {label}
+                    {sc.label}
                   </span>
                 </div>
-                {i < STEP_LABELS.length - 1 && (
+                {i < stepConfig.length - 1 && (
                   <ChevronRight className="w-3.5 h-3.5 mx-1.5 flex-shrink-0" style={{ color: 'var(--border-primary)' }} />
                 )}
               </div>
@@ -804,9 +1104,30 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {step === 1 && <Step1 form={form} setForm={setForm} />}
-          {step === 2 && <Step2 form={form} setForm={setForm} />}
+
+          {step === 2 && isAgentType && (
+            <AgentSetupStep
+              form={form}
+              customerId={customerId}
+              accountId={accountId}
+              setAccountId={setAccountId}
+              agentToken={agentToken}
+              setAgentToken={setAgentToken}
+            />
+          )}
+
+          {step === 2 && !isAgentType && <Step2 form={form} setForm={setForm} />}
+
           {step === 3 && <Step3 steps={validationSteps} result={result} form={form} />}
-          {step === 4 && <Step4 schedule={schedule} setSchedule={setSchedule} isDbAccount={isDbAccount} />}
+
+          {step === 4 && (
+            <Step4
+              schedule={schedule}
+              setSchedule={setSchedule}
+              accountType={form.accountType}
+            />
+          )}
+
           {step === 5 && (
             <Step5
               form={form}
@@ -827,14 +1148,14 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
               style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-primary)' }}>
               Cancel
             </button>
-            {step > 1 && step < 3 && (
-              <button onClick={() => setStep(s => s - 1)} className="px-4 py-2 rounded-lg text-sm"
-                style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-primary)' }}>
-                ← Back
-              </button>
-            )}
-            {(step === 4 || step === 5) && (
-              <button onClick={() => setStep(s => s - 1)} className="px-4 py-2 rounded-lg text-sm"
+            {step > 1 && step !== 3 && (
+              <button
+                onClick={() => {
+                  // Agent types: from step 4 go back to step 2; from step 5 go back to step 4
+                  if (isAgentType && step === 4) { setStep(2); return; }
+                  setStep(s => s - 1);
+                }}
+                className="px-4 py-2 rounded-lg text-sm"
                 style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-primary)' }}>
                 ← Back
               </button>
@@ -850,11 +1171,18 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
                 Next →
               </button>
             )}
-            {step === 2 && (
+            {step === 2 && !isAgentType && (
               <button onClick={handleNext} disabled={!step2Valid}
                 className="px-5 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-40"
                 style={{ backgroundColor: 'var(--accent-primary)' }}>
-                Validate Credentials →
+                {isSecops ? 'Validate Repository →' : 'Validate Credentials →'}
+              </button>
+            )}
+            {step === 2 && isAgentType && (
+              <button onClick={handleNext} disabled={!accountId}
+                className="px-5 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-40"
+                style={{ backgroundColor: 'var(--accent-primary)' }}>
+                Configure Schedule →
               </button>
             )}
             {step === 3 && result?.success && (

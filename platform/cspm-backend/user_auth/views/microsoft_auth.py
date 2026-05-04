@@ -25,10 +25,10 @@ from django.utils import timezone
 from rest_framework.views import APIView
 
 from user_auth.models import Users, UserSessions
-from user_auth.utils.auth_utils import generate_token, hash_token
+from user_auth.utils.auth_utils import compute_auth_caches, generate_token, hash_token
 from user_auth.utils.audit_utils import log_auth_event
 from user_auth.utils.cookie_utils import set_auth_cookies
-from user_auth.utils.tenant_utils import provision_first_tenant
+from user_auth.utils.tenant_utils import accept_invite_membership, provision_first_tenant
 
 logger = logging.getLogger(__name__)
 
@@ -164,17 +164,13 @@ class MicrosoftCallbackView(APIView):
         if pending_invite:
             try:
                 from user_auth.models import InviteTokens
-                invite = InviteTokens.objects.get(token=pending_invite, used=False)
+                invite = InviteTokens.objects.select_related("tenant", "role").get(
+                    token=pending_invite, used=False
+                )
                 if invite.expires_at >= timezone.now() and invite.email == email:
-                    from tenant_management.models import TenantMembership
-                    TenantMembership.objects.get_or_create(
-                        user=user, tenant_id=invite.tenant_id,
-                        defaults={"role": invite.role or "viewer"},
-                    )
-                    invite.used = True
-                    invite.save(update_fields=["used"])
+                    accept_invite_membership(user, invite)
                     log_auth_event("invite.accept", request=request, user=user,
-                                   tenant_id=invite.tenant_id,
+                                   tenant_id=str(invite.tenant_id),
                                    extra={"method": "microsoft", "email": email})
             except Exception as exc:
                 logger.warning("Invite consumption failed (microsoft): %s", exc)
@@ -186,6 +182,7 @@ class MicrosoftCallbackView(APIView):
         expires_at  = timezone.now() + timedelta(
             days=getattr(settings, "REFRESH_TOKEN_LIFETIME_DAYS", 7)
         )
+        permissions_cache, scope_cache = compute_auth_caches(user)
         UserSessions.objects.create(
             id=uuid.uuid4(),
             user=user,
@@ -195,6 +192,9 @@ class MicrosoftCallbackView(APIView):
             expires_at=expires_at,
             ip_address=request.META.get("REMOTE_ADDR", ""),
             user_agent=request.META.get("HTTP_USER_AGENT", ""),
+            token_hint=raw_access[:8],
+            permissions_cache=permissions_cache,
+            scope_cache=scope_cache,
         )
 
         log_auth_event("login.microsoft", request=request, user=user,
@@ -206,7 +206,7 @@ class MicrosoftCallbackView(APIView):
         if is_new_user:
             response.set_cookie(
                 "onboarding_pending", "1",
-                max_age=3600, httponly=False, samesite="Lax",
+                max_age=3600, httponly=True, samesite="Lax",  # WARN-04: httponly
             )
 
         return response

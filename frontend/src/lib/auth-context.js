@@ -14,6 +14,7 @@ const AuthContext = createContext({
   isAuthenticated: false,
   tenants: [],
   selectedTenant: null,
+  customerId: null,
   permissions: [],
   isLoading: false,
   isInitialized: false,
@@ -33,6 +34,7 @@ export function AuthProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [tenants, setTenants] = useState([]);
   const [selectedTenant, setSelectedTenant] = useState(null);
+  const [customerId, setCustomerId] = useState(null);
   const [permissions, setPermissions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -52,11 +54,34 @@ export function AuthProvider({ children }) {
   const applySession = useCallback((data) => {
     const u = data.user || data;
     const resolvedPermissions = resolvePermissions(u);
-    const engineTenantId = u.selected_tenant
+
+    // platform_admin (level 1) defaults to null = "All Tenants".
+    // All other roles default to their first tenant.
+    const isPlatformAdmin = (u.level ?? 0) === 1;
+    const rawTenantId = u.selected_tenant
       || u.tenants?.[0]?.engine_tenant_id
       || u.tenants?.[0]?.tenant_id
       || u.tenants?.[0]?.id
       || null;
+
+    // Preserve a mid-session tenant switch across /me re-validations.
+    // storedSelection !== undefined means the user already made a choice
+    // (including explicitly choosing null = All Tenants).
+    let finalTenantId;
+    try {
+      const stored = sessionStorage.getItem('auth_session');
+      if (stored !== null) {
+        const parsed = JSON.parse(stored);
+        // "storedSelection" key is present (even as null) → honour it
+        finalTenantId = 'selectedTenant' in parsed
+          ? parsed.selectedTenant
+          : (isPlatformAdmin ? null : rawTenantId);
+      } else {
+        finalTenantId = isPlatformAdmin ? null : rawTenantId;
+      }
+    } catch {
+      finalTenantId = isPlatformAdmin ? null : rawTenantId;
+    }
 
     setUserState(u);
     setRole(u.role || u.roles?.[0] || 'user');
@@ -64,7 +89,8 @@ export function AuthProvider({ children }) {
     setRoles(u.roles || [u.role || 'user']);
     setIsAuthenticated(true);
     setTenants(u.tenants || []);
-    setSelectedTenant(engineTenantId);
+    setSelectedTenant(finalTenantId);
+    setCustomerId(u.customer_id || u.id || null);
     setPermissions(resolvedPermissions);
 
     // Persist to sessionStorage (in-memory tab storage only — not localStorage,
@@ -76,7 +102,8 @@ export function AuthProvider({ children }) {
       level: u.level ?? 0,
       roles: u.roles || [u.role || 'user'],
       tenants: u.tenants || [],
-      selectedTenant: engineTenantId,
+      selectedTenant: finalTenantId,
+      customerId: u.customer_id || u.id || null,
       permissions: resolvedPermissions,
     };
     sessionStorage.setItem('auth_session', JSON.stringify(session));
@@ -98,7 +125,16 @@ export function AuthProvider({ children }) {
           setRoles(session.roles || []);
           setIsAuthenticated(true);
           setTenants(session.tenants || []);
-          setSelectedTenant(session.selectedTenant);
+          // Normalize: if stored selectedTenant is a Django UUID, resolve to engine_tenant_id
+          const storedTenantId = session.selectedTenant;
+          const tenantList = session.tenants || [];
+          const resolvedTenant = storedTenantId
+            ? (tenantList.find(t => t.engine_tenant_id === storedTenantId)?.engine_tenant_id
+               || tenantList.find(t => t.tenant_id === storedTenantId)?.engine_tenant_id
+               || storedTenantId)
+            : null;
+          setSelectedTenant(resolvedTenant);
+          setCustomerId(session.customerId || null);
           setPermissions(session.permissions || FALLBACK_VIEWER_PERMISSIONS);
           setIsInitialized(true);
           // Fall through — still refresh from backend so stale permissions
@@ -260,6 +296,7 @@ export function AuthProvider({ children }) {
     isAuthenticated,
     tenants,
     selectedTenant,
+    customerId,
     permissions,
     isLoading,
     isInitialized,

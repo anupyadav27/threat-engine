@@ -117,12 +117,16 @@ def _resolve_latest_scan_run_id(
     Returns:
         The latest scan_run_id string, or None if no report exists.
     """
-    # Try report table first (completed scans only)
+    # Try report table first — skip orphaned reports that have no backing findings rows
     cur.execute(
         """
         SELECT scan_run_id
-        FROM datasec_report
+        FROM datasec_report r
         WHERE tenant_id = %s AND status = 'completed'
+          AND EXISTS (
+              SELECT 1 FROM datasec_findings f
+              WHERE f.scan_run_id = r.scan_run_id AND f.tenant_id = r.tenant_id
+          )
         ORDER BY completed_at DESC NULLS LAST, generated_at DESC NULLS LAST
         LIMIT 1
         """,
@@ -211,8 +215,7 @@ async def get_datasec_ui_data(
                        medium_findings,
                        low_findings,
                        encrypted_pct AS report_encrypted_pct,
-                       public_data_stores,
-                       sensitive_exposed
+                       public_data_stores
                 FROM datasec_report
                 WHERE scan_run_id = %s AND tenant_id = %s
                 LIMIT 1
@@ -351,8 +354,12 @@ async def get_datasec_ui_data(
             # ── 9a. Module-grouped sections for BFF ─────────────────────
             # Classifications: BFF expects {name, data_type, count, locations, confidence}
             classifications = _query_classification_summary(cur, scan_run_id, tenant_id)
-            # DLP violations: BFF expects {id, type, resource, data_type, severity, action, timestamp}
-            dlp_violations = _query_findings_by_module(cur, scan_run_id, tenant_id, "dlp", limit)
+            # DLP violations: try "dlp" module first, then fall back to data_compliance / data_activity_monitoring
+            dlp_violations = (
+                _query_findings_by_module(cur, scan_run_id, tenant_id, "dlp", limit) or
+                _query_findings_by_module(cur, scan_run_id, tenant_id, "data_compliance", limit) or
+                _query_findings_by_module(cur, scan_run_id, tenant_id, "data_activity_monitoring", limit)
+            )
             # Encryption status: raw findings for encryption module
             encryption_status = _query_findings_by_module(cur, scan_run_id, tenant_id, "encryption", limit)
 
@@ -884,9 +891,10 @@ def _query_access_activity(
     tenant_id: str,
     limit: int = 100,
 ) -> List[Dict[str, Any]]:
-    """Query recent data access activity from datasec_access_activity table.
+    """Query recent data access activity.
 
-    Returns an empty list if the table doesn't exist yet (graceful degradation).
+    Primary: datasec_access_activity table.
+    Fallback: datasec_findings with activity_logging or data_activity_monitoring module.
     """
     try:
         cur.execute(
@@ -901,22 +909,63 @@ def _query_access_activity(
             """,
             (tenant_id, scan_run_id, limit),
         )
-        return [
-            {
+        rows = cur.fetchall()
+        if rows:
+            return [
+                {
+                    "resource": row.get("resource_uid", ""),
+                    "resource_type": row.get("resource_type", ""),
+                    "user": row.get("principal", ""),
+                    "action": row.get("action", ""),
+                    "timestamp": row["event_time"].isoformat() if row.get("event_time") else None,
+                    "location": row.get("source_ip", ""),
+                    "anomaly": row.get("is_anomaly", False),
+                    "anomaly_reason": row.get("anomaly_reason", ""),
+                }
+                for row in rows
+            ]
+    except Exception:
+        logger.debug("datasec_access_activity table not available, using findings fallback")
+
+    # Fallback: use activity_logging / data_activity_monitoring findings as activity events
+    try:
+        cur.execute(
+            """
+            SELECT finding_id, resource_uid, resource_type, account_id, region,
+                   rule_id, severity, status, finding_data, last_seen_at
+            FROM datasec_findings
+            WHERE scan_run_id = %s AND tenant_id = %s
+              AND EXISTS (
+                  SELECT 1 FROM unnest(datasec_modules) AS m
+                  WHERE m ILIKE ANY(ARRAY['%activity%', '%monitoring%', '%access_control%'])
+              )
+            ORDER BY last_seen_at DESC NULLS LAST
+            LIMIT %s
+            """,
+            (scan_run_id, tenant_id, limit),
+        )
+        rows = cur.fetchall()
+        result = []
+        for row in rows:
+            fd = row.get("finding_data") or {}
+            if not isinstance(fd, dict):
+                fd = {}
+            result.append({
                 "resource": row.get("resource_uid", ""),
                 "resource_type": row.get("resource_type", ""),
-                "user": row.get("principal", ""),
-                "action": row.get("action", ""),
-                "timestamp": row["event_time"].isoformat() if row.get("event_time") else None,
-                "location": row.get("source_ip", ""),
-                "anomaly": row.get("is_anomaly", False),
-                "anomaly_reason": row.get("anomaly_reason", ""),
-            }
-            for row in cur.fetchall()
-        ]
+                "user": fd.get("principal", fd.get("actor", "")),
+                "action": fd.get("action", row.get("rule_id", "")),
+                "timestamp": row["last_seen_at"].isoformat() if row.get("last_seen_at") else None,
+                "location": fd.get("source_ip", row.get("region", "")),
+                "anomaly": row.get("status") == "FAIL",
+                "anomaly_reason": fd.get("description", ""),
+                "severity": row.get("severity", ""),
+                "rule_id": row.get("rule_id", ""),
+                "account_id": row.get("account_id", ""),
+            })
+        return result
     except Exception:
-        # Table may not exist yet
-        logger.debug("datasec_access_activity table not available")
+        logger.warning("Activity fallback query failed", exc_info=True)
         return []
 
 

@@ -7,13 +7,19 @@ import Header from './Header';
 import GlobalFilterBar from './GlobalFilterBar';
 import SecOpsFilterBar from './SecOpsFilterBar';
 import PreLoader from '@/components/shared/PreLoader';
+import ErrorBoundary from '@/components/shared/ErrorBoundary';
+import TenantScopeGuard from '@/components/shared/TenantScopeGuard';
 import { useAuth } from '@/lib/auth-context';
+import { useTenant } from '@/lib/tenant-context';
 import { SecOpsFilterProvider } from '@/lib/secops-filter-context';
+import { ThreatBadgeProvider } from '@/lib/threat-badge-context';
+import { getFromEngine } from '@/lib/api';
 
 export default function AppShell({ children }) {
   const pathname = usePathname();
   const router = useRouter();
   const { isInitialized, isAuthenticated } = useAuth();
+  const { customerId } = useTenant();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Check if current route is an auth route
@@ -35,6 +41,47 @@ export default function AppShell({ children }) {
     }
   }, [isInitialized, isAuthenticated, isAuthRoute, router]);
 
+  // First-time user check: redirect to setup wizard if no cloud accounts exist.
+  // Runs once per session (sessionStorage flag) and only on non-auth, non-setup pages.
+  useEffect(() => {
+    const isSetupPage = pathname === '/onboarding/setup';
+    const isApiPath   = pathname.startsWith('/api/');
+
+    if (
+      !isInitialized ||
+      !isAuthenticated ||
+      isAuthRoute ||
+      isSetupPage ||
+      isApiPath ||
+      !customerId
+    ) return;
+
+    if (typeof window !== 'undefined' && sessionStorage.getItem('cspm_wizard_checked')) return;
+
+    const checkCloudAccounts = async () => {
+      try {
+        const res = await getFromEngine('onboarding', '/api/v1/cloud-accounts', {
+          customer_id: customerId,
+          limit: 1,
+        });
+        // Mark as checked regardless of outcome so we only run once per session
+        sessionStorage.setItem('cspm_wizard_checked', 'done');
+        const hasAccounts =
+          !res?.error &&
+          res?.accounts?.length > 0 &&
+          (res?.count === undefined || res.count > 0);
+        if (!hasAccounts) {
+          router.push('/onboarding/setup');
+        }
+      } catch {
+        // Non-fatal — don't block the user if the check fails
+        sessionStorage.setItem('cspm_wizard_checked', 'done');
+      }
+    };
+
+    checkCloudAccounts();
+  }, [isInitialized, isAuthenticated, isAuthRoute, pathname, customerId, router]);
+
   // Show preloader while initializing
   if (!isInitialized) {
     return <PreLoader />;
@@ -47,6 +94,7 @@ export default function AppShell({ children }) {
 
   // Main app layout with sidebar and header
   return (
+    <ThreatBadgeProvider>
     <SecOpsFilterProvider>
     <div className="flex" style={{ minHeight: '100vh', backgroundColor: 'var(--bg-primary)' }}>
       <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(p => !p)} />
@@ -69,10 +117,15 @@ export default function AppShell({ children }) {
           className="flex-1 p-6 transition-colors duration-200 min-w-0 overflow-x-hidden"
           style={{ backgroundColor: 'var(--bg-primary)' }}
         >
-          {children}
+          <TenantScopeGuard>
+            <ErrorBoundary title="Engine data unavailable">
+              {children}
+            </ErrorBoundary>
+          </TenantScopeGuard>
         </main>
       </div>
     </div>
     </SecOpsFilterProvider>
+    </ThreatBadgeProvider>
   );
 }

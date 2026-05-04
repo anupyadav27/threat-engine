@@ -1,4 +1,9 @@
-"""AWS provider for Data Security engine — 8-module DSPM analyze()."""
+"""AWS provider for Data Security engine — 8-module DSPM analyze().
+
+Resource types consumed from discovery_findings (story ENG-10):
+  S3::Bucket, RDS::DBInstance, DynamoDB::Table, Redshift::Cluster,
+  Glue::Database, ElasticSearch::Domain, Kinesis::Stream
+"""
 
 import hashlib
 import logging
@@ -22,16 +27,24 @@ _US_REGIONS = {
     "us-gov-east-1", "us-gov-west-1",
 }
 
-# resource_type values in discovery_findings for AWS data resources
-_BUCKET_TYPES = {"bucket", "s3_bucket"}
-_SECRET_TYPES = {"secret"}
-_KEY_TYPES = {"key"}
-_SNAPSHOT_TYPES = {"snapshot"}
-_VOLUME_TYPES = {"volume"}
-_FUNCTION_TYPES = {"function"}
-_ALL_DATA_TYPES = (
-    _BUCKET_TYPES | _SECRET_TYPES | _KEY_TYPES
-    | _SNAPSHOT_TYPES | _VOLUME_TYPES | _FUNCTION_TYPES
+# Canonical resource_type values in discovery_findings for AWS data resources (ENG-10)
+_S3_TYPES = {"S3::Bucket"}
+_RDS_TYPES = {"RDS::DBInstance"}
+_DYNAMO_TYPES = {"DynamoDB::Table"}
+_REDSHIFT_TYPES = {"Redshift::Cluster"}
+_GLUE_TYPES = {"Glue::Database"}
+_ES_TYPES = {"ElasticSearch::Domain"}
+_KINESIS_TYPES = {"Kinesis::Stream"}
+
+# Storage types: full classification + encryption + access + lifecycle analysis
+_STORAGE_TYPES = _S3_TYPES
+# Database types: encryption + residency + logging analysis
+_DATABASE_TYPES = _RDS_TYPES | _DYNAMO_TYPES | _REDSHIFT_TYPES | _GLUE_TYPES | _ES_TYPES
+# Streaming types: access + logging analysis
+_STREAMING_TYPES = _KINESIS_TYPES
+
+_ALL_DATA_TYPES = list(
+    _STORAGE_TYPES | _DATABASE_TYPES | _STREAMING_TYPES
 )
 
 # Classification label hints by resource name / description tokens
@@ -107,6 +120,7 @@ def _base_finding(
 
 
 class AWSDataSecProvider(BaseDataSecProvider):
+    """AWS DSPM provider — 8-module analysis over S3, RDS, DynamoDB, Redshift, Glue, ES, Kinesis."""
 
     @property
     def storage_services(self) -> List[str]:
@@ -141,6 +155,10 @@ class AWSDataSecProvider(BaseDataSecProvider):
     ) -> List[Dict[str, Any]]:
         """Run 8-module DSPM analysis over AWS discovery_findings.
 
+        Queries discovery_findings for resource_types:
+          S3::Bucket, RDS::DBInstance, DynamoDB::Table, Redshift::Cluster,
+          Glue::Database, ElasticSearch::Domain, Kinesis::Stream
+
         Args:
             scan_run_id: Pipeline scan run identifier.
             tenant_id: Tenant scoping for all DB queries.
@@ -156,8 +174,7 @@ class AWSDataSecProvider(BaseDataSecProvider):
 
         try:
             with discoveries_conn.cursor(cursor_factory=RealDictCursor) as cur:
-                # Load high-value resource types first (buckets, secrets, keys) with priority
-                _priority_types = list(_BUCKET_TYPES | _SECRET_TYPES | _KEY_TYPES)
+                # Primary data resource types (canonical ENG-10 list)
                 cur.execute(
                     """
                     SELECT resource_uid, resource_type, region, emitted_fields
@@ -167,78 +184,24 @@ class AWSDataSecProvider(BaseDataSecProvider):
                       AND resource_type = ANY(%s)
                     LIMIT 2000
                     """,
-                    (scan_run_id, tenant_id, _priority_types),
+                    (scan_run_id, tenant_id, _ALL_DATA_TYPES),
                 )
-                priority_rows = cur.fetchall()
-
-                # Load snapshot/volume/function types separately (high volume)
-                _bulk_types = list(_SNAPSHOT_TYPES | _VOLUME_TYPES | _FUNCTION_TYPES)
-                cur.execute(
-                    """
-                    SELECT resource_uid, resource_type, region, emitted_fields
-                    FROM discovery_findings
-                    WHERE scan_run_id = %s
-                      AND tenant_id = %s
-                      AND resource_type = ANY(%s)
-                    LIMIT 500
-                    """,
-                    (scan_run_id, tenant_id, _bulk_types),
-                )
-                bulk_rows = cur.fetchall()
-
-                rows = priority_rows + bulk_rows
-
-                # Also load bucket_encryption and public_access_block companion records
-                cur.execute(
-                    """
-                    SELECT resource_uid, resource_type, region, emitted_fields
-                    FROM discovery_findings
-                    WHERE scan_run_id = %s
-                      AND tenant_id = %s
-                      AND resource_type IN ('bucket_encryption', 'public_access_block',
-                                            'bucket_policy_status', 'object_lock_configuration',
-                                            'bucket_replication', 'notification_configuration')
-                    """,
-                    (scan_run_id, tenant_id),
-                )
-                companion_rows = cur.fetchall()
+                rows = cur.fetchall()
         except Exception as exc:
             logger.error("AWS DSPM: failed to load discovery_findings: %s", exc)
             return []
 
         if not rows:
-            logger.warning("AWS DSPM: no data-relevant discovery rows for scan_run_id=%s", scan_run_id)
+            logger.warning(
+                "AWS DSPM: no data-relevant discovery rows for scan_run_id=%s "
+                "(queried types: %s)",
+                scan_run_id,
+                _ALL_DATA_TYPES,
+            )
             return []
 
-        # Index companion rows by resource_uid prefix (buckets share uid prefix)
-        enc_by_uid: Dict[str, Dict] = {}
-        pub_by_uid: Dict[str, Dict] = {}
-        policy_by_uid: Dict[str, Dict] = {}
-        lock_by_uid: Dict[str, Dict] = {}
-        replication_by_uid: Dict[str, Dict] = {}
-        notification_by_uid: Dict[str, Dict] = {}
-
-        for comp in companion_rows:
-            # Companion rows often have resource_uid = None; skip them for indexing by uid
-            # They are indexed per-scan (all belong to same tenant/scan) — use emitted_fields
-            uid = comp.get("resource_uid") or ""
-            emitted = comp.get("emitted_fields") or {}
-            rtype = comp.get("resource_type", "")
-            if rtype == "bucket_encryption":
-                enc_by_uid[uid] = emitted
-            elif rtype == "public_access_block":
-                pub_by_uid[uid] = emitted
-            elif rtype == "bucket_policy_status":
-                policy_by_uid[uid] = emitted
-            elif rtype == "object_lock_configuration":
-                lock_by_uid[uid] = emitted
-            elif rtype == "bucket_replication":
-                replication_by_uid[uid] = emitted
-            elif rtype == "notification_configuration":
-                notification_by_uid[uid] = emitted
-
-        # Process in batches of 200
-        batch_size = 200
+        # Process in batches of 500 (STRIDE DoS mitigation)
+        batch_size = 500
         for i in range(0, len(rows), batch_size):
             batch = rows[i : i + batch_size]
             for row in batch:
@@ -250,293 +213,407 @@ class AWSDataSecProvider(BaseDataSecProvider):
 
                 name = (
                     emitted.get("Name")
+                    or emitted.get("DBInstanceIdentifier")
+                    or emitted.get("TableName")
+                    or emitted.get("ClusterIdentifier")
+                    or emitted.get("DatabaseName")
+                    or emitted.get("DomainName")
+                    or emitted.get("StreamName")
                     or emitted.get("resource_id")
                     or emitted.get("resource_name")
                     or resource_uid
                 )
-                description = emitted.get("Description", "")
+                description = emitted.get("Description", "") or emitted.get("Tags", "")
                 labels = _infer_labels(str(name), str(description))
 
-                # ── Module 1: classification ────────────────────────────────
-                if resource_type in _BUCKET_TYPES or resource_type in _SECRET_TYPES:
-                    class_sev = "HIGH" if labels else "MEDIUM"
-                    rule_id = f"aws.dspm.classification.{slug}"
-                    findings.append(_base_finding(
-                        rule_id=rule_id,
-                        resource_uid=resource_uid,
-                        resource_type=resource_type,
-                        account_id=account_id,
-                        region=region,
-                        scan_run_id=scan_run_id,
-                        tenant_id=tenant_id,
-                        dspm_module="classification",
-                        severity=class_sev,
-                        status="FAIL" if labels else "PASS",
-                        classification_labels=labels,
-                        encryption_status="unknown",
-                        public_access=False,
-                        now=now,
-                    ))
+                # ── Module 1: data_classification ──────────────────────────────
+                class_sev = "HIGH" if labels else "MEDIUM"
+                rule_id = f"aws.dspm.data_classification.{slug}"
+                findings.append(_base_finding(
+                    rule_id=rule_id,
+                    resource_uid=resource_uid,
+                    resource_type=resource_type,
+                    account_id=account_id,
+                    region=region,
+                    scan_run_id=scan_run_id,
+                    tenant_id=tenant_id,
+                    dspm_module="data_classification",
+                    severity=class_sev,
+                    status="FAIL" if labels else "PASS",
+                    classification_labels=labels,
+                    encryption_status="unknown",
+                    public_access=False,
+                    now=now,
+                ))
 
-                # ── Module 2: encryption ────────────────────────────────────
-                if resource_type in _BUCKET_TYPES:
-                    # Check bucket_encryption companion — if no record, unencrypted
-                    enc_emitted = enc_by_uid.get(resource_uid, enc_by_uid.get("", {}))
-                    sse_config = enc_emitted.get("ServerSideEncryptionConfiguration", {})
-                    is_encrypted = bool(sse_config)
-                    enc_status = "encrypted" if is_encrypted else "unencrypted"
+                # ── Module 2: encryption_posture ───────────────────────────────
+                if resource_type in _S3_TYPES:
+                    # S3: check ServerSideEncryptionConfiguration in emitted_fields
+                    sse = emitted.get("ServerSideEncryptionConfiguration") or emitted.get("encryption", {})
+                    is_encrypted = bool(sse)
+                    enc_status = "enabled" if is_encrypted else "disabled"
                     sev = "INFO" if is_encrypted else "CRITICAL"
-                    status = "PASS" if is_encrypted else "FAIL"
-                    rule_id = f"aws.dspm.encryption.{slug}"
+                    rule_id = f"aws.dspm.encryption_posture.{slug}"
                     findings.append(_base_finding(
-                        rule_id=rule_id,
-                        resource_uid=resource_uid,
-                        resource_type=resource_type,
-                        account_id=account_id,
-                        region=region,
-                        scan_run_id=scan_run_id,
-                        tenant_id=tenant_id,
-                        dspm_module="encryption",
-                        severity=sev,
-                        status=status,
-                        classification_labels=labels,
-                        encryption_status=enc_status,
-                        public_access=False,
-                        now=now,
+                        rule_id=rule_id, resource_uid=resource_uid, resource_type=resource_type,
+                        account_id=account_id, region=region, scan_run_id=scan_run_id,
+                        tenant_id=tenant_id, dspm_module="encryption_posture",
+                        severity=sev, status="PASS" if is_encrypted else "FAIL",
+                        classification_labels=labels, encryption_status=enc_status,
+                        public_access=False, now=now,
                     ))
-                elif resource_type in _SECRET_TYPES:
-                    enc_status = "encrypted"  # Secrets Manager always encrypts
-                    rule_id = f"aws.dspm.encryption.{slug}"
+                elif resource_type in _RDS_TYPES:
+                    is_encrypted = bool(
+                        emitted.get("StorageEncrypted")
+                        or emitted.get("KmsKeyId")
+                        or emitted.get("PerformanceInsightsKMSKeyId")
+                    )
+                    enc_status = "enabled" if is_encrypted else "disabled"
+                    rule_id = f"aws.dspm.encryption_posture.{slug}"
                     findings.append(_base_finding(
-                        rule_id=rule_id,
-                        resource_uid=resource_uid,
-                        resource_type=resource_type,
-                        account_id=account_id,
-                        region=region,
-                        scan_run_id=scan_run_id,
-                        tenant_id=tenant_id,
-                        dspm_module="encryption",
-                        severity="INFO",
-                        status="PASS",
-                        classification_labels=labels,
-                        encryption_status=enc_status,
-                        public_access=False,
-                        now=now,
+                        rule_id=rule_id, resource_uid=resource_uid, resource_type=resource_type,
+                        account_id=account_id, region=region, scan_run_id=scan_run_id,
+                        tenant_id=tenant_id, dspm_module="encryption_posture",
+                        severity="INFO" if is_encrypted else "CRITICAL",
+                        status="PASS" if is_encrypted else "FAIL",
+                        classification_labels=labels, encryption_status=enc_status,
+                        public_access=False, now=now,
                     ))
-                elif resource_type in _SNAPSHOT_TYPES:
-                    is_enc = bool(emitted.get("Encrypted") or emitted.get("KmsKeyId"))
-                    enc_status = "encrypted" if is_enc else "unencrypted"
-                    sev = "CRITICAL" if not is_enc else "INFO"
-                    rule_id = f"aws.dspm.encryption.{slug}"
+                elif resource_type in _DYNAMO_TYPES:
+                    sse_desc = emitted.get("SSEDescription", {})
+                    is_encrypted = (
+                        isinstance(sse_desc, dict) and sse_desc.get("Status") == "ENABLED"
+                    )
+                    enc_status = "enabled" if is_encrypted else "disabled"
+                    rule_id = f"aws.dspm.encryption_posture.{slug}"
                     findings.append(_base_finding(
-                        rule_id=rule_id,
-                        resource_uid=resource_uid,
-                        resource_type=resource_type,
-                        account_id=account_id,
-                        region=region,
-                        scan_run_id=scan_run_id,
-                        tenant_id=tenant_id,
-                        dspm_module="encryption",
-                        severity=sev,
-                        status="FAIL" if not is_enc else "PASS",
-                        classification_labels=[],
-                        encryption_status=enc_status,
-                        public_access=False,
-                        now=now,
+                        rule_id=rule_id, resource_uid=resource_uid, resource_type=resource_type,
+                        account_id=account_id, region=region, scan_run_id=scan_run_id,
+                        tenant_id=tenant_id, dspm_module="encryption_posture",
+                        severity="HIGH" if not is_encrypted else "INFO",
+                        status="PASS" if is_encrypted else "FAIL",
+                        classification_labels=labels, encryption_status=enc_status,
+                        public_access=False, now=now,
+                    ))
+                elif resource_type in (_REDSHIFT_TYPES | _ES_TYPES | _GLUE_TYPES | _KINESIS_TYPES):
+                    # Redshift: Encrypted field; ES: EncryptionAtRestOptions; Kinesis: always encrypted
+                    is_encrypted = bool(
+                        emitted.get("Encrypted")
+                        or emitted.get("EncryptionAtRestOptions", {})
+                        or emitted.get("EncryptionConfig")
+                        or resource_type in _KINESIS_TYPES  # Kinesis always SSE
+                    )
+                    enc_status = "enabled" if is_encrypted else "disabled"
+                    rule_id = f"aws.dspm.encryption_posture.{slug}"
+                    findings.append(_base_finding(
+                        rule_id=rule_id, resource_uid=resource_uid, resource_type=resource_type,
+                        account_id=account_id, region=region, scan_run_id=scan_run_id,
+                        tenant_id=tenant_id, dspm_module="encryption_posture",
+                        severity="INFO" if is_encrypted else "HIGH",
+                        status="PASS" if is_encrypted else "FAIL",
+                        classification_labels=labels, encryption_status=enc_status,
+                        public_access=False, now=now,
                     ))
 
-                # ── Module 3: access_control ────────────────────────────────
-                if resource_type in _BUCKET_TYPES:
-                    pub_emitted = pub_by_uid.get(resource_uid, pub_by_uid.get("", {}))
-                    pac = pub_emitted.get("PublicAccessBlockConfiguration", {})
+                # ── Module 3: access_control ───────────────────────────────────
+                if resource_type in _S3_TYPES:
+                    # Public access block configuration
+                    pac = emitted.get("PublicAccessBlockConfiguration", {})
                     is_public = not (
-                        pac.get("BlockPublicAcls", False)
+                        isinstance(pac, dict)
+                        and pac.get("BlockPublicAcls", False)
                         and pac.get("BlockPublicPolicy", False)
                         and pac.get("RestrictPublicBuckets", False)
                     )
-                    # Also check policy_status
-                    pol_emitted = policy_by_uid.get(resource_uid, policy_by_uid.get("", {}))
-                    if pol_emitted.get("PolicyStatus", {}).get("IsPublic", False):
+                    # Also check policy status if present
+                    pol = emitted.get("PolicyStatus", {})
+                    if isinstance(pol, dict) and pol.get("IsPublic", False):
                         is_public = True
                     sev = "CRITICAL" if is_public else "INFO"
                     rule_id = f"aws.dspm.access_control.{slug}"
                     findings.append(_base_finding(
-                        rule_id=rule_id,
-                        resource_uid=resource_uid,
-                        resource_type=resource_type,
-                        account_id=account_id,
-                        region=region,
-                        scan_run_id=scan_run_id,
-                        tenant_id=tenant_id,
-                        dspm_module="access_control",
-                        severity=sev,
+                        rule_id=rule_id, resource_uid=resource_uid, resource_type=resource_type,
+                        account_id=account_id, region=region, scan_run_id=scan_run_id,
+                        tenant_id=tenant_id, dspm_module="access_control",
+                        severity=sev, status="FAIL" if is_public else "PASS",
+                        classification_labels=labels, encryption_status="unknown",
+                        public_access=is_public, now=now,
+                    ))
+                elif resource_type in _RDS_TYPES:
+                    is_public = bool(emitted.get("PubliclyAccessible", False))
+                    rule_id = f"aws.dspm.access_control.{slug}"
+                    findings.append(_base_finding(
+                        rule_id=rule_id, resource_uid=resource_uid, resource_type=resource_type,
+                        account_id=account_id, region=region, scan_run_id=scan_run_id,
+                        tenant_id=tenant_id, dspm_module="access_control",
+                        severity="CRITICAL" if is_public else "INFO",
                         status="FAIL" if is_public else "PASS",
-                        classification_labels=labels,
-                        encryption_status="unknown",
-                        public_access=is_public,
-                        now=now,
+                        classification_labels=labels, encryption_status="unknown",
+                        public_access=is_public, now=now,
                     ))
-
-                # ── Module 4: data_residency ────────────────────────────────
-                if resource_type in _BUCKET_TYPES or resource_type in _SECRET_TYPES:
-                    in_eu = region in _EU_REGIONS
-                    in_us = region in _US_REGIONS
-                    residency_ok = in_eu or in_us
-                    sev = "MEDIUM" if not residency_ok else "INFO"
-                    rule_id = f"aws.dspm.data_residency.{slug}"
-                    findings.append(_base_finding(
-                        rule_id=rule_id,
-                        resource_uid=resource_uid,
-                        resource_type=resource_type,
-                        account_id=account_id,
-                        region=region,
-                        scan_run_id=scan_run_id,
-                        tenant_id=tenant_id,
-                        dspm_module="data_residency",
-                        severity=sev,
-                        status="FAIL" if not residency_ok else "PASS",
-                        classification_labels=labels,
-                        encryption_status="unknown",
-                        public_access=False,
-                        now=now,
-                    ))
-
-                # ── Module 5: activity_logging ──────────────────────────────
-                if resource_type in _BUCKET_TYPES:
-                    notif_emitted = notification_by_uid.get(resource_uid, notification_by_uid.get("", {}))
-                    # Logging enabled if notification config exists and has queue/topic
-                    has_logging = bool(
-                        notif_emitted.get("QueueConfigurations")
-                        or notif_emitted.get("TopicConfigurations")
-                        or notif_emitted.get("LambdaFunctionConfigurations")
+                elif resource_type in (_DYNAMO_TYPES | _REDSHIFT_TYPES | _GLUE_TYPES | _ES_TYPES | _KINESIS_TYPES):
+                    # DynamoDB/Redshift: check if resource policies allow overly broad access
+                    is_public = bool(
+                        emitted.get("PubliclyAccessible", False)
+                        or emitted.get("MasterUserPassword")  # password exposed in config = risky
                     )
-                    sev = "HIGH" if not has_logging else "INFO"
+                    rule_id = f"aws.dspm.access_control.{slug}"
+                    findings.append(_base_finding(
+                        rule_id=rule_id, resource_uid=resource_uid, resource_type=resource_type,
+                        account_id=account_id, region=region, scan_run_id=scan_run_id,
+                        tenant_id=tenant_id, dspm_module="access_control",
+                        severity="HIGH" if is_public else "INFO",
+                        status="FAIL" if is_public else "PASS",
+                        classification_labels=labels, encryption_status="unknown",
+                        public_access=is_public, now=now,
+                    ))
+
+                # ── Module 4: data_residency ───────────────────────────────────
+                in_eu = region in _EU_REGIONS
+                in_us = region in _US_REGIONS
+                residency_ok = in_eu or in_us
+                sev = "MEDIUM" if not residency_ok else "INFO"
+                rule_id = f"aws.dspm.data_residency.{slug}"
+                findings.append(_base_finding(
+                    rule_id=rule_id, resource_uid=resource_uid, resource_type=resource_type,
+                    account_id=account_id, region=region, scan_run_id=scan_run_id,
+                    tenant_id=tenant_id, dspm_module="data_residency",
+                    severity=sev, status="FAIL" if not residency_ok else "PASS",
+                    classification_labels=labels, encryption_status="unknown",
+                    public_access=False, now=now,
+                ))
+
+                # ── Module 5: activity_logging ─────────────────────────────────
+                if resource_type in _S3_TYPES:
+                    # S3 server access logging — LoggingEnabled in emitted_fields
+                    logging_cfg = emitted.get("LoggingEnabled") or emitted.get("logging", {})
+                    has_logging = bool(logging_cfg)
                     rule_id = f"aws.dspm.activity_logging.{slug}"
                     findings.append(_base_finding(
-                        rule_id=rule_id,
-                        resource_uid=resource_uid,
-                        resource_type=resource_type,
-                        account_id=account_id,
-                        region=region,
-                        scan_run_id=scan_run_id,
-                        tenant_id=tenant_id,
-                        dspm_module="activity_logging",
-                        severity=sev,
+                        rule_id=rule_id, resource_uid=resource_uid, resource_type=resource_type,
+                        account_id=account_id, region=region, scan_run_id=scan_run_id,
+                        tenant_id=tenant_id, dspm_module="activity_logging",
+                        severity="HIGH" if not has_logging else "INFO",
                         status="FAIL" if not has_logging else "PASS",
-                        classification_labels=labels,
-                        encryption_status="unknown",
-                        public_access=False,
-                        now=now,
+                        classification_labels=labels, encryption_status="unknown",
+                        public_access=False, now=now,
                     ))
-                elif resource_type in _SNAPSHOT_TYPES:
-                    # Snapshots always have audit trail via CloudTrail; mark PASS
+                elif resource_type in _RDS_TYPES:
+                    # RDS: EnabledCloudwatchLogsExports or EnhancedMonitoringResourceArn
+                    has_logging = bool(
+                        emitted.get("EnabledCloudwatchLogsExports")
+                        or emitted.get("EnhancedMonitoringResourceArn")
+                        or emitted.get("PerformanceInsightsEnabled")
+                    )
                     rule_id = f"aws.dspm.activity_logging.{slug}"
                     findings.append(_base_finding(
-                        rule_id=rule_id,
-                        resource_uid=resource_uid,
-                        resource_type=resource_type,
-                        account_id=account_id,
-                        region=region,
-                        scan_run_id=scan_run_id,
-                        tenant_id=tenant_id,
-                        dspm_module="activity_logging",
-                        severity="INFO",
-                        status="PASS",
-                        classification_labels=[],
-                        encryption_status="unknown",
-                        public_access=False,
-                        now=now,
+                        rule_id=rule_id, resource_uid=resource_uid, resource_type=resource_type,
+                        account_id=account_id, region=region, scan_run_id=scan_run_id,
+                        tenant_id=tenant_id, dspm_module="activity_logging",
+                        severity="HIGH" if not has_logging else "INFO",
+                        status="FAIL" if not has_logging else "PASS",
+                        classification_labels=labels, encryption_status="unknown",
+                        public_access=False, now=now,
                     ))
-
-                # ── Module 6: lifecycle ─────────────────────────────────────
-                if resource_type in _BUCKET_TYPES:
-                    lock_emitted = lock_by_uid.get(resource_uid, lock_by_uid.get("", {}))
-                    has_lock = bool(lock_emitted.get("ObjectLockConfiguration", {}).get("ObjectLockEnabled") == "Enabled")
-                    rep_emitted = replication_by_uid.get(resource_uid, replication_by_uid.get("", {}))
-                    has_replication = bool(rep_emitted.get("ReplicationConfiguration", {}).get("Rules"))
-                    lifecycle_ok = has_lock or has_replication
-                    sev = "MEDIUM" if not lifecycle_ok else "INFO"
-                    rule_id = f"aws.dspm.lifecycle.{slug}"
+                elif resource_type in (_DYNAMO_TYPES | _KINESIS_TYPES):
+                    # DynamoDB: Streams or CloudWatch contributor insights
+                    has_logging = bool(
+                        emitted.get("StreamSpecification", {})
+                        or emitted.get("ContributorInsightsSummaries")
+                        or emitted.get("StreamEnabled")
+                    )
+                    rule_id = f"aws.dspm.activity_logging.{slug}"
                     findings.append(_base_finding(
-                        rule_id=rule_id,
-                        resource_uid=resource_uid,
-                        resource_type=resource_type,
-                        account_id=account_id,
-                        region=region,
-                        scan_run_id=scan_run_id,
-                        tenant_id=tenant_id,
-                        dspm_module="lifecycle",
-                        severity=sev,
-                        status="FAIL" if not lifecycle_ok else "PASS",
-                        classification_labels=labels,
-                        encryption_status="unknown",
-                        public_access=False,
-                        now=now,
+                        rule_id=rule_id, resource_uid=resource_uid, resource_type=resource_type,
+                        account_id=account_id, region=region, scan_run_id=scan_run_id,
+                        tenant_id=tenant_id, dspm_module="activity_logging",
+                        severity="MEDIUM" if not has_logging else "INFO",
+                        status="FAIL" if not has_logging else "PASS",
+                        classification_labels=labels, encryption_status="unknown",
+                        public_access=False, now=now,
+                    ))
+                elif resource_type in (_REDSHIFT_TYPES | _ES_TYPES | _GLUE_TYPES):
+                    # Redshift: LoggingEnabled; ES: audit logs via CloudWatch
+                    has_logging = bool(
+                        emitted.get("LoggingProperties")
+                        or emitted.get("LogPublishingOptions")
+                        or emitted.get("CloudWatchLogsLogGroupArn")
+                    )
+                    rule_id = f"aws.dspm.activity_logging.{slug}"
+                    findings.append(_base_finding(
+                        rule_id=rule_id, resource_uid=resource_uid, resource_type=resource_type,
+                        account_id=account_id, region=region, scan_run_id=scan_run_id,
+                        tenant_id=tenant_id, dspm_module="activity_logging",
+                        severity="MEDIUM" if not has_logging else "INFO",
+                        status="FAIL" if not has_logging else "PASS",
+                        classification_labels=labels, encryption_status="unknown",
+                        public_access=False, now=now,
                     ))
 
-                # ── Module 7: data_lineage ──────────────────────────────────
-                if resource_type in _BUCKET_TYPES:
-                    # Lambda notifications indicate S3→Lambda data flow
-                    notif_emitted = notification_by_uid.get(resource_uid, notification_by_uid.get("", {}))
-                    has_lambda_flow = bool(notif_emitted.get("LambdaFunctionConfigurations"))
-                    sev = "LOW" if not has_lambda_flow else "INFO"
+                # ── Module 6: data_lifecycle ───────────────────────────────────
+                if resource_type in _S3_TYPES:
+                    # S3: versioning + lifecycle rules
+                    versioning = emitted.get("VersioningConfiguration", {}) or emitted.get("versioning", {})
+                    versioning_on = (
+                        isinstance(versioning, dict) and versioning.get("Status") == "Enabled"
+                    )
+                    lifecycle = emitted.get("LifecycleRules") or emitted.get("lifecycle_rules")
+                    has_lifecycle = bool(lifecycle)
+                    lifecycle_ok = versioning_on or has_lifecycle
+                    rule_id = f"aws.dspm.data_lifecycle.{slug}"
+                    findings.append(_base_finding(
+                        rule_id=rule_id, resource_uid=resource_uid, resource_type=resource_type,
+                        account_id=account_id, region=region, scan_run_id=scan_run_id,
+                        tenant_id=tenant_id, dspm_module="data_lifecycle",
+                        severity="MEDIUM" if not lifecycle_ok else "INFO",
+                        status="FAIL" if not lifecycle_ok else "PASS",
+                        classification_labels=labels, encryption_status="unknown",
+                        public_access=False, now=now,
+                    ))
+                elif resource_type in _RDS_TYPES:
+                    # RDS: BackupRetentionPeriod > 0 and DeleteProtection
+                    backup_days = emitted.get("BackupRetentionPeriod", 0)
+                    delete_prot = bool(emitted.get("DeletionProtection", False))
+                    lifecycle_ok = int(backup_days or 0) > 0 or delete_prot
+                    rule_id = f"aws.dspm.data_lifecycle.{slug}"
+                    findings.append(_base_finding(
+                        rule_id=rule_id, resource_uid=resource_uid, resource_type=resource_type,
+                        account_id=account_id, region=region, scan_run_id=scan_run_id,
+                        tenant_id=tenant_id, dspm_module="data_lifecycle",
+                        severity="HIGH" if not lifecycle_ok else "INFO",
+                        status="FAIL" if not lifecycle_ok else "PASS",
+                        classification_labels=labels, encryption_status="unknown",
+                        public_access=False, now=now,
+                    ))
+                elif resource_type in _DYNAMO_TYPES:
+                    # DynamoDB: PointInTimeRecoveryDescription
+                    pitr = emitted.get("PointInTimeRecoveryDescription", {})
+                    lifecycle_ok = (
+                        isinstance(pitr, dict)
+                        and pitr.get("PointInTimeRecoveryStatus") == "ENABLED"
+                    )
+                    rule_id = f"aws.dspm.data_lifecycle.{slug}"
+                    findings.append(_base_finding(
+                        rule_id=rule_id, resource_uid=resource_uid, resource_type=resource_type,
+                        account_id=account_id, region=region, scan_run_id=scan_run_id,
+                        tenant_id=tenant_id, dspm_module="data_lifecycle",
+                        severity="MEDIUM" if not lifecycle_ok else "INFO",
+                        status="FAIL" if not lifecycle_ok else "PASS",
+                        classification_labels=labels, encryption_status="unknown",
+                        public_access=False, now=now,
+                    ))
+                elif resource_type in (_REDSHIFT_TYPES | _ES_TYPES | _GLUE_TYPES | _KINESIS_TYPES):
+                    # Redshift: AutomatedSnapshotRetentionPeriod; ES/Kinesis: no native backup config
+                    retention = emitted.get("AutomatedSnapshotRetentionPeriod", 0)
+                    lifecycle_ok = int(retention or 0) > 0
+                    rule_id = f"aws.dspm.data_lifecycle.{slug}"
+                    findings.append(_base_finding(
+                        rule_id=rule_id, resource_uid=resource_uid, resource_type=resource_type,
+                        account_id=account_id, region=region, scan_run_id=scan_run_id,
+                        tenant_id=tenant_id, dspm_module="data_lifecycle",
+                        severity="LOW" if not lifecycle_ok else "INFO",
+                        status="FAIL" if not lifecycle_ok else "PASS",
+                        classification_labels=labels, encryption_status="unknown",
+                        public_access=False, now=now,
+                    ))
+
+                # ── Module 7: data_lineage ─────────────────────────────────────
+                # S3 event notifications → Lambda/SNS/SQS flows; RDS triggers; Kinesis consumers
+                if resource_type in _S3_TYPES:
+                    notif = emitted.get("NotificationConfiguration", {})
+                    has_lambda_flow = bool(
+                        isinstance(notif, dict) and (
+                            notif.get("LambdaFunctionConfigurations")
+                            or notif.get("QueueConfigurations")
+                            or notif.get("TopicConfigurations")
+                        )
+                    )
                     rule_id = f"aws.dspm.data_lineage.{slug}"
                     findings.append(_base_finding(
-                        rule_id=rule_id,
-                        resource_uid=resource_uid,
-                        resource_type=resource_type,
-                        account_id=account_id,
-                        region=region,
-                        scan_run_id=scan_run_id,
-                        tenant_id=tenant_id,
-                        dspm_module="data_lineage",
-                        severity=sev,
+                        rule_id=rule_id, resource_uid=resource_uid, resource_type=resource_type,
+                        account_id=account_id, region=region, scan_run_id=scan_run_id,
+                        tenant_id=tenant_id, dspm_module="data_lineage",
+                        severity="LOW" if not has_lambda_flow else "INFO",
                         status="PASS",
-                        classification_labels=labels,
-                        encryption_status="unknown",
-                        public_access=False,
-                        now=now,
+                        classification_labels=labels, encryption_status="unknown",
+                        public_access=False, now=now,
                     ))
-
-                # ── Module 8: governance_score ──────────────────────────────
-                if resource_type in _BUCKET_TYPES or resource_type in _SECRET_TYPES:
-                    # Governance score based on how many controls pass for this resource
-                    # Simplified: check encryption + public access block
-                    enc_ok = False
-                    pub_ok = True
-                    if resource_type in _BUCKET_TYPES:
-                        enc_emitted = enc_by_uid.get(resource_uid, enc_by_uid.get("", {}))
-                        enc_ok = bool(enc_emitted.get("ServerSideEncryptionConfiguration"))
-                        pub_emitted2 = pub_by_uid.get(resource_uid, pub_by_uid.get("", {}))
-                        pac2 = pub_emitted2.get("PublicAccessBlockConfiguration", {})
-                        pub_ok = (
-                            pac2.get("BlockPublicAcls", False)
-                            and pac2.get("BlockPublicPolicy", False)
-                        )
-                    elif resource_type in _SECRET_TYPES:
-                        enc_ok = True
-                        pub_ok = True
-
-                    passes = sum([enc_ok, pub_ok])
-                    score = int(passes / 2 * 100)
-                    gov_sev = "HIGH" if score < 50 else ("MEDIUM" if score < 80 else "LOW")
-                    rule_id = f"aws.dspm.governance_score.{slug}"
+                elif resource_type in _KINESIS_TYPES:
+                    # Kinesis consumers = downstream data flow
+                    consumer_count = len(emitted.get("ConsumerList", []) or [])
+                    rule_id = f"aws.dspm.data_lineage.{slug}"
                     findings.append(_base_finding(
-                        rule_id=rule_id,
-                        resource_uid=resource_uid,
-                        resource_type=resource_type,
-                        account_id=account_id,
-                        region=region,
-                        scan_run_id=scan_run_id,
-                        tenant_id=tenant_id,
-                        dspm_module="governance_score",
-                        severity=gov_sev,
-                        status="FAIL" if score < 80 else "PASS",
-                        classification_labels=labels,
-                        encryption_status="unknown",
-                        public_access=False,
-                        now=now,
+                        rule_id=rule_id, resource_uid=resource_uid, resource_type=resource_type,
+                        account_id=account_id, region=region, scan_run_id=scan_run_id,
+                        tenant_id=tenant_id, dspm_module="data_lineage",
+                        severity="LOW" if consumer_count > 0 else "INFO",
+                        status="PASS",
+                        classification_labels=labels, encryption_status="unknown",
+                        public_access=False, now=now,
+                    ))
+                else:
+                    rule_id = f"aws.dspm.data_lineage.{slug}"
+                    findings.append(_base_finding(
+                        rule_id=rule_id, resource_uid=resource_uid, resource_type=resource_type,
+                        account_id=account_id, region=region, scan_run_id=scan_run_id,
+                        tenant_id=tenant_id, dspm_module="data_lineage",
+                        severity="INFO", status="PASS",
+                        classification_labels=labels, encryption_status="unknown",
+                        public_access=False, now=now,
                     ))
 
-        logger.info("AWS DSPM analyze(): produced %d findings from %d discovery rows", len(findings), len(rows))
+                # ── Module 8: governance_scoring ───────────────────────────────
+                # Aggregate posture: encryption + public-access-blocked + logging
+                enc_ok = False
+                pub_ok = True
+                log_ok = False
+
+                if resource_type in _S3_TYPES:
+                    sse2 = emitted.get("ServerSideEncryptionConfiguration") or emitted.get("encryption", {})
+                    enc_ok = bool(sse2)
+                    pac2 = emitted.get("PublicAccessBlockConfiguration", {})
+                    pub_ok = bool(
+                        isinstance(pac2, dict)
+                        and pac2.get("BlockPublicAcls", False)
+                        and pac2.get("BlockPublicPolicy", False)
+                    )
+                    log_ok = bool(emitted.get("LoggingEnabled") or emitted.get("logging", {}))
+                elif resource_type in _RDS_TYPES:
+                    enc_ok = bool(emitted.get("StorageEncrypted") or emitted.get("KmsKeyId"))
+                    pub_ok = not bool(emitted.get("PubliclyAccessible", False))
+                    log_ok = bool(emitted.get("EnabledCloudwatchLogsExports"))
+                elif resource_type in _DYNAMO_TYPES:
+                    sse_d = emitted.get("SSEDescription", {})
+                    enc_ok = isinstance(sse_d, dict) and sse_d.get("Status") == "ENABLED"
+                    pub_ok = True  # DynamoDB not publicly accessible
+                    log_ok = bool(emitted.get("StreamSpecification", {}))
+                elif resource_type in (_REDSHIFT_TYPES | _ES_TYPES | _GLUE_TYPES | _KINESIS_TYPES):
+                    enc_ok = bool(
+                        emitted.get("Encrypted")
+                        or emitted.get("EncryptionAtRestOptions", {})
+                        or resource_type in _KINESIS_TYPES
+                    )
+                    pub_ok = not bool(emitted.get("PubliclyAccessible", False))
+                    log_ok = bool(
+                        emitted.get("LoggingProperties")
+                        or emitted.get("LogPublishingOptions")
+                    )
+
+                passes = sum([enc_ok, pub_ok, log_ok])
+                score = int(passes / 3 * 100)
+                gov_sev = "HIGH" if score < 50 else ("MEDIUM" if score < 80 else "LOW")
+                rule_id = f"aws.dspm.governance_scoring.{slug}"
+                findings.append(_base_finding(
+                    rule_id=rule_id, resource_uid=resource_uid, resource_type=resource_type,
+                    account_id=account_id, region=region, scan_run_id=scan_run_id,
+                    tenant_id=tenant_id, dspm_module="governance_scoring",
+                    severity=gov_sev, status="FAIL" if score < 80 else "PASS",
+                    classification_labels=labels, encryption_status="unknown",
+                    public_access=False, now=now,
+                ))
+
+        logger.info(
+            "AWS DSPM analyze(): produced %d findings from %d discovery rows",
+            len(findings), len(rows),
+        )
         return findings

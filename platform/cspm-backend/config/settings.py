@@ -10,7 +10,7 @@ load_dotenv(CONF_DIR / ".env")
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 
-ACCESS_TOKEN_LIFETIME_MINUTES = int(os.getenv("ACCESS_TOKEN_LIFETIME_MINUTES", 15))
+ACCESS_TOKEN_LIFETIME_MINUTES = int(os.getenv("ACCESS_TOKEN_LIFETIME_MINUTES", "15"))  # Changed from 60 to 15 per WARN-06
 REFRESH_TOKEN_LIFETIME_DAYS = int(os.getenv("REFRESH_TOKEN_LIFETIME_DAYS", 7))
 FRONTEND_URL = os.getenv("FRONTEND_URL")
 
@@ -60,6 +60,13 @@ REST_FRAMEWORK = {
     ),
     "UNAUTHENTICATED_USER": None,
     "DEFAULT_AUTHENTICATION_CLASSES": [],
+    "DEFAULT_THROTTLE_CLASSES": [],
+    "DEFAULT_THROTTLE_RATES": {
+        "signup": "10/hour",
+        "login": "20/hour",
+        "refresh": "60/hour",
+        "idp_domain": "5/minute",
+    },
 }
 
 MIDDLEWARE = [
@@ -79,14 +86,19 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-]
 
+# Build origin lists from base + env var overrides (comma-separated)
+_extra_origins = [o.strip() for o in os.getenv("CORS_EXTRA_ORIGINS", "").split(",") if o.strip()]
+CORS_ALLOWED_ORIGINS = ["http://localhost:3000"] + _extra_origins
+
+_extra_csrf = [o.strip() for o in os.getenv("CSRF_EXTRA_TRUSTED_ORIGINS", "").split(",") if o.strip()]
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-]
+] + _extra_csrf
+
+# Trust X-Forwarded-Proto from nginx ingress so Django sees HTTPS scheme correctly
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 CORS_ALLOW_HEADERS = [
     "accept",
     "authorization",
@@ -140,3 +152,17 @@ STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 SESSION_SERIALIZER = "django.contrib.sessions.serializers.JSONSerializer"
+
+# ── hCaptcha — required in production; if unset, CAPTCHA is skipped (dev only) ──
+HCAPTCHA_SECRET_KEY = os.getenv("HCAPTCHA_SECRET_KEY", "")
+
+# ── Redirect allowlist — FRONTEND_URL host must be in this list (validated at startup) ──
+ALLOWED_REDIRECT_HOSTS = [h.strip() for h in os.getenv("ALLOWED_REDIRECT_HOSTS", "localhost").split(",") if h.strip()]
+
+# ── Celery ────────────────────────────────────────────────────────────────────
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://redis:6379/0")
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://redis:6379/1")
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TIMEZONE = "UTC"

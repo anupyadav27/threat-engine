@@ -40,6 +40,8 @@ PUBLIC_PATHS = {
     "/api/auth/google/callback/",
     "/api/auth/csrf",
     "/api/auth/csrf/",
+    "/api/v1/agents/bootstrap",
+    "/api/v1/agents/bootstrap/",
 }
 
 # Path prefixes that don't require authentication (checked with startswith)
@@ -47,6 +49,8 @@ PUBLIC_PREFIXES = (
     "/gateway/",         # Gateway management endpoints (health, services, etc.)
     "/api/v1/health",    # Health check endpoints
     "/argo/",            # Argo Workflows UI (internal tool, no user auth needed)
+    "/api/v1/billing/webhooks/stripe",  # Stripe calls this directly — auth via Stripe-Signature HMAC
+    "/vulnerability/",  # Vulnerability engine uses API key auth — Next.js server-side proxy has no session cookie
     # NOTE: /api/v1/views/ is NOT here — BFF views must be authenticated so
     # that AuthMiddleware builds X-Auth-Context and forwards it to downstream
     # engines.  Without this the engines never receive a tenant/user context.
@@ -181,6 +185,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         for row in rows:
             if _check_password(raw_token, row["token"]):
+                scope = _j(row["scope_cache"], {})
+                if not scope.get("engine_tenant_id"):
+                    scope = await self._backfill_engine_tenant_id(pool, row["id"], scope)
                 return AuthContext.from_session_cache(
                     user_id=row["user_id"],
                     email=row["email"],
@@ -188,7 +195,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     role_level=row["role_level"] or 99,
                     role_scope_level=row["role_scope_level"] or "account",
                     permissions_cache=_j(row["permissions_cache"], []),
-                    scope_cache=_j(row["scope_cache"], {}),
+                    scope_cache=scope,
                 )
 
         # Fallback: try sessions without token_hint (old sessions created before
@@ -232,6 +239,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
                         row["id"],
                         _backfill_err,
                     )
+                scope = _j(row["scope_cache"], {})
+                if not scope.get("engine_tenant_id"):
+                    scope = await self._backfill_engine_tenant_id(pool, row["id"], scope)
                 return AuthContext.from_session_cache(
                     user_id=row["user_id"],
                     email=row["email"],
@@ -239,10 +249,57 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     role_level=row["role_level"] or 99,
                     role_scope_level=row["role_scope_level"] or "account",
                     permissions_cache=_j(row["permissions_cache"], []),
-                    scope_cache=_j(row["scope_cache"], {}),
+                    scope_cache=scope,
                 )
 
         return None
+
+    async def _backfill_engine_tenant_id(self, pool, session_id: int, scope: dict) -> dict:
+        """Resolve a default engine_tenant_id for sessions that lack one.
+
+        For platform-level sessions (scope_level="platform" / tenant_ids=None),
+        we intentionally leave engine_tenant_id as None so the BFF can serve
+        cross-tenant "All Tenants" views without a forced single-tenant scope.
+
+        For tenant-scoped sessions, uses the first entry in tenant_ids.
+        Updates scope_cache in-place so subsequent requests skip this lookup.
+        """
+        # Platform-level users have unrestricted access — do not force a tenant.
+        # Returning scope as-is means engine_tenant_id stays None, which the BFF
+        # handles via resolve_tenant_id()'s platform-level escape hatch.
+        if scope.get("scope_level") == "platform" or scope.get("tenant_ids") is None:
+            return scope
+
+        tid = None
+        if scope.get("tenant_ids"):
+            tid = scope["tenant_ids"][0]
+        else:
+            try:
+                row = await pool.fetchrow(
+                    """
+                    SELECT engine_tenant_id, id::text AS id_str
+                    FROM tenant_management_tenants
+                    ORDER BY created_at ASC
+                    LIMIT 1
+                    """
+                )
+                if row:
+                    tid = row["engine_tenant_id"] or row["id_str"]
+            except Exception as exc:
+                logger.warning("engine_tenant_id backfill failed: %s", exc)
+
+        if tid:
+            scope = {**scope, "engine_tenant_id": tid}
+            try:
+                import json as _j2
+                await pool.execute(
+                    "UPDATE user_sessions SET scope_cache = $1::jsonb WHERE id = $2",
+                    _j2.dumps(scope),
+                    session_id,
+                )
+            except Exception as exc:
+                logger.warning("scope_cache update failed for session %s: %s", session_id, exc)
+        return scope
 
     async def _get_pool(self):
         """Get or create asyncpg connection pool."""

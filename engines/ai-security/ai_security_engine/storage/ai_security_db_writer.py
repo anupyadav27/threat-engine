@@ -702,6 +702,8 @@ def save_atlas_findings(
                     f.get("region", ""),
                 )
                 atlas_detail = f.get("atlas_detail") or {}
+                # Support both 'atlas_pillar' (new AC-S3 field) and 'pillar' (legacy).
+                pillar_value = f.get("atlas_pillar") or f.get("pillar")
                 cur.execute(
                     """
                     INSERT INTO ai_security_findings (
@@ -749,7 +751,7 @@ def save_atlas_findings(
                         f.get("model_type"),
                         f.get("severity", "MEDIUM"),
                         f.get("status", "FAIL"),
-                        f.get("pillar"),          # reuse category column for pillar label
+                        pillar_value,            # category column stores pillar label
                         f.get("title"),
                         f.get("detail"),
                         None,                    # remediation
@@ -758,7 +760,7 @@ def save_atlas_findings(
                         f.get("account_id"),
                         f.get("region"),
                         f.get("provider"),
-                        f.get("pillar"),
+                        pillar_value,            # pillar column
                         f.get("atlas_technique"),
                         json.dumps(atlas_detail),
                         0,                       # blast_radius_score ALWAYS 0

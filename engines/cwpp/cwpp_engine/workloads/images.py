@@ -35,7 +35,7 @@ IMAGE_DOMAIN = "image_security"
 IMAGE_SERVICE = "ecr"  # catches ecr / acr / gcr / ocir (all registry discoveries map here)
 
 
-async def fetch(scan_run_id: str, tenant_id: str) -> Dict[str, Any]:
+async def fetch(scan_run_id: str, tenant_id: str, auth_header: Optional[str] = None) -> Dict[str, Any]:
     """Fetch image workload data from container-security + secops image-scan."""
 
     # 1. Posture checks from container-security engine
@@ -43,10 +43,11 @@ async def fetch(scan_run_id: str, tenant_id: str) -> Dict[str, Any]:
         f"{CONTAINER_SEC_URL}/api/v1/container-security/ui-data",
         # container-security engine uses scan_id (not scan_run_id)
         params={"tenant_id": tenant_id, "scan_id": scan_run_id},
+        auth_header=auth_header,
     )
 
     # 2. Image scan schema (to show planned capability even when 501)
-    image_scan_schema = await get(f"{SECOPS_URL}/api/v1/secops/image-scan/schema")
+    image_scan_schema = await get(f"{SECOPS_URL}/api/v1/secops/image-scan/schema", auth_header=auth_header)
 
     # Derive posture findings even if container_data is missing
     if container_data is None:

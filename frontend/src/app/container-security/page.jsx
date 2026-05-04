@@ -657,7 +657,7 @@ export default function ContainerSecurityPage() {
 
         {/* ── Tabs + table ── */}
         <PageLayout icon={Container} pageContext={pageContext} kpiGroups={[]} insightRow={insightStrip}
-          tabData={tabData} loading={false} error={error} defaultTab="overview" hideHeader topNav
+          tabData={tabData} loading={loading} error={error} defaultTab="overview" hideHeader topNav
           onRowClick={handleRowClick} />
       </>}
       <FindingDetailPanel finding={selectedFinding} onClose={() => setSelectedFinding(null)} />

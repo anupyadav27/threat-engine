@@ -36,11 +36,19 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from .workloads import containers, images, hosts, serverless, runtime
 from .core.scorer import compute_cwpp_score, risk_band
+from .core.pillar_health import (
+    CWPP_PILLAR_HEALTH_ENDPOINTS,
+    check_pillar_health,
+    fetch_all_pillar_scores,
+    extract_container_sec_score,
+    extract_ai_security_score,
+    extract_findings_count,
+)
 
 try:
     import sys as _sys
@@ -165,6 +173,7 @@ async def health():
 
 @app.get("/api/v1/cwpp/dashboard")
 async def dashboard(
+    request: Request,
     scan_run_id: str = Query(..., description="scan_run_id to scope all workload queries"),
     tenant_id: str = Query(default="default-tenant"),
     workload_types: Optional[str] = Query(
@@ -179,13 +188,15 @@ async def dashboard(
     All workload-type calls run in parallel. Unavailable engines are gracefully
     skipped — their type returns status='unavailable' with null score.
     """
+    auth_header = request.headers.get("X-Auth-Context") or request.headers.get("x-auth-context")
+
     requested = (
         [w.strip() for w in workload_types.split(",") if w.strip() in WORKLOADS]
         if workload_types
         else list(WORKLOADS.keys())
     )
 
-    tasks = [WORKLOADS[w](scan_run_id, tenant_id) for w in requested]
+    tasks = [WORKLOADS[w](scan_run_id, tenant_id, auth_header) for w in requested]
     results: List[Dict[str, Any]] = await asyncio.gather(*tasks)
 
     cwpp_score = compute_cwpp_score(results)
@@ -238,6 +249,7 @@ async def dashboard(
 
 @app.get("/api/v1/cwpp/workloads/{workload_type}")
 async def get_workload(
+    request: Request,
     workload_type: str,
     scan_run_id: str = Query(...),
     tenant_id: str = Query(default="default-tenant"),
@@ -248,7 +260,8 @@ async def get_workload(
             status_code=404,
             detail=f"Unknown workload type '{workload_type}'. Valid: {list(WORKLOADS.keys())}",
         )
-    result = await WORKLOADS[workload_type](scan_run_id, tenant_id)
+    auth_header = request.headers.get("X-Auth-Context") or request.headers.get("x-auth-context")
+    result = await WORKLOADS[workload_type](scan_run_id, tenant_id, auth_header)
     meta = WORKLOAD_META.get(workload_type, {})
     return {**result, "meta": meta}
 
@@ -291,6 +304,98 @@ async def posture_score(
     }
 
 
+# ── Unified CWPP score (graceful degradation) ────────────────────────────────
+
+# CWPP logical pillar names → source engine key
+_SCORE_PILLAR_MAP = {
+    "workload_security": "container_sec",
+    "ai_security":       "ai_security",
+}
+
+
+@app.get("/api/v1/cwpp/score")
+async def cwpp_score(
+    scan_run_id: str = Query(..., description="scan_run_id to scope all pillar score queries"),
+    tenant_id: str = Query(default="default-tenant"),
+    provider: str = Query(default="aws"),
+):
+    """
+    Unified CWPP score with graceful degradation.
+
+    Steps:
+      1. Health-check container_sec + ai_security concurrently (5s timeout each).
+      2. For available pillars only, fetch score data (5s timeout, tenant_id scoped).
+      3. Compute overall_score from available pillars only — unavailable pillars
+         contribute score=None and are EXCLUDED from the denominator.
+      4. Return available_pillars / total_pillars for operator visibility.
+
+    Unavailable pillar → score=null, findings=null, reason="engine_unavailable".
+    If ALL pillars unavailable → overall_score=null (never 0).
+    """
+    # Step 1 — parallel health checks (5s per pillar)
+    health = await check_pillar_health(CWPP_PILLAR_HEALTH_ENDPOINTS)
+
+    # Step 2 — parallel score fetches for available pillars only (tenant_id scoped)
+    score_data = await fetch_all_pillar_scores(health, scan_run_id, tenant_id)
+
+    # Step 3 — build pillar dict
+    pillars: Dict[str, Any] = {}
+    available_scores: list = []
+
+    for pillar_name, source_key in _SCORE_PILLAR_MAP.items():
+        is_available = health.get(source_key, False)
+        raw = score_data.get(source_key)
+
+        if not is_available:
+            pillars[pillar_name] = {
+                "score": None,
+                "findings": None,
+                "source": source_key,
+                "reason": "engine_unavailable",
+            }
+            continue
+
+        if source_key == "container_sec":
+            score = extract_container_sec_score(raw)
+        else:
+            score = extract_ai_security_score(raw)
+
+        findings = extract_findings_count(raw)
+
+        if score is not None:
+            available_scores.append(score)
+
+        pillars[pillar_name] = {
+            "score": score,
+            "findings": findings,
+            "source": source_key,
+            "reason": None,
+        }
+
+    # Step 4 — overall score from available pillars only (never 0 for unavailable)
+    if available_scores:
+        overall_score: Optional[int] = round(sum(available_scores) / len(available_scores))
+    else:
+        overall_score = None  # All pillars down — never return 0
+
+    available_count = sum(
+        1 for p in pillars.values() if p["score"] is not None
+    )
+    total_count = len(_SCORE_PILLAR_MAP)
+
+    return {
+        "overall_score": overall_score,
+        "provider": provider,
+        "scan_run_id": scan_run_id,
+        "tenant_id": tenant_id,
+        "risk_band": risk_band(overall_score),
+        "pillars": pillars,
+        "available_pillars": available_count,
+        "total_pillars": total_count,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 # ── Workload catalog ──────────────────────────────────────────────────────────
 
 @app.get("/api/v1/cwpp/workloads")
@@ -314,6 +419,7 @@ async def list_workloads():
 
 @app.get("/api/v1/cwpp/ui-data")
 async def ui_data(
+    request: Request,
     scan_run_id: str = Query(...),
     tenant_id: str = Query(default="default-tenant"),
 ):
@@ -323,7 +429,7 @@ async def ui_data(
     so the CNAPP pillar can call this with the same pattern as other engines.
     """
     # Pass workload_types=None explicitly — avoids receiving the Query object as default
-    return await dashboard(scan_run_id=scan_run_id, tenant_id=tenant_id, workload_types=None)
+    return await dashboard(request=request, scan_run_id=scan_run_id, tenant_id=tenant_id, workload_types=None)
 
 
 if __name__ == "__main__":

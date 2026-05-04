@@ -30,6 +30,7 @@ const pct = (n, d) => d > 0 ? Math.round(100 * n / d) : 0;
 export default function CompliancePage() {
   // ── State ──
   const [loading, setLoading] = useState(true);
+  const [hasRunScan, setHasRunScan] = useState(false); // true once BFF returns (even empty)
   const [frameworks, setFrameworks] = useState([]);
   const [selectedFw, setSelectedFw] = useState(null);    // framework row clicked
   const [fwDetail, setFwDetail] = useState(null);         // framework assessment detail
@@ -44,11 +45,12 @@ export default function CompliancePage() {
   // ── Fetch frameworks list ──
   useEffect(() => {
     setLoading(true);
-    fetchView('compliance', { tenant_id: TENANT_ID || 'default-tenant' })
+    fetchView('compliance')
       .then(d => {
         setFrameworks(d?.frameworks || []);
+        setHasRunScan(true);
       })
-      .catch(() => {})
+      .catch(() => { setHasRunScan(false); })
       .finally(() => setLoading(false));
   }, []);
 
@@ -57,7 +59,7 @@ export default function CompliancePage() {
     if (!selectedFw) { setFwDetail(null); return; }
     setFwLoading(true);
     setExpandedSections(new Set());
-    fetchView(`compliance/framework/${selectedFw.id}`, { tenant_id: TENANT_ID || 'default-tenant' })
+    fetchView(`compliance/framework/${selectedFw.id}`)
       .then(d => setFwDetail(d))
       .catch(() => setFwDetail(null))
       .finally(() => setFwLoading(false));
@@ -131,13 +133,13 @@ export default function CompliancePage() {
             <>
               <button onClick={() => {
                 const origin = typeof window !== 'undefined' ? window.location.origin : '';
-                window.open(`${origin}/gateway/api/v1/views/compliance/framework/${selectedFw.id}/report?tenant_id=${TENANT_ID || 'default-tenant'}&format=csv`, '_blank');
+                window.open(`${origin}/gateway/api/v1/views/compliance/framework/${selectedFw.id}/report?format=csv`, '_blank');
               }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: `1px solid ${C.border}`, backgroundColor: 'var(--bg-card)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12 }}>
                 <Download size={14} /> CSV
               </button>
               <button onClick={() => {
                 const origin = typeof window !== 'undefined' ? window.location.origin : '';
-                window.open(`${origin}/gateway/api/v1/views/compliance/framework/${selectedFw.id}/report?tenant_id=${TENANT_ID || 'default-tenant'}&format=json`, '_blank');
+                window.open(`${origin}/gateway/api/v1/views/compliance/framework/${selectedFw.id}/report?format=json`, '_blank');
               }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: `1px solid ${C.border}`, backgroundColor: 'var(--bg-card)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12 }}>
                 <Download size={14} /> JSON
               </button>
@@ -194,6 +196,20 @@ export default function CompliancePage() {
             <tbody>
               {loading ? (
                 <tr><td colSpan={6} style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</td></tr>
+              ) : (!loading && frameworks.length === 0) ? (
+                <tr><td colSpan={6} style={{ padding: '40px 20px', textAlign: 'center' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                    <Shield size={32} style={{ color: 'var(--text-muted)', opacity: 0.4 }} />
+                    <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                      {hasRunScan ? 'No compliance frameworks mapped' : 'No scan has run yet'}
+                    </p>
+                    <p style={{ fontSize: 12, color: 'var(--text-muted)', maxWidth: 360, margin: 0 }}>
+                      {hasRunScan
+                        ? 'No compliance frameworks are mapped for this account. Ensure check rules have been seeded (catalog upload), a full pipeline scan has completed, and this account has cloud resources with applicable rules.'
+                        : 'Run a full pipeline scan to populate compliance framework scores. Navigate to Scans to trigger one.'}
+                    </p>
+                  </div>
+                </td></tr>
               ) : frameworks
                   .filter(fw => !searchTerm || (fw.name || fw.id || '').toLowerCase().includes(searchTerm.toLowerCase()))
                   .map((fw, i) => {

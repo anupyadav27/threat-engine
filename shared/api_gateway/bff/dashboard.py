@@ -26,6 +26,7 @@ from typing import Optional, Dict, Any, List
 
 from fastapi import APIRouter, Query, Request
 
+from ._auth import resolve_tenant_id
 from ._shared import fetch_many, safe_get
 from ._transforms import (
     normalize_threat, severity_chart, apply_global_filters, _safe_upper,
@@ -106,7 +107,6 @@ def _extract_resource_from_threat(t: dict) -> dict:
 @router.get("/dashboard")
 async def view_dashboard(
     request: Request,
-    tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
@@ -114,6 +114,7 @@ async def view_dashboard(
 ):
     """Single endpoint returning everything the dashboard page needs."""
 
+    tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 
@@ -653,6 +654,51 @@ async def view_dashboard(
             "event": None,
         })
 
+    # ── Risk matrix — likelihood × impact scatter data ───────────────────
+    # Derive from threat_detections grouped by category/type.
+    # Each entry: {name, likelihood, impact, count, severity}
+    risk_matrix: List[dict] = []
+    risk_d_raw = risk_data if isinstance(risk_data, dict) else {}
+    raw_risk_matrix = risk_d_raw.get("risk_matrix") or risk_d_raw.get("riskMatrix") or []
+    if isinstance(raw_risk_matrix, list) and raw_risk_matrix:
+        risk_matrix = raw_risk_matrix
+    elif by_sev and (crit_count + high_count) > 0:
+        # Build from threat categories in summary
+        by_category_ts = ts.get("by_category", {}) or ts.get("threats_by_category", {})
+        if isinstance(by_category_ts, dict) and by_category_ts:
+            _LIKELIHOOD_MAP = {
+                "IAMCredentialExposure": 5, "PublicAccess": 5,
+                "ExcessivePermissions": 4, "NetworkExposure": 4,
+                "DataExposure": 4, "VulnerabilityExploit": 3,
+                "LateralMovement": 3, "PrivilegeEscalation": 2,
+                "Evasion": 2,
+            }
+            _IMPACT_MAP = {
+                "IAMCredentialExposure": 5, "DataExposure": 5,
+                "PublicAccess": 4, "ExcessivePermissions": 4,
+                "NetworkExposure": 4, "VulnerabilityExploit": 4,
+                "LateralMovement": 3, "PrivilegeEscalation": 5,
+                "Evasion": 3,
+            }
+            for cat_key, count in by_category_ts.items():
+                if not isinstance(count, int) or count == 0:
+                    continue
+                likelihood = _LIKELIHOOD_MAP.get(cat_key, 3)
+                impact = _IMPACT_MAP.get(cat_key, 3)
+                sev_val = (
+                    "critical" if likelihood >= 4 and impact >= 4
+                    else "high" if likelihood + impact >= 7
+                    else "medium" if likelihood + impact >= 5
+                    else "low"
+                )
+                risk_matrix.append({
+                    "name": cat_key.replace("_", " ").title(),
+                    "likelihood": likelihood,
+                    "impact": impact,
+                    "count": count,
+                    "severity": sev_val,
+                })
+
     # ── Build final response ──────────────────────────────────────────────
     response = {
         "pageContext": {
@@ -667,6 +713,7 @@ async def view_dashboard(
             "tabs": [],
         },
         "kpi": kpi,
+        "riskMatrix": risk_matrix,
         # ── Charts grouped by category (dashboard only) ──
         "chartCategories": [
             {
@@ -710,13 +757,24 @@ async def view_dashboard(
         "toxicCombinations": toxic_combos,
         "criticalAlerts": critical_alerts,
         "recentThreats": recent_threats,
+        "scanMeta": {
+            "scanRunId": scan_run_id,
+            "dataScope": "all_scans" if scan_run_id == "latest" else "single_scan",
+            "hasData": bool(total_threats or inv_total_assets),
+        },
     }
 
     # Apply global filters
     if provider or account or region:
         response["recentThreats"] = apply_global_filters(response["recentThreats"], provider, account, region)
-        response["riskyResources"] = [r for r in response["riskyResources"]
-                                       if (not provider or r.get("provider", "").upper() == provider.upper())
-                                       and (not region or r.get("region") == region)]
+        # risky_resources lives inside chartCategories — filter in-place
+        for cat in response.get("chartCategories", []):
+            for chart in cat.get("charts", []):
+                if chart.get("id") == "risky_resources":
+                    chart["data"] = [
+                        r for r in chart.get("data", [])
+                        if (not provider or r.get("provider", "").upper() == provider.upper())
+                        and (not region or r.get("region") == region)
+                    ]
 
     return response

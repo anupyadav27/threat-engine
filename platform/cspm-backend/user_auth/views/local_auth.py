@@ -1,22 +1,111 @@
 import json
+import logging
 import os
-import uuid
 import re
-from django.utils import timezone
-from django.contrib.auth.hashers import check_password
-from django.conf import settings
+import uuid
 from datetime import timedelta
 
+import requests as http_requests
+from django.conf import settings
+from django.contrib.auth.hashers import check_password
+from django.http import JsonResponse
+from django.utils import timezone
 from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.http import require_GET
 from rest_framework.views import APIView
+
 from user_auth.models import Users, UserRoles, UserSessions
+from user_auth.throttles import LoginRateThrottle, RefreshRateThrottle, SignupRateThrottle
 from user_auth.utils.audit_utils import log_auth_event
 from user_auth.utils.auth_utils import compute_auth_caches, generate_token, hash_token, verify_token
 from user_auth.utils.cookie_utils import set_auth_cookies, clear_auth_cookies
 from user_auth.utils.tenant_utils import provision_first_tenant
-from django.http import JsonResponse
-from django.views.decorators.csrf import ensure_csrf_cookie
-from django.views.decorators.http import require_GET
+
+logger = logging.getLogger(__name__)
+
+_HCAPTCHA_VERIFY_URL = "https://hcaptcha.com/siteverify"
+
+
+def _verify_hcaptcha(token: str) -> bool:
+    secret = getattr(settings, "HCAPTCHA_SECRET_KEY", None)
+    if not secret:
+        logger.warning("CAPTCHA disabled — set HCAPTCHA_SECRET_KEY in production")
+        return True
+    try:
+        resp = http_requests.post(
+            _HCAPTCHA_VERIFY_URL,
+            data={"secret": secret, "response": token},
+            timeout=5.0,
+        )
+        return bool(resp.json().get("success", False))
+    except Exception:
+        return False  # fail closed
+
+
+BILLING_ENGINE_URL = os.environ.get(
+    "BILLING_ENGINE_URL", "http://engine-billing:8040"
+)
+
+
+def _get_subscription_for_org(org_id: str, user_permissions: list) -> dict | None:
+    """Fetch subscription context for the org from engine-billing.
+
+    Args:
+        org_id: The organization/tenant ID to look up.
+        user_permissions: The user's permission key list from the session cache.
+
+    Returns:
+        Subscription dict if the user has ``billing:read``, otherwise ``None``.
+        Returns ``None`` (not an error) when engine-billing is unreachable so
+        that the ``/api/auth/me`` endpoint is never blocked by billing downtime.
+    """
+    if "billing:read" not in user_permissions:
+        return None
+
+    from django.core.cache import cache
+
+    cache_key = f"billing_sub_{org_id}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    try:
+        import httpx
+
+        with httpx.Client(timeout=3.0) as client:
+            resp = client.get(
+                f"{BILLING_ENGINE_URL}/api/v1/billing/subscription",
+                params={"org_id": org_id},
+                headers={"X-Internal-Call": "django-backend"},
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                plan = data.get("plan", {})
+                sub = {
+                    "tier": plan.get("plan_name", "unknown"),
+                    "status": data.get("status", "unknown"),
+                    "trial_days_remaining": data.get("trial_days_remaining", 0),
+                    "accounts_connected": data.get("accounts_connected", 0),
+                    "max_accounts": plan.get("max_accounts", -1),
+                    "current_period_end": data.get("current_period_end"),
+                    "is_overridden": data.get("is_overridden", False),
+                }
+                cache.set(cache_key, sub, timeout=60)
+                return sub
+            else:
+                logger.warning(
+                    "engine-billing returned %s for org %s — subscription omitted",
+                    resp.status_code,
+                    org_id,
+                )
+    except Exception as exc:
+        logger.warning(
+            "engine-billing unreachable for org %s (%s) — subscription field omitted",
+            org_id,
+            exc,
+        )
+    return None
 
 @require_GET
 @ensure_csrf_cookie
@@ -26,6 +115,8 @@ def csrf(request):
 
 @method_decorator(ensure_csrf_cookie, name='dispatch')
 class LoginView(APIView):
+    throttle_classes = [LoginRateThrottle]
+
     def post(self, request):
         # Parse JSON body
         try:
@@ -145,6 +236,8 @@ _ALLOW_LOCAL_SIGNUP = os.getenv("ALLOW_LOCAL_SIGNUP", "false").lower() in ("true
 
 @method_decorator(ensure_csrf_cookie, name='dispatch')
 class SignupView(APIView):
+    throttle_classes = [SignupRateThrottle]
+
     def post(self, request):
         if not _ALLOW_LOCAL_SIGNUP:
             return JsonResponse(
@@ -172,8 +265,14 @@ class SignupView(APIView):
         if len(password) < 8:
             return JsonResponse({"message": "Password must be at least 8 characters."}, status=400)
 
+        if not _verify_hcaptcha(data.get("hcaptcha_token", "")):
+            return JsonResponse({"message": "CAPTCHA verification failed."}, status=400)
+
         if Users.objects.filter(email=email).exists():
-            return JsonResponse({"message": "An account with this email already exists."}, status=409)
+            return JsonResponse(
+                {"message": "If an account exists with this email, a verification email will be sent."},
+                status=200,
+            )
 
         user = Users.objects.create_user(
             email=email,
@@ -192,8 +291,6 @@ class SignupView(APIView):
         expires_at = timezone.now() + timedelta(
             days=getattr(settings, 'REFRESH_TOKEN_LIFETIME_DAYS', 7)
         )
-        # Compute auth caches for the newly registered user (no roles yet, so
-        # permissions_cache will be [] — correct for a brand-new account)
         signup_permissions, signup_scope = compute_auth_caches(user)
         UserSessions.objects.create(
             id=uuid.uuid4(),
@@ -247,9 +344,14 @@ class MeView(APIView):
         # Build per-tenant permissions list from the TenantUsers role assignment
         tenant_memberships = TenantUsers.objects.filter(
             user=user, is_active=True
-        ).select_related('tenant', 'role__permissions')
+        ).select_related('tenant', 'role').prefetch_related('role__permissions')
         tenants = []
+        # Use the first tenant's ID as the org_id for subscription lookup.
+        # All tenants for a user belong to the same org in the current model.
+        first_tenant_id = None
         for tm in tenant_memberships:
+            if first_tenant_id is None:
+                first_tenant_id = str(tm.tenant.id)
             tenant_perm_keys: list = []
             if tm.role:
                 tenant_perm_keys = sorted(
@@ -264,8 +366,16 @@ class MeView(APIView):
                 "status": tm.tenant.status,
             })
 
+        # Fetch subscription tier from engine-billing (cached per org, 60 s TTL).
+        # Returns None for users without billing:read (e.g. viewer).
+        subscription = _get_subscription_for_org(
+            org_id=first_tenant_id or str(user.id),
+            user_permissions=permissions,
+        )
+
         return JsonResponse({
             "id": str(user.id),
+            "customer_id": str(user.id),
             "email": user.email,
             "name": f"{user.first_name or ''} {user.last_name or ''}".strip(),
             "sso_provider": user.sso_provider,
@@ -273,6 +383,7 @@ class MeView(APIView):
             "roles": role_names,
             "permissions": permissions,
             "tenants": tenants,
+            "subscription": subscription,
         })
 
     def _resolve_user_and_session(self, request):
@@ -280,7 +391,9 @@ class MeView(APIView):
         access_token = request.COOKIES.get("access_token")
         if not access_token:
             return None, None
-        sessions = UserSessions.objects.filter(revoked=False).select_related('user')
+        sessions = UserSessions.objects.filter(
+            revoked=False, token_hint=access_token[:8]
+        ).select_related('user')
         for session in sessions:
             if session.expires_at < timezone.now():
                 continue
@@ -329,6 +442,8 @@ class MeView(APIView):
 
 @method_decorator(ensure_csrf_cookie, name='dispatch')
 class RefreshTokenView(APIView):
+    throttle_classes = [RefreshRateThrottle]
+
     def post(self, request):
         refresh_token = request.COOKIES.get("refresh_token")
         if not refresh_token:
@@ -400,7 +515,9 @@ class LogoutView(APIView):
 
         # Try to find session by access token
         if access_token:
-            sessions = UserSessions.objects.filter(token__isnull=False)
+            sessions = UserSessions.objects.filter(
+                token__isnull=False, token_hint=access_token[:8]
+            )
             for session in sessions:
                 if verify_token(access_token, session.token):
                     user = session.user
@@ -428,6 +545,8 @@ class LogoutView(APIView):
             "message": "Logout successful",
             "sso": login_method == "saml"
         })
+        clear_auth_cookies(response)
+        return response
 
 
 class ChangePasswordView(APIView):
@@ -440,7 +559,9 @@ class ChangePasswordView(APIView):
 
         user = None
         current_session = None
-        sessions = UserSessions.objects.filter(revoked=False).select_related('user')
+        sessions = UserSessions.objects.filter(
+            revoked=False, token_hint=access_token[:8]
+        ).select_related('user')
         for session in sessions:
             if session.expires_at < timezone.now():
                 continue
@@ -496,7 +617,9 @@ class UserListView(APIView):
             return JsonResponse({"message": "Not authenticated"}, status=401)
 
         user = None
-        sessions = UserSessions.objects.filter(revoked=False).select_related('user')
+        sessions = UserSessions.objects.filter(
+            revoked=False, token_hint=access_token[:8]
+        ).select_related('user')
         for session in sessions:
             if session.expires_at < timezone.now():
                 continue
@@ -524,7 +647,7 @@ class UserListView(APIView):
         except TenantUsers.DoesNotExist:
             return JsonResponse({"error": "Forbidden"}, status=403)
 
-        if not requester_membership.role or requester_membership.role.name not in ('admin', 'super_admin'):
+        if not requester_membership.role or requester_membership.role.name not in ('platform_admin', 'org_admin', 'tenant_admin'):
             return JsonResponse({"error": "Forbidden"}, status=403)
 
         memberships = TenantUsers.objects.filter(
@@ -546,6 +669,3 @@ class UserListView(APIView):
             })
 
         return JsonResponse({"users": users}, status=200)
-
-        clear_auth_cookies(response)
-        return response

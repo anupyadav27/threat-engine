@@ -2112,7 +2112,9 @@ async def get_threat_detail(
                     account_id, region, provider,
                     mitre_techniques, mitre_tactics,
                     evidence, context,
-                    first_seen_at, last_seen_at, resolved_at
+                    first_seen_at, last_seen_at, resolved_at,
+                    chain_of_consequence, stakes_narrative,
+                    narrative_generated_at, narrative_model
                 FROM threat_detections
                 WHERE detection_id = %s::uuid AND tenant_id = %s
             """, (threat_id, tenant_id))

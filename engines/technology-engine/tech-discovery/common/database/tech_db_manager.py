@@ -71,6 +71,7 @@ class TechDBManager:
                    tc.display_name,
                    tc.credential_type,
                    tc.credential_ref,
+                   COALESCE(tc.sudo_required, false) AS sudo_required,
                    tc.status
             FROM   cloud_accounts ca
             LEFT JOIN tech_credentials tc USING (account_id)
@@ -91,7 +92,9 @@ class TechDBManager:
     def _get_local_credential(self, account_id: str) -> Optional[Dict[str, Any]]:
         sql = """
             SELECT account_id, tech_type, tech_category, host, port,
-                   display_name, credential_type, credential_ref, status,
+                   display_name, credential_type, credential_ref,
+                   COALESCE(sudo_required, false) AS sudo_required,
+                   status,
                    NULL::text AS tenant_id
             FROM   tech_credentials
             WHERE  account_id = %s

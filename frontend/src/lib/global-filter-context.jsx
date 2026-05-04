@@ -14,6 +14,7 @@
 
 import { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
 import { getFromEngine } from './api';
+import { useAuth } from './auth-context';
 
 const GlobalFilterContext = createContext(null);
 
@@ -25,6 +26,8 @@ export const TIME_RANGE_OPTIONS = [
 ];
 
 export function GlobalFilterProvider({ children }) {
+  const { selectedTenant } = useAuth();
+
   const [provider,  setProvider]  = useState('');
   const [account,   setAccount]   = useState('');
   const [region,    setRegion]    = useState('');
@@ -33,12 +36,16 @@ export function GlobalFilterProvider({ children }) {
   // Real accounts fetched from onboarding API
   const [accounts, setAccounts] = useState([]);
 
-  // Fetch real cloud accounts on mount
+  // Fetch cloud accounts scoped to the active tenant.
+  // selectedTenant = null means "All Tenants" (platform_admin) — no filter sent,
+  // engine returns all accounts the user is permitted to see.
+  // Re-fetches whenever the tenant selection changes.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await getFromEngine('onboarding', '/api/v1/cloud-accounts');
+        const params = selectedTenant ? { tenant_id: selectedTenant } : {};
+        const res = await getFromEngine('onboarding', '/api/v1/cloud-accounts', params);
         if (cancelled) return;
         const list = res?.accounts || res?.cloud_accounts || (Array.isArray(res) ? res : []);
         // Normalize to { provider, account, display, regions }
@@ -49,13 +56,17 @@ export function GlobalFilterProvider({ children }) {
           regions:    a.regions || (a.region ? [a.region] : []),
         }));
         setAccounts(normalized);
+        // Reset cascade selections when tenant changes so stale values don't persist
+        setProvider('');
+        setAccount('');
+        setRegion('');
       } catch (err) {
         console.warn('GlobalFilter: failed to fetch cloud accounts', err);
         // No fallback — dropdowns stay empty until API responds
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [selectedTenant]);
 
   // Cascade-aware setter
   const setFilter = useCallback((key, value) => {

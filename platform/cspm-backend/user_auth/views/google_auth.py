@@ -19,10 +19,10 @@ from django.utils import timezone
 from rest_framework.views import APIView
 
 from user_auth.models import Users, UserSessions
-from user_auth.utils.auth_utils import generate_token, hash_token
+from user_auth.utils.auth_utils import compute_auth_caches, generate_token, hash_token
 from user_auth.utils.audit_utils import log_auth_event
 from user_auth.utils.cookie_utils import set_auth_cookies
-from user_auth.utils.tenant_utils import provision_first_tenant
+from user_auth.utils.tenant_utils import accept_invite_membership, provision_first_tenant
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,11 @@ class GoogleLoginView(APIView):
 
         state = secrets.token_urlsafe(32)
         request.session['google_oauth_state'] = state
+        hd = request.GET.get("hd", "").strip()
+        if hd:
+            # Store requested domain in session so callback can validate it
+            request.session['google_oauth_hd'] = hd
+
         params = {
             "client_id": GOOGLE_CLIENT_ID,
             "redirect_uri": GOOGLE_REDIRECT_URI,
@@ -55,9 +60,6 @@ class GoogleLoginView(APIView):
             "prompt": "select_account",
             "state": state,
         }
-        # hd = hosted domain — routes SSO users directly to their Google Workspace
-        # or to whatever IDP their Workspace is federated with (Azure AD, Okta, etc.)
-        hd = request.GET.get("hd", "").strip()
         if hd:
             params["hd"] = hd
 
@@ -71,6 +73,7 @@ class GoogleCallbackView(APIView):
         frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:3000")
 
         expected_state = request.session.pop('google_oauth_state', None)
+        requested_hd = request.session.pop('google_oauth_hd', None)
         if not expected_state or request.GET.get('state') != expected_state:
             logger.warning("Google OAuth state mismatch — possible CSRF attempt")
             return HttpResponseRedirect(f"{frontend_url}/auth/login?error=csrf_detected")
@@ -117,6 +120,13 @@ class GoogleCallbackView(APIView):
         if not email:
             return HttpResponseRedirect(f"{frontend_url}/auth/login?error=google_no_email")
 
+        # BLOCK-03: validate hosted domain from session (not from profile — profile.hd can be spoofed)
+        if requested_hd:
+            email_domain = email.split("@")[-1]
+            if email_domain != requested_hd:
+                logger.warning("Google OAuth hd mismatch: expected=%s got=%s", requested_hd, email_domain)
+                return HttpResponseRedirect(f"{frontend_url}/auth/login?error=domain_mismatch")
+
         # Upsert user
         is_new_user = False
         try:
@@ -150,17 +160,13 @@ class GoogleCallbackView(APIView):
         if pending_invite:
             try:
                 from user_auth.models import InviteTokens
-                invite = InviteTokens.objects.get(token=pending_invite, used=False)
+                invite = InviteTokens.objects.select_related("tenant", "role").get(
+                    token=pending_invite, used=False
+                )
                 if invite.expires_at >= timezone.now() and invite.email == email:
-                    from tenant_management.models import TenantMembership
-                    TenantMembership.objects.get_or_create(
-                        user=user, tenant_id=invite.tenant_id,
-                        defaults={"role": invite.role or "viewer"},
-                    )
-                    invite.used = True
-                    invite.save(update_fields=["used"])
+                    accept_invite_membership(user, invite)
                     log_auth_event("invite.accept", request=request, user=user,
-                                   tenant_id=invite.tenant_id,
+                                   tenant_id=str(invite.tenant_id),
                                    extra={"method": "google", "email": email})
             except Exception as exc:
                 logger.warning("Invite consumption failed (google): %s", exc)
@@ -172,6 +178,7 @@ class GoogleCallbackView(APIView):
         expires_at = timezone.now() + timedelta(
             days=getattr(settings, "REFRESH_TOKEN_LIFETIME_DAYS", 7)
         )
+        permissions_cache, scope_cache = compute_auth_caches(user)
         UserSessions.objects.create(
             id=uuid.uuid4(),
             user=user,
@@ -181,6 +188,9 @@ class GoogleCallbackView(APIView):
             expires_at=expires_at,
             ip_address=request.META.get("REMOTE_ADDR", ""),
             user_agent=request.META.get("HTTP_USER_AGENT", ""),
+            token_hint=access_token[:8],
+            permissions_cache=permissions_cache,
+            scope_cache=scope_cache,
         )
 
         log_auth_event("login.google", request=request, user=user,
@@ -192,7 +202,7 @@ class GoogleCallbackView(APIView):
         if is_new_user:
             response.set_cookie(
                 "onboarding_pending", "1",
-                max_age=3600, httponly=False, samesite="Lax",
+                max_age=3600, httponly=True, samesite="Lax",  # WARN-04: httponly
             )
 
         return response

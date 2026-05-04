@@ -9,6 +9,7 @@ from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Query, Request
 
+from ._auth import resolve_tenant_id
 from ._shared import fetch_many, safe_get
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
@@ -44,7 +45,6 @@ def _build_cooccurrence_matrix(combos: List[dict]) -> dict:
 @router.get("/threats/toxic-combinations")
 async def view_threat_toxic_combos(
     request: Request,
-    tenant_id: str = Query(...),
     scan_run_id: Optional[str] = Query(None),
     min_threats: int = Query(2, ge=2),
 ):
@@ -54,6 +54,7 @@ async def view_threat_toxic_combos(
     to find resources with 2+ overlapping threats.
     """
 
+    tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 

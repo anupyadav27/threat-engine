@@ -12,6 +12,7 @@ from user_auth.views.saml_auth import (
 )
 from user_auth.views.invite import CreateInviteView, ValidateInviteView, AcceptInviteView, InviteSSORedirectView
 from user_auth.views.password_reset import PasswordResetRequestView, PasswordResetConfirmView
+from user_auth.views.account_access import UserAccountAccessView
 
 urlpatterns = [
     # ── CSRF ────────────────────────────────────────────────────────────────
@@ -58,4 +59,5 @@ urlpatterns = [
     # ── Authenticated account management ──────────────────────────────────────
     path("change-password/", ChangePasswordView.as_view(), name="change_password"),
     path("users/", UserListView.as_view(), name="user_list"),
+    path("users/<str:user_id>/accounts/", UserAccountAccessView.as_view(), name="user_account_access"),
 ]

@@ -10,6 +10,7 @@ from typing import Optional, Dict
 
 from fastapi import APIRouter, Query, Request
 
+from ._auth import resolve_tenant_id
 from ._shared import fetch_many, safe_get
 from ._cache import cache_key, cached_view, TTL_MISCONFIG, auth_level_from_header
 from ._transforms import normalize_check_finding, build_misconfig_heatmap, apply_global_filters
@@ -49,7 +50,6 @@ def _extract_service(t: dict) -> str:
 @router.get("/misconfig")
 async def view_misconfig(
     request: Request,
-    tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
@@ -57,6 +57,7 @@ async def view_misconfig(
 ):
     """Single endpoint returning everything the misconfig page needs."""
 
+    tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
     role_level = auth_level_from_header(auth_ctx_header)

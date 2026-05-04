@@ -33,12 +33,13 @@ RUNTIME_DOMAINS = {"runtime_audit"}
 RUNTIME_KEYWORDS = {"privileged", "host_network", "hostpid", "hostpath", "seccomp", "apparmor", "syscall"}
 
 
-async def fetch(scan_run_id: str, tenant_id: str) -> Dict[str, Any]:
+async def fetch(scan_run_id: str, tenant_id: str, auth_header: Optional[str] = None) -> Dict[str, Any]:
     """Fetch runtime threat signals from container-security engine."""
     data = await get(
         f"{CONTAINER_SEC_URL}/api/v1/container-security/ui-data",
         # container-security engine uses scan_id (not scan_run_id)
         params={"tenant_id": tenant_id, "scan_id": scan_run_id},
+        auth_header=auth_header,
     )
 
     if data is None:

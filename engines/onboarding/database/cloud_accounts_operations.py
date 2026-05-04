@@ -32,6 +32,7 @@ def create_cloud_account(data: Dict[str, Any]) -> Dict[str, Any]:
                 credential_type, credential_ref,
                 account_status, account_onboarding_status,
                 credential_validation_status,
+                account_type, auth_config,
                 created_at, updated_at
             ) VALUES (
                 %s, %s, %s,
@@ -40,6 +41,7 @@ def create_cloud_account(data: Dict[str, Any]) -> Dict[str, Any]:
                 %s, %s,
                 %s, %s,
                 'pending',
+                %s, %s,
                 %s, %s
             )
             RETURNING *
@@ -56,6 +58,8 @@ def create_cloud_account(data: Dict[str, Any]) -> Dict[str, Any]:
                 data.get("credential_ref", "pending"),
                 data.get("account_status", "pending"),
                 data.get("onboarding_status", "pending"),
+                data.get("account_type", "cloud_csp"),
+                json.dumps(data.get("auth_config") or {}),
                 now,
                 now,
             ),
@@ -162,6 +166,9 @@ def list_cloud_accounts(
             if "onboarding_status" in filters:
                 query += " AND ca.account_onboarding_status = %s"
                 params.append(filters["onboarding_status"])
+            if "account_type" in filters:
+                query += " AND ca.account_type = %s"
+                params.append(filters["account_type"])
 
         query += " ORDER BY ca.created_at DESC LIMIT %s OFFSET %s"
         params.extend([limit, offset])
@@ -180,7 +187,6 @@ def update_cloud_account(
     Update allowed cloud account fields.
     Skips unknown / read-only columns automatically.
     """
-    # Columns that exist in the new schema
     allowed = {
         "account_name", "account_number", "account_hierarchy_name",
         "provider", "credential_type", "credential_ref",
@@ -188,7 +194,8 @@ def update_cloud_account(
         "account_last_validated_at",
         "credential_validation_status", "credential_validation_message",
         "credential_validated_at", "credential_validation_errors",
-        "log_sources", "last_scan_at", "updated_at",
+        "log_sources", "last_scan_at", "last_credential_check_at", "updated_at",
+        "account_type", "auth_config",
     }
     fields = {k: v for k, v in updates.items() if k in allowed}
     if not fields:

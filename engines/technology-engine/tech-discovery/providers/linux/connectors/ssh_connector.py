@@ -56,6 +56,13 @@ class SSHConnector:
         exit_code = stdout.channel.recv_exit_status()
         return stdout.read().decode(), stderr.read().decode(), exit_code
 
+    def run_command(self, command: str, timeout: int = 10) -> str:
+        """Called by TechYAMLExecutor._exec_command() — returns stdout only."""
+        stdout, stderr, exit_code = self.run(command, timeout)
+        if exit_code != 0:
+            logger.debug("SSH exit_code=%d stderr=%s", exit_code, (stderr or "")[:200])
+        return stdout
+
     def close(self) -> None:
         if self._client:
             self._client.close()

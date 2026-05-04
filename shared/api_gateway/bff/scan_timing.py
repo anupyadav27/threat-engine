@@ -20,6 +20,7 @@ from typing import Optional
 import httpx
 from fastapi import APIRouter, Query, HTTPException, Request
 
+from ._auth import resolve_tenant_id
 from ._shared import ENGINE_URLS, fetch_many, safe_get
 
 logger = logging.getLogger("api-gateway.bff.scan_timing")
@@ -106,7 +107,6 @@ async def view_scan_timing(request: Request, scan_run_id: str):
 @router.get("/scan-timing")
 async def list_scan_timings(
     request: Request,
-    tenant_id: str = Query(...),
     limit: int = Query(20, ge=1, le=100),
 ):
     """
@@ -118,6 +118,7 @@ async def list_scan_timings(
     Used by the Scans UI to show phase1/phase2 breakdown and top-slow-service
     annotations in the scan history table.
     """
+    tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 

@@ -33,7 +33,7 @@ spec:
       serviceAccountName: engine-sa
       initContainers:
       - name: migrate
-        image: yadavanup84/cspm-django-backend:v-backend-auth
+        image: yadavanup84/cspm-django-backend:v-di-auth3
         imagePullPolicy: Always
         command: ["python", "manage.py", "migrate", "--noinput"]
         env:
@@ -61,7 +61,7 @@ spec:
           value: "require"
       containers:
       - name: cspm-backend
-        image: yadavanup84/cspm-django-backend:v-backend-auth
+        image: yadavanup84/cspm-django-backend:v-di-auth3
         imagePullPolicy: Always
         ports:
         - containerPort: 8000
@@ -81,7 +81,9 @@ spec:
         - name: ALLOWED_HOSTS
           value: "*"
         - name: FRONTEND_URL
-          value: "https://a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com/ui"
+          value: "http://a6fff2656f8c845e5a2d8effc1b3e56f-1461670384.ap-south-1.elb.amazonaws.com/ui"
+        - name: ALLOWED_REDIRECT_HOSTS
+          value: "a6fff2656f8c845e5a2d8effc1b3e56f-1461670384.ap-south-1.elb.amazonaws.com,localhost,127.0.0.1"
         # ── Database — use explicit DB_* vars (not DATABASE_URL) ──────
         - name: DB_NAME
           value: "cspm"
@@ -104,6 +106,26 @@ spec:
         # ── Engine URLs (all default to cluster-local) ───────────
         - name: ONBOARDING_ENGINE_URL
           value: "http://engine-onboarding.threat-engine-engines.svc.cluster.local/api/v1"
+        # ── hCaptcha ─────────────────────────────────────────────
+        - name: HCAPTCHA_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: cspm-portal-secret
+              key: HCAPTCHA_SECRET_KEY
+              optional: true
+        # ── Celery (async tenant sync) ───────────────────────────
+        - name: CELERY_BROKER_URL
+          valueFrom:
+            secretKeyRef:
+              name: cspm-celery-secrets
+              key: CELERY_BROKER_URL
+              optional: true
+        - name: CELERY_RESULT_BACKEND
+          valueFrom:
+            secretKeyRef:
+              name: cspm-celery-secrets
+              key: CELERY_RESULT_BACKEND
+              optional: true
         - name: ALLOW_LOCAL_SIGNUP
           value: "false"
         - name: THREAT_ENGINE_URL
@@ -124,6 +146,8 @@ spec:
           value: "http://engine-check.threat-engine-engines.svc.cluster.local"
         - name: API_GATEWAY_URL
           value: "http://api-gateway.threat-engine-engines.svc.cluster.local"
+        - name: BILLING_ENGINE_URL
+          value: "http://engine-billing.threat-engine-engines.svc.cluster.local:8040"
         # ── Google OAuth ─────────────────────────────────────────
         - name: GOOGLE_CLIENT_ID
           valueFrom:
@@ -237,7 +261,7 @@ spec:
       serviceAccountName: engine-sa
       containers:
       - name: cspm-frontend
-        image: yadavanup84/cspm-frontend:v-engine-tenant-rbac1
+        image: yadavanup84/cspm-frontend:v-tenant-selector1
         imagePullPolicy: Always
         ports:
         - containerPort: 3000

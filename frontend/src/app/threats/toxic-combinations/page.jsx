@@ -200,8 +200,8 @@ export default function ToxicCombinationsPage() {
   const columns = useColumns(expandedRows, toggleRow);
 
   const handleRowClick = useCallback((row) => {
-    if (row?.resourceUid) window.location.href = `/ui/inventory/architecture?resource_uid=${encodeURIComponent(row.resourceUid)}`;
-  }, []);
+    if (row?.id) toggleRow(row.id);
+  }, [toggleRow]);
 
   const renderExpandedRow = useCallback((row) => {
     if (!expandedRows.has(row.id)) return null;

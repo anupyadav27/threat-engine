@@ -2,21 +2,24 @@
 import { useState, useEffect } from 'react';
 import { Users, Plus } from 'lucide-react';
 import DataTable from '@/components/shared/DataTable';
+import { useAuth } from '@/lib/auth-context';
+import { fetchFromCspm } from '@/lib/api';
 
 export default function UsersPage() {
+  const { selectedTenant } = useAuth();
   const [users, setUsers] = useState([]);
 
   useEffect(() => {
-    fetch('/gateway/api/v1/platform/users', { headers: { 'X-Tenant-ID': process.env.NEXT_PUBLIC_TENANT_ID || 'default-tenant' } })
-      .then(r => r.ok ? r.json() : [])
+    const tenantParam = selectedTenant ? `?tenant_id=${encodeURIComponent(selectedTenant)}` : '';
+    fetchFromCspm(`/api/users/${tenantParam}`)
       .then(d => setUsers(Array.isArray(d) ? d : (d.users || [])))
       .catch(() => {});
-  }, []);
+  }, [selectedTenant]);
 
   const columns = [
     { accessorKey: 'name', header: 'Name' },
     { accessorKey: 'email', header: 'Email' },
-    { accessorKey: 'role', header: 'Role', cell: (i) => <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: i.getValue()==='Admin' ? 'rgba(59,130,246,0.15)' : 'var(--bg-tertiary)', color: i.getValue()==='Admin' ? '#60a5fa' : 'var(--text-secondary)' }}>{i.getValue()}</span> },
+    { accessorKey: 'role', header: 'Role', cell: (i) => <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: i.getValue()==='platform_admin' || i.getValue()==='Admin' ? 'rgba(59,130,246,0.15)' : 'var(--bg-tertiary)', color: i.getValue()==='platform_admin' || i.getValue()==='Admin' ? '#60a5fa' : 'var(--text-secondary)' }}>{i.getValue()}</span> },
     { accessorKey: 'status', header: 'Status', cell: (i) => <span className={`text-xs px-2 py-0.5 rounded ${i.getValue()==='active'?'bg-green-500/20 text-green-400':'bg-gray-500/20 text-gray-400'}`}>{i.getValue()}</span> },
     { accessorKey: 'last_login', header: 'Last Login' },
   ];

@@ -35,6 +35,8 @@ class Tenant(Base):
     tenant_name         = Column(String(255), nullable=False)
     tenant_description  = Column(Text)
     status              = Column(String(50), nullable=False, default='active')
+    org_id              = Column(String(255), nullable=True, index=True)
+    tenant_type         = Column(String(50), nullable=True, default='cloud')
     created_at          = Column(TIMESTAMP(timezone=True), nullable=False,
                                  server_default=func.now())
     updated_at          = Column(TIMESTAMP(timezone=True), nullable=False,
@@ -57,6 +59,8 @@ class Tenant(Base):
             'tenant_name':        self.tenant_name,
             'tenant_description': self.tenant_description,
             'status':             self.status,
+            'org_id':             self.org_id,
+            'tenant_type':        self.tenant_type,
             'created_at':         self.created_at.isoformat() if self.created_at else None,
             'updated_at':         self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -114,8 +118,13 @@ class CloudAccount(Base):
     # CIEM log source config
     log_sources     = Column(JSONB, default=dict)
 
+    # Account type discriminator and auth config (added in migration 20260503)
+    account_type    = Column(String(50), nullable=False, default='cloud_csp', index=True)
+    auth_config     = Column(JSONB, default=dict)
+
     # Scan tracking
-    last_scan_at    = Column(TIMESTAMP(timezone=True))
+    last_scan_at              = Column(TIMESTAMP(timezone=True))
+    last_credential_check_at  = Column(TIMESTAMP(timezone=True))
 
     # Timestamps
     created_at      = Column(TIMESTAMP(timezone=True), nullable=False,
@@ -141,7 +150,9 @@ class CloudAccount(Base):
             'tenant_id':                    self.tenant_id,
             'account_name':                 self.account_name,
             'account_number':               self.account_number,
-            'account_category':             self.account_category,
+            'account_type':                 self.account_type,
+            'account_category':             self.account_type,   # backward-compat alias
+            'auth_config':                  self.auth_config or {},
             'provider':                     self.provider,
             'credential_type':              self.credential_type,
             'credential_ref':               self.credential_ref,
@@ -154,6 +165,8 @@ class CloudAccount(Base):
             'log_sources':                  self.log_sources or {},
             'last_scan_at':                 self.last_scan_at.isoformat()
                                             if self.last_scan_at else None,
+            'last_credential_check_at':     self.last_credential_check_at.isoformat()
+                                            if self.last_credential_check_at else None,
             'created_at':                   self.created_at.isoformat()
                                             if self.created_at else None,
             'updated_at':                   self.updated_at.isoformat()
@@ -190,6 +203,7 @@ class Schedule(Base):
 
     # Scan scope (null = all)
     include_regions     = Column(JSONB)
+    exclude_regions     = Column(JSONB)
     include_services    = Column(JSONB)
     exclude_services    = Column(JSONB)
     engines_requested   = Column(JSONB, nullable=False, default=lambda: [
@@ -229,6 +243,7 @@ class Schedule(Base):
             'timezone':           self.timezone,
             'enabled':            self.enabled,
             'include_regions':    self.include_regions,
+            'exclude_regions':    self.exclude_regions,
             'include_services':   self.include_services,
             'exclude_services':   self.exclude_services,
             'engines_requested':  self.engines_requested,
@@ -264,7 +279,9 @@ class ScanRun(Base):
         }
     overall_status auto-set to "completed" when all engines_requested are done.
     """
-    __tablename__ = 'scan_runs'
+    # NOTE (2026-05-03): Was incorrectly declared as 'scan_runs'.
+    # Confirmed: RDS table is 'scan_orchestration' — used by all Argo templates and engines.
+    __tablename__ = 'scan_orchestration'
 
     scan_run_id     = Column(UUID(as_uuid=True), primary_key=True,
                              default=uuid.uuid4)

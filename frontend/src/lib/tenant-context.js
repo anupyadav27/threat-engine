@@ -1,86 +1,98 @@
 'use client';
 /**
- * TenantContext — global tenant + customer state.
+ * TenantContext — workspace list and active workspace state.
  *
- * Provides:
- *   customerId    — identity of the logged-in customer (from env or auth session)
- *   activeTenant  — { tenant_id, tenant_name, account_count } currently selected
- *   tenants       — full list of customer's tenants
- *   setActiveTenant(tenant) — switch active workspace
- *   refreshTenants()        — re-fetch from API
+ * Workspace list is derived directly from the auth session (/me response)
+ * — no separate onboarding DB fetch. This keeps the source of truth in one place.
  *
- * customer_id source priority:
- *   1. NEXT_PUBLIC_CUSTOMER_ID env var  (dev / demo)
- *   2. localStorage 'customer_id'       (set after login)
- *   3. 'default-customer'               (fallback)
- *
- * activeTenant is persisted in localStorage so it survives page refreshes.
+ * customerId  — user's platform UUID (stable, from auth.customer_id).
+ *               Used when creating tenants or cloud accounts.
+ * activeTenant — { tenant_id, tenant_name, account_count } currently selected.
+ *                tenant_id here is the engine_tenant_id.
+ * tenants      — all workspaces the user is a member of (from auth.tenants).
+ * setActiveTenant(tenant) — switch active workspace.
+ * refreshTenants()        — no-op; workspace list refreshes on auth re-validate.
  */
 
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { getFromEngine } from '@/lib/api';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { useAuth } from '@/lib/auth-context';
 
 const TenantContext = createContext(null);
 
-const LS_TENANT_KEY    = 'cspm_active_tenant';
-const LS_CUSTOMER_KEY  = 'customer_id';
-
-function resolveCustomerId() {
-  if (process.env.NEXT_PUBLIC_CUSTOMER_ID) return process.env.NEXT_PUBLIC_CUSTOMER_ID;
-  if (typeof window !== 'undefined') {
-    return localStorage.getItem(LS_CUSTOMER_KEY) || 'default-customer';
-  }
-  return 'default-customer';
-}
+const LS_TENANT_KEY = 'cspm_active_tenant';
 
 export function TenantProvider({ children }) {
-  const [customerId]     = useState(resolveCustomerId);
-  const [tenants,  setTenants]       = useState([]);
+  const { tenants: authTenants, customerId, selectedTenant, level } = useAuth();
+
+  // Map /me tenant format → workspace switcher format.
+  // engine_tenant_id is what every engine uses as tenant_id.
+  const tenants = useMemo(() =>
+    (authTenants || [])
+      .filter(t => t.status === 'active')
+      .map(t => ({
+        tenant_id:    t.engine_tenant_id || t.tenant_id,
+        tenant_name:  t.tenant_name,
+        account_count: t.account_count ?? 0,
+      })),
+    [authTenants]
+  );
+
   const [activeTenant, setActiveTenantState] = useState(null);
-  const [loading, setLoading]        = useState(false);
 
-  // Persist active tenant selection
-  function setActiveTenant(tenant) {
-    setActiveTenantState(tenant);
-    if (typeof window !== 'undefined') {
-      if (tenant) {
-        localStorage.setItem(LS_TENANT_KEY, JSON.stringify(tenant));
+  // Restore persisted active workspace once tenants are loaded.
+  // platform_admin (level 1) defaults to null = "All Tenants" unless they
+  // previously saved a specific tenant in localStorage.
+  useEffect(() => {
+    if (tenants.length === 0) return;
+    const isPlatformAdmin = level === 1;
+
+    // If auth context explicitly carries null for platform_admin, honour it —
+    // this means the user switched to "All Tenants" this session.
+    if (isPlatformAdmin && selectedTenant === null) {
+      const persisted = typeof window !== 'undefined'
+        ? JSON.parse(localStorage.getItem(LS_TENANT_KEY) || 'null')
+        : null;
+      if (persisted) {
+        // They had a specific tenant saved — keep it
+        const still = tenants.find(t => t.tenant_id === persisted.tenant_id);
+        setActiveTenantState(still || null);
       } else {
-        localStorage.removeItem(LS_TENANT_KEY);
+        setActiveTenantState(null);
       }
+      return;
     }
-  }
 
-  const refreshTenants = useCallback(async () => {
-    if (!customerId) return;
-    setLoading(true);
-    const res = await getFromEngine('onboarding', '/api/v1/tenants', {
-      customer_id: customerId,
-      status: 'active',
-    });
-    setLoading(false);
-    if (res.error || !res.tenants) return;
-
-    setTenants(res.tenants);
-
-    // Restore persisted selection or default to first tenant
     const persisted = typeof window !== 'undefined'
       ? JSON.parse(localStorage.getItem(LS_TENANT_KEY) || 'null')
       : null;
-
     if (persisted) {
-      const still = res.tenants.find(t => t.tenant_id === persisted.tenant_id);
-      setActiveTenantState(still || res.tenants[0] || null);
-    } else if (res.tenants.length > 0) {
-      setActiveTenantState(res.tenants[0]);
+      const still = tenants.find(t => t.tenant_id === persisted.tenant_id);
+      setActiveTenantState(still || (isPlatformAdmin ? null : tenants[0]));
+    } else {
+      setActiveTenantState(isPlatformAdmin ? null : tenants[0]);
     }
-  }, [customerId]);
+  }, [tenants, level, selectedTenant]);
 
-  // Load on mount
-  useEffect(() => { refreshTenants(); }, [refreshTenants]);
+  function setActiveTenant(tenant) {
+    setActiveTenantState(tenant);
+    if (typeof window !== 'undefined') {
+      if (tenant) localStorage.setItem(LS_TENANT_KEY, JSON.stringify(tenant));
+      else localStorage.removeItem(LS_TENANT_KEY);
+    }
+  }
+
+  // Workspace list is authoritative from auth — nothing to refresh here.
+  const refreshTenants = useCallback(async () => {}, []);
 
   return (
-    <TenantContext.Provider value={{ customerId, activeTenant, tenants, loading, setActiveTenant, refreshTenants }}>
+    <TenantContext.Provider value={{
+      customerId: customerId || null,
+      activeTenant,
+      tenants,
+      loading: false,
+      setActiveTenant,
+      refreshTenants,
+    }}>
       {children}
     </TenantContext.Provider>
   );

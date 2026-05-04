@@ -136,6 +136,14 @@ export default function DataTable({
     return () => document.removeEventListener('mousedown', handler);
   }, [openFilterCol]);
 
+  // Close column picker on outside click
+  useEffect(() => {
+    if (!showColPicker) return;
+    const handler = () => setShowColPicker(false);
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showColPicker]);
+
   // Close group picker on outside click
   useEffect(() => {
     if (!showGroupPicker) return;
@@ -447,6 +455,7 @@ export default function DataTable({
               <div
                 className="absolute right-0 top-full mt-1 z-50 rounded-xl border shadow-xl p-3 min-w-44"
                 style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
+                onMouseDown={e => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>COLUMNS</span>
@@ -612,14 +621,6 @@ export default function DataTable({
           </div>
         </div>
       )}
-
-      {/* ── DEBUG BADGE (temporary) ── */}
-      <div style={{ position: 'fixed', bottom: 16, right: 16, zIndex: 9999, background: '#1e1b4b', border: '1.5px solid #8b5cf6', borderRadius: 8, padding: '6px 12px', fontSize: 11, color: '#c4b5fd', fontFamily: 'monospace', pointerEvents: 'none', boxShadow: '0 4px 16px rgba(0,0,0,0.5)' }}>
-        <div style={{ fontWeight: 700, marginBottom: 2 }}>DataTable v4 (debug)</div>
-        <div>groupBy: <span style={{ color: groupBy ? '#a78bfa' : '#6b7280' }}>{groupBy || '(none)'}</span></div>
-        <div>groups: <span style={{ color: '#a78bfa' }}>{groupedData ? groupedData.length : '—'}</span></div>
-        <div>rows: <span style={{ color: '#a78bfa' }}>{filteredData.length}</span></div>
-      </div>
 
       {/* Table */}
       <div style={{ borderColor: 'var(--border-primary)' }} className="overflow-x-auto rounded-lg border transition-colors duration-200">
@@ -1107,7 +1108,7 @@ export default function DataTable({
 
             <button
               onClick={() =>
-                serverPagination ? onPageChange?.(pageCount - 1) : table.setPageIndex(pageCount - 1)
+                serverPagination ? onPageChange?.(pageIndex + 1) : table.nextPage()
               }
               disabled={pageIndex === pageCount - 1}
               style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}

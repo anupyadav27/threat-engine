@@ -14,6 +14,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, Request
 
+from ._auth import resolve_tenant_id
 from ._shared import fetch_many, safe_get, ENGINE_URLS
 from ._cache import cache_key, cached_view, TTL_CIEM, auth_level_from_header
 
@@ -25,12 +26,12 @@ CIEM_URL = ENGINE_URLS.get("ciem", "http://engine-ciem")
 @router.get("/ciem")
 async def view_ciem(
     request: Request,
-    tenant_id: str = Query(...),
     scan_run_id: Optional[str] = Query(None),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
 ):
+    tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
     role_level = auth_level_from_header(auth_ctx_header)
@@ -45,13 +46,13 @@ async def view_ciem(
         qs["scan_run_id"] = scan_run_id
 
     results = await fetch_many([
-        ("ciem", "/api/v1/ciem/dashboard",  qs),
-        ("ciem", "/api/v1/ciem/identities", {**qs, "limit": "20"}),
-        ("ciem", "/api/v1/ciem/top-rules",  {**qs, "limit": "15"}),
+        ("ciem", "/api/v1/ciem/dashboard",    qs),
+        ("ciem", "/api/v1/ciem/identities",   {**qs, "limit": "20"}),
+        ("ciem", "/api/v1/ciem/top-rules",    {**qs, "limit": "15"}),
+        ("ciem", "/api/v1/ciem/log-sources",  qs),
     ], auth_headers=fwd_headers)
 
-    dashboard, identities, top_rules = results
-    sources = None
+    dashboard, identities, top_rules, log_sources_data = results
     stats = None
 
     summary    = safe_get(dashboard, "summary", {})
@@ -115,7 +116,7 @@ async def view_ciem(
         "topCritical":  safe_get(dashboard,  "top_critical", []),
         "identities":   identity_list,
         "topRules":     safe_get(top_rules,  "rules",        []),
-        "logSources":   safe_get(sources,    "sources",      []),
+        "logSources":   safe_get(log_sources_data, "sources",      []),
         "eventStats":   safe_get(stats,      "summary",      {}),
         "eventsBySource": safe_get(stats,    "by_source",    []),
         "scanTrend":    safe_get(dashboard,  "scan_trend",   []),

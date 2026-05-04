@@ -15,6 +15,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, Request
 
+from ._auth import resolve_tenant_id
 from ._shared import fetch_many, safe_get, is_empty_or_health
 from ._page_context import cwpp_page_context, cwpp_filter_schema
 
@@ -24,7 +25,6 @@ router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 @router.get("/cwpp")
 async def view_cwpp(
     request: Request,
-    tenant_id: str = Query(...),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
@@ -32,6 +32,7 @@ async def view_cwpp(
 ):
     """Single endpoint returning everything the CWPP workload protection page needs."""
 
+    tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 

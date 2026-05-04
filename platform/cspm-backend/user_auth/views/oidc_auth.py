@@ -25,11 +25,11 @@ from rest_framework.views import APIView
 
 from tenant_management.models import TenantIDPConfig
 from user_auth.models import Users, UserSessions
-from user_auth.utils.auth_utils import generate_token, hash_token
+from user_auth.utils.auth_utils import compute_auth_caches, generate_token, hash_token
 from user_auth.utils.audit_utils import log_auth_event
 from user_auth.utils.cookie_utils import set_auth_cookies
 from user_auth.utils.secrets_utils import get_idp_client_secret
-from user_auth.utils.tenant_utils import provision_first_tenant
+from user_auth.utils.tenant_utils import accept_invite_membership, provision_first_tenant
 
 logger = logging.getLogger(__name__)
 
@@ -280,23 +280,11 @@ class OIDCCallbackView(APIView):
         if pending_invite:
             try:
                 from user_auth.models import InviteTokens
-                from tenant_management.models import TenantUsers
-                from user_auth.utils.tenant_utils import get_or_create_admin_role
                 invite = InviteTokens.objects.select_related("tenant", "role").get(
                     token=pending_invite, used=False
                 )
                 if invite.expires_at >= timezone.now() and invite.email == email:
-                    if not TenantUsers.objects.filter(user=user, tenant=invite.tenant).exists():
-                        role = invite.role or get_or_create_admin_role()
-                        TenantUsers.objects.create(
-                            id=uuid.uuid4(),
-                            tenant=invite.tenant,
-                            user=user,
-                            role=role,
-                            is_active=True,
-                        )
-                    invite.used = True
-                    invite.save(update_fields=["used"])
+                    accept_invite_membership(user, invite)
                     log_auth_event(
                         "invite.accept",
                         request=request,
@@ -321,6 +309,7 @@ class OIDCCallbackView(APIView):
         expires_at = timezone.now() + timedelta(
             days=getattr(settings, "REFRESH_TOKEN_LIFETIME_DAYS", 7)
         )
+        permissions_cache, scope_cache = compute_auth_caches(user)
         UserSessions.objects.create(
             id=uuid.uuid4(),
             user=user,
@@ -330,10 +319,13 @@ class OIDCCallbackView(APIView):
             expires_at=expires_at,
             ip_address=request.META.get("REMOTE_ADDR", ""),
             user_agent=request.META.get("HTTP_USER_AGENT", ""),
+            token_hint=access_token[:8],
+            permissions_cache=permissions_cache,
+            scope_cache=scope_cache,
         )
 
         response = HttpResponseRedirect(f"{frontend_url}{redirect_after}")
         set_auth_cookies(response, access_token, refresh_token)
         if is_new_user:
-            response.set_cookie("onboarding_pending", "1", max_age=3600, httponly=False, samesite="Lax")
+            response.set_cookie("onboarding_pending", "1", max_age=3600, httponly=True, samesite="Lax")  # WARN-04
         return response

@@ -17,6 +17,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, Request
 
+from ._auth import resolve_tenant_id
 from ._shared import fetch_many, safe_get
 from ._cache import cache_key, cached_view, TTL_SECOPS, auth_level_from_header
 
@@ -117,13 +118,13 @@ def _build_scan_trend(all_scans: list) -> list:
 @router.get("/secops")
 async def view_secops(
     request: Request,
-    tenant_id: str = Query(...),
     scan_run_id: Optional[str] = Query(None),
 ):
     """
     Unified SecOps view — SAST + DAST scan summaries.
     SCA (SBOM) remains a direct frontend call (requires per-user API key).
     """
+    tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
     role_level = auth_level_from_header(auth_ctx_header)

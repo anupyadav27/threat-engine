@@ -1,0 +1,106 @@
+# =============================================================================
+# Billing Engine — Subscription plans, usage metering, trial lifecycle
+# Port: 8040 | Independent service (no pipeline dependency)
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: engine-billing
+  namespace: threat-engine-engines
+  labels:
+    app: engine-billing
+    engine: billing
+    layer: "platform"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: engine-billing
+  template:
+    metadata:
+      labels:
+        app: engine-billing
+        engine: billing
+        layer: "platform"
+    spec:
+      serviceAccountName: engine-sa
+      containers:
+        - name: engine-billing
+          image: yadavanup84/engine-billing:v-billing-2
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8040
+          env:
+            # ── Billing DB ──────────────────────────────────────────────────
+            - name: BILLING_DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_HOST
+            - name: BILLING_DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_PORT
+            - name: BILLING_DB_NAME
+              value: "threat_engine_billing"
+            - name: BILLING_DB_USER
+              value: "billing_app"
+            - name: BILLING_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: billing-db-passwords
+                  key: BILLING_APP_PASSWORD
+            # ── Runtime config ───────────────────────────────────────────────
+            - name: APP_ENV
+              value: "production"
+            - name: ENGINE_NAME
+              value: "billing"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: PYTHONPATH
+              value: "/app"
+            # ── Service discovery ────────────────────────────────────────────
+            # ── Stripe secrets (loaded from Secrets Manager at startup) ────────
+            - name: STRIPE_SECRET_ARN
+              value: "arn:aws:secretsmanager:ap-south-1:588989875114:secret:threat-engine/billing/stripe"
+            # ── Service discovery ────────────────────────────────────────────
+            - name: ONBOARDING_ENGINE_URL
+              value: "http://engine-onboarding:8008"
+            - name: PLATFORM_BACKEND_URL
+              value: "http://cspm-backend:8010"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health/live
+              port: 8040
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health/ready
+              port: 8040
+            initialDelaySeconds: 15
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: engine-billing
+  namespace: threat-engine-engines
+  labels:
+    app: engine-billing
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8040
+      targetPort: 8040
+      protocol: TCP
+  selector:
+    app: engine-billing

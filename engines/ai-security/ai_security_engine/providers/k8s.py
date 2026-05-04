@@ -9,6 +9,28 @@ from .base import BaseAISecurityProvider
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
+# Valid ATLAS values (AC-S6, AC-S7)
+# ---------------------------------------------------------------------------
+VALID_PILLARS = frozenset({
+    "model_security",
+    "training_data_security",
+    "inference_security",
+    "supply_chain",
+    "ai_governance",
+})
+
+ATLAS_TECHNIQUE_MAP: Dict[str, tuple] = {
+    "AML.T0000": ("inference_security",     "HIGH",     "Model Evasion",        "Adversary crafts inputs to evade model detection."),
+    "AML.T0001": ("training_data_security", "CRITICAL", "Data Poisoning",       "Adversary injects malicious data into training set."),
+    "AML.T0002": ("inference_security",     "HIGH",     "Model Inversion",      "Adversary extracts training data from model outputs."),
+    "AML.T0003": ("model_security",         "MEDIUM",   "Model Stealing",       "Adversary replicates model via repeated queries."),
+    "AML.T0004": ("supply_chain",           "CRITICAL", "Backdoor ML Model",    "Adversary implants hidden trigger in model weights."),
+    "AML.T0005": ("training_data_security", "CRITICAL", "Poison Training Data", "Adversary corrupts training data pipeline."),
+}
+
+VALID_TECHNIQUES = frozenset(ATLAS_TECHNIQUE_MAP.keys())
+
+# ---------------------------------------------------------------------------
 # ML application labels that identify GPU/ML workloads in K8s Deployments.
 # ---------------------------------------------------------------------------
 ML_APP_LABELS = frozenset({
@@ -18,26 +40,43 @@ ML_APP_LABELS = frozenset({
 })
 
 
-def _make_finding_id(rule_id: str, resource_uid: str, account_id: str, region: str) -> str:
-    """Deterministic finding_id: sha256(rule_id|resource_uid|account_id|region)[:16]."""
-    raw = f"{rule_id}|{resource_uid}|{account_id}|{region}"
+def _make_finding_id(atlas_pillar: str, atlas_technique: Optional[str],
+                     resource_uid: str, account_id: str, region: str) -> str:
+    """Deterministic finding_id per AC-S3.
+
+    sha256(f"{atlas_pillar}_{atlas_technique}|{resource_uid}|{account_id}|{region}")[:16]
+    """
+    technique_part = atlas_technique or "none"
+    raw = f"{atlas_pillar}_{technique_part}|{resource_uid}|{account_id}|{region}"
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
+def _validate_pillar(pillar: str) -> str:
+    """Validate atlas_pillar (AC-S6)."""
+    if pillar not in VALID_PILLARS:
+        logger.warning("Unknown atlas_pillar '%s' — defaulting to ai_governance", pillar)
+        return "ai_governance"
+    return pillar
+
+
+def _validate_technique(technique: Optional[str]) -> Optional[str]:
+    """Validate atlas_technique (AC-S7). Unknown techniques logged at WARNING."""
+    if technique is None:
+        return None
+    if technique not in VALID_TECHNIQUES:
+        logger.warning("Unknown atlas_technique '%s' — dropping technique field", technique)
+        return None
+    return technique
 
 
 def _atlas_detail(technique_id: Optional[str]) -> Dict[str, str]:
     """Return atlas_detail dict for a given technique ID."""
-    atlas_map = {
-        "AML.T0000": ("Model Evasion", "Adversary crafts inputs to evade model detection."),
-        "AML.T0001": ("Data Poisoning", "Adversary injects malicious data into training set."),
-        "AML.T0002": ("Model Inversion", "Adversary extracts training data from model outputs."),
-        "AML.T0003": ("Model Stealing", "Adversary replicates model via repeated queries."),
-        "AML.T0004": ("Backdoor ML Model", "Adversary implants hidden trigger in model weights."),
-        "AML.T0005": ("Poison Training Data", "Adversary corrupts training data pipeline."),
-    }
     if not technique_id:
         return {}
-    name, desc = atlas_map.get(technique_id, ("", ""))
-    return {"technique_id": technique_id, "technique_name": name, "description": desc}
+    row = ATLAS_TECHNIQUE_MAP.get(technique_id)
+    if not row:
+        return {}
+    return {"technique_id": technique_id, "technique_name": row[2], "description": row[3]}
 
 
 def _finding(
@@ -56,9 +95,12 @@ def _finding(
     status: str = "FAIL",
 ) -> Dict[str, Any]:
     """Build a complete ATLAS finding dict for K8s."""
+    validated_pillar = _validate_pillar(pillar)
+    validated_technique = _validate_technique(atlas_technique)
     now = datetime.now(timezone.utc)
     return {
-        "finding_id": _make_finding_id(rule_id, resource_uid, account_id, region),
+        "finding_id": _make_finding_id(validated_pillar, validated_technique,
+                                        resource_uid, account_id, region),
         "scan_run_id": scan_run_id,
         "tenant_id": tenant_id,
         "account_id": account_id,
@@ -68,9 +110,10 @@ def _finding(
         "resource_type": resource_type,
         "severity": severity,
         "status": status,
-        "pillar": pillar,
-        "atlas_technique": atlas_technique,
-        "atlas_detail": _atlas_detail(atlas_technique),
+        "atlas_pillar": validated_pillar,
+        "pillar": validated_pillar,
+        "atlas_technique": validated_technique,
+        "atlas_detail": _atlas_detail(validated_technique),
         "blast_radius_score": 0,
         "rule_id": rule_id,
         "title": title,
