@@ -14,6 +14,7 @@ import logging
 from collections import defaultdict
 from typing import Any, Dict, List, Optional
 
+import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from ._auth import _parse_auth_context, resolve_tenant_id
@@ -25,6 +26,112 @@ from ._common_schemas import InventoryViewResponse
 logger = logging.getLogger("api-gateway.bff")
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
+
+
+# ── Batch enrichment helpers (per-asset findings + risk) ─────────────────────
+
+async def _batch_check_severity(
+    resource_uids: List[str],
+    tenant_id: str,
+    auth_headers: Optional[Dict[str, str]],
+) -> Dict[str, Dict[str, int]]:
+    """POST to check engine's batch-severity endpoint to get per-resource finding counts.
+
+    Returns: { resource_uid: {"critical": N, "high": N, "medium": N, "low": N} }
+    Empty dict on failure — never raises (best-effort enrichment).
+    """
+    if not resource_uids:
+        return {}
+    url = f"{ENGINE_URLS['check']}/api/v1/check/findings/batch-severity"
+    body = {"tenant_id": tenant_id, "resource_uids": resource_uids}
+    headers = {"Content-Type": "application/json"}
+    if auth_headers:
+        headers.update(auth_headers)
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(url, json=body, headers=headers, timeout=15.0)
+            if resp.status_code != 200:
+                logger.warning("BFF inventory batch-severity -> %s", resp.status_code)
+                return {}
+            data = resp.json()
+            results = data.get("results") if isinstance(data, dict) else None
+            return results if isinstance(results, dict) else {}
+    except Exception as exc:
+        logger.warning("BFF inventory batch-severity failed: %s", exc)
+        return {}
+
+
+def _resource_short_id(uid: str) -> str:
+    """Extract trailing resource identifier from any UID format.
+
+    Bridges the risk engine's compact UIDs ("ebs:ap-south-1:acct:snap-XXX")
+    and the inventory engine's ARNs ("arn:aws:ebs:ap-south-1:acct:snapshot/snap-XXX")
+    by returning the last path/colon segment, e.g. "snap-XXX".
+    """
+    if not uid:
+        return ""
+    last = uid.rsplit("/", 1)[-1]
+    last = last.rsplit(":", 1)[-1]
+    return last.lower()
+
+
+async def _risk_top_assets(
+    tenant_id: str,
+    auth_headers: Optional[Dict[str, str]],
+    limit: int = 50,
+) -> Dict[str, Dict[str, Any]]:
+    """Fetch top-N risk-scored assets from risk engine.
+
+    Returns: lookup keyed by both the full risk-engine UID AND the
+    trailing short-id (e.g. "snap-XXX"), so the inventory merge can match
+    either format. Each value: {"blast_radius_score", "compound_risk_score",
+    "risk_scenario", "threat_count"}. Best-effort — empty dict on failure.
+    """
+    url = f"{ENGINE_URLS['risk']}/api/v1/risk/assets/top"
+    # Engine caps limit at 50.
+    params = {"tenant_id": tenant_id, "limit": str(min(limit, 50))}
+    headers = {}
+    if auth_headers:
+        headers.update(auth_headers)
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, params=params, headers=headers, timeout=8.0)
+            if resp.status_code != 200:
+                return {}
+            data = resp.json()
+            items = data.get("assets") if isinstance(data, dict) else None
+            if not isinstance(items, list):
+                items = data.get("items") if isinstance(data, dict) else data
+            if not isinstance(items, list):
+                return {}
+            out: Dict[str, Dict[str, Any]] = {}
+            for it in items:
+                uid = it.get("resource_uid") or it.get("resource_id")
+                if not uid:
+                    continue
+                # Risk engine surfaces a generic "risk_score" — treat it as the
+                # blast-radius proxy until per-scenario decomposition lands.
+                rscore = int(it.get("blast_radius_score") or it.get("risk_score") or 0)
+                cscore = int(it.get("compound_risk_score") or it.get("compound_risk") or 0)
+                # Compound risk is a function of overlapping scenarios per asset:
+                # if the engine doesn't surface it explicitly, derive a proxy
+                # from threat_count (capped at 100).
+                if not cscore:
+                    cscore = min(int(it.get("threat_count") or 0) * 25, 100)
+                payload = {
+                    "blast_radius_score": rscore,
+                    "compound_risk_score": cscore,
+                    "risk_scenario": it.get("scenario"),
+                    "threat_count": int(it.get("threat_count") or 0),
+                }
+                out[uid] = payload
+                short = _resource_short_id(uid)
+                if short and short not in out:
+                    out[short] = payload
+            return out
+    except Exception as exc:
+        logger.info("BFF inventory risk-top fetch skipped: %s", exc)
+        return {}
 
 
 def _type_from_arn(arn: str) -> str:
@@ -140,6 +247,42 @@ async def view_inventory(
             elif asset["findings"]["low"] > 0:
                 asset["severity"] = "low"
 
+    # ── Batch-enrich with check findings + risk scores (best-effort) ──────
+    asset_uids = [a.get("resource_uid") for a in assets if a.get("resource_uid")]
+    check_severity_map, risk_top_map = await asyncio.gather(
+        _batch_check_severity(asset_uids, tenant_id, fwd_headers),
+        _risk_top_assets(tenant_id, fwd_headers, limit=min(limit, 1000)),
+    )
+
+    for asset in assets:
+        uid = asset.get("resource_uid", "")
+        if not uid:
+            continue
+        cs = check_severity_map.get(uid)
+        if cs:
+            existing = asset.get("findings") or {}
+            asset["findings"] = {
+                "critical": existing.get("critical", 0) + int(cs.get("critical", 0) or 0),
+                "high": existing.get("high", 0) + int(cs.get("high", 0) or 0),
+                "medium": existing.get("medium", 0) + int(cs.get("medium", 0) or 0),
+                "low": existing.get("low", 0) + int(cs.get("low", 0) or 0),
+            }
+            f = asset["findings"]
+            if f["critical"] > 0:
+                asset["severity"] = "critical"
+            elif f["high"] > 0 and asset.get("severity") not in ("critical",):
+                asset["severity"] = "high"
+            elif f["medium"] > 0 and asset.get("severity") not in ("critical", "high"):
+                asset["severity"] = "medium"
+            elif f["low"] > 0 and not asset.get("severity"):
+                asset["severity"] = "low"
+        rt = risk_top_map.get(uid) or risk_top_map.get(_resource_short_id(uid))
+        if rt:
+            asset["blast_radius_score"] = rt.get("blast_radius_score", 0)
+            asset["compound_risk_score"] = rt.get("compound_risk_score", 0)
+            if rt.get("risk_scenario"):
+                asset["risk_scenario"] = rt["risk_scenario"]
+
     # ── Build account->provider mapping from onboarding ──────────────────
     raw_accounts = onboarding_data.get("accounts", [])
     if not isinstance(raw_accounts, list):
@@ -162,6 +305,26 @@ async def view_inventory(
 
     # Apply scope filters
     filtered = apply_global_filters(assets, provider, account, region)
+
+    # Sort high-priority assets to the top so the first page surfaces
+    # findings/exposure rather than alphabetical no-finding noise.
+    _sev_weight = {"critical": 4, "high": 3, "medium": 2, "low": 1}
+
+    def _priority_key(a: Dict[str, Any]) -> tuple:
+        f = a.get("findings") or {}
+        finding_total = (
+            int(f.get("critical", 0) or 0) * 1000
+            + int(f.get("high", 0) or 0) * 100
+            + int(f.get("medium", 0) or 0) * 10
+            + int(f.get("low", 0) or 0)
+        )
+        sev_w = _sev_weight.get((a.get("severity") or "").lower(), 0)
+        risk = int(a.get("risk_score") or 0)
+        blast = int(a.get("blast_radius_score") or 0)
+        exposed = 1 if (a.get("internet_exposed") or a.get("public")) else 0
+        return (-finding_total, -sev_w, -risk, -blast, -exposed)
+
+    filtered.sort(key=_priority_key)
 
     # ── KPI derivation ───────────────────────────────────────────────────
     total = len(filtered)

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Server,
@@ -21,8 +21,6 @@ import {
   Brain,
 } from 'lucide-react';
 import { useViewFetch } from '@/lib/use-view-fetch';
-import { getFromEngine } from '@/lib/api';
-import { useAuth } from '@/lib/auth-context';
 import { classifyResourceDomain } from '@/lib/inventory-taxonomy';
 import PageLayout from '@/components/shared/PageLayout';
 import InsightRow from '@/components/shared/InsightRow';
@@ -155,149 +153,6 @@ const getRiskLevel = (score) => {
 };
 
 
-// ── Blast Radius tab — top resources by blast_radius_score from risk engine ──
-function BlastRadiusTab() {
-  const { selectedTenant } = useAuth();
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    if (!selectedTenant) return;
-    setLoading(true);
-    getFromEngine('risk', '/api/v1/risk/blast-radius', { tenant_id: selectedTenant, limit: 10 })
-      .then((res) => {
-        if (res?.error) setError(res.error);
-        else setItems(Array.isArray(res) ? res : res?.items || res?.data || []);
-      })
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false));
-  }, [selectedTenant]);
-
-  if (loading) {
-    return (
-      <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {Array.from({ length: 10 }, (_, i) => (
-          <div key={i} style={{ height: 36, borderRadius: 6, backgroundColor: 'var(--bg-tertiary)', animation: 'pulse 1.5s ease-in-out infinite', animationDelay: `${i * 60}ms` }} />
-        ))}
-      </div>
-    );
-  }
-  if (error) {
-    return <div style={{ padding: 40, textAlign: 'center', color: '#ef4444', fontSize: 13 }}>Error loading blast radius data: {error}</div>;
-  }
-  if (!items.length) {
-    return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No blast radius data available. Run a full pipeline scan to populate.</div>;
-  }
-
-  return (
-    <div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 150px 90px 80px 80px', padding: '8px 16px', borderBottom: '1px solid var(--border-primary)', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-        <span>Resource</span>
-        <span>Type</span>
-        <span>Provider</span>
-        <span>Score</span>
-        <span>Affected</span>
-      </div>
-      {items.map((item, idx) => {
-        const score = item.blast_radius_score ?? item.score ?? 0;
-        const scoreColor = score >= 70 ? '#ef4444' : score >= 40 ? '#f97316' : score >= 20 ? '#eab308' : '#22c55e';
-        return (
-          <div
-            key={item.resource_uid || idx}
-            style={{ display: 'grid', gridTemplateColumns: '1fr 150px 90px 80px 80px', padding: '10px 16px', borderBottom: '1px solid var(--border-primary)', fontSize: 13, cursor: 'pointer', transition: 'background 100ms' }}
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = ''}
-          >
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-primary)', fontWeight: 500 }}>{item.resource_uid || item.resource_id || '—'}</span>
-            <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{item.resource_type || '—'}</span>
-            <span style={{ color: 'var(--text-muted)', fontSize: 12, textTransform: 'uppercase' }}>{item.provider || '—'}</span>
-            <span style={{ fontWeight: 800, color: scoreColor, fontSize: 16 }}>{score}</span>
-            <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{item.affected_resources ?? item.affected_count ?? '—'}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ── Compound Risk tab — toxic combo patterns from risk engine ──
-function CompoundRiskTab() {
-  const { selectedTenant } = useAuth();
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    if (!selectedTenant) return;
-    setLoading(true);
-    getFromEngine('risk', '/api/v1/risk/toxic-combos', { tenant_id: selectedTenant })
-      .then((res) => {
-        if (res?.error) setError(res.error);
-        else setItems(Array.isArray(res) ? res : res?.items || res?.data || res?.combos || []);
-      })
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false));
-  }, [selectedTenant]);
-
-  if (loading) {
-    return (
-      <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {Array.from({ length: 7 }, (_, i) => (
-          <div key={i} style={{ height: 52, borderRadius: 6, backgroundColor: 'var(--bg-tertiary)', animation: 'pulse 1.5s ease-in-out infinite', animationDelay: `${i * 70}ms` }} />
-        ))}
-      </div>
-    );
-  }
-  if (error) {
-    return <div style={{ padding: 40, textAlign: 'center', color: '#ef4444', fontSize: 13 }}>Error loading compound risk: {error}</div>;
-  }
-  if (!items.length) {
-    return (
-      <div style={{ padding: 40, textAlign: 'center' }}>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>No compound risk patterns detected.</p>
-        <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Resources with dangerous combinations of misconfigurations will appear here.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <div style={{ padding: '8px 16px 6px', borderBottom: '1px solid var(--border-primary)', fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-        Resources with multiple high-severity findings that amplify risk exposure
-      </div>
-      {items.map((item, idx) => {
-        const multiplier = item.risk_multiplier ?? item.multiplier ?? 1;
-        const multColor = multiplier >= 3 ? '#ef4444' : multiplier >= 2 ? '#f97316' : '#eab308';
-        const severity = (item.severity || 'high').toLowerCase();
-        const sevColor = severity === 'critical' ? '#ef4444' : '#f97316';
-        return (
-          <div
-            key={item.resource_uid || idx}
-            style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: '1px solid var(--border-primary)', cursor: 'pointer', transition: 'background 100ms' }}
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = ''}
-          >
-            <span style={{ fontSize: 14, fontWeight: 800, color: multColor, background: `${multColor}18`, border: `1px solid ${multColor}40`, borderRadius: 6, padding: '4px 9px', flexShrink: 0 }}>
-              {typeof multiplier === 'number' ? multiplier.toFixed(1) : multiplier}x
-            </span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {item.resource_uid || item.resource_id || '—'}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                {item.combo_type || item.combo_description || 'Multiple high-severity misconfigurations'}
-              </div>
-            </div>
-            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, backgroundColor: `${sevColor}20`, color: sevColor, fontWeight: 700, flexShrink: 0, textTransform: 'uppercase' }}>
-              {severity}
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 export default function InventoryPage() {
   const router = useRouter();
@@ -358,9 +213,7 @@ export default function InventoryPage() {
   }, [assets]);
 
   // ── Tab-filtered data sets ──
-  const exposedAssets = useMemo(() => assets.filter(a => a.internet_exposed === true || a.public === true || a.risk_score > 70), [assets]);
   const unmanagedAssets = useMemo(() => assets.filter(a => !a.tags || Object.keys(a.tags).length === 0), [assets]);
-  const criticalAssets = useMemo(() => assets.filter(a => a.severity === 'critical' || a.risk_level === 'critical' || (a.findings && a.findings.critical > 0)), [assets]);
 
   // ── Unique values for dynamic filter options ──
   const uniqueVals = (key) => [...new Set(assets.map(r => r[key]).filter(Boolean))].sort();
@@ -474,6 +327,28 @@ export default function InventoryPage() {
       },
     },
     {
+      accessorKey: 'blast_radius_score',
+      header: 'Blast Radius',
+      size: 105,
+      cell: (info) => {
+        const v = Number(info.getValue() || 0);
+        if (!v) return <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>—</span>;
+        const color = v >= 70 ? '#ef4444' : v >= 40 ? '#f97316' : v >= 20 ? '#eab308' : '#22c55e';
+        return <span className="text-xs font-semibold" style={{ color }}>{v}</span>;
+      },
+    },
+    {
+      accessorKey: 'compound_risk_score',
+      header: 'Compound Risk',
+      size: 110,
+      cell: (info) => {
+        const v = Number(info.getValue() || 0);
+        if (!v) return <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>—</span>;
+        const color = v >= 70 ? '#ef4444' : v >= 40 ? '#f97316' : '#eab308';
+        return <span className="text-xs font-semibold" style={{ color }}>{v}</span>;
+      },
+    },
+    {
       accessorKey: 'last_scanned',
       header: 'Last Seen',
       size: 95,
@@ -507,13 +382,9 @@ export default function InventoryPage() {
       'Group by Provider or Region to understand distribution at a glance.',
     ],
     tabs: [
-      { id: 'overview',      label: 'Overview' },
-      { id: 'all',           label: 'All Assets',       count: assets.length },
-      { id: 'exposed',       label: 'Internet Exposed', count: exposedCount },
-      { id: 'unmanaged',     label: 'Unmanaged',        count: unmanagedCount },
-      { id: 'critical',      label: 'Critical Findings',count: criticalCount },
-      { id: 'blast_radius',  label: 'Blast Radius' },
-      { id: 'compound_risk', label: 'Compound Risk' },
+      { id: 'overview',  label: 'Overview' },
+      { id: 'all',       label: 'All Assets',  count: assets.length },
+      { id: 'unmanaged', label: 'Unmanaged',   count: unmanagedCount },
     ],
   };
 
@@ -813,12 +684,8 @@ export default function InventoryPage() {
 
 
   const tabData = {
-    all:           { data: assets,         columns },
-    exposed:       { data: exposedAssets,  columns },
-    unmanaged:     { data: unmanagedAssets,columns },
-    critical:      { data: criticalAssets, columns },
-    blast_radius:  { renderTab: () => <BlastRadiusTab /> },
-    compound_risk: { renderTab: () => <CompoundRiskTab /> },
+    all:       { data: assets,          columns },
+    unmanaged: { data: unmanagedAssets, columns },
   };
 
   // ── Insight Row: Asset Risk Profile (left) + Resource Type Risk Breakdown (right) ──

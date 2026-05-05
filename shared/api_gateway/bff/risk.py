@@ -214,3 +214,74 @@ async def view_risk(
         "mitigationRoadmap": mitigation_roadmap,
         "topAssets": top_assets,
     }
+
+
+# ── BFF wrappers for asset-list integration (Constitution §4.5 BFF-only rule) ──
+
+
+@router.get("/risk/blast-radius")
+async def view_risk_blast_radius(
+    request: Request,
+    limit: int = Query(50, ge=1, le=500),
+):
+    """Top-N assets ranked by blast-radius score, proxied via BFF.
+
+    Replaces the prior frontend direct call to /risk/api/v1/risk/blast-radius
+    (which 401s because the engine does not accept session cookies).
+    """
+    tenant_id = resolve_tenant_id(request)
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
+    # Risk engine caps limit at 50.
+    (raw,) = await fetch_many(
+        [("risk", "/api/v1/risk/assets/top", {"tenant_id": tenant_id, "limit": str(min(limit, 50))})],
+        auth_headers=fwd_headers,
+    )
+    if not isinstance(raw, dict):
+        raw = {}
+    items = raw.get("assets") or raw.get("items") or []
+    if not isinstance(items, list):
+        items = []
+    # Normalize field names so the FE can rely on a single shape regardless
+    # of how the underlying engine evolves.
+    norm = []
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        rscore = int(it.get("blast_radius_score") or it.get("risk_score") or 0)
+        cscore = int(it.get("compound_risk_score") or 0) or min(int(it.get("threat_count") or 0) * 25, 100)
+        norm.append({
+            **it,
+            "blast_radius_score": rscore,
+            "compound_risk_score": cscore,
+        })
+    return {"items": norm, "tenant_id": tenant_id}
+
+
+@router.get("/risk/compound-risk")
+async def view_risk_compound_risk(request: Request):
+    """Compound-risk scenarios proxied via BFF.
+
+    Returns an empty list with not_yet_available=true when the engine has not
+    surfaced compound-risk data (the endpoint is on the risk engine roadmap).
+    """
+    tenant_id = resolve_tenant_id(request)
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
+    (raw,) = await fetch_many(
+        [("risk", "/api/v1/risk/ui-data", {"tenant_id": tenant_id})],
+        auth_headers=fwd_headers,
+    )
+    if not isinstance(raw, dict):
+        raw = {}
+    scenarios = raw.get("compound_risk") or raw.get("compound_scenarios") or []
+    if not isinstance(scenarios, list):
+        scenarios = []
+    return {
+        "items": scenarios,
+        "tenant_id": tenant_id,
+        "not_yet_available": len(scenarios) == 0,
+    }
+

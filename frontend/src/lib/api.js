@@ -13,6 +13,23 @@ function makeUrl(path) {
   return new URL(path, origin);
 }
 
+// Read the active-tenant from localStorage (set by tenant-context.js) and
+// return it as a header object. Platform-admin sessions have no
+// engine_tenant_id baked into their auth context — the gateway BFF reads this
+// header to scope engine queries to the tenant the user picked in the dropdown.
+function activeTenantHeader() {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem('cspm_active_tenant');
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    const tid = parsed?.engine_tenant_id || parsed?.tenant_id;
+    return tid ? { 'X-Active-Tenant-Id': String(tid) } : {};
+  } catch {
+    return {};
+  }
+}
+
 /**
  * Fetch from API with automatic tenant_id and base URL handling
  * @param {string} enginePath - Full path to endpoint (e.g., '/api/v1/threat/list')
@@ -25,6 +42,7 @@ export async function fetchApi(enginePath, options = {}) {
 
     const defaultHeaders = {
       'Content-Type': 'application/json',
+      ...activeTenantHeader(),
     };
 
     const response = await fetch(url.toString(), {
@@ -76,7 +94,9 @@ export async function getFromEngine(engine, path, params = {}) {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        ...activeTenantHeader(),
       },
+      credentials: 'include',
     });
 
     if (!response.ok) {
@@ -168,7 +188,9 @@ export async function postToEngine(engine, path, body = {}) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...activeTenantHeader(),
       },
+      credentials: 'include',
       body: JSON.stringify(body),
     });
 

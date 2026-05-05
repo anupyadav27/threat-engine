@@ -134,7 +134,10 @@ export default function FindingPageClient({ engine, id }) {
 
   const { data } = state;
   const finding = data?.finding || data; // tolerate either {finding:{...}} or flat
-  const header = finding?.header || data?.header;
+  // BFF FindingDetailResponse returns header fields flat under `finding`
+  // (findingId, ruleId, severity, etc.) — fall back to using `finding` itself
+  // as the header when no nested `.header` is present.
+  const header = finding?.header || data?.header || finding;
 
   if (!header) {
     return (

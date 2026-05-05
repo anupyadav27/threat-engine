@@ -29,7 +29,9 @@ EngineSlug = Literal[
 
 
 # Keys that must NEVER appear anywhere in the serialized output.
-_SENSITIVE_KEY_RE = re.compile(r"credential|secret|raw_event", re.IGNORECASE)
+_SENSITIVE_KEY_RE = re.compile(
+    r"(^|_)(credentials?|secrets?|raw_event)(_|$)", re.IGNORECASE
+)
 # Denylist for EngineExtensions to block prototype-pollution-style smuggling.
 _EXTENSION_DENYLIST = {"__proto__", "constructor", "prototype"}
 

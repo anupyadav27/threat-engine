@@ -31,7 +31,12 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 # ── Sensitive-key scrubber (mirrors views/_schemas.py B3) ────────────────────
-_SENSITIVE_KEY_RE = re.compile(r"credential|secret|raw_event", re.IGNORECASE)
+# Match snake_case field-name style only (e.g. credential_ref, secret_arn,
+# raw_event). Avoid false positives on legitimate display strings used as dict
+# keys — e.g. MITRE tactic name "Credential Access" in mitreMatrix.
+_SENSITIVE_KEY_RE = re.compile(
+    r"(^|_)(credentials?|secrets?|raw_event)(_|$)", re.IGNORECASE
+)
 
 
 def _walk_keys(value: Any) -> List[str]:
@@ -100,7 +105,9 @@ class FilterField(BaseModel):
     label: str
     type: str
     operators: List[str] = Field(default_factory=list)
-    values: Optional[List[str]] = None
+    # values may include strings, booleans, numbers (e.g. severity tier ints,
+    # boolean filters like "encrypted=true"). Stay permissive.
+    values: Optional[List[Any]] = None
 
 
 # ── Base view response with sensitive-key scrubber ───────────────────────────

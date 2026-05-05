@@ -188,10 +188,10 @@ async def get_threat_mitre_heatmap(
     if region:
         params["region"] = region
 
-    qs = "&".join(f"{k}={v}" for k, v in params.items())
-    url = f"{THREAT_URL}/api/v1/threat/ui-data?{qs}"
-
-    (raw,) = await fetch_many([url], headers={"X-Auth-Context": auth_header})
+    (raw,) = await fetch_many(
+        [("threat", "/api/v1/threat/ui-data", params)],
+        auth_headers={"X-Auth-Context": auth_header} if auth_header else None,
+    )
 
     mitre_matrix  = safe_get(raw, "mitre_matrix") or []
     used_scan_run = safe_get(raw, "scan_run_id") or scan_run_id or ""

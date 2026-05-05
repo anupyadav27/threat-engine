@@ -49,14 +49,24 @@ def resolve_tenant_id(request: Request) -> Optional[str]:
     if ctx is None:
         raise HTTPException(status_code=401, detail="Authentication required")
 
+    # The frontend persists the active tenant client-side and forwards it via
+    # this header on every gateway call. For platform-level users, this is the
+    # only signal that reflects the dropdown selection — Django session scope
+    # backfills engine_tenant_id to tenants[0] regardless of what the user picked.
+    # For tenant-scoped users, the header just confirms what's already in scope.
+    # Either way, the explicit selection wins over the cached scope value.
+    active = request.headers.get("x-active-tenant-id") or request.headers.get(
+        "X-Active-Tenant-Id"
+    )
+    if active:
+        return active
+
     if ctx.engine_tenant_id:
         return ctx.engine_tenant_id
 
     if ctx.tenant_ids and len(ctx.tenant_ids) > 0:
         return ctx.tenant_ids[0]
 
-    # Platform-level users (scope_level="platform") have unrestricted access.
-    # Return None to signal "All Tenants" — the engine enforces its own RBAC.
     if ctx.is_platform_level():
         return None
 
