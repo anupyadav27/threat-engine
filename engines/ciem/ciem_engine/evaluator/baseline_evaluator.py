@@ -236,8 +236,10 @@ class BaselineEvaluator:
                         anomalies.append(anomaly)
 
                 if anomalies:
+                    # Pass entity metadata so _make_finding can propagate actor_principal_type
+                    entity_meta = today.get("_meta", {})
                     all_findings.append(
-                        self._make_finding(profile, entity_key, anomalies)
+                        self._make_finding(profile, entity_key, anomalies, entity_meta)
                     )
 
         if all_findings:
@@ -359,7 +361,13 @@ class BaselineEvaluator:
             conn.close()
         return len(rows)
 
-    def _make_finding(self, profile: Dict, entity_key: str, anomalies: List[Dict]) -> Dict:
+    def _make_finding(
+        self,
+        profile: Dict,
+        entity_key: str,
+        anomalies: List[Dict],
+        contributing_l1_finding: Optional[Dict] = None,
+    ) -> Dict:
         baseline_id = profile["baseline_id"]
         finding_id = f"bl_{hashlib.sha256(f'bl|{baseline_id}|{entity_key}'.encode()).hexdigest()[:20]}"
         entity_type = profile.get("entity_type", "")
@@ -371,6 +379,11 @@ class BaselineEvaluator:
             for a in anomalies
         )
         severity = "high" if max_dev >= 5 else "medium" if max_dev >= 3 else "low"
+
+        # Propagate actor_principal_type from L1 contributing data when available.
+        # Falls back to "" for L3 baseline findings — acceptable since these are anomaly
+        # signals and not primary classification signals.
+        actor_principal_type = contributing_l1_finding.get("actor_principal_type", "") if contributing_l1_finding else ""
 
         return {
             "finding_id":          finding_id,
@@ -390,7 +403,7 @@ class BaselineEvaluator:
             "region":              "",
             "provider":            self.provider,
             "actor_principal":     entity_key if "actor" in entity_type and "ip" not in entity_type else "",
-            "actor_principal_type": "",
+            "actor_principal_type": actor_principal_type,
             "actor_ip":            entity_key if "ip" in entity_type else "",
             "event_id":            "",
             "event_time":          datetime.now(timezone.utc),

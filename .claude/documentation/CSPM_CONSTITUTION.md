@@ -39,6 +39,20 @@ The platform scans multi-cloud infrastructure (AWS, Azure, GCP, OCI, AliCloud, I
 - Scan triggers, onboarding events, user invites, role changes are high-value audit events.
 - Audit log format: `actor_id`, `tenant_id`, `action`, `resource_type`, `resource_id`, `before`, `after`, `timestamp`.
 
+### 1.3a Sensitive Data Access — Audit Logs on READ
+
+Some BFF routes expose data classified as sensitive (identity ARNs, privilege levels, future PII/secret reveals). These **MUST** emit an audit log entry on **read access** — even on 403 denials — in addition to the §1.3 mutation logs.
+
+Trigger: any BFF route that gates a data-classification permission (e.g. `ciem:sensitive`). See [RBAC.md §Sensitive Data Permissions](./RBAC.md#sensitive-data-permissions) for the canonical list and audit-log shape.
+
+**Required fields on every entry:** `timestamp` (UTC ISO8601), `user_id`, `tenant_id`, `endpoint`, `asset_id_or_principal`, `result` (200/403), `request_id`, `top_5_<entity>_ids` (on 200 only).
+
+**Logger:** `logging.getLogger("api-gateway.audit")`. JSON-serialize via `json.dumps`. Never `print()`.
+
+**Ship-gate (within 1 sprint of permission going live):** audit logs **MUST** ship to a durable store (DB `audit_log` table or CloudWatch group with retention policy). The named logger alone is not SOC2-durable.
+
+When adding a new data-classification permission, follow [RBAC.md §Sensitive Data Permissions § "Future similar permissions follow the same pattern"](./RBAC.md#sensitive-data-permissions).
+
 ### 1.4 SaaS Operational Standards
 
 - Every engine **MUST** expose `/api/v1/health/live` and `/api/v1/health/ready`.
@@ -230,6 +244,33 @@ UI → direct engine call → GET /gateway/api/v1/{engine}/findings?...
 ### 4.4 BFF View Registry
 
 Every page that exists in the frontend **MUST** have a corresponding BFF view handler. If the BFF handler does not exist, the page must show an explicit "data unavailable" state — never fake it with mock data.
+
+### 4.5 UI-Backend Contract (BFF-only frontend rule)
+
+Per ADR-INVESTIGATION-JOURNEY-UNIFICATION §3.1.c (industry BFF pattern):
+
+1. **Frontend allowed origins:** gateway NLB only.
+2. **Frontend allowed paths:**
+   - `/gateway/api/v1/views/*` — BFF views
+   - `/gateway/api/v1/asset-context/*` — gateway-native aggregator
+   - `/cspm/api/auth/*` — auth handshake exception (login/logout/me/csrf/SSO callbacks ONLY — see allowlist in `frontend/src/lib/allowed-bypasses.js`)
+   - paths in `ALLOWED_DIRECT_ENGINE_BYPASSES` in `frontend/src/lib/allowed-bypasses.js` with attached ADR justification
+3. **Adding any new direct-engine bypass requires a `bmad-architect`-signed ADR.**
+4. **CI gate:** ESLint rule fails the build if any frontend file fetches an engine prefix not on the allowed list. Severity is `warn` until all currently-deferred bypasses (vulnerability/sbom/onboarding-write/cspm-tenant-user) migrate to BFF, then flip to `error`.
+
+**Why this matters:** the BFF pattern (Sam Newman / Netflix / AWS Well-Architected) gives one auth surface, one tenant-isolation enforcement, one audit trail, one schema-versioning surface, and one CORS/security policy. Direct-engine bypasses break each of these and must be a narrow exception with explicit justification.
+
+**Verdict on existing bypasses (live as of JNY-17 / Phase H):**
+
+| Bypass | Verdict | Reason |
+|---|---|---|
+| `/cspm/api/auth/login`, `/logout`, `/me`, `/csrf`, `/google/*`, `/saml/*`, `/register`, `/invite/accept`, `/change-password` | ✅ KEEP | Auth handshake — cookies set during these calls cannot be proxied without session-forwarding hair |
+| `/api/v1/agents/bootstrap` | ✅ KEEP | Public bootstrap before user session exists; protected by HMAC |
+| `/api/v1/billing/webhooks/stripe` | ✅ KEEP | External webhook from Stripe; verified via `Stripe-Signature` HMAC |
+| `/cspm/api/{tenants,users,profile,v1/tenants}` | ⚠️ DEFERRED → MIGRATE | Currently bypass; tracked as `STORY-CSPM-TENANT-USER-MIGRATION` |
+| `/onboarding/api/v1/cloud-accounts` (POST/PUT/PATCH) + `/validate-credentials`, `/agent-token`, `/log-sources`, `/aws/cloudformation-template` | ⚠️ DEFERRED → MIGRATE | Writes still bypass; tracked as `STORY-ONBOARDING-WRITE-BFF-MIGRATION` |
+| `/vulnerability/api/v1/*` | ⚠️ DEFERRED → MIGRATE | Blocked on JNY-15 engine schemas; tracked as `STORY-VULN-BFF-MIGRATION` |
+| `/sbom/api/v1/*` | ⚠️ DEFERRED → MIGRATE | Same as vulnerability; tracked as `STORY-SBOM-BFF-MIGRATION` |
 
 ---
 

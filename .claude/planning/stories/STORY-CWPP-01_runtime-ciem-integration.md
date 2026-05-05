@@ -146,14 +146,40 @@ In the Runtime tab section, render `<CiemRuntimeCard>` above the existing privil
 />
 ```
 
+## Security Review Fixes (from pre-dev security gate)
+
+**BLOCK-CWPP-01-1 — CWPP engine has no AuthMiddleware (pre-existing critical gap):**
+CWPP engine has zero authentication enforcement (`tenant_id: str = Query(default="default-tenant")` on all endpoints). This story MUST NOT ship until `STORY-CWPP-SECURITY-00` is done first. Once fixed, `tenant_id` comes from AuthContext, not a query param.
+
+**BLOCK-CWPP-01-2 — CWPP must forward X-Auth-Context to CIEM, not pass tenant_id as query param:**
+After CWPP-SECURITY-00 is resolved, update `_fetch_ciem_runtime_events` to forward `X-Auth-Context` header to CIEM instead of passing `tenant_id` as a URL param. CIEM derives tenant from the forwarded auth context only.
+
+```python
+resp = await self.http_client.get(
+    f"{CIEM_ENGINE_URL}/ciem/findings",
+    params={"action_category": "runtime", "scan_run_id": scan_run_id, "limit": 10},
+    timeout=5.0,
+    auth_header=auth_header,   # forwarded — CIEM enforces tenant via X-Auth-Context
+)
+# Remove tenant_id from params entirely
+```
+
+**WARN-CWPP-01-1 — Forward auth_header in _fetch_ciem_runtime_events:**
+The `http_client.get()` call must include `auth_header=auth_header` where `auth_header` is forwarded from the CWPP dashboard request. Without it, CIEM receives no X-Auth-Context and falls back to weaker tenant isolation.
+
+**WARN-CWPP-01-2 — IAM ARN in sample_findings visible to viewers:**
+Full IAM ARNs (containing account IDs) appear in `sample_findings`. Acceptable for v1 if viewer role does not have `cwpp:read` — verify against RBAC matrix in `.claude/documentation/RBAC.md`.
+
 ## Acceptance Criteria
 
+- [ ] **Depends on STORY-CWPP-SECURITY-00** — do not start this story until CWPP engine has AuthMiddleware
 - [ ] Runtime tab shows `CiemRuntimeCard` with CIEM event count and severity breakdown when CIEM engine returns runtime findings
 - [ ] CWPP dashboard loads within 200ms added latency when CIEM times out (5s hard timeout, `return_exceptions=True`)
 - [ ] "View Full Behavioral Timeline in CIEM →" link routes to `/ciem` with `action_category=runtime` filter pre-applied
 - [ ] If CIEM engine is unreachable, card shows "CIEM engine unavailable" — CWPP still loads normally
 - [ ] CWPP posture score (`cwpp_posture_score`) is NOT changed by CIEM runtime events (score formula unchanged)
-- [ ] `ciem_runtime_events` is tenant-scoped (CIEM engine enforces this via AuthContext forwarded from CWPP)
+- [ ] `ciem_runtime_events` is tenant-scoped — CWPP forwards `X-Auth-Context` header to CIEM (not `tenant_id` query param)
+- [ ] `_fetch_ciem_runtime_events` call removes `tenant_id` from params and passes `auth_header` instead
 
 ## Security Checklist
 - [ ] CIEM engine URL is internal ClusterIP (`http://engine-ciem`) — not user-supplied, no SSRF risk

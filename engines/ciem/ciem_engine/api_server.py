@@ -25,6 +25,7 @@ import sys
 import json
 import uuid
 from typing import Any, Dict, List, Optional
+from urllib.parse import unquote
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -47,6 +48,18 @@ try:
 except ImportError:
     _AUTH_AVAILABLE = False
     AuthContext = None  # type: ignore[assignment,misc]
+
+    def require_permission(_perm: str):  # type: ignore[no-redef]
+        """Fallback used only when engine_auth is unavailable.
+
+        Returns a dependency that always raises 401 — fail-closed instead
+        of silently bypassing auth. Production images bundle engine_auth so
+        this branch only fires in stripped test/dev images.
+        """
+        def _denied():
+            from fastapi import HTTPException
+            raise HTTPException(status_code=401, detail="auth module unavailable")
+        return _denied
 
 
 def strip_sensitive_fields(data: List[Dict[str, Any]], auth: Any) -> List[Dict[str, Any]]:
@@ -97,6 +110,11 @@ app.add_middleware(
 # AuthMiddleware validates access_token / X-Auth-Context for every non-health path
 if _AUTH_AVAILABLE:
     app.add_middleware(AuthMiddleware)
+else:
+    logger.critical(
+        "engine_auth module not available — all API requests will return 401. "
+        "Production images MUST include engine_auth. Failing closed."
+    )
 
 # Scanner job config
 SCANNER_IMAGE = os.getenv("CIEM_SCANNER_IMAGE", "yadavanup84/engine-ciem:v-std-cols")
@@ -244,7 +262,7 @@ def _fetch_all_accounts() -> List[dict]:
 
 @app.post("/api/v1/scan/all")
 async def start_all_accounts_ciem(
-    auth: Any = Depends(require_permission("ciem:read") if _AUTH_AVAILABLE else (lambda: None)),
+    auth: Any = Depends(require_permission("ciem:read")),
 ):
     """Start CIEM log collection for ALL active cloud accounts.
 
@@ -465,7 +483,7 @@ async def query_findings(
     service: Optional[str] = Query(None),
     limit: int = Query(100, le=10000),
     offset: int = Query(0),
-    auth: Any = Depends(require_permission("ciem:read") if _AUTH_AVAILABLE else (lambda: None)),
+    auth: Any = Depends(require_permission("ciem:read")),
 ):
     """Query CIEM detection findings with filters."""
     import psycopg2.extras
@@ -561,6 +579,110 @@ async def get_finding(finding_id: str):
         conn.close()
 
 
+def _strip_step_fields(steps: List[Dict[str, Any]], auth: Any) -> List[Dict[str, Any]]:
+    """Strip sensitive IP fields from contributing_steps for lower-trust callers.
+
+    Removes 'actor_ip' from each step when the caller's auth level is >= 4
+    (viewer-tier users should not see raw IP addresses from correlation steps).
+    The field is omitted entirely, not set to null.
+
+    Args:
+        steps: List of contributing_step dicts from finding_data JSONB.
+        auth: AuthContext instance; may be None when auth unavailable.
+
+    Returns:
+        New list of step dicts with actor_ip removed for auth.level >= 4.
+    """
+    if auth is None or getattr(auth, "level", 0) < 4:
+        return steps
+    return [{k: v for k, v in step.items() if k != "actor_ip"} for step in steps]
+
+
+@app.get("/api/v1/ciem/findings/{finding_id}/timeline")
+async def get_finding_timeline(
+    finding_id: str,
+    auth: Any = Depends(require_permission("ciem:read")),
+):
+    """Return ordered contributing steps for an L2 correlation finding.
+
+    Each step represents one L1 finding that contributed to the correlation,
+    ordered by event_time ascending so step_idx 0 = the earliest event.
+    The timeline endpoint is only valid for findings with rule_source = 'log_correlation'.
+
+    Security: DB query requires BOTH finding_id AND tenant_id to prevent cross-tenant
+    reads via predictable finding_id values. Returns 404 (not 403) when tenant check
+    fails to avoid disclosing whether a finding_id exists in another tenant.
+
+    Args:
+        finding_id: CIEM finding identifier (path parameter).
+        auth: AuthContext from require_permission dependency.
+
+    Returns:
+        Dict with 'finding_id', 'rule_id', 'steps', 'first_event', 'last_event',
+        'event_count'.
+
+    Raises:
+        HTTPException 404: Finding not found or belongs to a different tenant.
+        HTTPException 400: Finding is not a log_correlation finding, or predates
+                          step ordering (contributing_steps absent).
+        HTTPException 500: Unexpected database error.
+    """
+    import psycopg2.extras
+
+    tenant_id = (
+        getattr(auth, "engine_tenant_id", None)
+        or getattr(auth, "tenant_id", None)
+        or "default-tenant"
+    )
+    conn = get_ciem_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            # Both finding_id AND tenant_id required — prevents cross-tenant reads
+            cur.execute(
+                """
+                SELECT finding_id, rule_id, rule_source, finding_data,
+                       first_seen_at, last_seen_at
+                FROM ciem_findings
+                WHERE finding_id = %s AND tenant_id = %s
+                """,
+                (finding_id, tenant_id),
+            )
+            row = cur.fetchone()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="Finding not found")
+
+        if row["rule_source"] != "log_correlation":
+            raise HTTPException(status_code=400, detail="finding is not a correlation finding")
+
+        # finding_data is JSONB — psycopg2 returns it as a Python dict; never call json.loads()
+        finding_data: Dict[str, Any] = row["finding_data"] or {}
+        contributing_steps = finding_data.get("contributing_steps")
+
+        if contributing_steps is None:
+            raise HTTPException(
+                status_code=400,
+                detail="finding predates step ordering — re-run CIEM scan to generate steps",
+            )
+
+        steps = _strip_step_fields(list(contributing_steps), auth)
+
+        return {
+            "finding_id": row["finding_id"],
+            "rule_id": row["rule_id"],
+            "steps": steps,
+            "first_event": finding_data.get("first_event"),
+            "last_event": finding_data.get("last_event"),
+            "event_count": finding_data.get("event_count", len(steps)),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
 def _query_ciem_scan_trend(cur, tenant_id: str) -> list:
     """Last 8 CIEM scan runs — identities_at_risk and rules_triggered per scan."""
     try:
@@ -618,7 +740,7 @@ def _query_ciem_scan_trend(cur, tenant_id: str) -> list:
 @app.get("/api/v1/ciem/dashboard")
 async def ciem_dashboard(
     scan_run_id: Optional[str] = Query(None),
-    auth: Any = Depends(require_permission("ciem:read") if _AUTH_AVAILABLE else (lambda: None)),
+    auth: Any = Depends(require_permission("ciem:read")),
 ):
     """CIEM dashboard — summary counts, severity breakdown, engine breakdown, trends."""
     tenant_id = (
@@ -716,7 +838,7 @@ async def ciem_dashboard(
 async def identity_summary(
     scan_run_id: Optional[str] = Query(None),
     limit: int = Query(50, le=500),
-    auth: Any = Depends(require_permission("ciem:read") if _AUTH_AVAILABLE else (lambda: None)),
+    auth: Any = Depends(require_permission("ciem:read")),
 ):
     """Identity risk summary — top actors by finding count and severity."""
     tenant_id = (
@@ -734,6 +856,7 @@ async def identity_summary(
             cur.execute(f"""
                 SELECT
                     actor_principal,
+                    actor_principal_type,
                     count(*) AS total_findings,
                     count(*) FILTER (WHERE severity = 'critical') AS critical,
                     count(*) FILTER (WHERE severity = 'high') AS high,
@@ -742,20 +865,223 @@ async def identity_summary(
                     count(DISTINCT service) AS services_used,
                     count(DISTINCT resource_uid) FILTER (WHERE resource_uid != '') AS resources_touched,
                     array_agg(DISTINCT actor_ip) FILTER (WHERE actor_ip != '') AS source_ips,
-                    max(event_time) AS last_activity
+                    max(event_time) AS last_activity,
+                    COUNT(*) FILTER (WHERE rule_source = 'log_correlation') AS l2_findings,
+                    COUNT(*) FILTER (WHERE rule_source = 'baseline') AS l3_findings
                 FROM ciem_findings
                 WHERE tenant_id = %s {scan_filter}
                 AND actor_principal IS NOT NULL AND actor_principal != ''
-                GROUP BY actor_principal
+                GROUP BY actor_principal, actor_principal_type
                 ORDER BY
                     count(*) FILTER (WHERE severity = 'critical') DESC,
                     count(*) FILTER (WHERE severity = 'high') DESC,
                     count(*) DESC
                 LIMIT %s
             """, params + [limit])
-            identities = [dict(r) for r in cur.fetchall()]
+            rows = cur.fetchall()
+            identities = []
+            for r in rows:
+                identity = dict(r)
+                identity["actor_principal_type"] = identity.get("actor_principal_type") or "unknown"
+                identity["l2_findings"] = int(identity.get("l2_findings") or 0)
+                identity["l3_findings"] = int(identity.get("l3_findings") or 0)
+                identities.append(identity)
 
         return {"identities": identities, "count": len(identities)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+@app.get("/api/v1/ciem/identities/heatmap")
+async def get_identity_heatmap(
+    scan_run_id: Optional[str] = Query(None),
+    auth: Any = Depends(require_permission("ciem:read")),
+):
+    """Identity risk heatmap — (account_id × actor_principal_type) matrix with max_severity and finding_count.
+
+    Returns a matrix of cells where each cell represents one (account, principal_type) pair.
+    Used by the CIEM Stage 1 UI to render the fleet-wide heatmap grid.
+
+    Args:
+        scan_run_id: Optional scan run filter. When absent, defaults to the last 30 days.
+        auth: AuthContext from require_permission dependency.
+
+    Returns:
+        Dict with 'matrix' list, 'accounts' sorted list, and 'principal_types' sorted list.
+    """
+    import psycopg2.extras
+
+    tenant_id = (
+        getattr(auth, "engine_tenant_id", None)
+        or getattr(auth, "tenant_id", None)
+        or "default-tenant"
+    )
+    conn = get_ciem_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SET LOCAL statement_timeout = 5000")
+
+            if scan_run_id:
+                scan_filter = "AND scan_run_id = %s"
+                params: list = [tenant_id, scan_run_id]
+            else:
+                scan_filter = "AND event_time >= NOW() - INTERVAL '30 days'"
+                params = [tenant_id]
+
+            cur.execute(f"""
+                SELECT
+                    account_id,
+                    actor_principal_type,
+                    COUNT(*) AS finding_count,
+                    MAX(CASE severity
+                        WHEN 'critical' THEN 4
+                        WHEN 'high' THEN 3
+                        WHEN 'medium' THEN 2
+                        WHEN 'low' THEN 1
+                        ELSE 0 END) AS max_severity_ord
+                FROM ciem_findings
+                WHERE tenant_id = %s
+                {scan_filter}
+                GROUP BY account_id, actor_principal_type
+                ORDER BY account_id, actor_principal_type
+                LIMIT 500
+            """, params)
+            rows = cur.fetchall()
+
+        _severity_map = {4: "critical", 3: "high", 2: "medium", 1: "low", 0: "none"}
+        matrix = []
+        accounts_set: set = set()
+        principal_types_set: set = set()
+
+        for row in rows:
+            account_id = row["account_id"] or ""
+            principal_type = row["actor_principal_type"] or "unknown"
+            max_sev_ord = int(row["max_severity_ord"] or 0)
+            finding_count = int(row["finding_count"] or 0)
+
+            accounts_set.add(account_id)
+            principal_types_set.add(principal_type)
+            matrix.append({
+                "account_id": account_id,
+                "principal_type": principal_type,
+                "max_severity": _severity_map.get(max_sev_ord, "none"),
+                "finding_count": finding_count,
+            })
+
+        return {
+            "matrix": matrix,
+            "accounts": sorted(accounts_set),
+            "principal_types": sorted(principal_types_set),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+@app.get("/api/v1/ciem/identities/{principal_encoded}/hourly-activity")
+async def get_identity_hourly_activity(
+    principal_encoded: str,
+    scan_run_id: Optional[str] = Query(None),
+    auth: Any = Depends(require_permission("ciem:read")),
+):
+    """Hourly and day-of-week activity distribution for a specific identity over the last 14 days.
+
+    Returns 24-element hourly distribution and 7-element day-of-week distribution.
+    Hours and days with zero findings are explicitly included so the response arrays
+    are always fixed-length (24 and 7 elements respectively).
+
+    The principal ARN is URL-encoded in the path (e.g. %3A for colons, %2F for slashes).
+    It is decoded before parameterized DB query — no SQL injection risk.
+
+    Args:
+        principal_encoded: URL-encoded actor_principal identifier (path parameter).
+        scan_run_id: Optional scan run filter. When absent, queries the last 14 days.
+        auth: AuthContext from require_permission dependency.
+
+    Returns:
+        Dict with 'actor_principal', 'hourly_distribution' (24 items), and
+        'day_of_week_distribution' (7 items).
+
+    Raises:
+        HTTPException 400: Decoded principal exceeds 512 chars or contains null bytes.
+        HTTPException 404: No findings for this principal in the tenant.
+        HTTPException 500: Unexpected database error.
+    """
+    import psycopg2.extras
+
+    actor_principal = unquote(principal_encoded)
+
+    # Validate decoded value to prevent abuse
+    if len(actor_principal) > 512 or "\x00" in actor_principal:
+        raise HTTPException(status_code=400, detail="Invalid principal identifier")
+
+    tenant_id = (
+        getattr(auth, "engine_tenant_id", None)
+        or getattr(auth, "tenant_id", None)
+        or "default-tenant"
+    )
+
+    conn = get_ciem_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            if scan_run_id:
+                scan_filter = "AND scan_run_id = %s AND event_time >= NOW() - INTERVAL '14 days'"
+                base_params: list = [tenant_id, actor_principal, scan_run_id]
+            else:
+                scan_filter = "AND event_time >= NOW() - INTERVAL '14 days'"
+                base_params = [tenant_id, actor_principal]
+
+            # Hourly distribution
+            cur.execute(f"""
+                SELECT EXTRACT(HOUR FROM event_time)::int AS hour, COUNT(*) AS count
+                FROM ciem_findings
+                WHERE tenant_id = %s AND actor_principal = %s
+                {scan_filter}
+                GROUP BY hour
+                ORDER BY hour
+            """, base_params)
+            hourly_rows = {int(r["hour"]): int(r["count"]) for r in cur.fetchall()}
+
+            # Day-of-week distribution
+            cur.execute(f"""
+                SELECT EXTRACT(DOW FROM event_time)::int AS dow, COUNT(*) AS count
+                FROM ciem_findings
+                WHERE tenant_id = %s AND actor_principal = %s
+                {scan_filter}
+                GROUP BY dow
+                ORDER BY dow
+            """, base_params)
+            dow_rows = {int(r["dow"]): int(r["count"]) for r in cur.fetchall()}
+
+        # Return 404 when no data at all for this principal in this tenant
+        if not hourly_rows and not dow_rows:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No findings found for principal in the last 14 days",
+            )
+
+        _dow_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+        # Build fixed-length arrays — fill missing buckets with 0
+        hourly_distribution = [
+            {"hour": h, "count": hourly_rows.get(h, 0)}
+            for h in range(24)
+        ]
+        day_of_week_distribution = [
+            {"dow": d, "dow_name": _dow_names[d], "count": dow_rows.get(d, 0)}
+            for d in range(7)
+        ]
+
+        return {
+            "actor_principal": actor_principal,
+            "hourly_distribution": hourly_distribution,
+            "day_of_week_distribution": day_of_week_distribution,
+        }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
@@ -766,7 +1092,7 @@ async def identity_summary(
 async def top_rules(
     scan_run_id: Optional[str] = Query(None),
     limit: int = Query(20, le=100),
-    auth: Any = Depends(require_permission("ciem:read") if _AUTH_AVAILABLE else (lambda: None)),
+    auth: Any = Depends(require_permission("ciem:read")),
 ):
     """Top triggered detection rules by finding count."""
     tenant_id = (
@@ -809,7 +1135,7 @@ async def top_rules(
 
 @app.get("/api/v1/ciem/log-sources")
 async def log_sources(
-    auth: Any = Depends(require_permission("ciem:read") if _AUTH_AVAILABLE else (lambda: None)),
+    auth: Any = Depends(require_permission("ciem:read")),
 ) -> Dict[str, Any]:
     """Return log source coverage status for the CIEM logSources tab.
 
@@ -915,3 +1241,152 @@ async def scan_report(scan_run_id: str):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+
+
+# ── Findings-by-resource models ───────────────────────────────────────────────
+
+class CiemFindingItem(BaseModel):
+    """Single CIEM finding row returned by the asset-context endpoint."""
+
+    finding_id: str
+    title: str
+    severity: str
+    status: str
+    rule_id: Optional[str] = None
+    resource_uid: str
+    resource_type: Optional[str] = None
+    account_id: Optional[str] = None
+    region: Optional[str] = None
+    provider: Optional[str] = None
+    first_seen_at: str
+    last_seen_at: str
+    anomaly_type: Optional[str] = None
+    anomaly_score: Optional[float] = None
+    event_count: Optional[int] = None
+
+
+class CiemFindingsByResourceResponse(BaseModel):
+    """Response for GET /api/v1/ciem/findings/by-resource."""
+
+    findings: List[CiemFindingItem]
+    total: int
+    resource_uid: str
+    scan_run_id: str
+
+
+_CIEM_TABLE = "ciem_findings"
+_CIEM_TITLE_EXPR = "COALESCE(title, rule_id)"
+
+
+@app.get("/api/v1/ciem/findings/by-resource", response_model=CiemFindingsByResourceResponse)
+async def get_ciem_findings_by_resource(
+    resource_uid: str = Query(..., description="Full resource ARN, UID, or identity ARN (actor_principal)"),
+    scan_run_id: str = Query("latest"),
+    limit: int = Query(50, ge=1, le=100),
+    status: Optional[str] = Query(None),
+    auth: Any = Depends(require_permission("ciem:read")),
+):
+    """Return CIEM findings for a specific resource_uid or actor_principal.
+
+    Used by the gateway asset-context aggregator. Matches on both resource_uid
+    and actor_principal so identity ARNs resolve correctly.
+
+    Args:
+        resource_uid: Resource ARN/UID or identity ARN (actor_principal) to filter by.
+        scan_run_id: Scan run UUID, or 'latest' to resolve automatically.
+        limit: Maximum number of findings to return (1-100).
+        status: Optional status filter (FAIL | PASS | WARN).
+        auth: Injected AuthContext from require_permission dependency.
+
+    Returns:
+        CiemFindingsByResourceResponse with findings list, total count, and resolved scan_run_id.
+    """
+    tenant_id = (
+        getattr(auth, "engine_tenant_id", None)
+        or getattr(auth, "tenant_id", None)
+        or "default-tenant"
+    )
+
+    status_clause = "AND status = %(status)s" if status else ""
+    # CIEM: match both resource_uid and actor_principal for identity ARNs
+    resource_clause = (
+        "(resource_uid = %(resource_uid)s OR actor_principal = %(resource_uid)s)"
+    )
+    params: Dict[str, Any] = {
+        "tenant_id": tenant_id,
+        "resource_uid": resource_uid,
+        "status": status,
+        "limit": limit,
+    }
+
+    conn = get_ciem_conn()
+    try:
+        with conn.cursor() as cur:
+            # Step 1: resolve scan_run_id
+            cur.execute(f"""
+                SELECT scan_run_id FROM {_CIEM_TABLE}
+                WHERE tenant_id = %(tenant_id)s
+                  AND {resource_clause}
+                  {status_clause}
+                ORDER BY last_seen_at DESC LIMIT 1
+            """, params)
+            row = cur.fetchone()
+            if not row:
+                return CiemFindingsByResourceResponse(
+                    findings=[], total=0,
+                    resource_uid=resource_uid, scan_run_id=scan_run_id,
+                )
+            resolved_scan = row[0]
+            params["resolved_scan"] = resolved_scan
+
+            # Step 2: total count
+            cur.execute(f"""
+                SELECT COUNT(*) FROM {_CIEM_TABLE}
+                WHERE tenant_id = %(tenant_id)s
+                  AND {resource_clause}
+                  AND scan_run_id = %(resolved_scan)s
+                  {status_clause}
+            """, params)
+            total = cur.fetchone()[0]
+
+            # Step 3: top N findings sorted by severity
+            # credential_ref excluded from SELECT
+            cur.execute(f"""
+                SELECT finding_id,
+                       {_CIEM_TITLE_EXPR} AS title,
+                       severity, status,
+                       rule_id, resource_uid, resource_type,
+                       account_id, region, provider,
+                       first_seen_at, last_seen_at,
+                       anomaly_type, anomaly_score, event_count
+                FROM {_CIEM_TABLE}
+                WHERE tenant_id = %(tenant_id)s
+                  AND {resource_clause}
+                  AND scan_run_id = %(resolved_scan)s
+                  {status_clause}
+                ORDER BY
+                    CASE severity
+                        WHEN 'critical' THEN 4 WHEN 'high' THEN 3
+                        WHEN 'medium'   THEN 2 WHEN 'low'  THEN 1 ELSE 0
+                    END DESC,
+                    last_seen_at DESC
+                LIMIT %(limit)s
+            """, params)
+            cols = [d[0] for d in cur.description]
+            findings = [
+                CiemFindingItem(**{k: (str(v) if v is not None else v) if k in ("first_seen_at", "last_seen_at") else v
+                                   for k, v in dict(zip(cols, r)).items()})
+                for r in cur.fetchall()
+            ]
+    except Exception as exc:
+        logger.error(f"Error in get_ciem_findings_by_resource: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc))
+    finally:
+        conn.close()
+
+    return CiemFindingsByResourceResponse(
+        findings=findings,
+        total=total,
+        resource_uid=resource_uid,
+        scan_run_id=resolved_scan,
+    )

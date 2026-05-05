@@ -36,6 +36,12 @@ try:
 except ImportError:
     views_router = None
 
+# Import asset context aggregator router
+try:
+    from asset_context import router as asset_context_router
+except ImportError:
+    asset_context_router = None
+
 logger = setup_logger(__name__, engine_name="api-gateway")
 
 # Initialize orchestration service (if available)
@@ -331,6 +337,11 @@ app.add_middleware(AuthMiddleware)
 if views_router is not None:
     app.include_router(views_router)                    # /api/v1/views/*  (through ingress)
     app.include_router(views_router, prefix="/gateway")  # /gateway/api/v1/views/* (direct)
+
+# Asset context aggregator — investigation panel cross-engine summary
+if asset_context_router is not None:
+    app.include_router(asset_context_router)
+    app.include_router(asset_context_router, prefix="/gateway")
 
 
 def get_target_service(path: str) -> Optional[str]:

@@ -13,7 +13,7 @@
  */
 
 import { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
-import { getFromEngine } from './api';
+import { fetchView } from './api';
 import { useAuth } from './auth-context';
 
 const GlobalFilterContext = createContext(null);
@@ -44,16 +44,18 @@ export function GlobalFilterProvider({ children }) {
     let cancelled = false;
     (async () => {
       try {
-        const params = selectedTenant ? { tenant_id: selectedTenant } : {};
-        const res = await getFromEngine('onboarding', '/api/v1/cloud-accounts', params);
+        // JNY-17.1: migrated to BFF view (was direct /onboarding/api/v1/cloud-accounts).
+        // BFF resolves tenant_id from session — no client-side tenant filter needed.
+        const res = await fetchView('onboarding/cloud_accounts', {});
         if (cancelled) return;
-        const list = res?.accounts || res?.cloud_accounts || (Array.isArray(res) ? res : []);
-        // Normalize to { provider, account, display, regions }
+        const list = res?.accounts || (Array.isArray(res) ? res : []);
+        // Normalize to { provider, account, display, regions }.
+        // BFF returns camelCase; tolerate snake_case during transition.
         const normalized = list.map((a) => ({
-          provider:   (a.provider || a.csp || 'AWS').toUpperCase(),
-          account:    a.account_id || a.account_name || a.name || '',
-          display:    a.account_name || a.name || a.account_id || '',
-          regions:    a.regions || (a.region ? [a.region] : []),
+          provider: (a.provider || a.csp || 'AWS').toUpperCase(),
+          account:  a.accountId || a.account_id || a.accountName || a.account_name || a.name || '',
+          display:  a.accountName || a.account_name || a.name || a.accountId || a.account_id || '',
+          regions:  a.regions || (a.region ? [a.region] : []),
         }));
         setAccounts(normalized);
         // Reset cascade selections when tenant changes so stale values don't persist

@@ -22,6 +22,7 @@ from ._transforms import (
     severity_chart, apply_global_filters, _safe_upper,
 )
 from ._page_context import threats_page_context, threats_filter_schema
+from ._common_schemas import ThreatsViewResponse
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
@@ -37,7 +38,7 @@ def _enrich_threats_provider(threats, account_provider_map, default_provider="")
             t["provider"] = default_provider
 
 
-@router.get("/threats")
+@router.get("/threats", response_model=ThreatsViewResponse, response_model_exclude_none=False)
 async def view_threats(
     request: Request,
     provider: Optional[str] = Query(None),

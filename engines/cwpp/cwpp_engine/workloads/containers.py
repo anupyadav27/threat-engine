@@ -57,11 +57,16 @@ async def fetch(scan_run_id: str, tenant_id: str, auth_header: Optional[str] = N
         and f.get("container_service") not in ("lambda", "ecr")
     ]
 
-    # Domain breakdown filtered to container domains
-    domain_breakdown = [
-        d for d in data.get("domain_breakdown", [])
-        if d.get("security_domain") in CONTAINER_DOMAINS
-    ]
+    # Domain breakdown filtered to container domains; compute per-domain score
+    domain_breakdown = []
+    for d in data.get("domain_breakdown", []):
+        if d.get("security_domain") not in CONTAINER_DOMAINS:
+            continue
+        row = dict(d)
+        total = row.get("total", 0)
+        pass_count = row.get("pass_count", 0)
+        row["score"] = round((pass_count / total) * 100) if total > 0 else 0
+        domain_breakdown.append(row)
 
     # Service breakdown — exclude lambda and ecr (they're in other workload modules)
     service_breakdown = [
@@ -69,9 +74,21 @@ async def fetch(scan_run_id: str, tenant_id: str, auth_header: Optional[str] = N
         if s.get("container_service") not in ("lambda", "ecr")
     ]
 
-    # Clusters from inventory
+    # Clusters from inventory — build UI-normalised cluster rows
     inventory = data.get("inventory", [])
-    clusters = [i for i in inventory if i.get("resource_type") == "cluster"]
+    clusters = [
+        {
+            "cluster_name":   item.get("resource_name"),
+            "provider":       item.get("provider"),
+            "region":         item.get("region"),
+            "is_public":      bool(item.get("endpoint_public", False)),
+            "security_score": item.get("posture_score", 0),
+            "finding_count":  item.get("failed_checks", 0),
+            "resource_uid":   item.get("resource_uid"),
+        }
+        for item in inventory
+        if item.get("resource_type") == "cluster"
+    ]
     workloads = [
         i for i in inventory
         if i.get("resource_type") not in ("cluster",)

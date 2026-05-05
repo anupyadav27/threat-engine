@@ -10,20 +10,25 @@ Returns standard kpiGroups so the UI reads a single consistent
 data shape — no client-side KPI derivation needed.
 """
 
-from typing import Optional
+import logging
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Query, Request
 
 from ._auth import resolve_tenant_id
-from ._shared import fetch_many, safe_get, ENGINE_URLS
+from ._shared import fetch_many, safe_get, ENGINE_URLS, _fetch_engine
 from ._cache import cache_key, cached_view, TTL_CIEM, auth_level_from_header
+from ._common_schemas import CiemViewResponse
+import httpx
+
+logger = logging.getLogger("api-gateway.bff.ciem")
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
 CIEM_URL = ENGINE_URLS.get("ciem", "http://engine-ciem")
 
 
-@router.get("/ciem")
+@router.get("/ciem", response_model=CiemViewResponse, response_model_exclude_none=False)
 async def view_ciem(
     request: Request,
     scan_run_id: Optional[str] = Query(None),
@@ -65,6 +70,9 @@ async def view_ciem(
         high = int(ident.get("high",     0))
         med  = int(ident.get("medium",   0))
         ident["risk_score"] = min(100, crit * 25 + high * 10 + med * 2)
+        ident["actorPrincipalType"] = ident.get("actor_principal_type") or "unknown"
+        ident["l2Findings"] = ident.get("l2_findings", 0)
+        ident["l3Findings"] = ident.get("l3_findings", 0)
 
     # ── Derive KPI numbers from real data ─────────────────────────────────────
     total_findings = int(summary.get("total_findings", 0))
@@ -123,4 +131,48 @@ async def view_ciem(
     }
 
     cached_view(ck, result, ttl=TTL_CIEM)
+    return result
+
+
+@router.get("/ciem/heatmap")
+async def view_ciem_heatmap(
+    request: Request,
+    scan_run_id: Optional[str] = Query(None),
+) -> Dict[str, Any]:
+    """BFF proxy: identity risk heatmap (account × principal_type matrix).
+
+    Calls the CIEM engine's heatmap aggregation endpoint and returns the
+    response as-is. Gracefully degrades to an empty matrix when the engine
+    is unreachable so the UI renders an empty grid rather than an error.
+
+    Args:
+        request: FastAPI Request (carries X-Auth-Context header).
+        scan_run_id: Optional scan run filter forwarded to the engine.
+
+    Returns:
+        Dict with 'matrix', 'accounts', and 'principal_types' keys.
+    """
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
+    params: Dict[str, str] = {}
+    if scan_run_id:
+        params["scan_run_id"] = scan_run_id
+
+    _empty: Dict[str, Any] = {"matrix": [], "accounts": [], "principal_types": []}
+    try:
+        async with httpx.AsyncClient() as client:
+            result = await _fetch_engine(
+                client,
+                "ciem",
+                "/api/v1/ciem/identities/heatmap",
+                params=params or None,
+                auth_headers=fwd_headers,
+            )
+    except Exception as exc:
+        logger.warning("ciem heatmap BFF fetch failed: %s", exc)
+        return _empty
+
+    if result is None:
+        return _empty
     return result

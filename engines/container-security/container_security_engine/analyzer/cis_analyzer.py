@@ -419,6 +419,19 @@ def _analyze_pod_security(
             continue
         ef = res["emitted_fields"]
         spec = _get_pod_spec(ef)
+
+        # Extract pod-level namespace and first container name for finding_data context
+        meta = ef.get("metadata") or {}
+        pod_namespace = meta.get("namespace", "default")
+        containers_list = spec.get("containers") or []
+        first_container_name = containers_list[0].get("name", "") if containers_list else ""
+        _pod_finding_data = {
+            "container_name": first_container_name,
+            "namespace": pod_namespace,
+        }
+        # Track index so we can tag all findings added for this resource
+        _findings_start_idx = len(findings)
+
         containers = spec.get("containers") or []
         init_containers = spec.get("initContainers") or []
         all_containers = containers + init_containers
@@ -563,6 +576,12 @@ def _analyze_pod_security(
                 "CIS-5.2.8", "CRITICAL",
                 "No containers add dangerous Linux capabilities",
             ))
+
+        # Annotate all findings for this resource with container_name and namespace
+        for _f in findings[_findings_start_idx:]:
+            existing_fd = _f.get("finding_data") or {}
+            existing_fd.update(_pod_finding_data)
+            _f["finding_data"] = existing_fd
 
     return findings
 

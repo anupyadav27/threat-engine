@@ -1,13 +1,10 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Database,
   Lock,
   AlertTriangle,
-  RefreshCw,
-  Info,
-  ChevronDown,
   ShieldCheck,
   FileSearch,
 } from 'lucide-react';
@@ -16,10 +13,13 @@ import {
   Tooltip as RechartsTip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { useViewFetch } from '@/lib/use-view-fetch';
+import { subscribeRefresh, emitRefresh } from '@/lib/refreshBus';
+import EngineShell from '@/components/shared/EngineShell';
 import PageLayout from '@/components/shared/PageLayout';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
 import FindingDetailPanel from '@/components/shared/FindingDetailPanel';
+import PivotLink from '@/components/shared/PivotLink';
 
 // ── Colour palette ────────────────────────────────────────────────────────────
 const C = {
@@ -96,7 +96,8 @@ function DsDonut({ slices, size = 160 }) {
 }
 
 export default function DataSecurityPage() {
-  const { data, loading, error } = useViewFetch('datasec');
+  const { data, loading, error, refetch } = useViewFetch('datasec');
+  useEffect(() => subscribeRefresh(() => refetch()), [refetch]);
   const realCatalog      = data.catalog          || [];
   const dlpViolations    = data.dlp              || [];
   const dataResidency    = data.residency        || [];
@@ -521,11 +522,19 @@ export default function DataSecurityPage() {
     },
     ruleId: {
       accessorKey: 'rule_id', header: 'Rule ID', size: 135,
-      cell: (info) => <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{info.getValue() || '—'}</span>,
+      cell: (info) => info.getValue()
+        ? <PivotLink to="rule" id={info.getValue()} size="xs" showIcon={false} />
+        : <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>—</span>,
     },
     resource: {
       accessorKey: 'resource_uid', header: 'Resource',
-      cell: (info) => { const v = info.getValue() || info.row.original.resource_id || info.row.original.name || ''; return <span className="font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>{v.split('/').pop() || v.split(':').pop() || v || '—'}</span>; },
+      cell: (info) => {
+        const row = info.row.original;
+        const uid = info.getValue() || row.resource_id || row.name;
+        if (!uid) return <span className="font-mono text-xs">—</span>;
+        const display = uid.split('/').pop() || uid.split(':').pop() || uid;
+        return <PivotLink to="asset" id={uid} provider={row.provider} label={display} size="xs" showIcon={false} truncate={36} />;
+      },
     },
     severity: {
       accessorKey: 'severity', header: 'Severity',
@@ -572,7 +581,14 @@ export default function DataSecurityPage() {
     commonCols.ruleId,
     {
       accessorKey: 'title', header: 'Finding',
-      cell: (info) => <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{info.getValue() || info.row.original.rule_id || '—'}</span>,
+      cell: (info) => {
+        const row = info.row.original;
+        const v = info.getValue() || row.rule_id || '—';
+        if (row.finding_id) {
+          return <PivotLink to="finding" engine="datasec" id={row.finding_id} label={v} size="xs" showIcon={false} truncate={48} />;
+        }
+        return <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{v}</span>;
+      },
     },
     commonCols.severity,
     commonCols.status,
@@ -720,26 +736,14 @@ export default function DataSecurityPage() {
   };
 
   return (
-    <div className="space-y-5">
-
-      {/* ── Heading ── */}
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-3 mb-1">
-            <Database className="w-6 h-6" style={{ color: 'var(--accent-primary)' }} />
-            <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Data Security</h1>
-          </div>
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            {pageContext.brief}
-          </p>
-        </div>
-        <button onClick={() => window.location.reload()}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-opacity hover:opacity-80"
-          style={{ backgroundColor: 'var(--accent-primary)', color: '#fff' }}>
-          <RefreshCw className="w-3.5 h-3.5" /> Refresh
-        </button>
-      </div>
-
+    <EngineShell
+      icon={Database}
+      title="Data Security"
+      description={pageContext.brief}
+      details={pageContext.details}
+      onRefresh={() => emitRefresh()}
+      refreshing={loading}
+    >
       {/* ── Tabs + table ── */}
       <PageLayout
         icon={Database}
@@ -754,6 +758,6 @@ export default function DataSecurityPage() {
         onRowClick={handleRowClick}
       />
       <FindingDetailPanel finding={selectedFinding} onClose={() => setSelectedFinding(null)} />
-    </div>
+    </EngineShell>
   );
 }

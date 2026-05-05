@@ -1,11 +1,14 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Brain } from 'lucide-react';
 import { useViewFetch } from '@/lib/use-view-fetch';
+import { subscribeRefresh, emitRefresh } from '@/lib/refreshBus';
+import EngineShell from '@/components/shared/EngineShell';
 import PageLayout from '@/components/shared/PageLayout';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import FindingDetailPanel from '@/components/shared/FindingDetailPanel';
+import PivotLink from '@/components/shared/PivotLink';
 
 // ── Colours ───────────────────────────────────────────────────────────────────
 const C = {
@@ -129,8 +132,10 @@ function OverviewContent({ coverage, modules }) {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function AiSecurityPage() {
-  const { data, loading, error } = useViewFetch('ai-security');
+  const { data, loading, error, refetch } = useViewFetch('ai-security');
   const [selectedFinding, setSelectedFinding] = useState(null);
+
+  useEffect(() => subscribeRefresh(() => refetch()), [refetch]);
 
   // ── Derived data ───────────────────────────────────────────────────────────
   const pageContext = useMemo(() => {
@@ -188,20 +193,21 @@ export default function AiSecurityPage() {
     {
       accessorKey: 'rule_id',
       header: 'Rule ID',
-      cell: i => (
-        <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
-          {i.getValue()}
-        </span>
-      ),
+      cell: i => i.getValue()
+        ? <PivotLink to="rule" id={i.getValue()} size="xs" showIcon={false} />
+        : <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>—</span>,
     },
     {
       accessorKey: 'title',
       header: 'Finding',
-      cell: i => (
-        <span className="text-xs" style={{ color: 'var(--text-primary)' }}>
-          {i.getValue() || '—'}
-        </span>
-      ),
+      cell: i => {
+        const row = i.row.original;
+        const v = i.getValue() || '—';
+        if (row.finding_id) {
+          return <PivotLink to="finding" engine="ai-security" id={row.finding_id} label={v} size="xs" showIcon={false} truncate={48} />;
+        }
+        return <span className="text-xs" style={{ color: 'var(--text-primary)' }}>{v}</span>;
+      },
     },
     {
       accessorKey: 'severity',
@@ -375,7 +381,14 @@ export default function AiSecurityPage() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <>
+    <EngineShell
+      icon={Brain}
+      title={pageContext.title}
+      description={pageContext.brief}
+      details={pageContext.details}
+      onRefresh={() => emitRefresh()}
+      refreshing={loading}
+    >
       <PageLayout
         icon={Brain}
         pageContext={pageContext}
@@ -385,12 +398,13 @@ export default function AiSecurityPage() {
         error={error}
         onRowClick={handleRowClick}
         topNav
+        hideHeader
       />
       <FindingDetailPanel
         finding={selectedFinding}
         open={!!selectedFinding}
         onClose={() => setSelectedFinding(null)}
       />
-    </>
+    </EngineShell>
   );
 }

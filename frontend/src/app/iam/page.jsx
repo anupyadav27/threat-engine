@@ -3,17 +3,19 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   Shield, KeyRound, CheckCircle, AlertTriangle,
-  ChevronDown, Info, RefreshCw,
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { useViewFetch } from '@/lib/use-view-fetch';
+import { subscribeRefresh, emitRefresh } from '@/lib/refreshBus';
+import EngineShell from '@/components/shared/EngineShell';
 import PageLayout from '@/components/shared/PageLayout';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
 import FindingDetailPanel from '@/components/shared/FindingDetailPanel';
+import PivotLink from '@/components/shared/PivotLink';
 
 
 // ── Color palette ──
@@ -109,9 +111,11 @@ const IAM_REMEDIATION_MAP = {
 };
 
 export default function IamSecurityPage() {
-  const { data, loading, error } = useViewFetch('iam');
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  const { data, loading, error, refetch } = useViewFetch('iam');
   const [selectedIdentity, setSelectedIdentity] = useState(null);
+
+  // Subscribe to refresh bus so a single Refresh button refetches every visible tab
+  useEffect(() => subscribeRefresh(() => refetch()), [refetch]);
 
   const handleRowClick = (row) => {
     const identity = row?.original || row;
@@ -479,12 +483,18 @@ export default function IamSecurityPage() {
       cell: (info) => info.getValue() || info.row.original.network_layer || info.row.original.encryption_domain || info.row.original.container_service || info.row.original.db_service || '—',
     },
     { accessorKey: 'rule_id', header: 'Rule ID', size: 130,
-      cell: (info) => <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{info.getValue() || '—'}</span> },
+      cell: (info) => info.getValue()
+        ? <PivotLink to="rule" id={info.getValue()} size="xs" showIcon={false} />
+        : <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>—</span> },
     {
       accessorKey: 'title', header: 'Finding', size: 260,
       cell: (info) => {
         const row = info.row.original;
         const v = info.getValue() || row.rule_id || '—';
+        const fid = row.finding_id;
+        if (fid) {
+          return <PivotLink to="finding" engine="iam" id={fid} label={v} size="xs" showIcon={false} truncate={48} />;
+        }
         return <span className="text-xs leading-tight">{v}</span>;
       },
     },
@@ -500,8 +510,11 @@ export default function IamSecurityPage() {
     {
       accessorKey: 'resource_uid', header: 'Resource', size: 200,
       cell: (info) => {
-        const v = info.getValue() || info.row.original.resource_id || '—';
-        return <span className="font-mono text-xs truncate block max-w-[180px]" title={v}>{v.split('/').pop() || v}</span>;
+        const row = info.row.original;
+        const v = info.getValue() || row.resource_id;
+        if (!v) return <span className="font-mono text-xs">—</span>;
+        const display = v.split('/').pop() || v;
+        return <PivotLink to="asset" id={v} provider={row.provider} label={display} size="xs" showIcon={false} truncate={40} />;
       },
     },
     {
@@ -541,7 +554,9 @@ export default function IamSecurityPage() {
       ) : null,
     },
     { accessorKey: 'rule_id',    header: 'Rule',     size: 130,
-      cell: (info) => <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{info.getValue() || '—'}</span> },
+      cell: (info) => info.getValue()
+        ? <PivotLink to="rule" id={info.getValue()} size="xs" showIcon={false} />
+        : <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>—</span> },
     { accessorKey: 'severity',   header: 'Severity', size: 100,
       cell: (info) => <SeverityBadge severity={info.getValue()} /> },
     {
@@ -566,7 +581,9 @@ export default function IamSecurityPage() {
         </span>
       ) : null },
     { accessorKey: 'rule_id', header: 'Rule', size: 140,
-      cell: (info) => <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{info.getValue() || '—'}</span> },
+      cell: (info) => info.getValue()
+        ? <PivotLink to="rule" id={info.getValue()} size="xs" showIcon={false} />
+        : <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>—</span> },
     { accessorKey: 'severity', header: 'Severity', size: 100,
       cell: (info) => <SeverityBadge severity={info.getValue()} /> },
     {
@@ -591,7 +608,9 @@ export default function IamSecurityPage() {
         </span>
       ) : null },
     { accessorKey: 'rule_id', header: 'Rule', size: 140,
-      cell: (info) => <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{info.getValue() || '—'}</span> },
+      cell: (info) => info.getValue()
+        ? <PivotLink to="rule" id={info.getValue()} size="xs" showIcon={false} />
+        : <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>—</span> },
     { accessorKey: 'severity', header: 'Severity', size: 100,
       cell: (info) => <SeverityBadge severity={info.getValue()} /> },
     {
@@ -672,45 +691,14 @@ export default function IamSecurityPage() {
   };
 
   return (
-    <div className="space-y-5">
-
-      {/* ── Heading ── */}
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-3 mb-1">
-            <KeyRound className="w-6 h-6" style={{ color: 'var(--accent-primary)' }} />
-            <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
-              {pageContext.title}
-            </h1>
-          </div>
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            {pageContext.brief}
-          </p>
-          {pageContext.details?.length > 0 && (
-            <>
-              <button onClick={() => setDetailsOpen(d => !d)}
-                className="flex items-center gap-1 text-xs mt-1 hover:underline"
-                style={{ color: 'var(--accent-primary)' }}>
-                <Info className="w-3.5 h-3.5" />
-                {detailsOpen ? 'Hide' : 'Best practices'}
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${detailsOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {detailsOpen && (
-                <ul className="mt-2 ml-4 space-y-1 text-xs list-disc"
-                  style={{ color: 'var(--text-tertiary)' }}>
-                  {pageContext.details.map((d, i) => <li key={i}>{d}</li>)}
-                </ul>
-              )}
-            </>
-          )}
-        </div>
-        <button onClick={() => window.location.reload()}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-opacity hover:opacity-80"
-          style={{ backgroundColor: 'var(--accent-primary)', color: '#fff' }}>
-          <RefreshCw className="w-3.5 h-3.5" /> Refresh
-        </button>
-      </div>
-
+    <EngineShell
+      icon={KeyRound}
+      title={pageContext.title}
+      description={pageContext.brief}
+      details={pageContext.details}
+      onRefresh={() => emitRefresh()}
+      refreshing={loading}
+    >
       {/* ── PageLayout: tabs + table ── */}
       <PageLayout
         icon={Shield}
@@ -728,6 +716,6 @@ export default function IamSecurityPage() {
 
       {/* Identity detail drawer */}
       <FindingDetailPanel finding={selectedIdentity} onClose={() => setSelectedIdentity(null)} />
-    </div>
+    </EngineShell>
   );
 }

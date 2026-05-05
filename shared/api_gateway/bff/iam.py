@@ -20,11 +20,12 @@ from ._transforms import (
     normalize_service_account, apply_global_filters,
 )
 from ._page_context import iam_page_context, iam_filter_schema
+from ._common_schemas import IamViewResponse
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
 
-@router.get("/iam")
+@router.get("/iam", response_model=IamViewResponse, response_model_exclude_none=False)
 async def view_iam(
     request: Request,
     provider: Optional[str] = Query(None),

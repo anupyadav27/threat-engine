@@ -11,6 +11,7 @@ Pass story files to `bmad-dev` to implement. Pass sprint prompt files to `bmad-s
 
 | Sprint | Story Files | Status |
 |--------|-------------|--------|
+| Investigation Journey Unification (JNY-01–12) | [JNY-01](JNY-01_mitre-technique-reference-schema.md) · [JNY-02](JNY-02_inventory-blast-radius-bff-fix.md) · [JNY-03](JNY-03_ciem-sensitive-permission-grant.md) · [JNY-04](JNY-04_sprint-images-rollout.md) · [JNY-05](JNY-05_universal-finding-route.md) · [JNY-06](JNY-06_universal-finding-bff.md) · [JNY-07](JNY-07_pivot-link-primitive.md) · [JNY-08](JNY-08_pivot-link-rollout-7-engines.md) · [JNY-09](JNY-09_threat-ui-bug-fixes.md) · [JNY-10](JNY-10_ciem-stage2-actor-principal-fix.md) · [JNY-11](JNY-11_shared-engine-shell-primitives.md) · [JNY-12](JNY-12_risk-vuln-detail-routes.md) | Draft — see [SPRINT-INVESTIGATION-JOURNEY-UNIFICATION.md](../SPRINT-INVESTIGATION-JOURNEY-UNIFICATION.md) and [ADR](../../documentation/ADR-INVESTIGATION-JOURNEY-UNIFICATION.md) |
 
 ## Completed Sprints
 

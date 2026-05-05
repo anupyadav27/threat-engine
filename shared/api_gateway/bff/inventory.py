@@ -11,14 +11,16 @@ provider enrichment from cloud_accounts, and fallback when inventory engine is s
 import asyncio
 import datetime
 import logging
+from collections import defaultdict
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
-from ._auth import resolve_tenant_id
+from ._auth import _parse_auth_context, resolve_tenant_id
 from ._shared import ENGINE_URLS, ENGINE_TIMEOUTS, DEFAULT_TIMEOUT, fetch_many, safe_get
 from ._transforms import normalize_asset, apply_global_filters, _safe_upper
 from ._page_context import inventory_page_context, inventory_filter_schema
+from ._common_schemas import InventoryViewResponse
 
 logger = logging.getLogger("api-gateway.bff")
 
@@ -47,7 +49,7 @@ def _type_from_arn(arn: str) -> str:
     return service or "Resource"
 
 
-@router.get("/inventory")
+@router.get("/inventory", response_model=InventoryViewResponse, response_model_exclude_none=False)
 async def view_inventory(
     request: Request,
     provider: Optional[str] = Query(None),
@@ -563,13 +565,18 @@ async def view_asset_detail(
     # ── Sub-route dispatch (greedy :path swallows suffixes) ────────────
     if resource_uid.endswith("/blast-radius"):
         actual_uid = resource_uid[: -len("/blast-radius")]
+        # JNY-02 fix: view_blast_radius derives tenant_id internally via
+        # resolve_tenant_id(request); passing tenant_id= here raised TypeError → 500.
         return await view_blast_radius(
             request=request,
             resource_uid=actual_uid,
-            tenant_id=tenant_id,
             scan_run_id=scan_run_id,
             max_depth=3,
         )
+
+    if resource_uid.endswith("/ciem"):
+        actual_uid = resource_uid[: -len("/ciem")]
+        return await view_asset_ciem(request=request, resource_uid=actual_uid)
 
     # Encode resource_uid for use in URL paths — '/' in ARNs must be %2F so
     # FastAPI's {param:path} routes don't split on them.
@@ -695,6 +702,207 @@ async def _fetch_posture_for_nodes(
                     pass
 
     return posture
+
+
+_jny03_audit_logger = logging.getLogger("api-gateway.audit")
+
+
+def _jny03_emit_ciem_audit(
+    *,
+    endpoint: str,
+    user_id: str,
+    tenant_id: Optional[str],
+    target: str,
+    target_field: str,
+    result: int,
+    request: Request,
+    findings: Optional[List[Dict[str, Any]]] = None,
+) -> None:
+    """Emit a SOC2/ISO27001-grade audit log line for CIEM sensitive-data access.
+
+    JSON-serialized for log-aggregation parseability. Includes top-5 identity
+    ARNs on 200 to prove what was viewed (CSA CCM LOG-08).
+    """
+    import json as _json
+    top_arns: List[str] = []
+    if findings:
+        for f in findings[:50]:
+            if not isinstance(f, dict):
+                continue
+            arn = f.get("actor_principal") or f.get("principal") or f.get("identity_arn")
+            if arn and arn not in top_arns:
+                top_arns.append(arn)
+            if len(top_arns) >= 5:
+                break
+    payload = {
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "user_id": user_id,
+        "tenant_id": tenant_id,
+        "endpoint": endpoint,
+        target_field: target,
+        "result": result,
+        "request_id": (
+            request.headers.get("X-Request-Id")
+            or request.headers.get("X-Correlation-Id")
+            or getattr(request.state, "request_id", None)
+        ),
+        "top_5_identity_arns": top_arns,
+    }
+    _jny03_audit_logger.info(_json.dumps(payload))
+
+
+async def view_asset_ciem(request: Request, resource_uid: str) -> Dict[str, Any]:
+    """BFF view: CIEM identity data for a specific asset.
+
+    Security pattern (sequential — NOT parallel):
+      1. Verify asset_id belongs to the caller's tenant via inventory engine.
+      2. Only after ownership confirmed, call CIEM engine with resource_uid.
+
+    Permission gate: ciem:sensitive — analyst+ only. Viewer returns 403.
+    tenant_id sourced exclusively from AuthContext (never from query param).
+    """
+    _audit_endpoint = f"/api/v1/views/inventory/asset/{resource_uid}/ciem"
+    ctx = _parse_auth_context(request)
+    if ctx is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    _audit_user = getattr(ctx, "user_id", "unknown")
+    _audit_tenant = resolve_tenant_id(request)
+
+    if "ciem:sensitive" not in ctx.permissions:
+        _jny03_emit_ciem_audit(
+            endpoint=_audit_endpoint, user_id=_audit_user, tenant_id=_audit_tenant,
+            target=resource_uid, target_field="asset_id", result=403, request=request,
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="You need Analyst access to view identity entitlements",
+        )
+
+    tenant_id = _audit_tenant
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
+    from urllib.parse import quote as _quote
+    enc_uid = _quote(resource_uid, safe="")
+
+    # Step 1 — sequential: verify asset belongs to this tenant
+    inv_resp = await fetch_many(
+        [("inventory", f"/api/v1/inventory/assets/{enc_uid}", {"tenant_id": tenant_id})],
+        auth_headers=fwd_headers,
+    )
+    inv_asset = inv_resp[0] if inv_resp else None
+    if not isinstance(inv_asset, dict) or not inv_asset.get("resource_uid"):
+        _jny03_emit_ciem_audit(
+            endpoint=_audit_endpoint, user_id=_audit_user, tenant_id=_audit_tenant,
+            target=resource_uid, target_field="asset_id", result=403, request=request,
+        )
+        raise HTTPException(status_code=403, detail="Asset not found or access denied")
+    if tenant_id and inv_asset.get("tenant_id") not in (tenant_id, None):
+        _jny03_emit_ciem_audit(
+            endpoint=_audit_endpoint, user_id=_audit_user, tenant_id=_audit_tenant,
+            target=resource_uid, target_field="asset_id", result=403, request=request,
+        )
+        raise HTTPException(status_code=403, detail="Asset not found or access denied")
+
+    confirmed_uid = inv_asset.get("resource_uid") or resource_uid
+
+    # Step 2 — ONLY after ownership confirmed: call CIEM engine
+    ciem_results = await fetch_many(
+        [("ciem", "/api/v1/ciem/findings", {"resource_uid": confirmed_uid, "tenant_id": tenant_id, "limit": "500"})],
+        auth_headers=fwd_headers,
+    )
+    ciem_raw = ciem_results[0] if ciem_results else None
+
+    findings: List[Dict[str, Any]] = []
+    if isinstance(ciem_raw, dict):
+        findings = ciem_raw.get("findings") or ciem_raw.get("data") or []
+    elif isinstance(ciem_raw, list):
+        findings = ciem_raw
+
+    # Aggregate by actor_principal
+    by_principal: Dict[str, Dict[str, Any]] = defaultdict(lambda: {
+        "severities": {"critical": 0, "high": 0, "medium": 0, "low": 0},
+        "action_categories": set(),
+        "last_event_time": None,
+        "finding_count": 0,
+        "service": None,
+        "identity_type": "unknown",
+    })
+
+    for f in findings:
+        if not isinstance(f, dict):
+            continue
+        principal = f.get("actor_principal") or f.get("principal") or ""
+        if not principal:
+            continue
+        rec = by_principal[principal]
+        sev = (f.get("severity") or "").lower()
+        if sev in rec["severities"]:
+            rec["severities"][sev] += 1
+        cat = f.get("action_category") or f.get("category") or ""
+        if cat:
+            rec["action_categories"].add(cat.lower())
+        evt = f.get("event_time") or f.get("last_event_time")
+        if evt and (rec["last_event_time"] is None or evt > rec["last_event_time"]):
+            rec["last_event_time"] = evt
+        rec["finding_count"] += 1
+        if not rec["service"] and f.get("service"):
+            rec["service"] = f.get("service")
+        if not rec.get("identity_type") or rec["identity_type"] == "unknown":
+            rec["identity_type"] = f.get("identity_type") or f.get("actor_type") or "unknown"
+
+    def _privilege_level(cats: set) -> str:
+        if "admin" in cats or "write" in cats:
+            return "admin"
+        if "read" in cats and len(cats) > 1:
+            return "power"
+        return "readonly"
+
+    def _risk_score(sevs: dict) -> int:
+        return min(100, sevs["critical"] * 25 + sevs["high"] * 10 + sevs["medium"] * 2)
+
+    def _last_used_days(evt_time: Optional[str]) -> Optional[int]:
+        if not evt_time:
+            return None
+        try:
+            from datetime import datetime, timezone
+            dt = datetime.fromisoformat(evt_time.replace("Z", "+00:00"))
+            delta = datetime.now(timezone.utc) - dt
+            return delta.days
+        except Exception:
+            return None
+
+    identities = []
+    for arn, rec in by_principal.items():
+        priv = _privilege_level(rec["action_categories"])
+        score = _risk_score(rec["severities"])
+        identities.append({
+            "identity_arn": arn,
+            "identity_type": rec["identity_type"],
+            "privilege_level": priv,
+            "last_used_days": _last_used_days(rec["last_event_time"]),
+            "risk_score": score,
+            "finding_count": rec["finding_count"],
+            "over_privileged": priv == "admin" or score >= 75,
+        })
+
+    identities.sort(key=lambda x: x["risk_score"], reverse=True)
+    truncated = len(identities) > 100
+    over_privileged_count = sum(1 for i in identities if i["over_privileged"])
+
+    _jny03_emit_ciem_audit(
+        endpoint=_audit_endpoint, user_id=_audit_user, tenant_id=_audit_tenant,
+        target=resource_uid, target_field="asset_id", result=200, request=request,
+        findings=identities[:5],
+    )
+
+    return {
+        "identities": identities[:100],
+        "totalIdentities": len(identities),
+        "overPrivilegedCount": over_privileged_count,
+        "truncated": truncated,
+    }
 
 
 @router.get("/inventory/asset/{resource_uid:path}/blast-radius")
@@ -1230,4 +1438,154 @@ async def view_inventory_graph(
             "total_links": len(links),
             "enriched": True,
         },
+    }
+
+
+# ── DI-05: CIEM identity risk summary for a specific inventory asset ─────────
+
+
+def _infer_principal_type(arn: str) -> str:
+    if not arn:
+        return "unknown"
+    a = arn.lower()
+    if ":role/" in a:
+        return "role"
+    if ":user/" in a:
+        return "user"
+    if ":assumed-role/" in a:
+        return "assumed-role"
+    if ".amazonaws.com" in a:
+        return "service"
+    return "unknown"
+
+
+def _aggregate_by_principal(findings: list) -> list:
+    groups: Dict[str, list] = defaultdict(list)
+    for f in findings:
+        principal = f.get("actor_principal") or "unknown"
+        groups[principal].append(f)
+
+    identities = []
+    for principal, items in groups.items():
+        sev_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+        for item in items:
+            sev = (item.get("severity") or "low").lower()
+            sev_counts[sev] = sev_counts.get(sev, 0) + 1
+
+        categories = {(item.get("action_category") or "").lower() for item in items}
+        if "admin" in categories:
+            privilege_level = "admin"
+        elif "write" in categories or "data_access" in categories:
+            privilege_level = "power"
+        else:
+            privilege_level = "readonly"
+
+        risk_score = min(
+            100,
+            sev_counts["critical"] * 25 + sev_counts["high"] * 10 + sev_counts["medium"] * 2
+        )
+
+        event_times = []
+        for item in items:
+            et = item.get("event_time")
+            if et:
+                try:
+                    dt = datetime.datetime.fromisoformat(et.replace("Z", "+00:00"))
+                    event_times.append(dt)
+                except ValueError:
+                    pass
+        now = datetime.datetime.now(datetime.timezone.utc)
+        last_used_days = None
+        if event_times:
+            most_recent = max(event_times)
+            last_used_days = (now - most_recent).days
+
+        principal_type = items[0].get("principal_type") or _infer_principal_type(principal)
+
+        identities.append({
+            "identity_arn": principal,
+            "identity_type": principal_type,
+            "privilege_level": privilege_level,
+            "last_used_days": last_used_days,
+            "risk_score": risk_score,
+            "finding_count": len(items),
+        })
+
+    identities.sort(key=lambda x: x["risk_score"], reverse=True)
+    return identities
+
+
+_di05_audit_logger = logging.getLogger("api-gateway.audit")
+
+
+@router.get("/inventory/{asset_id}/ciem")
+async def view_inventory_ciem(request: Request, asset_id: str):
+    """BFF: CIEM identity risk summary for a specific inventory asset.
+
+    Requires ciem:sensitive permission. Verifies asset ownership via inventory
+    engine before fetching CIEM data (sequential by design — not parallel).
+    """
+    import httpx
+
+    ctx = _parse_auth_context(request)
+    if ctx is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if "ciem:sensitive" not in (ctx.permissions or []):
+        raise HTTPException(
+            status_code=403,
+            detail="You need Analyst access to view identity entitlements",
+        )
+    tenant_id = resolve_tenant_id(request)
+
+    # Step 1: verify asset ownership — MUST happen before CIEM fetch
+    inventory_url = f"{ENGINE_URLS['inventory']}/api/v1/inventory/assets/{asset_id}"
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        inv_resp = await client.get(inventory_url, params={"tenant_id": tenant_id})
+
+    if inv_resp.status_code != 200:
+        raise HTTPException(status_code=404, detail="Asset not found")
+
+    inv_data = inv_resp.json()
+    if inv_data.get("tenant_id") != tenant_id:
+        raise HTTPException(status_code=403, detail="Asset not found")
+
+    resource_uid = inv_data.get("resource_uid") or asset_id
+
+    # Step 2: fetch CIEM findings only after ownership confirmed
+    ciem_url = f"{ENGINE_URLS['ciem']}/api/v1/ciem/findings"
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        ciem_resp = await client.get(
+            ciem_url,
+            params={"resource_uid": resource_uid, "tenant_id": tenant_id, "limit": 100},
+        )
+
+    ciem_findings = ciem_resp.json() if ciem_resp.status_code == 200 else []
+    if isinstance(ciem_findings, dict):
+        ciem_findings = ciem_findings.get("findings") or ciem_findings.get("items") or []
+
+    all_identities = _aggregate_by_principal(ciem_findings)
+    truncated = len(all_identities) > 100
+    identities = all_identities[:100]
+    over_privileged = sum(
+        1 for i in identities
+        if i["privilege_level"] == "admin" or i["risk_score"] >= 75
+    )
+
+    # Audit log — every successful 200 response
+    _di05_audit_logger.info(
+        "CIEM sensitive data accessed",
+        extra={
+            "user_id": getattr(ctx, "user_id", "unknown"),
+            "tenant_id": tenant_id,
+            "asset_id": asset_id,
+            "endpoint": f"/api/v1/views/inventory/{asset_id}/ciem",
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        },
+    )
+
+    return {
+        "identities": identities,
+        "totalIdentities": len(all_identities),
+        "overPrivilegedCount": over_privileged,
+        "truncated": truncated,
     }

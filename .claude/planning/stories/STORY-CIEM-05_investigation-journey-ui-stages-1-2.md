@@ -144,14 +144,26 @@ Same `DataTable` component pattern as existing CIEM tables but:
 - [ ] Stage 2: identity profile page loads with header gauge, behavioral timeline, activity heatmap, findings table
 - [ ] L2 findings in the findings table are expandable showing contributing steps
 - [ ] L3 findings show σ badge on timeline
-- [ ] "Blast Radius" button navigates to `/ciem/identity/[principal]/blast-radius`
+- [ ] "Blast Radius" button renders and links to `/ciem/identity/[principal]/blast-radius` — **the blast-radius route must render a `<ComingSoon>` placeholder for this sprint**. The full blast-radius page MUST NOT go live without `max_hops=3` enforced server-side in the BFF (BLOCK-CIEM-05-1 from security review). A follow-on story must enforce the hop cap before removing the placeholder.
 - [ ] All data is BFF-sourced via `fetchView()` — no direct engine API calls from frontend
 - [ ] No mock or fallback data — if BFF returns empty, show empty state component
 - [ ] Back breadcrumb on Stage 2 returns to `/ciem`
 
+## Security Review Fixes (from pre-dev security gate)
+
+**BLOCK-CIEM-05-1 — Blast radius page must ship with traversal depth cap:**
+The blast-radius route opens a path to unbounded graph traversal. For this sprint, render a placeholder page. The full page requires `max_hops=3` enforced at the BFF layer before it goes live.
+
+**WARN-CIEM-05-2 — New ciem_identity BFF view: use AuthContext for tenant, not principal param:**
+When implementing `/api/v1/views/ciem_identity`, the BFF must call `resolve_tenant_id(request)` for tenant scoping. The `principal` parameter is a filter hint only — never a source of tenant identity.
+
+**WARN-CIEM-01-2 — Resolve BFF field name: `identities` vs `identitySummary`:**
+`bff/ciem.py:117` exports `"identities"`. This story reads `data.identitySummary`. One must change before dev starts — pick `identitySummary` as the canonical name and update the BFF export.
+
 ## Security Checklist
 - [ ] `principal` URL-param is only used as a display value and as a BFF query param — never concatenated into SQL
-- [ ] BFF enforces `tenant_id` scoping before returning identity data
+- [ ] BFF enforces `tenant_id` scoping via `resolve_tenant_id(request)` — not from the `principal` param
+- [ ] `/views/ciem_identity` BFF view uses AuthContext for tenant_id, not URL parameter
 - [ ] No sensitive fields (`credential_ref`, `event_raw`) rendered in UI — stripped by BFF
 
 ## Definition of Done

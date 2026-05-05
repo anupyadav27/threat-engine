@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Play, RefreshCw, ChevronDown, CheckCircle2, XCircle, Loader2, Clock, Calendar, Layers } from 'lucide-react';
-import { getFromEngine, postToEngine } from '@/lib/api';
+import { getFromEngine, postToEngine, fetchView } from '@/lib/api';
 import { useTenant } from '@/lib/tenant-context';
 import { useToast } from '@/lib/toast-context';
 import ScanRunDetailModal from '@/components/domain/ScanRunDetailModal';
@@ -113,7 +113,11 @@ function RunNowModal({ accounts, schedules, onClose, onLaunched }) {
               <select value={accountId} onChange={e => { setAccountId(e.target.value); setScheduleId(''); }}
                 className="w-full px-3 py-2 rounded-lg text-sm outline-none appearance-none" style={inputStyle}>
                 <option value="">All accounts</option>
-                {accounts.map(a => <option key={a.account_id} value={a.account_id}>{a.account_name} ({a.provider})</option>)}
+                {accounts.map(a => {
+                  const id = a.accountId || a.account_id;
+                  const name = a.accountName || a.account_name || id;
+                  return <option key={id} value={id}>{name} ({a.provider})</option>;
+                })}
               </select>
               <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
             </div>
@@ -182,7 +186,8 @@ export default function ScansPage() {
 
       const [runsData, accsData, schedsData] = await Promise.all([
         getFromEngine('onboarding', `/api/v1/scan-runs?${params}`),
-        getFromEngine('onboarding', `/api/v1/cloud-accounts?limit=200${tenantId ? `&tenant_id=${tenantId}` : ''}`),
+        // JNY-17.1: cloud accounts via BFF view (tenant resolved from session).
+        fetchView('onboarding/cloud_accounts', { limit: 200 }),
         getFromEngine('onboarding', `/api/v1/schedules?limit=200${tenantId ? `&tenant_id=${tenantId}` : ''}`),
       ]);
 

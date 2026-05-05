@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Plus, Cloud, Globe, HardDrive, CheckCircle, AlertTriangle, Play, Loader2 } from 'lucide-react';
-import { getFromEngine, postToEngine } from '@/lib/api';
+import { getFromEngine, postToEngine, fetchView } from '@/lib/api';
 import { useTenant } from '@/lib/tenant-context';
 import KpiCard from '@/components/shared/KpiCard';
 import DataTable from '@/components/shared/DataTable';
@@ -24,24 +24,26 @@ export default function OnboardingPage() {
       try {
         const tenantId = activeTenant?.tenant_id;
         const qp = tenantId ? `?tenant_id=${tenantId}` : '';
+        // JNY-17.1: migrated cloud_accounts list to BFF view.
         const [accountsData, schedsData] = await Promise.all([
-          getFromEngine('onboarding', `/api/v1/cloud-accounts${qp}`),
+          fetchView('onboarding/cloud_accounts', {}),
           getFromEngine('onboarding', `/api/v1/schedules${qp}&limit=200`),
         ]);
         const raw = accountsData?.accounts || (Array.isArray(accountsData) ? accountsData : []);
         const normalized = raw.map(a => ({
-          id: a.account_id,
-          name: a.account_name || a.account_id,
-          accountId: a.account_id,
+          // BFF returns camelCase; tolerate snake_case during transition.
+          id: a.accountId || a.account_id,
+          name: a.accountName || a.account_name || a.accountId || a.account_id,
+          accountId: a.accountId || a.account_id,
           provider: (a.provider || 'AWS').toUpperCase(),
-          type: a.scan_type || 'Standard',
-          regions: a.regions_count || 1,
-          resources: a.total_resources || 0,
-          findings: a.total_findings || 0,
-          lastScan: a.last_scan_at,
-          credStatus: a.credential_validation_status === 'valid' ? 'Valid'
-            : a.credential_validation_status === 'expired' ? 'Expired' : 'Expiring Soon',
-          health: a.credential_validation_status === 'valid' ? 'Healthy' : 'Warning',
+          type: a.scanType || a.scan_type || 'Standard',
+          regions: a.regionsCount || a.regions_count || 1,
+          resources: a.totalResources || a.total_resources || 0,
+          findings: a.totalFindings || a.total_findings || 0,
+          lastScan: a.lastScanAt || a.last_scan_at,
+          credStatus: (a.credentialValidationStatus || a.credential_validation_status) === 'valid' ? 'Valid'
+            : (a.credentialValidationStatus || a.credential_validation_status) === 'expired' ? 'Expired' : 'Expiring Soon',
+          health: (a.credentialValidationStatus || a.credential_validation_status) === 'valid' ? 'Healthy' : 'Warning',
         }));
         setAccounts(normalized);
         setSchedules(schedsData?.schedules || []);

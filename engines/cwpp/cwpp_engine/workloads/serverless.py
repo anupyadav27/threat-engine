@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import os
 import logging
+from collections import Counter
 from typing import Any, Dict, List, Optional
 
 from ..core.http_client import get
@@ -38,6 +39,11 @@ logger = logging.getLogger("cwpp.workloads.serverless")
 CONTAINER_SEC_URL = os.getenv("CONTAINER_SEC_URL", "http://engine-container-sec")
 
 SERVERLESS_SERVICES = {"lambda", "azure_functions", "gcf", "cloud_functions", "oci_functions"}
+
+DEPRECATED_RUNTIMES = {
+    "python2.7", "python3.6", "nodejs8.10", "nodejs10.x", "nodejs12.x",
+    "nodejs14.x", "dotnetcore2.1", "dotnetcore3.1", "ruby2.5", "java8",
+}
 
 
 async def fetch(scan_run_id: str, tenant_id: str, auth_header: Optional[str] = None) -> Dict[str, Any]:
@@ -94,6 +100,35 @@ async def fetch(scan_run_id: str, tenant_id: str, auth_header: Optional[str] = N
     # Runtime breakdown (e.g. python2.7, nodejs12.x are deprecated)
     runtime_breakdown = _runtime_breakdown(serverless_inventory, serverless_findings)
 
+    # Build per-function metadata from findings already in memory
+    finding_count_by_uid: Counter = Counter(
+        f.get("resource_uid") for f in serverless_findings
+    )
+    iam_finding_uids = {
+        f["resource_uid"] for f in serverless_findings
+        if any(
+            kw in (f.get("rule_id", "") + f.get("title", "")).lower()
+            for kw in ["iam", "role", "permission", "policy"]
+        )
+    }
+
+    functions = []
+    for item in serverless_inventory:
+        fd = item.get("finding_data") or {}
+        runtime = fd.get("Runtime") or fd.get("runtime") or "unknown"
+        functions.append({
+            "function_name":           item.get("resource_name"),
+            "runtime":                 runtime,
+            "region":                  item.get("region"),
+            "account_id":              item.get("account_id"),
+            "provider":                item.get("provider"),
+            "resource_uid":            item.get("resource_uid"),
+            "has_public_url":          bool(fd.get("FunctionUrlConfig")),
+            "has_deprecated_runtime":  runtime in DEPRECATED_RUNTIMES,
+            "has_overpermissive_role": item.get("resource_uid") in iam_finding_uids,
+            "finding_count":           finding_count_by_uid.get(item.get("resource_uid"), 0),
+        })
+
     return {
         "workload_type": "serverless",
         "status": "ok",
@@ -113,7 +148,7 @@ async def fetch(scan_run_id: str, tenant_id: str, auth_header: Optional[str] = N
             ),
         },
         "data": {
-            "functions": serverless_inventory,
+            "functions": functions,
             "findings": serverless_findings,
             "runtime_breakdown": runtime_breakdown,
         },

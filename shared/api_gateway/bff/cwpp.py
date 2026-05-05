@@ -11,7 +11,8 @@ all 5 workload types in parallel:
 Single call: engine-cwpp /api/v1/cwpp/ui-data
 """
 
-from typing import Optional
+from collections import defaultdict
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Query, Request
 
@@ -161,6 +162,11 @@ async def view_cwpp(
                 "clusters": containers_data.get("clusters", []),
                 "findings": containers_data.get("findings", []),
                 "domain_breakdown": containers_data.get("domain_breakdown", []),
+                "scanTrend": containers_data.get("scan_trend", []),
+                "priorPostureScore": (
+                    containers_data["scan_trend"][-2]["pass_rate"]
+                    if len(containers_data.get("scan_trend", [])) >= 2 else None
+                ),
             },
             "images": {
                 "inventory": images_data.get("image_inventory", []),
@@ -181,8 +187,114 @@ async def view_cwpp(
             },
             "runtime": {
                 "findings": runtime_data.get("runtime_findings", []),
+                "ciemRuntimeEvents": workloads.get("runtime", {}).get("ciem_runtime_events", {
+                    "count": 0, "critical": 0, "high": 0, "medium": 0, "low": 0,
+                    "link_available": False, "sample_findings": [],
+                }),
             },
         },
+    }
+
+
+@router.get("/cwpp/cve-crosswalk")
+async def view_cwpp_cve_crosswalk(
+    request: Request,
+    scan_run_id: str = Query("latest"),
+):
+    """Two-track CVE crosswalk: config issues by rule_id + CVE vulnerabilities by cve_id.
+
+    Track A (configurationCrosswalk): container/serverless/runtime posture findings
+    grouped by rule_id — no CVE mapping, grouped by config check.
+
+    Track B (cveCrosswalk): host OS/middleware CVEs grouped by cve_id. Images pending
+    Trivy/Grype integration (Sprint 3).
+
+    Returns:
+        Dict with configurationCrosswalk and cveCrosswalk lists.
+    """
+    tenant_id = resolve_tenant_id(request)
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
+    results = await fetch_many([
+        ("cwpp", "/api/v1/cwpp/ui-data", {
+            "tenant_id": tenant_id,
+            "scan_run_id": scan_run_id,
+        }),
+    ], auth_headers=fwd_headers)
+
+    cwpp_data = results[0]
+    if not isinstance(cwpp_data, dict) or is_empty_or_health(cwpp_data):
+        cwpp_data = {}
+
+    workloads = cwpp_data.get("workloads", {})
+
+    # Helper: severity rank for max-severity comparison
+    def _sev_rank(s: str) -> int:
+        return {"critical": 4, "high": 3, "medium": 2, "low": 1}.get((s or "").lower(), 0)
+
+    # Track A: configuration issues (rule_id-based) across containers/images/serverless/runtime
+    rule_crosswalk: Dict[str, Any] = defaultdict(lambda: {
+        "workload_types": set(),
+        "affected_resources": 0,
+        "severity": "low",
+        "mitre_technique": "",
+        "title": "",
+    })
+    for wtype in ("containers", "images", "serverless", "runtime"):
+        wdata = workloads.get(wtype, {})
+        for f in wdata.get("data", {}).get("findings", []) or []:
+            rule_id = f.get("rule_id", "")
+            if not rule_id:
+                continue
+            rule_crosswalk[rule_id]["workload_types"].add(wtype)
+            rule_crosswalk[rule_id]["affected_resources"] += 1
+            rule_crosswalk[rule_id]["title"] = f.get("title", rule_id)
+            rule_crosswalk[rule_id]["mitre_technique"] = (
+                f.get("mitre_technique") or rule_crosswalk[rule_id]["mitre_technique"]
+            )
+            current_sev = rule_crosswalk[rule_id]["severity"]
+            new_sev = (f.get("severity") or "low").lower()
+            if _sev_rank(new_sev) > _sev_rank(current_sev):
+                rule_crosswalk[rule_id]["severity"] = new_sev
+
+    # Track B: CVE vulnerabilities (cve_id-based), hosts only until Trivy/Grype lands
+    hosts_data = workloads.get("hosts", {}).get("data", {}) or {}
+    all_host_vulns: List[Dict[str, Any]] = (
+        hosts_data.get("os_vulnerabilities", [])
+        + hosts_data.get("middleware_vulnerabilities", [])
+    )
+    cve_crosswalk: Dict[str, Any] = {}
+    for v in all_host_vulns:
+        cid = v.get("cve_id", "")
+        if not cid:
+            continue
+        cve_crosswalk[cid] = {
+            "workload_types": ["hosts"],   # images pending Trivy/Grype — Sprint 3
+            "severity":           v.get("severity"),
+            "cvss_score":         v.get("cvss_score"),
+            "epss_score":         None,    # Sprint 3 — not yet ingested
+            "epss_note":          "EPSS not yet ingested — Sprint 3",
+            "affected_resources": v.get("affected_hosts_count", 1),
+        }
+
+    return {
+        "configurationCrosswalk": [
+            {
+                "id": rid,
+                "type": "config",
+                "workload_types": list(v["workload_types"]),
+                "affected_resources": v["affected_resources"],
+                "severity": v["severity"],
+                "mitre_technique": v["mitre_technique"],
+                "title": v["title"],
+            }
+            for rid, v in rule_crosswalk.items()
+        ],
+        "cveCrosswalk": [
+            {"id": cid, "type": "cve", **v}
+            for cid, v in cve_crosswalk.items()
+        ],
     }
 
 

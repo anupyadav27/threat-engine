@@ -1,12 +1,14 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
-  Shield, RefreshCw, AlertTriangle, CheckCircle,
+  Shield, AlertTriangle, CheckCircle,
   KeyRound, Container, Lock, Network, Activity, Code, Eye,
   TrendingUp, TrendingDown, Minus,
 } from 'lucide-react';
 import { useViewFetch } from '@/lib/use-view-fetch';
+import { subscribeRefresh, emitRefresh } from '@/lib/refreshBus';
+import EngineShell from '@/components/shared/EngineShell';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import PageLayout from '@/components/shared/PageLayout';
 
@@ -183,7 +185,10 @@ function buildPillarColumns() {
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function CnappPage() {
-  const { data, loading, error } = useViewFetch('cnapp');
+  const { data, loading, error, refetch } = useViewFetch('cnapp');
+
+  // Subscribe to refresh bus so the shared Refresh button refetches this page's data
+  useEffect(() => subscribeRefresh(() => refetch()), [refetch]);
 
   const pillars   = data?.data?.pillars || [];
   const cnappScore = data?.data?.cnapp_posture_score ?? null;
@@ -214,40 +219,38 @@ export default function CnappPage() {
     ),
   }), [pillars, pillarColumns]);
 
-  return (
-    <div className="space-y-5">
-      {loading && (
+  if (loading) {
+    return (
+      <EngineShell
+        icon={Shield}
+        title="CNAPP"
+        description="Cloud-Native Application Protection Platform — unified posture across all 7 security pillars."
+        onRefresh={() => emitRefresh()}
+        refreshing
+      >
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2"
             style={{ borderColor: 'var(--accent-primary)' }} />
         </div>
-      )}
+      </EngineShell>
+    );
+  }
 
-      {!loading && (
-        <>
-          {/* ── Heading ── */}
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-3 mb-1">
-                <Shield className="w-6 h-6" style={{ color: 'var(--accent-primary)' }} />
-                <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>CNAPP</h1>
-                <span className="text-xs px-2 py-0.5 rounded-full font-medium capitalize"
-                  style={{ backgroundColor: `${RISK_COLORS[riskBand]}20`, color: RISK_COLORS[riskBand] }}>
-                  {riskBand} risk
-                </span>
-              </div>
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                Cloud-Native Application Protection Platform — unified posture across all 7 security pillars.
-              </p>
-            </div>
-            <button onClick={() => window.location.reload()}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium"
-              style={{ backgroundColor: 'var(--accent-primary)', color: '#fff' }}>
-              <RefreshCw className="w-3.5 h-3.5" /> Refresh
-            </button>
-          </div>
-
-          {/* ── CNAPP Score banner ── */}
+  return (
+    <EngineShell
+      icon={Shield}
+      title="CNAPP"
+      description="Cloud-Native Application Protection Platform — unified posture across all 7 security pillars."
+      rightOfTitle={
+        <span className="text-xs px-2 py-0.5 rounded-full font-medium capitalize"
+          style={{ backgroundColor: `${RISK_COLORS[riskBand]}20`, color: RISK_COLORS[riskBand] }}>
+          {riskBand} risk
+        </span>
+      }
+      onRefresh={() => emitRefresh()}
+      refreshing={loading}
+    >
+      {/* ── CNAPP Score banner ── */}
           <div className="rounded-xl p-5 border flex items-center gap-8"
             style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}>
             <ScoreGauge score={cnappScore} band={riskBand} size={100} />
@@ -282,20 +285,18 @@ export default function CnappPage() {
             {pillars.map(p => <PillarCard key={p.id} pillar={p} />)}
           </div>
 
-          {/* ── Pillar table via PageLayout ── */}
-          <PageLayout
-            icon={Shield}
-            pageContext={pageContext}
-            kpiGroups={[]}
-            tabData={tabData}
-            loading={false}
-            error={error}
-            defaultTab="overview"
-            hideHeader
-            topNav
-          />
-        </>
-      )}
-    </div>
+      {/* ── Pillar table via PageLayout ── */}
+      <PageLayout
+        icon={Shield}
+        pageContext={pageContext}
+        kpiGroups={[]}
+        tabData={tabData}
+        loading={false}
+        error={error}
+        defaultTab="overview"
+        hideHeader
+        topNav
+      />
+    </EngineShell>
   );
 }

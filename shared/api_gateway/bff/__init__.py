@@ -58,6 +58,7 @@ from .threat_toxic_combos import router as threat_toxic_combos_router
 from .threat_timeline import router as threat_timeline_router
 from .threat_posture_delta import router as threat_posture_delta_router
 from .threat_mitre_heatmap import router as threat_mitre_heatmap_router
+from .technique_detail import router as technique_detail_router
 from .compliance import router as compliance_router
 from .iam import router as iam_router
 from .datasec import router as datasec_router
@@ -73,6 +74,7 @@ from .reports import router as reports_router
 from .rules import router as rules_router
 from .scope import router as scope_router
 from .ciem import router as ciem_router
+from .ciem_identity import router as ciem_identity_router
 from .secops import router as secops_router
 from .policies import router as policies_router
 from .ai_security import router as ai_security_router
@@ -80,8 +82,12 @@ from .container_security import router as container_security_router
 from .cnapp import router as cnapp_router
 from .cwpp import router as cwpp_router
 from .vulnerability import router as vulnerability_router
+from .onboarding_cloud_accounts import router as onboarding_cloud_accounts_router
 from .billing import router as billing_router
 from .platform_admin import router as platform_admin_router
+from .views.finding_detail import router as finding_detail_router
+from .views.risk_scenario_detail import router as risk_scenario_detail_router
+from .views.vulnerability_agent_detail import router as vulnerability_agent_detail_router
 
 # Combined router — include this in main.py
 router = APIRouter()
@@ -102,6 +108,7 @@ for _sub in (
     threat_timeline_router,
     threat_posture_delta_router,
     threat_mitre_heatmap_router,
+    technique_detail_router,
     threat_detail_router,
     compliance_router,
     iam_router,
@@ -118,6 +125,7 @@ for _sub in (
     rules_router,
     scope_router,
     ciem_router,
+    ciem_identity_router,
     secops_router,
     policies_router,
     ai_security_router,
@@ -125,7 +133,11 @@ for _sub in (
     cnapp_router,
     cwpp_router,
     vulnerability_router,
+    onboarding_cloud_accounts_router,
     billing_router,
     platform_admin_router,
+    finding_detail_router,
+    risk_scenario_detail_router,
+    vulnerability_agent_detail_router,
 ):
     router.include_router(_sub)

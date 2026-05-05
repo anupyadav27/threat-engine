@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import { X, ExternalLink, Copy, Check, ShieldCheck } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { X, ExternalLink, Copy, Check, ShieldCheck, Layers } from 'lucide-react';
 import SeverityBadge from './SeverityBadge';
+import AssetContextCard from './AssetContextCard';
 
 // ── Helper sub-components ────────────────────────────────────────────────────
 function Field({ label, value, mono = false, copy = false }) {
@@ -52,11 +53,40 @@ function Card({ children, blue = false }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
+/**
+ * @param {object}   finding           — finding row object from any engine table
+ * @param {function} onClose           — called when ✕ is clicked or backdrop clicked
+ * @param {object}   [context]         — optional page-specific config
+ * @param {string}   [context.engine]  — engine key (e.g. "network") — dims that card in AssetContextCard
+ * @param {Array}    [context.fields]  — extra { label, value, mono } rows for the Resource section
+ */
 export default function FindingDetailPanel({ finding, onClose, context = {} }) {
+  // ── Secondary fetch: cross-engine context ──────────────────────────────
+  const [assetCtx, setAssetCtx]     = useState(null);
+  const [ctxLoading, setCtxLoading] = useState(false);
+
+  const resourceId = finding?.resource_uid || finding?.resource_arn || finding?.resource_id || '';
+
+  useEffect(() => {
+    if (!resourceId || !finding) return;
+    let cancelled = false;
+    setAssetCtx(null);
+    setCtxLoading(true);
+
+    fetch(`/gateway/api/v1/asset-context/${encodeURIComponent(resourceId)}`, {
+      credentials: 'include',
+    })
+      .then(r => (r.ok ? r.json() : null))
+      .then(data  => { if (!cancelled) setAssetCtx(data);  })
+      .catch(()   => { if (!cancelled) setAssetCtx(null);  })
+      .finally(() => { if (!cancelled) setCtxLoading(false); });
+
+    return () => { cancelled = true; };
+  }, [resourceId]);
+
   if (!finding) return null;
 
   // Normalise field names across engines
-  const resourceId  = finding.resource_uid  || finding.resource_arn || finding.resource_id  || '';
   const title       = finding.title         || finding.rule_id       || 'Finding';
   const sev         = (finding.severity || 'low').toLowerCase();
   const status      = finding.status        || 'FAIL';
@@ -300,13 +330,33 @@ export default function FindingDetailPanel({ finding, onClose, context = {} }) {
             </Section>
           )}
 
-          {/* ── View in Inventory ── */}
+          {/* ── Risk Across Engines ── */}
+          <Section title="Risk Across Engines">
+            <AssetContextCard
+              resourceUid={resourceId}
+              data={assetCtx}
+              loading={ctxLoading}
+              currentEngine={context.engine}
+            />
+          </Section>
+
+          {/* ── CTAs ── */}
           {resourceId && (
-            <div className="pt-2 border-t" style={{ borderColor: 'var(--border-primary)' }}>
-              <a href={`/ui/inventory/${encodeURIComponent(resourceId)}`}
+            <div className="pt-2 border-t flex items-center gap-3 flex-wrap"
+              style={{ borderColor: 'var(--border-primary)' }}>
+              <a
+                href={`/inventory/${encodeURIComponent(resourceId)}`}
                 className="inline-flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg transition-opacity hover:opacity-80"
-                style={{ backgroundColor: 'var(--accent-primary)', color: '#fff' }}>
-                <ExternalLink className="w-4 h-4" /> View in Inventory
+                style={{ backgroundColor: 'var(--accent-primary)', color: '#fff' }}
+              >
+                <Layers className="w-4 h-4" /> View Full Asset
+              </a>
+              <a
+                href={`/inventory/${encodeURIComponent(resourceId)}`}
+                className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-lg transition-opacity hover:opacity-70"
+                style={{ color: 'var(--text-muted)', border: '1px solid var(--border-primary)' }}
+              >
+                <ExternalLink className="w-3.5 h-3.5" /> Inventory
               </a>
             </div>
           )}

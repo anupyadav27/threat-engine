@@ -143,7 +143,7 @@ export function AuthProvider({ children }) {
 
         // Always re-validate with the backend.  This ensures that if the
         // admin changed a user's role/permissions, the next page load picks it up.
-        const res = await fetch(`${AUTH_URL}/api/auth/me/`, {
+        const res = await fetch(`${AUTH_URL}/api/auth/me`, {
           credentials: 'include',
         });
         if (res.ok) {
@@ -230,7 +230,7 @@ export function AuthProvider({ children }) {
 
   const refreshSession = useCallback(async () => {
     try {
-      const res = await fetch(`${AUTH_URL}/api/auth/me/`, {
+      const res = await fetch(`${AUTH_URL}/api/auth/me`, {
         credentials: 'include',
       });
       if (res.ok) {

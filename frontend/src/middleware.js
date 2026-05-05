@@ -3,6 +3,16 @@ import { NextResponse } from 'next/server';
 export function middleware(request) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get('access_token')?.value;
+  console.log('[mw]', pathname, 'bypass=', process.env.LOCAL_DEV_BYPASS_AUTH, 'pub=', process.env.NEXT_PUBLIC_LOCAL_DEV_BYPASS_AUTH);
+
+  // LOCAL_DEV_BYPASS_AUTH=1 — skip auth middleware entirely (local dev only).
+  // The local gateway synthesizes X-Auth-Context, so no real cookie is needed.
+  if (
+    process.env.LOCAL_DEV_BYPASS_AUTH === '1' ||
+    process.env.NEXT_PUBLIC_LOCAL_DEV_BYPASS_AUTH === '1'
+  ) {
+    return NextResponse.next();
+  }
 
   // Not authenticated → redirect to login (clone preserves basePath)
   if (!token) {

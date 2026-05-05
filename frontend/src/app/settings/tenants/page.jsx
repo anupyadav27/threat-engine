@@ -7,7 +7,7 @@ import {
   Cloud,
   Users,
 } from 'lucide-react';
-import { getFromEngine, fetchFromCspm } from '@/lib/api';
+import { getFromEngine, fetchFromCspm, fetchView } from '@/lib/api';
 import { useToast } from '@/lib/toast-context';
 import KpiCard from '@/components/shared/KpiCard';
 import DataTable from '@/components/shared/DataTable';
@@ -47,7 +47,8 @@ export default function TenantsPage() {
           }
         }
         // Fallback: derive single tenant from cloud accounts in onboarding engine
-        const accountsRes = await getFromEngine('onboarding', '/api/v1/cloud-accounts');
+        // JNY-17.1: migrated to BFF view.
+        const accountsRes = await fetchView('onboarding/cloud_accounts', {});
         if (accountsRes && !accountsRes.error) {
           const accounts = Array.isArray(accountsRes) ? accountsRes : (accountsRes.accounts || accountsRes.results || accountsRes.data || []);
           setTenants([{

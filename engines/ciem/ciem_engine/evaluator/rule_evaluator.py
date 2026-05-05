@@ -187,7 +187,8 @@ class CIEMRuleEvaluator:
                            rm.severity, rm.title, rm.description, rm.remediation,
                            rm.subcategory, rm.threat_category,
                            rm.mitre_tactics, rm.mitre_techniques,
-                           rm.compliance_frameworks
+                           rm.compliance_frameworks,
+                           rm.remediation_effort
                     FROM rule_checks rc
                     LEFT JOIN rule_metadata rm USING (rule_id)
                     WHERE rc.check_type = 'log' AND rc.is_active = true
@@ -269,9 +270,10 @@ class CIEMRuleEvaluator:
             "risk_indicators":     [],
             "compliance_frameworks": json.dumps(rule.get("compliance_frameworks") or {}),
             "finding_data":        json.dumps({
-                "event_operation": event.operation,
-                "event_outcome":   outcome_val,
-                "matched_rule":    rule_id,
+                "event_operation":   event.operation,
+                "event_outcome":     outcome_val,
+                "matched_rule":      rule_id,
+                "remediation_effort": rule.get("remediation_effort", "medium"),
             }),
         }
 

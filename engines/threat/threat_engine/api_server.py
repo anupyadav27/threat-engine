@@ -109,6 +109,54 @@ try:
 except ImportError as e:
     logger.warning("UI data router not available", extra={"extra_fields": {"error": str(e)}})
 
+# JNY-01: TechniqueDetailModal endpoint (DB-backed, replaces static map)
+try:
+    from .api.technique_detail import router as technique_detail_router
+    app.include_router(technique_detail_router)
+except ImportError as e:
+    logger.warning("technique detail router not available", extra={"extra_fields": {"error": str(e)}})
+
+
+@app.on_event("startup")
+def _seed_mitre_reference_if_empty() -> None:
+    """JNY-01: load bundled MITRE seed at startup when table is empty.
+
+    Verifies SHA-256 of the bundled CSV against its sibling .sha256, then
+    upserts. Safe to run on every pod start: when the table is non-empty
+    we skip immediately so steady-state pods do no extra work.
+    """
+    try:
+        conn = get_threat_conn()
+    except Exception as exc:  # pragma: no cover - logged + swallowed at startup
+        logger.warning("MITRE seed: threat DB unavailable at startup: %s", exc)
+        return
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM mitre_technique_reference")
+            (count,) = cur.fetchone()
+        if count and count > 0:
+            logger.info("MITRE reference already populated (rows=%s); skip seed", count)
+            return
+    except Exception as exc:
+        logger.warning("MITRE seed: count check failed (table may not yet exist): %s", exc)
+        conn.close()
+        return
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    try:
+        # Loader is shipped at /app/scripts/load_mitre_reference.py in the image.
+        sys.path.insert(0, "/app/scripts")
+        from load_mitre_reference import main as _load_main  # type: ignore
+        rc = _load_main()
+        if rc != 0:
+            logger.error("MITRE seed loader returned non-zero exit code: %s", rc)
+    except Exception as exc:
+        logger.error("MITRE seed loader failed: %s", exc)
+
 
 class ThreatReportRequest(BaseModel):
     """Request model for threat report generation"""

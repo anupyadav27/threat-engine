@@ -1,0 +1,137 @@
+# JNY-14 Layer 4 — UI ↔ BFF contract CI gate
+#
+# What this gate enforces
+# -----------------------
+# 1. Layer 3 (per-view diff): every dotted-path the frontend reads from a
+#    BFF view that has a Pydantic model is declared on that model.
+# 2. Layer 4 (snapshot): the gateway's OpenAPI schema has not silently
+#    removed any field vs the checked-in snapshot
+#    (frontend/src/types/bff.openapi.snapshot.json).
+#
+# A failing run blocks the PR. The fix is *always one of*:
+#   (a) add the field to the Pydantic model in
+#       shared/api_gateway/bff/_common_schemas.py
+#   (b) remove the UI access
+#   (c) regenerate the snapshot intentionally and commit it
+#       (this is a reviewable signal of contract change)
+
+name: UI ↔ BFF contract
+
+on:
+  pull_request:
+    paths:
+      - 'frontend/src/app/**/page.jsx'
+      - 'frontend/src/components/**/*.jsx'
+      - 'shared/api_gateway/bff/**'
+      - 'scripts/extract-bff-fields.js'
+      - 'tests/contracts/**'
+  push:
+    branches: [main]
+
+jobs:
+  contract-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pydantic fastapi
+
+      # Layer 3 — extract UI consumed paths and run the diff.
+      - name: Extract UI-consumed BFF fields
+        run: node scripts/extract-bff-fields.js
+
+      - name: Upload extractor cache
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-consumed-fields
+          path: scripts/.cache/ui-consumed-fields.json
+
+      - name: UI ↔ BFF contract diff (pytest)
+        run: pytest tests/contracts/ -v --tb=short
+
+  openapi-snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: contract-diff
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install gateway deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r shared/api_gateway/requirements.txt || true
+          pip install fastapi uvicorn pydantic httpx jq
+
+      - name: Boot gateway in background
+        run: |
+          # Start the gateway just long enough to serve /openapi.json.
+          # Use minimal env (DB-less mode) so boot does not require RDS.
+          export BFF_DB_DISABLED=1
+          uvicorn shared.api_gateway.main:app --host 127.0.0.1 --port 8000 \
+            --log-level warning &
+          echo $! > /tmp/gw.pid
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/openapi.json -o /tmp/openapi.json; then
+              break
+            fi
+            sleep 1
+          done
+          test -s /tmp/openapi.json
+
+      - name: Diff OpenAPI snapshot
+        run: |
+          # Breaking-change detector: any required field in the checked-in
+          # snapshot that is missing from the live spec is a failure.
+          python - <<'PY'
+          import json, sys
+          live = json.load(open('/tmp/openapi.json'))
+          snap_path = 'frontend/src/types/bff.openapi.snapshot.json'
+          try:
+              snap = json.load(open(snap_path))
+          except FileNotFoundError:
+              json.dump(live, open(snap_path, 'w'), indent=2, sort_keys=True)
+              print('snapshot bootstrapped - commit it')
+              sys.exit(0)
+
+          def schemas(doc):
+              return doc.get('components', {}).get('schemas', {})
+
+          live_s, snap_s = schemas(live), schemas(snap)
+          missing = []
+          for name, sch in snap_s.items():
+              if name not in live_s:
+                  missing.append(f'schema removed: {name}')
+                  continue
+              for field in (sch.get('properties') or {}):
+                  if field not in (live_s[name].get('properties') or {}):
+                      missing.append(f'field removed: {name}.{field}')
+          if missing:
+              print('Breaking OpenAPI changes vs snapshot:')
+              for m in missing:
+                  print('  -', m)
+              print('Regenerate snapshot if intentional:')
+              print('  curl http://127.0.0.1:8000/openapi.json | '
+                    'jq -S . > ' + snap_path)
+              sys.exit(1)
+          print('OpenAPI snapshot OK')
+          PY
+
+      - name: Stop gateway
+        if: always()
+        run: kill "$(cat /tmp/gw.pid)" 2>/dev/null || true

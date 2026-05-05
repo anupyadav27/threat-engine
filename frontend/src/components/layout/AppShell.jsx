@@ -13,7 +13,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useTenant } from '@/lib/tenant-context';
 import { SecOpsFilterProvider } from '@/lib/secops-filter-context';
 import { ThreatBadgeProvider } from '@/lib/threat-badge-context';
-import { getFromEngine } from '@/lib/api';
+import { getFromEngine, fetchView } from '@/lib/api';
 
 export default function AppShell({ children }) {
   const pathname = usePathname();
@@ -60,10 +60,8 @@ export default function AppShell({ children }) {
 
     const checkCloudAccounts = async () => {
       try {
-        const res = await getFromEngine('onboarding', '/api/v1/cloud-accounts', {
-          customer_id: customerId,
-          limit: 1,
-        });
+        // JNY-17.1: migrated to BFF view. customer_id is implicit from auth context.
+        const res = await fetchView('onboarding/cloud_accounts', { limit: 1 });
         // Mark as checked regardless of outcome so we only run once per session
         sessionStorage.setItem('cspm_wizard_checked', 'done');
         const hasAccounts =

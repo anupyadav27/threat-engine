@@ -18,7 +18,7 @@ import os
 import sys
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query
 from pydantic import BaseModel
 from psycopg2.extras import RealDictCursor
 
@@ -34,6 +34,14 @@ try:
     _AUTH_AVAILABLE = True
 except ImportError:
     _AUTH_AVAILABLE = False
+
+try:
+    from engine_auth.fastapi.dependencies import require_permission
+    from engine_auth.core.models import AuthContext
+    _AUTH_DEPS_AVAILABLE = True
+except ImportError:
+    _AUTH_DEPS_AVAILABLE = False
+    AuthContext = None  # type: ignore[assignment,misc]
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger("network_security.api_server")
@@ -277,6 +285,147 @@ async def get_topology(
         return {"topology": snapshots, "scan_id": scan_id}
     finally:
         conn.close()
+
+
+# ── Findings-by-resource models ───────────────────────────────────────────────
+
+class FindingItem(BaseModel):
+    """Single network finding row returned by the asset-context endpoint."""
+
+    finding_id: str
+    title: str
+    severity: str
+    status: str
+    rule_id: Optional[str] = None
+    resource_uid: str
+    resource_type: Optional[str] = None
+    account_id: Optional[str] = None
+    region: Optional[str] = None
+    provider: Optional[str] = None
+    first_seen_at: str
+    last_seen_at: str
+    network_layer: Optional[str] = None
+    effective_exposure: Optional[str] = None
+
+
+class FindingsByResourceResponse(BaseModel):
+    """Response for GET /api/v1/network-security/findings/by-resource."""
+
+    findings: List[FindingItem]
+    total: int
+    resource_uid: str
+    scan_run_id: str
+
+
+_NET_TABLE = "network_findings"
+
+
+@app.get("/api/v1/network-security/findings/by-resource", response_model=FindingsByResourceResponse)
+async def get_network_findings_by_resource(
+    resource_uid: str = Query(..., description="Full resource ARN or UID"),
+    scan_run_id: str = Query("latest"),
+    limit: int = Query(50, ge=1, le=100),
+    status: Optional[str] = Query(None),
+    auth: Any = Depends(
+        require_permission("network:read") if _AUTH_DEPS_AVAILABLE else (lambda: None)
+    ),
+):
+    """Return network findings for a specific resource_uid — used by gateway asset-context aggregator.
+
+    Args:
+        resource_uid: Full resource ARN or UID to filter findings by.
+        scan_run_id: Scan run UUID, or 'latest' to resolve automatically.
+        limit: Maximum number of findings to return (1-100).
+        status: Optional status filter (FAIL | PASS | WARN).
+        auth: Injected AuthContext from require_permission dependency.
+
+    Returns:
+        FindingsByResourceResponse with findings list, total count, and resolved scan_run_id.
+    """
+    scoped_tenant = (
+        getattr(auth, "engine_tenant_id", None)
+        or getattr(auth, "tenant_id", None)
+        or "default-tenant"
+    )
+
+    status_clause = "AND status = %(status)s" if status else ""
+    params: Dict[str, Any] = {
+        "tenant_id": scoped_tenant,
+        "resource_uid": resource_uid,
+        "status": status,
+        "limit": limit,
+    }
+
+    conn = get_network_conn()
+    try:
+        with conn.cursor() as cur:
+            # Step 1: resolve scan_run_id
+            cur.execute(f"""
+                SELECT scan_run_id FROM {_NET_TABLE}
+                WHERE tenant_id = %(tenant_id)s
+                  AND resource_uid = %(resource_uid)s
+                  {status_clause}
+                ORDER BY last_seen_at DESC LIMIT 1
+            """, params)
+            row = cur.fetchone()
+            if not row:
+                return FindingsByResourceResponse(
+                    findings=[], total=0,
+                    resource_uid=resource_uid, scan_run_id=scan_run_id,
+                )
+            resolved_scan = row[0]
+            params["resolved_scan"] = resolved_scan
+
+            # Step 2: total count
+            cur.execute(f"""
+                SELECT COUNT(*) FROM {_NET_TABLE}
+                WHERE tenant_id = %(tenant_id)s
+                  AND resource_uid = %(resource_uid)s
+                  AND scan_run_id = %(resolved_scan)s
+                  {status_clause}
+            """, params)
+            total = cur.fetchone()[0]
+
+            # Step 3: top N findings sorted by severity
+            cur.execute(f"""
+                SELECT finding_id,
+                       title,
+                       severity, status,
+                       rule_id, resource_uid, resource_type,
+                       account_id, region, provider,
+                       first_seen_at, last_seen_at,
+                       network_layer, effective_exposure
+                FROM {_NET_TABLE}
+                WHERE tenant_id = %(tenant_id)s
+                  AND resource_uid = %(resource_uid)s
+                  AND scan_run_id = %(resolved_scan)s
+                  {status_clause}
+                ORDER BY
+                    CASE severity
+                        WHEN 'critical' THEN 4 WHEN 'high' THEN 3
+                        WHEN 'medium'   THEN 2 WHEN 'low'  THEN 1 ELSE 0
+                    END DESC,
+                    last_seen_at DESC
+                LIMIT %(limit)s
+            """, params)
+            cols = [d[0] for d in cur.description]
+            findings = [
+                FindingItem(**{k: (str(v) if v is not None else v) if k in ("first_seen_at", "last_seen_at") else v
+                               for k, v in dict(zip(cols, r)).items()})
+                for r in cur.fetchall()
+            ]
+    except Exception as exc:
+        logger.error("Error in get_network_findings_by_resource: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc))
+    finally:
+        conn.close()
+
+    return FindingsByResourceResponse(
+        findings=findings,
+        total=total,
+        resource_uid=resource_uid,
+        scan_run_id=resolved_scan,
+    )
 
 
 # ── Modules List ──────────────────────────────────────────────────────────────

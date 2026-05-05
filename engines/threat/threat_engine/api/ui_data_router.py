@@ -38,8 +38,23 @@ except ImportError:
     AuthContext = None  # type: ignore[assignment,misc]
 
 
+# Sensitive evidence sub-keys stripped for roles below tenant_admin
+_EVIDENCE_SENSITIVE_KEYS = frozenset({"raw_event", "log_entry", "actor_credentials"})
+
+# Roles that receive full evidence (raw_event/log_entry/actor_credentials included)
+_FULL_EVIDENCE_ROLES = frozenset({"tenant_admin", "platform_admin", "org_admin"})
+
+
 def strip_sensitive_fields(data: List[Dict[str, Any]], auth: Any) -> List[Dict[str, Any]]:
-    """Remove credential and raw-evidence fields based on caller's auth level.
+    """Remove credential and raw-evidence fields based on caller's role.
+
+    Roles and stripping rules:
+        - platform_admin (l1): keeps all evidence; credential_ref kept (infra admin)
+        - org_admin (l2): keeps all evidence; credential_ref removed
+        - tenant_admin (l4): full evidence; credential_ref removed
+        - analyst (l4): evidence minus raw_event/log_entry/actor_credentials; credential_ref removed
+        - viewer (l4): evidence field set to None entirely; credential_ref removed
+        - raw_data: always stripped (internal debug field, never for UI)
 
     Args:
         data: List of threat finding/detection dicts.
@@ -53,12 +68,29 @@ def strip_sensitive_fields(data: List[Dict[str, Any]], auth: Any) -> List[Dict[s
     stripped = []
     for row in data:
         r = dict(row) if not isinstance(row, dict) else row.copy()
+
+        # Strip infra-level secrets from all non-platform-admin callers
         if auth is not None and auth.level > 1:
             r.pop("credential_ref", None)
             r.pop("credential_type", None)
-        if auth is not None and auth.level >= 4:
-            r.pop("raw_data", None)
-            r.pop("evidence", None)
+
+        # Strip raw_data always (internal debug field, never for UI)
+        r.pop("raw_data", None)
+
+        if auth is not None:
+            role = getattr(auth, "role", None)
+            if role == "viewer":
+                # Viewer sees no evidence at all — BFF renders "Evidence redacted"
+                r["evidence"] = None
+            elif role not in _FULL_EVIDENCE_ROLES:
+                # analyst and any unrecognised tenant role: strip sensitive sub-keys
+                evidence = r.get("evidence")
+                if isinstance(evidence, dict):
+                    r["evidence"] = {
+                        k: v for k, v in evidence.items()
+                        if k not in _EVIDENCE_SENSITIVE_KEYS
+                    }
+
         stripped.append(r)
     return stripped
 

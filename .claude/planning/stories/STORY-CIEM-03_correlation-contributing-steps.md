@@ -85,6 +85,26 @@ Returns:
 - `400 {"detail": "finding predates step ordering — re-run CIEM scan to generate steps"}` if `contributing_steps` absent (old format)
 - `404` if finding not found or wrong tenant
 
+## Security Review Fixes (from pre-dev security gate)
+
+**BLOCK-CIEM-03-1 — Both `finding_id` AND `tenant_id` required in DB query:**
+The timeline endpoint must query `WHERE finding_id = %s AND tenant_id = %s`. Using `finding_id` as a primary key lookup without `tenant_id` allows cross-tenant reads since `finding_id` values follow a predictable pattern (`corr_<hex20>`). If both conditions are not met, return `404` — never `403` (do not disclose whether a finding_id exists in another tenant).
+
+**BLOCK-CIEM-03-2 — Strip `actor_ip` from `contributing_steps` for auth_level >= 4:**
+`contributing_steps` items include `actor_ip`. `strip_sensitive_fields()` does not recurse into JSONB sub-objects. Add a step-level stripper in the timeline endpoint:
+
+```python
+def _strip_step_fields(steps: list, auth: Any) -> list:
+    if auth is None or getattr(auth, "level", 0) < 4:
+        return steps
+    return [{k: v for k, v in step.items() if k != "actor_ip"} for step in steps]
+```
+
+Call on `contributing_steps` before building the response.
+
+**WARN-CIEM-03-1 — JSONB read path:**
+Access `finding_data` as `row["finding_data"]["contributing_steps"]` — psycopg2 returns JSONB as a Python dict. NEVER call `json.loads(row["finding_data"])["contributing_steps"]`.
+
 ## Acceptance Criteria
 
 - [ ] New L2 correlation findings written after this change include `contributing_steps` in `finding_data`, sorted by `event_time` ascending
@@ -92,7 +112,9 @@ Returns:
 - [ ] `contributing_findings` flat list still present in `finding_data` (backwards compat)
 - [ ] Old findings (without `contributing_steps`) are NOT migrated — endpoint returns `400` for them
 - [ ] `GET /api/v1/ciem/findings/{id}/timeline` returns `200` with steps for a valid new L2 finding
-- [ ] Tenant isolation: endpoint validates `tenant_id` before returning any data
+- [ ] DB query is `WHERE finding_id = %s AND tenant_id = %s` — BOTH conditions required. Missing either is a security defect. Returns `404` (not `403`) when tenant check fails.
+- [ ] `actor_ip` is stripped from every `contributing_steps` item when `auth.level >= 4` — omitted entirely, not set to null
+- [ ] `finding_data` accessed as `row["finding_data"]["contributing_steps"]` — no `json.loads()` call anywhere in the timeline endpoint
 - [ ] `step_idx` is 0-based and sequential with no gaps
 
 ## Security Checklist

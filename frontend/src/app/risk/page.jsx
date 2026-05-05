@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { Activity, RefreshCw, AlertTriangle, AlertOctagon, Info, TrendingUp } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Activity, AlertTriangle, AlertOctagon, Info, TrendingUp } from 'lucide-react';
 import {
   AreaChart, Area,
   PieChart, Pie, Sector, Cell, Legend,
@@ -9,6 +9,8 @@ import {
   ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { useViewFetch } from '@/lib/use-view-fetch';
+import { subscribeRefresh, emitRefresh } from '@/lib/refreshBus';
+import EngineShell from '@/components/shared/EngineShell';
 import PageLayout from '@/components/shared/PageLayout';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
@@ -250,8 +252,10 @@ function DomainPieChart({ domainBreakdown = [], riskScore = 0 }) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 export default function RiskPage() {
-  const { data: riskData, loading, error } = useViewFetch('risk');
+  const { data: riskData, loading, error, refetch } = useViewFetch('risk');
   const scenariosData = riskData?.scenarios || [];
+
+  useEffect(() => subscribeRefresh(() => refetch()), [refetch]);
 
   // ── BFF data extraction ─────────────────────────────────────────────────────
   const rawRiskRegister      = riskData?.riskRegister      ?? riskData?.risk_register      ?? [];
@@ -807,27 +811,14 @@ export default function RiskPage() {
   };
 
   return (
-    <div className="space-y-5">
-      {/* Heading */}
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-3 mb-1">
-            <Activity className="w-6 h-6" style={{ color: 'var(--accent-primary)' }} />
-            <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
-              Enterprise Risk Management
-            </h1>
-          </div>
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            Financial risk quantification · scenario modeling · FAIR methodology
-          </p>
-        </div>
-        <button onClick={() => window.location.reload()}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-opacity hover:opacity-80"
-          style={{ backgroundColor: 'var(--accent-primary)', color: '#fff' }}>
-          <RefreshCw className="w-3.5 h-3.5" /> Refresh
-        </button>
-      </div>
-
+    <EngineShell
+      icon={Activity}
+      title="Enterprise Risk Management"
+      description="Financial risk quantification · scenario modeling · FAIR methodology"
+      details={pageContext.details}
+      onRefresh={() => emitRefresh()}
+      refreshing={loading}
+    >
       {/* Tabs + table */}
       <PageLayout
         icon={Activity}
@@ -840,6 +831,6 @@ export default function RiskPage() {
         hideHeader
         topNav
       />
-    </div>
+    </EngineShell>
   );
 }

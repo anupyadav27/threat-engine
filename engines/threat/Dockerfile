@@ -12,6 +12,13 @@ COPY engines/threat/run_scan.py ./run_scan.py
 COPY shared/common/ ./engine_common/
 COPY shared/database/ ./consolidated_services/
 COPY shared/auth/ ./engine_auth/
+
+# JNY-01: bundled MITRE ATT&CK reference seed + loader (SHA-256 verified at load).
+COPY engines/threat/scripts/load_mitre_reference.py ./scripts/load_mitre_reference.py
+COPY shared/database/seeds/mitre_technique_reference.csv         ./seeds/mitre_technique_reference.csv
+COPY shared/database/seeds/mitre_technique_reference.csv.sha256  ./seeds/mitre_technique_reference.csv.sha256
+ENV MITRE_SEED_CSV=/app/seeds/mitre_technique_reference.csv
+
 ENV PYTHONPATH=/app
 
 # Expose port

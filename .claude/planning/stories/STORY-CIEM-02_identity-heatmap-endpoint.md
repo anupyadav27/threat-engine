@@ -73,15 +73,30 @@ Add handler for `GET /api/v1/views/ciem/heatmap?scan_run_id=Y`:
 - Returns response as-is (no transformation needed)
 - Graceful degradation: if CIEM engine unreachable, return `{"matrix": [], "accounts": [], "principal_types": []}`
 
+## Security Review Fixes (from pre-dev security gate)
+
+**BLOCK-CIEM-02-1 — tenant_id must come from AuthContext, never from query param:**
+The endpoint function signature uses `Depends(get_tenant_id)` (AuthContext-based). The URL example `?tenant_id=X` in the AC below is illustrative only — it shows expected response shape, not the auth mechanism. Explicit AC item: `tenant_id` is ALWAYS sourced from `get_tenant_id(auth)` via `Depends(get_tenant_id)` — never from a query parameter.
+
+**WARN-CIEM-02-1 — Default to 30-day window when scan_run_id absent:**
+All-time GROUP BY over the full `ciem_findings` table is expensive and misleading. When `scan_run_id` is omitted, add `AND event_time >= NOW() - INTERVAL '30 days'`.
+
+**WARN-CIEM-02-2 — Add LIMIT and statement_timeout:**
+Add `SET LOCAL statement_timeout = 5000` before the query and `LIMIT 500` on the outer result (100 accounts × 5 principal types = practical max).
+
 ## Acceptance Criteria
 
-- [ ] `GET /api/v1/ciem/identities/heatmap?tenant_id=X` returns `matrix[]`, `accounts[]`, `principal_types[]`
+- [ ] `tenant_id` sourced from `get_tenant_id(auth)` via `Depends(get_tenant_id)` — NOT from a query parameter. Any implementation that reads `tenant_id` from a URL/body param is a security defect.
+- [ ] `GET /api/v1/ciem/identities/heatmap` (tenant scoped via AuthContext) returns `matrix[]`, `accounts[]`, `principal_types[]`
 - [ ] Matrix rows cover all (account_id × actor_principal_type) combinations present in `ciem_findings` for the tenant
 - [ ] `max_severity` is the highest severity finding in that cell (not an average)
 - [ ] `finding_count` is total findings for that (account × principal_type) pair
 - [ ] Tenant isolation: a tenant can only see its own accounts in the matrix
 - [ ] BFF `/views/ciem/heatmap` proxies through the response
 - [ ] Response time ≤ 300ms for a tenant with 10,000 findings (GROUP BY is indexed on tenant_id)
+- [ ] When `scan_run_id` is absent, query includes `AND event_time >= NOW() - INTERVAL '30 days'`
+- [ ] `SET LOCAL statement_timeout = 5000` present before the aggregation query
+- [ ] Result limited to `LIMIT 500` rows
 
 ## Security Checklist
 - [ ] `WHERE tenant_id = %s` — tenant from AuthContext, never from query param

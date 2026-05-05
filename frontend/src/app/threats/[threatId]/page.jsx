@@ -41,6 +41,8 @@ import DataTable from '@/components/shared/DataTable';
 import EmptyState from '@/components/shared/EmptyState';
 import LoadingSkeleton from '@/components/shared/LoadingSkeleton';
 import SlaStatusBadge from '@/components/shared/SlaStatusBadge';
+import TechniqueDetailModal from '@/components/threats/TechniqueDetailModal';
+import NodeInvestigationPanel from '@/components/threats/NodeInvestigationPanel';
 
 // ---------------------------------------------------------------------------
 // Error Boundary: class component wrapper for catching render errors
@@ -295,6 +297,8 @@ export default function ThreatDetailPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
+  const [selectedTechnique, setSelectedTechnique] = useState(null);
+  const [selectedNode, setSelectedNode] = useState(null);
 
   // Fetch threat detail from BFF
   const fetchData = useCallback(async () => {
@@ -496,6 +500,10 @@ export default function ThreatDetailPage() {
 
   const TABS = [
     { id: 'overview', label: 'Overview' },
+    { id: 'attackPath', label: 'Attack Path', badge: attackPath?.steps?.length || 0 },
+    { id: 'blastRadius', label: 'Blast Radius', badge: blastRadius?.reachableCount || 0 },
+    { id: 'evidence', label: 'Evidence' },
+    { id: 'remediation', label: 'Remediation', badge: remediation?.steps?.length || 0 },
     { id: 'timeline', label: 'Timeline', badge: timeline?.length || 0 },
   ];
 
@@ -689,11 +697,48 @@ export default function ThreatDetailPage() {
           <OverviewTab supportingFindings={supportingFindings} router={router} />
         </SafeSection>
       )}
+      {activeTab === 'attackPath' && (
+        <SafeSection fallbackMessage="Failed to load attack path">
+          <AttackPathTab
+            attackPath={attackPath}
+            mitre={mitre}
+            onNodeClick={(step) => setSelectedNode(step)}
+            onTechniqueClick={(techniqueId) => setSelectedTechnique(techniqueId)}
+          />
+        </SafeSection>
+      )}
+      {activeTab === 'blastRadius' && (
+        <SafeSection fallbackMessage="Failed to load blast radius">
+          <BlastRadiusTab blastRadius={blastRadius} resourceUid={threat?.resourceUid} router={router} />
+        </SafeSection>
+      )}
+      {activeTab === 'evidence' && (
+        <SafeSection fallbackMessage="Failed to load evidence">
+          <EvidenceTab threat={threat} evidence={evidence} />
+        </SafeSection>
+      )}
+      {activeTab === 'remediation' && (
+        <SafeSection fallbackMessage="Failed to load remediation">
+          <RemediationTab remediation={remediation} />
+        </SafeSection>
+      )}
       {activeTab === 'timeline' && (
         <SafeSection fallbackMessage="Failed to load timeline">
           <TimelineTab timeline={timeline} />
         </SafeSection>
       )}
+
+      <TechniqueDetailModal
+        techniqueId={selectedTechnique}
+        onClose={() => setSelectedTechnique(null)}
+        isOpen={selectedTechnique !== null}
+      />
+      <NodeInvestigationPanel
+        step={selectedNode}
+        mitre={mitre}
+        onClose={() => setSelectedNode(null)}
+        isOpen={selectedNode !== null}
+      />
     </div>
   );
 }
@@ -913,12 +958,12 @@ function ExposureCard({ icon, label, value, reason }) {
 // ===========================================================================
 // TAB: ATTACK PATH
 // ===========================================================================
-function AttackPathTab({ attackPath }) {
+function AttackPathTab({ attackPath, mitre, onNodeClick, onTechniqueClick }) {
   if (!attackPath || !attackPath.exists || !attackPath.steps || attackPath.steps.length === 0) {
     return (
       <EmptyState
         icon={<Activity className="w-12 h-12" />}
-        title="No attack paths detected"
+        title="No attack path data available for this threat."
         description="No attack path chains have been identified for this threat."
       />
     );
@@ -1045,7 +1090,11 @@ function AttackPathTab({ attackPath }) {
             const borderColor = isTarget ? '#ef4444' : '#3b82f6';
 
             return (
-              <g key={`node-${i}`}>
+              <g
+                key={`node-${i}`}
+                onClick={() => onNodeClick && onNodeClick(step)}
+                style={{ cursor: onNodeClick ? 'pointer' : 'default' }}
+              >
                 <rect
                   x={pos.x}
                   y={pos.y}
@@ -1078,7 +1127,13 @@ function AttackPathTab({ attackPath }) {
                   {step.resourceType}
                 </text>
                 {step.technique && (
-                  <g>
+                  <g
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onTechniqueClick && onTechniqueClick(step.technique);
+                    }}
+                    style={{ cursor: onTechniqueClick ? 'pointer' : 'default' }}
+                  >
                     <rect
                       x={pos.x + NODE_WIDTH / 2 - 24}
                       y={pos.y + 58}
@@ -1528,7 +1583,7 @@ function RemediationTab({ remediation }) {
   return (
     <div className="space-y-6">
       {/* SLA banner */}
-      {sla && (
+      {sla && Number.isFinite(sla.daysRemaining) && Number.isFinite(sla.daysElapsed) && (
         <div
           className="rounded-xl border p-5 flex items-center justify-between flex-wrap gap-4"
           style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}

@@ -57,6 +57,7 @@ Maps to database tables:
 | `compliance:read` | Y | Y | Y | Y | Y |
 | `iam:read` | Y | Y | Y | Y | Y |
 | `ciem:read` | Y | Y | Y | Y | Y |
+| `ciem:sensitive` | — | Y | Y | Y | Y |
 | `network:read` | Y | Y | Y | Y | Y |
 | `risk:read` | Y | Y | Y | Y | Y |
 | `datasec:read` | — | Y | Y | Y | Y |
@@ -80,6 +81,60 @@ Maps to database tables:
 | `billing:read` | — | — | Y | Y | Y |
 | `billing:write` | — | — | — | Y | Y |
 | `platform:admin` | — | — | — | — | Y |
+
+---
+
+## Sensitive Data Permissions
+
+`ciem:sensitive` is the platform's first **data-classification permission** — orthogonal to `<engine>:read` and checked separately at the BFF layer with mandatory audit logging on every access.
+
+### What `ciem:sensitive` unlocks
+
+| Field | Sensitivity | Routes that check |
+|---|---|---|
+| `identity_arn` | CSA CCM IAM-09 — infra metadata | `/api/v1/views/inventory/asset/{uid}/ciem`, `/api/v1/views/inventory_ciem`, `/api/v1/views/ciem_identity` |
+| `privilege_level` | recon-grade | same as above |
+| `last_used_days` | recon-grade | same as above |
+| `unused_permission_count` | recon-grade | same as above |
+
+### Granted to (per migration 0013)
+
+analyst, tenant_admin, org_admin, platform_admin
+
+**Denied** for: viewer, auditor, dev, security_engineer.
+
+Rationale: analysts run identity-entitlement investigations; denying breaks the investigation journey. The 4 granted roles already see same-class data (threat findings, IAM findings) — no new data class exposure.
+
+### Permission inheritance rule
+
+`ciem:sensitive` does **NOT** imply `ciem:read`. Permission strings are matched exactly (no wildcard expansion). If an endpoint needs both, both must be present in `auth_context.permissions`.
+
+### Audit-log requirement (MANDATORY on every access)
+
+Every BFF route that gates `ciem:sensitive` MUST emit an audit log entry on **both 200 and 403** with these fields:
+
+```json
+{
+  "timestamp": "2026-05-04T14:30:00Z",   // UTC ISO8601
+  "user_id": "...",
+  "tenant_id": "...",
+  "endpoint": "GET /api/v1/views/ciem_identity",
+  "asset_id_or_principal": "...",
+  "result": 200,
+  "request_id": "...",                   // correlation header
+  "top_5_identity_arns": [...]           // on 200 only
+}
+```
+
+Logger: `logging.getLogger("api-gateway.audit")`. JSON-serialize the entry via `json.dumps`. Never `print()`.
+
+### Future similar permissions follow the same pattern
+
+When adding any new data-classification permission (e.g. `secrets:reveal`, `pii:export`, `customer_data:read`):
+1. Add the permission row to the matrix above with the same Y/N pattern.
+2. Add a "What it unlocks" subsection here.
+3. Gate at BFF (not at engine) and emit the same audit-log shape.
+4. Ship audit log to durable store within one sprint of the new permission going live.
 
 ---
 
@@ -260,6 +315,7 @@ Migration files:
 - `platform/cspm-backend/user_auth/migrations/0008_roles_level_scope_sessions_cache.py`
 - `platform/cspm-backend/user_auth/migrations/0009_seed_roles_permissions.py`
 - `platform/cspm-backend/user_auth/migrations/0010_billing_permissions.py` (billing:read, billing:write, platform:admin)
+- `platform/cspm-backend/user_auth/migrations/0013_ciem_sensitive_permission.py` (ciem:sensitive — analyst+)
 
 ---
 

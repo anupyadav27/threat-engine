@@ -1,16 +1,19 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Network, AlertTriangle, CheckCircle, RefreshCw, Info, ChevronDown } from 'lucide-react';
+import { Network, AlertTriangle, CheckCircle } from 'lucide-react';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { useViewFetch } from '@/lib/use-view-fetch';
+import { subscribeRefresh, emitRefresh } from '@/lib/refreshBus';
+import EngineShell from '@/components/shared/EngineShell';
 import PageLayout from '@/components/shared/PageLayout';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
 import FindingDetailPanel from '@/components/shared/FindingDetailPanel';
+import PivotLink from '@/components/shared/PivotLink';
 import SecurityRelationshipGraphPage from '../inventory/graph/page';
 
 // ── Colour palette ────────────────────────────────────────────────────────────
@@ -106,9 +109,10 @@ const NET_CATEGORY_COLORS = {
 };
 
 export default function NetworkSecurityPage() {
-  const { data, loading, error } = useViewFetch('network-security');
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  const { data, loading, error, refetch } = useViewFetch('network-security');
   const [selectedFinding, setSelectedFinding] = useState(null);
+
+  useEffect(() => subscribeRefresh(() => refetch()), [refetch]);
 
   const handleRowClick = (row) => {
     const finding = row?.original || row;
@@ -520,7 +524,9 @@ export default function NetworkSecurityPage() {
     {
       accessorKey: 'rule_id',
       header: 'Rule ID', size: 130,
-      cell: (info) => <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{info.getValue() || '—'}</span>,
+      cell: (info) => info.getValue()
+        ? <PivotLink to="rule" id={info.getValue()} size="xs" showIcon={false} />
+        : <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>—</span>,
     },
     {
       accessorKey: 'resource_name',
@@ -528,8 +534,10 @@ export default function NetworkSecurityPage() {
       // resource_name (BFF-enriched) or fall back to resource_id / resource_uid
       cell: (info) => {
         const row = info.row.original;
-        const v = info.getValue() || row.resource_id || row.resource_uid || '—';
-        return <span className="font-mono text-xs" style={{ color: 'var(--text-primary)' }}>{v}</span>;
+        const display = info.getValue() || row.resource_id || row.resource_uid;
+        const uid = row.resource_uid || row.resource_id;
+        if (!uid) return <span className="font-mono text-xs">—</span>;
+        return <PivotLink to="asset" id={uid} provider={row.provider} label={display || uid} size="xs" showIcon={false} truncate={40} />;
       },
     },
     {
@@ -538,6 +546,10 @@ export default function NetworkSecurityPage() {
       cell: (info) => {
         const row = info.row.original;
         const v = info.getValue() || row.rule_id || '—';
+        const fid = row.finding_id;
+        if (fid) {
+          return <PivotLink to="finding" engine="network-security" id={fid} label={v} size="xs" showIcon={false} truncate={48} />;
+        }
         return <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{v}</span>;
       },
     },
@@ -615,45 +627,14 @@ export default function NetworkSecurityPage() {
   };
 
   return (
-    <div className="space-y-5">
-
-      {/* ── Heading ── */}
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-3 mb-1">
-            <Network className="w-6 h-6" style={{ color: 'var(--accent-primary)' }} />
-            <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
-              {pageContext.title}
-            </h1>
-          </div>
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            {pageContext.brief}
-          </p>
-          {pageContext.details?.length > 0 && (
-            <>
-              <button onClick={() => setDetailsOpen(d => !d)}
-                className="flex items-center gap-1 text-xs mt-1 hover:underline"
-                style={{ color: 'var(--accent-primary)' }}>
-                <Info className="w-3.5 h-3.5" />
-                {detailsOpen ? 'Hide' : 'Best practices'}
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${detailsOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {detailsOpen && (
-                <ul className="mt-2 ml-4 space-y-1 text-xs list-disc"
-                  style={{ color: 'var(--text-tertiary)' }}>
-                  {pageContext.details.map((d, i) => <li key={i}>{d}</li>)}
-                </ul>
-              )}
-            </>
-          )}
-        </div>
-        <button onClick={() => window.location.reload()}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-opacity hover:opacity-80"
-          style={{ backgroundColor: 'var(--accent-primary)', color: '#fff' }}>
-          <RefreshCw className="w-3.5 h-3.5" /> Refresh
-        </button>
-      </div>
-
+    <EngineShell
+      icon={Network}
+      title={pageContext.title}
+      description={pageContext.brief}
+      details={pageContext.details}
+      onRefresh={() => emitRefresh()}
+      refreshing={loading}
+    >
       {/* ── Tabs + table ── */}
       <PageLayout
         icon={Network}
@@ -671,6 +652,6 @@ export default function NetworkSecurityPage() {
 
       {/* Finding detail drawer */}
       <FindingDetailPanel finding={selectedFinding} onClose={() => setSelectedFinding(null)} />
-    </div>
+    </EngineShell>
   );
 }

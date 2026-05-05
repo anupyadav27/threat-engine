@@ -6,6 +6,7 @@ Calls sibling engine APIs with timeout and graceful error handling.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any, Dict, Optional
 
 import httpx
@@ -13,6 +14,8 @@ import httpx
 logger = logging.getLogger("cwpp.http_client")
 
 DEFAULT_TIMEOUT = 25.0  # seconds
+
+CIEM_ENGINE_URL = os.getenv("CIEM_ENGINE_URL", "http://engine-ciem/api/v1")
 
 
 async def get(

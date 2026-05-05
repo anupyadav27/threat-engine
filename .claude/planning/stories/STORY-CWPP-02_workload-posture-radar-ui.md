@@ -127,6 +127,16 @@ Data source: `data.workloads` array already returned by BFF — no new endpoint 
 </div>
 ```
 
+## Security Review Fixes (from pre-dev security gate)
+
+**WARN-CWPP-02-1 — Fix falsy prior_score=0 bug in trend arrow logic:**
+`if not prior_score` treats score of 0 as "no data". A workload improving from 0 incorrectly shows `—`. Fix:
+
+```jsx
+const hasPrior = prior_score !== null && prior_score !== undefined;
+const arrow = !hasPrior ? '—' : posture_score > prior_score ? '↑' : posture_score < prior_score ? '↓' : '→';
+```
+
 ## Acceptance Criteria
 
 - [ ] Radar chart renders with real `posture_score` values per workload type (not placeholder data)

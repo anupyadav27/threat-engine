@@ -3,17 +3,20 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   Container, Shield, AlertTriangle,
-  CheckCircle, Box, Lock, KeyRound, RefreshCw,
+  CheckCircle, Box, Lock, KeyRound,
 } from 'lucide-react';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { useViewFetch } from '@/lib/use-view-fetch';
+import { subscribeRefresh, emitRefresh } from '@/lib/refreshBus';
+import EngineShell from '@/components/shared/EngineShell';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import PageLayout from '@/components/shared/PageLayout';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
 import FindingDetailPanel from '@/components/shared/FindingDetailPanel';
+import PivotLink from '@/components/shared/PivotLink';
 
 // ── Colour palette ────────────────────────────────────────────────────────────
 const C = {
@@ -94,9 +97,11 @@ function CtrDonut({ slices, size = 160 }) {
 
 
 export default function ContainerSecurityPage() {
-  const { data, loading, error } = useViewFetch('container-security');
+  const { data, loading, error, refetch } = useViewFetch('container-security');
   const [selectedFinding, setSelectedFinding] = useState(null);
   const handleRowClick = (row) => { const f = row?.original || row; if (f) setSelectedFinding(f); };
+
+  useEffect(() => subscribeRefresh(() => refetch()), [refetch]);
 
   const pageContext   = data.pageContext || {};
   const rawClusters = data.clusters     || [];
@@ -550,15 +555,30 @@ export default function ContainerSecurityPage() {
     { accessorKey: 'service',          header: 'Service', size: 110,
       cell: (info) => info.getValue() || info.row.original.network_layer || info.row.original.encryption_domain || info.row.original.container_service || info.row.original.db_service || '—' },
     { accessorKey: 'rule_id',          header: 'Rule ID', size: 130,
-      cell: (info) => <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{info.getValue() || '—'}</span> },
+      cell: (info) => info.getValue()
+        ? <PivotLink to="rule" id={info.getValue()} size="xs" showIcon={false} />
+        : <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>—</span> },
     { accessorKey: 'title',            header: 'Finding',
-      cell: (info) => <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{info.getValue() || info.row.original.rule_id || '—'}</span> },
+      cell: (info) => {
+        const row = info.row.original;
+        const v = info.getValue() || row.rule_id || '—';
+        if (row.finding_id) {
+          return <PivotLink to="finding" engine="container-security" id={row.finding_id} label={v} size="xs" showIcon={false} truncate={48} />;
+        }
+        return <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{v}</span>;
+      } },
     { accessorKey: 'severity',         header: 'Severity',
       cell: (info) => <SeverityBadge severity={info.getValue()} /> },
     { accessorKey: 'status',           header: 'Status',
       cell: (info) => { const v = info.getValue(), f = v === 'FAIL'; return <span className={`text-xs px-2 py-0.5 rounded ${f ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{v}</span>; } },
     { accessorKey: 'resource_uid',     header: 'Resource',
-      cell: (info) => { const v = info.getValue() || ''; return <span className="font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>{v.split('/').pop() || v.split(':').pop() || v}</span>; } },
+      cell: (info) => {
+        const row = info.row.original;
+        const v = info.getValue();
+        if (!v) return <span className="font-mono text-xs">—</span>;
+        const display = v.split('/').pop() || v.split(':').pop() || v;
+        return <PivotLink to="asset" id={v} provider={row.provider} label={display} size="xs" showIcon={false} truncate={36} />;
+      } },
     { accessorKey: 'resource_type',    header: 'Type' },
     { accessorKey: 'container_service',header: 'Container Svc',
       cell: (info) => { const v = info.getValue(); return v ? <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(56,189,248,0.12)', color: '#38bdf8' }}>{v}</span> : null; } },
@@ -632,35 +652,24 @@ export default function ContainerSecurityPage() {
   }, [clusters, findings, findingsColumns, serviceOptions, resourceTypeOptions]);
 
   return (
-    <div className="space-y-5">
-      {loading && <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--accent-primary)' }} />
-      </div>}
-      {!loading && <>
-        {/* ── Heading ── */}
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <Container className="w-6 h-6" style={{ color: 'var(--accent-primary)' }} />
-              <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Container Security</h1>
-            </div>
-            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-              Cluster posture, image vulnerabilities, workload security, RBAC misconfigurations, and runtime audit across all container services.
-            </p>
-          </div>
-          <button onClick={() => window.location.reload()}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium"
-            style={{ backgroundColor: 'var(--accent-primary)', color: '#fff' }}>
-            <RefreshCw className="w-3.5 h-3.5" /> Refresh
-          </button>
+    <EngineShell
+      icon={Container}
+      title="Container Security"
+      description="Cluster posture, image vulnerabilities, workload security, RBAC misconfigurations, and runtime audit across all container services."
+      details={pageContext.details}
+      onRefresh={() => emitRefresh()}
+      refreshing={loading}
+    >
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--accent-primary)' }} />
         </div>
-
-        {/* ── Tabs + table ── */}
+      ) : (
         <PageLayout icon={Container} pageContext={pageContext} kpiGroups={[]} insightRow={insightStrip}
           tabData={tabData} loading={loading} error={error} defaultTab="overview" hideHeader topNav
           onRowClick={handleRowClick} />
-      </>}
+      )}
       <FindingDetailPanel finding={selectedFinding} onClose={() => setSelectedFinding(null)} />
-    </div>
+    </EngineShell>
   );
 }

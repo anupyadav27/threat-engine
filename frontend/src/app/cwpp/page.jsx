@@ -1,14 +1,19 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
-  Container, RefreshCw, Shield, AlertTriangle,
+  Container, Shield, AlertTriangle,
   Server, Box, Cpu, Activity, Lock, AlertOctagon,
 } from 'lucide-react';
 import { useViewFetch } from '@/lib/use-view-fetch';
+import { subscribeRefresh, emitRefresh } from '@/lib/refreshBus';
+import EngineShell from '@/components/shared/EngineShell';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import PageLayout from '@/components/shared/PageLayout';
 import FindingDetailPanel from '@/components/shared/FindingDetailPanel';
+import KpiCard from '@/components/shared/KpiCard';
+import CiemRuntimeCard from '@/components/cwpp/CiemRuntimeCard';
+import WorkloadRadarChart from '@/components/cwpp/WorkloadRadarChart';
 
 // ── Colour palette ─────────────────────────────────────────────────────────────
 const C = {
@@ -54,7 +59,7 @@ function ScoreBar({ score, band }) {
   );
 }
 
-function WorkloadCard({ workload }) {
+function WorkloadCard({ workload, onClick }) {
   const meta = WORKLOAD_META[workload.id] || { label: workload.id, icon: Shield, color: '#6b7280', desc: '' };
   const Icon = meta.icon;
   const band = workload.risk_band || 'unknown';
@@ -63,10 +68,18 @@ function WorkloadCard({ workload }) {
   const isNoData  = workload.status === 'no_data';
   const summary = workload.summary || {};
 
+  const { posture_score, prior_score } = workload;
+  const hasPrior = prior_score !== null && prior_score !== undefined;
+  const arrow = !hasPrior ? '—' : posture_score > prior_score ? '↑' : posture_score < prior_score ? '↓' : '→';
+  const arrowColor = !hasPrior ? 'text-slate-400' : posture_score > prior_score ? 'text-green-400' : posture_score < prior_score ? 'text-red-400' : 'text-slate-400';
+
   return (
-    <div className="rounded-xl p-4 border flex flex-col gap-3"
+    <div
+      className="rounded-xl p-4 border flex flex-col gap-3 cursor-pointer hover:bg-slate-700 transition-colors"
       style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)',
-        opacity: isUnavail ? 0.6 : 1 }}>
+        opacity: isUnavail ? 0.6 : 1 }}
+      onClick={onClick}
+    >
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-2">
@@ -89,7 +102,10 @@ function WorkloadCard({ workload }) {
 
       {/* Score bar */}
       {!isUnavail && !isNoData && (
-        <ScoreBar score={workload.posture_score} band={band} />
+        <>
+          <ScoreBar score={workload.posture_score} band={band} />
+          <span className={`text-xs font-medium ${arrowColor}`}>{arrow}</span>
+        </>
       )}
 
       {/* Stats */}
@@ -296,16 +312,36 @@ function buildWorkloadColumns() {
   ];
 }
 
+const CVE_BANNER = (
+  <div className="bg-amber-950 border border-amber-700 rounded-lg p-4 flex items-start gap-3 mb-4">
+    <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+    <div>
+      <p className="text-amber-200 font-medium text-sm">CVE Scanning Not Implemented</p>
+      <p className="text-amber-400 text-xs mt-1">
+        Image posture scores reflect policy checks only (scan-on-push enabled, image age, encryption).
+        CVE content scanning via Trivy/Grype is planned — actual vulnerability exposure may be higher than the score suggests.
+      </p>
+    </div>
+  </div>
+);
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function CwppPage() {
-  const { data, loading, error } = useViewFetch('cwpp');
+  const { data, loading, error, refetch } = useViewFetch('cwpp');
   const [selectedFinding, setSelectedFinding] = useState(null);
+  const [activeTab, setActiveTab] = useState('overview');
+
+  useEffect(() => subscribeRefresh(() => refetch()), [refetch]);
 
   const cwppScore  = data?.data?.cwpp_posture_score ?? null;
   const riskBand   = data?.data?.risk_band || 'unknown';
   const workloads  = data?.data?.workloads || [];
   const pageContext = data?.pageContext || {};
   const pageData    = data?.data || {};
+
+  const criticalFindings = workloads.reduce((sum, w) => sum + (w.critical ?? 0), 0);
+  const belowSixty = workloads.filter(w => w.posture_score < 60).length;
+  const unavailableWorkloads = workloads.filter(w => w.status === 'unavailable');
 
   // Findings from each workload type
   const containerFindings  = pageData.containers?.findings || [];
@@ -316,7 +352,6 @@ export default function CwppPage() {
   ];
   const serverlessFindings = pageData.serverless?.findings || [];
   const runtimeFindings    = pageData.runtime?.findings || [];
-  const allFindings        = [...containerFindings, ...imageFindings, ...serverlessFindings, ...runtimeFindings];
 
   const findingColumns  = useMemo(() => buildFindingColumns(), []);
   const workloadColumns = useMemo(() => buildWorkloadColumns(), []);
@@ -343,6 +378,7 @@ export default function CwppPage() {
       columns: findingColumns,
       filters: commonFindingFilters,
       searchPlaceholder: 'Search image findings...',
+      headerExtra: CVE_BANNER,
     },
     hosts: {
       data: hostVulns,
@@ -365,93 +401,118 @@ export default function CwppPage() {
       columns: findingColumns,
       filters: commonFindingFilters,
       searchPlaceholder: 'Search runtime findings...',
+      headerExtra: (
+        <CiemRuntimeCard
+          ciemRuntimeEvents={pageData.runtime?.ciemRuntimeEvents}
+          accountId={null}
+        />
+      ),
     },
   }), [workloads, containerFindings, imageFindings, hostVulns, serverlessFindings, runtimeFindings,
        findingColumns, workloadColumns]);
 
-  return (
-    <div className="space-y-5">
-      {loading && (
+  if (loading) {
+    return (
+      <EngineShell
+        icon={Container}
+        title="CWPP"
+        description="Cloud Workload Protection Platform — containers, images, hosts/VMs, serverless, and runtime security."
+        onRefresh={() => emitRefresh()}
+        refreshing
+      >
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2"
             style={{ borderColor: 'var(--accent-primary)' }} />
         </div>
-      )}
+      </EngineShell>
+    );
+  }
 
-      {!loading && (
-        <>
-          {/* ── Heading ── */}
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-3 mb-1">
-                <Container className="w-6 h-6" style={{ color: 'var(--accent-primary)' }} />
-                <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>CWPP</h1>
-                <span className="text-xs px-2 py-0.5 rounded-full font-medium capitalize"
-                  style={{ backgroundColor: `${RISK_COLORS[riskBand]}20`, color: RISK_COLORS[riskBand] }}>
-                  {riskBand} risk
-                </span>
-              </div>
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                Cloud Workload Protection Platform — containers, images, hosts/VMs, serverless, and runtime security.
-              </p>
-            </div>
-            <button onClick={() => window.location.reload()}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium"
-              style={{ backgroundColor: 'var(--accent-primary)', color: '#fff' }}>
-              <RefreshCw className="w-3.5 h-3.5" /> Refresh
-            </button>
+  return (
+    <EngineShell
+      icon={Container}
+      title="CWPP"
+      description="Cloud Workload Protection Platform — containers, images, hosts/VMs, serverless, and runtime security."
+      rightOfTitle={
+        <span className="text-xs px-2 py-0.5 rounded-full font-medium capitalize"
+          style={{ backgroundColor: `${RISK_COLORS[riskBand]}20`, color: RISK_COLORS[riskBand] }}>
+          {riskBand} risk
+        </span>
+      }
+      onRefresh={() => emitRefresh()}
+      refreshing={loading}
+    >
+      {/* ── KPI strip ── */}
+          <div className="grid grid-cols-4 gap-4 mb-6">
+            <KpiCard
+              title="CWPP Score"
+              value={cwppScore ?? '—'}
+              subtitle={riskBand !== 'unknown' ? `${riskBand} risk` : undefined}
+              color="blue"
+            />
+            <KpiCard
+              title="Total Critical"
+              value={criticalFindings}
+              subtitle="Critical findings across all workloads"
+              color={criticalFindings > 0 ? 'red' : 'green'}
+            />
+            <KpiCard
+              title="Workloads Below 60"
+              value={belowSixty}
+              subtitle="Posture score below threshold"
+              color={belowSixty > 0 ? 'orange' : 'green'}
+            />
+            <KpiCard
+              title="Image CVE Scan"
+              value="Not Enabled"
+              subtitle="Trivy/Grype scanning not yet implemented"
+              color="yellow"
+            />
           </div>
 
-          {/* ── CWPP Score banner ── */}
-          <div className="rounded-xl p-4 border grid grid-cols-2 sm:grid-cols-5 gap-4"
-            style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}>
-            <div className="col-span-2 sm:col-span-1 flex flex-col items-center justify-center gap-1">
-              <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>CWPP Score</p>
-              <p className="text-3xl font-bold" style={{ color: RISK_COLORS[riskBand] }}>
-                {cwppScore ?? '—'}<span className="text-sm font-normal text-gray-400">/100</span>
-              </p>
-              <span className="text-xs px-2 py-0.5 rounded-full capitalize font-medium"
-                style={{ backgroundColor: `${RISK_COLORS[riskBand]}20`, color: RISK_COLORS[riskBand] }}>
-                {riskBand}
+          {/* ── Unavailability banner ── */}
+          {unavailableWorkloads.length > 0 && (
+            <div className="bg-amber-950 border border-amber-700 text-amber-200 rounded-lg p-3 flex items-center gap-2 mb-4">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span className="text-sm">
+                {unavailableWorkloads.map(w => w.name || w.id).join(', ')} engine{unavailableWorkloads.length > 1 ? 's' : ''} unreachable — scores may be incomplete
               </span>
             </div>
-            {workloads.map(w => (
-              <div key={w.id} className="flex flex-col gap-1">
-                <div className="flex items-center gap-1.5">
-                  {(() => { const meta = WORKLOAD_META[w.id]; return meta ? <meta.icon className="w-3.5 h-3.5" style={{ color: meta.color }} /> : null; })()}
-                  <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-                    {WORKLOAD_META[w.id]?.label || w.id}
-                  </p>
-                </div>
-                <ScoreBar score={w.posture_score} band={w.risk_band} />
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  {w.total_findings ?? 0} findings
-                </p>
-              </div>
-            ))}
+          )}
+
+          {/* ── Radar chart + workload cards ── */}
+          <div className="flex flex-col items-center gap-6">
+            <WorkloadRadarChart
+              workloads={workloads}
+              onWorkloadClick={(id) => setActiveTab(id)}
+              size={360}
+            />
+            <div className="grid grid-cols-5 gap-3 w-full">
+              {workloads.map(w => (
+                <WorkloadCard
+                  key={w.id}
+                  workload={w}
+                  onClick={() => setActiveTab(w.id)}
+                />
+              ))}
+            </div>
           </div>
 
-          {/* ── Workload cards grid ── */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-            {workloads.map(w => <WorkloadCard key={w.id} workload={w} />)}
-          </div>
-
-          {/* ── Tabbed findings table ── */}
-          <PageLayout
-            icon={Container}
-            pageContext={pageContext}
-            kpiGroups={data?.kpiGroups || []}
-            tabData={tabData}
-            loading={false}
-            error={error}
-            defaultTab="overview"
-            hideHeader
-            topNav
-            onRowClick={setSelectedFinding}
-          />
-        </>
-      )}
+      {/* ── Tabbed findings table ── */}
+      <PageLayout
+        key={activeTab}
+        icon={Container}
+        pageContext={pageContext}
+        kpiGroups={data?.kpiGroups || []}
+        tabData={tabData}
+        loading={false}
+        error={error}
+        defaultTab={activeTab}
+        hideHeader
+        topNav
+        onRowClick={setSelectedFinding}
+      />
       <FindingDetailPanel finding={selectedFinding} onClose={() => setSelectedFinding(null)} />
-    </div>
+    </EngineShell>
   );
 }

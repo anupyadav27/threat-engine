@@ -283,7 +283,21 @@ All 18 engine images have been rebuilt with `-rbac1` tag suffix and enforce `req
 3. Push image: `docker push ...` (requires confirmation)
 4. Apply manifest: `kubectl apply -f ...`
 5. Verify rollout: `kubectl rollout status ...`
-6. Check logs immediately after deploy
+6. **POST-DEPLOY IMAGE TAG CHECK** — mandatory after every rollout:
+   ```bash
+   kubectl get pods -n threat-engine-engines \
+     -o custom-columns='NAME:.metadata.name,IMAGE:.spec.containers[0].image,STATUS:.status.phase' \
+     | grep <engine>
+   ```
+   Pod image must match the intended tag. The VSCode linter silently reverts YAML edits — always
+   cross-check the running pod image. If wrong: `kubectl set image deployment/<name> <c>=<tag>`
+7. Check logs immediately after deploy: `kubectl logs -f -l app=<engine> -n threat-engine-engines`
+
+### Migration DDL Rules
+- `GENERATED ALWAYS AS (expr) STORED` requires an IMMUTABLE expression.
+- `EXTRACT(HOUR FROM timestamptz_col)` is **NOT immutable** → use `EXTRACT(HOUR FROM (col AT TIME ZONE 'UTC'))::smallint`
+- After every migration Job: check `kubectl logs -l job-name=<job>` ends with "MIGRATION COMPLETE"
+- A pod in `Failed` state means the migration did **not** apply — never assume success without logs
 
 ## Common Workflows
 

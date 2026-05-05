@@ -164,10 +164,10 @@ class CorrelationEvaluator:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
                     SELECT finding_id, rule_id, event_time,
-                           actor_principal, actor_ip,
+                           actor_principal, actor_principal_type, actor_ip,
                            resource_uid, resource_type, resource_name,
                            account_id, region, service, operation,
-                           severity, title
+                           severity, title, finding_data
                     FROM ciem_findings
                     WHERE scan_run_id = %s AND tenant_id = %s
                     AND rule_source != 'log_correlation'
@@ -331,7 +331,7 @@ class CorrelationEvaluator:
             "region": first.get("region", ""),
             "provider": self.provider,
             "actor_principal": first.get("actor_principal", ""),
-            "actor_principal_type": "",
+            "actor_principal_type": (contributing_findings[0].get("actor_principal_type") or "") if contributing_findings else "",
             "actor_ip": first.get("actor_ip", ""),
             "event_id": "",
             "event_time": first_time,
@@ -348,6 +348,25 @@ class CorrelationEvaluator:
                 "scenario_id": scenario_id,
                 "match_by": match_by,
                 "match_key": group_key,
+                # NEW: ordered, self-contained step data (retention-safe, timeline-renderable)
+                "contributing_steps": [
+                    {
+                        "step_idx":        idx,
+                        "finding_id":      f["finding_id"],
+                        "rule_id":         f.get("rule_id", ""),
+                        "event_time":      f["event_time"].isoformat() if f.get("event_time") else None,
+                        "operation":       f.get("operation", ""),
+                        "service":         f.get("service", ""),
+                        "actor_principal": f.get("actor_principal", ""),
+                        "resource_uid":    f.get("resource_uid", ""),
+                        "resource_name":   f.get("resource_name", ""),
+                        "outcome":         f.get("finding_data", {}).get("event_outcome", "unknown") if isinstance(f.get("finding_data"), dict) else "unknown",
+                        "actor_ip":        f.get("actor_ip", ""),  # stripped for auth level >= 4
+                    }
+                    for idx, f in enumerate(contributing_findings[:50])
+                    # contributing_findings is already sorted by event_time at call site
+                ],
+                # KEPT for backwards compatibility — existing code that reads contributing_findings continues to work
                 "contributing_findings": contributing_ids[:50],
                 "contributing_rules": contributing_rules,
                 "event_count": len(contributing_findings),

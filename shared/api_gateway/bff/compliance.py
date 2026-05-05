@@ -16,13 +16,14 @@ from ._shared import fetch_many, safe_get
 from ._transforms import normalize_framework, normalize_failing_control
 from ._page_context import compliance_page_context, compliance_filter_schema
 from ._cache import cache_key, cached_view, TTL_COMPLIANCE, auth_level_from_header
+from ._common_schemas import ComplianceViewResponse
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
 MATRIX_FRAMEWORKS = ["CIS", "NIST", "SOC2", "PCI", "HIPAA", "ISO", "GDPR"]
 
 
-@router.get("/compliance")
+@router.get("/compliance", response_model=ComplianceViewResponse, response_model_exclude_none=False)
 async def view_compliance(
     request: Request,
     provider: Optional[str] = Query(None),

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import os
 import logging
+from collections import Counter
 from typing import Any, Dict, List, Optional
 
 from ..core.http_client import get
@@ -35,6 +36,14 @@ SBOM_ENGINE_URL = os.getenv("SBOM_ENGINE_URL", "http://engine-sbom")
 MIDDLEWARE_KEYWORDS = {
     "tomcat", "nginx", "iis", "kafka", "jboss", "wildfly", "weblogic",
     "glassfish", "jetty", "apache", "openssl", "log4j", "spring",
+}
+
+# Keyword → canonical label used by the UI middleware_type column
+_MIDDLEWARE_TYPE_MAP: Dict[str, str] = {
+    "tomcat": "tomcat", "nginx": "nginx", "iis": "iis", "kafka": "kafka",
+    "jboss": "jboss", "wildfly": "jboss", "weblogic": "weblogic",
+    "jetty": "jetty", "apache": "apache", "openssl": "openssl",
+    "log4j": "log4j", "spring": "spring",
 }
 
 
@@ -75,10 +84,35 @@ async def fetch(scan_run_id: str, tenant_id: str, auth_header: Optional[str] = N
     total_vulns = len(vulns)
 
     # Middleware vs OS split
-    middleware_vulns = [v for v in vulns if _is_middleware(v)]
-    os_vulns = [v for v in vulns if not _is_middleware(v)]
+    middleware_vulns_raw = [v for v in vulns if _is_middleware(v)]
+    os_vulns_raw = [v for v in vulns if not _is_middleware(v)]
 
     posture_score = severity_to_score_penalty(critical, high, medium, total_vulns)
+
+    # Annotate affected_hosts_count per CVE using a Counter over all vulns
+    cve_host_counts: Counter = Counter(v["cve_id"] for v in vulns if v.get("cve_id"))
+
+    # Build normalised OS vuln rows with renamed fields
+    os_vulns = []
+    for v in os_vulns_raw:
+        os_vulns.append({
+            "cve_id":              v.get("cve_id"),
+            "package_name":        v.get("package_name"),
+            "version":             v.get("package_version"),   # renamed from package_version
+            "cvss_score":          v.get("score"),             # renamed from score
+            "severity":            v.get("severity"),
+            "resource_uid":        v.get("resource_uid") or v.get("asset_id"),
+            "affected_hosts_count": cve_host_counts.get(v.get("cve_id", ""), 1),
+        })
+
+    # Annotate middleware_type per middleware vuln row
+    middleware_vulns = []
+    for v in middleware_vulns_raw:
+        row = dict(v)
+        row["middleware_type"] = _get_middleware_type(row.get("package_name", ""))
+        middleware_vulns.append(row)
+
+    sbom_summary = _sbom_summary(sbom_docs)
 
     return {
         "workload_type": "hosts",
@@ -87,6 +121,7 @@ async def fetch(scan_run_id: str, tenant_id: str, auth_header: Optional[str] = N
         "summary": {
             "total_host_scans": len(scans),
             "total_vulnerabilities": total_vulns,
+            "total_findings": total_vulns,           # alias for workload card normaliser
             "critical": critical,
             "high": high,
             "medium": medium,
@@ -94,13 +129,14 @@ async def fetch(scan_run_id: str, tenant_id: str, auth_header: Optional[str] = N
             "os_vulnerabilities": len(os_vulns),
             "middleware_vulnerabilities": len(middleware_vulns),
             "sbom_documents": len(sbom_docs),
+            "vulnerable_components": sbom_summary.get("total_vulnerabilities", 0),  # alias
         },
         "data": {
             "host_scans": scans[:20],   # cap for API response size
             "os_vulnerabilities": os_vulns[:50],
             "middleware_vulnerabilities": middleware_vulns[:50],
-            "middleware_breakdown": _middleware_breakdown(middleware_vulns),
-            "sbom_summary": _sbom_summary(sbom_docs),
+            "middleware_breakdown": _middleware_breakdown(middleware_vulns_raw),
+            "sbom_summary": sbom_summary,
         },
     }
 
@@ -154,6 +190,7 @@ def _sbom_summary(docs: List[Dict]) -> Dict:
         "count": len(docs),
         "total_components": total_components,
         "total_vulnerabilities": total_vulns,
+        "vulnerable_components": total_vulns,   # alias for UI sbom_summary card
         "docs": [
             {
                 "sbom_id": d.get("sbom_id"),
@@ -164,6 +201,22 @@ def _sbom_summary(docs: List[Dict]) -> Dict:
             for d in docs[:10]
         ],
     }
+
+
+def _get_middleware_type(package_name: str) -> str:
+    """Derive a canonical middleware_type label from a package name.
+
+    Args:
+        package_name: Raw package name from vulnerability row.
+
+    Returns:
+        Canonical middleware label (e.g. 'tomcat', 'nginx') or 'other'.
+    """
+    pkg_lower = (package_name or "").lower()
+    for kw, label in _MIDDLEWARE_TYPE_MAP.items():
+        if kw in pkg_lower:
+            return label
+    return "other"
 
 
 def _unavailable() -> Dict[str, Any]:

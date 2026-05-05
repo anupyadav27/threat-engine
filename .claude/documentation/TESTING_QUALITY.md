@@ -527,6 +527,16 @@ pytest tests/security/ -v --timeout=30
 ### Checklist (agent: `cspm-deploy` runs these after every deploy)
 
 ```bash
+# 0. IMAGE TAG VERIFICATION — MANDATORY FIRST CHECK
+# Confirm every rolled-out pod is running the INTENDED image, not a linter-reverted old tag.
+# The VSCode linter can silently revert YAML edits. Always cross-check pod image vs. intended tag.
+kubectl get pods -n threat-engine-engines \
+  -o custom-columns='NAME:.metadata.name,IMAGE:.spec.containers[0].image,STATUS:.status.phase' \
+  | grep <engine>
+# → Image must match the intended tag (e.g. v-ciem-journey1, not v-ciem-auth1)
+# If mismatch: kubectl set image deployment/<name> <container>=<correct-image> -n threat-engine-engines
+# Then also re-check the YAML file to confirm the linter did not revert the tag on save.
+
 # 1. Health check — liveness
 curl http://engine-<name>:80/api/v1/health/live → expect {"status": "ok"}
 
@@ -547,6 +557,23 @@ cur = conn.cursor()
 cur.execute('SELECT COUNT(*) FROM <findings_table> WHERE scan_run_id = (SELECT MAX(scan_run_id) FROM <findings_table>)')
 print(cur.fetchone()[0])
 " → expect > 0 (if scan has run)
+```
+
+### Migration DDL Validation (mandatory before any ALTER TABLE)
+
+Before writing any `ALTER TABLE ... GENERATED ALWAYS AS (expr) STORED`, verify the expression is immutable:
+
+```bash
+# PostgreSQL requires GENERATED ALWAYS AS expressions to be IMMUTABLE.
+# EXTRACT(HOUR FROM timestamptz) is NOT immutable (depends on session TimeZone GUC) → REJECTED.
+# Always convert timestamptz to UTC first:
+#   CORRECT:   EXTRACT(HOUR FROM (col AT TIME ZONE 'UTC'))::smallint
+#   WRONG:     EXTRACT(HOUR FROM col)::smallint
+
+# After every migration Job, verify it succeeded before declaring done:
+kubectl logs -l job-name=<migration-job> -n threat-engine-engines
+# Must end with "MIGRATION COMPLETE" and expected column/index counts.
+# A pod in Failed state = migration did NOT apply. Read logs before moving on.
 ```
 
 ---

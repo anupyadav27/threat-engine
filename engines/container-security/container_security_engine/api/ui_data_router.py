@@ -142,11 +142,15 @@ async def get_container_sec_ui_data(
                 (scan_run_id, tenant_id))
             inventory = [dict(r) for r in cur.fetchall()]
 
-            # Domain breakdown
+            # Domain breakdown — extended with severity counts and distinct resource count
             cur.execute(
-                """SELECT security_domain, COUNT(*) as total,
-                          COUNT(*) FILTER (WHERE status = 'FAIL') as fail_count,
-                          COUNT(*) FILTER (WHERE status = 'PASS') as pass_count
+                """SELECT security_domain,
+                          COUNT(*) AS total,
+                          COUNT(*) FILTER (WHERE status = 'FAIL') AS fail_count,
+                          COUNT(*) FILTER (WHERE status = 'PASS') AS pass_count,
+                          COUNT(*) FILTER (WHERE severity = 'CRITICAL' AND status = 'FAIL') AS critical_count,
+                          COUNT(*) FILTER (WHERE severity = 'HIGH'     AND status = 'FAIL') AS high_count,
+                          COUNT(DISTINCT resource_uid) AS resources_affected
                    FROM container_sec_findings
                    WHERE scan_run_id = %s AND tenant_id = %s
                    GROUP BY security_domain ORDER BY fail_count DESC""",

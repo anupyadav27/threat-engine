@@ -73,10 +73,30 @@ Response:
 - `day_of_week_distribution` is always a 7-element array (PostgreSQL DOW: 0=Sun, 1=Mon, ..., 6=Sat)
 - `principal_encoded` is URL-decoded before DB query (ARNs contain `/` and `:`)
 
+## Security Review Fixes (from pre-dev security gate)
+
+**BLOCK-CIEM-04-1 — Validate URL-decoded principal length and content:**
+`unquote(principal_encoded)` before parameterized use is correct (no SQL injection). However no length or null-byte validation exists. Add immediately after `unquote()`:
+
+```python
+actor_principal = unquote(principal_encoded)
+if len(actor_principal) > 512 or '\x00' in actor_principal:
+    raise HTTPException(status_code=400, detail="Invalid principal identifier")
+```
+
+**WARN-CIEM-04-1 — Add 14-day window to both queries:**
+Both the hourly and DOW queries aggregate all-time data unless constrained. Add to both:
+```sql
+AND event_time >= NOW() - INTERVAL '14 days'
+```
+
 ## Acceptance Criteria
 
 - [ ] `GET /api/v1/ciem/identities/{principal_encoded}/hourly-activity` returns 24-element hourly array and 7-element dow array
+- [ ] Returns `400` if decoded principal exceeds 512 characters or contains null bytes (`\x00`)
 - [ ] URL-decodes `principal_encoded` before querying DB (handles `arn%3Aaws%3A...` format)
+- [ ] Both hourly and DOW queries include `AND event_time >= NOW() - INTERVAL '14 days'`
+- [ ] Distribution covers last 14 days only — narrative and SQL must agree
 - [ ] Hours with zero findings are explicitly included (not omitted) — array always length 24
 - [ ] Days with zero findings are explicitly included — array always length 7
 - [ ] Returns `404` if the decoded principal has no findings in the tenant

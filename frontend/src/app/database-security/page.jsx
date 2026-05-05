@@ -2,17 +2,20 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import {
-  Database, Shield, AlertTriangle, AlertCircle, CheckCircle, Lock, KeyRound, FileText, RefreshCw,
+  Database, Shield, AlertTriangle, AlertCircle, CheckCircle, Lock, KeyRound, FileText,
 } from 'lucide-react';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { useViewFetch } from '@/lib/use-view-fetch';
+import { subscribeRefresh, emitRefresh } from '@/lib/refreshBus';
+import EngineShell from '@/components/shared/EngineShell';
 import PageLayout from '@/components/shared/PageLayout';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
 import FindingDetailPanel from '@/components/shared/FindingDetailPanel';
+import PivotLink from '@/components/shared/PivotLink';
 
 // ── Colour palette ────────────────────────────────────────────────────────────
 const C = {
@@ -94,9 +97,11 @@ function DbDonut({ slices, size = 160 }) {
 
 
 export default function DatabaseSecurityPage() {
-  const { data, loading, error } = useViewFetch('database-security');
+  const { data, loading, error, refetch } = useViewFetch('database-security');
   const [selectedFinding, setSelectedFinding] = useState(null);
   const handleRowClick = (row) => { const f = row?.original || row; if (f) setSelectedFinding(f); };
+
+  useEffect(() => subscribeRefresh(() => refetch()), [refetch]);
 
   const pageContext = data.pageContext || {};
   const rawDatabases = data.databases     || [];
@@ -178,15 +183,30 @@ export default function DatabaseSecurityPage() {
     { accessorKey: 'service',          header: 'Service', size: 110,
       cell: (info) => info.getValue() || info.row.original.network_layer || info.row.original.encryption_domain || info.row.original.container_service || info.row.original.db_service || '—' },
     { accessorKey: 'rule_id',          header: 'Rule ID', size: 130,
-      cell: (info) => <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{info.getValue() || '—'}</span> },
+      cell: (info) => info.getValue()
+        ? <PivotLink to="rule" id={info.getValue()} size="xs" showIcon={false} />
+        : <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>—</span> },
     { accessorKey: 'title',            header: 'Finding',
-      cell: (info) => <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{info.getValue() || info.row.original.rule_id || '—'}</span> },
+      cell: (info) => {
+        const row = info.row.original;
+        const v = info.getValue() || row.rule_id || '—';
+        if (row.finding_id) {
+          return <PivotLink to="finding" engine="dbsec" id={row.finding_id} label={v} size="xs" showIcon={false} truncate={48} />;
+        }
+        return <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{v}</span>;
+      } },
     { accessorKey: 'severity',         header: 'Severity',
       cell: (info) => <SeverityBadge severity={info.getValue()} /> },
     { accessorKey: 'status',           header: 'Status',
       cell: (info) => { const v = info.getValue(), f = v === 'FAIL'; return <span className={`text-xs px-2 py-0.5 rounded ${f ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{v}</span>; } },
     { accessorKey: 'resource_uid',     header: 'Resource',
-      cell: (info) => { const v = info.getValue() || info.row.original.resource_id || ''; return <span className="font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>{v.split('/').pop() || v.split(':').pop() || v}</span>; } },
+      cell: (info) => {
+        const row = info.row.original;
+        const v = info.getValue() || row.resource_id;
+        if (!v) return <span className="font-mono text-xs">—</span>;
+        const display = v.split('/').pop() || v.split(':').pop() || v;
+        return <PivotLink to="asset" id={v} provider={row.provider} label={display} size="xs" showIcon={false} truncate={36} />;
+      } },
     { accessorKey: 'resource_type',    header: 'Type' },
     { accessorKey: 'db_service',       header: 'DB Service',
       cell: (info) => { const v = info.getValue(); return v ? <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(20,184,166,0.12)', color: '#2dd4bf' }}>{v}</span> : null; } },
@@ -628,33 +648,20 @@ export default function DatabaseSecurityPage() {
   }, [databases, findings, findingsColumns, serviceOptions, resourceTypeOptions]);
 
   return (
-    <div className="space-y-5">
-      {/* ── Heading ── */}
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-3 mb-1">
-            <Database className="w-6 h-6" style={{ color: 'var(--accent-primary)' }} />
-            <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
-              {pageContext.title || 'Database Security'}
-            </h1>
-          </div>
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            {pageContext.brief || 'Database posture, encryption coverage, access controls, and backup compliance across all connected accounts.'}
-          </p>
-        </div>
-        <button onClick={() => window.location.reload()}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-opacity hover:opacity-80"
-          style={{ backgroundColor: 'var(--accent-primary)', color: '#fff' }}>
-          <RefreshCw className="w-3.5 h-3.5" /> Refresh
-        </button>
-      </div>
-
+    <EngineShell
+      icon={Database}
+      title={pageContext.title || 'Database Security'}
+      description={pageContext.brief || 'Database posture, encryption coverage, access controls, and backup compliance across all connected accounts.'}
+      details={pageContext.details}
+      onRefresh={() => emitRefresh()}
+      refreshing={loading}
+    >
       {/* ── Tabs + table ── */}
       <PageLayout icon={Database} pageContext={pageContext} kpiGroups={[]} insightRow={insightStrip}
         tabData={tabData} loading={loading} error={error} defaultTab="overview" hideHeader topNav
         onRowClick={handleRowClick} />
 
       <FindingDetailPanel finding={selectedFinding} onClose={() => setSelectedFinding(null)} />
-    </div>
+    </EngineShell>
   );
 }

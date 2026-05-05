@@ -27,6 +27,7 @@ from ._transforms import (
     normalize_residency, normalize_access_activity, apply_global_filters,
 )
 from ._page_context import datasec_page_context, datasec_filter_schema
+from ._common_schemas import DatasecViewResponse
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
@@ -59,7 +60,7 @@ def _split_by_module(check_findings: List[dict]) -> Dict[str, list]:
     }
 
 
-@router.get("/datasec")
+@router.get("/datasec", response_model=DatasecViewResponse, response_model_exclude_none=False)
 async def view_datasec(
     request: Request,
     provider: Optional[str] = Query(None),

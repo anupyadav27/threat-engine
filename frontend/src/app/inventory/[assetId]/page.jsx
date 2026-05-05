@@ -88,6 +88,9 @@ export default function AssetDetailPage() {
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [copiedId, setCopiedId] = useState(false);
+  const [ciemData, setCiemData] = useState(null);
+  const [ciemLoading, setCiemLoading] = useState(false);
+  const [ciemError, setCiemError] = useState(null); // null | 'forbidden' | 'error'
 
   // Fetch asset details via BFF (parallel cross-engine enrichment), with
   // blast-radius as a separate call since it's a heavier graph query.
@@ -172,6 +175,31 @@ export default function AssetDetailPage() {
 
     loadAsset();
   }, [assetId]);
+
+  // Fetch CIEM data on-demand when the CIEM tab is activated
+  useEffect(() => {
+    if (activeTab !== 'ciem' || !assetId || ciemData !== null || ciemLoading) return;
+    setCiemLoading(true);
+    setCiemError(null);
+    const encoded = encodeURIComponent(assetId);
+    fetchView(`inventory/asset/${encoded}/ciem`)
+      .then((data) => {
+        if (data?.detail?.toLowerCase().includes('analyst')) {
+          setCiemError('forbidden');
+        } else {
+          setCiemData(data);
+        }
+        setCiemLoading(false);
+      })
+      .catch((err) => {
+        if (err?.status === 403 || err?.response?.status === 403) {
+          setCiemError('forbidden');
+        } else {
+          setCiemError('error');
+        }
+        setCiemLoading(false);
+      });
+  }, [activeTab, assetId, ciemData, ciemLoading]);
 
   // Copy to clipboard helper
   const copyToClipboard = (text) => {
@@ -695,7 +723,7 @@ export default function AssetDetailPage() {
       {/* Tabs */}
       <div style={{ borderBottomColor: 'var(--border-primary)' }} className="border-b">
         <div className="flex gap-1">
-          {['overview', 'configuration', 'misconfigurations', 'threats', 'blast-radius', 'compliance', 'drift'].map(
+          {['overview', 'configuration', 'misconfigurations', 'threats', 'ciem', 'blast-radius', 'compliance', 'drift'].map(
             (tab) => (
               <button
                 key={tab}
@@ -708,7 +736,7 @@ export default function AssetDetailPage() {
                     activeTab === tab ? 'var(--accent-primary)' : 'var(--text-tertiary)',
                 }}
               >
-                {tab === 'blast-radius' ? 'Blast Radius' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                {tab === 'blast-radius' ? 'Blast Radius' : tab === 'ciem' ? 'CIEM' : tab.charAt(0).toUpperCase() + tab.slice(1)}
               </button>
             )
           )}
@@ -1098,6 +1126,118 @@ export default function AssetDetailPage() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {activeTab === 'ciem' && (
+        <div className="rounded-xl border p-6 space-y-5" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+          <div className="flex items-center gap-2 mb-2">
+            <Key className="w-5 h-5" style={{ color: 'var(--accent-primary)' }} />
+            <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>CIEM / Identity Risk</h2>
+          </div>
+
+          {ciemLoading && (
+            <div className="space-y-2 animate-pulse">
+              <div className="h-16 rounded-lg" style={{ backgroundColor: 'var(--bg-secondary)' }} />
+              {[1,2,3].map((n) => <div key={n} className="h-10 rounded" style={{ backgroundColor: 'var(--bg-secondary)' }} />)}
+            </div>
+          )}
+
+          {ciemError === 'forbidden' && (
+            <div className="flex flex-col items-center justify-center py-12 gap-3">
+              <Lock className="w-10 h-10" style={{ color: 'var(--text-muted)' }} />
+              <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+                You need Analyst access to view identity entitlements
+              </p>
+              <Link
+                href="/settings/access"
+                className="text-sm font-medium hover:opacity-80"
+                style={{ color: 'var(--accent-primary)' }}
+              >
+                Request Access →
+              </Link>
+            </div>
+          )}
+
+          {ciemError === 'error' && (
+            <div className="flex items-center gap-2 py-6 justify-center" style={{ color: 'var(--text-muted)' }}>
+              <AlertTriangle className="w-5 h-5" />
+              <span className="text-sm">Could not load identity data. Try again later.</span>
+            </div>
+          )}
+
+          {!ciemLoading && !ciemError && ciemData && (
+            <>
+              {/* KPI strip */}
+              <div className="flex gap-4 flex-wrap">
+                <div className="px-4 py-3 rounded-lg" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                  <p className="text-xs mb-0.5" style={{ color: 'var(--text-muted)' }}>Total Identities</p>
+                  <p className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{ciemData.totalIdentities ?? 0}</p>
+                </div>
+                <div className="px-4 py-3 rounded-lg" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                  <p className="text-xs mb-0.5" style={{ color: 'var(--text-muted)' }}>Over-Privileged</p>
+                  <p className="text-2xl font-bold" style={{ color: ciemData.overPrivilegedCount > 0 ? '#ef4444' : 'var(--text-primary)' }}>
+                    {ciemData.overPrivilegedCount ?? 0}
+                  </p>
+                </div>
+              </div>
+
+              {/* Identity table */}
+              {ciemData.identities?.length > 0 ? (
+                <div className="overflow-x-auto rounded-lg border" style={{ borderColor: 'var(--border-primary)' }}>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                        {['Identity ARN', 'Type', 'Privilege', 'Last Used', 'Risk Score'].map((h) => (
+                          <th key={h} className="px-4 py-3 text-left text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ciemData.identities.map((identity, idx) => {
+                        const privColors = { admin: '#ef4444', power: '#f97316', readonly: 'var(--text-muted)' };
+                        return (
+                          <tr key={identity.identity_arn || idx} className="border-t" style={{ borderColor: 'var(--border-primary)' }}>
+                            <td className="px-4 py-3 font-mono text-xs truncate max-w-xs" style={{ color: 'var(--text-secondary)' }} title={identity.identity_arn}>
+                              {identity.identity_arn}
+                            </td>
+                            <td className="px-4 py-3 text-xs capitalize" style={{ color: 'var(--text-secondary)' }}>{identity.identity_type}</td>
+                            <td className="px-4 py-3">
+                              <span className="text-xs font-semibold capitalize" style={{ color: privColors[identity.privilege_level] || 'var(--text-secondary)' }}>
+                                {identity.privilege_level}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+                              {identity.last_used_days != null ? `${identity.last_used_days}d ago` : '—'}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="text-xs font-bold tabular-nums" style={{ color: identity.risk_score >= 75 ? '#ef4444' : identity.risk_score >= 50 ? '#f97316' : 'var(--text-secondary)' }}>
+                                {identity.risk_score}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-sm py-6 text-center" style={{ color: 'var(--text-muted)' }}>
+                  No identity activity found for this resource
+                </p>
+              )}
+
+              {ciemData.truncated && (
+                <Link
+                  href={`/ciem?resource_uid=${encodeURIComponent(assetId)}`}
+                  className="inline-flex items-center gap-1 text-sm font-medium hover:opacity-80"
+                  style={{ color: 'var(--accent-primary)' }}
+                >
+                  See all in CIEM <ArrowRight className="w-4 h-4" />
+                </Link>
+              )}
+            </>
+          )}
         </div>
       )}
 
