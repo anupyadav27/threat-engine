@@ -21,6 +21,7 @@ discovery:
       parameters: '{{ item.parameters }}'
       tags: '{{ item.tags }}'
       targets: '{{ item.targets }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.fis.list_experiment_templates
   calls:
   - action: list_experiment_templates
@@ -36,6 +37,7 @@ discovery:
       id: '{{ item.id }}'
       lastUpdateTime: '{{ item.lastUpdateTime }}'
       tags: '{{ item.tags }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.fis.list_experiments
   calls:
   - action: list_experiments
@@ -52,6 +54,7 @@ discovery:
       id: '{{ item.id }}'
       state: '{{ item.state }}'
       tags: '{{ item.tags }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.fis.list_target_resource_types
   calls:
   - action: list_target_resource_types
@@ -63,6 +66,7 @@ discovery:
     item:
       description: '{{ item.description }}'
       resourceType: '{{ item.resourceType }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.fis.get_action
   for_each: aws.fis.list_actions
   calls:
@@ -98,19 +102,31 @@ discovery:
       endTime: '{{ response.experiment.endTime }}'
       experimentOptions: '{{ response.experiment.experimentOptions }}'
       experimentReport: '{{ response.experiment.experimentReport }}'
-      experimentReportConfiguration: '{{ response.experiment.experimentReportConfiguration
-        }}'
+      experimentReportConfiguration: '{{ response.experiment.experimentReportConfiguration }}'
       experimentTemplateId: '{{ response.experiment.experimentTemplateId }}'
       id: '{{ response.experiment.id }}'
       logConfiguration: '{{ response.experiment.logConfiguration }}'
       roleArn: '{{ response.experiment.roleArn }}'
       startTime: '{{ response.experiment.startTime }}'
-      state: '{{ response.experiment.state }}'
-      stopConditions: '{{ response.experiment.stopConditions }}'
+      state: '{{ response.experiment.startTime }}'
+      stopConditions: '{{ response.experiment.stopConditions[].value }}'
       tags: '{{ response.experiment.tags }}'
-      targetAccountConfigurationsCount: '{{ response.experiment.targetAccountConfigurationsCount
-        }}'
+      targetAccountConfigurationsCount: '{{ response.experiment.targetAccountConfigurationsCount }}'
       targets: '{{ response.experiment.targets }}'
+      accountTargeting: '{{ response.experiment.experimentOptions.accountTargeting }}'
+      actionsMode: '{{ response.experiment.experimentOptions.actionsMode }}'
+      emptyTargetResolutionMode: '{{ response.experiment.experimentOptions.emptyTargetResolutionMode }}'
+      bucketName: '{{ response.experiment.experimentReportConfiguration.outputs.s3Configuration.bucketName }}'
+      prefix: '{{ response.experiment.experimentReportConfiguration.outputs.s3Configuration.prefix }}'
+      postExperimentDuration: '{{ response.experiment.experimentReportConfiguration.postExperimentDuration }}'
+      preExperimentDuration: '{{ response.experiment.experimentReportConfiguration.preExperimentDuration }}'
+      code: '{{ response.experiment.experimentReport.state.error.code }}'
+      reason: '{{ response.experiment.experimentReport.state.reason }}'
+      status: '{{ response.experiment.experimentReport.state.status }}'
+      logGroupArn: '{{ response.experiment.logConfiguration.cloudWatchLogsConfiguration.logGroupArn }}'
+      logSchemaVersion: '{{ response.experiment.logConfiguration.logSchemaVersion }}'
+      accountId: '{{ response.experiment.state.error.accountId }}'
+      location: '{{ response.experiment.state.error.location }}'
 - discovery_id: aws.fis.get_experiment_target_account_configuration
   calls:
   - action: get_experiment_target_account_configuration
@@ -138,17 +154,23 @@ discovery:
       creationTime: '{{ response.experimentTemplate.creationTime }}'
       description: '{{ response.experimentTemplate.description }}'
       experimentOptions: '{{ response.experimentTemplate.experimentOptions }}'
-      experimentReportConfiguration: '{{ response.experimentTemplate.experimentReportConfiguration
-        }}'
+      experimentReportConfiguration: '{{ response.experimentTemplate.experimentReportConfiguration }}'
       id: '{{ response.experimentTemplate.id }}'
       lastUpdateTime: '{{ response.experimentTemplate.lastUpdateTime }}'
       logConfiguration: '{{ response.experimentTemplate.logConfiguration }}'
       roleArn: '{{ response.experimentTemplate.roleArn }}'
-      stopConditions: '{{ response.experimentTemplate.stopConditions }}'
+      stopConditions: '{{ response.experimentTemplate.stopConditions[].value }}'
       tags: '{{ response.experimentTemplate.tags }}'
-      targetAccountConfigurationsCount: '{{ response.experimentTemplate.targetAccountConfigurationsCount
-        }}'
+      targetAccountConfigurationsCount: '{{ response.experimentTemplate.targetAccountConfigurationsCount }}'
       targets: '{{ response.experimentTemplate.targets }}'
+      accountTargeting: '{{ response.experimentTemplate.experimentOptions.accountTargeting }}'
+      emptyTargetResolutionMode: '{{ response.experimentTemplate.experimentOptions.emptyTargetResolutionMode }}'
+      bucketName: '{{ response.experimentTemplate.experimentReportConfiguration.outputs.s3Configuration.bucketName }}'
+      prefix: '{{ response.experimentTemplate.experimentReportConfiguration.outputs.s3Configuration.prefix }}'
+      postExperimentDuration: '{{ response.experimentTemplate.experimentReportConfiguration.postExperimentDuration }}'
+      preExperimentDuration: '{{ response.experimentTemplate.experimentReportConfiguration.preExperimentDuration }}'
+      logGroupArn: '{{ response.experimentTemplate.logConfiguration.cloudWatchLogsConfiguration.logGroupArn }}'
+      logSchemaVersion: '{{ response.experimentTemplate.logConfiguration.logSchemaVersion }}'
 - discovery_id: aws.fis.get_safety_lever
   for_each: aws.fis.list_actions
   calls:
@@ -163,6 +185,8 @@ discovery:
       arn: '{{ response.safetyLever.arn }}'
       id: '{{ response.safetyLever.id }}'
       state: '{{ response.safetyLever.state }}'
+      reason: '{{ response.safetyLever.state.reason }}'
+      status: '{{ response.safetyLever.state.status }}'
 - discovery_id: aws.fis.get_target_account_configuration
   for_each: aws.fis.list_experiments
   calls:
@@ -204,6 +228,7 @@ discovery:
       resourceType: '{{ item.resourceType }}'
       targetInformation: '{{ item.targetInformation }}'
       targetName: '{{ item.targetName }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.fis.list_experiment_target_account_configurations
   calls:
   - action: list_experiment_target_account_configurations
@@ -216,6 +241,7 @@ discovery:
       accountId: '{{ item.accountId }}'
       description: '{{ item.description }}'
       roleArn: '{{ item.roleArn }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.fis.list_tags_for_resource
   calls:
   - action: list_tags_for_resource
@@ -240,3 +266,4 @@ discovery:
       accountId: '{{ item.accountId }}'
       description: '{{ item.description }}'
       roleArn: '{{ item.roleArn }}'
+      nextToken: '{{ response.nextToken }}'

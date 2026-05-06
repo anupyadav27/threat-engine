@@ -1,0 +1,137 @@
+# ============================================================
+# Discovery YAML — redshift-data (AWS)
+# Generated: 2026-02-21T04:56:59Z
+# Actions use boto3 SDK snake_case method names
+# ============================================================
+version: '1.0'
+provider: aws
+service: redshift-data
+services:
+  client: redshift-data
+  module: boto3.client
+discovery:
+  # ── ListStatements ──
+  - discovery_id: aws.redshift-data.list_statements
+    calls:
+      - action: list_statements
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Statements }}'
+      item:
+        Id: '{{ item.Id }}'
+        Status: '{{ item.Status }}'
+        CreatedAt: '{{ item.CreatedAt }}'
+        Duration: '{{ item.Duration }}'
+        Error: '{{ item.Error }}'
+        IsBatchStatement: '{{ item.IsBatchStatement }}'
+        QueryParameters: '{{ item.QueryParameters }}'
+        QueryString: '{{ item.QueryString }}'
+        QueryStrings: '{{ item.QueryStrings }}'
+        ResultFormat: '{{ item.ResultFormat }}'
+        SecretArn: '{{ item.SecretArn }}'
+        SessionId: '{{ item.SessionId }}'
+        StatementName: '{{ item.StatementName }}'
+        UpdatedAt: '{{ item.UpdatedAt }}'
+  # ── Dependent read operations (require identifiers) ──
+  # ── DescribeStatement ──
+  - discovery_id: aws.redshift-data.describe_statement
+    for_each: aws.redshift-data.list_statements
+    calls:
+      - action: describe_statement
+        params:
+          Id: '{{ item.Id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.QueryParameters }}'
+      item:
+        Duration: '{{ item.Duration }}'
+        Error: '{{ item.Error }}'
+        name: '{{ item.name }}'
+        value: '{{ item.value }}'
+  # ── DescribeTable ──
+  - discovery_id: aws.redshift-data.describe_table
+    calls:
+      - action: describe_table
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.ColumnList }}'
+      item:
+        columnDefault: '{{ item.columnDefault }}'
+        isCaseSensitive: '{{ item.isCaseSensitive }}'
+        isCurrency: '{{ item.isCurrency }}'
+        isSigned: '{{ item.isSigned }}'
+        label: '{{ item.label }}'
+        length: '{{ item.length }}'
+        name: '{{ item.name }}'
+        nullable: '{{ item.nullable }}'
+        precision: '{{ item.precision }}'
+        scale: '{{ item.scale }}'
+        schemaName: '{{ item.schemaName }}'
+        tableName: '{{ item.tableName }}'
+        typeName: '{{ item.typeName }}'
+  # ── GetStatementResult ──
+  - discovery_id: aws.redshift-data.get_statement_result
+    for_each: aws.redshift-data.list_statements
+    calls:
+      - action: get_statement_result
+        params:
+          Id: '{{ item.Id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Records }}'
+      item:
+        Records: '{{ item.Records }}'
+  # ── GetStatementResultV2 ──
+  - discovery_id: aws.redshift-data.get_statement_result_v2
+    for_each: aws.redshift-data.list_statements
+    calls:
+      - action: get_statement_result_v2
+        params:
+          Id: '{{ item.Id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Records }}'
+      item:
+        CSVRecords: '{{ item.CSVRecords }}'
+        Records: '{{ item.Records }}'
+  # ── ListDatabases ──
+  - discovery_id: aws.redshift-data.list_databases
+    calls:
+      - action: list_databases
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Databases }}'
+  # ── ListSchemas ──
+  - discovery_id: aws.redshift-data.list_schemas
+    calls:
+      - action: list_schemas
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Schemas }}'
+  # ── ListTables ──
+  - discovery_id: aws.redshift-data.list_tables
+    calls:
+      - action: list_tables
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Tables }}'
+      item:
+        name: '{{ item.name }}'
+        schema: '{{ item.schema }}'
+        type: '{{ item.type }}'

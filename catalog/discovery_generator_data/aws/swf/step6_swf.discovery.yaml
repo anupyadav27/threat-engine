@@ -13,14 +13,21 @@ discovery:
   emit:
     as: item
     item:
-      Status: '{{ response.typeInfo.Status }}'
+      Status: '{{ response.typeInfo.status }}'
       Enabled: '{{ response.typeInfo.Enabled }}'
-      activityType: '{{ response.typeInfo.activityType }}'
+      activityType: '{{ response.typeInfo.activityType.name }}'
       configuration: '{{ response.typeInfo.configuration }}'
       creationDate: '{{ response.typeInfo.creationDate }}'
       deprecationDate: '{{ response.typeInfo.deprecationDate }}'
       description: '{{ response.typeInfo.description }}'
       status: '{{ response.typeInfo.status }}'
+      defaultTaskHeartbeatTimeout: '{{ response.configuration.defaultTaskHeartbeatTimeout }}'
+      name: '{{ response.configuration.defaultTaskList.name }}'
+      defaultTaskPriority: '{{ response.configuration.defaultTaskPriority }}'
+      defaultTaskScheduleToCloseTimeout: '{{ response.configuration.defaultTaskScheduleToCloseTimeout }}'
+      defaultTaskScheduleToStartTimeout: '{{ response.configuration.defaultTaskScheduleToStartTimeout }}'
+      defaultTaskStartToCloseTimeout: '{{ response.configuration.defaultTaskStartToCloseTimeout }}'
+      version: '{{ response.typeInfo.activityType.version }}'
 - discovery_id: aws.swf.describe_domain
   calls:
   - action: describe_domain
@@ -34,6 +41,7 @@ discovery:
       domainInfo: '{{ response.domainInfo.domainInfo }}'
       name: '{{ response.domainInfo.name }}'
       status: '{{ response.domainInfo.status }}'
+      workflowExecutionRetentionPeriodInDays: '{{ response.configuration.workflowExecutionRetentionPeriodInDays }}'
 - discovery_id: aws.swf.describe_workflow_execution
   calls:
   - action: describe_workflow_execution
@@ -45,12 +53,28 @@ discovery:
       cancelRequested: '{{ response.executionInfo.cancelRequested }}'
       closeStatus: '{{ response.executionInfo.closeStatus }}'
       closeTimestamp: '{{ response.executionInfo.closeTimestamp }}'
-      execution: '{{ response.executionInfo.execution }}'
+      execution: '{{ response.executionInfo.executionStatus }}'
       executionStatus: '{{ response.executionInfo.executionStatus }}'
-      parent: '{{ response.executionInfo.parent }}'
+      parent: '{{ response.executionInfo.parent.runId }}'
       startTimestamp: '{{ response.executionInfo.startTimestamp }}'
       tagList: '{{ response.executionInfo.tagList }}'
-      workflowType: '{{ response.executionInfo.workflowType }}'
+      workflowType: '{{ response.executionInfo.workflowType.name }}'
+      childPolicy: '{{ response.executionConfiguration.childPolicy }}'
+      executionStartToCloseTimeout: '{{ response.executionConfiguration.executionStartToCloseTimeout }}'
+      lambdaRole: '{{ response.executionConfiguration.lambdaRole }}'
+      name: '{{ response.executionConfiguration.taskList.name }}'
+      taskPriority: '{{ response.executionConfiguration.taskPriority }}'
+      taskStartToCloseTimeout: '{{ response.executionConfiguration.taskStartToCloseTimeout }}'
+      runId: '{{ response.executionInfo.execution.runId }}'
+      workflowId: '{{ response.executionInfo.execution.workflowId }}'
+      version: '{{ response.executionInfo.workflowType.version }}'
+      latestActivityTaskTimestamp: '{{ response.latestActivityTaskTimestamp }}'
+      latestExecutionContext: '{{ response.latestExecutionContext }}'
+      openActivityTasks: '{{ response.openCounts.openActivityTasks }}'
+      openChildWorkflowExecutions: '{{ response.openCounts.openChildWorkflowExecutions }}'
+      openDecisionTasks: '{{ response.openCounts.openDecisionTasks }}'
+      openLambdaFunctions: '{{ response.openCounts.openLambdaFunctions }}'
+      openTimers: '{{ response.openCounts.openTimers }}'
 - discovery_id: aws.swf.describe_workflow_type
   calls:
   - action: describe_workflow_type
@@ -63,7 +87,14 @@ discovery:
       deprecationDate: '{{ response.typeInfo.deprecationDate }}'
       description: '{{ response.typeInfo.description }}'
       status: '{{ response.typeInfo.status }}'
-      workflowType: '{{ response.typeInfo.workflowType }}'
+      workflowType: '{{ response.typeInfo.workflowType.name }}'
+      defaultChildPolicy: '{{ response.configuration.defaultChildPolicy }}'
+      defaultExecutionStartToCloseTimeout: '{{ response.configuration.defaultExecutionStartToCloseTimeout }}'
+      defaultLambdaRole: '{{ response.configuration.defaultLambdaRole }}'
+      name: '{{ response.configuration.defaultTaskList.name }}'
+      defaultTaskPriority: '{{ response.configuration.defaultTaskPriority }}'
+      defaultTaskStartToCloseTimeout: '{{ response.configuration.defaultTaskStartToCloseTimeout }}'
+      version: '{{ response.typeInfo.workflowType.version }}'
 - discovery_id: aws.swf.get_workflow_execution_history
   calls:
   - action: get_workflow_execution_history
@@ -73,113 +104,65 @@ discovery:
     as: item
     items_for: '{{ response.events }}'
     item:
-      activityTaskCancelRequestedEventAttributes: '{{ item.activityTaskCancelRequestedEventAttributes
-        }}'
-      activityTaskCanceledEventAttributes: '{{ item.activityTaskCanceledEventAttributes
-        }}'
-      activityTaskCompletedEventAttributes: '{{ item.activityTaskCompletedEventAttributes
-        }}'
-      activityTaskFailedEventAttributes: '{{ item.activityTaskFailedEventAttributes
-        }}'
-      activityTaskScheduledEventAttributes: '{{ item.activityTaskScheduledEventAttributes
-        }}'
-      activityTaskStartedEventAttributes: '{{ item.activityTaskStartedEventAttributes
-        }}'
-      activityTaskTimedOutEventAttributes: '{{ item.activityTaskTimedOutEventAttributes
-        }}'
-      cancelTimerFailedEventAttributes: '{{ item.cancelTimerFailedEventAttributes
-        }}'
-      cancelWorkflowExecutionFailedEventAttributes: '{{ item.cancelWorkflowExecutionFailedEventAttributes
-        }}'
-      childWorkflowExecutionCanceledEventAttributes: '{{ item.childWorkflowExecutionCanceledEventAttributes
-        }}'
-      childWorkflowExecutionCompletedEventAttributes: '{{ item.childWorkflowExecutionCompletedEventAttributes
-        }}'
-      childWorkflowExecutionFailedEventAttributes: '{{ item.childWorkflowExecutionFailedEventAttributes
-        }}'
-      childWorkflowExecutionStartedEventAttributes: '{{ item.childWorkflowExecutionStartedEventAttributes
-        }}'
-      childWorkflowExecutionTerminatedEventAttributes: '{{ item.childWorkflowExecutionTerminatedEventAttributes
-        }}'
-      childWorkflowExecutionTimedOutEventAttributes: '{{ item.childWorkflowExecutionTimedOutEventAttributes
-        }}'
-      completeWorkflowExecutionFailedEventAttributes: '{{ item.completeWorkflowExecutionFailedEventAttributes
-        }}'
-      continueAsNewWorkflowExecutionFailedEventAttributes: '{{ item.continueAsNewWorkflowExecutionFailedEventAttributes
-        }}'
-      decisionTaskCompletedEventAttributes: '{{ item.decisionTaskCompletedEventAttributes
-        }}'
-      decisionTaskScheduledEventAttributes: '{{ item.decisionTaskScheduledEventAttributes
-        }}'
-      decisionTaskStartedEventAttributes: '{{ item.decisionTaskStartedEventAttributes
-        }}'
-      decisionTaskTimedOutEventAttributes: '{{ item.decisionTaskTimedOutEventAttributes
-        }}'
+      activityTaskCancelRequestedEventAttributes: '{{ item.activityTaskCancelRequestedEventAttributes }}'
+      activityTaskCanceledEventAttributes: '{{ item.activityTaskCanceledEventAttributes }}'
+      activityTaskCompletedEventAttributes: '{{ item.activityTaskCompletedEventAttributes }}'
+      activityTaskFailedEventAttributes: '{{ item.activityTaskFailedEventAttributes }}'
+      activityTaskScheduledEventAttributes: '{{ item.activityTaskScheduledEventAttributes }}'
+      activityTaskStartedEventAttributes: '{{ item.activityTaskStartedEventAttributes }}'
+      activityTaskTimedOutEventAttributes: '{{ item.activityTaskTimedOutEventAttributes }}'
+      cancelTimerFailedEventAttributes: '{{ item.cancelTimerFailedEventAttributes }}'
+      cancelWorkflowExecutionFailedEventAttributes: '{{ item.events[].cancelWorkflowExecutionFailedEventAttributes.cause }}'
+      childWorkflowExecutionCanceledEventAttributes: '{{ item.childWorkflowExecutionCanceledEventAttributes }}'
+      childWorkflowExecutionCompletedEventAttributes: '{{ item.events[].childWorkflowExecutionCompletedEventAttributes.result }}'
+      childWorkflowExecutionFailedEventAttributes: '{{ item.childWorkflowExecutionFailedEventAttributes }}'
+      childWorkflowExecutionStartedEventAttributes: '{{ item.childWorkflowExecutionStartedEventAttributes }}'
+      childWorkflowExecutionTerminatedEventAttributes: '{{ item.childWorkflowExecutionTerminatedEventAttributes }}'
+      childWorkflowExecutionTimedOutEventAttributes: '{{ item.childWorkflowExecutionTimedOutEventAttributes }}'
+      completeWorkflowExecutionFailedEventAttributes: '{{ item.events[].completeWorkflowExecutionFailedEventAttributes.cause }}'
+      continueAsNewWorkflowExecutionFailedEventAttributes: '{{ item.events[].continueAsNewWorkflowExecutionFailedEventAttributes.cause }}'
+      decisionTaskCompletedEventAttributes: '{{ item.decisionTaskCompletedEventAttributes }}'
+      decisionTaskScheduledEventAttributes: '{{ item.decisionTaskScheduledEventAttributes }}'
+      decisionTaskStartedEventAttributes: '{{ item.decisionTaskStartedEventAttributes }}'
+      decisionTaskTimedOutEventAttributes: '{{ item.decisionTaskTimedOutEventAttributes }}'
       eventId: '{{ item.eventId }}'
       eventTimestamp: '{{ item.eventTimestamp }}'
       eventType: '{{ item.eventType }}'
       events: '{{ item.events }}'
-      externalWorkflowExecutionCancelRequestedEventAttributes: '{{ item.externalWorkflowExecutionCancelRequestedEventAttributes
-        }}'
-      externalWorkflowExecutionSignaledEventAttributes: '{{ item.externalWorkflowExecutionSignaledEventAttributes
-        }}'
-      failWorkflowExecutionFailedEventAttributes: '{{ item.failWorkflowExecutionFailedEventAttributes
-        }}'
-      lambdaFunctionCompletedEventAttributes: '{{ item.lambdaFunctionCompletedEventAttributes
-        }}'
-      lambdaFunctionFailedEventAttributes: '{{ item.lambdaFunctionFailedEventAttributes
-        }}'
-      lambdaFunctionScheduledEventAttributes: '{{ item.lambdaFunctionScheduledEventAttributes
-        }}'
-      lambdaFunctionStartedEventAttributes: '{{ item.lambdaFunctionStartedEventAttributes
-        }}'
-      lambdaFunctionTimedOutEventAttributes: '{{ item.lambdaFunctionTimedOutEventAttributes
-        }}'
+      externalWorkflowExecutionCancelRequestedEventAttributes: '{{ item.externalWorkflowExecutionCancelRequestedEventAttributes }}'
+      externalWorkflowExecutionSignaledEventAttributes: '{{ item.externalWorkflowExecutionSignaledEventAttributes }}'
+      failWorkflowExecutionFailedEventAttributes: '{{ item.failWorkflowExecutionFailedEventAttributes }}'
+      lambdaFunctionCompletedEventAttributes: '{{ item.lambdaFunctionCompletedEventAttributes }}'
+      lambdaFunctionFailedEventAttributes: '{{ item.lambdaFunctionFailedEventAttributes }}'
+      lambdaFunctionScheduledEventAttributes: '{{ item.events[].lambdaFunctionScheduledEventAttributes.id }}'
+      lambdaFunctionStartedEventAttributes: '{{ item.lambdaFunctionStartedEventAttributes }}'
+      lambdaFunctionTimedOutEventAttributes: '{{ item.lambdaFunctionTimedOutEventAttributes }}'
       markerRecordedEventAttributes: '{{ item.markerRecordedEventAttributes }}'
-      recordMarkerFailedEventAttributes: '{{ item.recordMarkerFailedEventAttributes
-        }}'
-      requestCancelActivityTaskFailedEventAttributes: '{{ item.requestCancelActivityTaskFailedEventAttributes
-        }}'
-      requestCancelExternalWorkflowExecutionFailedEventAttributes: '{{ item.requestCancelExternalWorkflowExecutionFailedEventAttributes
-        }}'
-      requestCancelExternalWorkflowExecutionInitiatedEventAttributes: '{{ item.requestCancelExternalWorkflowExecutionInitiatedEventAttributes
-        }}'
-      scheduleActivityTaskFailedEventAttributes: '{{ item.scheduleActivityTaskFailedEventAttributes
-        }}'
-      scheduleLambdaFunctionFailedEventAttributes: '{{ item.scheduleLambdaFunctionFailedEventAttributes
-        }}'
-      signalExternalWorkflowExecutionFailedEventAttributes: '{{ item.signalExternalWorkflowExecutionFailedEventAttributes
-        }}'
-      signalExternalWorkflowExecutionInitiatedEventAttributes: '{{ item.signalExternalWorkflowExecutionInitiatedEventAttributes
-        }}'
-      startChildWorkflowExecutionFailedEventAttributes: '{{ item.startChildWorkflowExecutionFailedEventAttributes
-        }}'
-      startChildWorkflowExecutionInitiatedEventAttributes: '{{ item.startChildWorkflowExecutionInitiatedEventAttributes
-        }}'
-      startLambdaFunctionFailedEventAttributes: '{{ item.startLambdaFunctionFailedEventAttributes
-        }}'
+      recordMarkerFailedEventAttributes: '{{ item.recordMarkerFailedEventAttributes }}'
+      requestCancelActivityTaskFailedEventAttributes: '{{ item.events[].requestCancelActivityTaskFailedEventAttributes.cause }}'
+      requestCancelExternalWorkflowExecutionFailedEventAttributes: '{{ item.events[].requestCancelExternalWorkflowExecutionFailedEventAttributes.runId }}'
+      requestCancelExternalWorkflowExecutionInitiatedEventAttributes: '{{ item.events[].requestCancelExternalWorkflowExecutionInitiatedEventAttributes.runId }}'
+      scheduleActivityTaskFailedEventAttributes: '{{ item.scheduleActivityTaskFailedEventAttributes }}'
+      scheduleLambdaFunctionFailedEventAttributes: '{{ item.events[].scheduleLambdaFunctionFailedEventAttributes.id }}'
+      signalExternalWorkflowExecutionFailedEventAttributes: '{{ item.events[].signalExternalWorkflowExecutionFailedEventAttributes.runId }}'
+      signalExternalWorkflowExecutionInitiatedEventAttributes: '{{ item.events[].signalExternalWorkflowExecutionInitiatedEventAttributes.runId }}'
+      startChildWorkflowExecutionFailedEventAttributes: '{{ item.events[].startChildWorkflowExecutionFailedEventAttributes.cause }}'
+      startChildWorkflowExecutionInitiatedEventAttributes: '{{ item.events[].startChildWorkflowExecutionInitiatedEventAttributes.input }}'
+      startLambdaFunctionFailedEventAttributes: '{{ item.startLambdaFunctionFailedEventAttributes }}'
       startTimerFailedEventAttributes: '{{ item.startTimerFailedEventAttributes }}'
       timerCanceledEventAttributes: '{{ item.timerCanceledEventAttributes }}'
       timerFiredEventAttributes: '{{ item.timerFiredEventAttributes }}'
       timerStartedEventAttributes: '{{ item.timerStartedEventAttributes }}'
-      workflowExecutionCancelRequestedEventAttributes: '{{ item.workflowExecutionCancelRequestedEventAttributes
-        }}'
-      workflowExecutionCanceledEventAttributes: '{{ item.workflowExecutionCanceledEventAttributes
-        }}'
-      workflowExecutionCompletedEventAttributes: '{{ item.workflowExecutionCompletedEventAttributes
-        }}'
-      workflowExecutionContinuedAsNewEventAttributes: '{{ item.workflowExecutionContinuedAsNewEventAttributes
-        }}'
-      workflowExecutionFailedEventAttributes: '{{ item.workflowExecutionFailedEventAttributes
-        }}'
-      workflowExecutionSignaledEventAttributes: '{{ item.workflowExecutionSignaledEventAttributes
-        }}'
-      workflowExecutionStartedEventAttributes: '{{ item.workflowExecutionStartedEventAttributes
-        }}'
-      workflowExecutionTerminatedEventAttributes: '{{ item.workflowExecutionTerminatedEventAttributes
-        }}'
-      workflowExecutionTimedOutEventAttributes: '{{ item.workflowExecutionTimedOutEventAttributes
-        }}'
+      workflowExecutionCancelRequestedEventAttributes: '{{ item.events[].workflowExecutionCancelRequestedEventAttributes.cause }}'
+      workflowExecutionCanceledEventAttributes: '{{ item.workflowExecutionCanceledEventAttributes }}'
+      workflowExecutionCompletedEventAttributes: '{{ item.workflowExecutionCompletedEventAttributes }}'
+      workflowExecutionContinuedAsNewEventAttributes: '{{ item.events[].workflowExecutionContinuedAsNewEventAttributes.input }}'
+      workflowExecutionFailedEventAttributes: '{{ item.workflowExecutionFailedEventAttributes }}'
+      workflowExecutionSignaledEventAttributes: '{{ item.workflowExecutionSignaledEventAttributes }}'
+      workflowExecutionStartedEventAttributes: '{{ item.workflowExecutionStartedEventAttributes }}'
+      workflowExecutionTerminatedEventAttributes: '{{ item.workflowExecutionTerminatedEventAttributes }}'
+      workflowExecutionTimedOutEventAttributes: '{{ item.workflowExecutionTimedOutEventAttributes }}'
+      nextPageToken: '{{ response.nextPageToken }}'
 - discovery_id: aws.swf.list_activity_types
   calls:
   - action: list_activity_types
@@ -195,6 +178,7 @@ discovery:
       deprecationDate: '{{ item.deprecationDate }}'
       description: '{{ item.description }}'
       status: '{{ item.status }}'
+      nextPageToken: '{{ response.nextPageToken }}'
 - discovery_id: aws.swf.list_closed_workflow_executions
   calls:
   - action: list_closed_workflow_executions
@@ -213,6 +197,7 @@ discovery:
       startTimestamp: '{{ item.startTimestamp }}'
       tagList: '{{ item.tagList }}'
       workflowType: '{{ item.workflowType }}'
+      nextPageToken: '{{ response.nextPageToken }}'
 - discovery_id: aws.swf.list_domains
   calls:
   - action: list_domains
@@ -227,6 +212,7 @@ discovery:
       domainInfo: '{{ item.domainInfo }}'
       name: '{{ item.name }}'
       status: '{{ item.status }}'
+      nextPageToken: '{{ response.nextPageToken }}'
 - discovery_id: aws.swf.list_open_workflow_executions
   calls:
   - action: list_open_workflow_executions
@@ -245,6 +231,7 @@ discovery:
       startTimestamp: '{{ item.startTimestamp }}'
       tagList: '{{ item.tagList }}'
       workflowType: '{{ item.workflowType }}'
+      nextPageToken: '{{ response.nextPageToken }}'
 - discovery_id: aws.swf.list_tags_for_resource
   calls:
   - action: list_tags_for_resource
@@ -270,3 +257,4 @@ discovery:
       description: '{{ item.description }}'
       status: '{{ item.status }}'
       workflowType: '{{ item.workflowType }}'
+      nextPageToken: '{{ response.nextPageToken }}'

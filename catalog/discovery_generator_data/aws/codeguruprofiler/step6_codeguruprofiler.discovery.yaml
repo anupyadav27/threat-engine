@@ -20,6 +20,7 @@ discovery:
       profileStartTime: '{{ item.profileStartTime }}'
       profilingGroupName: '{{ item.profilingGroupName }}'
       totalNumberOfFindings: '{{ item.totalNumberOfFindings }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.codeguruprofiler.list_profiling_groups
   calls:
   - action: list_profiling_groups
@@ -28,6 +29,8 @@ discovery:
   emit:
     as: item
     items_for: '{{ response.profilingGroupNames }}'
+    item:
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.codeguruprofiler.describe_profiling_group
   for_each: aws.codeguruprofiler.list_profiling_groups
   calls:
@@ -39,14 +42,19 @@ discovery:
   emit:
     as: item
     item:
-      agentOrchestrationConfig: '{{ response.profilingGroup.agentOrchestrationConfig
-        }}'
+      agentOrchestrationConfig: '{{ response.profilingGroup.agentOrchestrationConfig }}'
       arn: '{{ response.profilingGroup.arn }}'
       computePlatform: '{{ response.profilingGroup.computePlatform }}'
       createdAt: '{{ response.profilingGroup.createdAt }}'
       profilingStatus: '{{ response.profilingGroup.profilingStatus }}'
       tags: '{{ response.profilingGroup.tags }}'
       updatedAt: '{{ response.profilingGroup.updatedAt }}'
+      profilingEnabled: '{{ response.profilingGroup.agentOrchestrationConfig.profilingEnabled }}'
+      name: '{{ response.profilingGroup.name }}'
+      latestAgentOrchestratedAt: '{{ response.profilingGroup.profilingStatus.latestAgentOrchestratedAt }}'
+      latestAgentProfileReportedAt: '{{ response.profilingGroup.profilingStatus.latestAgentProfileReportedAt }}'
+      period: '{{ response.profilingGroup.profilingStatus.latestAggregatedProfile.period }}'
+      start: '{{ response.profilingGroup.profilingStatus.latestAggregatedProfile.start }}'
 - discovery_id: aws.codeguruprofiler.get_notification_configuration
   for_each: aws.codeguruprofiler.list_profiling_groups
   calls:
@@ -58,7 +66,7 @@ discovery:
   emit:
     as: item
     item:
-      channels: '{{ response.notificationConfiguration.channels }}'
+      channels: '{{ response.notificationConfiguration.channels[].id }}'
 - discovery_id: aws.codeguruprofiler.get_policy
   for_each: aws.codeguruprofiler.list_profiling_groups
   calls:
@@ -73,6 +81,7 @@ discovery:
       Statement: '{{ response.Statement }}'
       Version: '{{ response.Version }}'
       policy: '{{ response.policy }}'
+      revisionId: '{{ response.revisionId }}'
 - discovery_id: aws.codeguruprofiler.get_profile
   for_each: aws.codeguruprofiler.list_profiling_groups
   calls:
@@ -105,6 +114,9 @@ discovery:
       instances: '{{ item.instances }}'
       metric: '{{ item.metric }}'
       reason: '{{ item.reason }}'
+      profileEndTime: '{{ response.profileEndTime }}'
+      profileStartTime: '{{ response.profileStartTime }}'
+      profilingGroupName: '{{ response.profilingGroupName }}'
 - discovery_id: aws.codeguruprofiler.list_findings_reports
   for_each: aws.codeguruprofiler.list_profiling_groups
   calls:
@@ -124,6 +136,7 @@ discovery:
       profileStartTime: '{{ item.profileStartTime }}'
       profilingGroupName: '{{ item.profilingGroupName }}'
       totalNumberOfFindings: '{{ item.totalNumberOfFindings }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.codeguruprofiler.list_profile_times
   for_each: aws.codeguruprofiler.list_profiling_groups
   calls:
@@ -140,6 +153,7 @@ discovery:
     items_for: '{{ response.profileTimes }}'
     item:
       start: '{{ item.start }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.codeguruprofiler.list_tags_for_resource
   calls:
   - action: list_tags_for_resource

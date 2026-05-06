@@ -24,8 +24,8 @@ discovery:
       createdAt: '{{ item.createdAt }}'
       credentialsArn: '{{ item.credentialsArn }}'
       lastUpdatedAt: '{{ item.lastUpdatedAt }}'
-      privateConnectionProvisioningState: '{{ item.privateConnectionProvisioningState
-        }}'
+      privateConnectionProvisioningState: '{{ item.privateConnectionProvisioningState }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.appflow.describe_connectors
   calls:
   - action: describe_connectors
@@ -47,6 +47,7 @@ discovery:
       connectorType: '{{ item.connectorType }}'
       connectorVersion: '{{ item.connectorVersion }}'
       connectors: '{{ item.connectors }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.appflow.list_connector_entities
   calls:
   - action: list_connector_entities
@@ -56,6 +57,7 @@ discovery:
     as: item
     item:
       connectorEntityMap: '{{ response.connectorEntityMap }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.appflow.list_flows
   calls:
   - action: list_flows
@@ -68,8 +70,8 @@ discovery:
       createdAt: '{{ item.createdAt }}'
       createdBy: '{{ item.createdBy }}'
       description: '{{ item.description }}'
-      destinationConnectorLabel: '{{ item.destinationConnectorLabel }}'
-      destinationConnectorType: '{{ item.destinationConnectorType }}'
+      destinationConnectorLabel: '{{ item.flows[].destinationConnectorLabel }}'
+      destinationConnectorType: '{{ item.flows[].destinationConnectorType }}'
       flowArn: '{{ item.flowArn }}'
       flowName: '{{ item.flowName }}'
       flowStatus: '{{ item.flowStatus }}'
@@ -81,6 +83,7 @@ discovery:
       sourceConnectorType: '{{ item.sourceConnectorType }}'
       tags: '{{ item.tags }}'
       triggerType: '{{ item.triggerType }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.appflow.describe_connector
   for_each: aws.appflow.describe_connector_profiles
   calls:
@@ -92,52 +95,42 @@ discovery:
   emit:
     as: item
     item:
-      DestinationArn: '{{ response.connectorConfiguration.DestinationArn }}'
+      DestinationArn: '{{ response.connectorConfiguration.canUseAsDestination }}'
       Format: '{{ response.connectorConfiguration.Format }}'
       Level: '{{ response.connectorConfiguration.Level }}'
-      authenticationConfig: '{{ response.connectorConfiguration.authenticationConfig
-        }}'
-      canUseAsDestination: '{{ response.connectorConfiguration.canUseAsDestination
-        }}'
+      authenticationConfig: '{{ response.connectorConfiguration.authenticationConfig }}'
+      canUseAsDestination: '{{ response.connectorConfiguration.canUseAsDestination }}'
       canUseAsSource: '{{ response.connectorConfiguration.canUseAsSource }}'
       connectorArn: '{{ response.connectorConfiguration.connectorArn }}'
-      connectorDescription: '{{ response.connectorConfiguration.connectorDescription
-        }}'
+      connectorDescription: '{{ response.connectorConfiguration.connectorDescription }}'
       connectorLabel: '{{ response.connectorConfiguration.connectorLabel }}'
-      connectorMetadata: '{{ response.connectorConfiguration.connectorMetadata }}'
-      connectorModes: '{{ response.connectorConfiguration.connectorModes }}'
+      connectorMetadata: '{{ response.connectorConfiguration.connectorType }}'
+      connectorModes: '{{ response.connectorConfiguration.connectorType }}'
       connectorName: '{{ response.connectorConfiguration.connectorName }}'
       connectorOwner: '{{ response.connectorConfiguration.connectorOwner }}'
-      connectorProvisioningConfig: '{{ response.connectorConfiguration.connectorProvisioningConfig
-        }}'
-      connectorProvisioningType: '{{ response.connectorConfiguration.connectorProvisioningType
-        }}'
-      connectorRuntimeSettings: '{{ response.connectorConfiguration.connectorRuntimeSettings
-        }}'
+      connectorProvisioningConfig: '{{ response.connectorConfiguration.connectorProvisioningType }}'
+      connectorProvisioningType: '{{ response.connectorConfiguration.connectorProvisioningType }}'
+      connectorRuntimeSettings: '{{ response.connectorConfiguration.connectorRuntimeSettings[].key }}'
       connectorType: '{{ response.connectorConfiguration.connectorType }}'
       connectorVersion: '{{ response.connectorConfiguration.connectorVersion }}'
-      isPrivateLinkEnabled: '{{ response.connectorConfiguration.isPrivateLinkEnabled
-        }}'
-      isPrivateLinkEndpointUrlRequired: '{{ response.connectorConfiguration.isPrivateLinkEndpointUrlRequired
-        }}'
+      isPrivateLinkEnabled: '{{ response.connectorConfiguration.isPrivateLinkEnabled }}'
+      isPrivateLinkEndpointUrlRequired: '{{ response.connectorConfiguration.isPrivateLinkEndpointUrlRequired }}'
       logoURL: '{{ response.connectorConfiguration.logoURL }}'
       registeredAt: '{{ response.connectorConfiguration.registeredAt }}'
       registeredBy: '{{ response.connectorConfiguration.registeredBy }}'
-      supportedApiVersions: '{{ response.connectorConfiguration.supportedApiVersions
-        }}'
-      supportedDataTransferApis: '{{ response.connectorConfiguration.supportedDataTransferApis
-        }}'
-      supportedDataTransferTypes: '{{ response.connectorConfiguration.supportedDataTransferTypes
-        }}'
-      supportedDestinationConnectors: '{{ response.connectorConfiguration.supportedDestinationConnectors
-        }}'
+      supportedApiVersions: '{{ response.connectorConfiguration.supportedApiVersions }}'
+      supportedDataTransferApis: '{{ response.connectorConfiguration.supportedDataTransferApis[].Type }}'
+      supportedDataTransferTypes: '{{ response.connectorConfiguration.supportedDataTransferApis[].Type }}'
+      supportedDestinationConnectors: '{{ response.connectorConfiguration.supportedDestinationConnectors }}'
       supportedOperators: '{{ response.connectorConfiguration.supportedOperators }}'
-      supportedSchedulingFrequencies: '{{ response.connectorConfiguration.supportedSchedulingFrequencies
-        }}'
-      supportedTriggerTypes: '{{ response.connectorConfiguration.supportedTriggerTypes
-        }}'
-      supportedWriteOperations: '{{ response.connectorConfiguration.supportedWriteOperations
-        }}'
+      supportedSchedulingFrequencies: '{{ response.connectorConfiguration.supportedSchedulingFrequencies }}'
+      supportedTriggerTypes: '{{ response.connectorConfiguration.supportedTriggerTypes }}'
+      supportedWriteOperations: '{{ response.connectorConfiguration.supportedWriteOperations }}'
+      isApiKeyAuthSupported: '{{ response.connectorConfiguration.authenticationConfig.isApiKeyAuthSupported }}'
+      isBasicAuthSupported: '{{ response.connectorConfiguration.authenticationConfig.isBasicAuthSupported }}'
+      isCustomAuthSupported: '{{ response.connectorConfiguration.authenticationConfig.isCustomAuthSupported }}'
+      isOAuth2Supported: '{{ response.connectorConfiguration.authenticationConfig.isOAuth2Supported }}'
+      lambdaArn: '{{ response.connectorConfiguration.connectorProvisioningConfig.lambda.lambdaArn }}'
 - discovery_id: aws.appflow.describe_connector_entity
   calls:
   - action: describe_connector_entity
@@ -175,6 +168,52 @@ discovery:
       connectorType: '{{ item.connectorType }}'
       destinationConnectorProperties: '{{ item.destinationConnectorProperties }}'
       lastRunMetadataCatalogDetails: '{{ item.lastRunMetadataCatalogDetails }}'
+      createdAt: '{{ response.createdAt }}'
+      createdBy: '{{ response.createdBy }}'
+      description: '{{ response.description }}'
+      flowArn: '{{ response.flowArn }}'
+      flowName: '{{ response.flowName }}'
+      flowStatus: '{{ response.flowStatus }}'
+      flowStatusMessage: '{{ response.flowStatusMessage }}'
+      kmsArn: '{{ response.kmsArn }}'
+      mostRecentExecutionMessage: '{{ response.lastRunExecutionDetails.mostRecentExecutionMessage }}'
+      mostRecentExecutionStatus: '{{ response.lastRunExecutionDetails.mostRecentExecutionStatus }}'
+      mostRecentExecutionTime: '{{ response.lastRunExecutionDetails.mostRecentExecutionTime }}'
+      lastUpdatedAt: '{{ response.lastUpdatedAt }}'
+      lastUpdatedBy: '{{ response.lastUpdatedBy }}'
+      databaseName: '{{ response.metadataCatalogConfig.glueDataCatalog.databaseName }}'
+      roleArn: '{{ response.metadataCatalogConfig.glueDataCatalog.roleArn }}'
+      tablePrefix: '{{ response.metadataCatalogConfig.glueDataCatalog.tablePrefix }}'
+      schemaVersion: '{{ response.schemaVersion }}'
+      datetimeTypeFieldName: '{{ response.sourceFlowConfig.incrementalPullConfig.datetimeTypeFieldName }}'
+      object: '{{ response.sourceFlowConfig.sourceConnectorProperties.Amplitude.object }}'
+      customProperties: '{{ response.sourceFlowConfig.sourceConnectorProperties.CustomConnector.customProperties }}'
+      Name: '{{ response.sourceFlowConfig.sourceConnectorProperties.CustomConnector.dataTransferApi.Name }}'
+      Type: '{{ response.sourceFlowConfig.sourceConnectorProperties.CustomConnector.dataTransferApi.Type }}'
+      entityName: '{{ response.sourceFlowConfig.sourceConnectorProperties.CustomConnector.entityName }}'
+      bucketName: '{{ response.sourceFlowConfig.sourceConnectorProperties.S3.bucketName }}'
+      bucketPrefix: '{{ response.sourceFlowConfig.sourceConnectorProperties.S3.bucketPrefix }}'
+      s3InputFileType: '{{ response.sourceFlowConfig.sourceConnectorProperties.S3.s3InputFormatConfig.s3InputFileType }}'
+      objectPath: '{{ response.sourceFlowConfig.sourceConnectorProperties.SAPOData.objectPath }}'
+      maxPageSize: '{{ response.sourceFlowConfig.sourceConnectorProperties.SAPOData.paginationConfig.maxPageSize }}'
+      maxParallelism: '{{ response.sourceFlowConfig.sourceConnectorProperties.SAPOData.parallelismConfig.maxParallelism }}'
+      dataTransferApi: '{{ response.sourceFlowConfig.sourceConnectorProperties.Salesforce.dataTransferApi }}'
+      enableDynamicFieldUpdate: '{{ response.sourceFlowConfig.sourceConnectorProperties.Salesforce.enableDynamicFieldUpdate }}'
+      includeDeletedRecords: '{{ response.sourceFlowConfig.sourceConnectorProperties.Salesforce.includeDeletedRecords }}'
+      documentType: '{{ response.sourceFlowConfig.sourceConnectorProperties.Veeva.documentType }}'
+      includeAllVersions: '{{ response.sourceFlowConfig.sourceConnectorProperties.Veeva.includeAllVersions }}'
+      includeRenditions: '{{ response.sourceFlowConfig.sourceConnectorProperties.Veeva.includeRenditions }}'
+      includeSourceFiles: '{{ response.sourceFlowConfig.sourceConnectorProperties.Veeva.includeSourceFiles }}'
+      tags: '{{ response.tags }}'
+      dataPullMode: '{{ response.triggerConfig.triggerProperties.Scheduled.dataPullMode }}'
+      firstExecutionFrom: '{{ response.triggerConfig.triggerProperties.Scheduled.firstExecutionFrom }}'
+      flowErrorDeactivationThreshold: '{{ response.triggerConfig.triggerProperties.Scheduled.flowErrorDeactivationThreshold }}'
+      scheduleEndTime: '{{ response.triggerConfig.triggerProperties.Scheduled.scheduleEndTime }}'
+      scheduleExpression: '{{ response.triggerConfig.triggerProperties.Scheduled.scheduleExpression }}'
+      scheduleOffset: '{{ response.triggerConfig.triggerProperties.Scheduled.scheduleOffset }}'
+      scheduleStartTime: '{{ response.triggerConfig.triggerProperties.Scheduled.scheduleStartTime }}'
+      timezone: '{{ response.triggerConfig.triggerProperties.Scheduled.timezone }}'
+      triggerType: '{{ response.triggerConfig.triggerType }}'
 - discovery_id: aws.appflow.describe_flow_execution_records
   for_each: aws.appflow.list_flows
   calls:
@@ -196,6 +235,7 @@ discovery:
       lastUpdatedAt: '{{ item.lastUpdatedAt }}'
       metadataCatalogDetails: '{{ item.metadataCatalogDetails }}'
       startedAt: '{{ item.startedAt }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.appflow.list_tags_for_resource
   calls:
   - action: list_tags_for_resource

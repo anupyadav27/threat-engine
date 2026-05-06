@@ -23,6 +23,16 @@ discovery:
       SentLast24Hours: '{{ response.SentLast24Hours }}'
       SuppressionAttributes: '{{ response.SuppressionAttributes }}'
       VdmAttributes: '{{ response.VdmAttributes }}'
+      ContactLanguage: '{{ response.Details.ContactLanguage }}'
+      MailType: '{{ response.Details.MailType }}'
+      CaseId: '{{ response.Details.ReviewDetails.CaseId }}'
+      Status: '{{ response.Details.ReviewDetails.Status }}'
+      UseCaseDescription: '{{ response.Details.UseCaseDescription }}'
+      WebsiteURL: '{{ response.Details.WebsiteURL }}'
+      SendingEnabled: '{{ response.SendingEnabled }}'
+      EngagementMetrics: '{{ response.VdmAttributes.DashboardAttributes.EngagementMetrics }}'
+      OptimizedSharedDelivery: '{{ response.VdmAttributes.GuardianAttributes.OptimizedSharedDelivery }}'
+      VdmEnabled: '{{ response.VdmAttributes.VdmEnabled }}'
 - discovery_id: aws.sesv2.get_dedicated_ips
   calls:
   - action: get_dedicated_ips
@@ -53,8 +63,7 @@ discovery:
       DashboardEnabled: '{{ item.DashboardEnabled }}'
       Domain: '{{ item.Domain }}'
       InboxPlacementTrackingOption: '{{ item.InboxPlacementTrackingOption }}'
-      PendingExpirationSubscribedDomains: '{{ item.PendingExpirationSubscribedDomains
-        }}'
+      PendingExpirationSubscribedDomains: '{{ item.PendingExpirationSubscribedDomains[].Domain }}'
       SubscriptionExpiryDate: '{{ item.SubscriptionExpiryDate }}'
       SubscriptionStartDate: '{{ item.SubscriptionStartDate }}'
 - discovery_id: aws.sesv2.list_configuration_sets
@@ -272,6 +281,18 @@ discovery:
     item:
       Key: '{{ item.Key }}'
       Value: '{{ item.Value }}'
+      ArchiveArn: '{{ response.ArchivingOptions.ArchiveArn }}'
+      ConfigurationSetName: '{{ response.ConfigurationSetName }}'
+      MaxDeliverySeconds: '{{ response.DeliveryOptions.MaxDeliverySeconds }}'
+      SendingPoolName: '{{ response.DeliveryOptions.SendingPoolName }}'
+      TlsPolicy: '{{ response.DeliveryOptions.TlsPolicy }}'
+      LastFreshStart: '{{ response.ReputationOptions.LastFreshStart }}'
+      ReputationMetricsEnabled: '{{ response.ReputationOptions.ReputationMetricsEnabled }}'
+      SendingEnabled: '{{ response.SendingOptions.SendingEnabled }}'
+      CustomRedirectDomain: '{{ response.TrackingOptions.CustomRedirectDomain }}'
+      HttpsPolicy: '{{ response.TrackingOptions.HttpsPolicy }}'
+      EngagementMetrics: '{{ response.VdmOptions.DashboardOptions.EngagementMetrics }}'
+      OptimizedSharedDelivery: '{{ response.VdmOptions.GuardianOptions.OptimizedSharedDelivery }}'
 - discovery_id: aws.sesv2.get_configuration_set_event_destinations
   calls:
   - action: get_configuration_set_event_destinations
@@ -304,6 +325,12 @@ discovery:
     item:
       SubscriptionStatus: '{{ item.SubscriptionStatus }}'
       TopicName: '{{ item.TopicName }}'
+      AttributesData: '{{ response.AttributesData }}'
+      ContactListName: '{{ response.ContactListName }}'
+      CreatedTimestamp: '{{ response.CreatedTimestamp }}'
+      EmailAddress: '{{ response.EmailAddress }}'
+      LastUpdatedTimestamp: '{{ response.LastUpdatedTimestamp }}'
+      UnsubscribeAll: '{{ response.UnsubscribeAll }}'
 - discovery_id: aws.sesv2.get_contact_list
   for_each: aws.sesv2.list_contact_lists
   calls:
@@ -321,6 +348,9 @@ discovery:
       DisplayName: '{{ item.DisplayName }}'
       TopicName: '{{ item.TopicName }}'
       Topics: '{{ item.Topics }}'
+      ContactListName: '{{ response.ContactListName }}'
+      CreatedTimestamp: '{{ response.CreatedTimestamp }}'
+      LastUpdatedTimestamp: '{{ response.LastUpdatedTimestamp }}'
 - discovery_id: aws.sesv2.get_custom_verification_email_template
   for_each: aws.sesv2.list_custom_verification_email_templates
   calls:
@@ -382,6 +412,18 @@ discovery:
       IspName: '{{ item.IspName }}'
       IspPlacements: '{{ item.IspPlacements }}'
       PlacementStatistics: '{{ item.PlacementStatistics }}'
+      CreateDate: '{{ response.DeliverabilityTestReport.CreateDate }}'
+      DeliverabilityTestStatus: '{{ response.DeliverabilityTestReport.DeliverabilityTestStatus }}'
+      FromEmailAddress: '{{ response.DeliverabilityTestReport.FromEmailAddress }}'
+      ReportId: '{{ response.DeliverabilityTestReport.ReportId }}'
+      ReportName: '{{ response.DeliverabilityTestReport.ReportName }}'
+      Subject: '{{ response.DeliverabilityTestReport.Subject }}'
+      Message: '{{ response.Message }}'
+      DkimPercentage: '{{ response.OverallPlacement.DkimPercentage }}'
+      InboxPercentage: '{{ response.OverallPlacement.InboxPercentage }}'
+      MissingPercentage: '{{ response.OverallPlacement.MissingPercentage }}'
+      SpamPercentage: '{{ response.OverallPlacement.SpamPercentage }}'
+      SpfPercentage: '{{ response.OverallPlacement.SpfPercentage }}'
 - discovery_id: aws.sesv2.get_domain_deliverability_campaign
   calls:
   - action: get_domain_deliverability_campaign
@@ -393,13 +435,11 @@ discovery:
       CampaignId: '{{ response.DomainDeliverabilityCampaign.CampaignId }}'
       DeleteRate: '{{ response.DomainDeliverabilityCampaign.DeleteRate }}'
       Esps: '{{ response.DomainDeliverabilityCampaign.Esps }}'
-      FirstSeenDateTime: '{{ response.DomainDeliverabilityCampaign.FirstSeenDateTime
-        }}'
+      FirstSeenDateTime: '{{ response.DomainDeliverabilityCampaign.FirstSeenDateTime }}'
       FromAddress: '{{ response.DomainDeliverabilityCampaign.FromAddress }}'
       ImageUrl: '{{ response.DomainDeliverabilityCampaign.ImageUrl }}'
       InboxCount: '{{ response.DomainDeliverabilityCampaign.InboxCount }}'
-      LastSeenDateTime: '{{ response.DomainDeliverabilityCampaign.LastSeenDateTime
-        }}'
+      LastSeenDateTime: '{{ response.DomainDeliverabilityCampaign.LastSeenDateTime }}'
       ProjectedVolume: '{{ response.DomainDeliverabilityCampaign.ProjectedVolume }}'
       ReadDeleteRate: '{{ response.DomainDeliverabilityCampaign.ReadDeleteRate }}'
       ReadRate: '{{ response.DomainDeliverabilityCampaign.ReadRate }}'
@@ -424,6 +464,11 @@ discovery:
       IspPlacements: '{{ item.IspPlacements }}'
       StartDate: '{{ item.StartDate }}'
       VolumeStatistics: '{{ item.VolumeStatistics }}'
+      ReadRatePercent: '{{ response.OverallVolume.ReadRatePercent }}'
+      InboxRawCount: '{{ response.OverallVolume.VolumeStatistics.InboxRawCount }}'
+      ProjectedInbox: '{{ response.OverallVolume.VolumeStatistics.ProjectedInbox }}'
+      ProjectedSpam: '{{ response.OverallVolume.VolumeStatistics.ProjectedSpam }}'
+      SpamRawCount: '{{ response.OverallVolume.VolumeStatistics.SpamRawCount }}'
 - discovery_id: aws.sesv2.get_email_identity
   calls:
   - action: get_email_identity
@@ -435,6 +480,27 @@ discovery:
     item:
       Key: '{{ item.Key }}'
       Value: '{{ item.Value }}'
+      ConfigurationSetName: '{{ response.ConfigurationSetName }}'
+      CurrentSigningKeyLength: '{{ response.DkimAttributes.CurrentSigningKeyLength }}'
+      LastKeyGenerationTimestamp: '{{ response.DkimAttributes.LastKeyGenerationTimestamp }}'
+      NextSigningKeyLength: '{{ response.DkimAttributes.NextSigningKeyLength }}'
+      SigningAttributesOrigin: '{{ response.DkimAttributes.SigningAttributesOrigin }}'
+      SigningEnabled: '{{ response.DkimAttributes.SigningEnabled }}'
+      Status: '{{ response.DkimAttributes.Status }}'
+      FeedbackForwardingStatus: '{{ response.FeedbackForwardingStatus }}'
+      IdentityType: '{{ response.IdentityType }}'
+      BehaviorOnMxFailure: '{{ response.MailFromAttributes.BehaviorOnMxFailure }}'
+      MailFromDomain: '{{ response.MailFromAttributes.MailFromDomain }}'
+      MailFromDomainStatus: '{{ response.MailFromAttributes.MailFromDomainStatus }}'
+      Policies: '{{ response.Policies }}'
+      ErrorType: '{{ response.VerificationInfo.ErrorType }}'
+      LastCheckedTimestamp: '{{ response.VerificationInfo.LastCheckedTimestamp }}'
+      LastSuccessTimestamp: '{{ response.VerificationInfo.LastSuccessTimestamp }}'
+      AdminEmail: '{{ response.VerificationInfo.SOARecord.AdminEmail }}'
+      PrimaryNameServer: '{{ response.VerificationInfo.SOARecord.PrimaryNameServer }}'
+      SerialNumber: '{{ response.VerificationInfo.SOARecord.SerialNumber }}'
+      VerificationStatus: '{{ response.VerificationStatus }}'
+      VerifiedForSendingStatus: '{{ response.VerifiedForSendingStatus }}'
 - discovery_id: aws.sesv2.get_email_identity_policies
   calls:
   - action: get_email_identity_policies
@@ -458,6 +524,7 @@ discovery:
       Html: '{{ response.TemplateContent.Html }}'
       Subject: '{{ response.TemplateContent.Subject }}'
       Text: '{{ response.TemplateContent.Text }}'
+      TemplateName: '{{ response.TemplateName }}'
 - discovery_id: aws.sesv2.get_export_job
   for_each: aws.sesv2.list_export_jobs
   calls:
@@ -471,6 +538,20 @@ discovery:
     item:
       DataFormat: '{{ response.ExportDestination.DataFormat }}'
       S3Url: '{{ response.ExportDestination.S3Url }}'
+      CompletedTimestamp: '{{ response.CompletedTimestamp }}'
+      CreatedTimestamp: '{{ response.CreatedTimestamp }}'
+      EndDate: '{{ response.ExportDataSource.MessageInsightsDataSource.EndDate }}'
+      MaxResults: '{{ response.ExportDataSource.MessageInsightsDataSource.MaxResults }}'
+      StartDate: '{{ response.ExportDataSource.MessageInsightsDataSource.StartDate }}'
+      Dimensions: '{{ response.ExportDataSource.MetricsDataSource.Dimensions }}'
+      Namespace: '{{ response.ExportDataSource.MetricsDataSource.Namespace }}'
+      ExportSourceType: '{{ response.ExportSourceType }}'
+      ErrorMessage: '{{ response.FailureInfo.ErrorMessage }}'
+      FailedRecordsS3Url: '{{ response.FailureInfo.FailedRecordsS3Url }}'
+      JobId: '{{ response.JobId }}'
+      JobStatus: '{{ response.JobStatus }}'
+      ExportedRecordsCount: '{{ response.Statistics.ExportedRecordsCount }}'
+      ProcessedRecordsCount: '{{ response.Statistics.ProcessedRecordsCount }}'
 - discovery_id: aws.sesv2.get_import_job
   for_each: aws.sesv2.list_export_jobs
   calls:
@@ -482,10 +563,21 @@ discovery:
   emit:
     as: item
     item:
-      ContactListDestination: '{{ response.ImportDestination.ContactListDestination
-        }}'
-      SuppressionListDestination: '{{ response.ImportDestination.SuppressionListDestination
-        }}'
+      ContactListDestination: '{{ response.ImportDestination.ContactListDestination }}'
+      SuppressionListDestination: '{{ response.ImportDestination.SuppressionListDestination }}'
+      CompletedTimestamp: '{{ response.CompletedTimestamp }}'
+      CreatedTimestamp: '{{ response.CreatedTimestamp }}'
+      FailedRecordsCount: '{{ response.FailedRecordsCount }}'
+      ErrorMessage: '{{ response.FailureInfo.ErrorMessage }}'
+      FailedRecordsS3Url: '{{ response.FailureInfo.FailedRecordsS3Url }}'
+      DataFormat: '{{ response.ImportDataSource.DataFormat }}'
+      S3Url: '{{ response.ImportDataSource.S3Url }}'
+      ContactListImportAction: '{{ response.ImportDestination.ContactListDestination.ContactListImportAction }}'
+      ContactListName: '{{ response.ImportDestination.ContactListDestination.ContactListName }}'
+      SuppressionListImportAction: '{{ response.ImportDestination.SuppressionListDestination.SuppressionListImportAction }}'
+      JobId: '{{ response.JobId }}'
+      JobStatus: '{{ response.JobStatus }}'
+      ProcessedRecordsCount: '{{ response.ProcessedRecordsCount }}'
 - discovery_id: aws.sesv2.get_message_insights
   calls:
   - action: get_message_insights
@@ -498,6 +590,9 @@ discovery:
       Name: '{{ item.Name }}'
       Insights: '{{ item.Insights }}'
       Value: '{{ item.Value }}'
+      FromEmailAddress: '{{ response.FromEmailAddress }}'
+      MessageId: '{{ response.MessageId }}'
+      Subject: '{{ response.Subject }}'
 - discovery_id: aws.sesv2.get_multi_region_endpoint
   for_each: aws.sesv2.list_multi_region_endpoints
   calls:
@@ -512,6 +607,11 @@ discovery:
     item:
       Region: '{{ item.Region }}'
       Routes: '{{ item.Routes }}'
+      CreatedTimestamp: '{{ response.CreatedTimestamp }}'
+      EndpointId: '{{ response.EndpointId }}'
+      EndpointName: '{{ response.EndpointName }}'
+      LastUpdatedTimestamp: '{{ response.LastUpdatedTimestamp }}'
+      Status: '{{ response.Status }}'
 - discovery_id: aws.sesv2.get_reputation_entity
   for_each: aws.sesv2.list_reputation_entities
   calls:
@@ -527,14 +627,11 @@ discovery:
       AwsSesManagedStatus: '{{ response.ReputationEntity.AwsSesManagedStatus }}'
       CustomerManagedStatus: '{{ response.ReputationEntity.CustomerManagedStatus }}'
       ReputationEntity: '{{ response.ReputationEntity.ReputationEntity }}'
-      ReputationEntityReference: '{{ response.ReputationEntity.ReputationEntityReference
-        }}'
+      ReputationEntityReference: '{{ response.ReputationEntity.ReputationEntityReference }}'
       ReputationEntityType: '{{ response.ReputationEntity.ReputationEntityType }}'
       ReputationImpact: '{{ response.ReputationEntity.ReputationImpact }}'
-      ReputationManagementPolicy: '{{ response.ReputationEntity.ReputationManagementPolicy
-        }}'
-      SendingStatusAggregate: '{{ response.ReputationEntity.SendingStatusAggregate
-        }}'
+      ReputationManagementPolicy: '{{ response.ReputationEntity.ReputationManagementPolicy }}'
+      SendingStatusAggregate: '{{ response.ReputationEntity.SendingStatusAggregate }}'
 - discovery_id: aws.sesv2.get_suppressed_destination
   for_each: aws.sesv2.list_suppressed_destinations
   calls:
@@ -546,10 +643,12 @@ discovery:
   emit:
     as: item
     item:
-      Attributes: '{{ response.SuppressedDestination.Attributes }}'
+      Attributes: '{{ response.SuppressedDestination.Attributes.MessageId }}'
       EmailAddress: '{{ response.SuppressedDestination.EmailAddress }}'
       LastUpdateTime: '{{ response.SuppressedDestination.LastUpdateTime }}'
       Reason: '{{ response.SuppressedDestination.Reason }}'
+      FeedbackId: '{{ response.SuppressedDestination.Attributes.FeedbackId }}'
+      MessageId: '{{ response.SuppressedDestination.Attributes.MessageId }}'
 - discovery_id: aws.sesv2.get_tenant
   for_each: aws.sesv2.list_tenants
   calls:

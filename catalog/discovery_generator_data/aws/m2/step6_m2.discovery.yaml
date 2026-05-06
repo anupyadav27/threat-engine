@@ -36,6 +36,7 @@ discovery:
       roleArn: '{{ item.roleArn }}'
       status: '{{ item.status }}'
       versionStatus: '{{ item.versionStatus }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.m2.list_engine_versions
   calls:
   - action: list_engine_versions
@@ -47,6 +48,7 @@ discovery:
     item:
       engineType: '{{ item.engineType }}'
       engineVersion: '{{ item.engineVersion }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.m2.list_environments
   calls:
   - action: list_environments
@@ -65,6 +67,7 @@ discovery:
       name: '{{ item.name }}'
       networkType: '{{ item.networkType }}'
       status: '{{ item.status }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.m2.get_application
   for_each: aws.m2.list_applications
   calls:
@@ -76,6 +79,22 @@ discovery:
   emit:
     as: item
     items_for: '{{ response.listenerArns }}'
+    item:
+      applicationArn: '{{ response.applicationArn }}'
+      applicationId: '{{ response.applicationId }}'
+      creationTime: '{{ response.creationTime }}'
+      applicationVersion: '{{ response.deployedVersion.applicationVersion }}'
+      status: '{{ response.deployedVersion.status }}'
+      statusReason: '{{ response.deployedVersion.statusReason }}'
+      description: '{{ response.description }}'
+      engineType: '{{ response.engineType }}'
+      environmentId: '{{ response.environmentId }}'
+      kmsKeyId: '{{ response.kmsKeyId }}'
+      lastStartTime: '{{ response.lastStartTime }}'
+      loadBalancerDnsName: '{{ response.loadBalancerDnsName }}'
+      name: '{{ response.name }}'
+      roleArn: '{{ response.roleArn }}'
+      tags: '{{ response.tags }}'
 - discovery_id: aws.m2.get_application_version
   for_each: aws.m2.list_applications
   calls:
@@ -107,13 +126,32 @@ discovery:
   emit:
     as: item
     item:
-      fileBatchJobIdentifier: '{{ response.batchJobIdentifier.fileBatchJobIdentifier
-        }}'
-      restartBatchJobIdentifier: '{{ response.batchJobIdentifier.restartBatchJobIdentifier
-        }}'
-      s3BatchJobIdentifier: '{{ response.batchJobIdentifier.s3BatchJobIdentifier }}'
-      scriptBatchJobIdentifier: '{{ response.batchJobIdentifier.scriptBatchJobIdentifier
-        }}'
+      fileBatchJobIdentifier: '{{ response.batchJobIdentifier.fileBatchJobIdentifier.fileName }}'
+      restartBatchJobIdentifier: '{{ response.batchJobIdentifier.restartBatchJobIdentifier.executionId }}'
+      s3BatchJobIdentifier: '{{ response.batchJobIdentifier.s3BatchJobIdentifier.bucket }}'
+      scriptBatchJobIdentifier: '{{ response.batchJobIdentifier.scriptBatchJobIdentifier.scriptName }}'
+      applicationId: '{{ response.applicationId }}'
+      fileName: '{{ response.batchJobIdentifier.fileBatchJobIdentifier.fileName }}'
+      folderPath: '{{ response.batchJobIdentifier.fileBatchJobIdentifier.folderPath }}'
+      executionId: '{{ response.batchJobIdentifier.restartBatchJobIdentifier.executionId }}'
+      fromProcStep: '{{ response.batchJobIdentifier.restartBatchJobIdentifier.jobStepRestartMarker.fromProcStep }}'
+      fromStep: '{{ response.batchJobIdentifier.restartBatchJobIdentifier.jobStepRestartMarker.fromStep }}'
+      skip: '{{ response.batchJobIdentifier.restartBatchJobIdentifier.jobStepRestartMarker.skip }}'
+      stepCheckpoint: '{{ response.batchJobIdentifier.restartBatchJobIdentifier.jobStepRestartMarker.stepCheckpoint }}'
+      toProcStep: '{{ response.batchJobIdentifier.restartBatchJobIdentifier.jobStepRestartMarker.toProcStep }}'
+      toStep: '{{ response.batchJobIdentifier.restartBatchJobIdentifier.jobStepRestartMarker.toStep }}'
+      bucket: '{{ response.batchJobIdentifier.s3BatchJobIdentifier.bucket }}'
+      scriptName: '{{ response.batchJobIdentifier.s3BatchJobIdentifier.identifier.scriptName }}'
+      keyPrefix: '{{ response.batchJobIdentifier.s3BatchJobIdentifier.keyPrefix }}'
+      endTime: '{{ response.endTime }}'
+      jobId: '{{ response.jobId }}'
+      jobName: '{{ response.jobName }}'
+      jobType: '{{ response.jobType }}'
+      jobUser: '{{ response.jobUser }}'
+      returnCode: '{{ response.returnCode }}'
+      startTime: '{{ response.startTime }}'
+      status: '{{ response.status }}'
+      statusReason: '{{ response.statusReason }}'
 - discovery_id: aws.m2.get_data_set_details
   for_each: aws.m2.list_applications
   calls:
@@ -132,6 +170,22 @@ discovery:
       po: '{{ response.po }}'
       ps: '{{ response.ps }}'
       vsam: '{{ response.vsam }}'
+      creationTime: '{{ response.creationTime }}'
+      dataSetName: '{{ response.dataSetName }}'
+      limit: '{{ response.dataSetOrg.gdg.limit }}'
+      rollDisposition: '{{ response.dataSetOrg.gdg.rollDisposition }}'
+      encoding: '{{ response.dataSetOrg.po.encoding }}'
+      format: '{{ response.dataSetOrg.po.format }}'
+      cacheAtStartup: '{{ response.dataSetOrg.vsam.cacheAtStartup }}'
+      compressed: '{{ response.dataSetOrg.vsam.compressed }}'
+      length: '{{ response.dataSetOrg.vsam.primaryKey.length }}'
+      name: '{{ response.dataSetOrg.vsam.primaryKey.name }}'
+      offset: '{{ response.dataSetOrg.vsam.primaryKey.offset }}'
+      recordFormat: '{{ response.dataSetOrg.vsam.recordFormat }}'
+      fileSize: '{{ response.fileSize }}'
+      lastReferencedTime: '{{ response.lastReferencedTime }}'
+      lastUpdatedTime: '{{ response.lastUpdatedTime }}'
+      recordLength: '{{ response.recordLength }}'
 - discovery_id: aws.m2.get_data_set_export_task
   for_each: aws.m2.list_applications
   calls:
@@ -149,6 +203,10 @@ discovery:
       pending: '{{ response.summary.pending }}'
       succeeded: '{{ response.summary.succeeded }}'
       total: '{{ response.summary.total }}'
+      kmsKeyArn: '{{ response.kmsKeyArn }}'
+      status: '{{ response.status }}'
+      statusReason: '{{ response.statusReason }}'
+      taskId: '{{ response.taskId }}'
 - discovery_id: aws.m2.get_data_set_import_task
   for_each: aws.m2.list_applications
   calls:
@@ -166,6 +224,8 @@ discovery:
       pending: '{{ response.summary.pending }}'
       succeeded: '{{ response.summary.succeeded }}'
       total: '{{ response.summary.total }}'
+      status: '{{ response.status }}'
+      taskId: '{{ response.taskId }}'
 - discovery_id: aws.m2.get_deployment
   for_each: aws.m2.list_applications
   calls:
@@ -199,6 +259,27 @@ discovery:
     item:
       Status: '{{ item.Status }}'
       Enabled: '{{ item.Enabled }}'
+      actualCapacity: '{{ response.actualCapacity }}'
+      creationTime: '{{ response.creationTime }}'
+      description: '{{ response.description }}'
+      engineType: '{{ response.engineType }}'
+      engineVersion: '{{ response.engineVersion }}'
+      environmentArn: '{{ response.environmentArn }}'
+      environmentId: '{{ response.environmentId }}'
+      desiredCapacity: '{{ response.highAvailabilityConfig.desiredCapacity }}'
+      instanceType: '{{ response.instanceType }}'
+      kmsKeyId: '{{ response.kmsKeyId }}'
+      loadBalancerArn: '{{ response.loadBalancerArn }}'
+      name: '{{ response.name }}'
+      networkType: '{{ response.networkType }}'
+      endTime: '{{ response.pendingMaintenance.schedule.endTime }}'
+      startTime: '{{ response.pendingMaintenance.schedule.startTime }}'
+      preferredMaintenanceWindow: '{{ response.preferredMaintenanceWindow }}'
+      publiclyAccessible: '{{ response.publiclyAccessible }}'
+      status: '{{ response.status }}'
+      statusReason: '{{ response.statusReason }}'
+      tags: '{{ response.tags }}'
+      vpcId: '{{ response.vpcId }}'
 - discovery_id: aws.m2.list_application_versions
   for_each: aws.m2.list_applications
   calls:
@@ -215,6 +296,7 @@ discovery:
       creationTime: '{{ item.creationTime }}'
       status: '{{ item.status }}'
       statusReason: '{{ item.statusReason }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.m2.list_batch_job_definitions
   for_each: aws.m2.list_applications
   calls:
@@ -229,6 +311,7 @@ discovery:
     item:
       fileBatchJobDefinition: '{{ item.fileBatchJobDefinition }}'
       scriptBatchJobDefinition: '{{ item.scriptBatchJobDefinition }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.m2.list_batch_job_executions
   for_each: aws.m2.list_applications
   calls:
@@ -251,6 +334,7 @@ discovery:
       returnCode: '{{ item.returnCode }}'
       startTime: '{{ item.startTime }}'
       status: '{{ item.status }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.m2.list_batch_job_restart_points
   for_each: aws.m2.list_applications
   calls:
@@ -289,6 +373,7 @@ discovery:
       statusReason: '{{ item.statusReason }}'
       summary: '{{ item.summary }}'
       taskId: '{{ item.taskId }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.m2.list_data_set_import_history
   for_each: aws.m2.list_applications
   calls:
@@ -305,6 +390,7 @@ discovery:
       statusReason: '{{ item.statusReason }}'
       summary: '{{ item.summary }}'
       taskId: '{{ item.taskId }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.m2.list_data_sets
   for_each: aws.m2.list_applications
   calls:
@@ -323,6 +409,7 @@ discovery:
       format: '{{ item.format }}'
       lastReferencedTime: '{{ item.lastReferencedTime }}'
       lastUpdatedTime: '{{ item.lastUpdatedTime }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.m2.list_deployments
   for_each: aws.m2.list_applications
   calls:
@@ -342,6 +429,7 @@ discovery:
       environmentId: '{{ item.environmentId }}'
       status: '{{ item.status }}'
       statusReason: '{{ item.statusReason }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.m2.list_tags_for_resource
   calls:
   - action: list_tags_for_resource

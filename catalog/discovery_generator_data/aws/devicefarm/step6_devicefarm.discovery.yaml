@@ -19,15 +19,15 @@ discovery:
       Level: '{{ response.accountSettings.Level }}'
       accountSettings: '{{ response.accountSettings.accountSettings }}'
       awsAccountNumber: '{{ response.accountSettings.awsAccountNumber }}'
-      defaultJobTimeoutMinutes: '{{ response.accountSettings.defaultJobTimeoutMinutes
-        }}'
+      defaultJobTimeoutMinutes: '{{ response.accountSettings.defaultJobTimeoutMinutes }}'
       maxJobTimeoutMinutes: '{{ response.accountSettings.maxJobTimeoutMinutes }}'
       maxSlots: '{{ response.accountSettings.maxSlots }}'
       skipAppResign: '{{ response.accountSettings.skipAppResign }}'
-      trialMinutes: '{{ response.accountSettings.trialMinutes }}'
+      trialMinutes: '{{ response.accountSettings.trialMinutes.total }}'
       unmeteredDevices: '{{ response.accountSettings.unmeteredDevices }}'
-      unmeteredRemoteAccessDevices: '{{ response.accountSettings.unmeteredRemoteAccessDevices
-        }}'
+      unmeteredRemoteAccessDevices: '{{ response.accountSettings.unmeteredRemoteAccessDevices }}'
+      remaining: '{{ response.accountSettings.trialMinutes.remaining }}'
+      total: '{{ response.accountSettings.trialMinutes.total }}'
 - discovery_id: aws.devicefarm.get_offering_status
   calls:
   - action: get_offering_status
@@ -38,6 +38,7 @@ discovery:
     item:
       current: '{{ response.current }}'
       nextPeriod: '{{ response.nextPeriod }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.devicefarm.get_test_grid_session
   calls:
   - action: get_test_grid_session
@@ -68,6 +69,7 @@ discovery:
       labels: '{{ item.labels }}'
       status: '{{ item.status }}'
       udid: '{{ item.udid }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.devicefarm.list_devices
   calls:
   - action: list_devices
@@ -98,6 +100,7 @@ discovery:
       remoteAccessEnabled: '{{ item.remoteAccessEnabled }}'
       remoteDebugEnabled: '{{ item.remoteDebugEnabled }}'
       resolution: '{{ item.resolution }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.devicefarm.list_instance_profiles
   calls:
   - action: list_instance_profiles
@@ -113,6 +116,7 @@ discovery:
       name: '{{ item.name }}'
       packageCleanup: '{{ item.packageCleanup }}'
       rebootAfterUse: '{{ item.rebootAfterUse }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.devicefarm.list_offering_promotions
   calls:
   - action: list_offering_promotions
@@ -124,6 +128,7 @@ discovery:
     item:
       description: '{{ item.description }}'
       id: '{{ item.id }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.devicefarm.list_offering_transactions
   calls:
   - action: list_offering_transactions
@@ -138,6 +143,7 @@ discovery:
       offeringPromotionId: '{{ item.offeringPromotionId }}'
       offeringStatus: '{{ item.offeringStatus }}'
       transactionId: '{{ item.transactionId }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.devicefarm.list_offerings
   calls:
   - action: list_offerings
@@ -152,6 +158,7 @@ discovery:
       platform: '{{ item.platform }}'
       recurringCharges: '{{ item.recurringCharges }}'
       type: '{{ item.type }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.devicefarm.list_projects
   calls:
   - action: list_projects
@@ -170,6 +177,7 @@ discovery:
       executionRoleArn: '{{ item.executionRoleArn }}'
       name: '{{ item.name }}'
       vpcConfig: '{{ item.vpcConfig }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.devicefarm.list_test_grid_projects
   calls:
   - action: list_test_grid_projects
@@ -184,6 +192,7 @@ discovery:
       description: '{{ item.description }}'
       name: '{{ item.name }}'
       vpcConfig: '{{ item.vpcConfig }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.devicefarm.list_vpce_configurations
   calls:
   - action: list_vpce_configurations
@@ -231,7 +240,12 @@ discovery:
       radio: '{{ response.device.radio }}'
       remoteAccessEnabled: '{{ response.device.remoteAccessEnabled }}'
       remoteDebugEnabled: '{{ response.device.remoteDebugEnabled }}'
-      resolution: '{{ response.device.resolution }}'
+      resolution: '{{ response.device.resolution.width }}'
+      architecture: '{{ response.device.cpu.architecture }}'
+      clock: '{{ response.device.cpu.clock }}'
+      frequency: '{{ response.device.cpu.frequency }}'
+      height: '{{ response.device.resolution.height }}'
+      width: '{{ response.device.resolution.width }}'
 - discovery_id: aws.devicefarm.get_device_instance
   for_each: aws.devicefarm.get_test_grid_session
   calls:
@@ -245,10 +259,14 @@ discovery:
     item:
       arn: '{{ response.deviceInstance.arn }}'
       deviceArn: '{{ response.deviceInstance.deviceArn }}'
-      instanceProfile: '{{ response.deviceInstance.instanceProfile }}'
+      instanceProfile: '{{ response.deviceInstance.instanceProfile.arn }}'
       labels: '{{ response.deviceInstance.labels }}'
       status: '{{ response.deviceInstance.status }}'
       udid: '{{ response.deviceInstance.udid }}'
+      description: '{{ response.deviceInstance.instanceProfile.description }}'
+      name: '{{ response.deviceInstance.instanceProfile.name }}'
+      packageCleanup: '{{ response.deviceInstance.instanceProfile.packageCleanup }}'
+      rebootAfterUse: '{{ response.deviceInstance.instanceProfile.rebootAfterUse }}'
 - discovery_id: aws.devicefarm.get_device_pool
   for_each: aws.devicefarm.get_test_grid_session
   calls:
@@ -291,8 +309,7 @@ discovery:
     item:
       arn: '{{ response.instanceProfile.arn }}'
       description: '{{ response.instanceProfile.description }}'
-      excludeAppPackagesFromCleanup: '{{ response.instanceProfile.excludeAppPackagesFromCleanup
-        }}'
+      excludeAppPackagesFromCleanup: '{{ response.instanceProfile.excludeAppPackagesFromCleanup }}'
       name: '{{ response.instanceProfile.name }}'
       packageCleanup: '{{ response.instanceProfile.packageCleanup }}'
       rebootAfterUse: '{{ response.instanceProfile.rebootAfterUse }}'
@@ -310,8 +327,8 @@ discovery:
       arn: '{{ response.job.arn }}'
       counters: '{{ response.job.counters }}'
       created: '{{ response.job.created }}'
-      device: '{{ response.job.device }}'
-      deviceMinutes: '{{ response.job.deviceMinutes }}'
+      device: '{{ response.job.device.os }}'
+      deviceMinutes: '{{ response.job.deviceMinutes.total }}'
       instanceArn: '{{ response.job.instanceArn }}'
       job: '{{ response.job.job }}'
       message: '{{ response.job.message }}'
@@ -323,6 +340,35 @@ discovery:
       type: '{{ response.job.type }}'
       videoCapture: '{{ response.job.videoCapture }}'
       videoEndpoint: '{{ response.job.videoEndpoint }}'
+      errored: '{{ response.job.counters.errored }}'
+      failed: '{{ response.job.counters.failed }}'
+      passed: '{{ response.job.counters.passed }}'
+      skipped: '{{ response.job.counters.skipped }}'
+      total: '{{ response.job.counters.total }}'
+      warned: '{{ response.job.counters.warned }}'
+      metered: '{{ response.job.deviceMinutes.metered }}'
+      unmetered: '{{ response.job.deviceMinutes.unmetered }}'
+      availability: '{{ response.job.device.availability }}'
+      carrier: '{{ response.job.device.carrier }}'
+      architecture: '{{ response.job.device.cpu.architecture }}'
+      clock: '{{ response.job.device.cpu.clock }}'
+      frequency: '{{ response.job.device.cpu.frequency }}'
+      fleetName: '{{ response.job.device.fleetName }}'
+      fleetType: '{{ response.job.device.fleetType }}'
+      formFactor: '{{ response.job.device.formFactor }}'
+      heapSize: '{{ response.job.device.heapSize }}'
+      image: '{{ response.job.device.image }}'
+      manufacturer: '{{ response.job.device.manufacturer }}'
+      memory: '{{ response.job.device.memory }}'
+      model: '{{ response.job.device.model }}'
+      modelId: '{{ response.job.device.modelId }}'
+      os: '{{ response.job.device.os }}'
+      platform: '{{ response.job.device.platform }}'
+      radio: '{{ response.job.device.radio }}'
+      remoteAccessEnabled: '{{ response.job.device.remoteAccessEnabled }}'
+      remoteDebugEnabled: '{{ response.job.device.remoteDebugEnabled }}'
+      height: '{{ response.job.device.resolution.height }}'
+      width: '{{ response.job.device.resolution.width }}'
 - discovery_id: aws.devicefarm.get_network_profile
   for_each: aws.devicefarm.get_test_grid_session
   calls:
@@ -363,7 +409,8 @@ discovery:
       environmentVariables: '{{ response.project.environmentVariables }}'
       executionRoleArn: '{{ response.project.executionRoleArn }}'
       name: '{{ response.project.name }}'
-      vpcConfig: '{{ response.project.vpcConfig }}'
+      vpcConfig: '{{ response.project.vpcConfig.vpcId }}'
+      vpcId: '{{ response.project.vpcConfig.vpcId }}'
 - discovery_id: aws.devicefarm.get_remote_access_session
   for_each: aws.devicefarm.get_test_grid_session
   calls:
@@ -379,12 +426,12 @@ discovery:
       arn: '{{ response.remoteAccessSession.arn }}'
       billingMethod: '{{ response.remoteAccessSession.billingMethod }}'
       created: '{{ response.remoteAccessSession.created }}'
-      device: '{{ response.remoteAccessSession.device }}'
-      deviceMinutes: '{{ response.remoteAccessSession.deviceMinutes }}'
-      deviceProxy: '{{ response.remoteAccessSession.deviceProxy }}'
+      device: '{{ response.remoteAccessSession.device.os }}'
+      deviceMinutes: '{{ response.remoteAccessSession.deviceMinutes.total }}'
+      deviceProxy: '{{ response.remoteAccessSession.deviceProxy.port }}'
       deviceUdid: '{{ response.remoteAccessSession.deviceUdid }}'
       endpoint: '{{ response.remoteAccessSession.endpoint }}'
-      endpoints: '{{ response.remoteAccessSession.endpoints }}'
+      endpoints: '{{ response.remoteAccessSession.endpoint }}'
       instanceArn: '{{ response.remoteAccessSession.instanceArn }}'
       interactionMode: '{{ response.remoteAccessSession.interactionMode }}'
       message: '{{ response.remoteAccessSession.message }}'
@@ -394,7 +441,38 @@ discovery:
       started: '{{ response.remoteAccessSession.started }}'
       status: '{{ response.remoteAccessSession.status }}'
       stopped: '{{ response.remoteAccessSession.stopped }}'
-      vpcConfig: '{{ response.remoteAccessSession.vpcConfig }}'
+      vpcConfig: '{{ response.remoteAccessSession.vpcConfig.vpcId }}'
+      clientId: '{{ response.remoteAccessSession.clientId }}'
+      metered: '{{ response.remoteAccessSession.deviceMinutes.metered }}'
+      total: '{{ response.remoteAccessSession.deviceMinutes.total }}'
+      unmetered: '{{ response.remoteAccessSession.deviceMinutes.unmetered }}'
+      host: '{{ response.remoteAccessSession.deviceProxy.host }}'
+      port: '{{ response.remoteAccessSession.deviceProxy.port }}'
+      availability: '{{ response.remoteAccessSession.device.availability }}'
+      carrier: '{{ response.remoteAccessSession.device.carrier }}'
+      architecture: '{{ response.remoteAccessSession.device.cpu.architecture }}'
+      clock: '{{ response.remoteAccessSession.device.cpu.clock }}'
+      frequency: '{{ response.remoteAccessSession.device.cpu.frequency }}'
+      fleetName: '{{ response.remoteAccessSession.device.fleetName }}'
+      fleetType: '{{ response.remoteAccessSession.device.fleetType }}'
+      formFactor: '{{ response.remoteAccessSession.device.formFactor }}'
+      heapSize: '{{ response.remoteAccessSession.device.heapSize }}'
+      image: '{{ response.remoteAccessSession.device.image }}'
+      manufacturer: '{{ response.remoteAccessSession.device.manufacturer }}'
+      memory: '{{ response.remoteAccessSession.device.memory }}'
+      model: '{{ response.remoteAccessSession.device.model }}'
+      modelId: '{{ response.remoteAccessSession.device.modelId }}'
+      os: '{{ response.remoteAccessSession.device.os }}'
+      platform: '{{ response.remoteAccessSession.device.platform }}'
+      radio: '{{ response.remoteAccessSession.device.radio }}'
+      remoteAccessEnabled: '{{ response.remoteAccessSession.device.remoteAccessEnabled }}'
+      remoteDebugEnabled: '{{ response.remoteAccessSession.device.remoteDebugEnabled }}'
+      height: '{{ response.remoteAccessSession.device.resolution.height }}'
+      width: '{{ response.remoteAccessSession.device.resolution.width }}'
+      hostAddress: '{{ response.remoteAccessSession.hostAddress }}'
+      remoteRecordAppArn: '{{ response.remoteAccessSession.remoteRecordAppArn }}'
+      remoteRecordEnabled: '{{ response.remoteAccessSession.remoteRecordEnabled }}'
+      vpcId: '{{ response.remoteAccessSession.vpcConfig.vpcId }}'
 - discovery_id: aws.devicefarm.get_run
   for_each: aws.devicefarm.get_test_grid_session
   calls:
@@ -413,9 +491,9 @@ discovery:
       counters: '{{ response.run.counters }}'
       created: '{{ response.run.created }}'
       customerArtifactPaths: '{{ response.run.customerArtifactPaths }}'
-      deviceMinutes: '{{ response.run.deviceMinutes }}'
+      deviceMinutes: '{{ response.run.deviceMinutes.total }}'
       devicePoolArn: '{{ response.run.devicePoolArn }}'
-      deviceProxy: '{{ response.run.deviceProxy }}'
+      deviceProxy: '{{ response.run.deviceProxy.port }}'
       deviceSelectionResult: '{{ response.run.deviceSelectionResult }}'
       environmentVariables: '{{ response.run.environmentVariables }}'
       eventCount: '{{ response.run.eventCount }}'
@@ -425,7 +503,7 @@ discovery:
       location: '{{ response.run.location }}'
       message: '{{ response.run.message }}'
       name: '{{ response.run.name }}'
-      networkProfile: '{{ response.run.networkProfile }}'
+      networkProfile: '{{ response.run.networkProfile.arn }}'
       parsingResultUrl: '{{ response.run.parsingResultUrl }}'
       platform: '{{ response.run.platform }}'
       radios: '{{ response.run.radios }}'
@@ -441,6 +519,34 @@ discovery:
       type: '{{ response.run.type }}'
       vpcConfig: '{{ response.run.vpcConfig }}'
       webUrl: '{{ response.run.webUrl }}'
+      errored: '{{ response.run.counters.errored }}'
+      failed: '{{ response.run.counters.failed }}'
+      passed: '{{ response.run.counters.passed }}'
+      skipped: '{{ response.run.counters.skipped }}'
+      total: '{{ response.run.counters.total }}'
+      warned: '{{ response.run.counters.warned }}'
+      metered: '{{ response.run.deviceMinutes.metered }}'
+      unmetered: '{{ response.run.deviceMinutes.unmetered }}'
+      host: '{{ response.run.deviceProxy.host }}'
+      port: '{{ response.run.deviceProxy.port }}'
+      matchedDevicesCount: '{{ response.run.deviceSelectionResult.matchedDevicesCount }}'
+      maxDevices: '{{ response.run.deviceSelectionResult.maxDevices }}'
+      latitude: '{{ response.run.location.latitude }}'
+      longitude: '{{ response.run.location.longitude }}'
+      description: '{{ response.run.networkProfile.description }}'
+      downlinkBandwidthBits: '{{ response.run.networkProfile.downlinkBandwidthBits }}'
+      downlinkDelayMs: '{{ response.run.networkProfile.downlinkDelayMs }}'
+      downlinkJitterMs: '{{ response.run.networkProfile.downlinkJitterMs }}'
+      downlinkLossPercent: '{{ response.run.networkProfile.downlinkLossPercent }}'
+      uplinkBandwidthBits: '{{ response.run.networkProfile.uplinkBandwidthBits }}'
+      uplinkDelayMs: '{{ response.run.networkProfile.uplinkDelayMs }}'
+      uplinkJitterMs: '{{ response.run.networkProfile.uplinkJitterMs }}'
+      uplinkLossPercent: '{{ response.run.networkProfile.uplinkLossPercent }}'
+      bluetooth: '{{ response.run.radios.bluetooth }}'
+      gps: '{{ response.run.radios.gps }}'
+      nfc: '{{ response.run.radios.nfc }}'
+      wifi: '{{ response.run.radios.wifi }}'
+      vpcId: '{{ response.run.vpcConfig.vpcId }}'
 - discovery_id: aws.devicefarm.get_suite
   for_each: aws.devicefarm.get_test_grid_session
   calls:
@@ -455,7 +561,7 @@ discovery:
       arn: '{{ response.suite.arn }}'
       counters: '{{ response.suite.counters }}'
       created: '{{ response.suite.created }}'
-      deviceMinutes: '{{ response.suite.deviceMinutes }}'
+      deviceMinutes: '{{ response.suite.deviceMinutes.total }}'
       message: '{{ response.suite.message }}'
       name: '{{ response.suite.name }}'
       result: '{{ response.suite.result }}'
@@ -463,6 +569,14 @@ discovery:
       status: '{{ response.suite.status }}'
       stopped: '{{ response.suite.stopped }}'
       type: '{{ response.suite.type }}'
+      errored: '{{ response.suite.counters.errored }}'
+      failed: '{{ response.suite.counters.failed }}'
+      passed: '{{ response.suite.counters.passed }}'
+      skipped: '{{ response.suite.counters.skipped }}'
+      total: '{{ response.suite.counters.total }}'
+      warned: '{{ response.suite.counters.warned }}'
+      metered: '{{ response.suite.deviceMinutes.metered }}'
+      unmetered: '{{ response.suite.deviceMinutes.unmetered }}'
 - discovery_id: aws.devicefarm.get_test
   for_each: aws.devicefarm.get_test_grid_session
   calls:
@@ -477,7 +591,7 @@ discovery:
       arn: '{{ response.test.arn }}'
       counters: '{{ response.test.counters }}'
       created: '{{ response.test.created }}'
-      deviceMinutes: '{{ response.test.deviceMinutes }}'
+      deviceMinutes: '{{ response.test.deviceMinutes.total }}'
       message: '{{ response.test.message }}'
       name: '{{ response.test.name }}'
       result: '{{ response.test.result }}'
@@ -485,6 +599,14 @@ discovery:
       status: '{{ response.test.status }}'
       stopped: '{{ response.test.stopped }}'
       type: '{{ response.test.type }}'
+      errored: '{{ response.test.counters.errored }}'
+      failed: '{{ response.test.counters.failed }}'
+      passed: '{{ response.test.counters.passed }}'
+      skipped: '{{ response.test.counters.skipped }}'
+      total: '{{ response.test.counters.total }}'
+      warned: '{{ response.test.counters.warned }}'
+      metered: '{{ response.test.deviceMinutes.metered }}'
+      unmetered: '{{ response.test.deviceMinutes.unmetered }}'
 - discovery_id: aws.devicefarm.get_test_grid_project
   calls:
   - action: get_test_grid_project
@@ -497,7 +619,8 @@ discovery:
       created: '{{ response.testGridProject.created }}'
       description: '{{ response.testGridProject.description }}'
       name: '{{ response.testGridProject.name }}'
-      vpcConfig: '{{ response.testGridProject.vpcConfig }}'
+      vpcConfig: '{{ response.testGridProject.vpcConfig.vpcId }}'
+      vpcId: '{{ response.testGridProject.vpcConfig.vpcId }}'
 - discovery_id: aws.devicefarm.get_upload
   for_each: aws.devicefarm.get_test_grid_session
   calls:
@@ -534,10 +657,8 @@ discovery:
       arn: '{{ response.vpceConfiguration.arn }}'
       serviceDnsName: '{{ response.vpceConfiguration.serviceDnsName }}'
       vpceConfiguration: '{{ response.vpceConfiguration.vpceConfiguration }}'
-      vpceConfigurationDescription: '{{ response.vpceConfiguration.vpceConfigurationDescription
-        }}'
-      vpceConfigurationName: '{{ response.vpceConfiguration.vpceConfigurationName
-        }}'
+      vpceConfigurationDescription: '{{ response.vpceConfiguration.vpceConfigurationDescription }}'
+      vpceConfigurationName: '{{ response.vpceConfiguration.vpceConfigurationName }}'
       vpceServiceName: '{{ response.vpceConfiguration.vpceServiceName }}'
 - discovery_id: aws.devicefarm.list_artifacts
   for_each: aws.devicefarm.get_test_grid_session
@@ -557,6 +678,7 @@ discovery:
       name: '{{ item.name }}'
       type: '{{ item.type }}'
       url: '{{ item.url }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.devicefarm.list_device_pools
   for_each: aws.devicefarm.get_test_grid_session
   calls:
@@ -575,6 +697,7 @@ discovery:
       name: '{{ item.name }}'
       rules: '{{ item.rules }}'
       type: '{{ item.type }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.devicefarm.list_jobs
   for_each: aws.devicefarm.get_test_grid_session
   calls:
@@ -603,6 +726,7 @@ discovery:
       type: '{{ item.type }}'
       videoCapture: '{{ item.videoCapture }}'
       videoEndpoint: '{{ item.videoEndpoint }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.devicefarm.list_network_profiles
   for_each: aws.devicefarm.get_test_grid_session
   calls:
@@ -627,6 +751,7 @@ discovery:
       uplinkDelayMs: '{{ item.uplinkDelayMs }}'
       uplinkJitterMs: '{{ item.uplinkJitterMs }}'
       uplinkLossPercent: '{{ item.uplinkLossPercent }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.devicefarm.list_remote_access_sessions
   for_each: aws.devicefarm.get_test_grid_session
   calls:
@@ -659,6 +784,7 @@ discovery:
       status: '{{ item.status }}'
       stopped: '{{ item.stopped }}'
       vpcConfig: '{{ item.vpcConfig }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.devicefarm.list_runs
   for_each: aws.devicefarm.get_test_grid_session
   calls:
@@ -706,6 +832,7 @@ discovery:
       type: '{{ item.type }}'
       vpcConfig: '{{ item.vpcConfig }}'
       webUrl: '{{ item.webUrl }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.devicefarm.list_samples
   for_each: aws.devicefarm.get_test_grid_session
   calls:
@@ -721,6 +848,7 @@ discovery:
       arn: '{{ item.arn }}'
       type: '{{ item.type }}'
       url: '{{ item.url }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.devicefarm.list_suites
   for_each: aws.devicefarm.get_test_grid_session
   calls:
@@ -744,6 +872,7 @@ discovery:
       status: '{{ item.status }}'
       stopped: '{{ item.stopped }}'
       type: '{{ item.type }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.devicefarm.list_tags_for_resource
   calls:
   - action: list_tags_for_resource
@@ -770,6 +899,7 @@ discovery:
       started: '{{ item.started }}'
       statusCode: '{{ item.statusCode }}'
       testGridSession: '{{ item.testGridSession }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.devicefarm.list_test_grid_session_artifacts
   calls:
   - action: list_test_grid_session_artifacts
@@ -782,6 +912,7 @@ discovery:
       filename: '{{ item.filename }}'
       type: '{{ item.type }}'
       url: '{{ item.url }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.devicefarm.list_test_grid_sessions
   calls:
   - action: list_test_grid_sessions
@@ -797,6 +928,7 @@ discovery:
       ended: '{{ item.ended }}'
       seleniumProperties: '{{ item.seleniumProperties }}'
       status: '{{ item.status }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.devicefarm.list_tests
   for_each: aws.devicefarm.get_test_grid_session
   calls:
@@ -820,6 +952,7 @@ discovery:
       status: '{{ item.status }}'
       stopped: '{{ item.stopped }}'
       type: '{{ item.type }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.devicefarm.list_unique_problems
   for_each: aws.devicefarm.get_test_grid_session
   calls:
@@ -832,6 +965,7 @@ discovery:
     as: item
     item:
       uniqueProblems: '{{ response.uniqueProblems }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.devicefarm.list_uploads
   for_each: aws.devicefarm.get_test_grid_session
   calls:
@@ -855,3 +989,4 @@ discovery:
       type: '{{ item.type }}'
       upload: '{{ item.upload }}'
       url: '{{ item.url }}'
+      nextToken: '{{ response.nextToken }}'

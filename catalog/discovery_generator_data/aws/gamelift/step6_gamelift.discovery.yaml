@@ -236,26 +236,20 @@ discovery:
       DeploymentDetails: '{{ item.DeploymentDetails }}'
       Description: '{{ item.Description }}'
       FleetRoleArn: '{{ item.FleetRoleArn }}'
-      GameServerContainerGroupDefinitionArn: '{{ item.GameServerContainerGroupDefinitionArn
-        }}'
-      GameServerContainerGroupDefinitionName: '{{ item.GameServerContainerGroupDefinitionName
-        }}'
-      GameServerContainerGroupsPerInstance: '{{ item.GameServerContainerGroupsPerInstance
-        }}'
+      GameServerContainerGroupDefinitionArn: '{{ item.GameServerContainerGroupDefinitionArn }}'
+      GameServerContainerGroupDefinitionName: '{{ item.GameServerContainerGroupDefinitionName }}'
+      GameServerContainerGroupsPerInstance: '{{ item.GameServerContainerGroupsPerInstance }}'
       GameSessionCreationLimitPolicy: '{{ item.GameSessionCreationLimitPolicy }}'
       InstanceConnectionPortRange: '{{ item.InstanceConnectionPortRange }}'
       InstanceInboundPermissions: '{{ item.InstanceInboundPermissions }}'
       InstanceType: '{{ item.InstanceType }}'
       LocationAttributes: '{{ item.LocationAttributes }}'
       LogConfiguration: '{{ item.LogConfiguration }}'
-      MaximumGameServerContainerGroupsPerInstance: '{{ item.MaximumGameServerContainerGroupsPerInstance
-        }}'
+      MaximumGameServerContainerGroupsPerInstance: '{{ item.MaximumGameServerContainerGroupsPerInstance }}'
       MetricGroups: '{{ item.MetricGroups }}'
       NewGameSessionProtectionPolicy: '{{ item.NewGameSessionProtectionPolicy }}'
-      PerInstanceContainerGroupDefinitionArn: '{{ item.PerInstanceContainerGroupDefinitionArn
-        }}'
-      PerInstanceContainerGroupDefinitionName: '{{ item.PerInstanceContainerGroupDefinitionName
-        }}'
+      PerInstanceContainerGroupDefinitionArn: '{{ item.PerInstanceContainerGroupDefinitionArn }}'
+      PerInstanceContainerGroupDefinitionName: '{{ item.PerInstanceContainerGroupDefinitionName }}'
 - discovery_id: aws.gamelift.list_container_group_definitions
   calls:
   - action: list_container_group_definitions
@@ -361,12 +355,17 @@ discovery:
   emit:
     as: item
     item:
-      Alias: '{{ response.Alias.Alias }}'
+      Alias: '{{ response.Alias.AliasId }}'
       AliasArn: '{{ response.Alias.AliasArn }}'
       AliasId: '{{ response.Alias.AliasId }}'
       Description: '{{ response.Alias.Description }}'
       LastUpdatedTime: '{{ response.Alias.LastUpdatedTime }}'
-      RoutingStrategy: '{{ response.Alias.RoutingStrategy }}'
+      RoutingStrategy: '{{ response.Alias.RoutingStrategy.Type }}'
+      CreationTime: '{{ response.Alias.CreationTime }}'
+      Name: '{{ response.Alias.Name }}'
+      FleetId: '{{ response.Alias.RoutingStrategy.FleetId }}'
+      Message: '{{ response.Alias.RoutingStrategy.Message }}'
+      Type: '{{ response.Alias.RoutingStrategy.Type }}'
 - discovery_id: aws.gamelift.describe_build
   for_each: aws.gamelift.describe_fleet_attributes
   calls:
@@ -384,6 +383,9 @@ discovery:
       ServerSdkVersion: '{{ response.Build.ServerSdkVersion }}'
       SizeOnDisk: '{{ response.Build.SizeOnDisk }}'
       Version: '{{ response.Build.Version }}'
+      CreationTime: '{{ response.Build.CreationTime }}'
+      Name: '{{ response.Build.Name }}'
+      Status: '{{ response.Build.Status }}'
 - discovery_id: aws.gamelift.describe_compute
   calls:
   - action: describe_compute
@@ -392,19 +394,23 @@ discovery:
   emit:
     as: item
     item:
-      Compute: '{{ response.Compute.Compute }}'
+      Compute: '{{ response.Compute.ComputeArn }}'
       ComputeArn: '{{ response.Compute.ComputeArn }}'
       ComputeName: '{{ response.Compute.ComputeName }}'
       ComputeStatus: '{{ response.Compute.ComputeStatus }}'
       ContainerAttributes: '{{ response.Compute.ContainerAttributes }}'
       GameLiftAgentEndpoint: '{{ response.Compute.GameLiftAgentEndpoint }}'
-      GameLiftServiceSdkEndpoint: '{{ response.Compute.GameLiftServiceSdkEndpoint
-        }}'
-      GameServerContainerGroupDefinitionArn: '{{ response.Compute.GameServerContainerGroupDefinitionArn
-        }}'
+      GameLiftServiceSdkEndpoint: '{{ response.Compute.GameLiftServiceSdkEndpoint }}'
+      GameServerContainerGroupDefinitionArn: '{{ response.Compute.GameServerContainerGroupDefinitionArn }}'
       InstanceId: '{{ response.Compute.InstanceId }}'
       OperatingSystem: '{{ response.Compute.OperatingSystem }}'
       Type: '{{ response.Compute.Type }}'
+      CreationTime: '{{ response.Compute.CreationTime }}'
+      DnsName: '{{ response.Compute.DnsName }}'
+      FleetArn: '{{ response.Compute.FleetArn }}'
+      FleetId: '{{ response.Compute.FleetId }}'
+      IpAddress: '{{ response.Compute.IpAddress }}'
+      Location: '{{ response.Compute.Location }}'
 - discovery_id: aws.gamelift.describe_container_fleet
   calls:
   - action: describe_container_fleet
@@ -417,30 +423,32 @@ discovery:
       DeploymentDetails: '{{ response.ContainerFleet.DeploymentDetails }}'
       Description: '{{ response.ContainerFleet.Description }}'
       FleetRoleArn: '{{ response.ContainerFleet.FleetRoleArn }}'
-      GameServerContainerGroupDefinitionArn: '{{ response.ContainerFleet.GameServerContainerGroupDefinitionArn
-        }}'
-      GameServerContainerGroupDefinitionName: '{{ response.ContainerFleet.GameServerContainerGroupDefinitionName
-        }}'
-      GameServerContainerGroupsPerInstance: '{{ response.ContainerFleet.GameServerContainerGroupsPerInstance
-        }}'
-      GameSessionCreationLimitPolicy: '{{ response.ContainerFleet.GameSessionCreationLimitPolicy
-        }}'
-      InstanceConnectionPortRange: '{{ response.ContainerFleet.InstanceConnectionPortRange
-        }}'
-      InstanceInboundPermissions: '{{ response.ContainerFleet.InstanceInboundPermissions
-        }}'
+      GameServerContainerGroupDefinitionArn: '{{ response.ContainerFleet.GameServerContainerGroupDefinitionArn }}'
+      GameServerContainerGroupDefinitionName: '{{ response.ContainerFleet.GameServerContainerGroupDefinitionName }}'
+      GameServerContainerGroupsPerInstance: '{{ response.ContainerFleet.GameServerContainerGroupsPerInstance }}'
+      GameSessionCreationLimitPolicy: '{{ response.ContainerFleet.GameSessionCreationLimitPolicy }}'
+      InstanceConnectionPortRange: '{{ response.ContainerFleet.InstanceConnectionPortRange.ToPort }}'
+      InstanceInboundPermissions: '{{ response.ContainerFleet.InstanceInboundPermissions[].ToPort }}'
       InstanceType: '{{ response.ContainerFleet.InstanceType }}'
-      LocationAttributes: '{{ response.ContainerFleet.LocationAttributes }}'
+      LocationAttributes: '{{ response.ContainerFleet.LocationAttributes[].Status }}'
       LogConfiguration: '{{ response.ContainerFleet.LogConfiguration }}'
-      MaximumGameServerContainerGroupsPerInstance: '{{ response.ContainerFleet.MaximumGameServerContainerGroupsPerInstance
-        }}'
+      MaximumGameServerContainerGroupsPerInstance: '{{ response.ContainerFleet.MaximumGameServerContainerGroupsPerInstance }}'
       MetricGroups: '{{ response.ContainerFleet.MetricGroups }}'
-      NewGameSessionProtectionPolicy: '{{ response.ContainerFleet.NewGameSessionProtectionPolicy
-        }}'
-      PerInstanceContainerGroupDefinitionArn: '{{ response.ContainerFleet.PerInstanceContainerGroupDefinitionArn
-        }}'
-      PerInstanceContainerGroupDefinitionName: '{{ response.ContainerFleet.PerInstanceContainerGroupDefinitionName
-        }}'
+      NewGameSessionProtectionPolicy: '{{ response.ContainerFleet.NewGameSessionProtectionPolicy }}'
+      PerInstanceContainerGroupDefinitionArn: '{{ response.ContainerFleet.PerInstanceContainerGroupDefinitionArn }}'
+      PerInstanceContainerGroupDefinitionName: '{{ response.ContainerFleet.PerInstanceContainerGroupDefinitionName }}'
+      CreationTime: '{{ response.ContainerFleet.CreationTime }}'
+      LatestDeploymentId: '{{ response.ContainerFleet.DeploymentDetails.LatestDeploymentId }}'
+      FleetArn: '{{ response.ContainerFleet.FleetArn }}'
+      FleetId: '{{ response.ContainerFleet.FleetId }}'
+      NewGameSessionsPerCreator: '{{ response.ContainerFleet.GameSessionCreationLimitPolicy.NewGameSessionsPerCreator }}'
+      PolicyPeriodInMinutes: '{{ response.ContainerFleet.GameSessionCreationLimitPolicy.PolicyPeriodInMinutes }}'
+      FromPort: '{{ response.ContainerFleet.InstanceConnectionPortRange.FromPort }}'
+      ToPort: '{{ response.ContainerFleet.InstanceConnectionPortRange.ToPort }}'
+      LogDestination: '{{ response.ContainerFleet.LogConfiguration.LogDestination }}'
+      LogGroupArn: '{{ response.ContainerFleet.LogConfiguration.LogGroupArn }}'
+      S3BucketName: '{{ response.ContainerFleet.LogConfiguration.S3BucketName }}'
+      Status: '{{ response.ContainerFleet.Status }}'
 - discovery_id: aws.gamelift.describe_container_group_definition
   calls:
   - action: describe_container_group_definition
@@ -449,23 +457,24 @@ discovery:
   emit:
     as: item
     item:
-      ContainerGroupDefinition: '{{ response.ContainerGroupDefinition.ContainerGroupDefinition
-        }}'
-      ContainerGroupDefinitionArn: '{{ response.ContainerGroupDefinition.ContainerGroupDefinitionArn
-        }}'
-      ContainerGroupType: '{{ response.ContainerGroupDefinition.ContainerGroupType
-        }}'
-      GameServerContainerDefinition: '{{ response.ContainerGroupDefinition.GameServerContainerDefinition
-        }}'
+      ContainerGroupDefinition: '{{ response.ContainerGroupDefinition.ContainerGroupDefinitionArn }}'
+      ContainerGroupDefinitionArn: '{{ response.ContainerGroupDefinition.ContainerGroupDefinitionArn }}'
+      ContainerGroupType: '{{ response.ContainerGroupDefinition.ContainerGroupType }}'
+      GameServerContainerDefinition: '{{ response.ContainerGroupDefinition.GameServerContainerDefinition.ImageUri }}'
       OperatingSystem: '{{ response.ContainerGroupDefinition.OperatingSystem }}'
-      SupportContainerDefinitions: '{{ response.ContainerGroupDefinition.SupportContainerDefinitions
-        }}'
-      TotalMemoryLimitMebibytes: '{{ response.ContainerGroupDefinition.TotalMemoryLimitMebibytes
-        }}'
+      SupportContainerDefinitions: '{{ response.ContainerGroupDefinition.SupportContainerDefinitions[].Vcpu }}'
+      TotalMemoryLimitMebibytes: '{{ response.ContainerGroupDefinition.TotalMemoryLimitMebibytes }}'
       TotalVcpuLimit: '{{ response.ContainerGroupDefinition.TotalVcpuLimit }}'
-      VersionDescription: '{{ response.ContainerGroupDefinition.VersionDescription
-        }}'
+      VersionDescription: '{{ response.ContainerGroupDefinition.VersionDescription }}'
       VersionNumber: '{{ response.ContainerGroupDefinition.VersionNumber }}'
+      CreationTime: '{{ response.ContainerGroupDefinition.CreationTime }}'
+      ContainerName: '{{ response.ContainerGroupDefinition.GameServerContainerDefinition.ContainerName }}'
+      ImageUri: '{{ response.ContainerGroupDefinition.GameServerContainerDefinition.ImageUri }}'
+      ResolvedImageDigest: '{{ response.ContainerGroupDefinition.GameServerContainerDefinition.ResolvedImageDigest }}'
+      ServerSdkVersion: '{{ response.ContainerGroupDefinition.GameServerContainerDefinition.ServerSdkVersion }}'
+      Name: '{{ response.ContainerGroupDefinition.Name }}'
+      Status: '{{ response.ContainerGroupDefinition.Status }}'
+      StatusReason: '{{ response.ContainerGroupDefinition.StatusReason }}'
 - discovery_id: aws.gamelift.describe_fleet_deployment
   calls:
   - action: describe_fleet_deployment
@@ -474,16 +483,19 @@ discovery:
   emit:
     as: item
     item:
-      DeploymentConfiguration: '{{ response.FleetDeployment.DeploymentConfiguration
-        }}'
+      DeploymentConfiguration: '{{ response.FleetDeployment.DeploymentConfiguration }}'
       DeploymentId: '{{ response.FleetDeployment.DeploymentId }}'
       DeploymentStatus: '{{ response.FleetDeployment.DeploymentStatus }}'
       GameServerBinaryArn: '{{ response.FleetDeployment.GameServerBinaryArn }}'
       PerInstanceBinaryArn: '{{ response.FleetDeployment.PerInstanceBinaryArn }}'
-      RollbackGameServerBinaryArn: '{{ response.FleetDeployment.RollbackGameServerBinaryArn
-        }}'
-      RollbackPerInstanceBinaryArn: '{{ response.FleetDeployment.RollbackPerInstanceBinaryArn
-        }}'
+      RollbackGameServerBinaryArn: '{{ response.FleetDeployment.RollbackGameServerBinaryArn }}'
+      RollbackPerInstanceBinaryArn: '{{ response.FleetDeployment.RollbackPerInstanceBinaryArn }}'
+      CreationTime: '{{ response.FleetDeployment.CreationTime }}'
+      ImpairmentStrategy: '{{ response.FleetDeployment.DeploymentConfiguration.ImpairmentStrategy }}'
+      MinimumHealthyPercentage: '{{ response.FleetDeployment.DeploymentConfiguration.MinimumHealthyPercentage }}'
+      ProtectionStrategy: '{{ response.FleetDeployment.DeploymentConfiguration.ProtectionStrategy }}'
+      FleetId: '{{ response.FleetDeployment.FleetId }}'
+      LocationalDeployments: '{{ response.LocationalDeployments }}'
 - discovery_id: aws.gamelift.describe_fleet_events
   calls:
   - action: describe_fleet_events
@@ -512,6 +524,8 @@ discovery:
       LocationState: '{{ item.LocationState }}'
       StoppedActions: '{{ item.StoppedActions }}'
       UpdateStatus: '{{ item.UpdateStatus }}'
+      FleetArn: '{{ response.FleetArn }}'
+      FleetId: '{{ response.FleetId }}'
 - discovery_id: aws.gamelift.describe_fleet_location_capacity
   calls:
   - action: describe_fleet_location_capacity
@@ -520,10 +534,19 @@ discovery:
   emit:
     as: item
     item:
-      GameServerContainerGroupCounts: '{{ response.FleetCapacity.GameServerContainerGroupCounts
-        }}'
-      InstanceCounts: '{{ response.FleetCapacity.InstanceCounts }}'
+      GameServerContainerGroupCounts: '{{ response.FleetCapacity.GameServerContainerGroupCounts.IDLE }}'
+      InstanceCounts: '{{ response.FleetCapacity.InstanceCounts.IDLE }}'
       InstanceType: '{{ response.FleetCapacity.InstanceType }}'
+      FleetArn: '{{ response.FleetCapacity.FleetArn }}'
+      FleetId: '{{ response.FleetCapacity.FleetId }}'
+      ACTIVE: '{{ response.FleetCapacity.GameServerContainerGroupCounts.ACTIVE }}'
+      IDLE: '{{ response.FleetCapacity.GameServerContainerGroupCounts.IDLE }}'
+      PENDING: '{{ response.FleetCapacity.GameServerContainerGroupCounts.PENDING }}'
+      TERMINATING: '{{ response.FleetCapacity.GameServerContainerGroupCounts.TERMINATING }}'
+      DESIRED: '{{ response.FleetCapacity.InstanceCounts.DESIRED }}'
+      MAXIMUM: '{{ response.FleetCapacity.InstanceCounts.MAXIMUM }}'
+      MINIMUM: '{{ response.FleetCapacity.InstanceCounts.MINIMUM }}'
+      Location: '{{ response.FleetCapacity.Location }}'
 - discovery_id: aws.gamelift.describe_fleet_location_utilization
   calls:
   - action: describe_fleet_location_utilization
@@ -532,10 +555,13 @@ discovery:
   emit:
     as: item
     item:
-      ActiveGameSessionCount: '{{ response.FleetUtilization.ActiveGameSessionCount
-        }}'
-      ActiveServerProcessCount: '{{ response.FleetUtilization.ActiveServerProcessCount
-        }}'
+      ActiveGameSessionCount: '{{ response.FleetUtilization.ActiveGameSessionCount }}'
+      ActiveServerProcessCount: '{{ response.FleetUtilization.ActiveServerProcessCount }}'
+      CurrentPlayerSessionCount: '{{ response.FleetUtilization.CurrentPlayerSessionCount }}'
+      FleetArn: '{{ response.FleetUtilization.FleetArn }}'
+      FleetId: '{{ response.FleetUtilization.FleetId }}'
+      Location: '{{ response.FleetUtilization.Location }}'
+      MaximumPlayerSessionCount: '{{ response.FleetUtilization.MaximumPlayerSessionCount }}'
 - discovery_id: aws.gamelift.describe_fleet_port_settings
   calls:
   - action: describe_fleet_port_settings
@@ -549,6 +575,10 @@ discovery:
       IpRange: '{{ item.IpRange }}'
       Protocol: '{{ item.Protocol }}'
       ToPort: '{{ item.ToPort }}'
+      FleetArn: '{{ response.FleetArn }}'
+      FleetId: '{{ response.FleetId }}'
+      Location: '{{ response.Location }}'
+      UpdateStatus: '{{ response.UpdateStatus }}'
 - discovery_id: aws.gamelift.describe_game_server
   for_each: aws.gamelift.list_game_server_groups
   calls:
@@ -588,11 +618,13 @@ discovery:
       BalancingStrategy: '{{ response.GameServerGroup.BalancingStrategy }}'
       GameServerGroupArn: '{{ response.GameServerGroup.GameServerGroupArn }}'
       GameServerGroupName: '{{ response.GameServerGroup.GameServerGroupName }}'
-      GameServerProtectionPolicy: '{{ response.GameServerGroup.GameServerProtectionPolicy
-        }}'
+      GameServerProtectionPolicy: '{{ response.GameServerGroup.GameServerProtectionPolicy }}'
       InstanceDefinitions: '{{ response.GameServerGroup.InstanceDefinitions }}'
       LastUpdatedTime: '{{ response.GameServerGroup.LastUpdatedTime }}'
       SuspendedActions: '{{ response.GameServerGroup.SuspendedActions }}'
+      CreationTime: '{{ response.GameServerGroup.CreationTime }}'
+      Status: '{{ response.GameServerGroup.Status }}'
+      StatusReason: '{{ response.GameServerGroup.StatusReason }}'
 - discovery_id: aws.gamelift.describe_game_server_instances
   for_each: aws.gamelift.list_game_server_groups
   calls:
@@ -620,17 +652,23 @@ discovery:
       EndTime: '{{ response.GameSessionPlacement.EndTime }}'
       GameSessionArn: '{{ response.GameSessionPlacement.GameSessionArn }}'
       GameSessionName: '{{ response.GameSessionPlacement.GameSessionName }}'
-      GameSessionQueueName: '{{ response.GameSessionPlacement.GameSessionQueueName
-        }}'
+      GameSessionQueueName: '{{ response.GameSessionPlacement.GameSessionQueueName }}'
       GameSessionRegion: '{{ response.GameSessionPlacement.GameSessionRegion }}'
-      PlacedPlayerSessions: '{{ response.GameSessionPlacement.PlacedPlayerSessions
-        }}'
+      PlacedPlayerSessions: '{{ response.GameSessionPlacement.PlacedPlayerSessions[].PlayerId }}'
       PlacementId: '{{ response.GameSessionPlacement.PlacementId }}'
-      PlayerLatencies: '{{ response.GameSessionPlacement.PlayerLatencies }}'
-      PlayerSessions: '{{ response.GameSessionPlacement.PlayerSessions }}'
-      PriorityConfigurationOverride: '{{ response.GameSessionPlacement.PriorityConfigurationOverride
-        }}'
+      PlayerLatencies: '{{ response.GameSessionPlacement.PlayerLatencies[].PlayerId }}'
+      PlayerSessions: '{{ response.GameSessionPlacement.GameSessionId }}'
+      PriorityConfigurationOverride: '{{ response.GameSessionPlacement.PriorityConfigurationOverride }}'
       StartTime: '{{ response.GameSessionPlacement.StartTime }}'
+      DnsName: '{{ response.GameSessionPlacement.DnsName }}'
+      GameSessionData: '{{ response.GameSessionPlacement.GameSessionData }}'
+      GameSessionId: '{{ response.GameSessionPlacement.GameSessionId }}'
+      IpAddress: '{{ response.GameSessionPlacement.IpAddress }}'
+      MatchmakerData: '{{ response.GameSessionPlacement.MatchmakerData }}'
+      MaximumPlayerSessionCount: '{{ response.GameSessionPlacement.MaximumPlayerSessionCount }}'
+      Port: '{{ response.GameSessionPlacement.Port }}'
+      PlacementFallbackStrategy: '{{ response.GameSessionPlacement.PriorityConfigurationOverride.PlacementFallbackStrategy }}'
+      Status: '{{ response.GameSessionPlacement.Status }}'
 - discovery_id: aws.gamelift.describe_instances
   calls:
   - action: describe_instances
@@ -669,10 +707,8 @@ discovery:
   emit:
     as: item
     item:
-      GameSessionActivationTimeoutSeconds: '{{ response.RuntimeConfiguration.GameSessionActivationTimeoutSeconds
-        }}'
-      MaxConcurrentGameSessionActivations: '{{ response.RuntimeConfiguration.MaxConcurrentGameSessionActivations
-        }}'
+      GameSessionActivationTimeoutSeconds: '{{ response.RuntimeConfiguration.GameSessionActivationTimeoutSeconds }}'
+      MaxConcurrentGameSessionActivations: '{{ response.RuntimeConfiguration.MaxConcurrentGameSessionActivations }}'
       ServerProcesses: '{{ response.RuntimeConfiguration.ServerProcesses }}'
 - discovery_id: aws.gamelift.describe_scaling_policies
   calls:
@@ -706,8 +742,14 @@ discovery:
       ScriptArn: '{{ response.Script.ScriptArn }}'
       ScriptId: '{{ response.Script.ScriptId }}'
       SizeOnDisk: '{{ response.Script.SizeOnDisk }}'
-      StorageLocation: '{{ response.Script.StorageLocation }}'
+      StorageLocation: '{{ response.Script.StorageLocation.Key }}'
       Version: '{{ response.Script.Version }}'
+      CreationTime: '{{ response.Script.CreationTime }}'
+      Name: '{{ response.Script.Name }}'
+      Bucket: '{{ response.Script.StorageLocation.Bucket }}'
+      Key: '{{ response.Script.StorageLocation.Key }}'
+      ObjectVersion: '{{ response.Script.StorageLocation.ObjectVersion }}'
+      RoleArn: '{{ response.Script.StorageLocation.RoleArn }}'
 - discovery_id: aws.gamelift.get_compute_access
   calls:
   - action: get_compute_access
@@ -719,6 +761,14 @@ discovery:
     item:
       ContainerName: '{{ item.ContainerName }}'
       ContainerRuntimeId: '{{ item.ContainerRuntimeId }}'
+      ComputeArn: '{{ response.ComputeArn }}'
+      ComputeName: '{{ response.ComputeName }}'
+      AccessKeyId: '{{ response.Credentials.AccessKeyId }}'
+      SecretAccessKey: '{{ response.Credentials.SecretAccessKey }}'
+      SessionToken: '{{ response.Credentials.SessionToken }}'
+      FleetArn: '{{ response.FleetArn }}'
+      FleetId: '{{ response.FleetId }}'
+      Target: '{{ response.Target }}'
 - discovery_id: aws.gamelift.get_compute_auth_token
   calls:
   - action: get_compute_auth_token
@@ -750,9 +800,13 @@ discovery:
   emit:
     as: item
     item:
-      Credentials: '{{ response.InstanceAccess.Credentials }}'
+      Credentials: '{{ response.InstanceAccess.Credentials.Secret }}'
       InstanceId: '{{ response.InstanceAccess.InstanceId }}'
       OperatingSystem: '{{ response.InstanceAccess.OperatingSystem }}'
+      Secret: '{{ response.InstanceAccess.Credentials.Secret }}'
+      UserName: '{{ response.InstanceAccess.Credentials.UserName }}'
+      FleetId: '{{ response.InstanceAccess.FleetId }}'
+      IpAddress: '{{ response.InstanceAccess.IpAddress }}'
 - discovery_id: aws.gamelift.list_compute
   calls:
   - action: list_compute
@@ -769,8 +823,7 @@ discovery:
       ContainerAttributes: '{{ item.ContainerAttributes }}'
       GameLiftAgentEndpoint: '{{ item.GameLiftAgentEndpoint }}'
       GameLiftServiceSdkEndpoint: '{{ item.GameLiftServiceSdkEndpoint }}'
-      GameServerContainerGroupDefinitionArn: '{{ item.GameServerContainerGroupDefinitionArn
-        }}'
+      GameServerContainerGroupDefinitionArn: '{{ item.GameServerContainerGroupDefinitionArn }}'
       InstanceId: '{{ item.InstanceId }}'
       OperatingSystem: '{{ item.OperatingSystem }}'
       Type: '{{ item.Type }}'

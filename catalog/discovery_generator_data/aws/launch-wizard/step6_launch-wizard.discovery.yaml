@@ -17,7 +17,7 @@ discovery:
       createdAt: '{{ item.createdAt }}'
       deletedAt: '{{ item.deletedAt }}'
       deployment: '{{ item.deployment }}'
-      deploymentPatternName: '{{ item.deploymentPatternName }}'
+      deploymentPatternName: '{{ item.deployments[].patternName }}'
       description: '{{ item.description }}'
       documentationUrl: '{{ item.documentationUrl }}'
       iconUrl: '{{ item.iconUrl }}'
@@ -34,6 +34,7 @@ discovery:
       workloadDeploymentPattern: '{{ item.workloadDeploymentPattern }}'
       workloadName: '{{ item.workloadName }}'
       workloadVersionName: '{{ item.workloadVersionName }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.launch-wizard.list_workloads
   calls:
   - action: list_workloads
@@ -46,6 +47,7 @@ discovery:
       displayName: '{{ item.displayName }}'
       workload: '{{ item.workload }}'
       workloadName: '{{ item.workloadName }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.launch-wizard.get_deployment
   for_each: aws.launch-wizard.list_deployments
   calls:
@@ -59,7 +61,7 @@ discovery:
     item:
       createdAt: '{{ response.deployment.createdAt }}'
       deletedAt: '{{ response.deployment.deletedAt }}'
-      deployment: '{{ response.deployment.deployment }}'
+      deployment: '{{ response.deployment.deploymentArn }}'
       deploymentArn: '{{ response.deployment.deploymentArn }}'
       id: '{{ response.deployment.id }}'
       name: '{{ response.deployment.name }}'
@@ -86,7 +88,7 @@ discovery:
       iconUrl: '{{ response.workload.iconUrl }}'
       status: '{{ response.workload.status }}'
       statusMessage: '{{ response.workload.statusMessage }}'
-      workload: '{{ response.workload.workload }}'
+      workload: '{{ response.workload.workloadName }}'
       workloadName: '{{ response.workload.workloadName }}'
 - discovery_id: aws.launch-wizard.get_workload_deployment_pattern
   for_each: aws.launch-wizard.list_deployments
@@ -102,12 +104,13 @@ discovery:
     item:
       description: '{{ response.workloadDeploymentPattern.description }}'
       displayName: '{{ response.workloadDeploymentPattern.displayName }}'
-      specifications: '{{ response.workloadDeploymentPattern.specifications }}'
+      specifications: '{{ response.workloadDeploymentPattern.specifications[].name }}'
       status: '{{ response.workloadDeploymentPattern.status }}'
       statusMessage: '{{ response.workloadDeploymentPattern.statusMessage }}'
-      workloadDeploymentPattern: '{{ response.workloadDeploymentPattern.workloadDeploymentPattern
-        }}'
+      workloadDeploymentPattern: '{{ response.workloadDeploymentPattern.deploymentPatternName }}'
       workloadName: '{{ response.workloadDeploymentPattern.workloadName }}'
+      deploymentPatternName: '{{ response.workloadDeploymentPattern.deploymentPatternName }}'
+      workloadVersionName: '{{ response.workloadDeploymentPattern.workloadVersionName }}'
 - discovery_id: aws.launch-wizard.list_deployment_events
   for_each: aws.launch-wizard.list_deployments
   calls:
@@ -126,6 +129,7 @@ discovery:
       status: '{{ item.status }}'
       statusReason: '{{ item.statusReason }}'
       timestamp: '{{ item.timestamp }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.launch-wizard.list_tags_for_resource
   calls:
   - action: list_tags_for_resource
@@ -155,3 +159,4 @@ discovery:
       workloadDeploymentPattern: '{{ item.workloadDeploymentPattern }}'
       workloadName: '{{ item.workloadName }}'
       workloadVersionName: '{{ item.workloadVersionName }}'
+      nextToken: '{{ response.nextToken }}'

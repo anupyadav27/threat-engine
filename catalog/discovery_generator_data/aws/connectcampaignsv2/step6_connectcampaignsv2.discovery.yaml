@@ -27,6 +27,7 @@ discovery:
       schedule: '{{ item.schedule }}'
       source: '{{ item.source }}'
       tags: '{{ item.tags }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.connectcampaignsv2.describe_campaign
   for_each: aws.connectcampaignsv2.list_campaigns
   calls:
@@ -41,8 +42,7 @@ discovery:
       arn: '{{ response.campaign.arn }}'
       campaign: '{{ response.campaign.campaign }}'
       channelSubtypeConfig: '{{ response.campaign.channelSubtypeConfig }}'
-      communicationLimitsOverride: '{{ response.campaign.communicationLimitsOverride
-        }}'
+      communicationLimitsOverride: '{{ response.campaign.communicationLimitsOverride }}'
       communicationTimeConfig: '{{ response.campaign.communicationTimeConfig }}'
       connectCampaignFlowArn: '{{ response.campaign.connectCampaignFlowArn }}'
       connectInstanceId: '{{ response.campaign.connectInstanceId }}'
@@ -51,6 +51,21 @@ discovery:
       schedule: '{{ response.campaign.schedule }}'
       source: '{{ response.campaign.source }}'
       tags: '{{ response.campaign.tags }}'
+      capacity: '{{ response.campaign.channelSubtypeConfig.email.capacity }}'
+      connectSourceEmailAddress: '{{ response.campaign.channelSubtypeConfig.email.defaultOutboundConfig.connectSourceEmailAddress }}'
+      sourceEmailAddressDisplayName: '{{ response.campaign.channelSubtypeConfig.email.defaultOutboundConfig.sourceEmailAddressDisplayName }}'
+      wisdomTemplateArn: '{{ response.campaign.channelSubtypeConfig.email.defaultOutboundConfig.wisdomTemplateArn }}'
+      connectSourcePhoneNumberArn: '{{ response.campaign.channelSubtypeConfig.sms.defaultOutboundConfig.connectSourcePhoneNumberArn }}'
+      connectQueueId: '{{ response.campaign.channelSubtypeConfig.telephony.connectQueueId }}'
+      connectContactFlowId: '{{ response.campaign.channelSubtypeConfig.telephony.defaultOutboundConfig.connectContactFlowId }}'
+      connectSourcePhoneNumber: '{{ response.campaign.channelSubtypeConfig.telephony.defaultOutboundConfig.connectSourcePhoneNumber }}'
+      dailyHours: '{{ response.campaign.communicationTimeConfig.email.openHours.dailyHours }}'
+      defaultTimeZone: '{{ response.campaign.communicationTimeConfig.localTimeZoneConfig.defaultTimeZone }}'
+      endTime: '{{ response.campaign.schedule.endTime }}'
+      refreshFrequency: '{{ response.campaign.schedule.refreshFrequency }}'
+      startTime: '{{ response.campaign.schedule.startTime }}'
+      customerProfilesSegmentArn: '{{ response.campaign.source.customerProfilesSegmentArn }}'
+      customerProfilesDomainArn: '{{ response.campaign.source.eventTrigger.customerProfilesDomainArn }}'
 - discovery_id: aws.connectcampaignsv2.get_campaign_state
   for_each: aws.connectcampaignsv2.list_campaigns
   calls:
@@ -86,9 +101,11 @@ discovery:
     as: item
     item:
       connectInstanceId: '{{ response.connectInstanceConfig.connectInstanceId }}'
-      encryptionConfig: '{{ response.connectInstanceConfig.encryptionConfig }}'
-      serviceLinkedRoleArn: '{{ response.connectInstanceConfig.serviceLinkedRoleArn
-        }}'
+      encryptionConfig: '{{ response.connectInstanceConfig.encryptionConfig.keyArn }}'
+      serviceLinkedRoleArn: '{{ response.connectInstanceConfig.serviceLinkedRoleArn }}'
+      enabled: '{{ response.connectInstanceConfig.encryptionConfig.enabled }}'
+      encryptionType: '{{ response.connectInstanceConfig.encryptionConfig.encryptionType }}'
+      keyArn: '{{ response.connectInstanceConfig.encryptionConfig.keyArn }}'
 - discovery_id: aws.connectcampaignsv2.get_instance_communication_limits
   for_each: aws.connectcampaignsv2.list_campaigns
   calls:
@@ -100,8 +117,7 @@ discovery:
   emit:
     as: item
     item:
-      allChannelSubtypes: '{{ response.communicationLimitsConfig.allChannelSubtypes
-        }}'
+      allChannelSubtypes: '{{ response.communicationLimitsConfig.allChannelSubtypes }}'
 - discovery_id: aws.connectcampaignsv2.get_instance_onboarding_job_status
   for_each: aws.connectcampaignsv2.list_campaigns
   calls:
@@ -113,8 +129,7 @@ discovery:
   emit:
     as: item
     item:
-      connectInstanceId: '{{ response.connectInstanceOnboardingJobStatus.connectInstanceId
-        }}'
+      connectInstanceId: '{{ response.connectInstanceOnboardingJobStatus.connectInstanceId }}'
       failureCode: '{{ response.connectInstanceOnboardingJobStatus.failureCode }}'
       status: '{{ response.connectInstanceOnboardingJobStatus.status }}'
 - discovery_id: aws.connectcampaignsv2.list_connect_instance_integrations
@@ -131,6 +146,7 @@ discovery:
     item:
       customerProfiles: '{{ item.customerProfiles }}'
       qConnect: '{{ item.qConnect }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.connectcampaignsv2.list_tags_for_resource
   for_each: aws.connectcampaignsv2.list_campaigns
   calls:

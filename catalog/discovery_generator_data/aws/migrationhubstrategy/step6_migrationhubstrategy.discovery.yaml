@@ -27,6 +27,11 @@ discovery:
       databasePreferences: '{{ response.databasePreferences }}'
       managementPreference: '{{ response.managementPreference }}'
       prioritizeBusinessGoals: '{{ response.prioritizeBusinessGoals }}'
+      databaseManagementPreference: '{{ response.databasePreferences.databaseManagementPreference }}'
+      licenseCostReduction: '{{ response.prioritizeBusinessGoals.businessGoals.licenseCostReduction }}'
+      modernizeInfrastructureWithCloudNativeTechnologies: '{{ response.prioritizeBusinessGoals.businessGoals.modernizeInfrastructureWithCloudNativeTechnologies }}'
+      reduceOperationalOverheadWithManagedServices: '{{ response.prioritizeBusinessGoals.businessGoals.reduceOperationalOverheadWithManagedServices }}'
+      speedOfMigration: '{{ response.prioritizeBusinessGoals.businessGoals.speedOfMigration }}'
 - discovery_id: aws.migrationhubstrategy.get_portfolio_summary
   calls:
   - action: get_portfolio_summary
@@ -35,28 +40,20 @@ discovery:
   emit:
     as: item
     item:
-      antipatternReportS3Object: '{{ response.assessmentSummary.antipatternReportS3Object
-        }}'
-      antipatternReportStatus: '{{ response.assessmentSummary.antipatternReportStatus
-        }}'
-      antipatternReportStatusMessage: '{{ response.assessmentSummary.antipatternReportStatusMessage
-        }}'
+      antipatternReportS3Object: '{{ response.assessmentSummary.antipatternReportS3Object.s3key }}'
+      antipatternReportStatus: '{{ response.assessmentSummary.antipatternReportStatus }}'
+      antipatternReportStatusMessage: '{{ response.assessmentSummary.antipatternReportStatusMessage }}'
       assessmentSummary: '{{ response.assessmentSummary.assessmentSummary }}'
-      lastAnalyzedTimestamp: '{{ response.assessmentSummary.lastAnalyzedTimestamp
-        }}'
-      listAntipatternSeveritySummary: '{{ response.assessmentSummary.listAntipatternSeveritySummary
-        }}'
-      listApplicationComponentStatusSummary: '{{ response.assessmentSummary.listApplicationComponentStatusSummary
-        }}'
-      listApplicationComponentStrategySummary: '{{ response.assessmentSummary.listApplicationComponentStrategySummary
-        }}'
-      listApplicationComponentSummary: '{{ response.assessmentSummary.listApplicationComponentSummary
-        }}'
-      listServerStatusSummary: '{{ response.assessmentSummary.listServerStatusSummary
-        }}'
-      listServerStrategySummary: '{{ response.assessmentSummary.listServerStrategySummary
-        }}'
-      listServerSummary: '{{ response.assessmentSummary.listServerSummary }}'
+      lastAnalyzedTimestamp: '{{ response.assessmentSummary.lastAnalyzedTimestamp }}'
+      listAntipatternSeveritySummary: '{{ response.assessmentSummary.listAntipatternSeveritySummary[].count }}'
+      listApplicationComponentStatusSummary: '{{ response.assessmentSummary.listApplicationComponentStatusSummary[].count }}'
+      listApplicationComponentStrategySummary: '{{ response.assessmentSummary.listApplicationComponentStrategySummary[].count }}'
+      listApplicationComponentSummary: '{{ response.assessmentSummary.listApplicationComponentSummary[].count }}'
+      listServerStatusSummary: '{{ response.assessmentSummary.listServerStatusSummary[].count }}'
+      listServerStrategySummary: '{{ response.assessmentSummary.listServerStrategySummary[].count }}'
+      listServerSummary: '{{ response.assessmentSummary.listServerSummary[].count }}'
+      s3Bucket: '{{ response.assessmentSummary.antipatternReportS3Object.s3Bucket }}'
+      s3key: '{{ response.assessmentSummary.antipatternReportS3Object.s3key }}'
 - discovery_id: aws.migrationhubstrategy.list_analyzable_servers
   calls:
   - action: list_analyzable_servers
@@ -70,6 +67,7 @@ discovery:
       ipAddress: '{{ item.ipAddress }}'
       source: '{{ item.source }}'
       vmId: '{{ item.vmId }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.migrationhubstrategy.list_application_components
   calls:
   - action: list_application_components
@@ -102,6 +100,7 @@ discovery:
       runtimeStatusMessage: '{{ item.runtimeStatusMessage }}'
       sourceCodeRepositories: '{{ item.sourceCodeRepositories }}'
       statusMessage: '{{ item.statusMessage }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.migrationhubstrategy.list_collectors
   calls:
   - action: list_collectors
@@ -121,6 +120,7 @@ discovery:
       ipAddress: '{{ item.ipAddress }}'
       lastActivityTimeStamp: '{{ item.lastActivityTimeStamp }}'
       registeredTimeStamp: '{{ item.registeredTimeStamp }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.migrationhubstrategy.list_import_file_task
   calls:
   - action: list_import_file_task
@@ -141,6 +141,7 @@ discovery:
       status: '{{ item.status }}'
       statusReportS3Bucket: '{{ item.statusReportS3Bucket }}'
       statusReportS3Key: '{{ item.statusReportS3Key }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.migrationhubstrategy.list_servers
   calls:
   - action: list_servers
@@ -153,8 +154,7 @@ discovery:
       antipatternReportS3Object: '{{ item.antipatternReportS3Object }}'
       antipatternReportStatus: '{{ item.antipatternReportStatus }}'
       antipatternReportStatusMessage: '{{ item.antipatternReportStatusMessage }}'
-      applicationComponentStrategySummary: '{{ item.applicationComponentStrategySummary
-        }}'
+      applicationComponentStrategySummary: '{{ item.applicationComponentStrategySummary }}'
       dataCollectionStatus: '{{ item.dataCollectionStatus }}'
       id: '{{ item.id }}'
       lastAnalyzedTimestamp: '{{ item.lastAnalyzedTimestamp }}'
@@ -165,6 +165,7 @@ discovery:
       serverType: '{{ item.serverType }}'
       statusMessage: '{{ item.statusMessage }}'
       systemInfo: '{{ item.systemInfo }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.migrationhubstrategy.get_application_component_details
   calls:
   - action: get_application_component_details
@@ -176,6 +177,29 @@ discovery:
     item:
       id: '{{ item.id }}'
       name: '{{ item.name }}'
+      analysisStatus: '{{ response.applicationComponentDetail.analysisStatus }}'
+      s3Bucket: '{{ response.applicationComponentDetail.antipatternReportS3Object.s3Bucket }}'
+      s3key: '{{ response.applicationComponentDetail.antipatternReportS3Object.s3key }}'
+      antipatternReportStatus: '{{ response.applicationComponentDetail.antipatternReportStatus }}'
+      antipatternReportStatusMessage: '{{ response.applicationComponentDetail.antipatternReportStatusMessage }}'
+      appType: '{{ response.applicationComponentDetail.appType }}'
+      appUnitErrorCategory: '{{ response.applicationComponentDetail.appUnitError.appUnitErrorCategory }}'
+      associatedServerId: '{{ response.applicationComponentDetail.associatedServerId }}'
+      secretName: '{{ response.applicationComponentDetail.databaseConfigDetail.secretName }}'
+      inclusionStatus: '{{ response.applicationComponentDetail.inclusionStatus }}'
+      lastAnalyzedTimestamp: '{{ response.applicationComponentDetail.lastAnalyzedTimestamp }}'
+      moreServerAssociationExists: '{{ response.applicationComponentDetail.moreServerAssociationExists }}'
+      osDriver: '{{ response.applicationComponentDetail.osDriver }}'
+      osVersion: '{{ response.applicationComponentDetail.osVersion }}'
+      strategy: '{{ response.applicationComponentDetail.recommendationSet.strategy }}'
+      targetDestination: '{{ response.applicationComponentDetail.recommendationSet.targetDestination }}'
+      description: '{{ response.applicationComponentDetail.recommendationSet.transformationTool.description }}'
+      tranformationToolInstallationLink: '{{ response.applicationComponentDetail.recommendationSet.transformationTool.tranformationToolInstallationLink }}'
+      resourceSubType: '{{ response.applicationComponentDetail.resourceSubType }}'
+      runtimeStatus: '{{ response.applicationComponentDetail.runtimeStatus }}'
+      runtimeStatusMessage: '{{ response.applicationComponentDetail.runtimeStatusMessage }}'
+      statusMessage: '{{ response.applicationComponentDetail.statusMessage }}'
+      moreApplicationResource: '{{ response.moreApplicationResource }}'
 - discovery_id: aws.migrationhubstrategy.get_application_component_strategies
   calls:
   - action: get_application_component_strategies
@@ -203,6 +227,15 @@ discovery:
       condition: '{{ item.condition }}'
       name: '{{ item.name }}'
       values: '{{ item.values }}'
+      completionTime: '{{ response.dataCollectionDetails.completionTime }}'
+      failed: '{{ response.dataCollectionDetails.failed }}'
+      inProgress: '{{ response.dataCollectionDetails.inProgress }}'
+      servers: '{{ response.dataCollectionDetails.servers }}'
+      startTime: '{{ response.dataCollectionDetails.startTime }}'
+      status: '{{ response.dataCollectionDetails.status }}'
+      statusMessage: '{{ response.dataCollectionDetails.statusMessage }}'
+      success: '{{ response.dataCollectionDetails.success }}'
+      id: '{{ response.id }}'
 - discovery_id: aws.migrationhubstrategy.get_import_file_task
   for_each: aws.migrationhubstrategy.get_latest_assessment_id
   calls:
@@ -238,10 +271,11 @@ discovery:
     item:
       completionTime: '{{ response.recommendationReportDetails.completionTime }}'
       s3Bucket: '{{ response.recommendationReportDetails.s3Bucket }}'
-      s3Keys: '{{ response.recommendationReportDetails.s3Keys }}'
+      s3Keys: '{{ response.recommendationReportDetails.s3Bucket }}'
       startTime: '{{ response.recommendationReportDetails.startTime }}'
       status: '{{ response.recommendationReportDetails.status }}'
       statusMessage: '{{ response.recommendationReportDetails.statusMessage }}'
+      id: '{{ response.id }}'
 - discovery_id: aws.migrationhubstrategy.get_server_details
   calls:
   - action: get_server_details
@@ -253,6 +287,24 @@ discovery:
     item:
       id: '{{ item.id }}'
       name: '{{ item.name }}'
+      nextToken: '{{ response.nextToken }}'
+      s3Bucket: '{{ response.serverDetail.antipatternReportS3Object.s3Bucket }}'
+      s3key: '{{ response.serverDetail.antipatternReportS3Object.s3key }}'
+      antipatternReportStatus: '{{ response.serverDetail.antipatternReportStatus }}'
+      antipatternReportStatusMessage: '{{ response.serverDetail.antipatternReportStatusMessage }}'
+      dataCollectionStatus: '{{ response.serverDetail.dataCollectionStatus }}'
+      lastAnalyzedTimestamp: '{{ response.serverDetail.lastAnalyzedTimestamp }}'
+      strategy: '{{ response.serverDetail.recommendationSet.strategy }}'
+      targetDestination: '{{ response.serverDetail.recommendationSet.targetDestination }}'
+      description: '{{ response.serverDetail.recommendationSet.transformationTool.description }}'
+      tranformationToolInstallationLink: '{{ response.serverDetail.recommendationSet.transformationTool.tranformationToolInstallationLink }}'
+      serverErrorCategory: '{{ response.serverDetail.serverError.serverErrorCategory }}'
+      serverType: '{{ response.serverDetail.serverType }}'
+      statusMessage: '{{ response.serverDetail.statusMessage }}'
+      cpuArchitecture: '{{ response.serverDetail.systemInfo.cpuArchitecture }}'
+      fileSystemType: '{{ response.serverDetail.systemInfo.fileSystemType }}'
+      type: '{{ response.serverDetail.systemInfo.osInfo.type }}'
+      version: '{{ response.serverDetail.systemInfo.osInfo.version }}'
 - discovery_id: aws.migrationhubstrategy.get_server_strategies
   calls:
   - action: get_server_strategies

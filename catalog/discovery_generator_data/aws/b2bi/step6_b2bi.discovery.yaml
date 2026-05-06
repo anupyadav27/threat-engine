@@ -25,6 +25,7 @@ discovery:
       name: '{{ item.name }}'
       phone: '{{ item.phone }}'
       type: '{{ item.type }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.b2bi.list_partnerships
   calls:
   - action: list_partnerships
@@ -42,6 +43,7 @@ discovery:
       partnershipId: '{{ item.partnershipId }}'
       profileId: '{{ item.profileId }}'
       tradingPartnerId: '{{ item.tradingPartnerId }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.b2bi.list_profiles
   calls:
   - action: list_profiles
@@ -58,6 +60,7 @@ discovery:
       modifiedAt: '{{ item.modifiedAt }}'
       name: '{{ item.name }}'
       profileId: '{{ item.profileId }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.b2bi.list_transformers
   calls:
   - action: list_transformers
@@ -80,6 +83,7 @@ discovery:
       sampleDocuments: '{{ item.sampleDocuments }}'
       status: '{{ item.status }}'
       transformerId: '{{ item.transformerId }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.b2bi.get_capability
   for_each: aws.b2bi.list_capabilities
   calls:
@@ -94,8 +98,17 @@ discovery:
     item:
       bucketName: '{{ item.bucketName }}'
       capabilityArn: '{{ item.capabilityArn }}'
-      instructionsDocuments: '{{ item.instructionsDocuments }}'
+      instructionsDocuments: '{{ item.instructionsDocuments[].key }}'
       key: '{{ item.key }}'
+      capabilityId: '{{ response.capabilityId }}'
+      capabilityDirection: '{{ response.configuration.edi.capabilityDirection }}'
+      transformerId: '{{ response.configuration.edi.transformerId }}'
+      transactionSet: '{{ response.configuration.edi.type.x12Details.transactionSet }}'
+      version: '{{ response.configuration.edi.type.x12Details.version }}'
+      createdAt: '{{ response.createdAt }}'
+      modifiedAt: '{{ response.modifiedAt }}'
+      name: '{{ response.name }}'
+      type: '{{ response.type }}'
 - discovery_id: aws.b2bi.get_partnership
   for_each: aws.b2bi.list_partnerships
   calls:
@@ -107,6 +120,17 @@ discovery:
   emit:
     as: item
     items_for: '{{ response.capabilities }}'
+    item:
+      validateEdi: '{{ response.capabilityOptions.outboundEdi.x12.common.validateEdi }}'
+      createdAt: '{{ response.createdAt }}'
+      email: '{{ response.email }}'
+      modifiedAt: '{{ response.modifiedAt }}'
+      name: '{{ response.name }}'
+      partnershipArn: '{{ response.partnershipArn }}'
+      partnershipId: '{{ response.partnershipId }}'
+      phone: '{{ response.phone }}'
+      profileId: '{{ response.profileId }}'
+      tradingPartnerId: '{{ response.tradingPartnerId }}'
 - discovery_id: aws.b2bi.get_profile
   for_each: aws.b2bi.list_partnerships
   calls:
@@ -140,6 +164,22 @@ discovery:
     as: item
     item:
       x12Details: '{{ response.ediType.x12Details }}'
+      createdAt: '{{ response.createdAt }}'
+      transactionSet: '{{ response.ediType.x12Details.transactionSet }}'
+      version: '{{ response.ediType.x12Details.version }}'
+      fileFormat: '{{ response.fileFormat }}'
+      fromFormat: '{{ response.inputConversion.fromFormat }}'
+      mappingTemplate: '{{ response.mappingTemplate }}'
+      template: '{{ response.mapping.template }}'
+      templateLanguage: '{{ response.mapping.templateLanguage }}'
+      modifiedAt: '{{ response.modifiedAt }}'
+      name: '{{ response.name }}'
+      toFormat: '{{ response.outputConversion.toFormat }}'
+      sampleDocument: '{{ response.sampleDocument }}'
+      bucketName: '{{ response.sampleDocuments.bucketName }}'
+      status: '{{ response.status }}'
+      transformerArn: '{{ response.transformerArn }}'
+      transformerId: '{{ response.transformerId }}'
 - discovery_id: aws.b2bi.get_transformer_job
   for_each: aws.b2bi.list_transformers
   calls:
@@ -155,6 +195,8 @@ discovery:
     item:
       bucketName: '{{ item.bucketName }}'
       key: '{{ item.key }}'
+      message: '{{ response.message }}'
+      status: '{{ response.status }}'
 - discovery_id: aws.b2bi.list_tags_for_resource
   calls:
   - action: list_tags_for_resource

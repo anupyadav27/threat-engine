@@ -45,9 +45,11 @@ discovery:
   emit:
     as: item
     item:
-      Admin: '{{ response.AppInstanceAdmin.Admin }}'
+      Admin: '{{ response.AppInstanceAdmin.Admin.Arn }}'
       AppInstanceArn: '{{ response.AppInstanceAdmin.AppInstanceArn }}'
       CreatedTimestamp: '{{ response.AppInstanceAdmin.CreatedTimestamp }}'
+      Arn: '{{ response.AppInstanceAdmin.Admin.Arn }}'
+      Name: '{{ response.AppInstanceAdmin.Admin.Name }}'
 - discovery_id: aws.chime-sdk-identity.describe_app_instance_bot
   calls:
   - action: describe_app_instance_bot
@@ -64,6 +66,12 @@ discovery:
       Enabled: '{{ response.AppInstanceBot.Enabled }}'
       LastUpdatedTimestamp: '{{ response.AppInstanceBot.LastUpdatedTimestamp }}'
       Metadata: '{{ response.AppInstanceBot.Metadata }}'
+      StandardMessages: '{{ response.AppInstanceBot.Configuration.Lex.InvokedBy.StandardMessages }}'
+      TargetedMessages: '{{ response.AppInstanceBot.Configuration.Lex.InvokedBy.TargetedMessages }}'
+      LexBotAliasArn: '{{ response.AppInstanceBot.Configuration.Lex.LexBotAliasArn }}'
+      LocaleId: '{{ response.AppInstanceBot.Configuration.Lex.LocaleId }}'
+      RespondsTo: '{{ response.AppInstanceBot.Configuration.Lex.RespondsTo }}'
+      WelcomeIntent: '{{ response.AppInstanceBot.Configuration.Lex.WelcomeIntent }}'
 - discovery_id: aws.chime-sdk-identity.describe_app_instance_user
   calls:
   - action: describe_app_instance_user
@@ -81,6 +89,8 @@ discovery:
       LastUpdatedTimestamp: '{{ response.AppInstanceUser.LastUpdatedTimestamp }}'
       Level: '{{ response.AppInstanceUser.Level }}'
       Metadata: '{{ response.AppInstanceUser.Metadata }}'
+      ExpirationCriterion: '{{ response.AppInstanceUser.ExpirationSettings.ExpirationCriterion }}'
+      ExpirationDays: '{{ response.AppInstanceUser.ExpirationSettings.ExpirationDays }}'
 - discovery_id: aws.chime-sdk-identity.describe_app_instance_user_endpoint
   calls:
   - action: describe_app_instance_user_endpoint
@@ -92,16 +102,17 @@ discovery:
       Name: '{{ response.AppInstanceUserEndpoint.Name }}'
       ResourceArn: '{{ response.AppInstanceUserEndpoint.ResourceArn }}'
       AllowMessages: '{{ response.AppInstanceUserEndpoint.AllowMessages }}'
-      AppInstanceUserArn: '{{ response.AppInstanceUserEndpoint.AppInstanceUserArn
-        }}'
+      AppInstanceUserArn: '{{ response.AppInstanceUserEndpoint.AppInstanceUserArn }}'
       CreatedTimestamp: '{{ response.AppInstanceUserEndpoint.CreatedTimestamp }}'
-      EndpointAttributes: '{{ response.AppInstanceUserEndpoint.EndpointAttributes
-        }}'
+      EndpointAttributes: '{{ response.AppInstanceUserEndpoint.EndpointAttributes.DeviceToken }}'
       EndpointId: '{{ response.AppInstanceUserEndpoint.EndpointId }}'
-      EndpointState: '{{ response.AppInstanceUserEndpoint.EndpointState }}'
-      LastUpdatedTimestamp: '{{ response.AppInstanceUserEndpoint.LastUpdatedTimestamp
-        }}'
+      EndpointState: '{{ response.AppInstanceUserEndpoint.EndpointState.Status }}'
+      LastUpdatedTimestamp: '{{ response.AppInstanceUserEndpoint.LastUpdatedTimestamp }}'
       Type: '{{ response.AppInstanceUserEndpoint.Type }}'
+      DeviceToken: '{{ response.AppInstanceUserEndpoint.EndpointAttributes.DeviceToken }}'
+      VoipDeviceToken: '{{ response.AppInstanceUserEndpoint.EndpointAttributes.VoipDeviceToken }}'
+      Status: '{{ response.AppInstanceUserEndpoint.EndpointState.Status }}'
+      StatusReason: '{{ response.AppInstanceUserEndpoint.EndpointState.StatusReason }}'
 - discovery_id: aws.chime-sdk-identity.get_app_instance_retention_settings
   for_each: aws.chime-sdk-identity.list_app_instances
   calls:
@@ -113,10 +124,10 @@ discovery:
   emit:
     as: item
     item:
-      AppInstanceRetentionSettings: '{{ response.AppInstanceRetentionSettings.AppInstanceRetentionSettings
-        }}'
-      ChannelRetentionSettings: '{{ response.AppInstanceRetentionSettings.ChannelRetentionSettings
-        }}'
+      AppInstanceRetentionSettings: '{{ response.AppInstanceRetentionSettings.AppInstanceRetentionSettings }}'
+      ChannelRetentionSettings: '{{ response.AppInstanceRetentionSettings.ChannelRetentionSettings.RetentionDays }}'
+      RetentionDays: '{{ response.AppInstanceRetentionSettings.ChannelRetentionSettings.RetentionDays }}'
+      InitiateDeletionTimestamp: '{{ response.InitiateDeletionTimestamp }}'
 - discovery_id: aws.chime-sdk-identity.list_app_instance_admins
   for_each: aws.chime-sdk-identity.list_app_instances
   calls:
@@ -130,6 +141,7 @@ discovery:
     items_for: '{{ response.AppInstanceAdmins }}'
     item:
       Admin: '{{ item.Admin }}'
+      AppInstanceArn: '{{ response.AppInstanceArn }}'
 - discovery_id: aws.chime-sdk-identity.list_app_instance_bots
   for_each: aws.chime-sdk-identity.list_app_instances
   calls:
@@ -143,8 +155,9 @@ discovery:
     items_for: '{{ response.AppInstanceBots }}'
     item:
       Name: '{{ item.Name }}'
-      AppInstanceBotArn: '{{ item.AppInstanceBotArn }}'
+      AppInstanceBotArn: '{{ item.AppInstanceArn }}'
       Metadata: '{{ item.Metadata }}'
+      AppInstanceArn: '{{ response.AppInstanceArn }}'
 - discovery_id: aws.chime-sdk-identity.list_app_instance_user_endpoints
   calls:
   - action: list_app_instance_user_endpoints
@@ -173,8 +186,9 @@ discovery:
     items_for: '{{ response.AppInstanceUsers }}'
     item:
       Name: '{{ item.Name }}'
-      AppInstanceUserArn: '{{ item.AppInstanceUserArn }}'
+      AppInstanceUserArn: '{{ item.AppInstanceArn }}'
       Metadata: '{{ item.Metadata }}'
+      AppInstanceArn: '{{ response.AppInstanceArn }}'
 - discovery_id: aws.chime-sdk-identity.list_tags_for_resource
   calls:
   - action: list_tags_for_resource

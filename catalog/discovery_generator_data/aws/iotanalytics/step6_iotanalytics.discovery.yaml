@@ -36,6 +36,7 @@ discovery:
       statistics: '{{ item.statistics }}'
       status: '{{ item.status }}'
       storage: '{{ item.storage }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.iotanalytics.list_datasets
   calls:
   - action: list_datasets
@@ -52,6 +53,7 @@ discovery:
       lastUpdateTime: '{{ item.lastUpdateTime }}'
       status: '{{ item.status }}'
       triggers: '{{ item.triggers }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.iotanalytics.list_datastores
   calls:
   - action: list_datastores
@@ -70,6 +72,7 @@ discovery:
       lastMessageArrivalTime: '{{ item.lastMessageArrivalTime }}'
       lastUpdateTime: '{{ item.lastUpdateTime }}'
       status: '{{ item.status }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.iotanalytics.list_pipelines
   calls:
   - action: list_pipelines
@@ -84,6 +87,7 @@ discovery:
       pipeline: '{{ item.pipeline }}'
       pipelineName: '{{ item.pipelineName }}'
       reprocessingSummaries: '{{ item.reprocessingSummaries }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.iotanalytics.describe_channel
   calls:
   - action: describe_channel
@@ -100,6 +104,14 @@ discovery:
       retentionPeriod: '{{ response.channel.retentionPeriod }}'
       statistics: '{{ response.channel.statistics }}'
       status: '{{ response.channel.status }}'
+      name: '{{ response.channel.name }}'
+      numberOfDays: '{{ response.channel.retentionPeriod.numberOfDays }}'
+      unlimited: '{{ response.channel.retentionPeriod.unlimited }}'
+      bucket: '{{ response.channel.storage.customerManagedS3.bucket }}'
+      keyPrefix: '{{ response.channel.storage.customerManagedS3.keyPrefix }}'
+      roleArn: '{{ response.channel.storage.customerManagedS3.roleArn }}'
+      estimatedOn: '{{ response.statistics.size.estimatedOn }}'
+      estimatedSizeInBytes: '{{ response.statistics.size.estimatedSizeInBytes }}'
 - discovery_id: aws.iotanalytics.describe_dataset
   for_each: aws.iotanalytics.list_datasets
   calls:
@@ -111,7 +123,7 @@ discovery:
   emit:
     as: item
     item:
-      Status: '{{ response.dataset.Status }}'
+      Status: '{{ response.dataset.status }}'
       Enabled: '{{ response.dataset.Enabled }}'
       actions: '{{ response.dataset.actions }}'
       arn: '{{ response.dataset.arn }}'
@@ -124,7 +136,10 @@ discovery:
       retentionPeriod: '{{ response.dataset.retentionPeriod }}'
       status: '{{ response.dataset.status }}'
       triggers: '{{ response.dataset.triggers }}'
-      versioningConfiguration: '{{ response.dataset.versioningConfiguration }}'
+      versioningConfiguration: '{{ response.dataset.versioningConfiguration.unlimited }}'
+      numberOfDays: '{{ response.dataset.retentionPeriod.numberOfDays }}'
+      unlimited: '{{ response.dataset.retentionPeriod.unlimited }}'
+      maxVersions: '{{ response.dataset.versioningConfiguration.maxVersions }}'
 - discovery_id: aws.iotanalytics.describe_datastore
   for_each: aws.iotanalytics.list_datastores
   calls:
@@ -147,6 +162,13 @@ discovery:
       retentionPeriod: '{{ response.datastore.retentionPeriod }}'
       status: '{{ response.datastore.status }}'
       storage: '{{ response.datastore.storage }}'
+      numberOfDays: '{{ response.datastore.retentionPeriod.numberOfDays }}'
+      unlimited: '{{ response.datastore.retentionPeriod.unlimited }}'
+      bucket: '{{ response.datastore.storage.customerManagedS3.bucket }}'
+      keyPrefix: '{{ response.datastore.storage.customerManagedS3.keyPrefix }}'
+      roleArn: '{{ response.datastore.storage.customerManagedS3.roleArn }}'
+      estimatedOn: '{{ response.statistics.size.estimatedOn }}'
+      estimatedSizeInBytes: '{{ response.statistics.size.estimatedSizeInBytes }}'
 - discovery_id: aws.iotanalytics.describe_pipeline
   for_each: aws.iotanalytics.list_pipelines
   calls:
@@ -164,7 +186,7 @@ discovery:
       lastUpdateTime: '{{ response.pipeline.lastUpdateTime }}'
       name: '{{ response.pipeline.name }}'
       pipeline: '{{ response.pipeline.pipeline }}'
-      reprocessingSummaries: '{{ response.pipeline.reprocessingSummaries }}'
+      reprocessingSummaries: '{{ response.pipeline.reprocessingSummaries[].id }}'
 - discovery_id: aws.iotanalytics.get_dataset_content
   for_each: aws.iotanalytics.list_datasets
   calls:
@@ -180,6 +202,9 @@ discovery:
       dataURI: '{{ item.dataURI }}'
       entries: '{{ item.entries }}'
       entryName: '{{ item.entryName }}'
+      reason: '{{ response.status.reason }}'
+      state: '{{ response.status.state }}'
+      timestamp: '{{ response.timestamp }}'
 - discovery_id: aws.iotanalytics.list_dataset_contents
   for_each: aws.iotanalytics.list_datasets
   calls:
@@ -198,6 +223,7 @@ discovery:
       scheduleTime: '{{ item.scheduleTime }}'
       status: '{{ item.status }}'
       version: '{{ item.version }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.iotanalytics.list_tags_for_resource
   calls:
   - action: list_tags_for_resource

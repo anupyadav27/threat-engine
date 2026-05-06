@@ -24,9 +24,11 @@ discovery:
     item:
       configurationStatus: '{{ response.configurationStatus.configurationStatus }}'
       encryptionType: '{{ response.configurationStatus.encryptionType }}'
-      error: '{{ response.configurationStatus.error }}'
+      error: '{{ response.configurationStatus.error.code }}'
       kmsKeyArn: '{{ response.configurationStatus.kmsKeyArn }}'
       state: '{{ response.configurationStatus.state }}'
+      code: '{{ response.configurationStatus.error.code }}'
+      message: '{{ response.configurationStatus.error.message }}'
 - discovery_id: aws.iot-managed-integrations.get_hub_configuration
   calls:
   - action: get_hub_configuration
@@ -35,8 +37,8 @@ discovery:
   emit:
     as: item
     item:
-      HubTokenTimerExpirySettingInSeconds: '{{ response.HubTokenTimerExpirySettingInSeconds
-        }}'
+      HubTokenTimerExpirySettingInSeconds: '{{ response.HubTokenTimerExpirySettingInSeconds }}'
+      UpdatedAt: '{{ response.UpdatedAt }}'
 - discovery_id: aws.iot-managed-integrations.list_account_associations
   calls:
   - action: list_account_associations
@@ -371,6 +373,7 @@ discovery:
       endpoints: '{{ response.endpoints }}'
       nodeId: '{{ response.nodeId }}'
       version: '{{ response.version }}'
+      ManagedThingId: '{{ response.ManagedThingId }}'
 - discovery_id: aws.iot-managed-integrations.get_managed_thing_certificate
   calls:
   - action: get_managed_thing_certificate
@@ -391,6 +394,8 @@ discovery:
     item:
       Connected: '{{ response.Connected }}'
       Timestamp: '{{ response.Timestamp }}'
+      DisconnectReason: '{{ response.DisconnectReason }}'
+      ManagedThingId: '{{ response.ManagedThingId }}'
 - discovery_id: aws.iot-managed-integrations.get_managed_thing_meta_data
   calls:
   - action: get_managed_thing_meta_data
@@ -443,6 +448,28 @@ discovery:
     item:
       Protocol: '{{ item.Protocol }}'
       Target: '{{ item.Target }}'
+      CreatedAt: '{{ response.CreatedAt }}'
+      Description: '{{ response.Description }}'
+      LastUpdatedAt: '{{ response.LastUpdatedAt }}'
+      OtaMechanism: '{{ response.OtaMechanism }}'
+      EndBehavior: '{{ response.OtaSchedulingConfig.EndBehavior }}'
+      EndTime: '{{ response.OtaSchedulingConfig.EndTime }}'
+      StartTime: '{{ response.OtaSchedulingConfig.StartTime }}'
+      OtaTargetQueryString: '{{ response.OtaTargetQueryString }}'
+      OtaType: '{{ response.OtaType }}'
+      S3Url: '{{ response.S3Url }}'
+      Status: '{{ response.Status }}'
+      TaskArn: '{{ response.TaskArn }}'
+      TaskConfigurationId: '{{ response.TaskConfigurationId }}'
+      TaskId: '{{ response.TaskId }}'
+      NumberOfCanceledThings: '{{ response.TaskProcessingDetails.NumberOfCanceledThings }}'
+      NumberOfFailedThings: '{{ response.TaskProcessingDetails.NumberOfFailedThings }}'
+      NumberOfInProgressThings: '{{ response.TaskProcessingDetails.NumberOfInProgressThings }}'
+      numberOfQueuedThings: '{{ response.TaskProcessingDetails.numberOfQueuedThings }}'
+      numberOfRejectedThings: '{{ response.TaskProcessingDetails.numberOfRejectedThings }}'
+      numberOfRemovedThings: '{{ response.TaskProcessingDetails.numberOfRemovedThings }}'
+      numberOfSucceededThings: '{{ response.TaskProcessingDetails.numberOfSucceededThings }}'
+      numberOfTimedOutThings: '{{ response.TaskProcessingDetails.numberOfTimedOutThings }}'
 - discovery_id: aws.iot-managed-integrations.get_ota_task_configuration
   calls:
   - action: get_ota_task_configuration
@@ -454,6 +481,16 @@ discovery:
       AbortConfig: '{{ response.PushConfig.AbortConfig }}'
       RolloutConfig: '{{ response.PushConfig.RolloutConfig }}'
       TimeoutConfig: '{{ response.PushConfig.TimeoutConfig }}'
+      CreatedAt: '{{ response.CreatedAt }}'
+      Description: '{{ response.Description }}'
+      Name: '{{ response.Name }}'
+      BaseRatePerMinute: '{{ response.PushConfig.RolloutConfig.ExponentialRolloutRate.BaseRatePerMinute }}'
+      IncrementFactor: '{{ response.PushConfig.RolloutConfig.ExponentialRolloutRate.IncrementFactor }}'
+      numberOfNotifiedThings: '{{ response.PushConfig.RolloutConfig.ExponentialRolloutRate.RateIncreaseCriteria.numberOfNotifiedThings }}'
+      numberOfSucceededThings: '{{ response.PushConfig.RolloutConfig.ExponentialRolloutRate.RateIncreaseCriteria.numberOfSucceededThings }}'
+      MaximumPerMinute: '{{ response.PushConfig.RolloutConfig.MaximumPerMinute }}'
+      InProgressTimeoutInMinutes: '{{ response.PushConfig.TimeoutConfig.InProgressTimeoutInMinutes }}'
+      TaskConfigurationId: '{{ response.TaskConfigurationId }}'
 - discovery_id: aws.iot-managed-integrations.get_provisioning_profile
   calls:
   - action: get_provisioning_profile
@@ -479,19 +516,15 @@ discovery:
   emit:
     as: item
     item:
-      DeleteLocalStoreAfterUpload: '{{ response.RuntimeLogConfigurations.DeleteLocalStoreAfterUpload
-        }}'
-      LocalStoreFileRotationMaxBytes: '{{ response.RuntimeLogConfigurations.LocalStoreFileRotationMaxBytes
-        }}'
-      LocalStoreFileRotationMaxFiles: '{{ response.RuntimeLogConfigurations.LocalStoreFileRotationMaxFiles
-        }}'
-      LocalStoreLocation: '{{ response.RuntimeLogConfigurations.LocalStoreLocation
-        }}'
+      DeleteLocalStoreAfterUpload: '{{ response.RuntimeLogConfigurations.DeleteLocalStoreAfterUpload }}'
+      LocalStoreFileRotationMaxBytes: '{{ response.RuntimeLogConfigurations.LocalStoreFileRotationMaxBytes }}'
+      LocalStoreFileRotationMaxFiles: '{{ response.RuntimeLogConfigurations.LocalStoreFileRotationMaxFiles }}'
+      LocalStoreLocation: '{{ response.RuntimeLogConfigurations.LocalStoreLocation }}'
       LogFlushLevel: '{{ response.RuntimeLogConfigurations.LogFlushLevel }}'
       LogLevel: '{{ response.RuntimeLogConfigurations.LogLevel }}'
       UploadLog: '{{ response.RuntimeLogConfigurations.UploadLog }}'
-      UploadPeriodMinutes: '{{ response.RuntimeLogConfigurations.UploadPeriodMinutes
-        }}'
+      UploadPeriodMinutes: '{{ response.RuntimeLogConfigurations.UploadPeriodMinutes }}'
+      ManagedThingId: '{{ response.ManagedThingId }}'
 - discovery_id: aws.iot-managed-integrations.get_schema_version
   for_each: aws.iot-managed-integrations.list_cloud_connectors
   calls:
@@ -506,7 +539,7 @@ discovery:
     item:
       Description: '{{ response.Description }}'
       Namespace: '{{ response.Namespace }}'
-      Schema: '{{ response.Schema }}'
+      Schema: '{{ response.SchemaId }}'
       SchemaId: '{{ response.SchemaId }}'
       SemanticVersion: '{{ response.SemanticVersion }}'
       Type: '{{ response.Type }}'

@@ -1,0 +1,69 @@
+version: '1.0'
+provider: aws
+service: ivschat
+services:
+  client: ivschat
+  module: boto3.client
+discovery:
+- discovery_id: aws.ivschat.list_logging_configurations
+  calls:
+  - action: list_logging_configurations
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.loggingConfigurations }}'
+    item:
+      arn: '{{ item.arn }}'
+      createTime: '{{ item.createTime }}'
+      destinationConfiguration: '{{ item.destinationConfiguration }}'
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      state: '{{ item.state }}'
+      tags: '{{ item.tags }}'
+      updateTime: '{{ item.updateTime }}'
+- discovery_id: aws.ivschat.list_rooms
+  calls:
+  - action: list_rooms
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.rooms }}'
+    item:
+      arn: '{{ item.arn }}'
+      createTime: '{{ item.createTime }}'
+      id: '{{ item.id }}'
+      loggingConfigurationIdentifiers: '{{ item.loggingConfigurationIdentifiers }}'
+      messageReviewHandler: '{{ item.messageReviewHandler }}'
+      name: '{{ item.name }}'
+      tags: '{{ item.tags }}'
+      updateTime: '{{ item.updateTime }}'
+- discovery_id: aws.ivschat.get_logging_configuration
+  calls:
+  - action: get_logging_configuration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      cloudWatchLogs: '{{ response.destinationConfiguration.cloudWatchLogs }}'
+      firehose: '{{ response.destinationConfiguration.firehose }}'
+      s3: '{{ response.destinationConfiguration.s3 }}'
+- discovery_id: aws.ivschat.get_room
+  calls:
+  - action: get_room
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.loggingConfigurationIdentifiers }}'
+- discovery_id: aws.ivschat.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      tags: '{{ response.tags }}'

@@ -17,12 +17,9 @@ discovery:
       DestinationArn: '{{ response.AccountSettings.DestinationArn }}'
       Enabled: '{{ response.AccountSettings.Enabled }}'
       Format: '{{ response.AccountSettings.Format }}'
-      GroupLifecycleEventsDesiredStatus: '{{ response.AccountSettings.GroupLifecycleEventsDesiredStatus
-        }}'
-      GroupLifecycleEventsStatus: '{{ response.AccountSettings.GroupLifecycleEventsStatus
-        }}'
-      GroupLifecycleEventsStatusMessage: '{{ response.AccountSettings.GroupLifecycleEventsStatusMessage
-        }}'
+      GroupLifecycleEventsDesiredStatus: '{{ response.AccountSettings.GroupLifecycleEventsDesiredStatus }}'
+      GroupLifecycleEventsStatus: '{{ response.AccountSettings.GroupLifecycleEventsStatus }}'
+      GroupLifecycleEventsStatusMessage: '{{ response.AccountSettings.GroupLifecycleEventsStatusMessage }}'
       Level: '{{ response.AccountSettings.Level }}'
 - discovery_id: aws.resource-groups.get_group
   calls:
@@ -38,6 +35,7 @@ discovery:
       DisplayName: '{{ response.Group.DisplayName }}'
       GroupArn: '{{ response.Group.GroupArn }}'
       Owner: '{{ response.Group.Owner }}'
+      Name: '{{ response.Group.Name }}'
 - discovery_id: aws.resource-groups.get_group_configuration
   calls:
   - action: get_group_configuration
@@ -47,11 +45,10 @@ discovery:
     as: item
     item:
       Status: '{{ response.GroupConfiguration.Status }}'
-      Configuration: '{{ response.GroupConfiguration.Configuration }}'
+      Configuration: '{{ response.GroupConfiguration.Configuration[].Type }}'
       FailureReason: '{{ response.GroupConfiguration.FailureReason }}'
       GroupConfiguration: '{{ response.GroupConfiguration.GroupConfiguration }}'
-      ProposedConfiguration: '{{ response.GroupConfiguration.ProposedConfiguration
-        }}'
+      ProposedConfiguration: '{{ response.GroupConfiguration.ProposedConfiguration[].Type }}'
 - discovery_id: aws.resource-groups.get_group_query
   calls:
   - action: get_group_query
@@ -62,7 +59,9 @@ discovery:
     item:
       GroupName: '{{ response.GroupQuery.GroupName }}'
       GroupQuery: '{{ response.GroupQuery.GroupQuery }}'
-      ResourceQuery: '{{ response.GroupQuery.ResourceQuery }}'
+      ResourceQuery: '{{ response.GroupQuery.ResourceQuery.Type }}'
+      Query: '{{ response.GroupQuery.ResourceQuery.Query }}'
+      Type: '{{ response.GroupQuery.ResourceQuery.Type }}'
 - discovery_id: aws.resource-groups.list_group_resources
   calls:
   - action: list_group_resources
@@ -123,6 +122,15 @@ discovery:
     item:
       Query: '{{ response.ResourceQuery.Query }}'
       Type: '{{ response.ResourceQuery.Type }}'
+      CreatedAt: '{{ response.CreatedAt }}'
+      ErrorMessage: '{{ response.ErrorMessage }}'
+      GroupArn: '{{ response.GroupArn }}'
+      GroupName: '{{ response.GroupName }}'
+      RoleArn: '{{ response.RoleArn }}'
+      Status: '{{ response.Status }}'
+      TagKey: '{{ response.TagKey }}'
+      TagValue: '{{ response.TagValue }}'
+      TaskArn: '{{ response.TaskArn }}'
 - discovery_id: aws.resource-groups.get_tags
   calls:
   - action: get_tags
@@ -132,6 +140,7 @@ discovery:
     as: item
     item:
       Arn: '{{ response.Arn }}'
+      Tags: '{{ response.Tags }}'
 - discovery_id: aws.resource-groups.list_grouping_statuses
   for_each: aws.resource-groups.get_group
   calls:
@@ -149,6 +158,7 @@ discovery:
       ErrorCode: '{{ item.ErrorCode }}'
       ErrorMessage: '{{ item.ErrorMessage }}'
       UpdatedAt: '{{ item.UpdatedAt }}'
+      Group: '{{ response.Group }}'
 - discovery_id: aws.resource-groups.search_resources
   calls:
   - action: search_resources

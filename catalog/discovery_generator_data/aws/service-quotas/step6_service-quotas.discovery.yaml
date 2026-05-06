@@ -13,8 +13,7 @@ discovery:
   emit:
     as: item
     item:
-      ServiceQuotaTemplateAssociationStatus: '{{ response.ServiceQuotaTemplateAssociationStatus
-        }}'
+      ServiceQuotaTemplateAssociationStatus: '{{ response.ServiceQuotaTemplateAssociationStatus }}'
 - discovery_id: aws.service-quotas.get_auto_management_configuration
   calls:
   - action: get_auto_management_configuration
@@ -69,8 +68,7 @@ discovery:
       QuotaName: '{{ item.QuotaName }}'
       ServiceCode: '{{ item.ServiceCode }}'
       ServiceName: '{{ item.ServiceName }}'
-      ServiceQuotaIncreaseRequestInTemplate: '{{ item.ServiceQuotaIncreaseRequestInTemplate
-        }}'
+      ServiceQuotaIncreaseRequestInTemplate: '{{ item.ServiceQuotaIncreaseRequestInTemplateList[].Unit }}'
       Unit: '{{ item.Unit }}'
 - discovery_id: aws.service-quotas.list_services
   calls:
@@ -127,13 +125,16 @@ discovery:
       LastUpdated: '{{ response.RequestedQuota.LastUpdated }}'
       QuotaArn: '{{ response.RequestedQuota.QuotaArn }}'
       QuotaCode: '{{ response.RequestedQuota.QuotaCode }}'
-      QuotaContext: '{{ response.RequestedQuota.QuotaContext }}'
+      QuotaContext: '{{ response.RequestedQuota.QuotaCode }}'
       QuotaName: '{{ response.RequestedQuota.QuotaName }}'
       QuotaRequestedAtLevel: '{{ response.RequestedQuota.QuotaRequestedAtLevel }}'
       Requester: '{{ response.RequestedQuota.Requester }}'
       ServiceCode: '{{ response.RequestedQuota.ServiceCode }}'
       ServiceName: '{{ response.RequestedQuota.ServiceName }}'
       Unit: '{{ response.RequestedQuota.Unit }}'
+      ContextId: '{{ response.RequestedQuota.QuotaContext.ContextId }}'
+      ContextScope: '{{ response.RequestedQuota.QuotaContext.ContextScope }}'
+      ContextScopeType: '{{ response.RequestedQuota.QuotaContext.ContextScopeType }}'
 - discovery_id: aws.service-quotas.get_service_quota
   for_each: aws.service-quotas.list_requested_service_quota_change_history
   calls:
@@ -161,6 +162,17 @@ discovery:
       Unit: '{{ response.Quota.Unit }}'
       UsageMetric: '{{ response.Quota.UsageMetric }}'
       Value: '{{ response.Quota.Value }}'
+      ErrorCode: '{{ response.Quota.ErrorReason.ErrorCode }}'
+      ErrorMessage: '{{ response.Quota.ErrorReason.ErrorMessage }}'
+      PeriodUnit: '{{ response.Quota.Period.PeriodUnit }}'
+      PeriodValue: '{{ response.Quota.Period.PeriodValue }}'
+      ContextId: '{{ response.Quota.QuotaContext.ContextId }}'
+      ContextScope: '{{ response.Quota.QuotaContext.ContextScope }}'
+      ContextScopeType: '{{ response.Quota.QuotaContext.ContextScopeType }}'
+      MetricDimensions: '{{ response.Quota.UsageMetric.MetricDimensions }}'
+      MetricName: '{{ response.Quota.UsageMetric.MetricName }}'
+      MetricNamespace: '{{ response.Quota.UsageMetric.MetricNamespace }}'
+      MetricStatisticRecommendation: '{{ response.Quota.UsageMetric.MetricStatisticRecommendation }}'
 - discovery_id: aws.service-quotas.get_service_quota_increase_request_from_template
   for_each: aws.service-quotas.list_requested_service_quota_change_history
   calls:
@@ -175,18 +187,13 @@ discovery:
     as: item
     item:
       AwsRegion: '{{ response.ServiceQuotaIncreaseRequestInTemplate.AwsRegion }}'
-      DesiredValue: '{{ response.ServiceQuotaIncreaseRequestInTemplate.DesiredValue
-        }}'
-      GlobalQuota: '{{ response.ServiceQuotaIncreaseRequestInTemplate.GlobalQuota
-        }}'
+      DesiredValue: '{{ response.ServiceQuotaIncreaseRequestInTemplate.DesiredValue }}'
+      GlobalQuota: '{{ response.ServiceQuotaIncreaseRequestInTemplate.GlobalQuota }}'
       QuotaCode: '{{ response.ServiceQuotaIncreaseRequestInTemplate.QuotaCode }}'
       QuotaName: '{{ response.ServiceQuotaIncreaseRequestInTemplate.QuotaName }}'
-      ServiceCode: '{{ response.ServiceQuotaIncreaseRequestInTemplate.ServiceCode
-        }}'
-      ServiceName: '{{ response.ServiceQuotaIncreaseRequestInTemplate.ServiceName
-        }}'
-      ServiceQuotaIncreaseRequestInTemplate: '{{ response.ServiceQuotaIncreaseRequestInTemplate.ServiceQuotaIncreaseRequestInTemplate
-        }}'
+      ServiceCode: '{{ response.ServiceQuotaIncreaseRequestInTemplate.ServiceCode }}'
+      ServiceName: '{{ response.ServiceQuotaIncreaseRequestInTemplate.ServiceName }}'
+      ServiceQuotaIncreaseRequestInTemplate: '{{ response.ServiceQuotaIncreaseRequestInTemplate.ServiceQuotaIncreaseRequestInTemplate }}'
       Unit: '{{ response.ServiceQuotaIncreaseRequestInTemplate.Unit }}'
 - discovery_id: aws.service-quotas.list_aws_default_service_quotas
   for_each: aws.service-quotas.list_requested_service_quota_change_history

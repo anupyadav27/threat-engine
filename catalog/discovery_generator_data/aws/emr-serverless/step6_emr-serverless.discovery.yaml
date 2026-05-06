@@ -57,6 +57,7 @@ discovery:
       type: '{{ item.type }}'
       updatedAt: '{{ item.updatedAt }}'
       workerTypeSpecifications: '{{ item.workerTypeSpecifications }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.emr-serverless.get_application
   for_each: aws.emr-serverless.list_applications
   calls:
@@ -68,22 +69,20 @@ discovery:
   emit:
     as: item
     item:
-      Status: '{{ response.application.Status }}'
-      Enabled: '{{ response.application.Enabled }}'
-      application: '{{ response.application.application }}'
+      Status: '{{ response.application.tags }}'
+      Enabled: '{{ response.application.name }}'
+      application: '{{ response.application.applicationId }}'
       applicationId: '{{ response.application.applicationId }}'
       architecture: '{{ response.application.architecture }}'
       arn: '{{ response.application.arn }}'
-      autoStartConfiguration: '{{ response.application.autoStartConfiguration }}'
-      autoStopConfiguration: '{{ response.application.autoStopConfiguration }}'
+      autoStartConfiguration: '{{ response.application.autoStartConfiguration.enabled }}'
+      autoStopConfiguration: '{{ response.application.autoStopConfiguration.enabled }}'
       createdAt: '{{ response.application.createdAt }}'
-      identityCenterConfiguration: '{{ response.application.identityCenterConfiguration
-        }}'
-      imageConfiguration: '{{ response.application.imageConfiguration }}'
+      identityCenterConfiguration: '{{ response.application.identityCenterConfiguration }}'
+      imageConfiguration: '{{ response.application.imageConfiguration.imageUri }}'
       initialCapacity: '{{ response.application.initialCapacity }}'
-      interactiveConfiguration: '{{ response.application.interactiveConfiguration
-        }}'
-      maximumCapacity: '{{ response.application.maximumCapacity }}'
+      interactiveConfiguration: '{{ response.application.interactiveConfiguration }}'
+      maximumCapacity: '{{ response.application.maximumCapacity.cpu }}'
       monitoringConfiguration: '{{ response.application.monitoringConfiguration }}'
       name: '{{ response.application.name }}'
       networkConfiguration: '{{ response.application.networkConfiguration }}'
@@ -95,8 +94,24 @@ discovery:
       tags: '{{ response.application.tags }}'
       type: '{{ response.application.type }}'
       updatedAt: '{{ response.application.updatedAt }}'
-      workerTypeSpecifications: '{{ response.application.workerTypeSpecifications
-        }}'
+      workerTypeSpecifications: '{{ response.application.workerTypeSpecifications }}'
+      enabled: '{{ response.application.autoStartConfiguration.enabled }}'
+      idleTimeoutMinutes: '{{ response.application.autoStopConfiguration.idleTimeoutMinutes }}'
+      imageUri: '{{ response.application.imageConfiguration.imageUri }}'
+      resolvedImageDigest: '{{ response.application.imageConfiguration.resolvedImageDigest }}'
+      livyEndpointEnabled: '{{ response.application.interactiveConfiguration.livyEndpointEnabled }}'
+      studioEnabled: '{{ response.application.interactiveConfiguration.studioEnabled }}'
+      cpu: '{{ response.application.maximumCapacity.cpu }}'
+      disk: '{{ response.application.maximumCapacity.disk }}'
+      memory: '{{ response.application.maximumCapacity.memory }}'
+      encryptionKeyArn: '{{ response.application.monitoringConfiguration.cloudWatchLoggingConfiguration.encryptionKeyArn }}'
+      logGroupName: '{{ response.application.monitoringConfiguration.cloudWatchLoggingConfiguration.logGroupName }}'
+      logStreamNamePrefix: '{{ response.application.monitoringConfiguration.cloudWatchLoggingConfiguration.logStreamNamePrefix }}'
+      logTypes: '{{ response.application.monitoringConfiguration.cloudWatchLoggingConfiguration.logTypes }}'
+      remoteWriteUrl: '{{ response.application.monitoringConfiguration.prometheusMonitoringConfiguration.remoteWriteUrl }}'
+      logUri: '{{ response.application.monitoringConfiguration.s3MonitoringConfiguration.logUri }}'
+      maxConcurrentRuns: '{{ response.application.schedulerConfiguration.maxConcurrentRuns }}'
+      queueTimeoutMinutes: '{{ response.application.schedulerConfiguration.queueTimeoutMinutes }}'
 - discovery_id: aws.emr-serverless.get_dashboard_for_job_run
   for_each: aws.emr-serverless.list_applications
   calls:
@@ -126,14 +141,14 @@ discovery:
       Version: '{{ response.jobRun.Version }}'
       applicationId: '{{ response.jobRun.applicationId }}'
       arn: '{{ response.jobRun.arn }}'
-      billedResourceUtilization: '{{ response.jobRun.billedResourceUtilization }}'
+      billedResourceUtilization: '{{ response.jobRun.billedResourceUtilization.vCPUHour }}'
       configurationOverrides: '{{ response.jobRun.configurationOverrides }}'
       createdAt: '{{ response.jobRun.createdAt }}'
       endedAt: '{{ response.jobRun.endedAt }}'
       executionIamPolicy: '{{ response.jobRun.executionIamPolicy }}'
       executionTimeoutMinutes: '{{ response.jobRun.executionTimeoutMinutes }}'
       jobDriver: '{{ response.jobRun.jobDriver }}'
-      jobRun: '{{ response.jobRun.jobRun }}'
+      jobRun: '{{ response.jobRun.jobRunId }}'
       jobRunId: '{{ response.jobRun.jobRunId }}'
       name: '{{ response.jobRun.name }}'
       networkConfiguration: '{{ response.jobRun.networkConfiguration }}'
@@ -144,10 +159,32 @@ discovery:
       state: '{{ response.jobRun.state }}'
       stateDetails: '{{ response.jobRun.stateDetails }}'
       tags: '{{ response.jobRun.tags }}'
-      totalExecutionDurationSeconds: '{{ response.jobRun.totalExecutionDurationSeconds
-        }}'
-      totalResourceUtilization: '{{ response.jobRun.totalResourceUtilization }}'
+      totalExecutionDurationSeconds: '{{ response.jobRun.totalExecutionDurationSeconds }}'
+      totalResourceUtilization: '{{ response.jobRun.totalResourceUtilization.vCPUHour }}'
       updatedAt: '{{ response.jobRun.updatedAt }}'
+      attempt: '{{ response.jobRun.attempt }}'
+      attemptCreatedAt: '{{ response.jobRun.attemptCreatedAt }}'
+      attemptUpdatedAt: '{{ response.jobRun.attemptUpdatedAt }}'
+      memoryGBHour: '{{ response.jobRun.billedResourceUtilization.memoryGBHour }}'
+      storageGBHour: '{{ response.jobRun.billedResourceUtilization.storageGBHour }}'
+      vCPUHour: '{{ response.jobRun.billedResourceUtilization.vCPUHour }}'
+      enabled: '{{ response.jobRun.configurationOverrides.monitoringConfiguration.cloudWatchLoggingConfiguration.enabled }}'
+      encryptionKeyArn: '{{ response.jobRun.configurationOverrides.monitoringConfiguration.cloudWatchLoggingConfiguration.encryptionKeyArn }}'
+      logGroupName: '{{ response.jobRun.configurationOverrides.monitoringConfiguration.cloudWatchLoggingConfiguration.logGroupName }}'
+      logStreamNamePrefix: '{{ response.jobRun.configurationOverrides.monitoringConfiguration.cloudWatchLoggingConfiguration.logStreamNamePrefix }}'
+      logTypes: '{{ response.jobRun.configurationOverrides.monitoringConfiguration.cloudWatchLoggingConfiguration.logTypes }}'
+      remoteWriteUrl: '{{ response.jobRun.configurationOverrides.monitoringConfiguration.prometheusMonitoringConfiguration.remoteWriteUrl }}'
+      logUri: '{{ response.jobRun.configurationOverrides.monitoringConfiguration.s3MonitoringConfiguration.logUri }}'
+      createdBy: '{{ response.jobRun.createdBy }}'
+      executionRole: '{{ response.jobRun.executionRole }}'
+      initQueryFile: '{{ response.jobRun.jobDriver.hive.initQueryFile }}'
+      parameters: '{{ response.jobRun.jobDriver.hive.parameters }}'
+      query: '{{ response.jobRun.jobDriver.hive.query }}'
+      entryPoint: '{{ response.jobRun.jobDriver.sparkSubmit.entryPoint }}'
+      sparkSubmitParameters: '{{ response.jobRun.jobDriver.sparkSubmit.sparkSubmitParameters }}'
+      mode: '{{ response.jobRun.mode }}'
+      maxAttempts: '{{ response.jobRun.retryPolicy.maxAttempts }}'
+      maxFailedAttemptsPerHour: '{{ response.jobRun.retryPolicy.maxFailedAttemptsPerHour }}'
 - discovery_id: aws.emr-serverless.list_job_run_attempts
   for_each: aws.emr-serverless.list_applications
   calls:
@@ -179,6 +216,7 @@ discovery:
       stateDetails: '{{ item.stateDetails }}'
       type: '{{ item.type }}'
       updatedAt: '{{ item.updatedAt }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.emr-serverless.list_job_runs
   for_each: aws.emr-serverless.list_applications
   calls:
@@ -207,6 +245,7 @@ discovery:
       stateDetails: '{{ item.stateDetails }}'
       type: '{{ item.type }}'
       updatedAt: '{{ item.updatedAt }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.emr-serverless.list_tags_for_resource
   calls:
   - action: list_tags_for_resource

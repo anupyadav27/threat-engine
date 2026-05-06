@@ -30,6 +30,7 @@ discovery:
       id: '{{ item.id }}'
       roleArn: '{{ item.roleArn }}'
       status: '{{ item.status }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.auditmanager.get_insights
   calls:
   - action: get_insights
@@ -39,15 +40,13 @@ discovery:
     as: item
     item:
       activeAssessmentsCount: '{{ response.insights.activeAssessmentsCount }}'
-      assessmentControlsCountByNoncompliantEvidence: '{{ response.insights.assessmentControlsCountByNoncompliantEvidence
-        }}'
+      assessmentControlsCountByNoncompliantEvidence: '{{ response.insights.assessmentControlsCountByNoncompliantEvidence }}'
       compliantEvidenceCount: '{{ response.insights.compliantEvidenceCount }}'
       inconclusiveEvidenceCount: '{{ response.insights.inconclusiveEvidenceCount }}'
       insights: '{{ response.insights.insights }}'
       lastUpdated: '{{ response.insights.lastUpdated }}'
       noncompliantEvidenceCount: '{{ response.insights.noncompliantEvidenceCount }}'
-      totalAssessmentControlsCount: '{{ response.insights.totalAssessmentControlsCount
-        }}'
+      totalAssessmentControlsCount: '{{ response.insights.totalAssessmentControlsCount }}'
 - discovery_id: aws.auditmanager.get_organization_admin_account
   calls:
   - action: get_organization_admin_account
@@ -90,6 +89,7 @@ discovery:
       id: '{{ item.id }}'
       name: '{{ item.name }}'
       status: '{{ item.status }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.auditmanager.list_assessments
   calls:
   - action: list_assessments
@@ -108,6 +108,7 @@ discovery:
       name: '{{ item.name }}'
       roles: '{{ item.roles }}'
       status: '{{ item.status }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.auditmanager.list_control_domain_insights
   calls:
   - action: list_control_domain_insights
@@ -117,14 +118,14 @@ discovery:
     as: item
     items_for: '{{ response.controlDomainInsights }}'
     item:
-      controlsCountByNoncompliantEvidence: '{{ item.controlsCountByNoncompliantEvidence
-        }}'
+      controlsCountByNoncompliantEvidence: '{{ item.controlsCountByNoncompliantEvidence }}'
       evidenceInsights: '{{ item.evidenceInsights }}'
       id: '{{ item.id }}'
       insights: '{{ item.insights }}'
       lastUpdated: '{{ item.lastUpdated }}'
       name: '{{ item.name }}'
       totalControlsCount: '{{ item.totalControlsCount }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.auditmanager.list_notifications
   calls:
   - action: list_notifications
@@ -142,6 +143,7 @@ discovery:
       eventTime: '{{ item.eventTime }}'
       id: '{{ item.id }}'
       source: '{{ item.source }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.auditmanager.get_assessment
   for_each: aws.auditmanager.get_delegations
   calls:
@@ -154,9 +156,22 @@ discovery:
     as: item
     item:
       arn: '{{ response.assessment.arn }}'
-      awsAccount: '{{ response.assessment.awsAccount }}'
-      framework: '{{ response.assessment.framework }}'
+      awsAccount: '{{ response.assessment.awsAccount.id }}'
+      framework: '{{ response.assessment.framework.id }}'
       tags: '{{ response.assessment.tags }}'
+      emailAddress: '{{ response.assessment.awsAccount.emailAddress }}'
+      id: '{{ response.assessment.awsAccount.id }}'
+      name: '{{ response.assessment.awsAccount.name }}'
+      complianceType: '{{ response.assessment.framework.metadata.complianceType }}'
+      description: '{{ response.assessment.framework.metadata.description }}'
+      logo: '{{ response.assessment.framework.metadata.logo }}'
+      destination: '{{ response.assessment.metadata.assessmentReportsDestination.destination }}'
+      destinationType: '{{ response.assessment.metadata.assessmentReportsDestination.destinationType }}'
+      creationTime: '{{ response.assessment.metadata.creationTime }}'
+      lastUpdated: '{{ response.assessment.metadata.lastUpdated }}'
+      status: '{{ response.assessment.metadata.status }}'
+      roleArn: '{{ response.userRole.roleArn }}'
+      roleType: '{{ response.userRole.roleType }}'
 - discovery_id: aws.auditmanager.get_assessment_framework
   calls:
   - action: get_assessment_framework
@@ -167,7 +182,7 @@ discovery:
     item:
       arn: '{{ response.framework.arn }}'
       complianceType: '{{ response.framework.complianceType }}'
-      controlSets: '{{ response.framework.controlSets }}'
+      controlSets: '{{ response.framework.controlSets[].id }}'
       controlSources: '{{ response.framework.controlSources }}'
       createdAt: '{{ response.framework.createdAt }}'
       createdBy: '{{ response.framework.createdBy }}'
@@ -210,6 +225,7 @@ discovery:
       createdBy: '{{ item.createdBy }}'
       objectName: '{{ item.objectName }}'
       objectType: '{{ item.objectType }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.auditmanager.get_control
   calls:
   - action: get_control
@@ -221,7 +237,7 @@ discovery:
       actionPlanInstructions: '{{ response.control.actionPlanInstructions }}'
       actionPlanTitle: '{{ response.control.actionPlanTitle }}'
       arn: '{{ response.control.arn }}'
-      controlMappingSources: '{{ response.control.controlMappingSources }}'
+      controlMappingSources: '{{ response.control.controlSources }}'
       controlSources: '{{ response.control.controlSources }}'
       createdAt: '{{ response.control.createdAt }}'
       createdBy: '{{ response.control.createdBy }}'
@@ -256,13 +272,13 @@ discovery:
       dataSource: '{{ response.evidence.dataSource }}'
       eventName: '{{ response.evidence.eventName }}'
       eventSource: '{{ response.evidence.eventSource }}'
-      evidence: '{{ response.evidence.evidence }}'
+      evidence: '{{ response.evidence.evidenceByType }}'
       evidenceAwsAccountId: '{{ response.evidence.evidenceAwsAccountId }}'
       evidenceByType: '{{ response.evidence.evidenceByType }}'
       evidenceFolderId: '{{ response.evidence.evidenceFolderId }}'
       iamId: '{{ response.evidence.iamId }}'
       id: '{{ response.evidence.id }}'
-      resourcesIncluded: '{{ response.evidence.resourcesIncluded }}'
+      resourcesIncluded: '{{ response.evidence.resourcesIncluded[].arn }}'
       time: '{{ response.evidence.time }}'
 - discovery_id: aws.auditmanager.get_evidence_by_evidence_folder
   for_each: aws.auditmanager.get_delegations
@@ -286,13 +302,14 @@ discovery:
       dataSource: '{{ item.dataSource }}'
       eventName: '{{ item.eventName }}'
       eventSource: '{{ item.eventSource }}'
-      evidenceAwsAccountId: '{{ item.evidenceAwsAccountId }}'
+      evidenceAwsAccountId: '{{ item.evidence[].awsAccountId }}'
       evidenceByType: '{{ item.evidenceByType }}'
       evidenceFolderId: '{{ item.evidenceFolderId }}'
       iamId: '{{ item.iamId }}'
       id: '{{ item.id }}'
       resourcesIncluded: '{{ item.resourcesIncluded }}'
       time: '{{ item.time }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.auditmanager.get_evidence_file_upload_url
   calls:
   - action: get_evidence_file_upload_url
@@ -316,30 +333,22 @@ discovery:
   emit:
     as: item
     item:
-      Status: '{{ response.evidenceFolder.Status }}'
+      Status: '{{ response.evidenceFolder.date }}'
       assessmentId: '{{ response.evidenceFolder.assessmentId }}'
-      assessmentReportSelectionCount: '{{ response.evidenceFolder.assessmentReportSelectionCount
-        }}'
+      assessmentReportSelectionCount: '{{ response.evidenceFolder.assessmentReportSelectionCount }}'
       author: '{{ response.evidenceFolder.author }}'
       controlId: '{{ response.evidenceFolder.controlId }}'
       controlName: '{{ response.evidenceFolder.controlName }}'
       controlSetId: '{{ response.evidenceFolder.controlSetId }}'
       dataSource: '{{ response.evidenceFolder.dataSource }}'
       date: '{{ response.evidenceFolder.date }}'
-      evidenceAwsServiceSourceCount: '{{ response.evidenceFolder.evidenceAwsServiceSourceCount
-        }}'
-      evidenceByTypeComplianceCheckCount: '{{ response.evidenceFolder.evidenceByTypeComplianceCheckCount
-        }}'
-      evidenceByTypeComplianceCheckIssuesCount: '{{ response.evidenceFolder.evidenceByTypeComplianceCheckIssuesCount
-        }}'
-      evidenceByTypeConfigurationDataCount: '{{ response.evidenceFolder.evidenceByTypeConfigurationDataCount
-        }}'
-      evidenceByTypeManualCount: '{{ response.evidenceFolder.evidenceByTypeManualCount
-        }}'
-      evidenceByTypeUserActivityCount: '{{ response.evidenceFolder.evidenceByTypeUserActivityCount
-        }}'
-      evidenceResourcesIncludedCount: '{{ response.evidenceFolder.evidenceResourcesIncludedCount
-        }}'
+      evidenceAwsServiceSourceCount: '{{ response.evidenceFolder.evidenceAwsServiceSourceCount }}'
+      evidenceByTypeComplianceCheckCount: '{{ response.evidenceFolder.evidenceByTypeComplianceCheckCount }}'
+      evidenceByTypeComplianceCheckIssuesCount: '{{ response.evidenceFolder.evidenceByTypeComplianceCheckIssuesCount }}'
+      evidenceByTypeConfigurationDataCount: '{{ response.evidenceFolder.evidenceByTypeConfigurationDataCount }}'
+      evidenceByTypeManualCount: '{{ response.evidenceFolder.evidenceByTypeManualCount }}'
+      evidenceByTypeUserActivityCount: '{{ response.evidenceFolder.evidenceByTypeUserActivityCount }}'
+      evidenceResourcesIncludedCount: '{{ response.evidenceFolder.evidenceResourcesIncludedCount }}'
       id: '{{ response.evidenceFolder.id }}'
       name: '{{ response.evidenceFolder.name }}'
       totalEvidence: '{{ response.evidenceFolder.totalEvidence }}'
@@ -364,18 +373,16 @@ discovery:
       dataSource: '{{ item.dataSource }}'
       date: '{{ item.date }}'
       evidenceAwsServiceSourceCount: '{{ item.evidenceAwsServiceSourceCount }}'
-      evidenceByTypeComplianceCheckCount: '{{ item.evidenceByTypeComplianceCheckCount
-        }}'
-      evidenceByTypeComplianceCheckIssuesCount: '{{ item.evidenceByTypeComplianceCheckIssuesCount
-        }}'
-      evidenceByTypeConfigurationDataCount: '{{ item.evidenceByTypeConfigurationDataCount
-        }}'
+      evidenceByTypeComplianceCheckCount: '{{ item.evidenceByTypeComplianceCheckCount }}'
+      evidenceByTypeComplianceCheckIssuesCount: '{{ item.evidenceByTypeComplianceCheckIssuesCount }}'
+      evidenceByTypeConfigurationDataCount: '{{ item.evidenceByTypeConfigurationDataCount }}'
       evidenceByTypeManualCount: '{{ item.evidenceByTypeManualCount }}'
       evidenceByTypeUserActivityCount: '{{ item.evidenceByTypeUserActivityCount }}'
       evidenceResourcesIncludedCount: '{{ item.evidenceResourcesIncludedCount }}'
       id: '{{ item.id }}'
       name: '{{ item.name }}'
       totalEvidence: '{{ item.totalEvidence }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.auditmanager.get_evidence_folders_by_assessment_control
   for_each: aws.auditmanager.get_delegations
   calls:
@@ -399,18 +406,16 @@ discovery:
       dataSource: '{{ item.dataSource }}'
       date: '{{ item.date }}'
       evidenceAwsServiceSourceCount: '{{ item.evidenceAwsServiceSourceCount }}'
-      evidenceByTypeComplianceCheckCount: '{{ item.evidenceByTypeComplianceCheckCount
-        }}'
-      evidenceByTypeComplianceCheckIssuesCount: '{{ item.evidenceByTypeComplianceCheckIssuesCount
-        }}'
-      evidenceByTypeConfigurationDataCount: '{{ item.evidenceByTypeConfigurationDataCount
-        }}'
+      evidenceByTypeComplianceCheckCount: '{{ item.evidenceByTypeComplianceCheckCount }}'
+      evidenceByTypeComplianceCheckIssuesCount: '{{ item.evidenceByTypeComplianceCheckIssuesCount }}'
+      evidenceByTypeConfigurationDataCount: '{{ item.evidenceByTypeConfigurationDataCount }}'
       evidenceByTypeManualCount: '{{ item.evidenceByTypeManualCount }}'
       evidenceByTypeUserActivityCount: '{{ item.evidenceByTypeUserActivityCount }}'
       evidenceResourcesIncludedCount: '{{ item.evidenceResourcesIncludedCount }}'
       id: '{{ item.id }}'
       name: '{{ item.name }}'
       totalEvidence: '{{ item.totalEvidence }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.auditmanager.get_insights_by_assessment
   for_each: aws.auditmanager.get_delegations
   calls:
@@ -422,14 +427,12 @@ discovery:
   emit:
     as: item
     item:
-      assessmentControlsCountByNoncompliantEvidence: '{{ response.insights.assessmentControlsCountByNoncompliantEvidence
-        }}'
+      assessmentControlsCountByNoncompliantEvidence: '{{ response.insights.assessmentControlsCountByNoncompliantEvidence }}'
       compliantEvidenceCount: '{{ response.insights.compliantEvidenceCount }}'
       inconclusiveEvidenceCount: '{{ response.insights.inconclusiveEvidenceCount }}'
       lastUpdated: '{{ response.insights.lastUpdated }}'
       noncompliantEvidenceCount: '{{ response.insights.noncompliantEvidenceCount }}'
-      totalAssessmentControlsCount: '{{ response.insights.totalAssessmentControlsCount
-        }}'
+      totalAssessmentControlsCount: '{{ response.insights.totalAssessmentControlsCount }}'
 - discovery_id: aws.auditmanager.get_settings
   calls:
   - action: get_settings
@@ -438,15 +441,21 @@ discovery:
   emit:
     as: item
     item:
-      defaultAssessmentReportsDestination: '{{ response.settings.defaultAssessmentReportsDestination
-        }}'
+      defaultAssessmentReportsDestination: '{{ response.settings.defaultAssessmentReportsDestination.destination }}'
       defaultExportDestination: '{{ response.settings.defaultExportDestination }}'
-      defaultProcessOwners: '{{ response.settings.defaultProcessOwners }}'
+      defaultProcessOwners: '{{ response.settings.defaultProcessOwners[].roleArn }}'
       deregistrationPolicy: '{{ response.settings.deregistrationPolicy }}'
-      evidenceFinderEnablement: '{{ response.settings.evidenceFinderEnablement }}'
+      evidenceFinderEnablement: '{{ response.settings.evidenceFinderEnablement.error }}'
       isAwsOrgEnabled: '{{ response.settings.isAwsOrgEnabled }}'
       kmsKey: '{{ response.settings.kmsKey }}'
       snsTopic: '{{ response.settings.snsTopic }}'
+      destination: '{{ response.settings.defaultAssessmentReportsDestination.destination }}'
+      destinationType: '{{ response.settings.defaultAssessmentReportsDestination.destinationType }}'
+      deleteResources: '{{ response.settings.deregistrationPolicy.deleteResources }}'
+      backfillStatus: '{{ response.settings.evidenceFinderEnablement.backfillStatus }}'
+      enablementStatus: '{{ response.settings.evidenceFinderEnablement.enablementStatus }}'
+      error: '{{ response.settings.evidenceFinderEnablement.error }}'
+      eventDataStoreArn: '{{ response.settings.evidenceFinderEnablement.eventDataStoreArn }}'
 - discovery_id: aws.auditmanager.list_assessment_control_insights_by_control_domain
   for_each: aws.auditmanager.get_delegations
   calls:
@@ -465,6 +474,7 @@ discovery:
       id: '{{ item.id }}'
       lastUpdated: '{{ item.lastUpdated }}'
       name: '{{ item.name }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.auditmanager.list_assessment_framework_share_requests
   calls:
   - action: list_assessment_framework_share_requests
@@ -489,6 +499,7 @@ discovery:
       sourceAccount: '{{ item.sourceAccount }}'
       standardControlsCount: '{{ item.standardControlsCount }}'
       status: '{{ item.status }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.auditmanager.list_assessment_frameworks
   calls:
   - action: list_assessment_frameworks
@@ -509,6 +520,7 @@ discovery:
       logo: '{{ item.logo }}'
       name: '{{ item.name }}'
       type: '{{ item.type }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.auditmanager.list_control_domain_insights_by_assessment
   for_each: aws.auditmanager.get_delegations
   calls:
@@ -521,13 +533,13 @@ discovery:
     as: item
     items_for: '{{ response.controlDomainInsights }}'
     item:
-      controlsCountByNoncompliantEvidence: '{{ item.controlsCountByNoncompliantEvidence
-        }}'
+      controlsCountByNoncompliantEvidence: '{{ item.controlsCountByNoncompliantEvidence }}'
       evidenceInsights: '{{ item.evidenceInsights }}'
       id: '{{ item.id }}'
       lastUpdated: '{{ item.lastUpdated }}'
       name: '{{ item.name }}'
       totalControlsCount: '{{ item.totalControlsCount }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.auditmanager.list_control_insights_by_control_domain
   calls:
   - action: list_control_insights_by_control_domain
@@ -541,6 +553,7 @@ discovery:
       id: '{{ item.id }}'
       lastUpdated: '{{ item.lastUpdated }}'
       name: '{{ item.name }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.auditmanager.list_controls
   calls:
   - action: list_controls
@@ -556,6 +569,7 @@ discovery:
       id: '{{ item.id }}'
       lastUpdatedAt: '{{ item.lastUpdatedAt }}'
       name: '{{ item.name }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.auditmanager.list_keywords_for_data_source
   for_each: aws.auditmanager.list_notifications
   calls:
@@ -567,6 +581,8 @@ discovery:
   emit:
     as: item
     items_for: '{{ response.keywords }}'
+    item:
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.auditmanager.list_tags_for_resource
   calls:
   - action: list_tags_for_resource

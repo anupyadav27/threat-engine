@@ -15,6 +15,7 @@ discovery:
     item:
       Status: '{{ response.Status }}'
       Enabled: '{{ response.Enabled }}'
+      configuration: '{{ response.configuration }}'
 - discovery_id: aws.amp.list_scrapers
   calls:
   - action: list_scrapers
@@ -38,6 +39,7 @@ discovery:
       status: '{{ item.status }}'
       statusReason: '{{ item.statusReason }}'
       tags: '{{ item.tags }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.amp.list_workspaces
   calls:
   - action: list_workspaces
@@ -54,6 +56,7 @@ discovery:
       status: '{{ item.status }}'
       tags: '{{ item.tags }}'
       workspaceId: '{{ item.workspaceId }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.amp.describe_alert_manager_definition
   for_each: aws.amp.list_workspaces
   calls:
@@ -68,7 +71,9 @@ discovery:
       createdAt: '{{ response.alertManagerDefinition.createdAt }}'
       data: '{{ response.alertManagerDefinition.data }}'
       modifiedAt: '{{ response.alertManagerDefinition.modifiedAt }}'
-      status: '{{ response.alertManagerDefinition.status }}'
+      status: '{{ response.alertManagerDefinition.data }}'
+      statusCode: '{{ response.alertManagerDefinition.status.statusCode }}'
+      statusReason: '{{ response.alertManagerDefinition.status.statusReason }}'
 - discovery_id: aws.amp.describe_anomaly_detector
   for_each: aws.amp.list_workspaces
   calls:
@@ -86,8 +91,7 @@ discovery:
       arn: '{{ response.anomalyDetector.arn }}'
       configuration: '{{ response.anomalyDetector.configuration }}'
       createdAt: '{{ response.anomalyDetector.createdAt }}'
-      evaluationIntervalInSeconds: '{{ response.anomalyDetector.evaluationIntervalInSeconds
-        }}'
+      evaluationIntervalInSeconds: '{{ response.anomalyDetector.evaluationIntervalInSeconds }}'
       labels: '{{ response.anomalyDetector.labels }}'
       missingDataAction: '{{ response.anomalyDetector.missingDataAction }}'
       modifiedAt: '{{ response.anomalyDetector.modifiedAt }}'
@@ -109,6 +113,8 @@ discovery:
       modifiedAt: '{{ response.loggingConfiguration.modifiedAt }}'
       status: '{{ response.loggingConfiguration.status }}'
       workspace: '{{ response.loggingConfiguration.workspace }}'
+      statusCode: '{{ response.loggingConfiguration.status.statusCode }}'
+      statusReason: '{{ response.loggingConfiguration.status.statusReason }}'
 - discovery_id: aws.amp.describe_query_logging_configuration
   for_each: aws.amp.list_workspaces
   calls:
@@ -123,8 +129,10 @@ discovery:
       createdAt: '{{ response.queryLoggingConfiguration.createdAt }}'
       destinations: '{{ response.queryLoggingConfiguration.destinations }}'
       modifiedAt: '{{ response.queryLoggingConfiguration.modifiedAt }}'
-      status: '{{ response.queryLoggingConfiguration.status }}'
+      status: '{{ response.queryLoggingConfiguration.status.statusCode }}'
       workspace: '{{ response.queryLoggingConfiguration.workspace }}'
+      statusCode: '{{ response.queryLoggingConfiguration.status.statusCode }}'
+      statusReason: '{{ response.queryLoggingConfiguration.status.statusReason }}'
 - discovery_id: aws.amp.describe_resource_policy
   calls:
   - action: describe_resource_policy
@@ -152,8 +160,10 @@ discovery:
       data: '{{ response.ruleGroupsNamespace.data }}'
       modifiedAt: '{{ response.ruleGroupsNamespace.modifiedAt }}'
       name: '{{ response.ruleGroupsNamespace.name }}'
-      status: '{{ response.ruleGroupsNamespace.status }}'
+      status: '{{ response.ruleGroupsNamespace.tags }}'
       tags: '{{ response.ruleGroupsNamespace.tags }}'
+      statusCode: '{{ response.ruleGroupsNamespace.status.statusCode }}'
+      statusReason: '{{ response.ruleGroupsNamespace.status.statusReason }}'
 - discovery_id: aws.amp.describe_scraper
   for_each: aws.amp.list_scrapers
   calls:
@@ -173,12 +183,18 @@ discovery:
       roleArn: '{{ response.scraper.roleArn }}'
       roleConfiguration: '{{ response.scraper.roleConfiguration }}'
       scrapeConfiguration: '{{ response.scraper.scrapeConfiguration }}'
-      scraper: '{{ response.scraper.scraper }}'
+      scraper: '{{ response.scraper.scraperId }}'
       scraperId: '{{ response.scraper.scraperId }}'
       source: '{{ response.scraper.source }}'
       status: '{{ response.scraper.status }}'
       statusReason: '{{ response.scraper.statusReason }}'
       tags: '{{ response.scraper.tags }}'
+      workspaceArn: '{{ response.scraper.destination.ampConfiguration.workspaceArn }}'
+      sourceRoleArn: '{{ response.scraper.roleConfiguration.sourceRoleArn }}'
+      targetRoleArn: '{{ response.scraper.roleConfiguration.targetRoleArn }}'
+      configurationBlob: '{{ response.scraper.scrapeConfiguration.configurationBlob }}'
+      clusterArn: '{{ response.scraper.source.eksConfiguration.clusterArn }}'
+      statusCode: '{{ response.scraper.status.statusCode }}'
 - discovery_id: aws.amp.describe_scraper_logging_configuration
   for_each: aws.amp.list_scrapers
   calls:
@@ -209,9 +225,10 @@ discovery:
       createdAt: '{{ response.workspace.createdAt }}'
       kmsKeyArn: '{{ response.workspace.kmsKeyArn }}'
       prometheusEndpoint: '{{ response.workspace.prometheusEndpoint }}'
-      status: '{{ response.workspace.status }}'
+      status: '{{ response.workspace.tags }}'
       tags: '{{ response.workspace.tags }}'
       workspaceId: '{{ response.workspace.workspaceId }}'
+      statusCode: '{{ response.workspace.status.statusCode }}'
 - discovery_id: aws.amp.describe_workspace_configuration
   for_each: aws.amp.list_workspaces
   calls:
@@ -223,10 +240,11 @@ discovery:
   emit:
     as: item
     item:
-      limitsPerLabelSet: '{{ response.workspaceConfiguration.limitsPerLabelSet }}'
-      retentionPeriodInDays: '{{ response.workspaceConfiguration.retentionPeriodInDays
-        }}'
+      limitsPerLabelSet: '{{ response.workspaceConfiguration.limitsPerLabelSet[].labelSet }}'
+      retentionPeriodInDays: '{{ response.workspaceConfiguration.retentionPeriodInDays }}'
       status: '{{ response.workspaceConfiguration.status }}'
+      statusCode: '{{ response.workspaceConfiguration.status.statusCode }}'
+      statusReason: '{{ response.workspaceConfiguration.status.statusReason }}'
 - discovery_id: aws.amp.list_anomaly_detectors
   for_each: aws.amp.list_workspaces
   calls:
@@ -264,6 +282,7 @@ discovery:
       name: '{{ item.name }}'
       status: '{{ item.status }}'
       tags: '{{ item.tags }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.amp.list_tags_for_resource
   calls:
   - action: list_tags_for_resource

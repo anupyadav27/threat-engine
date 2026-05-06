@@ -25,6 +25,7 @@ discovery:
     as: item
     item:
       CallingNameUpdatedTimestamp: '{{ response.CallingNameUpdatedTimestamp }}'
+      CallingName: '{{ response.CallingName }}'
 - discovery_id: aws.chime.list_accounts
   calls:
   - action: list_accounts
@@ -164,8 +165,7 @@ discovery:
     item:
       BotId: '{{ response.EventsConfiguration.BotId }}'
       LambdaFunctionArn: '{{ response.EventsConfiguration.LambdaFunctionArn }}'
-      OutboundEventsHTTPSEndpoint: '{{ response.EventsConfiguration.OutboundEventsHTTPSEndpoint
-        }}'
+      OutboundEventsHTTPSEndpoint: '{{ response.EventsConfiguration.OutboundEventsHTTPSEndpoint }}'
 - discovery_id: aws.chime.get_phone_number
   for_each: aws.chime.list_phone_numbers
   calls:
@@ -178,7 +178,7 @@ discovery:
     as: item
     item:
       Status: '{{ response.PhoneNumber.Status }}'
-      Associations: '{{ response.PhoneNumber.Associations }}'
+      Associations: '{{ response.PhoneNumber.Associations[].Name }}'
       CallingName: '{{ response.PhoneNumber.CallingName }}'
       CallingNameStatus: '{{ response.PhoneNumber.CallingNameStatus }}'
       Capabilities: '{{ response.PhoneNumber.Capabilities }}'
@@ -186,11 +186,17 @@ discovery:
       CreatedTimestamp: '{{ response.PhoneNumber.CreatedTimestamp }}'
       DeletionTimestamp: '{{ response.PhoneNumber.DeletionTimestamp }}'
       E164PhoneNumber: '{{ response.PhoneNumber.E164PhoneNumber }}'
-      PhoneNumber: '{{ response.PhoneNumber.PhoneNumber }}'
+      PhoneNumber: '{{ response.PhoneNumber.PhoneNumberId }}'
       PhoneNumberId: '{{ response.PhoneNumber.PhoneNumberId }}'
       ProductType: '{{ response.PhoneNumber.ProductType }}'
       Type: '{{ response.PhoneNumber.Type }}'
       UpdatedTimestamp: '{{ response.PhoneNumber.UpdatedTimestamp }}'
+      InboundCall: '{{ response.PhoneNumber.Capabilities.InboundCall }}'
+      InboundMMS: '{{ response.PhoneNumber.Capabilities.InboundMMS }}'
+      InboundSMS: '{{ response.PhoneNumber.Capabilities.InboundSMS }}'
+      OutboundCall: '{{ response.PhoneNumber.Capabilities.OutboundCall }}'
+      OutboundMMS: '{{ response.PhoneNumber.Capabilities.OutboundMMS }}'
+      OutboundSMS: '{{ response.PhoneNumber.Capabilities.OutboundSMS }}'
 - discovery_id: aws.chime.get_phone_number_order
   for_each: aws.chime.list_phone_number_orders
   calls:
@@ -204,7 +210,7 @@ discovery:
     item:
       Status: '{{ response.PhoneNumberOrder.Status }}'
       CreatedTimestamp: '{{ response.PhoneNumberOrder.CreatedTimestamp }}'
-      OrderedPhoneNumbers: '{{ response.PhoneNumberOrder.OrderedPhoneNumbers }}'
+      OrderedPhoneNumbers: '{{ response.PhoneNumberOrder.OrderedPhoneNumbers[].Status }}'
       PhoneNumberOrderId: '{{ response.PhoneNumberOrder.PhoneNumberOrderId }}'
       ProductType: '{{ response.PhoneNumberOrder.ProductType }}'
       UpdatedTimestamp: '{{ response.PhoneNumberOrder.UpdatedTimestamp }}'
@@ -219,12 +225,10 @@ discovery:
   emit:
     as: item
     item:
-      ConversationRetentionSettings: '{{ response.RetentionSettings.ConversationRetentionSettings
-        }}'
-      InitiateDeletionTimestamp: '{{ response.RetentionSettings.InitiateDeletionTimestamp
-        }}'
-      RoomRetentionSettings: '{{ response.RetentionSettings.RoomRetentionSettings
-        }}'
+      ConversationRetentionSettings: '{{ response.RetentionSettings.ConversationRetentionSettings.RetentionDays }}'
+      InitiateDeletionTimestamp: '{{ response.RetentionSettings.InitiateDeletionTimestamp }}'
+      RoomRetentionSettings: '{{ response.RetentionSettings.RoomRetentionSettings }}'
+      RetentionDays: '{{ response.RetentionSettings.ConversationRetentionSettings.RetentionDays }}'
 - discovery_id: aws.chime.get_room
   for_each: aws.chime.list_accounts
   calls:
@@ -268,6 +272,8 @@ discovery:
       UserInvitationStatus: '{{ response.User.UserInvitationStatus }}'
       UserRegistrationStatus: '{{ response.User.UserRegistrationStatus }}'
       UserType: '{{ response.User.UserType }}'
+      AlexaForBusinessRoomArn: '{{ response.User.AlexaForBusinessMetadata.AlexaForBusinessRoomArn }}'
+      IsAlexaForBusinessEnabled: '{{ response.User.AlexaForBusinessMetadata.IsAlexaForBusinessEnabled }}'
 - discovery_id: aws.chime.get_user_settings
   for_each: aws.chime.list_accounts
   calls:
@@ -280,7 +286,10 @@ discovery:
   emit:
     as: item
     item:
-      Telephony: '{{ response.UserSettings.Telephony }}'
+      Telephony: '{{ response.UserSettings.Telephony.SMS }}'
+      InboundCalling: '{{ response.UserSettings.Telephony.InboundCalling }}'
+      OutboundCalling: '{{ response.UserSettings.Telephony.OutboundCalling }}'
+      SMS: '{{ response.UserSettings.Telephony.SMS }}'
 - discovery_id: aws.chime.list_bots
   for_each: aws.chime.list_accounts
   calls:
@@ -371,7 +380,7 @@ discovery:
       LicenseType: '{{ item.LicenseType }}'
       PersonalPIN: '{{ item.PersonalPIN }}'
       PrimaryEmail: '{{ item.PrimaryEmail }}'
-      PrimaryProvisionedNumber: '{{ item.PrimaryProvisionedNumber }}'
+      PrimaryProvisionedNumber: '{{ item.Users[].PrimaryProvisionedNumber }}'
       RegisteredOn: '{{ item.RegisteredOn }}'
       UserId: '{{ item.UserId }}'
       UserInvitationStatus: '{{ item.UserInvitationStatus }}'

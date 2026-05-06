@@ -20,6 +20,7 @@ discovery:
       modifiedAt: '{{ item.modifiedAt }}'
       name: '{{ item.name }}'
       status: '{{ item.status }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.pcs.get_cluster
   calls:
   - action: get_cluster
@@ -36,10 +37,17 @@ discovery:
       modifiedAt: '{{ response.cluster.modifiedAt }}'
       name: '{{ response.cluster.name }}'
       networking: '{{ response.cluster.networking }}'
-      scheduler: '{{ response.cluster.scheduler }}'
+      scheduler: '{{ response.cluster.scheduler.type }}'
       size: '{{ response.cluster.size }}'
       slurmConfiguration: '{{ response.cluster.slurmConfiguration }}'
       status: '{{ response.cluster.status }}'
+      type: '{{ response.cluster.scheduler.type }}'
+      version: '{{ response.cluster.scheduler.version }}'
+      defaultPurgeTimeInDays: '{{ response.cluster.slurmConfiguration.accounting.defaultPurgeTimeInDays }}'
+      mode: '{{ response.cluster.slurmConfiguration.accounting.mode }}'
+      secretArn: '{{ response.cluster.slurmConfiguration.authKey.secretArn }}'
+      secretVersion: '{{ response.cluster.slurmConfiguration.authKey.secretVersion }}'
+      scaleDownIdleTimeInSeconds: '{{ response.cluster.slurmConfiguration.scaleDownIdleTimeInSeconds }}'
 - discovery_id: aws.pcs.get_compute_node_group
   calls:
   - action: get_compute_node_group
@@ -52,8 +60,8 @@ discovery:
       arn: '{{ response.computeNodeGroup.arn }}'
       clusterId: '{{ response.computeNodeGroup.clusterId }}'
       createdAt: '{{ response.computeNodeGroup.createdAt }}'
-      customLaunchTemplate: '{{ response.computeNodeGroup.customLaunchTemplate }}'
-      errorInfo: '{{ response.computeNodeGroup.errorInfo }}'
+      customLaunchTemplate: '{{ response.computeNodeGroup.customLaunchTemplate.id }}'
+      errorInfo: '{{ response.computeNodeGroup.errorInfo[].code }}'
       iamInstanceProfileArn: '{{ response.computeNodeGroup.iamInstanceProfileArn }}'
       id: '{{ response.computeNodeGroup.id }}'
       instanceConfigs: '{{ response.computeNodeGroup.instanceConfigs }}'
@@ -65,6 +73,10 @@ discovery:
       spotOptions: '{{ response.computeNodeGroup.spotOptions }}'
       status: '{{ response.computeNodeGroup.status }}'
       subnetIds: '{{ response.computeNodeGroup.subnetIds }}'
+      version: '{{ response.computeNodeGroup.customLaunchTemplate.version }}'
+      maxInstanceCount: '{{ response.computeNodeGroup.scalingConfiguration.maxInstanceCount }}'
+      minInstanceCount: '{{ response.computeNodeGroup.scalingConfiguration.minInstanceCount }}'
+      allocationStrategy: '{{ response.computeNodeGroup.spotOptions.allocationStrategy }}'
 - discovery_id: aws.pcs.get_queue
   calls:
   - action: get_queue
@@ -75,8 +87,7 @@ discovery:
     item:
       arn: '{{ response.queue.arn }}'
       clusterId: '{{ response.queue.clusterId }}'
-      computeNodeGroupConfigurations: '{{ response.queue.computeNodeGroupConfigurations
-        }}'
+      computeNodeGroupConfigurations: '{{ response.queue.computeNodeGroupConfigurations }}'
       createdAt: '{{ response.queue.createdAt }}'
       errorInfo: '{{ response.queue.errorInfo }}'
       id: '{{ response.queue.id }}'
@@ -100,6 +111,7 @@ discovery:
       modifiedAt: '{{ item.modifiedAt }}'
       name: '{{ item.name }}'
       status: '{{ item.status }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.pcs.list_queues
   calls:
   - action: list_queues
@@ -116,6 +128,7 @@ discovery:
       modifiedAt: '{{ item.modifiedAt }}'
       name: '{{ item.name }}'
       status: '{{ item.status }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.pcs.list_tags_for_resource
   calls:
   - action: list_tags_for_resource

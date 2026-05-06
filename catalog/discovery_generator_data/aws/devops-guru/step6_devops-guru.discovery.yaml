@@ -15,6 +15,9 @@ discovery:
     item:
       MetricsAnalyzed: '{{ response.MetricsAnalyzed }}'
       ResourceHours: '{{ response.ResourceHours }}'
+      AnalyzedResourceCount: '{{ response.AnalyzedResourceCount }}'
+      OpenProactiveInsights: '{{ response.OpenProactiveInsights }}'
+      OpenReactiveInsights: '{{ response.OpenReactiveInsights }}'
 - discovery_id: aws.devops-guru.describe_event_sources_config
   calls:
   - action: describe_event_sources_config
@@ -23,8 +26,9 @@ discovery:
   emit:
     as: item
     item:
-      AmazonCodeGuruProfiler: '{{ response.EventSources.AmazonCodeGuruProfiler }}'
+      AmazonCodeGuruProfiler: '{{ response.EventSources.AmazonCodeGuruProfiler.Status }}'
       EventSources: '{{ response.EventSources.EventSources }}'
+      Status: '{{ response.EventSources.AmazonCodeGuruProfiler.Status }}'
 - discovery_id: aws.devops-guru.describe_feedback
   calls:
   - action: describe_feedback
@@ -34,7 +38,8 @@ discovery:
     as: item
     item:
       Feedback: '{{ response.InsightFeedback.Feedback }}'
-      InsightFeedback: '{{ response.InsightFeedback.InsightFeedback }}'
+      InsightFeedback: '{{ response.InsightFeedback.Feedback }}'
+      Id: '{{ response.InsightFeedback.Id }}'
 - discovery_id: aws.devops-guru.describe_organization_health
   calls:
   - action: describe_organization_health
@@ -55,11 +60,13 @@ discovery:
   emit:
     as: item
     item:
-      KMSServerSideEncryption: '{{ response.ServiceIntegration.KMSServerSideEncryption
-        }}'
-      LogsAnomalyDetection: '{{ response.ServiceIntegration.LogsAnomalyDetection }}'
+      KMSServerSideEncryption: '{{ response.ServiceIntegration.KMSServerSideEncryption.Type }}'
+      LogsAnomalyDetection: '{{ response.ServiceIntegration.LogsAnomalyDetection.OptInStatus }}'
       OpsCenter: '{{ response.ServiceIntegration.OpsCenter }}'
       ServiceIntegration: '{{ response.ServiceIntegration.ServiceIntegration }}'
+      KMSKeyId: '{{ response.ServiceIntegration.KMSServerSideEncryption.KMSKeyId }}'
+      OptInStatus: '{{ response.ServiceIntegration.KMSServerSideEncryption.OptInStatus }}'
+      Type: '{{ response.ServiceIntegration.KMSServerSideEncryption.Type }}'
 - discovery_id: aws.devops-guru.get_cost_estimation
   calls:
   - action: get_cost_estimation
@@ -76,6 +83,9 @@ discovery:
       TotalCost: '{{ item.TotalCost }}'
       Type: '{{ item.Type }}'
       UnitCost: '{{ item.UnitCost }}'
+      Status: '{{ response.Status }}'
+      EndTime: '{{ response.TimeRange.EndTime }}'
+      StartTime: '{{ response.TimeRange.StartTime }}'
 - discovery_id: aws.devops-guru.list_monitored_resources
   calls:
   - action: list_monitored_resources
@@ -107,8 +117,7 @@ discovery:
   emit:
     as: item
     item:
-      MeanTimeToRecoverInMilliseconds: '{{ response.MeanTimeToRecoverInMilliseconds
-        }}'
+      MeanTimeToRecoverInMilliseconds: '{{ response.MeanTimeToRecoverInMilliseconds }}'
       ProactiveInsights: '{{ response.ProactiveInsights }}'
       ReactiveInsights: '{{ response.ReactiveInsights }}'
 - discovery_id: aws.devops-guru.describe_anomaly
@@ -119,16 +128,28 @@ discovery:
   emit:
     as: item
     item:
-      AnomalyReportedTimeRange: '{{ response.ProactiveAnomaly.AnomalyReportedTimeRange
-        }}'
-      AnomalyResources: '{{ response.ProactiveAnomaly.AnomalyResources }}'
-      AnomalyTimeRange: '{{ response.ProactiveAnomaly.AnomalyTimeRange }}'
+      AnomalyReportedTimeRange: '{{ response.ProactiveAnomaly.AnomalyReportedTimeRange.OpenTime }}'
+      AnomalyResources: '{{ response.ProactiveAnomaly.AnomalyResources[].Type }}'
+      AnomalyTimeRange: '{{ response.ProactiveAnomaly.AnomalyTimeRange.EndTime }}'
       AssociatedInsightId: '{{ response.ProactiveAnomaly.AssociatedInsightId }}'
       Description: '{{ response.ProactiveAnomaly.Description }}'
       Limit: '{{ response.ProactiveAnomaly.Limit }}'
       SourceDetails: '{{ response.ProactiveAnomaly.SourceDetails }}'
-      SourceMetadata: '{{ response.ProactiveAnomaly.SourceMetadata }}'
+      SourceMetadata: '{{ response.ProactiveAnomaly.SourceMetadata.Source }}'
       UpdateTime: '{{ response.ProactiveAnomaly.UpdateTime }}'
+      CloseTime: '{{ response.ProactiveAnomaly.AnomalyReportedTimeRange.CloseTime }}'
+      OpenTime: '{{ response.ProactiveAnomaly.AnomalyReportedTimeRange.OpenTime }}'
+      EndTime: '{{ response.ProactiveAnomaly.AnomalyTimeRange.EndTime }}'
+      StartTime: '{{ response.ProactiveAnomaly.AnomalyTimeRange.StartTime }}'
+      Id: '{{ response.ProactiveAnomaly.Id }}'
+      Severity: '{{ response.ProactiveAnomaly.Severity }}'
+      Source: '{{ response.ProactiveAnomaly.SourceMetadata.Source }}'
+      SourceResourceName: '{{ response.ProactiveAnomaly.SourceMetadata.SourceResourceName }}'
+      SourceResourceType: '{{ response.ProactiveAnomaly.SourceMetadata.SourceResourceType }}'
+      Status: '{{ response.ProactiveAnomaly.Status }}'
+      CausalAnomalyId: '{{ response.ReactiveAnomaly.CausalAnomalyId }}'
+      Name: '{{ response.ReactiveAnomaly.Name }}'
+      Type: '{{ response.ReactiveAnomaly.Type }}'
 - discovery_id: aws.devops-guru.describe_insight
   calls:
   - action: describe_insight
@@ -139,6 +160,12 @@ discovery:
     item:
       Description: '{{ response.ProactiveInsight.Description }}'
       SsmOpsItemId: '{{ response.ProactiveInsight.SsmOpsItemId }}'
+      Id: '{{ response.ProactiveInsight.Id }}'
+      EndTime: '{{ response.ProactiveInsight.InsightTimeRange.EndTime }}'
+      StartTime: '{{ response.ProactiveInsight.InsightTimeRange.StartTime }}'
+      Name: '{{ response.ProactiveInsight.Name }}'
+      Severity: '{{ response.ProactiveInsight.Severity }}'
+      Status: '{{ response.ProactiveInsight.Status }}'
 - discovery_id: aws.devops-guru.describe_organization_overview
   calls:
   - action: describe_organization_overview
@@ -158,7 +185,7 @@ discovery:
     as: item
     items_for: '{{ response.CloudFormation }}'
     item:
-      AnalyzedResourceCount: '{{ item.AnalyzedResourceCount }}'
+      AnalyzedResourceCount: '{{ item.Tags[].AnalyzedResourceCount }}'
       Insight: '{{ item.Insight }}'
       StackName: '{{ item.StackName }}'
 - discovery_id: aws.devops-guru.describe_resource_collection_health
@@ -170,7 +197,7 @@ discovery:
     as: item
     items_for: '{{ response.CloudFormation }}'
     item:
-      AnalyzedResourceCount: '{{ item.AnalyzedResourceCount }}'
+      AnalyzedResourceCount: '{{ item.Tags[].AnalyzedResourceCount }}'
       Insight: '{{ item.Insight }}'
       StackName: '{{ item.StackName }}'
 - discovery_id: aws.devops-guru.get_resource_collection
@@ -215,6 +242,7 @@ discovery:
       LogAnomalyShowcases: '{{ item.LogAnomalyShowcases }}'
       LogGroupName: '{{ item.LogGroupName }}'
       NumberOfLogLinesScanned: '{{ item.NumberOfLogLinesScanned }}'
+      InsightId: '{{ response.InsightId }}'
 - discovery_id: aws.devops-guru.list_events
   calls:
   - action: list_events

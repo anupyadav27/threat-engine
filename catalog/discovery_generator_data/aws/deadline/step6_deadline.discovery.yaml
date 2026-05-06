@@ -18,6 +18,7 @@ discovery:
       port: '{{ item.port }}'
       productId: '{{ item.productId }}'
       vendor: '{{ item.vendor }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_farms
   calls:
   - action: list_farms
@@ -30,6 +31,7 @@ discovery:
       displayName: '{{ item.displayName }}'
       farmId: '{{ item.farmId }}'
       kmsKeyArn: '{{ item.kmsKeyArn }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_license_endpoints
   calls:
   - action: list_license_endpoints
@@ -42,6 +44,7 @@ discovery:
       licenseEndpointId: '{{ item.licenseEndpointId }}'
       statusMessage: '{{ item.statusMessage }}'
       vpcId: '{{ item.vpcId }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_monitors
   calls:
   - action: list_monitors
@@ -58,6 +61,7 @@ discovery:
       roleArn: '{{ item.roleArn }}'
       subdomain: '{{ item.subdomain }}'
       url: '{{ item.url }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.get_budget
   for_each: aws.deadline.list_farms
   calls:
@@ -75,6 +79,19 @@ discovery:
       schedule: '{{ item.schedule }}'
       thresholdPercentage: '{{ item.thresholdPercentage }}'
       type: '{{ item.type }}'
+      approximateDollarLimit: '{{ response.approximateDollarLimit }}'
+      budgetId: '{{ response.budgetId }}'
+      createdAt: '{{ response.createdAt }}'
+      createdBy: '{{ response.createdBy }}'
+      displayName: '{{ response.displayName }}'
+      queueStoppedAt: '{{ response.queueStoppedAt }}'
+      endTime: '{{ response.schedule.fixed.endTime }}'
+      startTime: '{{ response.schedule.fixed.startTime }}'
+      status: '{{ response.status }}'
+      updatedAt: '{{ response.updatedAt }}'
+      updatedBy: '{{ response.updatedBy }}'
+      queueId: '{{ response.usageTrackingResource.queueId }}'
+      approximateDollarUsage: '{{ response.usages.approximateDollarUsage }}'
 - discovery_id: aws.deadline.get_farm
   for_each: aws.deadline.list_farms
   calls:
@@ -109,8 +126,36 @@ discovery:
       Status: '{{ response.configuration.Status }}'
       Enabled: '{{ response.configuration.Enabled }}'
       capabilities: '{{ response.configuration.capabilities }}'
-      customerManaged: '{{ response.configuration.customerManaged }}'
+      customerManaged: '{{ response.configuration.customerManaged.mode }}'
       serviceManagedEc2: '{{ response.configuration.serviceManagedEc2 }}'
+      autoScalingStatus: '{{ response.autoScalingStatus }}'
+      mode: '{{ response.configuration.customerManaged.mode }}'
+      storageProfileId: '{{ response.configuration.customerManaged.storageProfileId }}'
+      tagPropagationMode: '{{ response.configuration.customerManaged.tagPropagationMode }}'
+      max: '{{ response.configuration.customerManaged.workerCapabilities.acceleratorCount.max }}'
+      min: '{{ response.configuration.customerManaged.workerCapabilities.acceleratorCount.min }}'
+      cpuArchitectureType: '{{ response.configuration.customerManaged.workerCapabilities.cpuArchitectureType }}'
+      osFamily: '{{ response.configuration.customerManaged.workerCapabilities.osFamily }}'
+      iops: '{{ response.configuration.serviceManagedEc2.instanceCapabilities.rootEbsVolume.iops }}'
+      sizeGiB: '{{ response.configuration.serviceManagedEc2.instanceCapabilities.rootEbsVolume.sizeGiB }}'
+      throughputMiB: '{{ response.configuration.serviceManagedEc2.instanceCapabilities.rootEbsVolume.throughputMiB }}'
+      type: '{{ response.configuration.serviceManagedEc2.instanceMarketOptions.type }}'
+      createdAt: '{{ response.createdAt }}'
+      createdBy: '{{ response.createdBy }}'
+      description: '{{ response.description }}'
+      displayName: '{{ response.displayName }}'
+      farmId: '{{ response.farmId }}'
+      fleetId: '{{ response.fleetId }}'
+      scriptBody: '{{ response.hostConfiguration.scriptBody }}'
+      scriptTimeoutSeconds: '{{ response.hostConfiguration.scriptTimeoutSeconds }}'
+      maxWorkerCount: '{{ response.maxWorkerCount }}'
+      minWorkerCount: '{{ response.minWorkerCount }}'
+      roleArn: '{{ response.roleArn }}'
+      status: '{{ response.status }}'
+      targetWorkerCount: '{{ response.targetWorkerCount }}'
+      updatedAt: '{{ response.updatedAt }}'
+      updatedBy: '{{ response.updatedBy }}'
+      workerCount: '{{ response.workerCount }}'
 - discovery_id: aws.deadline.get_job
   for_each: aws.deadline.list_farms
   calls:
@@ -127,6 +172,27 @@ discovery:
       attachments: '{{ response.attachments.attachments }}'
       fileSystem: '{{ response.attachments.fileSystem }}'
       manifests: '{{ response.attachments.manifests }}'
+      createdAt: '{{ response.createdAt }}'
+      createdBy: '{{ response.createdBy }}'
+      description: '{{ response.description }}'
+      endedAt: '{{ response.endedAt }}'
+      jobId: '{{ response.jobId }}'
+      lifecycleStatus: '{{ response.lifecycleStatus }}'
+      lifecycleStatusMessage: '{{ response.lifecycleStatusMessage }}'
+      maxFailedTasksCount: '{{ response.maxFailedTasksCount }}'
+      maxRetriesPerTask: '{{ response.maxRetriesPerTask }}'
+      maxWorkerCount: '{{ response.maxWorkerCount }}'
+      name: '{{ response.name }}'
+      parameters: '{{ response.parameters }}'
+      priority: '{{ response.priority }}'
+      sourceJobId: '{{ response.sourceJobId }}'
+      startedAt: '{{ response.startedAt }}'
+      storageProfileId: '{{ response.storageProfileId }}'
+      targetTaskRunStatus: '{{ response.targetTaskRunStatus }}'
+      taskRunStatus: '{{ response.taskRunStatus }}'
+      taskRunStatusCounts: '{{ response.taskRunStatusCounts }}'
+      updatedAt: '{{ response.updatedAt }}'
+      updatedBy: '{{ response.updatedBy }}'
 - discovery_id: aws.deadline.get_license_endpoint
   for_each: aws.deadline.list_license_endpoints
   calls:
@@ -138,6 +204,12 @@ discovery:
   emit:
     as: item
     items_for: '{{ response.subnetIds }}'
+    item:
+      dnsName: '{{ response.dnsName }}'
+      licenseEndpointId: '{{ response.licenseEndpointId }}'
+      status: '{{ response.status }}'
+      statusMessage: '{{ response.statusMessage }}'
+      vpcId: '{{ response.vpcId }}'
 - discovery_id: aws.deadline.get_limit
   for_each: aws.deadline.list_farms
   calls:
@@ -199,6 +271,24 @@ discovery:
       DestinationArn: '{{ item.DestinationArn }}'
       Format: '{{ item.Format }}'
       Level: '{{ item.Level }}'
+      blockedReason: '{{ response.blockedReason }}'
+      createdAt: '{{ response.createdAt }}'
+      createdBy: '{{ response.createdBy }}'
+      defaultBudgetAction: '{{ response.defaultBudgetAction }}'
+      description: '{{ response.description }}'
+      displayName: '{{ response.displayName }}'
+      farmId: '{{ response.farmId }}'
+      rootPrefix: '{{ response.jobAttachmentSettings.rootPrefix }}'
+      s3BucketName: '{{ response.jobAttachmentSettings.s3BucketName }}'
+      group: '{{ response.jobRunAsUser.posix.group }}'
+      user: '{{ response.jobRunAsUser.posix.user }}'
+      runAs: '{{ response.jobRunAsUser.runAs }}'
+      passwordArn: '{{ response.jobRunAsUser.windows.passwordArn }}'
+      queueId: '{{ response.queueId }}'
+      roleArn: '{{ response.roleArn }}'
+      status: '{{ response.status }}'
+      updatedAt: '{{ response.updatedAt }}'
+      updatedBy: '{{ response.updatedBy }}'
 - discovery_id: aws.deadline.get_queue_environment
   for_each: aws.deadline.list_farms
   calls:
@@ -274,6 +364,19 @@ discovery:
       logDriver: '{{ response.log.logDriver }}'
       options: '{{ response.log.options }}'
       workerLog: '{{ response.log.workerLog }}'
+      endedAt: '{{ response.endedAt }}'
+      fleetId: '{{ response.fleetId }}'
+      ec2InstanceArn: '{{ response.hostProperties.ec2InstanceArn }}'
+      ec2InstanceType: '{{ response.hostProperties.ec2InstanceType }}'
+      hostName: '{{ response.hostProperties.hostName }}'
+      lifecycleStatus: '{{ response.lifecycleStatus }}'
+      parameters: '{{ response.log.parameters }}'
+      sessionId: '{{ response.sessionId }}'
+      startedAt: '{{ response.startedAt }}'
+      targetLifecycleStatus: '{{ response.targetLifecycleStatus }}'
+      updatedAt: '{{ response.updatedAt }}'
+      updatedBy: '{{ response.updatedBy }}'
+      workerId: '{{ response.workerId }}'
 - discovery_id: aws.deadline.get_session_action
   for_each: aws.deadline.list_farms
   calls:
@@ -291,6 +394,19 @@ discovery:
     item:
       count: '{{ item.count }}'
       limitId: '{{ item.limitId }}'
+      environmentId: '{{ response.definition.envEnter.environmentId }}'
+      stepId: '{{ response.definition.syncInputJobAttachments.stepId }}'
+      parameters: '{{ response.definition.taskRun.parameters }}'
+      taskId: '{{ response.definition.taskRun.taskId }}'
+      endedAt: '{{ response.endedAt }}'
+      processExitCode: '{{ response.processExitCode }}'
+      progressMessage: '{{ response.progressMessage }}'
+      progressPercent: '{{ response.progressPercent }}'
+      sessionActionId: '{{ response.sessionActionId }}'
+      sessionId: '{{ response.sessionId }}'
+      startedAt: '{{ response.startedAt }}'
+      status: '{{ response.status }}'
+      workerUpdatedAt: '{{ response.workerUpdatedAt }}'
 - discovery_id: aws.deadline.get_sessions_statistics_aggregation
   for_each: aws.deadline.list_farms
   calls:
@@ -315,6 +431,9 @@ discovery:
       statistics: '{{ item.statistics }}'
       usageType: '{{ item.usageType }}'
       userId: '{{ item.userId }}'
+      nextToken: '{{ response.nextToken }}'
+      status: '{{ response.status }}'
+      statusMessage: '{{ response.statusMessage }}'
 - discovery_id: aws.deadline.get_step
   for_each: aws.deadline.list_farms
   calls:
@@ -332,8 +451,22 @@ discovery:
       consumersResolved: '{{ response.dependencyCounts.consumersResolved }}'
       consumersUnresolved: '{{ response.dependencyCounts.consumersUnresolved }}'
       dependenciesResolved: '{{ response.dependencyCounts.dependenciesResolved }}'
-      dependenciesUnresolved: '{{ response.dependencyCounts.dependenciesUnresolved
-        }}'
+      dependenciesUnresolved: '{{ response.dependencyCounts.dependenciesUnresolved }}'
+      createdAt: '{{ response.createdAt }}'
+      createdBy: '{{ response.createdBy }}'
+      description: '{{ response.description }}'
+      endedAt: '{{ response.endedAt }}'
+      lifecycleStatus: '{{ response.lifecycleStatus }}'
+      lifecycleStatusMessage: '{{ response.lifecycleStatusMessage }}'
+      name: '{{ response.name }}'
+      combination: '{{ response.parameterSpace.combination }}'
+      startedAt: '{{ response.startedAt }}'
+      stepId: '{{ response.stepId }}'
+      targetTaskRunStatus: '{{ response.targetTaskRunStatus }}'
+      taskRunStatus: '{{ response.taskRunStatus }}'
+      taskRunStatusCounts: '{{ response.taskRunStatusCounts }}'
+      updatedAt: '{{ response.updatedAt }}'
+      updatedBy: '{{ response.updatedBy }}'
 - discovery_id: aws.deadline.get_storage_profile
   for_each: aws.deadline.list_farms
   calls:
@@ -349,6 +482,13 @@ discovery:
     item:
       path: '{{ item.path }}'
       type: '{{ item.type }}'
+      createdAt: '{{ response.createdAt }}'
+      createdBy: '{{ response.createdBy }}'
+      displayName: '{{ response.displayName }}'
+      osFamily: '{{ response.osFamily }}'
+      storageProfileId: '{{ response.storageProfileId }}'
+      updatedAt: '{{ response.updatedAt }}'
+      updatedBy: '{{ response.updatedBy }}'
 - discovery_id: aws.deadline.get_storage_profile_for_queue
   for_each: aws.deadline.list_farms
   calls:
@@ -365,6 +505,9 @@ discovery:
     item:
       path: '{{ item.path }}'
       type: '{{ item.type }}'
+      displayName: '{{ response.displayName }}'
+      osFamily: '{{ response.osFamily }}'
+      storageProfileId: '{{ response.storageProfileId }}'
 - discovery_id: aws.deadline.get_task
   for_each: aws.deadline.list_farms
   calls:
@@ -409,6 +552,18 @@ discovery:
       ec2InstanceType: '{{ response.hostProperties.ec2InstanceType }}'
       hostName: '{{ response.hostProperties.hostName }}'
       ipAddresses: '{{ response.hostProperties.ipAddresses }}'
+      createdAt: '{{ response.createdAt }}'
+      createdBy: '{{ response.createdBy }}'
+      farmId: '{{ response.farmId }}'
+      fleetId: '{{ response.fleetId }}'
+      error: '{{ response.log.error }}'
+      logDriver: '{{ response.log.logDriver }}'
+      options: '{{ response.log.options }}'
+      parameters: '{{ response.log.parameters }}'
+      status: '{{ response.status }}'
+      updatedAt: '{{ response.updatedAt }}'
+      updatedBy: '{{ response.updatedBy }}'
+      workerId: '{{ response.workerId }}'
 - discovery_id: aws.deadline.list_budgets
   for_each: aws.deadline.list_farms
   calls:
@@ -428,6 +583,7 @@ discovery:
       schedule: '{{ item.schedule }}'
       usageTrackingResource: '{{ item.usageTrackingResource }}'
       usages: '{{ item.usages }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_farm_members
   for_each: aws.deadline.list_farms
   calls:
@@ -445,6 +601,7 @@ discovery:
       membershipLevel: '{{ item.membershipLevel }}'
       principalId: '{{ item.principalId }}'
       principalType: '{{ item.principalType }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_fleet_members
   for_each: aws.deadline.list_farms
   calls:
@@ -464,6 +621,7 @@ discovery:
       membershipLevel: '{{ item.membershipLevel }}'
       principalId: '{{ item.principalId }}'
       principalType: '{{ item.principalType }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_fleets
   for_each: aws.deadline.list_farms
   calls:
@@ -484,6 +642,7 @@ discovery:
       statusMessage: '{{ item.statusMessage }}'
       targetWorkerCount: '{{ item.targetWorkerCount }}'
       workerCount: '{{ item.workerCount }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_job_members
   for_each: aws.deadline.list_farms
   calls:
@@ -504,6 +663,7 @@ discovery:
       membershipLevel: '{{ item.membershipLevel }}'
       principalId: '{{ item.principalId }}'
       principalType: '{{ item.principalType }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_job_parameter_definitions
   for_each: aws.deadline.list_farms
   calls:
@@ -517,6 +677,8 @@ discovery:
   emit:
     as: item
     items_for: '{{ response.jobParameterDefinitions }}'
+    item:
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_jobs
   for_each: aws.deadline.list_farms
   calls:
@@ -529,6 +691,8 @@ discovery:
   emit:
     as: item
     items_for: '{{ response.jobs }}'
+    item:
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_limits
   for_each: aws.deadline.list_farms
   calls:
@@ -547,6 +711,7 @@ discovery:
       farmId: '{{ item.farmId }}'
       limitId: '{{ item.limitId }}'
       maxCount: '{{ item.maxCount }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_metered_products
   for_each: aws.deadline.list_license_endpoints
   calls:
@@ -563,6 +728,7 @@ discovery:
       port: '{{ item.port }}'
       productId: '{{ item.productId }}'
       vendor: '{{ item.vendor }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_queue_environments
   for_each: aws.deadline.list_farms
   calls:
@@ -577,6 +743,7 @@ discovery:
     items_for: '{{ response.environments }}'
     item:
       queueEnvironmentId: '{{ item.queueEnvironmentId }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_queue_fleet_associations
   for_each: aws.deadline.list_farms
   calls:
@@ -588,6 +755,8 @@ discovery:
   emit:
     as: item
     items_for: '{{ response.queueFleetAssociations }}'
+    item:
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_queue_limit_associations
   for_each: aws.deadline.list_farms
   calls:
@@ -601,6 +770,7 @@ discovery:
     items_for: '{{ response.queueLimitAssociations }}'
     item:
       limitId: '{{ item.limitId }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_queue_members
   for_each: aws.deadline.list_farms
   calls:
@@ -619,6 +789,7 @@ discovery:
       membershipLevel: '{{ item.membershipLevel }}'
       principalId: '{{ item.principalId }}'
       principalType: '{{ item.principalType }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_queues
   for_each: aws.deadline.list_farms
   calls:
@@ -635,6 +806,7 @@ discovery:
       defaultBudgetAction: '{{ item.defaultBudgetAction }}'
       displayName: '{{ item.displayName }}'
       farmId: '{{ item.farmId }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_session_actions
   for_each: aws.deadline.list_farms
   calls:
@@ -655,6 +827,7 @@ discovery:
       sessionActionId: '{{ item.sessionActionId }}'
       workerLog: '{{ item.workerLog }}'
       workerUpdatedAt: '{{ item.workerUpdatedAt }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_sessions
   for_each: aws.deadline.list_farms
   calls:
@@ -671,6 +844,7 @@ discovery:
     item:
       sessionId: '{{ item.sessionId }}'
       targetLifecycleStatus: '{{ item.targetLifecycleStatus }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_sessions_for_worker
   for_each: aws.deadline.list_farms
   calls:
@@ -687,6 +861,7 @@ discovery:
     item:
       sessionId: '{{ item.sessionId }}'
       targetLifecycleStatus: '{{ item.targetLifecycleStatus }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_step_consumers
   for_each: aws.deadline.list_farms
   calls:
@@ -701,6 +876,8 @@ discovery:
   emit:
     as: item
     items_for: '{{ response.consumers }}'
+    item:
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_step_dependencies
   for_each: aws.deadline.list_farms
   calls:
@@ -715,6 +892,8 @@ discovery:
   emit:
     as: item
     items_for: '{{ response.dependencies }}'
+    item:
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_steps
   for_each: aws.deadline.list_farms
   calls:
@@ -730,6 +909,7 @@ discovery:
     items_for: '{{ response.steps }}'
     item:
       dependencyCounts: '{{ item.dependencyCounts }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_storage_profiles
   for_each: aws.deadline.list_farms
   calls:
@@ -745,6 +925,7 @@ discovery:
       displayName: '{{ item.displayName }}'
       osFamily: '{{ item.osFamily }}'
       storageProfileId: '{{ item.storageProfileId }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_storage_profiles_for_queue
   for_each: aws.deadline.list_farms
   calls:
@@ -761,6 +942,7 @@ discovery:
       displayName: '{{ item.displayName }}'
       osFamily: '{{ item.osFamily }}'
       storageProfileId: '{{ item.storageProfileId }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_tags_for_resource
   calls:
   - action: list_tags_for_resource
@@ -786,6 +968,7 @@ discovery:
     items_for: '{{ response.tasks }}'
     item:
       latestSessionActionId: '{{ item.latestSessionActionId }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.list_workers
   for_each: aws.deadline.list_farms
   calls:
@@ -802,6 +985,7 @@ discovery:
       farmId: '{{ item.farmId }}'
       log: '{{ item.log }}'
       workerLog: '{{ item.workerLog }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.deadline.search_jobs
   calls:
   - action: search_jobs
@@ -810,6 +994,9 @@ discovery:
   emit:
     as: item
     items_for: '{{ response.jobs }}'
+    item:
+      nextItemOffset: '{{ response.nextItemOffset }}'
+      totalResults: '{{ response.totalResults }}'
 - discovery_id: aws.deadline.search_steps
   calls:
   - action: search_steps
@@ -818,6 +1005,9 @@ discovery:
   emit:
     as: item
     items_for: '{{ response.steps }}'
+    item:
+      nextItemOffset: '{{ response.nextItemOffset }}'
+      totalResults: '{{ response.totalResults }}'
 - discovery_id: aws.deadline.search_tasks
   calls:
   - action: search_tasks
@@ -826,6 +1016,9 @@ discovery:
   emit:
     as: item
     items_for: '{{ response.tasks }}'
+    item:
+      nextItemOffset: '{{ response.nextItemOffset }}'
+      totalResults: '{{ response.totalResults }}'
 - discovery_id: aws.deadline.search_workers
   calls:
   - action: search_workers
@@ -834,3 +1027,6 @@ discovery:
   emit:
     as: item
     items_for: '{{ response.workers }}'
+    item:
+      nextItemOffset: '{{ response.nextItemOffset }}'
+      totalResults: '{{ response.totalResults }}'

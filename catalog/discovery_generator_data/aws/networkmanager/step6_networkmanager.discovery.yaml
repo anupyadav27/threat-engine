@@ -44,8 +44,7 @@ discovery:
       LastModificationErrors: '{{ item.LastModificationErrors }}'
       NetworkFunctionGroupName: '{{ item.NetworkFunctionGroupName }}'
       OwnerAccountId: '{{ item.OwnerAccountId }}'
-      ProposedNetworkFunctionGroupChange: '{{ item.ProposedNetworkFunctionGroupChange
-        }}'
+      ProposedNetworkFunctionGroupChange: '{{ item.ProposedNetworkFunctionGroupChange }}'
       ProposedSegmentChange: '{{ item.ProposedSegmentChange }}'
       SegmentName: '{{ item.SegmentName }}'
       Statement: '{{ item.Statement }}'
@@ -92,9 +91,8 @@ discovery:
   emit:
     as: item
     item:
-      AccountStatusList: '{{ response.OrganizationStatus.AccountStatusList }}'
-      OrganizationAwsServiceAccessStatus: '{{ response.OrganizationStatus.OrganizationAwsServiceAccessStatus
-        }}'
+      AccountStatusList: '{{ response.OrganizationStatus.AccountStatusList[].AccountId }}'
+      OrganizationAwsServiceAccessStatus: '{{ response.OrganizationStatus.OrganizationAwsServiceAccessStatus }}'
       OrganizationId: '{{ response.OrganizationStatus.OrganizationId }}'
       SLRDeploymentStatus: '{{ response.OrganizationStatus.SLRDeploymentStatus }}'
 - discovery_id: aws.networkmanager.list_peerings
@@ -128,10 +126,23 @@ discovery:
   emit:
     as: item
     item:
-      Attachment: '{{ response.ConnectAttachment.Attachment }}'
+      Attachment: '{{ response.ConnectAttachment.Attachment.State }}'
       Options: '{{ response.ConnectAttachment.Options }}'
-      TransportAttachmentId: '{{ response.ConnectAttachment.TransportAttachmentId
-        }}'
+      TransportAttachmentId: '{{ response.ConnectAttachment.TransportAttachmentId }}'
+      AttachmentId: '{{ response.ConnectAttachment.Attachment.AttachmentId }}'
+      AttachmentPolicyRuleNumber: '{{ response.ConnectAttachment.Attachment.AttachmentPolicyRuleNumber }}'
+      AttachmentType: '{{ response.ConnectAttachment.Attachment.AttachmentType }}'
+      CoreNetworkArn: '{{ response.ConnectAttachment.Attachment.CoreNetworkArn }}'
+      CoreNetworkId: '{{ response.ConnectAttachment.Attachment.CoreNetworkId }}'
+      CreatedAt: '{{ response.ConnectAttachment.Attachment.CreatedAt }}'
+      EdgeLocation: '{{ response.ConnectAttachment.Attachment.EdgeLocation }}'
+      NetworkFunctionGroupName: '{{ response.ConnectAttachment.Attachment.NetworkFunctionGroupName }}'
+      OwnerAccountId: '{{ response.ConnectAttachment.Attachment.OwnerAccountId }}'
+      SegmentName: '{{ response.ConnectAttachment.Attachment.ProposedSegmentChange.SegmentName }}'
+      ResourceArn: '{{ response.ConnectAttachment.Attachment.ResourceArn }}'
+      State: '{{ response.ConnectAttachment.Attachment.State }}'
+      UpdatedAt: '{{ response.ConnectAttachment.Attachment.UpdatedAt }}'
+      Protocol: '{{ response.ConnectAttachment.Options.Protocol }}'
 - discovery_id: aws.networkmanager.get_connect_peer
   for_each: aws.networkmanager.list_connect_peers
   calls:
@@ -151,8 +162,11 @@ discovery:
       CoreNetworkId: '{{ response.ConnectPeer.CoreNetworkId }}'
       CreatedAt: '{{ response.ConnectPeer.CreatedAt }}'
       EdgeLocation: '{{ response.ConnectPeer.EdgeLocation }}'
-      LastModificationErrors: '{{ response.ConnectPeer.LastModificationErrors }}'
+      LastModificationErrors: '{{ response.ConnectPeer.LastModificationErrors[].Code }}'
       SubnetArn: '{{ response.ConnectPeer.SubnetArn }}'
+      CoreNetworkAddress: '{{ response.ConnectPeer.Configuration.CoreNetworkAddress }}'
+      PeerAddress: '{{ response.ConnectPeer.Configuration.PeerAddress }}'
+      Protocol: '{{ response.ConnectPeer.Configuration.Protocol }}'
 - discovery_id: aws.networkmanager.get_connect_peer_associations
   for_each: aws.networkmanager.describe_global_networks
   calls:
@@ -211,10 +225,10 @@ discovery:
       CoreNetworkId: '{{ response.CoreNetwork.CoreNetworkId }}'
       CreatedAt: '{{ response.CoreNetwork.CreatedAt }}'
       Description: '{{ response.CoreNetwork.Description }}'
-      Edges: '{{ response.CoreNetwork.Edges }}'
+      Edges: '{{ response.CoreNetwork.Edges[].Asn }}'
       GlobalNetworkId: '{{ response.CoreNetwork.GlobalNetworkId }}'
-      NetworkFunctionGroups: '{{ response.CoreNetwork.NetworkFunctionGroups }}'
-      Segments: '{{ response.CoreNetwork.Segments }}'
+      NetworkFunctionGroups: '{{ response.CoreNetwork.NetworkFunctionGroups[].Name }}'
+      Segments: '{{ response.CoreNetwork.Segments[].Name }}'
 - discovery_id: aws.networkmanager.get_core_network_change_events
   for_each: aws.networkmanager.list_attachments
   calls:
@@ -270,7 +284,7 @@ discovery:
       CoreNetworkId: '{{ response.CoreNetworkPolicy.CoreNetworkId }}'
       CreatedAt: '{{ response.CoreNetworkPolicy.CreatedAt }}'
       Description: '{{ response.CoreNetworkPolicy.Description }}'
-      PolicyErrors: '{{ response.CoreNetworkPolicy.PolicyErrors }}'
+      PolicyErrors: '{{ response.CoreNetworkPolicy.PolicyErrors[].Path }}'
       PolicyVersionId: '{{ response.CoreNetworkPolicy.PolicyVersionId }}'
 - discovery_id: aws.networkmanager.get_customer_gateway_associations
   for_each: aws.networkmanager.describe_global_networks
@@ -327,9 +341,21 @@ discovery:
   emit:
     as: item
     item:
-      Attachment: '{{ response.DirectConnectGatewayAttachment.Attachment }}'
-      DirectConnectGatewayArn: '{{ response.DirectConnectGatewayAttachment.DirectConnectGatewayArn
-        }}'
+      Attachment: '{{ response.DirectConnectGatewayAttachment.Attachment.State }}'
+      DirectConnectGatewayArn: '{{ response.DirectConnectGatewayAttachment.DirectConnectGatewayArn }}'
+      AttachmentId: '{{ response.DirectConnectGatewayAttachment.Attachment.AttachmentId }}'
+      AttachmentPolicyRuleNumber: '{{ response.DirectConnectGatewayAttachment.Attachment.AttachmentPolicyRuleNumber }}'
+      AttachmentType: '{{ response.DirectConnectGatewayAttachment.Attachment.AttachmentType }}'
+      CoreNetworkArn: '{{ response.DirectConnectGatewayAttachment.Attachment.CoreNetworkArn }}'
+      CoreNetworkId: '{{ response.DirectConnectGatewayAttachment.Attachment.CoreNetworkId }}'
+      CreatedAt: '{{ response.DirectConnectGatewayAttachment.Attachment.CreatedAt }}'
+      EdgeLocation: '{{ response.DirectConnectGatewayAttachment.Attachment.EdgeLocation }}'
+      NetworkFunctionGroupName: '{{ response.DirectConnectGatewayAttachment.Attachment.NetworkFunctionGroupName }}'
+      OwnerAccountId: '{{ response.DirectConnectGatewayAttachment.Attachment.OwnerAccountId }}'
+      SegmentName: '{{ response.DirectConnectGatewayAttachment.Attachment.ProposedSegmentChange.SegmentName }}'
+      ResourceArn: '{{ response.DirectConnectGatewayAttachment.Attachment.ResourceArn }}'
+      State: '{{ response.DirectConnectGatewayAttachment.Attachment.State }}'
+      UpdatedAt: '{{ response.DirectConnectGatewayAttachment.Attachment.UpdatedAt }}'
 - discovery_id: aws.networkmanager.get_link_associations
   for_each: aws.networkmanager.describe_global_networks
   calls:
@@ -439,6 +465,12 @@ discovery:
       Destinations: '{{ item.Destinations }}'
       PrefixListId: '{{ item.PrefixListId }}'
       Type: '{{ item.Type }}'
+      CoreNetworkId: '{{ response.CoreNetworkSegmentEdge.CoreNetworkId }}'
+      EdgeLocation: '{{ response.CoreNetworkSegmentEdge.EdgeLocation }}'
+      SegmentName: '{{ response.CoreNetworkSegmentEdge.SegmentName }}'
+      RouteTableArn: '{{ response.RouteTableArn }}'
+      RouteTableTimestamp: '{{ response.RouteTableTimestamp }}'
+      RouteTableType: '{{ response.RouteTableType }}'
 - discovery_id: aws.networkmanager.get_network_telemetry
   for_each: aws.networkmanager.describe_global_networks
   calls:
@@ -490,11 +522,17 @@ discovery:
       GlobalNetworkId: '{{ response.RouteAnalysis.GlobalNetworkId }}'
       IncludeReturnPath: '{{ response.RouteAnalysis.IncludeReturnPath }}'
       OwnerAccountId: '{{ response.RouteAnalysis.OwnerAccountId }}'
-      ReturnPath: '{{ response.RouteAnalysis.ReturnPath }}'
+      ReturnPath: '{{ response.RouteAnalysis.IncludeReturnPath }}'
       RouteAnalysisId: '{{ response.RouteAnalysis.RouteAnalysisId }}'
       Source: '{{ response.RouteAnalysis.Source }}'
       StartTimestamp: '{{ response.RouteAnalysis.StartTimestamp }}'
       UseMiddleboxes: '{{ response.RouteAnalysis.UseMiddleboxes }}'
+      IpAddress: '{{ response.RouteAnalysis.Destination.IpAddress }}'
+      TransitGatewayArn: '{{ response.RouteAnalysis.Destination.TransitGatewayArn }}'
+      TransitGatewayAttachmentArn: '{{ response.RouteAnalysis.Destination.TransitGatewayAttachmentArn }}'
+      ReasonCode: '{{ response.RouteAnalysis.ForwardPath.CompletionStatus.ReasonCode }}'
+      ReasonContext: '{{ response.RouteAnalysis.ForwardPath.CompletionStatus.ReasonContext }}'
+      ResultCode: '{{ response.RouteAnalysis.ForwardPath.CompletionStatus.ResultCode }}'
 - discovery_id: aws.networkmanager.get_site_to_site_vpn_attachment
   for_each: aws.networkmanager.list_attachments
   calls:
@@ -506,8 +544,21 @@ discovery:
   emit:
     as: item
     item:
-      Attachment: '{{ response.SiteToSiteVpnAttachment.Attachment }}'
+      Attachment: '{{ response.SiteToSiteVpnAttachment.Attachment.State }}'
       VpnConnectionArn: '{{ response.SiteToSiteVpnAttachment.VpnConnectionArn }}'
+      AttachmentId: '{{ response.SiteToSiteVpnAttachment.Attachment.AttachmentId }}'
+      AttachmentPolicyRuleNumber: '{{ response.SiteToSiteVpnAttachment.Attachment.AttachmentPolicyRuleNumber }}'
+      AttachmentType: '{{ response.SiteToSiteVpnAttachment.Attachment.AttachmentType }}'
+      CoreNetworkArn: '{{ response.SiteToSiteVpnAttachment.Attachment.CoreNetworkArn }}'
+      CoreNetworkId: '{{ response.SiteToSiteVpnAttachment.Attachment.CoreNetworkId }}'
+      CreatedAt: '{{ response.SiteToSiteVpnAttachment.Attachment.CreatedAt }}'
+      EdgeLocation: '{{ response.SiteToSiteVpnAttachment.Attachment.EdgeLocation }}'
+      NetworkFunctionGroupName: '{{ response.SiteToSiteVpnAttachment.Attachment.NetworkFunctionGroupName }}'
+      OwnerAccountId: '{{ response.SiteToSiteVpnAttachment.Attachment.OwnerAccountId }}'
+      SegmentName: '{{ response.SiteToSiteVpnAttachment.Attachment.ProposedSegmentChange.SegmentName }}'
+      ResourceArn: '{{ response.SiteToSiteVpnAttachment.Attachment.ResourceArn }}'
+      State: '{{ response.SiteToSiteVpnAttachment.Attachment.State }}'
+      UpdatedAt: '{{ response.SiteToSiteVpnAttachment.Attachment.UpdatedAt }}'
 - discovery_id: aws.networkmanager.get_sites
   for_each: aws.networkmanager.describe_global_networks
   calls:
@@ -556,10 +607,18 @@ discovery:
   emit:
     as: item
     item:
-      Peering: '{{ response.TransitGatewayPeering.Peering }}'
+      Peering: '{{ response.TransitGatewayPeering.Peering.State }}'
       TransitGatewayArn: '{{ response.TransitGatewayPeering.TransitGatewayArn }}'
-      TransitGatewayPeeringAttachmentId: '{{ response.TransitGatewayPeering.TransitGatewayPeeringAttachmentId
-        }}'
+      TransitGatewayPeeringAttachmentId: '{{ response.TransitGatewayPeering.TransitGatewayPeeringAttachmentId }}'
+      CoreNetworkArn: '{{ response.TransitGatewayPeering.Peering.CoreNetworkArn }}'
+      CoreNetworkId: '{{ response.TransitGatewayPeering.Peering.CoreNetworkId }}'
+      CreatedAt: '{{ response.TransitGatewayPeering.Peering.CreatedAt }}'
+      EdgeLocation: '{{ response.TransitGatewayPeering.Peering.EdgeLocation }}'
+      OwnerAccountId: '{{ response.TransitGatewayPeering.Peering.OwnerAccountId }}'
+      PeeringId: '{{ response.TransitGatewayPeering.Peering.PeeringId }}'
+      PeeringType: '{{ response.TransitGatewayPeering.Peering.PeeringType }}'
+      ResourceArn: '{{ response.TransitGatewayPeering.Peering.ResourceArn }}'
+      State: '{{ response.TransitGatewayPeering.Peering.State }}'
 - discovery_id: aws.networkmanager.get_transit_gateway_registrations
   for_each: aws.networkmanager.describe_global_networks
   calls:
@@ -586,10 +645,22 @@ discovery:
   emit:
     as: item
     item:
-      Attachment: '{{ response.TransitGatewayRouteTableAttachment.Attachment }}'
+      Attachment: '{{ response.TransitGatewayRouteTableAttachment.Attachment.State }}'
       PeeringId: '{{ response.TransitGatewayRouteTableAttachment.PeeringId }}'
-      TransitGatewayRouteTableArn: '{{ response.TransitGatewayRouteTableAttachment.TransitGatewayRouteTableArn
-        }}'
+      TransitGatewayRouteTableArn: '{{ response.TransitGatewayRouteTableAttachment.TransitGatewayRouteTableArn }}'
+      AttachmentId: '{{ response.TransitGatewayRouteTableAttachment.Attachment.AttachmentId }}'
+      AttachmentPolicyRuleNumber: '{{ response.TransitGatewayRouteTableAttachment.Attachment.AttachmentPolicyRuleNumber }}'
+      AttachmentType: '{{ response.TransitGatewayRouteTableAttachment.Attachment.AttachmentType }}'
+      CoreNetworkArn: '{{ response.TransitGatewayRouteTableAttachment.Attachment.CoreNetworkArn }}'
+      CoreNetworkId: '{{ response.TransitGatewayRouteTableAttachment.Attachment.CoreNetworkId }}'
+      CreatedAt: '{{ response.TransitGatewayRouteTableAttachment.Attachment.CreatedAt }}'
+      EdgeLocation: '{{ response.TransitGatewayRouteTableAttachment.Attachment.EdgeLocation }}'
+      NetworkFunctionGroupName: '{{ response.TransitGatewayRouteTableAttachment.Attachment.NetworkFunctionGroupName }}'
+      OwnerAccountId: '{{ response.TransitGatewayRouteTableAttachment.Attachment.OwnerAccountId }}'
+      SegmentName: '{{ response.TransitGatewayRouteTableAttachment.Attachment.ProposedSegmentChange.SegmentName }}'
+      ResourceArn: '{{ response.TransitGatewayRouteTableAttachment.Attachment.ResourceArn }}'
+      State: '{{ response.TransitGatewayRouteTableAttachment.Attachment.State }}'
+      UpdatedAt: '{{ response.TransitGatewayRouteTableAttachment.Attachment.UpdatedAt }}'
 - discovery_id: aws.networkmanager.get_vpc_attachment
   for_each: aws.networkmanager.list_attachments
   calls:
@@ -601,9 +672,24 @@ discovery:
   emit:
     as: item
     item:
-      Attachment: '{{ response.VpcAttachment.Attachment }}'
+      Attachment: '{{ response.VpcAttachment.Attachment.State }}'
       Options: '{{ response.VpcAttachment.Options }}'
       SubnetArns: '{{ response.VpcAttachment.SubnetArns }}'
+      AttachmentId: '{{ response.VpcAttachment.Attachment.AttachmentId }}'
+      AttachmentPolicyRuleNumber: '{{ response.VpcAttachment.Attachment.AttachmentPolicyRuleNumber }}'
+      AttachmentType: '{{ response.VpcAttachment.Attachment.AttachmentType }}'
+      CoreNetworkArn: '{{ response.VpcAttachment.Attachment.CoreNetworkArn }}'
+      CoreNetworkId: '{{ response.VpcAttachment.Attachment.CoreNetworkId }}'
+      CreatedAt: '{{ response.VpcAttachment.Attachment.CreatedAt }}'
+      EdgeLocation: '{{ response.VpcAttachment.Attachment.EdgeLocation }}'
+      NetworkFunctionGroupName: '{{ response.VpcAttachment.Attachment.NetworkFunctionGroupName }}'
+      OwnerAccountId: '{{ response.VpcAttachment.Attachment.OwnerAccountId }}'
+      SegmentName: '{{ response.VpcAttachment.Attachment.ProposedSegmentChange.SegmentName }}'
+      ResourceArn: '{{ response.VpcAttachment.Attachment.ResourceArn }}'
+      State: '{{ response.VpcAttachment.Attachment.State }}'
+      UpdatedAt: '{{ response.VpcAttachment.Attachment.UpdatedAt }}'
+      ApplianceModeSupport: '{{ response.VpcAttachment.Options.ApplianceModeSupport }}'
+      Ipv6Support: '{{ response.VpcAttachment.Options.Ipv6Support }}'
 - discovery_id: aws.networkmanager.list_attachment_routing_policy_associations
   for_each: aws.networkmanager.list_attachments
   calls:

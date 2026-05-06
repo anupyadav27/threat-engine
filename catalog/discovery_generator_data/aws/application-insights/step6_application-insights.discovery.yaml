@@ -81,8 +81,7 @@ discovery:
     as: item
     item:
       AccountId: '{{ response.ApplicationInfo.AccountId }}'
-      AttachMissingPermission: '{{ response.ApplicationInfo.AttachMissingPermission
-        }}'
+      AttachMissingPermission: '{{ response.ApplicationInfo.AttachMissingPermission }}'
       AutoConfigEnabled: '{{ response.ApplicationInfo.AutoConfigEnabled }}'
       CWEMonitorEnabled: '{{ response.ApplicationInfo.CWEMonitorEnabled }}'
       DiscoveryType: '{{ response.ApplicationInfo.DiscoveryType }}'
@@ -100,6 +99,14 @@ discovery:
   emit:
     as: item
     items_for: '{{ response.ResourceList }}'
+    item:
+      ComponentName: '{{ response.ApplicationComponent.ComponentName }}'
+      ComponentRemarks: '{{ response.ApplicationComponent.ComponentRemarks }}'
+      DetectedWorkload: '{{ response.ApplicationComponent.DetectedWorkload }}'
+      Monitor: '{{ response.ApplicationComponent.Monitor }}'
+      OsType: '{{ response.ApplicationComponent.OsType }}'
+      ResourceType: '{{ response.ApplicationComponent.ResourceType }}'
+      Tier: '{{ response.ApplicationComponent.Tier }}'
 - discovery_id: aws.application-insights.describe_component_configuration
   for_each: aws.application-insights.list_applications
   calls:
@@ -141,6 +148,8 @@ discovery:
       PatternName: '{{ response.LogPattern.PatternName }}'
       PatternSetName: '{{ response.LogPattern.PatternSetName }}'
       Rank: '{{ response.LogPattern.Rank }}'
+      AccountId: '{{ response.AccountId }}'
+      ResourceGroupName: '{{ response.ResourceGroupName }}'
 - discovery_id: aws.application-insights.describe_observation
   calls:
   - action: describe_observation
@@ -150,16 +159,13 @@ discovery:
     as: item
     item:
       Id: '{{ response.Observation.Id }}'
-      CloudWatchEventDetailType: '{{ response.Observation.CloudWatchEventDetailType
-        }}'
+      CloudWatchEventDetailType: '{{ response.Observation.CloudWatchEventDetailType }}'
       CloudWatchEventId: '{{ response.Observation.CloudWatchEventId }}'
       CloudWatchEventSource: '{{ response.Observation.CloudWatchEventSource }}'
       CodeDeployApplication: '{{ response.Observation.CodeDeployApplication }}'
-      CodeDeployDeploymentGroup: '{{ response.Observation.CodeDeployDeploymentGroup
-        }}'
+      CodeDeployDeploymentGroup: '{{ response.Observation.CodeDeployDeploymentGroup }}'
       CodeDeployDeploymentId: '{{ response.Observation.CodeDeployDeploymentId }}'
-      CodeDeployInstanceGroupId: '{{ response.Observation.CodeDeployInstanceGroupId
-        }}'
+      CodeDeployInstanceGroupId: '{{ response.Observation.CodeDeployInstanceGroupId }}'
       CodeDeployState: '{{ response.Observation.CodeDeployState }}'
       EbsCause: '{{ response.Observation.EbsCause }}'
       EbsEvent: '{{ response.Observation.EbsEvent }}'
@@ -195,8 +201,7 @@ discovery:
       XRayFaultPercent: '{{ response.Observation.XRayFaultPercent }}'
       XRayNodeName: '{{ response.Observation.XRayNodeName }}'
       XRayNodeType: '{{ response.Observation.XRayNodeType }}'
-      XRayRequestAverageLatency: '{{ response.Observation.XRayRequestAverageLatency
-        }}'
+      XRayRequestAverageLatency: '{{ response.Observation.XRayRequestAverageLatency }}'
       XRayRequestCount: '{{ response.Observation.XRayRequestCount }}'
       XRayThrottlePercent: '{{ response.Observation.XRayThrottlePercent }}'
 - discovery_id: aws.application-insights.describe_problem
@@ -224,6 +229,7 @@ discovery:
       StartTime: '{{ response.Problem.StartTime }}'
       Title: '{{ response.Problem.Title }}'
       Visibility: '{{ response.Problem.Visibility }}'
+      SNSNotificationArn: '{{ response.SNSNotificationArn }}'
 - discovery_id: aws.application-insights.describe_problem_observations
   calls:
   - action: describe_problem_observations
@@ -232,8 +238,8 @@ discovery:
   emit:
     as: item
     item:
-      Observation: '{{ response.RelatedObservations.Observation }}'
-      ObservationList: '{{ response.RelatedObservations.ObservationList }}'
+      Observation: '{{ response.RelatedObservations.ObservationList[].Id }}'
+      ObservationList: '{{ response.RelatedObservations.ObservationList[].Id }}'
 - discovery_id: aws.application-insights.describe_workload
   for_each: aws.application-insights.list_applications
   calls:
@@ -250,6 +256,8 @@ discovery:
       Configuration: '{{ response.WorkloadConfiguration.Configuration }}'
       Tier: '{{ response.WorkloadConfiguration.Tier }}'
       WorkloadName: '{{ response.WorkloadConfiguration.WorkloadName }}'
+      WorkloadId: '{{ response.WorkloadId }}'
+      WorkloadRemarks: '{{ response.WorkloadRemarks }}'
 - discovery_id: aws.application-insights.list_components
   for_each: aws.application-insights.list_applications
   calls:
@@ -280,6 +288,9 @@ discovery:
   emit:
     as: item
     items_for: '{{ response.LogPatternSets }}'
+    item:
+      AccountId: '{{ response.AccountId }}'
+      ResourceGroupName: '{{ response.ResourceGroupName }}'
 - discovery_id: aws.application-insights.list_log_patterns
   for_each: aws.application-insights.list_applications
   calls:
@@ -296,6 +307,8 @@ discovery:
       PatternName: '{{ item.PatternName }}'
       PatternSetName: '{{ item.PatternSetName }}'
       Rank: '{{ item.Rank }}'
+      AccountId: '{{ response.AccountId }}'
+      ResourceGroupName: '{{ response.ResourceGroupName }}'
 - discovery_id: aws.application-insights.list_tags_for_resource
   calls:
   - action: list_tags_for_resource

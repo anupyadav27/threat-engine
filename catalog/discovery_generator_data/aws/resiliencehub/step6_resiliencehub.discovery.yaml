@@ -47,8 +47,7 @@ discovery:
       invoker: '{{ item.invoker }}'
       items: '{{ item.items }}'
       lastDriftEvaluationTime: '{{ item.lastDriftEvaluationTime }}'
-      lastResiliencyScoreEvaluationTime: '{{ item.lastResiliencyScoreEvaluationTime
-        }}'
+      lastResiliencyScoreEvaluationTime: '{{ item.lastResiliencyScoreEvaluationTime }}'
       message: '{{ item.message }}'
       permissionModel: '{{ item.permissionModel }}'
       prerequisite: '{{ item.prerequisite }}'
@@ -63,6 +62,7 @@ discovery:
       startTime: '{{ item.startTime }}'
       statusChangeTime: '{{ item.statusChangeTime }}'
       versionName: '{{ item.versionName }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.resiliencehub.list_apps
   calls:
   - action: list_apps
@@ -85,6 +85,7 @@ discovery:
       rpoInSecs: '{{ item.rpoInSecs }}'
       rtoInSecs: '{{ item.rtoInSecs }}'
       status: '{{ item.status }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.resiliencehub.list_metrics
   calls:
   - action: list_metrics
@@ -93,6 +94,8 @@ discovery:
   emit:
     as: item
     items_for: '{{ response.rows }}'
+    item:
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.resiliencehub.list_recommendation_templates
   calls:
   - action: list_recommendation_templates
@@ -110,12 +113,13 @@ discovery:
       name: '{{ item.name }}'
       needsReplacements: '{{ item.needsReplacements }}'
       recommendationIds: '{{ item.recommendationIds }}'
-      recommendationTemplateArn: '{{ item.recommendationTemplateArn }}'
+      recommendationTemplateArn: '{{ item.recommendationTemplates[].appArn }}'
       recommendationTypes: '{{ item.recommendationTypes }}'
       startTime: '{{ item.startTime }}'
       status: '{{ item.status }}'
       tags: '{{ item.tags }}'
       templatesLocation: '{{ item.templatesLocation }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.resiliencehub.list_resiliency_policies
   calls:
   - action: list_resiliency_policies
@@ -136,6 +140,7 @@ discovery:
       policyName: '{{ item.policyName }}'
       tags: '{{ item.tags }}'
       tier: '{{ item.tier }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.resiliencehub.list_resource_grouping_recommendations
   calls:
   - action: list_resource_grouping_recommendations
@@ -155,6 +160,7 @@ discovery:
       resources: '{{ item.resources }}'
       score: '{{ item.score }}'
       status: '{{ item.status }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.resiliencehub.list_suggested_resiliency_policies
   calls:
   - action: list_suggested_resiliency_policies
@@ -173,6 +179,7 @@ discovery:
       policyName: '{{ item.policyName }}'
       tags: '{{ item.tags }}'
       tier: '{{ item.tier }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.resiliencehub.describe_app
   for_each: aws.resiliencehub.list_app_assessments
   calls:
@@ -191,20 +198,20 @@ discovery:
       creationTime: '{{ response.app.creationTime }}'
       description: '{{ response.app.description }}'
       driftStatus: '{{ response.app.driftStatus }}'
-      eventSubscriptions: '{{ response.app.eventSubscriptions }}'
-      lastAppComplianceEvaluationTime: '{{ response.app.lastAppComplianceEvaluationTime
-        }}'
+      eventSubscriptions: '{{ response.app.eventSubscriptions[].name }}'
+      lastAppComplianceEvaluationTime: '{{ response.app.lastAppComplianceEvaluationTime }}'
       lastDriftEvaluationTime: '{{ response.app.lastDriftEvaluationTime }}'
-      lastResiliencyScoreEvaluationTime: '{{ response.app.lastResiliencyScoreEvaluationTime
-        }}'
+      lastResiliencyScoreEvaluationTime: '{{ response.app.lastResiliencyScoreEvaluationTime }}'
       name: '{{ response.app.name }}'
-      permissionModel: '{{ response.app.permissionModel }}'
+      permissionModel: '{{ response.app.permissionModel.type }}'
       policyArn: '{{ response.app.policyArn }}'
       resiliencyScore: '{{ response.app.resiliencyScore }}'
       rpoInSecs: '{{ response.app.rpoInSecs }}'
       rtoInSecs: '{{ response.app.rtoInSecs }}'
       status: '{{ response.app.status }}'
       tags: '{{ response.app.tags }}'
+      invokerRoleName: '{{ response.app.permissionModel.invokerRoleName }}'
+      type: '{{ response.app.permissionModel.type }}'
 - discovery_id: aws.resiliencehub.describe_app_assessment
   for_each: aws.resiliencehub.list_app_assessments
   calls:
@@ -218,7 +225,7 @@ discovery:
     item:
       appArn: '{{ response.assessment.appArn }}'
       appVersion: '{{ response.assessment.appVersion }}'
-      assessment: '{{ response.assessment.assessment }}'
+      assessment: '{{ response.assessment.assessmentArn }}'
       assessmentArn: '{{ response.assessment.assessmentArn }}'
       assessmentName: '{{ response.assessment.assessmentName }}'
       assessmentStatus: '{{ response.assessment.assessmentStatus }}'
@@ -229,13 +236,27 @@ discovery:
       endTime: '{{ response.assessment.endTime }}'
       invoker: '{{ response.assessment.invoker }}'
       message: '{{ response.assessment.message }}'
-      policy: '{{ response.assessment.policy }}'
-      resiliencyScore: '{{ response.assessment.resiliencyScore }}'
+      policy: '{{ response.assessment.policy.tier }}'
+      resiliencyScore: '{{ response.assessment.resiliencyScore.score }}'
       resourceErrorsDetails: '{{ response.assessment.resourceErrorsDetails }}'
       startTime: '{{ response.assessment.startTime }}'
       summary: '{{ response.assessment.summary }}'
       tags: '{{ response.assessment.tags }}'
       versionName: '{{ response.assessment.versionName }}'
+      amount: '{{ response.assessment.cost.amount }}'
+      currency: '{{ response.assessment.cost.currency }}'
+      frequency: '{{ response.assessment.cost.frequency }}'
+      creationTime: '{{ response.assessment.policy.creationTime }}'
+      dataLocationConstraint: '{{ response.assessment.policy.dataLocationConstraint }}'
+      estimatedCostTier: '{{ response.assessment.policy.estimatedCostTier }}'
+      policyArn: '{{ response.assessment.policy.policyArn }}'
+      policyDescription: '{{ response.assessment.policy.policyDescription }}'
+      policyName: '{{ response.assessment.policy.policyName }}'
+      tier: '{{ response.assessment.policy.tier }}'
+      componentScore: '{{ response.assessment.resiliencyScore.componentScore }}'
+      disruptionScore: '{{ response.assessment.resiliencyScore.disruptionScore }}'
+      score: '{{ response.assessment.resiliencyScore.score }}'
+      hasMoreErrors: '{{ response.assessment.resourceErrorsDetails.hasMoreErrors }}'
 - discovery_id: aws.resiliencehub.describe_app_version
   for_each: aws.resiliencehub.list_app_assessments
   calls:
@@ -267,6 +288,9 @@ discovery:
       additionalInfo: '{{ response.appComponent.additionalInfo }}'
       name: '{{ response.appComponent.name }}'
       type: '{{ response.appComponent.type }}'
+      appArn: '{{ response.appArn }}'
+      id: '{{ response.appComponent.id }}'
+      appVersion: '{{ response.appVersion }}'
 - discovery_id: aws.resiliencehub.describe_app_version_resource
   for_each: aws.resiliencehub.list_app_assessments
   calls:
@@ -280,14 +304,24 @@ discovery:
     as: item
     item:
       additionalInfo: '{{ response.physicalResource.additionalInfo }}'
-      appComponents: '{{ response.physicalResource.appComponents }}'
+      appComponents: '{{ response.physicalResource.appComponents[].id }}'
       excluded: '{{ response.physicalResource.excluded }}'
-      logicalResourceId: '{{ response.physicalResource.logicalResourceId }}'
+      logicalResourceId: '{{ response.physicalResource.logicalResourceId.identifier }}'
       parentResourceName: '{{ response.physicalResource.parentResourceName }}'
-      physicalResourceId: '{{ response.physicalResource.physicalResourceId }}'
+      physicalResourceId: '{{ response.physicalResource.physicalResourceId.type }}'
       resourceName: '{{ response.physicalResource.resourceName }}'
       resourceType: '{{ response.physicalResource.resourceType }}'
       sourceType: '{{ response.physicalResource.sourceType }}'
+      appArn: '{{ response.appArn }}'
+      appVersion: '{{ response.appVersion }}'
+      eksSourceName: '{{ response.physicalResource.logicalResourceId.eksSourceName }}'
+      identifier: '{{ response.physicalResource.logicalResourceId.identifier }}'
+      logicalStackName: '{{ response.physicalResource.logicalResourceId.logicalStackName }}'
+      resourceGroupName: '{{ response.physicalResource.logicalResourceId.resourceGroupName }}'
+      terraformSourceName: '{{ response.physicalResource.logicalResourceId.terraformSourceName }}'
+      awsAccountId: '{{ response.physicalResource.physicalResourceId.awsAccountId }}'
+      awsRegion: '{{ response.physicalResource.physicalResourceId.awsRegion }}'
+      type: '{{ response.physicalResource.physicalResourceId.type }}'
 - discovery_id: aws.resiliencehub.describe_app_version_resources_resolution_status
   for_each: aws.resiliencehub.list_app_assessments
   calls:
@@ -335,6 +369,9 @@ discovery:
       errorDetails: '{{ item.errorDetails }}'
       errorMessage: '{{ item.errorMessage }}'
       statusChangeTime: '{{ item.statusChangeTime }}'
+      appArn: '{{ response.appArn }}'
+      appVersion: '{{ response.appVersion }}'
+      status: '{{ response.status }}'
 - discovery_id: aws.resiliencehub.describe_metrics_export
   calls:
   - action: describe_metrics_export
@@ -345,6 +382,9 @@ discovery:
     item:
       bucket: '{{ response.exportLocation.bucket }}'
       prefix: '{{ response.exportLocation.prefix }}'
+      errorMessage: '{{ response.errorMessage }}'
+      metricsExportId: '{{ response.metricsExportId }}'
+      status: '{{ response.status }}'
 - discovery_id: aws.resiliencehub.describe_resiliency_policy
   for_each: aws.resiliencehub.list_resiliency_policies
   calls:
@@ -377,6 +417,8 @@ discovery:
     as: item
     item:
       groupingId: '{{ response.groupingId }}'
+      errorMessage: '{{ response.errorMessage }}'
+      status: '{{ response.status }}'
 - discovery_id: aws.resiliencehub.list_alarm_recommendations
   for_each: aws.resiliencehub.list_app_assessments
   calls:
@@ -399,6 +441,7 @@ discovery:
       recommendationStatus: '{{ item.recommendationStatus }}'
       referenceId: '{{ item.referenceId }}'
       type: '{{ item.type }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.resiliencehub.list_app_assessment_compliance_drifts
   for_each: aws.resiliencehub.list_app_assessments
   calls:
@@ -421,6 +464,7 @@ discovery:
       entityType: '{{ item.entityType }}'
       expectedReferenceId: '{{ item.expectedReferenceId }}'
       expectedValue: '{{ item.expectedValue }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.resiliencehub.list_app_assessment_resource_drifts
   for_each: aws.resiliencehub.list_app_assessments
   calls:
@@ -438,6 +482,7 @@ discovery:
       diffType: '{{ item.diffType }}'
       referenceId: '{{ item.referenceId }}'
       resourceIdentifier: '{{ item.resourceIdentifier }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.resiliencehub.list_app_component_compliances
   for_each: aws.resiliencehub.list_app_assessments
   calls:
@@ -456,6 +501,7 @@ discovery:
       message: '{{ item.message }}'
       resiliencyScore: '{{ item.resiliencyScore }}'
       status: '{{ item.status }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.resiliencehub.list_app_component_recommendations
   for_each: aws.resiliencehub.list_app_assessments
   calls:
@@ -471,6 +517,7 @@ discovery:
       appComponentName: '{{ item.appComponentName }}'
       configRecommendations: '{{ item.configRecommendations }}'
       recommendationStatus: '{{ item.recommendationStatus }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.resiliencehub.list_app_input_sources
   for_each: aws.resiliencehub.list_app_assessments
   calls:
@@ -490,6 +537,7 @@ discovery:
       sourceArn: '{{ item.sourceArn }}'
       sourceName: '{{ item.sourceName }}'
       terraformSource: '{{ item.terraformSource }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.resiliencehub.list_app_version_app_components
   for_each: aws.resiliencehub.list_app_assessments
   calls:
@@ -507,6 +555,9 @@ discovery:
       id: '{{ item.id }}'
       name: '{{ item.name }}'
       type: '{{ item.type }}'
+      appArn: '{{ response.appArn }}'
+      appVersion: '{{ response.appVersion }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.resiliencehub.list_app_version_resource_mappings
   for_each: aws.resiliencehub.list_app_assessments
   calls:
@@ -528,6 +579,7 @@ discovery:
       resourceGroupName: '{{ item.resourceGroupName }}'
       resourceName: '{{ item.resourceName }}'
       terraformSourceName: '{{ item.terraformSourceName }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.resiliencehub.list_app_version_resources
   for_each: aws.resiliencehub.list_app_assessments
   calls:
@@ -550,6 +602,8 @@ discovery:
       resourceName: '{{ item.resourceName }}'
       resourceType: '{{ item.resourceType }}'
       sourceType: '{{ item.sourceType }}'
+      nextToken: '{{ response.nextToken }}'
+      resolutionId: '{{ response.resolutionId }}'
 - discovery_id: aws.resiliencehub.list_app_versions
   for_each: aws.resiliencehub.list_app_assessments
   calls:
@@ -566,6 +620,7 @@ discovery:
       creationTime: '{{ item.creationTime }}'
       identifier: '{{ item.identifier }}'
       versionName: '{{ item.versionName }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.resiliencehub.list_sop_recommendations
   for_each: aws.resiliencehub.list_app_assessments
   calls:
@@ -587,6 +642,7 @@ discovery:
       recommendationStatus: '{{ item.recommendationStatus }}'
       referenceId: '{{ item.referenceId }}'
       serviceType: '{{ item.serviceType }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.resiliencehub.list_tags_for_resource
   calls:
   - action: list_tags_for_resource
@@ -622,6 +678,7 @@ discovery:
       referenceId: '{{ item.referenceId }}'
       risk: '{{ item.risk }}'
       type: '{{ item.type }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.resiliencehub.list_unsupported_app_version_resources
   for_each: aws.resiliencehub.list_app_assessments
   calls:
@@ -639,3 +696,5 @@ discovery:
       physicalResourceId: '{{ item.physicalResourceId }}'
       resourceType: '{{ item.resourceType }}'
       unsupportedResourceStatus: '{{ item.unsupportedResourceStatus }}'
+      nextToken: '{{ response.nextToken }}'
+      resolutionId: '{{ response.resolutionId }}'

@@ -15,8 +15,7 @@ discovery:
     items_for: '{{ response.CrossRegionDiscoverySourceRegions }}'
     item:
       CrossRegionDiscoveryHomeRegion: '{{ item.CrossRegionDiscoveryHomeRegion }}'
-      CrossRegionDiscoverySourceRegions: '{{ item.CrossRegionDiscoverySourceRegions
-        }}'
+      CrossRegionDiscoverySourceRegions: '{{ item.CrossRegionDiscoverySourceRegions }}'
       EnableCrossAccountsDiscovery: '{{ item.EnableCrossAccountsDiscovery }}'
       Enabled: '{{ item.Enabled }}'
       LicenseManagerResourceShareArn: '{{ item.LicenseManagerResourceShareArn }}'
@@ -24,6 +23,7 @@ discovery:
       S3BucketArn: '{{ item.S3BucketArn }}'
       ServiceStatus: '{{ item.ServiceStatus }}'
       SnsTopicArn: '{{ item.SnsTopicArn }}'
+      EnableIntegration: '{{ response.OrganizationConfiguration.EnableIntegration }}'
 - discovery_id: aws.license-manager.list_distributed_grants
   calls:
   - action: list_distributed_grants
@@ -56,8 +56,7 @@ discovery:
     item:
       Name: '{{ item.Name }}'
       Status: '{{ item.Status }}'
-      AssociatedLicenseAssetRulesetARNs: '{{ item.AssociatedLicenseAssetRulesetARNs
-        }}'
+      AssociatedLicenseAssetRulesetARNs: '{{ item.AssociatedLicenseAssetRulesetARNs }}'
       Description: '{{ item.Description }}'
       LatestResourceDiscoveryTime: '{{ item.LatestResourceDiscoveryTime }}'
       LatestUsageAnalysisTime: '{{ item.LatestUsageAnalysisTime }}'
@@ -163,8 +162,7 @@ discovery:
       LastReportGenerationTime: '{{ item.LastReportGenerationTime }}'
       LastRunFailureReason: '{{ item.LastRunFailureReason }}'
       LastRunStatus: '{{ item.LastRunStatus }}'
-      LicenseManagerReportGeneratorArn: '{{ item.LicenseManagerReportGeneratorArn
-        }}'
+      LicenseManagerReportGeneratorArn: '{{ item.LicenseManagerReportGeneratorArn }}'
       ReportContext: '{{ item.ReportContext }}'
       ReportCreatorAccount: '{{ item.ReportCreatorAccount }}'
       ReportFrequency: '{{ item.ReportFrequency }}'
@@ -319,7 +317,7 @@ discovery:
   emit:
     as: item
     item:
-      Grant: '{{ response.Grant.Grant }}'
+      Grant: '{{ response.Grant.GrantArn }}'
       GrantArn: '{{ response.Grant.GrantArn }}'
       GrantName: '{{ response.Grant.GrantName }}'
       GrantStatus: '{{ response.Grant.GrantStatus }}'
@@ -331,6 +329,7 @@ discovery:
       ParentArn: '{{ response.Grant.ParentArn }}'
       StatusReason: '{{ response.Grant.StatusReason }}'
       Version: '{{ response.Grant.Version }}'
+      ActivationOverrideBehavior: '{{ response.Grant.Options.ActivationOverrideBehavior }}'
 - discovery_id: aws.license-manager.get_license
   for_each: aws.license-manager.list_distributed_grants
   calls:
@@ -345,17 +344,25 @@ discovery:
       CreateTime: '{{ response.License.CreateTime }}'
       Status: '{{ response.License.Status }}'
       Beneficiary: '{{ response.License.Beneficiary }}'
-      ConsumptionConfiguration: '{{ response.License.ConsumptionConfiguration }}'
-      Entitlements: '{{ response.License.Entitlements }}'
+      ConsumptionConfiguration: '{{ response.License.ConsumptionConfiguration.RenewType }}'
+      Entitlements: '{{ response.License.Entitlements[].Unit }}'
       HomeRegion: '{{ response.License.HomeRegion }}'
       Issuer: '{{ response.License.Issuer }}'
       LicenseArn: '{{ response.License.LicenseArn }}'
-      LicenseMetadata: '{{ response.License.LicenseMetadata }}'
+      LicenseMetadata: '{{ response.License.LicenseMetadata[].Name }}'
       LicenseName: '{{ response.License.LicenseName }}'
       ProductName: '{{ response.License.ProductName }}'
       ProductSKU: '{{ response.License.ProductSKU }}'
-      Validity: '{{ response.License.Validity }}'
+      Validity: '{{ response.License.Validity.End }}'
       Version: '{{ response.License.Version }}'
+      AllowEarlyCheckIn: '{{ response.License.ConsumptionConfiguration.BorrowConfiguration.AllowEarlyCheckIn }}'
+      MaxTimeToLiveInMinutes: '{{ response.License.ConsumptionConfiguration.BorrowConfiguration.MaxTimeToLiveInMinutes }}'
+      RenewType: '{{ response.License.ConsumptionConfiguration.RenewType }}'
+      KeyFingerprint: '{{ response.License.Issuer.KeyFingerprint }}'
+      Name: '{{ response.License.Issuer.Name }}'
+      SignKey: '{{ response.License.Issuer.SignKey }}'
+      Begin: '{{ response.License.Validity.Begin }}'
+      End: '{{ response.License.Validity.End }}'
 - discovery_id: aws.license-manager.get_license_asset_group
   for_each: aws.license-manager.list_license_asset_groups
   calls:
@@ -369,16 +376,12 @@ discovery:
     item:
       Name: '{{ response.LicenseAssetGroup.Name }}'
       Status: '{{ response.LicenseAssetGroup.Status }}'
-      AssociatedLicenseAssetRulesetARNs: '{{ response.LicenseAssetGroup.AssociatedLicenseAssetRulesetARNs
-        }}'
+      AssociatedLicenseAssetRulesetARNs: '{{ response.LicenseAssetGroup.AssociatedLicenseAssetRulesetARNs }}'
       Description: '{{ response.LicenseAssetGroup.Description }}'
-      LatestResourceDiscoveryTime: '{{ response.LicenseAssetGroup.LatestResourceDiscoveryTime
-        }}'
-      LatestUsageAnalysisTime: '{{ response.LicenseAssetGroup.LatestUsageAnalysisTime
-        }}'
+      LatestResourceDiscoveryTime: '{{ response.LicenseAssetGroup.LatestResourceDiscoveryTime }}'
+      LatestUsageAnalysisTime: '{{ response.LicenseAssetGroup.LatestUsageAnalysisTime }}'
       LicenseAssetGroupArn: '{{ response.LicenseAssetGroup.LicenseAssetGroupArn }}'
-      LicenseAssetGroupConfigurations: '{{ response.LicenseAssetGroup.LicenseAssetGroupConfigurations
-        }}'
+      LicenseAssetGroupConfigurations: '{{ response.LicenseAssetGroup.LicenseAssetGroupConfigurations }}'
       Properties: '{{ response.LicenseAssetGroup.Properties }}'
       StatusMessage: '{{ response.LicenseAssetGroup.StatusMessage }}'
 - discovery_id: aws.license-manager.get_license_asset_ruleset
@@ -394,8 +397,7 @@ discovery:
     item:
       Name: '{{ response.LicenseAssetRuleset.Name }}'
       Description: '{{ response.LicenseAssetRuleset.Description }}'
-      LicenseAssetRulesetArn: '{{ response.LicenseAssetRuleset.LicenseAssetRulesetArn
-        }}'
+      LicenseAssetRulesetArn: '{{ response.LicenseAssetRuleset.LicenseAssetRulesetArn }}'
       Rules: '{{ response.LicenseAssetRuleset.Rules }}'
 - discovery_id: aws.license-manager.get_license_configuration
   for_each: aws.license-manager.list_license_configurations
@@ -411,6 +413,17 @@ discovery:
     item:
       ConsumedLicenses: '{{ item.ConsumedLicenses }}'
       ResourceType: '{{ item.ResourceType }}'
+      LastRunTime: '{{ response.AutomatedDiscoveryInformation.LastRunTime }}'
+      Description: '{{ response.Description }}'
+      DisassociateWhenNotFound: '{{ response.DisassociateWhenNotFound }}'
+      LicenseConfigurationArn: '{{ response.LicenseConfigurationArn }}'
+      LicenseConfigurationId: '{{ response.LicenseConfigurationId }}'
+      LicenseCount: '{{ response.LicenseCount }}'
+      LicenseCountHardLimit: '{{ response.LicenseCountHardLimit }}'
+      LicenseCountingType: '{{ response.LicenseCountingType }}'
+      Name: '{{ response.Name }}'
+      OwnerAccountId: '{{ response.OwnerAccountId }}'
+      Status: '{{ response.Status }}'
 - discovery_id: aws.license-manager.get_license_conversion_task
   for_each: aws.license-manager.list_license_conversion_tasks
   calls:
@@ -424,33 +437,41 @@ discovery:
     item:
       ProductCodes: '{{ response.SourceLicenseContext.ProductCodes }}'
       UsageOperation: '{{ response.SourceLicenseContext.UsageOperation }}'
+      EndTime: '{{ response.EndTime }}'
+      LicenseConversionTaskId: '{{ response.LicenseConversionTaskId }}'
+      LicenseConversionTime: '{{ response.LicenseConversionTime }}'
+      ResourceArn: '{{ response.ResourceArn }}'
+      StartTime: '{{ response.StartTime }}'
+      Status: '{{ response.Status }}'
+      StatusMessage: '{{ response.StatusMessage }}'
 - discovery_id: aws.license-manager.get_license_manager_report_generator
   for_each: aws.license-manager.list_license_manager_report_generators
   calls:
   - action: get_license_manager_report_generator
     params:
-      LicenseManagerReportGeneratorArn: '{{ item.LicenseManagerReportGeneratorArn
-        }}'
+      LicenseManagerReportGeneratorArn: '{{ item.LicenseManagerReportGeneratorArn }}'
     save_as: response
     on_error: continue
   emit:
     as: item
     item:
       CreateTime: '{{ response.ReportGenerator.CreateTime }}'
-      Tags: '{{ response.ReportGenerator.Tags }}'
+      Tags: '{{ response.ReportGenerator.Tags[].Key }}'
       Description: '{{ response.ReportGenerator.Description }}'
-      LastReportGenerationTime: '{{ response.ReportGenerator.LastReportGenerationTime
-        }}'
+      LastReportGenerationTime: '{{ response.ReportGenerator.LastReportGenerationTime }}'
       LastRunFailureReason: '{{ response.ReportGenerator.LastRunFailureReason }}'
       LastRunStatus: '{{ response.ReportGenerator.LastRunStatus }}'
-      LicenseManagerReportGeneratorArn: '{{ response.ReportGenerator.LicenseManagerReportGeneratorArn
-        }}'
+      LicenseManagerReportGeneratorArn: '{{ response.ReportGenerator.LicenseManagerReportGeneratorArn }}'
       ReportContext: '{{ response.ReportGenerator.ReportContext }}'
       ReportCreatorAccount: '{{ response.ReportGenerator.ReportCreatorAccount }}'
-      ReportFrequency: '{{ response.ReportGenerator.ReportFrequency }}'
+      ReportFrequency: '{{ response.ReportGenerator.ReportFrequency.value }}'
       ReportGeneratorName: '{{ response.ReportGenerator.ReportGeneratorName }}'
       ReportType: '{{ response.ReportGenerator.ReportType }}'
-      S3Location: '{{ response.ReportGenerator.S3Location }}'
+      S3Location: '{{ response.ReportGenerator.S3Location.bucket }}'
+      period: '{{ response.ReportGenerator.ReportFrequency.period }}'
+      value: '{{ response.ReportGenerator.ReportFrequency.value }}'
+      bucket: '{{ response.ReportGenerator.S3Location.bucket }}'
+      keyPrefix: '{{ response.ReportGenerator.S3Location.keyPrefix }}'
 - discovery_id: aws.license-manager.get_license_usage
   for_each: aws.license-manager.list_distributed_grants
   calls:
@@ -462,7 +483,7 @@ discovery:
   emit:
     as: item
     item:
-      EntitlementUsages: '{{ response.LicenseUsage.EntitlementUsages }}'
+      EntitlementUsages: '{{ response.LicenseUsage.EntitlementUsages[].Unit }}'
 - discovery_id: aws.license-manager.list_assets_for_license_asset_group
   for_each: aws.license-manager.list_license_asset_groups
   calls:

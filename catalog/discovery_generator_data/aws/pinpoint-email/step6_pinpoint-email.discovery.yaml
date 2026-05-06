@@ -13,14 +13,14 @@ discovery:
   emit:
     as: item
     item:
-      DedicatedIpAutoWarmupEnabled: '{{ response.SendQuota.DedicatedIpAutoWarmupEnabled
-        }}'
+      DedicatedIpAutoWarmupEnabled: '{{ response.SendQuota.DedicatedIpAutoWarmupEnabled }}'
       EnforcementStatus: '{{ response.SendQuota.EnforcementStatus }}'
       Max24HourSend: '{{ response.SendQuota.Max24HourSend }}'
       MaxSendRate: '{{ response.SendQuota.MaxSendRate }}'
       ProductionAccessEnabled: '{{ response.SendQuota.ProductionAccessEnabled }}'
       SendQuota: '{{ response.SendQuota.SendQuota }}'
       SentLast24Hours: '{{ response.SendQuota.SentLast24Hours }}'
+      SendingEnabled: '{{ response.SendingEnabled }}'
 - discovery_id: aws.pinpoint-email.get_dedicated_ips
   calls:
   - action: get_dedicated_ips
@@ -49,8 +49,7 @@ discovery:
       DashboardEnabled: '{{ item.DashboardEnabled }}'
       Domain: '{{ item.Domain }}'
       InboxPlacementTrackingOption: '{{ item.InboxPlacementTrackingOption }}'
-      PendingExpirationSubscribedDomains: '{{ item.PendingExpirationSubscribedDomains
-        }}'
+      PendingExpirationSubscribedDomains: '{{ item.PendingExpirationSubscribedDomains[].Domain }}'
       SubscriptionExpiryDate: '{{ item.SubscriptionExpiryDate }}'
       SubscriptionStartDate: '{{ item.SubscriptionStartDate }}'
 - discovery_id: aws.pinpoint-email.list_configuration_sets
@@ -121,6 +120,13 @@ discovery:
       Tags: '{{ item.Tags }}'
       Key: '{{ item.Key }}'
       Value: '{{ item.Value }}'
+      ConfigurationSetName: '{{ response.ConfigurationSetName }}'
+      SendingPoolName: '{{ response.DeliveryOptions.SendingPoolName }}'
+      TlsPolicy: '{{ response.DeliveryOptions.TlsPolicy }}'
+      LastFreshStart: '{{ response.ReputationOptions.LastFreshStart }}'
+      ReputationMetricsEnabled: '{{ response.ReputationOptions.ReputationMetricsEnabled }}'
+      SendingEnabled: '{{ response.SendingOptions.SendingEnabled }}'
+      CustomRedirectDomain: '{{ response.TrackingOptions.CustomRedirectDomain }}'
 - discovery_id: aws.pinpoint-email.get_configuration_set_event_destinations
   calls:
   - action: get_configuration_set_event_destinations
@@ -167,6 +173,18 @@ discovery:
       IspName: '{{ item.IspName }}'
       IspPlacements: '{{ item.IspPlacements }}'
       PlacementStatistics: '{{ item.PlacementStatistics }}'
+      CreateDate: '{{ response.DeliverabilityTestReport.CreateDate }}'
+      DeliverabilityTestStatus: '{{ response.DeliverabilityTestReport.DeliverabilityTestStatus }}'
+      FromEmailAddress: '{{ response.DeliverabilityTestReport.FromEmailAddress }}'
+      ReportId: '{{ response.DeliverabilityTestReport.ReportId }}'
+      ReportName: '{{ response.DeliverabilityTestReport.ReportName }}'
+      Subject: '{{ response.DeliverabilityTestReport.Subject }}'
+      Message: '{{ response.Message }}'
+      DkimPercentage: '{{ response.OverallPlacement.DkimPercentage }}'
+      InboxPercentage: '{{ response.OverallPlacement.InboxPercentage }}'
+      MissingPercentage: '{{ response.OverallPlacement.MissingPercentage }}'
+      SpamPercentage: '{{ response.OverallPlacement.SpamPercentage }}'
+      SpfPercentage: '{{ response.OverallPlacement.SpfPercentage }}'
 - discovery_id: aws.pinpoint-email.get_domain_deliverability_campaign
   calls:
   - action: get_domain_deliverability_campaign
@@ -178,13 +196,11 @@ discovery:
       CampaignId: '{{ response.DomainDeliverabilityCampaign.CampaignId }}'
       DeleteRate: '{{ response.DomainDeliverabilityCampaign.DeleteRate }}'
       Esps: '{{ response.DomainDeliverabilityCampaign.Esps }}'
-      FirstSeenDateTime: '{{ response.DomainDeliverabilityCampaign.FirstSeenDateTime
-        }}'
+      FirstSeenDateTime: '{{ response.DomainDeliverabilityCampaign.FirstSeenDateTime }}'
       FromAddress: '{{ response.DomainDeliverabilityCampaign.FromAddress }}'
       ImageUrl: '{{ response.DomainDeliverabilityCampaign.ImageUrl }}'
       InboxCount: '{{ response.DomainDeliverabilityCampaign.InboxCount }}'
-      LastSeenDateTime: '{{ response.DomainDeliverabilityCampaign.LastSeenDateTime
-        }}'
+      LastSeenDateTime: '{{ response.DomainDeliverabilityCampaign.LastSeenDateTime }}'
       ProjectedVolume: '{{ response.DomainDeliverabilityCampaign.ProjectedVolume }}'
       ReadDeleteRate: '{{ response.DomainDeliverabilityCampaign.ReadDeleteRate }}'
       ReadRate: '{{ response.DomainDeliverabilityCampaign.ReadRate }}'
@@ -209,6 +225,11 @@ discovery:
       IspPlacements: '{{ item.IspPlacements }}'
       StartDate: '{{ item.StartDate }}'
       VolumeStatistics: '{{ item.VolumeStatistics }}'
+      ReadRatePercent: '{{ response.OverallVolume.ReadRatePercent }}'
+      InboxRawCount: '{{ response.OverallVolume.VolumeStatistics.InboxRawCount }}'
+      ProjectedInbox: '{{ response.OverallVolume.VolumeStatistics.ProjectedInbox }}'
+      ProjectedSpam: '{{ response.OverallVolume.VolumeStatistics.ProjectedSpam }}'
+      SpamRawCount: '{{ response.OverallVolume.VolumeStatistics.SpamRawCount }}'
 - discovery_id: aws.pinpoint-email.get_email_identity
   calls:
   - action: get_email_identity
@@ -220,6 +241,14 @@ discovery:
     item:
       Key: '{{ item.Key }}'
       Value: '{{ item.Value }}'
+      SigningEnabled: '{{ response.DkimAttributes.SigningEnabled }}'
+      Status: '{{ response.DkimAttributes.Status }}'
+      FeedbackForwardingStatus: '{{ response.FeedbackForwardingStatus }}'
+      IdentityType: '{{ response.IdentityType }}'
+      BehaviorOnMxFailure: '{{ response.MailFromAttributes.BehaviorOnMxFailure }}'
+      MailFromDomain: '{{ response.MailFromAttributes.MailFromDomain }}'
+      MailFromDomainStatus: '{{ response.MailFromAttributes.MailFromDomainStatus }}'
+      VerifiedForSendingStatus: '{{ response.VerifiedForSendingStatus }}'
 - discovery_id: aws.pinpoint-email.list_domain_deliverability_campaigns
   calls:
   - action: list_domain_deliverability_campaigns

@@ -44,6 +44,7 @@ discovery:
       type: '{{ item.type }}'
       updatedAt: '{{ item.updatedAt }}'
       vulnerability: '{{ item.vulnerability }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.codeguru-security.get_findings
   for_each: aws.codeguru-security.list_scans
   calls:
@@ -72,6 +73,7 @@ discovery:
       type: '{{ item.type }}'
       updatedAt: '{{ item.updatedAt }}'
       vulnerability: '{{ item.vulnerability }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.codeguru-security.get_metrics_summary
   calls:
   - action: get_metrics_summary
@@ -80,14 +82,16 @@ discovery:
   emit:
     as: item
     item:
-      categoriesWithMostFindings: '{{ response.metricsSummary.categoriesWithMostFindings
-        }}'
+      categoriesWithMostFindings: '{{ response.metricsSummary.categoriesWithMostFindings }}'
       date: '{{ response.metricsSummary.date }}'
-      openFindings: '{{ response.metricsSummary.openFindings }}'
-      scansWithMostOpenCriticalFindings: '{{ response.metricsSummary.scansWithMostOpenCriticalFindings
-        }}'
-      scansWithMostOpenFindings: '{{ response.metricsSummary.scansWithMostOpenFindings
-        }}'
+      openFindings: '{{ response.metricsSummary.openFindings.low }}'
+      scansWithMostOpenCriticalFindings: '{{ response.metricsSummary.scansWithMostOpenCriticalFindings[].scanName }}'
+      scansWithMostOpenFindings: '{{ response.metricsSummary.scansWithMostOpenFindings[].scanName }}'
+      critical: '{{ response.metricsSummary.openFindings.critical }}'
+      high: '{{ response.metricsSummary.openFindings.high }}'
+      info: '{{ response.metricsSummary.openFindings.info }}'
+      low: '{{ response.metricsSummary.openFindings.low }}'
+      medium: '{{ response.metricsSummary.openFindings.medium }}'
 - discovery_id: aws.codeguru-security.get_scan
   for_each: aws.codeguru-security.list_scans
   calls:
@@ -122,6 +126,7 @@ discovery:
       meanTimeToClose: '{{ item.meanTimeToClose }}'
       newFindings: '{{ item.newFindings }}'
       openFindings: '{{ item.openFindings }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.codeguru-security.list_tags_for_resource
   calls:
   - action: list_tags_for_resource

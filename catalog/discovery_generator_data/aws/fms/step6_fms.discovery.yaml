@@ -19,6 +19,7 @@ discovery:
       PolicyTypeScope: '{{ response.PolicyTypeScope }}'
       RegionScope: '{{ response.RegionScope }}'
       RoleStatus: '{{ response.RoleStatus }}'
+      AdminAccount: '{{ response.AdminAccount }}'
 - discovery_id: aws.fms.get_notification_channel
   calls:
   - action: get_notification_channel
@@ -108,6 +109,13 @@ discovery:
       OrganizationalUnitScope: '{{ response.AdminScope.OrganizationalUnitScope }}'
       PolicyTypeScope: '{{ response.AdminScope.PolicyTypeScope }}'
       RegionScope: '{{ response.AdminScope.RegionScope }}'
+      AllAccountsEnabled: '{{ response.AdminScope.AccountScope.AllAccountsEnabled }}'
+      ExcludeSpecifiedAccounts: '{{ response.AdminScope.AccountScope.ExcludeSpecifiedAccounts }}'
+      AllOrganizationalUnitsEnabled: '{{ response.AdminScope.OrganizationalUnitScope.AllOrganizationalUnitsEnabled }}'
+      ExcludeSpecifiedOrganizationalUnits: '{{ response.AdminScope.OrganizationalUnitScope.ExcludeSpecifiedOrganizationalUnits }}'
+      AllPolicyTypesEnabled: '{{ response.AdminScope.PolicyTypeScope.AllPolicyTypesEnabled }}'
+      AllRegionsEnabled: '{{ response.AdminScope.RegionScope.AllRegionsEnabled }}'
+      Status: '{{ response.Status }}'
 - discovery_id: aws.fms.get_apps_list
   calls:
   - action: get_apps_list
@@ -123,6 +131,7 @@ discovery:
       ListName: '{{ response.AppsList.ListName }}'
       ListUpdateToken: '{{ response.AppsList.ListUpdateToken }}'
       PreviousAppsList: '{{ response.AppsList.PreviousAppsList }}'
+      AppsListArn: '{{ response.AppsListArn }}'
 - discovery_id: aws.fms.get_compliance_detail
   for_each: aws.fms.list_policies
   calls:
@@ -135,14 +144,13 @@ discovery:
   emit:
     as: item
     item:
-      EvaluationLimitExceeded: '{{ response.PolicyComplianceDetail.EvaluationLimitExceeded
-        }}'
+      EvaluationLimitExceeded: '{{ response.PolicyComplianceDetail.EvaluationLimitExceeded }}'
       ExpiredAt: '{{ response.PolicyComplianceDetail.ExpiredAt }}'
       IssueInfoMap: '{{ response.PolicyComplianceDetail.IssueInfoMap }}'
       MemberAccount: '{{ response.PolicyComplianceDetail.MemberAccount }}'
       PolicyId: '{{ response.PolicyComplianceDetail.PolicyId }}'
       PolicyOwner: '{{ response.PolicyComplianceDetail.PolicyOwner }}'
-      Violators: '{{ response.PolicyComplianceDetail.Violators }}'
+      Violators: '{{ response.PolicyComplianceDetail.Violators[].Metadata }}'
 - discovery_id: aws.fms.get_policy
   for_each: aws.fms.list_policies
   calls:
@@ -154,9 +162,8 @@ discovery:
   emit:
     as: item
     item:
-      Policy: '{{ response.Policy.Policy }}'
-      DeleteUnusedFMManagedResources: '{{ response.Policy.DeleteUnusedFMManagedResources
-        }}'
+      Policy: '{{ response.Policy.PolicyId }}'
+      DeleteUnusedFMManagedResources: '{{ response.Policy.DeleteUnusedFMManagedResources }}'
       ExcludeMap: '{{ response.Policy.ExcludeMap }}'
       ExcludeResourceTags: '{{ response.Policy.ExcludeResourceTags }}'
       IncludeMap: '{{ response.Policy.IncludeMap }}'
@@ -168,10 +175,14 @@ discovery:
       RemediationEnabled: '{{ response.Policy.RemediationEnabled }}'
       ResourceSetIds: '{{ response.Policy.ResourceSetIds }}'
       ResourceTagLogicalOperator: '{{ response.Policy.ResourceTagLogicalOperator }}'
-      ResourceTags: '{{ response.Policy.ResourceTags }}'
+      ResourceTags: '{{ response.Policy.ResourceTags[].Key }}'
       ResourceType: '{{ response.Policy.ResourceType }}'
-      ResourceTypeList: '{{ response.Policy.ResourceTypeList }}'
-      SecurityServicePolicyData: '{{ response.Policy.SecurityServicePolicyData }}'
+      ResourceTypeList: '{{ response.Policy.ResourceType }}'
+      SecurityServicePolicyData: '{{ response.Policy.SecurityServicePolicyData.Type }}'
+      PolicyArn: '{{ response.PolicyArn }}'
+      ManagedServiceData: '{{ response.Policy.SecurityServicePolicyData.ManagedServiceData }}'
+      FirewallDeploymentModel: '{{ response.Policy.SecurityServicePolicyData.PolicyOption.NetworkFirewallPolicy.FirewallDeploymentModel }}'
+      Type: '{{ response.Policy.SecurityServicePolicyData.Type }}'
 - discovery_id: aws.fms.get_protection_status
   for_each: aws.fms.list_policies
   calls:
@@ -184,6 +195,8 @@ discovery:
     as: item
     item:
       ServiceType: '{{ response.ServiceType }}'
+      AdminAccountId: '{{ response.AdminAccountId }}'
+      Data: '{{ response.Data }}'
 - discovery_id: aws.fms.get_protocols_list
   calls:
   - action: get_protocols_list
@@ -198,7 +211,8 @@ discovery:
       ListName: '{{ response.ProtocolsList.ListName }}'
       ListUpdateToken: '{{ response.ProtocolsList.ListUpdateToken }}'
       PreviousProtocolsList: '{{ response.ProtocolsList.PreviousProtocolsList }}'
-      ProtocolsList: '{{ response.ProtocolsList.ProtocolsList }}'
+      ProtocolsList: '{{ response.ProtocolsList.PreviousProtocolsList }}'
+      ProtocolsListArn: '{{ response.ProtocolsListArn }}'
 - discovery_id: aws.fms.get_resource_set
   calls:
   - action: get_resource_set
@@ -214,6 +228,7 @@ discovery:
       ResourceSetStatus: '{{ response.ResourceSet.ResourceSetStatus }}'
       ResourceTypeList: '{{ response.ResourceSet.ResourceTypeList }}'
       UpdateToken: '{{ response.ResourceSet.UpdateToken }}'
+      ResourceSetArn: '{{ response.ResourceSetArn }}'
 - discovery_id: aws.fms.get_third_party_firewall_association_status
   calls:
   - action: get_third_party_firewall_association_status
@@ -242,7 +257,7 @@ discovery:
       MemberAccount: '{{ response.ViolationDetail.MemberAccount }}'
       PolicyId: '{{ response.ViolationDetail.PolicyId }}'
       ResourceDescription: '{{ response.ViolationDetail.ResourceDescription }}'
-      ResourceTags: '{{ response.ViolationDetail.ResourceTags }}'
+      ResourceTags: '{{ response.ViolationDetail.ResourceTags[].Key }}'
       ResourceType: '{{ response.ViolationDetail.ResourceType }}'
       ResourceViolations: '{{ response.ViolationDetail.ResourceViolations }}'
 - discovery_id: aws.fms.list_apps_lists

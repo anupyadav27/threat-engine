@@ -28,6 +28,7 @@ discovery:
       resolvedTime: '{{ item.resolvedTime }}'
       status: '{{ item.status }}'
       title: '{{ item.title }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.ssm-incidents.list_replication_sets
   calls:
   - action: list_replication_sets
@@ -36,6 +37,8 @@ discovery:
   emit:
     as: item
     items_for: '{{ response.replicationSetArns }}'
+    item:
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.ssm-incidents.list_response_plans
   calls:
   - action: list_response_plans
@@ -49,6 +52,7 @@ discovery:
       arn: '{{ item.arn }}'
       displayName: '{{ item.displayName }}'
       name: '{{ item.name }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.ssm-incidents.get_incident_record
   for_each: aws.ssm-incidents.list_incident_records
   calls:
@@ -67,7 +71,7 @@ discovery:
       dedupeString: '{{ response.incidentRecord.dedupeString }}'
       impact: '{{ response.incidentRecord.impact }}'
       incidentRecord: '{{ response.incidentRecord.incidentRecord }}'
-      incidentRecordSource: '{{ response.incidentRecord.incidentRecordSource }}'
+      incidentRecordSource: '{{ response.incidentRecord.incidentRecordSource.source }}'
       lastModifiedBy: '{{ response.incidentRecord.lastModifiedBy }}'
       lastModifiedTime: '{{ response.incidentRecord.lastModifiedTime }}'
       notificationTargets: '{{ response.incidentRecord.notificationTargets }}'
@@ -75,6 +79,10 @@ discovery:
       status: '{{ response.incidentRecord.status }}'
       summary: '{{ response.incidentRecord.summary }}'
       title: '{{ response.incidentRecord.title }}'
+      createdBy: '{{ response.incidentRecord.incidentRecordSource.createdBy }}'
+      invokedBy: '{{ response.incidentRecord.incidentRecordSource.invokedBy }}'
+      resourceArn: '{{ response.incidentRecord.incidentRecordSource.resourceArn }}'
+      source: '{{ response.incidentRecord.incidentRecordSource.source }}'
 - discovery_id: aws.ssm-incidents.get_replication_set
   for_each: aws.ssm-incidents.list_incident_records
   calls:
@@ -108,6 +116,7 @@ discovery:
       policyDocument: '{{ item.policyDocument }}'
       policyId: '{{ item.policyId }}'
       ramResourceShareRegion: '{{ item.ramResourceShareRegion }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.ssm-incidents.get_response_plan
   for_each: aws.ssm-incidents.list_incident_records
   calls:
@@ -122,6 +131,14 @@ discovery:
     item:
       actions: '{{ item.actions }}'
       ssmAutomation: '{{ item.ssmAutomation }}'
+      arn: '{{ response.arn }}'
+      displayName: '{{ response.displayName }}'
+      dedupeString: '{{ response.incidentTemplate.dedupeString }}'
+      impact: '{{ response.incidentTemplate.impact }}'
+      incidentTags: '{{ response.incidentTemplate.incidentTags }}'
+      summary: '{{ response.incidentTemplate.summary }}'
+      title: '{{ response.incidentTemplate.title }}'
+      name: '{{ response.name }}'
 - discovery_id: aws.ssm-incidents.get_timeline_event
   calls:
   - action: get_timeline_event
@@ -130,7 +147,7 @@ discovery:
   emit:
     as: item
     item:
-      event: '{{ response.event.event }}'
+      event: '{{ response.event.eventId }}'
       eventData: '{{ response.event.eventData }}'
       eventId: '{{ response.event.eventId }}'
       eventReferences: '{{ response.event.eventReferences }}'
@@ -149,6 +166,7 @@ discovery:
     item:
       id: '{{ item.id }}'
       lastModifiedTime: '{{ item.lastModifiedTime }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.ssm-incidents.list_related_items
   calls:
   - action: list_related_items
@@ -161,6 +179,7 @@ discovery:
       generatedId: '{{ item.generatedId }}'
       identifier: '{{ item.identifier }}'
       title: '{{ item.title }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.ssm-incidents.list_tags_for_resource
   calls:
   - action: list_tags_for_resource
@@ -186,3 +205,4 @@ discovery:
       eventType: '{{ item.eventType }}'
       eventUpdatedTime: '{{ item.eventUpdatedTime }}'
       incidentRecordArn: '{{ item.incidentRecordArn }}'
+      nextToken: '{{ response.nextToken }}'

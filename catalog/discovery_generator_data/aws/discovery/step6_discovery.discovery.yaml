@@ -25,6 +25,7 @@ discovery:
       lastHealthPingTime: '{{ item.lastHealthPingTime }}'
       registeredTime: '{{ item.registeredTime }}'
       version: '{{ item.version }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.discovery.describe_continuous_exports
   calls:
   - action: describe_continuous_exports
@@ -43,6 +44,7 @@ discovery:
       status: '{{ item.status }}'
       statusDetail: '{{ item.statusDetail }}'
       stopTime: '{{ item.stopTime }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.discovery.describe_export_configurations
   calls:
   - action: describe_export_configurations
@@ -63,6 +65,7 @@ discovery:
       requestedEndTime: '{{ item.requestedEndTime }}'
       requestedStartTime: '{{ item.requestedStartTime }}'
       statusMessage: '{{ item.statusMessage }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.discovery.describe_export_tasks
   calls:
   - action: describe_export_tasks
@@ -80,6 +83,7 @@ discovery:
       requestedEndTime: '{{ item.requestedEndTime }}'
       requestedStartTime: '{{ item.requestedStartTime }}'
       statusMessage: '{{ item.statusMessage }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.discovery.describe_import_tasks
   calls:
   - action: describe_import_tasks
@@ -89,10 +93,10 @@ discovery:
     as: item
     items_for: '{{ response.tasks }}'
     item:
-      applicationImportFailure: '{{ item.applicationImportFailure }}'
-      applicationImportSuccess: '{{ item.applicationImportSuccess }}'
+      applicationImportFailure: '{{ item.tasks[].applicationImportFailure }}'
+      applicationImportSuccess: '{{ item.tasks[].applicationImportSuccess }}'
       clientRequestToken: '{{ item.clientRequestToken }}'
-      errorsAndFailedEntriesZip: '{{ item.errorsAndFailedEntriesZip }}'
+      errorsAndFailedEntriesZip: '{{ item.tasks[].errorsAndFailedEntriesZip }}'
       fileClassification: '{{ item.fileClassification }}'
       importCompletionTime: '{{ item.importCompletionTime }}'
       importDeletedTime: '{{ item.importDeletedTime }}'
@@ -105,6 +109,7 @@ discovery:
       status: '{{ item.status }}'
       task: '{{ item.task }}'
       tasks: '{{ item.tasks }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.discovery.describe_tags
   calls:
   - action: describe_tags
@@ -120,6 +125,7 @@ discovery:
       tags: '{{ item.tags }}'
       timeOfCreation: '{{ item.timeOfCreation }}'
       value: '{{ item.value }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.discovery.get_discovery_summary
   calls:
   - action: get_discovery_summary
@@ -130,21 +136,40 @@ discovery:
     item:
       activeAgents: '{{ response.agentSummary.activeAgents }}'
       agentSummary: '{{ response.agentSummary.agentSummary }}'
-      agentlessCollectorSummary: '{{ response.agentSummary.agentlessCollectorSummary
-        }}'
+      agentlessCollectorSummary: '{{ response.agentSummary.agentlessCollectorSummary }}'
       applications: '{{ response.agentSummary.applications }}'
       blackListedAgents: '{{ response.agentSummary.blackListedAgents }}'
       connectorSummary: '{{ response.agentSummary.connectorSummary }}'
       healthyAgents: '{{ response.agentSummary.healthyAgents }}'
       meCollectorSummary: '{{ response.agentSummary.meCollectorSummary }}'
       servers: '{{ response.agentSummary.servers }}'
-      serversMappedToApplications: '{{ response.agentSummary.serversMappedToApplications
-        }}'
+      serversMappedToApplications: '{{ response.agentSummary.serversMappedToApplications }}'
       serversMappedtoTags: '{{ response.agentSummary.serversMappedtoTags }}'
       shutdownAgents: '{{ response.agentSummary.shutdownAgents }}'
       totalAgents: '{{ response.agentSummary.totalAgents }}'
       unhealthyAgents: '{{ response.agentSummary.unhealthyAgents }}'
       unknownAgents: '{{ response.agentSummary.unknownAgents }}'
+      activeAgentlessCollectors: '{{ response.agentlessCollectorSummary.activeAgentlessCollectors }}'
+      denyListedAgentlessCollectors: '{{ response.agentlessCollectorSummary.denyListedAgentlessCollectors }}'
+      healthyAgentlessCollectors: '{{ response.agentlessCollectorSummary.healthyAgentlessCollectors }}'
+      shutdownAgentlessCollectors: '{{ response.agentlessCollectorSummary.shutdownAgentlessCollectors }}'
+      totalAgentlessCollectors: '{{ response.agentlessCollectorSummary.totalAgentlessCollectors }}'
+      unhealthyAgentlessCollectors: '{{ response.agentlessCollectorSummary.unhealthyAgentlessCollectors }}'
+      unknownAgentlessCollectors: '{{ response.agentlessCollectorSummary.unknownAgentlessCollectors }}'
+      activeConnectors: '{{ response.connectorSummary.activeConnectors }}'
+      blackListedConnectors: '{{ response.connectorSummary.blackListedConnectors }}'
+      healthyConnectors: '{{ response.connectorSummary.healthyConnectors }}'
+      shutdownConnectors: '{{ response.connectorSummary.shutdownConnectors }}'
+      totalConnectors: '{{ response.connectorSummary.totalConnectors }}'
+      unhealthyConnectors: '{{ response.connectorSummary.unhealthyConnectors }}'
+      unknownConnectors: '{{ response.connectorSummary.unknownConnectors }}'
+      activeMeCollectors: '{{ response.meCollectorSummary.activeMeCollectors }}'
+      denyListedMeCollectors: '{{ response.meCollectorSummary.denyListedMeCollectors }}'
+      healthyMeCollectors: '{{ response.meCollectorSummary.healthyMeCollectors }}'
+      shutdownMeCollectors: '{{ response.meCollectorSummary.shutdownMeCollectors }}'
+      totalMeCollectors: '{{ response.meCollectorSummary.totalMeCollectors }}'
+      unhealthyMeCollectors: '{{ response.meCollectorSummary.unhealthyMeCollectors }}'
+      unknownMeCollectors: '{{ response.meCollectorSummary.unknownMeCollectors }}'
 - discovery_id: aws.discovery.describe_batch_delete_configuration_task
   calls:
   - action: describe_batch_delete_configuration_task
@@ -161,7 +186,7 @@ discovery:
       requestedConfigurations: '{{ response.task.requestedConfigurations }}'
       startTime: '{{ response.task.startTime }}'
       status: '{{ response.task.status }}'
-      task: '{{ response.task.task }}'
+      task: '{{ response.task.taskId }}'
       taskId: '{{ response.task.taskId }}'
 - discovery_id: aws.discovery.describe_configurations
   calls:
@@ -186,6 +211,7 @@ discovery:
     items_for: '{{ response.configurations }}'
     item:
       configurations: '{{ item.configurations }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.discovery.list_server_neighbors
   for_each: aws.discovery.describe_tags
   calls:
@@ -203,3 +229,5 @@ discovery:
       destinationServerId: '{{ item.destinationServerId }}'
       sourceServerId: '{{ item.sourceServerId }}'
       transportProtocol: '{{ item.transportProtocol }}'
+      knownDependencyCount: '{{ response.knownDependencyCount }}'
+      nextToken: '{{ response.nextToken }}'

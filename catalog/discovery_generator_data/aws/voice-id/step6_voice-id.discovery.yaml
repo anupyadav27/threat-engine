@@ -32,10 +32,8 @@ discovery:
       LastAccessedAt: '{{ item.LastAccessedAt }}'
       OutputDataConfig: '{{ item.OutputDataConfig }}'
       RegistrationConfig: '{{ item.RegistrationConfig }}'
-      ServerSideEncryptionConfiguration: '{{ item.ServerSideEncryptionConfiguration
-        }}'
-      ServerSideEncryptionUpdateDetails: '{{ item.ServerSideEncryptionUpdateDetails
-        }}'
+      ServerSideEncryptionConfiguration: '{{ item.ServerSideEncryptionConfiguration }}'
+      ServerSideEncryptionUpdateDetails: '{{ item.ServerSideEncryptionUpdateDetails }}'
       UpdatedAt: '{{ item.UpdatedAt }}'
       Watchlist: '{{ item.Watchlist }}'
       WatchlistDetails: '{{ item.WatchlistDetails }}'
@@ -57,12 +55,15 @@ discovery:
       Description: '{{ response.Domain.Description }}'
       DomainId: '{{ response.Domain.DomainId }}'
       DomainStatus: '{{ response.Domain.DomainStatus }}'
-      ServerSideEncryptionConfiguration: '{{ response.Domain.ServerSideEncryptionConfiguration
-        }}'
-      ServerSideEncryptionUpdateDetails: '{{ response.Domain.ServerSideEncryptionUpdateDetails
-        }}'
+      ServerSideEncryptionConfiguration: '{{ response.Domain.ServerSideEncryptionConfiguration.KmsKeyId }}'
+      ServerSideEncryptionUpdateDetails: '{{ response.Domain.ServerSideEncryptionUpdateDetails.Message }}'
       UpdatedAt: '{{ response.Domain.UpdatedAt }}'
       WatchlistDetails: '{{ response.Domain.WatchlistDetails }}'
+      KmsKeyId: '{{ response.Domain.ServerSideEncryptionConfiguration.KmsKeyId }}'
+      Message: '{{ response.Domain.ServerSideEncryptionUpdateDetails.Message }}'
+      OldKmsKeyId: '{{ response.Domain.ServerSideEncryptionUpdateDetails.OldKmsKeyId }}'
+      UpdateStatus: '{{ response.Domain.ServerSideEncryptionUpdateDetails.UpdateStatus }}'
+      DefaultWatchlistId: '{{ response.Domain.WatchlistDetails.DefaultWatchlistId }}'
 - discovery_id: aws.voice-id.describe_fraudster
   for_each: aws.voice-id.list_domains
   calls:
@@ -93,14 +94,22 @@ discovery:
       CreatedAt: '{{ response.Job.CreatedAt }}'
       DataAccessRoleArn: '{{ response.Job.DataAccessRoleArn }}'
       DomainId: '{{ response.Job.DomainId }}'
-      InputDataConfig: '{{ response.Job.InputDataConfig }}'
-      Job: '{{ response.Job.Job }}'
+      InputDataConfig: '{{ response.Job.InputDataConfig.S3Uri }}'
+      Job: '{{ response.Job.JobId }}'
       JobId: '{{ response.Job.JobId }}'
       JobName: '{{ response.Job.JobName }}'
       JobProgress: '{{ response.Job.JobProgress }}'
       JobStatus: '{{ response.Job.JobStatus }}'
-      OutputDataConfig: '{{ response.Job.OutputDataConfig }}'
+      OutputDataConfig: '{{ response.Job.OutputDataConfig.S3Uri }}'
       RegistrationConfig: '{{ response.Job.RegistrationConfig }}'
+      EndedAt: '{{ response.Job.EndedAt }}'
+      Message: '{{ response.Job.FailureDetails.Message }}'
+      StatusCode: '{{ response.Job.FailureDetails.StatusCode }}'
+      S3Uri: '{{ response.Job.InputDataConfig.S3Uri }}'
+      PercentComplete: '{{ response.Job.JobProgress.PercentComplete }}'
+      KmsKeyId: '{{ response.Job.OutputDataConfig.KmsKeyId }}'
+      DuplicateRegistrationAction: '{{ response.Job.RegistrationConfig.DuplicateRegistrationAction }}'
+      FraudsterSimilarityThreshold: '{{ response.Job.RegistrationConfig.FraudsterSimilarityThreshold }}'
 - discovery_id: aws.voice-id.describe_speaker
   for_each: aws.voice-id.list_domains
   calls:
@@ -119,6 +128,8 @@ discovery:
       GeneratedSpeakerId: '{{ response.Speaker.GeneratedSpeakerId }}'
       Speaker: '{{ response.Speaker.Speaker }}'
       UpdatedAt: '{{ response.Speaker.UpdatedAt }}'
+      LastAccessedAt: '{{ response.Speaker.LastAccessedAt }}'
+      Status: '{{ response.Speaker.Status }}'
 - discovery_id: aws.voice-id.describe_speaker_enrollment_job
   for_each: aws.voice-id.list_domains
   calls:
@@ -137,12 +148,20 @@ discovery:
       EndedAt: '{{ response.Job.EndedAt }}'
       EnrollmentConfig: '{{ response.Job.EnrollmentConfig }}'
       FailureDetails: '{{ response.Job.FailureDetails }}'
-      InputDataConfig: '{{ response.Job.InputDataConfig }}'
+      InputDataConfig: '{{ response.Job.InputDataConfig.S3Uri }}'
       JobId: '{{ response.Job.JobId }}'
       JobName: '{{ response.Job.JobName }}'
       JobProgress: '{{ response.Job.JobProgress }}'
       JobStatus: '{{ response.Job.JobStatus }}'
-      OutputDataConfig: '{{ response.Job.OutputDataConfig }}'
+      OutputDataConfig: '{{ response.Job.OutputDataConfig.S3Uri }}'
+      ExistingEnrollmentAction: '{{ response.Job.EnrollmentConfig.ExistingEnrollmentAction }}'
+      FraudDetectionAction: '{{ response.Job.EnrollmentConfig.FraudDetectionConfig.FraudDetectionAction }}'
+      RiskThreshold: '{{ response.Job.EnrollmentConfig.FraudDetectionConfig.RiskThreshold }}'
+      Message: '{{ response.Job.FailureDetails.Message }}'
+      StatusCode: '{{ response.Job.FailureDetails.StatusCode }}'
+      S3Uri: '{{ response.Job.InputDataConfig.S3Uri }}'
+      PercentComplete: '{{ response.Job.JobProgress.PercentComplete }}'
+      KmsKeyId: '{{ response.Job.OutputDataConfig.KmsKeyId }}'
 - discovery_id: aws.voice-id.describe_watchlist
   for_each: aws.voice-id.list_domains
   calls:
@@ -161,6 +180,7 @@ discovery:
       DomainId: '{{ response.Watchlist.DomainId }}'
       UpdatedAt: '{{ response.Watchlist.UpdatedAt }}'
       WatchlistId: '{{ response.Watchlist.WatchlistId }}'
+      DefaultWatchlist: '{{ response.Watchlist.DefaultWatchlist }}'
 - discovery_id: aws.voice-id.list_fraudster_registration_jobs
   for_each: aws.voice-id.list_domains
   calls:

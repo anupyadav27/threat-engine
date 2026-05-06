@@ -24,6 +24,15 @@ discovery:
       sseAlgorithm: '{{ item.sseAlgorithm }}'
       versionToken: '{{ item.versionToken }}'
       warehouseLocation: '{{ item.warehouseLocation }}'
+      createdAt: '{{ response.createdAt }}'
+      createdBy: '{{ response.createdBy }}'
+      modifiedAt: '{{ response.modifiedAt }}'
+      name: '{{ response.name }}'
+      namespaceId: '{{ response.namespaceId }}'
+      ownerAccountId: '{{ response.ownerAccountId }}'
+      tableARN: '{{ response.tableARN }}'
+      tableBucketId: '{{ response.tableBucketId }}'
+      type: '{{ response.type }}'
 - discovery_id: aws.s3tables.list_table_buckets
   calls:
   - action: list_table_buckets
@@ -47,6 +56,7 @@ discovery:
       type: '{{ item.type }}'
       versionToken: '{{ item.versionToken }}'
       warehouseLocation: '{{ item.warehouseLocation }}'
+      continuationToken: '{{ response.continuationToken }}'
 - discovery_id: aws.s3tables.get_namespace
   for_each: aws.s3tables.get_table
   calls:
@@ -59,6 +69,12 @@ discovery:
   emit:
     as: item
     items_for: '{{ response.namespace }}'
+    item:
+      createdAt: '{{ response.createdAt }}'
+      createdBy: '{{ response.createdBy }}'
+      namespaceId: '{{ response.namespaceId }}'
+      ownerAccountId: '{{ response.ownerAccountId }}'
+      tableBucketId: '{{ response.tableBucketId }}'
 - discovery_id: aws.s3tables.get_table_bucket
   for_each: aws.s3tables.list_table_buckets
   calls:
@@ -89,8 +105,9 @@ discovery:
     item:
       Status: '{{ response.encryptionConfiguration.Status }}'
       Enabled: '{{ response.encryptionConfiguration.Enabled }}'
-      encryptionConfiguration: '{{ response.encryptionConfiguration.encryptionConfiguration
-        }}'
+      encryptionConfiguration: '{{ response.encryptionConfiguration.encryptionConfiguration }}'
+      kmsKeyArn: '{{ response.encryptionConfiguration.kmsKeyArn }}'
+      sseAlgorithm: '{{ response.encryptionConfiguration.sseAlgorithm }}'
 - discovery_id: aws.s3tables.get_table_bucket_maintenance_configuration
   for_each: aws.s3tables.list_table_buckets
   calls:
@@ -143,8 +160,7 @@ discovery:
   emit:
     as: item
     item:
-      encryptionConfiguration: '{{ response.encryptionConfiguration.encryptionConfiguration
-        }}'
+      encryptionConfiguration: '{{ response.encryptionConfiguration.encryptionConfiguration }}'
       kmsKeyArn: '{{ response.encryptionConfiguration.kmsKeyArn }}'
       sseAlgorithm: '{{ response.encryptionConfiguration.sseAlgorithm }}'
 - discovery_id: aws.s3tables.get_table_maintenance_configuration
@@ -176,6 +192,7 @@ discovery:
     as: item
     item:
       status: '{{ response.status }}'
+      tableARN: '{{ response.tableARN }}'
 - discovery_id: aws.s3tables.get_table_metadata_location
   for_each: aws.s3tables.get_table
   calls:
@@ -224,6 +241,7 @@ discovery:
       namespaceId: '{{ item.namespaceId }}'
       ownerAccountId: '{{ item.ownerAccountId }}'
       tableBucketId: '{{ item.tableBucketId }}'
+      continuationToken: '{{ response.continuationToken }}'
 - discovery_id: aws.s3tables.list_tables
   for_each: aws.s3tables.list_table_buckets
   calls:
@@ -244,6 +262,7 @@ discovery:
       tableARN: '{{ item.tableARN }}'
       tableBucketId: '{{ item.tableBucketId }}'
       type: '{{ item.type }}'
+      continuationToken: '{{ response.continuationToken }}'
 - discovery_id: aws.s3tables.list_tags_for_resource
   calls:
   - action: list_tags_for_resource

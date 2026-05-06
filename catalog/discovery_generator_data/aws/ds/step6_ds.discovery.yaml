@@ -25,16 +25,14 @@ discovery:
       AvailabilityZone: '{{ item.AvailabilityZone }}'
       CaEnrollmentPolicyStatus: '{{ item.CaEnrollmentPolicyStatus }}'
       CaEnrollmentPolicyStatusReason: '{{ item.CaEnrollmentPolicyStatusReason }}'
-      ClientAuthenticationSettingsInfo: '{{ item.ClientAuthenticationSettingsInfo
-        }}'
+      ClientAuthenticationSettingsInfo: '{{ item.ClientAuthenticationSettingsInfo }}'
       ConditionalForwarders: '{{ item.ConditionalForwarders }}'
       ConnectSettings: '{{ item.ConnectSettings }}'
       DataAccessStatus: '{{ item.DataAccessStatus }}'
       Description: '{{ item.Description }}'
-      DesiredNumberOfDomainControllers: '{{ item.DesiredNumberOfDomainControllers
-        }}'
+      DesiredNumberOfDomainControllers: '{{ item.DesiredNumberOfDomainControllers }}'
       DestinationArn: '{{ item.DestinationArn }}'
-      DirectoryDescriptions: '{{ item.DirectoryDescriptions }}'
+      DirectoryDescriptions: '{{ item.DirectoryDescriptions[].Type }}'
       DirectoryId: '{{ item.DirectoryId }}'
       DnsIpAddr: '{{ item.DnsIpAddr }}'
       DnsIpAddrs: '{{ item.DnsIpAddrs }}'
@@ -147,24 +145,15 @@ discovery:
   emit:
     as: item
     item:
-      CloudOnlyDirectoriesCurrentCount: '{{ response.DirectoryLimits.CloudOnlyDirectoriesCurrentCount
-        }}'
-      CloudOnlyDirectoriesLimit: '{{ response.DirectoryLimits.CloudOnlyDirectoriesLimit
-        }}'
-      CloudOnlyDirectoriesLimitReached: '{{ response.DirectoryLimits.CloudOnlyDirectoriesLimitReached
-        }}'
-      CloudOnlyMicrosoftADCurrentCount: '{{ response.DirectoryLimits.CloudOnlyMicrosoftADCurrentCount
-        }}'
-      CloudOnlyMicrosoftADLimit: '{{ response.DirectoryLimits.CloudOnlyMicrosoftADLimit
-        }}'
-      CloudOnlyMicrosoftADLimitReached: '{{ response.DirectoryLimits.CloudOnlyMicrosoftADLimitReached
-        }}'
-      ConnectedDirectoriesCurrentCount: '{{ response.DirectoryLimits.ConnectedDirectoriesCurrentCount
-        }}'
-      ConnectedDirectoriesLimit: '{{ response.DirectoryLimits.ConnectedDirectoriesLimit
-        }}'
-      ConnectedDirectoriesLimitReached: '{{ response.DirectoryLimits.ConnectedDirectoriesLimitReached
-        }}'
+      CloudOnlyDirectoriesCurrentCount: '{{ response.DirectoryLimits.CloudOnlyDirectoriesCurrentCount }}'
+      CloudOnlyDirectoriesLimit: '{{ response.DirectoryLimits.CloudOnlyDirectoriesLimit }}'
+      CloudOnlyDirectoriesLimitReached: '{{ response.DirectoryLimits.CloudOnlyDirectoriesLimitReached }}'
+      CloudOnlyMicrosoftADCurrentCount: '{{ response.DirectoryLimits.CloudOnlyMicrosoftADCurrentCount }}'
+      CloudOnlyMicrosoftADLimit: '{{ response.DirectoryLimits.CloudOnlyMicrosoftADLimit }}'
+      CloudOnlyMicrosoftADLimitReached: '{{ response.DirectoryLimits.CloudOnlyMicrosoftADLimitReached }}'
+      ConnectedDirectoriesCurrentCount: '{{ response.DirectoryLimits.ConnectedDirectoriesCurrentCount }}'
+      ConnectedDirectoriesLimit: '{{ response.DirectoryLimits.ConnectedDirectoriesLimit }}'
+      ConnectedDirectoriesLimitReached: '{{ response.DirectoryLimits.ConnectedDirectoriesLimitReached }}'
       DirectoryLimits: '{{ response.DirectoryLimits.DirectoryLimits }}'
 - discovery_id: aws.ds.list_ad_assessments
   calls:
@@ -221,8 +210,7 @@ discovery:
     as: item
     item:
       CaEnrollmentPolicyStatus: '{{ response.CaEnrollmentPolicyStatus }}'
-      CaEnrollmentPolicyStatusReason: '{{ response.CaEnrollmentPolicyStatusReason
-        }}'
+      CaEnrollmentPolicyStatusReason: '{{ response.CaEnrollmentPolicyStatusReason }}'
       PcaConnectorArn: '{{ response.PcaConnectorArn }}'
       Statement: '{{ response.Statement }}'
       Version: '{{ response.Version }}'
@@ -239,14 +227,15 @@ discovery:
     as: item
     item:
       State: '{{ response.Certificate.State }}'
-      Certificate: '{{ response.Certificate.Certificate }}'
+      Certificate: '{{ response.Certificate.CertificateId }}'
       CertificateId: '{{ response.Certificate.CertificateId }}'
-      ClientCertAuthSettings: '{{ response.Certificate.ClientCertAuthSettings }}'
+      ClientCertAuthSettings: '{{ response.Certificate.ClientCertAuthSettings.OCSPUrl }}'
       CommonName: '{{ response.Certificate.CommonName }}'
       ExpiryDateTime: '{{ response.Certificate.ExpiryDateTime }}'
       RegisteredDateTime: '{{ response.Certificate.RegisteredDateTime }}'
       StateReason: '{{ response.Certificate.StateReason }}'
       Type: '{{ response.Certificate.Type }}'
+      OCSPUrl: '{{ response.Certificate.ClientCertAuthSettings.OCSPUrl }}'
 - discovery_id: aws.ds.describe_client_authentication_settings
   for_each: aws.ds.describe_directories
   calls:
@@ -260,8 +249,7 @@ discovery:
     items_for: '{{ response.ClientAuthenticationSettingsInfo }}'
     item:
       Status: '{{ item.Status }}'
-      ClientAuthenticationSettingsInfo: '{{ item.ClientAuthenticationSettingsInfo
-        }}'
+      ClientAuthenticationSettingsInfo: '{{ item.ClientAuthenticationSettingsInfo[].Type }}'
       LastUpdatedDateTime: '{{ item.LastUpdatedDateTime }}'
       Type: '{{ item.Type }}'
 - discovery_id: aws.ds.describe_conditional_forwarders
@@ -328,8 +316,7 @@ discovery:
   emit:
     as: item
     item:
-      HybridAdministratorAccount: '{{ response.UpdateActivities.HybridAdministratorAccount
-        }}'
+      HybridAdministratorAccount: '{{ response.UpdateActivities.HybridAdministratorAccount }}'
       SelfManagedInstances: '{{ response.UpdateActivities.SelfManagedInstances }}'
       UpdateActivities: '{{ response.UpdateActivities.UpdateActivities }}'
 - discovery_id: aws.ds.describe_ldaps_settings
@@ -361,8 +348,7 @@ discovery:
     items_for: '{{ response.RegionsDescription }}'
     item:
       Status: '{{ item.Status }}'
-      DesiredNumberOfDomainControllers: '{{ item.DesiredNumberOfDomainControllers
-        }}'
+      DesiredNumberOfDomainControllers: '{{ item.DesiredNumberOfDomainControllers }}'
       DirectoryId: '{{ item.DirectoryId }}'
       DomainControllers: '{{ item.DomainControllers }}'
       LastUpdatedDateTime: '{{ item.LastUpdatedDateTime }}'
@@ -396,6 +382,7 @@ discovery:
       RequestedValue: '{{ item.RequestedValue }}'
       SettingEntries: '{{ item.SettingEntries }}'
       Type: '{{ item.Type }}'
+      DirectoryId: '{{ response.DirectoryId }}'
 - discovery_id: aws.ds.describe_shared_directories
   calls:
   - action: describe_shared_directories
@@ -446,12 +433,10 @@ discovery:
   emit:
     as: item
     item:
-      ManualSnapshotsCurrentCount: '{{ response.SnapshotLimits.ManualSnapshotsCurrentCount
-        }}'
+      ManualSnapshotsCurrentCount: '{{ response.SnapshotLimits.ManualSnapshotsCurrentCount }}'
       ManualSnapshotsLimit: '{{ response.SnapshotLimits.ManualSnapshotsLimit }}'
-      ManualSnapshotsLimitReached: '{{ response.SnapshotLimits.ManualSnapshotsLimitReached
-        }}'
-      SnapshotLimits: '{{ response.SnapshotLimits.SnapshotLimits }}'
+      ManualSnapshotsLimitReached: '{{ response.SnapshotLimits.ManualSnapshotsLimitReached }}'
+      SnapshotLimits: '{{ response.SnapshotLimits.ManualSnapshotsLimit }}'
 - discovery_id: aws.ds.list_certificates
   for_each: aws.ds.describe_directories
   calls:

@@ -17,9 +17,10 @@ discovery:
       Enabled: '{{ response.accountSettingsDetail.Enabled }}'
       Format: '{{ response.accountSettingsDetail.Format }}'
       Level: '{{ response.accountSettingsDetail.Level }}'
-      accountSettingsDetail: '{{ response.accountSettingsDetail.accountSettingsDetail
-        }}'
+      accountSettingsDetail: '{{ response.accountSettingsDetail.accountSettingsDetail }}'
       capacityLimits: '{{ response.accountSettingsDetail.capacityLimits }}'
+      maxIndexingCapacityInOCU: '{{ response.accountSettingsDetail.capacityLimits.maxIndexingCapacityInOCU }}'
+      maxSearchCapacityInOCU: '{{ response.accountSettingsDetail.capacityLimits.maxSearchCapacityInOCU }}'
 - discovery_id: aws.opensearchserverless.get_policies_stats
   calls:
   - action: get_policies_stats
@@ -34,8 +35,12 @@ discovery:
       SecurityConfigStats: '{{ response.AccessPolicyStats.SecurityConfigStats }}'
       SecurityPolicyStats: '{{ response.AccessPolicyStats.SecurityPolicyStats }}'
       Statement: '{{ response.AccessPolicyStats.Statement }}'
-      TotalPolicyCount: '{{ response.AccessPolicyStats.TotalPolicyCount }}'
+      TotalPolicyCount: '{{ response.AccessPolicyStats.DataPolicyCount }}'
       Version: '{{ response.AccessPolicyStats.Version }}'
+      RetentionPolicyCount: '{{ response.LifecyclePolicyStats.RetentionPolicyCount }}'
+      SamlConfigCount: '{{ response.SecurityConfigStats.SamlConfigCount }}'
+      EncryptionPolicyCount: '{{ response.SecurityPolicyStats.EncryptionPolicyCount }}'
+      NetworkPolicyCount: '{{ response.SecurityPolicyStats.NetworkPolicyCount }}'
 - discovery_id: aws.opensearchserverless.list_collections
   calls:
   - action: list_collections
@@ -49,6 +54,7 @@ discovery:
       id: '{{ item.id }}'
       name: '{{ item.name }}'
       status: '{{ item.status }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.opensearchserverless.list_vpc_endpoints
   calls:
   - action: list_vpc_endpoints
@@ -61,6 +67,7 @@ discovery:
       id: '{{ item.id }}'
       name: '{{ item.name }}'
       status: '{{ item.status }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.opensearchserverless.get_access_policy
   for_each: aws.opensearchserverless.list_collections
   calls:
@@ -77,10 +84,10 @@ discovery:
       description: '{{ response.accessPolicyDetail.description }}'
       lastModifiedDate: '{{ response.accessPolicyDetail.lastModifiedDate }}'
       name: '{{ response.accessPolicyDetail.name }}'
-      policy: '{{ response.accessPolicyDetail.policy }}'
+      policy: '{{ response.accessPolicyDetail.policyVersion }}'
       policyVersion: '{{ response.accessPolicyDetail.policyVersion }}'
       type: '{{ response.accessPolicyDetail.type }}'
-      accessPolicyDetail: '{{ response.accessPolicyDetail }}'
+      accessPolicyDetail: '{{ response.accessPolicyDetail.type }}'
 - discovery_id: aws.opensearchserverless.get_index
   calls:
   - action: get_index
@@ -104,15 +111,22 @@ discovery:
       configVersion: '{{ response.securityConfigDetail.configVersion }}'
       createdDate: '{{ response.securityConfigDetail.createdDate }}'
       description: '{{ response.securityConfigDetail.description }}'
-      iamFederationOptions: '{{ response.securityConfigDetail.iamFederationOptions
-        }}'
-      iamIdentityCenterOptions: '{{ response.securityConfigDetail.iamIdentityCenterOptions
-        }}'
+      iamFederationOptions: '{{ response.securityConfigDetail.iamFederationOptions }}'
+      iamIdentityCenterOptions: '{{ response.securityConfigDetail.iamIdentityCenterOptions.instanceArn }}'
       id: '{{ response.securityConfigDetail.id }}'
       lastModifiedDate: '{{ response.securityConfigDetail.lastModifiedDate }}'
-      samlOptions: '{{ response.securityConfigDetail.samlOptions }}'
+      samlOptions: '{{ response.securityConfigDetail.samlOptions.metadata }}'
       type: '{{ response.securityConfigDetail.type }}'
-      securityConfigDetail: '{{ response.securityConfigDetail }}'
+      securityConfigDetail: '{{ response.securityConfigDetail.id }}'
+      applicationArn: '{{ response.securityConfigDetail.iamIdentityCenterOptions.applicationArn }}'
+      applicationDescription: '{{ response.securityConfigDetail.iamIdentityCenterOptions.applicationDescription }}'
+      applicationName: '{{ response.securityConfigDetail.iamIdentityCenterOptions.applicationName }}'
+      groupAttribute: '{{ response.securityConfigDetail.iamIdentityCenterOptions.groupAttribute }}'
+      instanceArn: '{{ response.securityConfigDetail.iamIdentityCenterOptions.instanceArn }}'
+      userAttribute: '{{ response.securityConfigDetail.iamIdentityCenterOptions.userAttribute }}'
+      metadata: '{{ response.securityConfigDetail.samlOptions.metadata }}'
+      openSearchServerlessEntityId: '{{ response.securityConfigDetail.samlOptions.openSearchServerlessEntityId }}'
+      sessionTimeout: '{{ response.securityConfigDetail.samlOptions.sessionTimeout }}'
 - discovery_id: aws.opensearchserverless.get_security_policy
   for_each: aws.opensearchserverless.list_collections
   calls:
@@ -129,10 +143,10 @@ discovery:
       description: '{{ response.securityPolicyDetail.description }}'
       lastModifiedDate: '{{ response.securityPolicyDetail.lastModifiedDate }}'
       name: '{{ response.securityPolicyDetail.name }}'
-      policy: '{{ response.securityPolicyDetail.policy }}'
+      policy: '{{ response.securityPolicyDetail.policyVersion }}'
       policyVersion: '{{ response.securityPolicyDetail.policyVersion }}'
       type: '{{ response.securityPolicyDetail.type }}'
-      securityPolicyDetail: '{{ response.securityPolicyDetail }}'
+      securityPolicyDetail: '{{ response.securityPolicyDetail.type }}'
 - discovery_id: aws.opensearchserverless.list_access_policies
   calls:
   - action: list_access_policies
@@ -148,6 +162,7 @@ discovery:
       name: '{{ item.name }}'
       policyVersion: '{{ item.policyVersion }}'
       type: '{{ item.type }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.opensearchserverless.list_lifecycle_policies
   calls:
   - action: list_lifecycle_policies
@@ -163,6 +178,7 @@ discovery:
       name: '{{ item.name }}'
       policyVersion: '{{ item.policyVersion }}'
       type: '{{ item.type }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.opensearchserverless.list_security_configs
   calls:
   - action: list_security_configs
@@ -178,6 +194,7 @@ discovery:
       id: '{{ item.id }}'
       lastModifiedDate: '{{ item.lastModifiedDate }}'
       type: '{{ item.type }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.opensearchserverless.list_security_policies
   calls:
   - action: list_security_policies
@@ -193,6 +210,7 @@ discovery:
       name: '{{ item.name }}'
       policyVersion: '{{ item.policyVersion }}'
       type: '{{ item.type }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.opensearchserverless.list_tags_for_resource
   calls:
   - action: list_tags_for_resource

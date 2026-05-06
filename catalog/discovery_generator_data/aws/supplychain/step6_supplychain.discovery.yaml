@@ -36,6 +36,7 @@ discovery:
       transformation: '{{ item.transformation }}'
       versionNumber: '{{ item.versionNumber }}'
       webAppDnsDomain: '{{ item.webAppDnsDomain }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.supplychain.get_bill_of_materials_import_job
   for_each: aws.supplychain.list_instances
   calls:
@@ -49,7 +50,7 @@ discovery:
     as: item
     item:
       instanceId: '{{ response.job.instanceId }}'
-      job: '{{ response.job.job }}'
+      job: '{{ response.job.jobId }}'
       jobId: '{{ response.job.jobId }}'
       message: '{{ response.job.message }}'
       s3uri: '{{ response.job.s3uri }}'
@@ -66,12 +67,16 @@ discovery:
   emit:
     as: item
     item:
-      event: '{{ response.event.event }}'
+      event: '{{ response.event.eventId }}'
       eventGroupId: '{{ response.event.eventGroupId }}'
       eventId: '{{ response.event.eventId }}'
       eventTimestamp: '{{ response.event.eventTimestamp }}'
       eventType: '{{ response.event.eventType }}'
       instanceId: '{{ response.event.instanceId }}'
+      datasetIdentifier: '{{ response.event.datasetTargetDetails.datasetIdentifier }}'
+      message: '{{ response.event.datasetTargetDetails.datasetLoadExecution.message }}'
+      status: '{{ response.event.datasetTargetDetails.datasetLoadExecution.status }}'
+      operationType: '{{ response.event.datasetTargetDetails.operationType }}'
 - discovery_id: aws.supplychain.get_data_integration_flow
   for_each: aws.supplychain.list_instances
   calls:
@@ -88,6 +93,16 @@ discovery:
       flow: '{{ response.flow.flow }}'
       instanceId: '{{ response.flow.instanceId }}'
       lastModifiedTime: '{{ response.flow.lastModifiedTime }}'
+      name: '{{ response.flow.name }}'
+      datasetIdentifier: '{{ response.flow.target.datasetTarget.datasetIdentifier }}'
+      dedupeRecords: '{{ response.flow.target.datasetTarget.options.dedupeRecords }}'
+      loadType: '{{ response.flow.target.datasetTarget.options.loadType }}'
+      bucketName: '{{ response.flow.target.s3Target.bucketName }}'
+      fileType: '{{ response.flow.target.s3Target.options.fileType }}'
+      prefix: '{{ response.flow.target.s3Target.prefix }}'
+      targetType: '{{ response.flow.target.targetType }}'
+      query: '{{ response.flow.transformation.sqlTransformation.query }}'
+      transformationType: '{{ response.flow.transformation.transformationType }}'
 - discovery_id: aws.supplychain.get_data_integration_flow_execution
   for_each: aws.supplychain.list_instances
   calls:
@@ -107,6 +122,13 @@ discovery:
       instanceId: '{{ response.flowExecution.instanceId }}'
       message: '{{ response.flowExecution.message }}'
       status: '{{ response.flowExecution.status }}'
+      endTime: '{{ response.flowExecution.endTime }}'
+      diagnosticReportsRootS3URI: '{{ response.flowExecution.outputMetadata.diagnosticReportsRootS3URI }}'
+      datasetIdentifier: '{{ response.flowExecution.sourceInfo.datasetSource.datasetIdentifier }}'
+      bucketName: '{{ response.flowExecution.sourceInfo.s3Source.bucketName }}'
+      key: '{{ response.flowExecution.sourceInfo.s3Source.key }}'
+      sourceType: '{{ response.flowExecution.sourceInfo.sourceType }}'
+      startTime: '{{ response.flowExecution.startTime }}'
 - discovery_id: aws.supplychain.get_data_lake_dataset
   for_each: aws.supplychain.list_instances
   calls:
@@ -161,7 +183,7 @@ discovery:
       awsAccountId: '{{ response.instance.awsAccountId }}'
       createdTime: '{{ response.instance.createdTime }}'
       errorMessage: '{{ response.instance.errorMessage }}'
-      instance: '{{ response.instance.instance }}'
+      instance: '{{ response.instance.instanceId }}'
       instanceDescription: '{{ response.instance.instanceDescription }}'
       instanceId: '{{ response.instance.instanceId }}'
       instanceName: '{{ response.instance.instanceName }}'
@@ -189,6 +211,7 @@ discovery:
       eventTimestamp: '{{ item.eventTimestamp }}'
       eventType: '{{ item.eventType }}'
       instanceId: '{{ item.instanceId }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.supplychain.list_data_integration_flow_executions
   for_each: aws.supplychain.list_instances
   calls:
@@ -213,6 +236,7 @@ discovery:
       sourceInfo: '{{ item.sourceInfo }}'
       startTime: '{{ item.startTime }}'
       status: '{{ item.status }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.supplychain.list_data_integration_flows
   for_each: aws.supplychain.list_instances
   calls:
@@ -237,6 +261,7 @@ discovery:
       startTime: '{{ item.startTime }}'
       target: '{{ item.target }}'
       transformation: '{{ item.transformation }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.supplychain.list_data_lake_datasets
   for_each: aws.supplychain.list_instances
   calls:
@@ -259,6 +284,7 @@ discovery:
       namespace: '{{ item.namespace }}'
       partitionSpec: '{{ item.partitionSpec }}'
       schema: '{{ item.schema }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.supplychain.list_data_lake_namespaces
   for_each: aws.supplychain.list_instances
   calls:
@@ -277,6 +303,7 @@ discovery:
       instanceId: '{{ item.instanceId }}'
       lastModifiedTime: '{{ item.lastModifiedTime }}'
       name: '{{ item.name }}'
+      nextToken: '{{ response.nextToken }}'
 - discovery_id: aws.supplychain.list_tags_for_resource
   calls:
   - action: list_tags_for_resource

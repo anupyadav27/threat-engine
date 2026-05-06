@@ -34,8 +34,7 @@ discovery:
     as: item
     items_for: '{{ response.Entitlements }}'
     item:
-      DataTransferSubscriberFeePercent: '{{ item.DataTransferSubscriberFeePercent
-        }}'
+      DataTransferSubscriberFeePercent: '{{ item.DataTransferSubscriberFeePercent }}'
       EntitlementArn: '{{ item.EntitlementArn }}'
       EntitlementName: '{{ item.EntitlementName }}'
 - discovery_id: aws.mediaconnect.list_flows
@@ -204,14 +203,21 @@ discovery:
     item:
       Name: '{{ response.Bridge.Name }}'
       BridgeArn: '{{ response.Bridge.BridgeArn }}'
-      BridgeMessages: '{{ response.Bridge.BridgeMessages }}'
+      BridgeMessages: '{{ response.Bridge.BridgeMessages[].Code }}'
       BridgeState: '{{ response.Bridge.BridgeState }}'
       EgressGatewayBridge: '{{ response.Bridge.EgressGatewayBridge }}'
       IngressGatewayBridge: '{{ response.Bridge.IngressGatewayBridge }}'
       Outputs: '{{ response.Bridge.Outputs }}'
       PlacementArn: '{{ response.Bridge.PlacementArn }}'
-      SourceFailoverConfig: '{{ response.Bridge.SourceFailoverConfig }}'
+      SourceFailoverConfig: '{{ response.Bridge.SourceFailoverConfig.State }}'
       Sources: '{{ response.Bridge.Sources }}'
+      InstanceId: '{{ response.Bridge.EgressGatewayBridge.InstanceId }}'
+      MaxBitrate: '{{ response.Bridge.EgressGatewayBridge.MaxBitrate }}'
+      MaxOutputs: '{{ response.Bridge.IngressGatewayBridge.MaxOutputs }}'
+      FailoverMode: '{{ response.Bridge.SourceFailoverConfig.FailoverMode }}'
+      RecoveryWindow: '{{ response.Bridge.SourceFailoverConfig.RecoveryWindow }}'
+      PrimarySource: '{{ response.Bridge.SourceFailoverConfig.SourcePriority.PrimarySource }}'
+      State: '{{ response.Bridge.SourceFailoverConfig.State }}'
 - discovery_id: aws.mediaconnect.describe_flow
   for_each: aws.mediaconnect.list_flows
   calls:
@@ -232,14 +238,57 @@ discovery:
       FlowArn: '{{ response.Flow.FlowArn }}'
       FlowSize: '{{ response.Flow.FlowSize }}'
       Maintenance: '{{ response.Flow.Maintenance }}'
-      MediaStreams: '{{ response.Flow.MediaStreams }}'
+      MediaStreams: '{{ response.Flow.MediaStreams[].Fmt }}'
       NdiConfig: '{{ response.Flow.NdiConfig }}'
       Outputs: '{{ response.Flow.Outputs }}'
       Source: '{{ response.Flow.Source }}'
-      SourceFailoverConfig: '{{ response.Flow.SourceFailoverConfig }}'
+      SourceFailoverConfig: '{{ response.Flow.SourceFailoverConfig.State }}'
       SourceMonitoringConfig: '{{ response.Flow.SourceMonitoringConfig }}'
       Sources: '{{ response.Flow.Sources }}'
       VpcInterfaces: '{{ response.Flow.VpcInterfaces }}'
+      MaintenanceDay: '{{ response.Flow.Maintenance.MaintenanceDay }}'
+      MaintenanceDeadline: '{{ response.Flow.Maintenance.MaintenanceDeadline }}'
+      MaintenanceScheduledDate: '{{ response.Flow.Maintenance.MaintenanceScheduledDate }}'
+      MaintenanceStartHour: '{{ response.Flow.Maintenance.MaintenanceStartHour }}'
+      MachineName: '{{ response.Flow.NdiConfig.MachineName }}'
+      NdiState: '{{ response.Flow.NdiConfig.NdiState }}'
+      FailoverMode: '{{ response.Flow.SourceFailoverConfig.FailoverMode }}'
+      RecoveryWindow: '{{ response.Flow.SourceFailoverConfig.RecoveryWindow }}'
+      PrimarySource: '{{ response.Flow.SourceFailoverConfig.SourcePriority.PrimarySource }}'
+      State: '{{ response.Flow.SourceFailoverConfig.State }}'
+      ContentQualityAnalysisState: '{{ response.Flow.SourceMonitoringConfig.ContentQualityAnalysisState }}'
+      ThumbnailState: '{{ response.Flow.SourceMonitoringConfig.ThumbnailState }}'
+      DataTransferSubscriberFeePercent: '{{ response.Flow.Source.DataTransferSubscriberFeePercent }}'
+      Algorithm: '{{ response.Flow.Source.Decryption.Algorithm }}'
+      ConstantInitializationVector: '{{ response.Flow.Source.Decryption.ConstantInitializationVector }}'
+      DeviceId: '{{ response.Flow.Source.Decryption.DeviceId }}'
+      KeyType: '{{ response.Flow.Source.Decryption.KeyType }}'
+      Region: '{{ response.Flow.Source.Decryption.Region }}'
+      ResourceId: '{{ response.Flow.Source.Decryption.ResourceId }}'
+      RoleArn: '{{ response.Flow.Source.Decryption.RoleArn }}'
+      SecretArn: '{{ response.Flow.Source.Decryption.SecretArn }}'
+      Url: '{{ response.Flow.Source.Decryption.Url }}'
+      EntitlementArn: '{{ response.Flow.Source.EntitlementArn }}'
+      BridgeArn: '{{ response.Flow.Source.GatewayBridgeSource.BridgeArn }}'
+      VpcInterfaceName: '{{ response.Flow.Source.GatewayBridgeSource.VpcInterfaceAttachment.VpcInterfaceName }}'
+      IngestIp: '{{ response.Flow.Source.IngestIp }}'
+      IngestPort: '{{ response.Flow.Source.IngestPort }}'
+      SenderControlPort: '{{ response.Flow.Source.SenderControlPort }}'
+      SenderIpAddress: '{{ response.Flow.Source.SenderIpAddress }}'
+      SourceArn: '{{ response.Flow.Source.SourceArn }}'
+      MaxBitrate: '{{ response.Flow.Source.Transport.MaxBitrate }}'
+      MaxLatency: '{{ response.Flow.Source.Transport.MaxLatency }}'
+      MaxSyncBuffer: '{{ response.Flow.Source.Transport.MaxSyncBuffer }}'
+      MinLatency: '{{ response.Flow.Source.Transport.MinLatency }}'
+      NdiProgramName: '{{ response.Flow.Source.Transport.NdiProgramName }}'
+      NdiSpeedHqQuality: '{{ response.Flow.Source.Transport.NdiSpeedHqQuality }}'
+      Protocol: '{{ response.Flow.Source.Transport.Protocol }}'
+      RemoteId: '{{ response.Flow.Source.Transport.RemoteId }}'
+      SmoothingLatency: '{{ response.Flow.Source.Transport.SmoothingLatency }}'
+      SourceListenerAddress: '{{ response.Flow.Source.Transport.SourceListenerAddress }}'
+      SourceListenerPort: '{{ response.Flow.Source.Transport.SourceListenerPort }}'
+      StreamId: '{{ response.Flow.Source.Transport.StreamId }}'
+      WhitelistCidr: '{{ response.Flow.Source.WhitelistCidr }}'
 - discovery_id: aws.mediaconnect.describe_flow_source_metadata
   for_each: aws.mediaconnect.list_flows
   calls:
@@ -255,6 +304,8 @@ discovery:
       ResourceName: '{{ item.ResourceName }}'
       Code: '{{ item.Code }}'
       Message: '{{ item.Message }}'
+      FlowArn: '{{ response.FlowArn }}'
+      Timestamp: '{{ response.Timestamp }}'
 - discovery_id: aws.mediaconnect.describe_flow_source_thumbnail
   for_each: aws.mediaconnect.list_flows
   calls:
@@ -268,7 +319,7 @@ discovery:
     item:
       FlowArn: '{{ response.ThumbnailDetails.FlowArn }}'
       Thumbnail: '{{ response.ThumbnailDetails.Thumbnail }}'
-      ThumbnailMessages: '{{ response.ThumbnailDetails.ThumbnailMessages }}'
+      ThumbnailMessages: '{{ response.ThumbnailDetails.ThumbnailMessages[].Code }}'
       Timecode: '{{ response.ThumbnailDetails.Timecode }}'
       Timestamp: '{{ response.ThumbnailDetails.Timestamp }}'
 - discovery_id: aws.mediaconnect.describe_gateway
@@ -285,7 +336,7 @@ discovery:
       Name: '{{ response.Gateway.Name }}'
       EgressCidrBlocks: '{{ response.Gateway.EgressCidrBlocks }}'
       GatewayArn: '{{ response.Gateway.GatewayArn }}'
-      GatewayMessages: '{{ response.Gateway.GatewayMessages }}'
+      GatewayMessages: '{{ response.Gateway.GatewayMessages[].Code }}'
       GatewayState: '{{ response.Gateway.GatewayState }}'
       Networks: '{{ response.Gateway.Networks }}'
 - discovery_id: aws.mediaconnect.describe_gateway_instance
@@ -305,7 +356,7 @@ discovery:
       GatewayArn: '{{ response.GatewayInstance.GatewayArn }}'
       GatewayInstanceArn: '{{ response.GatewayInstance.GatewayInstanceArn }}'
       InstanceId: '{{ response.GatewayInstance.InstanceId }}'
-      InstanceMessages: '{{ response.GatewayInstance.InstanceMessages }}'
+      InstanceMessages: '{{ response.GatewayInstance.InstanceMessages[].Code }}'
       RunningBridgeCount: '{{ response.GatewayInstance.RunningBridgeCount }}'
 - discovery_id: aws.mediaconnect.describe_offering
   for_each: aws.mediaconnect.list_offerings
@@ -321,12 +372,14 @@ discovery:
       CurrencyCode: '{{ response.Offering.CurrencyCode }}'
       Duration: '{{ response.Offering.Duration }}'
       DurationUnits: '{{ response.Offering.DurationUnits }}'
-      Offering: '{{ response.Offering.Offering }}'
+      Offering: '{{ response.Offering.OfferingArn }}'
       OfferingArn: '{{ response.Offering.OfferingArn }}'
       OfferingDescription: '{{ response.Offering.OfferingDescription }}'
       PricePerUnit: '{{ response.Offering.PricePerUnit }}'
       PriceUnits: '{{ response.Offering.PriceUnits }}'
       ResourceSpecification: '{{ response.Offering.ResourceSpecification }}'
+      ReservedBitrate: '{{ response.Offering.ResourceSpecification.ReservedBitrate }}'
+      ResourceType: '{{ response.Offering.ResourceSpecification.ResourceType }}'
 - discovery_id: aws.mediaconnect.describe_reservation
   for_each: aws.mediaconnect.list_reservations
   calls:
@@ -346,12 +399,14 @@ discovery:
       OfferingDescription: '{{ response.Reservation.OfferingDescription }}'
       PricePerUnit: '{{ response.Reservation.PricePerUnit }}'
       PriceUnits: '{{ response.Reservation.PriceUnits }}'
-      Reservation: '{{ response.Reservation.Reservation }}'
+      Reservation: '{{ response.Reservation.ReservationArn }}'
       ReservationArn: '{{ response.Reservation.ReservationArn }}'
       ReservationName: '{{ response.Reservation.ReservationName }}'
       ReservationState: '{{ response.Reservation.ReservationState }}'
       ResourceSpecification: '{{ response.Reservation.ResourceSpecification }}'
       Start: '{{ response.Reservation.Start }}'
+      ReservedBitrate: '{{ response.Reservation.ResourceSpecification.ReservedBitrate }}'
+      ResourceType: '{{ response.Reservation.ResourceSpecification.ResourceType }}'
 - discovery_id: aws.mediaconnect.get_router_input
   for_each: aws.mediaconnect.list_router_inputs
   calls:
@@ -373,8 +428,7 @@ discovery:
       CreatedAt: '{{ response.RouterInput.CreatedAt }}'
       InputType: '{{ response.RouterInput.InputType }}'
       IpAddress: '{{ response.RouterInput.IpAddress }}'
-      MaintenanceConfiguration: '{{ response.RouterInput.MaintenanceConfiguration
-        }}'
+      MaintenanceConfiguration: '{{ response.RouterInput.MaintenanceConfiguration }}'
       MaintenanceSchedule: '{{ response.RouterInput.MaintenanceSchedule }}'
       MaintenanceScheduleType: '{{ response.RouterInput.MaintenanceScheduleType }}'
       MaintenanceType: '{{ response.RouterInput.MaintenanceType }}'
@@ -399,10 +453,8 @@ discovery:
   emit:
     as: item
     item:
-      RouterInputMetadata: '{{ response.SourceMetadataDetails.RouterInputMetadata
-        }}'
-      SourceMetadataMessages: '{{ response.SourceMetadataDetails.SourceMetadataMessages
-        }}'
+      RouterInputMetadata: '{{ response.SourceMetadataDetails.RouterInputMetadata }}'
+      SourceMetadataMessages: '{{ response.SourceMetadataDetails.SourceMetadataMessages }}'
       Timestamp: '{{ response.SourceMetadataDetails.Timestamp }}'
 - discovery_id: aws.mediaconnect.get_router_input_thumbnail
   for_each: aws.mediaconnect.list_router_inputs
@@ -435,14 +487,11 @@ discovery:
       Name: '{{ response.RouterNetworkInterface.Name }}'
       State: '{{ response.RouterNetworkInterface.State }}'
       Tags: '{{ response.RouterNetworkInterface.Tags }}'
-      AssociatedInputCount: '{{ response.RouterNetworkInterface.AssociatedInputCount
-        }}'
-      AssociatedOutputCount: '{{ response.RouterNetworkInterface.AssociatedOutputCount
-        }}'
+      AssociatedInputCount: '{{ response.RouterNetworkInterface.AssociatedInputCount }}'
+      AssociatedOutputCount: '{{ response.RouterNetworkInterface.AssociatedOutputCount }}'
       Configuration: '{{ response.RouterNetworkInterface.Configuration }}'
       CreatedAt: '{{ response.RouterNetworkInterface.CreatedAt }}'
-      NetworkInterfaceType: '{{ response.RouterNetworkInterface.NetworkInterfaceType
-        }}'
+      NetworkInterfaceType: '{{ response.RouterNetworkInterface.NetworkInterfaceType }}'
       RegionName: '{{ response.RouterNetworkInterface.RegionName }}'
       UpdatedAt: '{{ response.RouterNetworkInterface.UpdatedAt }}'
 - discovery_id: aws.mediaconnect.get_router_output
@@ -465,8 +514,7 @@ discovery:
       Configuration: '{{ response.RouterOutput.Configuration }}'
       CreatedAt: '{{ response.RouterOutput.CreatedAt }}'
       IpAddress: '{{ response.RouterOutput.IpAddress }}'
-      MaintenanceConfiguration: '{{ response.RouterOutput.MaintenanceConfiguration
-        }}'
+      MaintenanceConfiguration: '{{ response.RouterOutput.MaintenanceConfiguration }}'
       MaintenanceSchedule: '{{ response.RouterOutput.MaintenanceSchedule }}'
       MaintenanceScheduleType: '{{ response.RouterOutput.MaintenanceScheduleType }}'
       MaintenanceType: '{{ response.RouterOutput.MaintenanceType }}'
