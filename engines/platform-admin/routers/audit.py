@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db import get_conn, put_conn
+from _schemas import PlatformAdminLenientResponse
 
 try:
     from engine_auth.fastapi.dependencies import require_permission  # type: ignore
@@ -26,7 +27,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["audit"])
 
 
-@router.get("/audit-log")
+@router.get("/audit-log", response_model=PlatformAdminLenientResponse, response_model_exclude_none=False)
 async def get_audit_log(
     org_id: Optional[str] = Query(None, description="Filter by target org_id"),
     action: Optional[str] = Query(None, description="Filter by action string prefix"),

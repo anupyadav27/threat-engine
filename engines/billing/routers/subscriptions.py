@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db import get_conn, put_conn
 from models import CancelRequest, ReactivateRequest
+from _schemas import BillingLenientResponse
 
 try:
     from engine_auth.fastapi.dependencies import require_permission
@@ -50,7 +51,7 @@ def _row_to_sub_dict(row: tuple, cols: list) -> Dict[str, Any]:
     return d
 
 
-@router.get("/subscription")
+@router.get("/subscription", response_model=BillingLenientResponse, response_model_exclude_none=False)
 async def get_subscription(
     org_id: str = Query(..., description="Organisation UUID"),
     auth: Any = Depends(
@@ -331,7 +332,7 @@ _FREE_TIER_DEFAULTS: Dict[str, Any] = {
 }
 
 
-@router.get("/context/{org_id}")
+@router.get("/context/{org_id}", response_model=BillingLenientResponse, response_model_exclude_none=False)
 async def get_subscription_context(org_id: str) -> Dict[str, Any]:
     """Return a flat subscription context dict for the API Gateway.
 

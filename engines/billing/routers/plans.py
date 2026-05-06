@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from db import get_conn, put_conn
 from models import CreatePlanRequest, UpdatePlanRequest
+from _schemas import BillingLenientResponse
 
 try:
     from engine_auth.fastapi.dependencies import require_permission
@@ -70,7 +71,7 @@ def _row_to_dict(row: tuple, cols: list) -> Dict[str, Any]:
     return d
 
 
-@router.get("/plans")
+@router.get("/plans", response_model=BillingLenientResponse, response_model_exclude_none=False)
 async def list_plans() -> Dict[str, Any]:
     """Return all active public subscription plans ordered by sort_order.
 
@@ -104,7 +105,7 @@ async def list_plans() -> Dict[str, Any]:
         put_conn(conn)
 
 
-@router.get("/plans/{plan_id}")
+@router.get("/plans/{plan_id}", response_model=BillingLenientResponse, response_model_exclude_none=False)
 async def get_plan(plan_id: str) -> Dict[str, Any]:
     """Return a single subscription plan by plan_id.
 

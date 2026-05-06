@@ -38,6 +38,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
 from .workloads import containers, images, hosts, serverless, runtime
 from .core.scorer import compute_cwpp_score, risk_band
@@ -153,6 +154,51 @@ WORKLOAD_META = {
 }
 
 
+# ── Response models (STORY-ENG-PYDANTIC-COVERAGE) ──────────────────────────
+
+
+class _CwppBase(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class HealthResponse(BaseModel):
+    status: str
+    service: Optional[str] = None
+    version: Optional[str] = None
+
+
+class CwppDashboardResponse(_CwppBase):
+    score: Optional[int] = None
+    risk_band: Optional[str] = None
+    workloads: Dict[str, Any] = Field(default_factory=dict)
+
+
+class CwppWorkloadDetailResponse(_CwppBase):
+    workload_type: str
+    data: Dict[str, Any] = Field(default_factory=dict)
+
+
+class CwppWorkloadsListResponse(_CwppBase):
+    workloads: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class CwppPostureResponse(_CwppBase):
+    score: int = 0
+    risk_band: Optional[str] = None
+    workload_scores: Dict[str, Any] = Field(default_factory=dict)
+
+
+class CwppScoreResponse(_CwppBase):
+    score: int = 0
+    risk_band: Optional[str] = None
+
+
+class CwppUiDataResponse(_CwppBase):
+    score: int = 0
+    risk_band: Optional[str] = None
+    workloads: Dict[str, Any] = Field(default_factory=dict)
+
+
 # ── Health ────────────────────────────────────────────────────────────────────
 
 @app.get("/")
@@ -166,17 +212,17 @@ async def root():
     }
 
 
-@app.get("/api/v1/health/live")
+@app.get("/api/v1/health/live", response_model=HealthResponse)
 async def liveness():
     return {"status": "alive"}
 
 
-@app.get("/api/v1/health/ready")
+@app.get("/api/v1/health/ready", response_model=HealthResponse)
 async def readiness():
     return {"status": "ready", "note": "no local DB — aggregation only"}
 
 
-@app.get("/api/v1/health")
+@app.get("/api/v1/health", response_model=HealthResponse)
 async def health():
     return {
         "status": "healthy",
@@ -261,7 +307,7 @@ async def _run_dashboard(
     }
 
 
-@app.get("/api/v1/cwpp/dashboard")
+@app.get("/api/v1/cwpp/dashboard", response_model=CwppDashboardResponse, response_model_exclude_none=False)
 async def dashboard(
     request: Request,
     scan_run_id: str = Query(..., description="scan_run_id to scope all workload queries"),
@@ -289,7 +335,7 @@ async def dashboard(
 
 # ── Single workload type ──────────────────────────────────────────────────────
 
-@app.get("/api/v1/cwpp/workloads/{workload_type}")
+@app.get("/api/v1/cwpp/workloads/{workload_type}", response_model=CwppWorkloadDetailResponse, response_model_exclude_none=False)
 async def get_workload(
     request: Request,
     workload_type: str,
@@ -315,7 +361,7 @@ async def get_workload(
 
 # ── Posture score (fast) ──────────────────────────────────────────────────────
 
-@app.get("/api/v1/cwpp/posture")
+@app.get("/api/v1/cwpp/posture", response_model=CwppPostureResponse, response_model_exclude_none=False)
 async def posture_score(
     scan_run_id: str = Query(...),
     auth: Any = Depends(require_permission("cwpp:read") if _AUTH_AVAILABLE else (lambda: None)),
@@ -365,7 +411,7 @@ _SCORE_PILLAR_MAP = {
 }
 
 
-@app.get("/api/v1/cwpp/score")
+@app.get("/api/v1/cwpp/score", response_model=CwppScoreResponse, response_model_exclude_none=False)
 async def cwpp_score(
     scan_run_id: str = Query(..., description="scan_run_id to scope all pillar score queries"),
     provider: str = Query(default="aws"),
@@ -455,7 +501,7 @@ async def cwpp_score(
 
 # ── Workload catalog ──────────────────────────────────────────────────────────
 
-@app.get("/api/v1/cwpp/workloads")
+@app.get("/api/v1/cwpp/workloads", response_model=CwppWorkloadsListResponse, response_model_exclude_none=False)
 async def list_workloads():
     """List all CWPP workload types with metadata about which engines they call."""
     return {
@@ -474,7 +520,7 @@ async def list_workloads():
 
 # ── CNAPP integration ─────────────────────────────────────────────────────────
 
-@app.get("/api/v1/cwpp/ui-data")
+@app.get("/api/v1/cwpp/ui-data", response_model=CwppUiDataResponse, response_model_exclude_none=False)
 async def ui_data(
     request: Request,
     scan_run_id: str = Query(...),

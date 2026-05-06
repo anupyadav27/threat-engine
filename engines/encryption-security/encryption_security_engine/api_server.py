@@ -73,19 +73,40 @@ class ScanRequest(BaseModel):
     tenant_id: str = Field(default="default-tenant", description="Tenant ID")
 
 
+# ── Response Models (STORY-ENG-PYDANTIC-COVERAGE) ────────────────────────────
+
+
+class _EncryptionBase(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class HealthResponse(BaseModel):
+    status: str
+
+
+class EncryptionHealthDetailedResponse(_EncryptionBase):
+    status: str
+    db: Optional[str] = None
+
+
+class EncryptionScanStatusResponse(_EncryptionBase):
+    scan_run_id: str
+    status: str
+
+
 # ── Health Checks ────────────────────────────────────────────────────────────
 
-@app.get("/api/v1/health/live")
+@app.get("/api/v1/health/live", response_model=HealthResponse)
 async def liveness():
     return {"status": "ok"}
 
 
-@app.get("/api/v1/health/ready")
+@app.get("/api/v1/health/ready", response_model=HealthResponse)
 async def readiness():
     return {"status": "ok"}
 
 
-@app.get("/api/v1/health")
+@app.get("/api/v1/health", response_model=EncryptionHealthDetailedResponse, response_model_exclude_none=False)
 async def health():
     import psycopg2
     try:
@@ -151,7 +172,7 @@ async def trigger_scan(request: ScanRequest):
 
 # ── Status ───────────────────────────────────────────────────────────────────
 
-@app.get("/api/v1/encryption/{scan_run_id}/status")
+@app.get("/api/v1/encryption/{scan_run_id}/status", response_model=EncryptionScanStatusResponse, response_model_exclude_none=False)
 async def get_scan_status(scan_run_id: str):
     """Get encryption scan status."""
     import psycopg2

@@ -14,12 +14,13 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 from db import get_conn, put_conn
+from _schemas import HealthResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["health"])
 
 
-@router.get("/api/v1/health/live")
+@router.get("/api/v1/health/live", response_model=HealthResponse, response_model_exclude_none=False)
 async def liveness() -> Dict[str, Any]:
     """Liveness probe — always returns ok if the process is running.
 
@@ -29,7 +30,7 @@ async def liveness() -> Dict[str, Any]:
     return {"status": "ok"}
 
 
-@router.get("/api/v1/health/ready")
+@router.get("/api/v1/health/ready", response_model=HealthResponse, response_model_exclude_none=False)
 async def readiness() -> JSONResponse:
     """Readiness probe — confirms billing DB connectivity.
 

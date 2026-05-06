@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import psycopg2
 from fastapi import Depends, FastAPI, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from engine_common.db_connections import get_risk_conn
 
 # ── Auth imports (engine_auth is COPY shared/auth/ ./engine_auth/ in Dockerfile) ──
@@ -182,6 +182,102 @@ class ScanResponse(BaseModel):
     duration_ms: int
 
 
+# ── Response models for read endpoints (STORY-ENG-PYDANTIC-COVERAGE) ─────────
+# extra="allow" preserves existing field set without enumerating every key;
+# Field(exclude=True) on credential/raw_event keeps sensitive data out of
+# serialized responses (CSPM_CONSTITUTION §1.3a).
+
+
+class _RiskBase(BaseModel):
+    """Lenient base for risk responses — passes through engine-native fields."""
+
+    model_config = {"extra": "allow"}
+
+
+class RiskTopAssetItem(_RiskBase):
+    resource_uid: str
+    resource_type: Optional[str] = None
+    risk_score: int = 0
+    account: Optional[str] = None
+    threat_count: int = 0
+    scenario: Optional[str] = None
+
+
+class RiskTopAssetsResponse(_RiskBase):
+    assets: List[RiskTopAssetItem] = Field(default_factory=list)
+    total: int = 0
+
+
+class RiskScenarioItem(_RiskBase):
+    """Per-scenario risk row — fully heterogeneous so we keep it lenient."""
+
+
+class RiskScenariosResponse(_RiskBase):
+    data: List[RiskScenarioItem] = Field(default_factory=list)
+    total: Optional[int] = None
+
+
+class RiskTrendPoint(_RiskBase):
+    date: Optional[str] = None
+    value: Optional[float] = None
+    critical_scenarios: Optional[int] = None
+
+
+class RiskTrendsResponse(_RiskBase):
+    data: List[RiskTrendPoint] = Field(default_factory=list)
+
+
+class RiskScoreResponse(_RiskBase):
+    risk_score: int = 0
+    average_loss: float = 0.0
+
+
+class RiskBreakdownResponse(_RiskBase):
+    breakdown: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class RiskTrendResponse(_RiskBase):
+    trend: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class RiskDashboardResponse(_RiskBase):
+    risk_score: int = 0
+    average_loss: float = 0.0
+    accepted_risks: int = 0
+    risk_register: List[Dict[str, Any]] = Field(default_factory=list)
+    mitigation_roadmap: List[Dict[str, Any]] = Field(default_factory=list)
+    domain_scores: Dict[str, Any] = Field(default_factory=dict)
+    source: str = "live"
+
+
+class RiskUiDataResponse(_RiskBase):
+    risk_score: int = 0
+    average_loss: float = 0.0
+    accepted_risks: int = 0
+    risk_reduction: float = 0.0
+    compliance_index: float = 0.0
+    risk_register: List[Dict[str, Any]] = Field(default_factory=list)
+    scenarios: List[Dict[str, Any]] = Field(default_factory=list)
+    trends: List[Dict[str, Any]] = Field(default_factory=list)
+    mitigation_roadmap: List[Dict[str, Any]] = Field(default_factory=list)
+    breakdown: List[Dict[str, Any]] = Field(default_factory=list)
+    top_assets: List[Dict[str, Any]] = Field(default_factory=list)
+    domain_scores: Dict[str, Any] = Field(default_factory=dict)
+    source: str = "empty"
+
+
+class RiskScanStatusResponse(_RiskBase):
+    scan_run_id: str
+    status: str
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+
+
+class HealthResponse(BaseModel):
+    status: str
+    service: Optional[str] = None
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -283,7 +379,7 @@ async def get_report(scan_id: str):
         cursor.close()
 
 
-@app.get("/api/v1/risk/{scan_run_id}/status")
+@app.get("/api/v1/risk/{scan_run_id}/status", response_model=RiskScanStatusResponse, response_model_exclude_none=False)
 async def get_risk_status(scan_run_id: str):
     """Poll endpoint for Argo pipeline — returns scan status by scan_run_id."""
     conn = get_risk_conn()
@@ -808,7 +904,7 @@ def _latest_risk_scan_id(conn, tenant_id: str) -> Optional[str]:
         cursor.close()
 
 
-@app.get("/api/v1/risk/dashboard")
+@app.get("/api/v1/risk/dashboard", response_model=RiskDashboardResponse, response_model_exclude_none=False)
 async def risk_dashboard(tenant_id: Optional[str] = Query(None)):
     """Aggregate risk dashboard for a tenant (latest scan or live computation)."""
     if not tenant_id:
@@ -869,7 +965,7 @@ async def risk_dashboard(tenant_id: Optional[str] = Query(None)):
     return _compute_live_dashboard(tenant_id)
 
 
-@app.get("/api/v1/risk/trends")
+@app.get("/api/v1/risk/trends", response_model=RiskTrendsResponse, response_model_exclude_none=False)
 async def risk_trends(
     tenant_id: Optional[str] = Query(None),
     limit: int = Query(30, ge=1, le=365),
@@ -890,7 +986,7 @@ async def risk_trends(
     return {"data": data}
 
 
-@app.get("/api/v1/risk/scenarios")
+@app.get("/api/v1/risk/scenarios", response_model=RiskScenariosResponse, response_model_exclude_none=False)
 async def risk_scenarios(
     tenant_id: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=1000),
@@ -948,7 +1044,7 @@ async def risk_scenarios(
 # ---------------------------------------------------------------------------
 
 
-@app.get("/api/v1/risk/score")
+@app.get("/api/v1/risk/score", response_model=RiskScoreResponse, response_model_exclude_none=False)
 async def risk_score(tenant_id: Optional[str] = Query(None)):
     """Overall risk score for a tenant."""
     dashboard = await risk_dashboard(tenant_id=tenant_id)
@@ -975,7 +1071,7 @@ async def risk_score(tenant_id: Optional[str] = Query(None)):
     }
 
 
-@app.get("/api/v1/risk/breakdown")
+@app.get("/api/v1/risk/breakdown", response_model=RiskBreakdownResponse, response_model_exclude_none=False)
 async def risk_breakdown(tenant_id: Optional[str] = Query(None)):
     """Per-domain risk score breakdown."""
     dashboard = await risk_dashboard(tenant_id=tenant_id)
@@ -1019,7 +1115,7 @@ async def risk_breakdown(tenant_id: Optional[str] = Query(None)):
     }
 
 
-@app.get("/api/v1/risk/trend")
+@app.get("/api/v1/risk/trend", response_model=RiskTrendResponse, response_model_exclude_none=False)
 async def risk_trend(
     tenant_id: Optional[str] = Query(None),
     days: int = Query(30, ge=1, le=365),
@@ -1029,7 +1125,7 @@ async def risk_trend(
     return result
 
 
-@app.get("/api/v1/risk/assets/top")
+@app.get("/api/v1/risk/assets/top", response_model=RiskTopAssetsResponse, response_model_exclude_none=False)
 async def risk_top_assets(
     tenant_id: Optional[str] = Query(None),
     limit: int = Query(10, ge=1, le=50),
@@ -1054,7 +1150,7 @@ async def risk_top_assets(
 # ---------------------------------------------------------------------------
 
 
-@app.get("/api/v1/risk/ui-data")
+@app.get("/api/v1/risk/ui-data", response_model=RiskUiDataResponse, response_model_exclude_none=False)
 async def risk_ui_data(
     tenant_id: Optional[str] = Query(None, description="Tenant UUID"),
     auth: Any = Depends(require_permission("risk:read") if _AUTH_AVAILABLE else (lambda: None)),
@@ -1163,12 +1259,12 @@ async def risk_ui_data(
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@app.get("/api/v1/health/live")
+@app.get("/api/v1/health/live", response_model=HealthResponse)
 async def health_live():
     return {"status": "ok", "engine": "risk", "port": 8009}
 
 
-@app.get("/api/v1/health/ready")
+@app.get("/api/v1/health/ready", response_model=HealthResponse)
 async def health_ready():
     try:
         conn = get_risk_conn()

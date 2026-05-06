@@ -10,6 +10,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends, Query
 
 from db import get_conn, put_conn
+from _schemas import BillingLenientResponse
 
 try:
     from engine_auth.fastapi.dependencies import require_permission
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["invoices"])
 
 
-@router.get("/invoices")
+@router.get("/invoices", response_model=BillingLenientResponse, response_model_exclude_none=False)
 async def list_invoices(
     org_id: str = Query(..., description="Organisation UUID"),
     limit: int = Query(10, ge=1, le=100),

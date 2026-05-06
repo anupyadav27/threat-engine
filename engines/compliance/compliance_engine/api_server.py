@@ -8,7 +8,7 @@ import sys
 import os
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 import uuid
 import json
@@ -137,6 +137,23 @@ class ScanResultsInput(BaseModel):
     scan_results: Dict[str, Any]
     csp: str
     frameworks: Optional[List[str]] = None
+
+
+# ── Response models (STORY-ENG-PYDANTIC-COVERAGE) ──────────────────────────
+
+
+class _ComplianceBase(BaseModel):
+    """Lenient base — passes engine-native fields through unchanged."""
+
+    model_config = {"extra": "allow"}
+
+
+class HealthResponse(BaseModel):
+    status: str
+
+
+class ComplianceLenientResponse(_ComplianceBase):
+    """Catch-all for endpoints whose shape is heterogeneous JSONB."""
 
 
 def save_report_to_s3(report: Dict[str, Any], csp: str) -> None:
@@ -1359,7 +1376,7 @@ async def get_account_compliance(
         )
 
 
-@app.get("/api/v1/compliance/trends")
+@app.get("/api/v1/compliance/trends", response_model=ComplianceLenientResponse, response_model_exclude_none=False)
 async def get_compliance_trends(
     csp: str = Query(...),
     account_id: Optional[str] = Query(None),
@@ -1460,7 +1477,7 @@ async def get_control_detail(
         )
 
 
-@app.get("/api/v1/compliance/reports")
+@app.get("/api/v1/compliance/reports", response_model=ComplianceLenientResponse, response_model_exclude_none=False)
 async def list_reports(
     tenant_id: Optional[str] = Query(None),
     csp: Optional[str] = Query(None),
@@ -1583,7 +1600,7 @@ async def delete_report(report_id: str):
     }
 
 
-@app.get("/api/v1/compliance/frameworks")
+@app.get("/api/v1/compliance/frameworks", response_model=ComplianceLenientResponse, response_model_exclude_none=False)
 async def list_frameworks(
     csp: str = Query(...),
     scan_id: Optional[str] = Query(None)
@@ -2092,13 +2109,13 @@ async def simple_health():
     return {"status": "ok"}
 
 
-@app.get("/api/v1/health/live")
+@app.get("/api/v1/health/live", response_model=HealthResponse)
 async def liveness():
     """Kubernetes liveness probe — returns 200 if process is alive."""
     return {"status": "alive"}
 
 
-@app.get("/api/v1/health/ready")
+@app.get("/api/v1/health/ready", response_model=HealthResponse)
 async def readiness():
     """Kubernetes readiness probe — DB ping."""
     try:
@@ -2117,7 +2134,7 @@ async def readiness():
         return JSONResponse(status_code=503, content={"status": "not ready", "error": str(e)})
 
 
-@app.get("/api/v1/health")
+@app.get("/api/v1/health", response_model=ComplianceLenientResponse, response_model_exclude_none=False)
 async def health_check():
     """Health check endpoint."""
     import time
@@ -2144,7 +2161,7 @@ async def health_check():
 # NEW DB-DRIVEN ENDPOINTS FOR UI
 # ============================================================================
 
-@app.get("/api/v1/compliance/dashboard")
+@app.get("/api/v1/compliance/dashboard", response_model=ComplianceLenientResponse, response_model_exclude_none=False)
 async def get_compliance_dashboard(
     tenant_id: str = Query(...),
     scan_id: Optional[str] = Query("latest")

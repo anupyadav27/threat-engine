@@ -28,6 +28,7 @@ except ImportError:
     _AUTH_AVAILABLE = False
 
 from k8s_client import ENGINE_NAMES, NAMESPACE, get_k8s_client
+from _schemas import PlatformAdminLenientResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["engine-health"])
@@ -123,7 +124,7 @@ async def _check_engine(engine_name: str, core_v1: Any) -> Dict[str, Any]:
     return result
 
 
-@router.get("/engines/health")
+@router.get("/engines/health", response_model=PlatformAdminLenientResponse, response_model_exclude_none=False)
 async def get_engines_health(
     auth: Any = Depends(
         require_permission("platform:admin") if _AUTH_AVAILABLE else (lambda: None)

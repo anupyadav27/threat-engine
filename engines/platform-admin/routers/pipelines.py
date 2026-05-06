@@ -19,6 +19,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from argo_client import ARGO_NAMESPACE, ARGO_SERVER_URL, get_argo_headers
+from _schemas import PlatformAdminLenientResponse
 
 try:
     from engine_auth.fastapi.dependencies import require_permission  # type: ignore
@@ -71,7 +72,7 @@ def _extract_failed_steps(nodes: Optional[Dict[str, Any]]) -> List[str]:
     ]
 
 
-@router.get("/pipeline/runs")
+@router.get("/pipeline/runs", response_model=PlatformAdminLenientResponse, response_model_exclude_none=False)
 async def list_pipeline_runs(
     org_id: Optional[str] = Query(None, description="Filter by org_id annotation"),
     limit: int = Query(50, ge=1, le=200, description="Maximum workflows to return"),

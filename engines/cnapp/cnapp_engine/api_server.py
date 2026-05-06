@@ -34,6 +34,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
 from .pillars import cspm, ciem, cwpp, dspm, network, threat, appsec
 from .core.aggregator import compute_cnapp_score, risk_band
@@ -97,6 +98,52 @@ PILLARS = {
     "appsec":  appsec.fetch,
 }
 
+# ── Response models (STORY-ENG-PYDANTIC-COVERAGE) ───────────────────────────
+
+
+class _CnappBase(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class HealthResponse(BaseModel):
+    status: str
+    service: Optional[str] = None
+    version: Optional[str] = None
+
+
+class CnappRootResponse(_CnappBase):
+    service: str
+    version: str
+    pillars: List[str] = Field(default_factory=list)
+    status: str
+
+
+class CnappDashboardResponse(_CnappBase):
+    score: Optional[int] = None
+    risk_band: Optional[str] = None
+    pillars: Dict[str, Any] = Field(default_factory=dict)
+
+
+class CnappPillarsListResponse(_CnappBase):
+    pillars: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class CnappPillarDetailResponse(_CnappBase):
+    pillar: str
+    data: Dict[str, Any] = Field(default_factory=dict)
+
+
+class CnappPostureResponse(_CnappBase):
+    score: int = 0
+    risk_band: Optional[str] = None
+    pillar_scores: Dict[str, Any] = Field(default_factory=dict)
+
+
+class CnappScoreResponse(_CnappBase):
+    score: int = 0
+    risk_band: Optional[str] = None
+
+
 PILLAR_META = {
     "cspm":    {"name": "Cloud Security Posture Management", "engines": ["check", "compliance"]},
     "ciem":    {"name": "Cloud Identity & Entitlement Management", "engines": ["ciem", "iam"]},
@@ -121,18 +168,18 @@ async def root():
     }
 
 
-@app.get("/api/v1/health/live")
+@app.get("/api/v1/health/live", response_model=HealthResponse)
 async def liveness():
     return {"status": "alive"}
 
 
-@app.get("/api/v1/health/ready")
+@app.get("/api/v1/health/ready", response_model=HealthResponse)
 async def readiness():
     # CNAPP has no own DB — just check that we can start coroutines
     return {"status": "ready", "note": "no local DB — aggregation only"}
 
 
-@app.get("/api/v1/health")
+@app.get("/api/v1/health", response_model=HealthResponse)
 async def health():
     return {
         "status": "healthy",
@@ -145,7 +192,7 @@ async def health():
 
 # ── Main dashboard ────────────────────────────────────────────────────────────
 
-@app.get("/api/v1/cnapp/dashboard")
+@app.get("/api/v1/cnapp/dashboard", response_model=CnappDashboardResponse, response_model_exclude_none=False)
 async def dashboard(
     scan_run_id: str = Query(..., description="scan_run_id to scope all pillar queries"),
     tenant_id: str = Query(default="default-tenant"),
@@ -203,7 +250,7 @@ async def dashboard(
 
 # ── Single pillar ─────────────────────────────────────────────────────────────
 
-@app.get("/api/v1/cnapp/pillars/{pillar_name}")
+@app.get("/api/v1/cnapp/pillars/{pillar_name}", response_model=CnappPillarDetailResponse, response_model_exclude_none=False)
 async def get_pillar(
     pillar_name: str,
     scan_run_id: str = Query(...),
@@ -222,7 +269,7 @@ async def get_pillar(
 
 # ── Posture score only (fast) ─────────────────────────────────────────────────
 
-@app.get("/api/v1/cnapp/posture")
+@app.get("/api/v1/cnapp/posture", response_model=CnappPostureResponse, response_model_exclude_none=False)
 async def posture_score(
     scan_run_id: str = Query(...),
     tenant_id: str = Query(default="default-tenant"),
@@ -281,7 +328,7 @@ _SCORE_PILLAR_MAP = {
 }
 
 
-@app.get("/api/v1/cnapp/score")
+@app.get("/api/v1/cnapp/score", response_model=CnappScoreResponse, response_model_exclude_none=False)
 async def cnapp_score(
     scan_run_id: str = Query(..., description="scan_run_id to scope all pillar score queries"),
     tenant_id: str = Query(default="default-tenant"),
@@ -363,7 +410,7 @@ async def cnapp_score(
 
 # ── Pillar catalog ────────────────────────────────────────────────────────────
 
-@app.get("/api/v1/cnapp/pillars")
+@app.get("/api/v1/cnapp/pillars", response_model=CnappPillarsListResponse, response_model_exclude_none=False)
 async def list_pillars():
     """List all CNAPP pillars with metadata about which engines they call."""
     return {

@@ -128,7 +128,22 @@ class RuleValidateRequest(BaseModel):
     }
 
 
-@app.get("/api/v1/providers")
+# ── Response models (STORY-ENG-PYDANTIC-COVERAGE) ──────────────────────────
+
+
+class _RuleBase(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class HealthResponse(BaseModel):
+    status: str
+
+
+class RuleLenientResponse(_RuleBase):
+    """Catch-all for rule engine endpoints with heterogeneous JSON shapes."""
+
+
+@app.get("/api/v1/providers", response_model=RuleLenientResponse, response_model_exclude_none=False)
 async def get_providers():
     """Get list of available CSP providers (AWS, Azure, GCP, OCI, AliCloud, IBM, K8s)"""
     try:
@@ -632,13 +647,13 @@ async def list_user_rules(
 # Health checks
 # =============================================================================
 
-@app.get("/api/v1/health/live")
+@app.get("/api/v1/health/live", response_model=HealthResponse)
 async def liveness_check():
     """Kubernetes liveness probe — no DB, no external calls."""
     return {"status": "ok", "service": "yaml-rule-builder"}
 
 
-@app.get("/api/v1/health/ready")
+@app.get("/api/v1/health/ready", response_model=HealthResponse)
 async def readiness_check():
     """Kubernetes readiness probe — verifies DB connectivity."""
     try:
@@ -654,7 +669,7 @@ async def readiness_check():
         )
 
 
-@app.get("/api/v1/health")
+@app.get("/api/v1/health", response_model=RuleLenientResponse, response_model_exclude_none=False)
 async def health_check():
     """Health check endpoint with provider status"""
     try:
@@ -689,7 +704,7 @@ async def health_check():
 # Additional API Endpoints for Enhanced UI Functionality
 # ============================================================================
 
-@app.get("/api/v1/rules/search")
+@app.get("/api/v1/rules/search", response_model=RuleLenientResponse, response_model_exclude_none=False)
 async def search_rules(
     q: str,
     provider: Optional[str] = None,
@@ -744,7 +759,7 @@ async def search_rules(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/rules/statistics")
+@app.get("/api/v1/rules/statistics", response_model=RuleLenientResponse, response_model_exclude_none=False)
 async def get_rule_statistics():
     """Get rule statistics (counts by provider/service)"""
     try:
@@ -1276,7 +1291,7 @@ async def create_rule_from_template(
 
 
 # Update list_rules to support custom filter
-@app.get("/api/v1/rules")
+@app.get("/api/v1/rules", response_model=RuleLenientResponse, response_model_exclude_none=False)
 async def list_rules(
     provider: Optional[str] = None,
     service: Optional[str] = None,
@@ -1335,7 +1350,7 @@ import logging as _logging
 _ui_data_logger = _logging.getLogger(__name__)
 
 
-@app.get("/api/v1/rules/ui-data")
+@app.get("/api/v1/rules/ui-data", response_model=RuleLenientResponse, response_model_exclude_none=False)
 async def rules_ui_data(
     tenant_id: Optional[str] = None,
     limit: int = 500,

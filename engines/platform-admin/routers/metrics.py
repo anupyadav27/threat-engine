@@ -21,6 +21,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException
 
 from db import get_conn, put_conn
+from _schemas import PlatformAdminLenientResponse
 
 try:
     from engine_auth.fastapi.dependencies import require_permission  # type: ignore
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["metrics"])
 
 
-@router.get("/metrics")
+@router.get("/metrics", response_model=PlatformAdminLenientResponse, response_model_exclude_none=False)
 async def platform_metrics(
     auth: Any = Depends(
         require_permission("platform:admin") if _AUTH_AVAILABLE else (lambda: None)

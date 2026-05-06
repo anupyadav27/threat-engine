@@ -135,6 +135,101 @@ class ReportResponse(BaseModel):
     activity: Dict[str, Any]
 
 
+# ── Response models for read endpoints (STORY-ENG-PYDANTIC-COVERAGE) ─────────
+
+
+class _DatasecBase(BaseModel):
+    """Lenient base for datasec responses — passes engine-native fields."""
+
+    model_config = {"extra": "allow"}
+
+
+class HealthResponse(BaseModel):
+    status: str
+    service: Optional[str] = None
+    version: Optional[str] = None
+
+
+class DatasecScanStatusResponse(_DatasecBase):
+    datasec_scan_id: str
+    status: str
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+
+
+class DatasecCatalogResponse(_DatasecBase):
+    items: List[Dict[str, Any]] = Field(default_factory=list)
+    total: int = 0
+
+
+class DatasecResourceGovernanceResponse(_DatasecBase):
+    resource_id: str
+    governance: Dict[str, Any] = Field(default_factory=dict)
+
+
+class DatasecResourceProtectionResponse(_DatasecBase):
+    resource_id: str
+    protection: Dict[str, Any] = Field(default_factory=dict)
+
+
+class DatasecRuleResponse(_DatasecBase):
+    rule_id: str
+    title: Optional[str] = None
+    description: Optional[str] = None
+    severity: Optional[str] = None
+
+
+class DatasecModulesResponse(_DatasecBase):
+    modules: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class DatasecModuleRulesResponse(_DatasecBase):
+    module: str
+    rules: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class DatasecClassificationResponse(_DatasecBase):
+    classification: List[Dict[str, Any]] = Field(default_factory=list)
+    total: int = 0
+
+
+class DatasecLineageResponse(_DatasecBase):
+    lineage: Dict[str, Any] = Field(default_factory=dict)
+
+
+class DatasecResidencyResponse(_DatasecBase):
+    residency: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class DatasecActivityResponse(_DatasecBase):
+    activity: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class DatasecComplianceResponse(_DatasecBase):
+    compliance: Dict[str, Any] = Field(default_factory=dict)
+
+
+class DatasecFindingsResponse(_DatasecBase):
+    findings: List[Dict[str, Any]] = Field(default_factory=list)
+    total: int = 0
+
+
+class DatasecAccountResponse(_DatasecBase):
+    account_id: str
+    summary: Dict[str, Any] = Field(default_factory=dict)
+
+
+class DatasecServiceResponse(_DatasecBase):
+    service: str
+    summary: Dict[str, Any] = Field(default_factory=dict)
+
+
+class RootResponse(BaseModel):
+    service: str
+    version: str
+    status: str
+
+
 # Global instances (would use dependency injection in production)
 threat_db_reader = ThreatDBReader()
 rule_db_reader = RuleDBReader()
@@ -143,7 +238,7 @@ reporter = DataSecurityReporter()
 report_storage = ReportStorage()
 
 
-@app.get("/")
+@app.get("/", response_model=RootResponse)
 async def root():
     """Root endpoint."""
     return {
@@ -153,7 +248,7 @@ async def root():
     }
 
 
-@app.get("/health")
+@app.get("/health", response_model=HealthResponse)
 async def health():
     """Health check endpoint."""
     import time
@@ -172,19 +267,19 @@ async def health():
     return health_status
 
 
-@app.get("/api/v1/health/live")
+@app.get("/api/v1/health/live", response_model=HealthResponse)
 async def liveness():
     """Kubernetes liveness probe — returns 200 if process is alive."""
     return {"status": "alive"}
 
 
-@app.get("/api/v1/health/ready")
+@app.get("/api/v1/health/ready", response_model=HealthResponse)
 async def readiness():
     """Kubernetes readiness probe — returns 200 when ready to serve traffic."""
     return {"status": "ready"}
 
 
-@app.get("/api/v1/health")
+@app.get("/api/v1/health", response_model=HealthResponse)
 async def api_health():
     """Full health check with DB connectivity."""
     try:
@@ -280,7 +375,7 @@ async def generate_report(request: ScanRequest):
     }
 
 
-@app.get("/api/v1/data-security/{datasec_scan_id}/status")
+@app.get("/api/v1/data-security/{datasec_scan_id}/status", response_model=DatasecScanStatusResponse, response_model_exclude_none=False)
 async def get_datasec_status(datasec_scan_id: str):
     """Get DataSec scan status from datasec_report DB table."""
     from psycopg2.extras import RealDictCursor
@@ -309,7 +404,7 @@ async def get_datasec_status(datasec_scan_id: str):
     }
 
 
-@app.get("/api/v1/data-security/catalog")
+@app.get("/api/v1/data-security/catalog", response_model=DatasecCatalogResponse, response_model_exclude_none=False)
 async def get_data_catalog(
     csp: str = Query(default="aws", description="Cloud service provider"),
     scan_id: str = Query(default="latest", description="Threat scan_run_id (from Threat engine)"),
@@ -354,7 +449,7 @@ async def get_data_catalog(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/data-security/governance/{resource_id}")
+@app.get("/api/v1/data-security/governance/{resource_id}", response_model=DatasecResourceGovernanceResponse, response_model_exclude_none=False)
 async def get_access_governance(
     resource_id: str,
     csp: str = Query(default="aws", description="Cloud service provider"),
@@ -390,7 +485,7 @@ async def get_access_governance(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/data-security/protection/{resource_id}")
+@app.get("/api/v1/data-security/protection/{resource_id}", response_model=DatasecResourceProtectionResponse, response_model_exclude_none=False)
 async def get_protection_status(
     resource_id: str,
     csp: str = Query(default="aws", description="Cloud service provider"),
@@ -426,7 +521,7 @@ async def get_protection_status(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/data-security/rules/{rule_id}")
+@app.get("/api/v1/data-security/rules/{rule_id}", response_model=DatasecRuleResponse, response_model_exclude_none=False)
 async def get_rule_info(rule_id: str, service: Optional[str] = None):
     """Get data security information for a rule."""
     try:
@@ -457,7 +552,7 @@ async def get_rule_info(rule_id: str, service: Optional[str] = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/data-security/modules")
+@app.get("/api/v1/data-security/modules", response_model=DatasecModulesResponse, response_model_exclude_none=False)
 async def list_modules():
     """List all data security modules."""
     return {
@@ -472,7 +567,7 @@ async def list_modules():
     }
 
 
-@app.get("/api/v1/data-security/modules/{module}/rules")
+@app.get("/api/v1/data-security/modules/{module}/rules", response_model=DatasecModuleRulesResponse, response_model_exclude_none=False)
 async def get_rules_by_module(
     module: str,
     service: Optional[str] = Query(None, description="Filter by service")
@@ -498,7 +593,7 @@ async def get_rules_by_module(
 
 # ===== New Endpoints: Data Security Features =====
 
-@app.get("/api/v1/data-security/classification")
+@app.get("/api/v1/data-security/classification", response_model=DatasecClassificationResponse, response_model_exclude_none=False)
 async def get_classification(
     csp: str = Query(default="aws", description="Cloud service provider"),
     scan_id: str = Query(default="latest", description="Threat scan_run_id (from Threat engine)"),
@@ -543,7 +638,7 @@ async def get_classification(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/data-security/lineage")
+@app.get("/api/v1/data-security/lineage", response_model=DatasecLineageResponse, response_model_exclude_none=False)
 async def get_lineage(
     csp: str = Query(default="aws", description="Cloud service provider"),
     scan_id: str = Query(default="latest", description="Threat scan_run_id (from Threat engine)"),
@@ -593,7 +688,7 @@ async def get_lineage(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/data-security/residency")
+@app.get("/api/v1/data-security/residency", response_model=DatasecResidencyResponse, response_model_exclude_none=False)
 async def get_residency(
     csp: str = Query(default="aws", description="Cloud service provider"),
     scan_id: str = Query(default="latest", description="Threat scan_run_id (from Threat engine)"),
@@ -645,7 +740,7 @@ async def get_residency(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/data-security/activity")
+@app.get("/api/v1/data-security/activity", response_model=DatasecActivityResponse, response_model_exclude_none=False)
 async def get_activity(
     csp: str = Query(default="aws", description="Cloud service provider"),
     scan_id: str = Query(default="latest", description="Threat scan_run_id (from Threat engine)"),
@@ -705,7 +800,7 @@ async def get_activity(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/data-security/compliance")
+@app.get("/api/v1/data-security/compliance", response_model=DatasecComplianceResponse, response_model_exclude_none=False)
 async def get_compliance(
     csp: str = Query(default="aws", description="Cloud service provider"),
     scan_id: str = Query(default="latest", description="Threat scan_run_id (from Threat engine)"),
@@ -779,7 +874,7 @@ async def get_compliance(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/data-security/findings")
+@app.get("/api/v1/data-security/findings", response_model=DatasecFindingsResponse, response_model_exclude_none=False)
 async def get_findings(
     csp: str = Query(default="aws", description="Cloud service provider"),
     scan_id: str = Query(default="latest", description="Threat scan_run_id (from Threat engine)"),
@@ -845,7 +940,7 @@ async def get_findings(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/data-security/accounts/{account_id}")
+@app.get("/api/v1/data-security/accounts/{account_id}", response_model=DatasecAccountResponse, response_model_exclude_none=False)
 async def get_account_data_security(
     account_id: str,
     csp: str = Query(default="aws", description="Cloud service provider"),
@@ -901,7 +996,7 @@ async def get_account_data_security(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/data-security/services/{service}")
+@app.get("/api/v1/data-security/services/{service}", response_model=DatasecServiceResponse, response_model_exclude_none=False)
 async def get_service_data_security(
     service: str,
     csp: str = Query(default="aws", description="Cloud service provider"),

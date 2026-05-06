@@ -23,6 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from db import get_conn, get_write_conn, put_conn, put_write_conn
+from _schemas import PlatformAdminLenientResponse
 
 try:
     from engine_auth.fastapi.dependencies import require_permission  # type: ignore
@@ -121,7 +122,7 @@ def _write_audit(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/orgs")
+@router.get("/orgs", response_model=PlatformAdminLenientResponse, response_model_exclude_none=False)
 async def list_orgs(
     status: Optional[str] = Query(None, description="Filter by subscription status"),
     tier: Optional[str] = Query(None, description="Filter by plan_name"),

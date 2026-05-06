@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from db import get_conn, put_conn
 from models import ConsumeScanTokenRequest
+from _schemas import BillingLenientResponse
 
 try:
     from engine_auth.fastapi.dependencies import require_permission
@@ -30,7 +31,7 @@ router = APIRouter(tags=["usage"])
 _UPGRADE_URL = "/billing/upgrade"
 
 
-@router.get("/usage")
+@router.get("/usage", response_model=BillingLenientResponse, response_model_exclude_none=False)
 async def get_usage_summary(
     org_id: str = Query(..., description="Organisation UUID"),
     auth: Any = Depends(
@@ -176,7 +177,7 @@ async def consume_scan_token(
         put_conn(conn)
 
 
-@router.get("/usage/check-scan-frequency")
+@router.get("/usage/check-scan-frequency", response_model=BillingLenientResponse, response_model_exclude_none=False)
 async def check_scan_frequency(
     org_id: str = Query(..., description="Organisation UUID"),
     auth: Any = Depends(
@@ -267,7 +268,7 @@ async def check_scan_frequency(
         put_conn(conn)
 
 
-@router.get("/usage/check-account-limit")
+@router.get("/usage/check-account-limit", response_model=BillingLenientResponse, response_model_exclude_none=False)
 async def check_account_limit(
     org_id: str = Query(..., description="Organisation UUID"),
     auth: Any = Depends(
