@@ -47,6 +47,15 @@ def build_key_inventory(
         if not isinstance(emitted, dict):
             continue
 
+        # AWS DescribeKey nests its detail fields under "KeyMetadata".
+        # Earlier code looked at the top level only, so KeySpec/Origin/
+        # CreationDate/KeyState landed as None for every row. Merge nested
+        # KeyMetadata into a flat view before extraction.
+        meta = emitted.get("KeyMetadata")
+        if isinstance(meta, dict):
+            merged = {**meta, **{k: v for k, v in emitted.items() if k != "KeyMetadata"}}
+            emitted = merged
+
         key_arn = emitted.get("KeyArn") or emitted.get("Arn") or r.get("resource_uid", "")
         if not key_arn or key_arn in key_map:
             # Merge additional data into existing entry

@@ -29,6 +29,23 @@ def _project_root() -> Path:
 from common.utils.reporting_manager import save_reporting_bundle
 from providers.aws.auth.aws_auth import get_boto3_session, get_session_for_account
 
+# DCAT-01 — Catalog-as-truth Jinja renderer (replaces raw response dump for emit blocks)
+try:
+    from common.jinja_renderer import (
+        render_emit_item,
+        render_emit_for_list,
+        feature_enabled as _emit_render_enabled,
+    )
+    _RENDERER_AVAILABLE = True
+except ImportError:
+    _RENDERER_AVAILABLE = False
+    def _emit_render_enabled() -> bool:  # type: ignore[misc]
+        return False
+
+# Per-scan emit-failure sink — accumulates render failures for batch flush
+# at end of scan. Each entry: dict matching discovery_emit_failures schema.
+_emit_failure_sink: List[Dict[str, Any]] = []
+
 # ── Extracted utility modules (relative imports to avoid circular __init__.py) ─
 from ..aws_utils.extraction import (
     extract_value,
@@ -467,6 +484,17 @@ def run_service(
 
                                     results.append(item_data)
                     else:
+                        # DCAT-01: catalog emit.item template renders flat fields.
+                        # Falls back to raw-response dump when the catalog has no
+                        # item: block or the renderer is disabled.
+                        emit_item_template = emit_config.get('item') if isinstance(emit_config, dict) else None
+                        use_renderer = (
+                            _RENDERER_AVAILABLE
+                            and _emit_render_enabled()
+                            and isinstance(emit_item_template, dict)
+                            and emit_item_template
+                        )
+
                         for acc_data in accumulated_contexts:
                             response = acc_data['response']
                             item = acc_data['item']
@@ -475,7 +503,24 @@ def run_service(
                                 logger.warning(f"[EMIT] {discovery_id}: response is not a dict, skipping emit")
                                 continue
 
-                            item_data = {k: v for k, v in response.items() if k != 'ResponseMetadata'}
+                            if use_renderer:
+                                ctx = {
+                                    'response': response,
+                                    'item': item if isinstance(item, dict) else {},
+                                    'context': acc_data.get('context') or {},
+                                }
+                                rid = ''
+                                if isinstance(item, dict):
+                                    rid = item.get('resource_arn') or item.get('Arn') or ''
+                                item_data = render_emit_item(
+                                    emit_item_template,
+                                    ctx,
+                                    discovery_id=discovery_id,
+                                    resource_uid=rid,
+                                    failure_sink=_emit_failure_sink,
+                                )
+                            else:
+                                item_data = {k: v for k, v in response.items() if k != 'ResponseMetadata'}
 
                             if isinstance(item, dict):
                                 parent_arn = item.get('resource_arn') or item.get('Arn') or item.get('arn')

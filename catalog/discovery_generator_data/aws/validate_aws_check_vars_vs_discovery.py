@@ -24,7 +24,7 @@ import yaml
 # ──────────────────────────────────────────────────────────────────────────────
 ROOT      = Path('/Users/apple/Desktop/threat-engine')
 CHECK_DIR = ROOT / 'catalog/rule/aws_rule_check'
-GEN_DIR   = ROOT / 'catalog/discovery_generator/aws'
+GEN_DIR   = ROOT / 'catalog/discovery_generator_data/aws'
 
 SERVICE_ALIASES: Dict[str, str] = {'acm_pca': 'acm-pca'}
 # ──────────────────────────────────────────────────────────────────────────────
