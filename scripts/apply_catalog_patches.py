@@ -305,7 +305,14 @@ def sync_to_db(
     )
     row = cur.fetchone()
 
-    new_data = json.dumps(catalog_data, default=str)
+    # rule_discoveries.discoveries_data holds the discovery list directly
+    # (not the full YAML envelope with 'version'/'provider'/'service' keys).
+    discovery_list = (
+        catalog_data.get("discovery", [])
+        if isinstance(catalog_data, dict)
+        else (catalog_data if isinstance(catalog_data, list) else [])
+    )
+    new_data = json.dumps(discovery_list, default=str)
 
     if dry_run:
         if row:
@@ -317,9 +324,13 @@ def sync_to_db(
             log.info(f"  DRY: would INSERT rule_discoveries for {provider}/{service}")
         return True
 
+    # rule_discoveries.version is varchar — use timestamp-tagged string so we
+    # can trace which run wrote each row.
+    from datetime import datetime, timezone
+    new_version = f"dcat01-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M')}"
+
     if row:
-        rid, version, source = row
-        new_version = (version or 0) + 1
+        rid, _version, _source = row
         cur.execute(
             """
             UPDATE rule_discoveries
@@ -332,18 +343,18 @@ def sync_to_db(
             """,
             (new_data, new_version, rid),
         )
-        log.info(f"  ✓ DB UPDATE id={rid} -> v{new_version}")
+        log.info(f"  ✓ DB UPDATE id={rid} -> {new_version}")
     else:
         cur.execute(
             """
             INSERT INTO rule_discoveries
                 (service, provider, version, discoveries_data,
                  created_at, updated_at, source, generated_by, is_active)
-            VALUES (%s, %s, 1, %s, now(), now(), 'catalog', 'apply_catalog_patches', true)
+            VALUES (%s, %s, %s, %s, now(), now(), 'catalog', 'apply_catalog_patches', true)
             """,
-            (service, provider, new_data),
+            (service, provider, new_version, new_data),
         )
-        log.info(f"  ✓ DB INSERT new row for {provider}/{service}")
+        log.info(f"  ✓ DB INSERT new row for {provider}/{service} ({new_version})")
 
     conn.commit()
     return True
