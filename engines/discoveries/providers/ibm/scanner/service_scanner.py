@@ -12,7 +12,62 @@ import logging
 
 from common.models.provider_interface import DiscoveryScanner, AuthenticationError, DiscoveryError
 
+# DCAT-02-I: catalog-driven emit rendering (DB-backed)
+try:
+    from common.jinja_renderer import render_emit_item
+    _RENDERER_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    render_emit_item = None  # type: ignore
+    _RENDERER_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
+
+_emit_failure_sink: List[Dict[str, Any]] = []
+_IBM_EMIT_CACHE: Dict[str, Optional[Dict[str, Any]]] = {}
+_IBM_SERVICE_LOADED: set = set()
+
+
+def _load_ibm_service_emits(service: str) -> None:
+    """Populate _IBM_EMIT_CACHE from rule_discoveries (provider='ibm')."""
+    if service in _IBM_SERVICE_LOADED:
+        return
+    _IBM_SERVICE_LOADED.add(service)
+    try:
+        from providers.aws.aws_utils.rules import load_service_rules
+        rules = load_service_rules(service, provider="ibm")
+    except Exception as exc:
+        logger.warning("IBM rules load failed for service=%s: %s", service, exc)
+        return
+    default_template: Optional[Dict[str, Any]] = None
+    for disc in (rules or {}).get('discovery', []) or []:
+        did = disc.get('discovery_id')
+        emit = disc.get('emit') or {}
+        item_tmpl = emit.get('item') if isinstance(emit, dict) else None
+        valid = isinstance(item_tmpl, dict) and bool(item_tmpl)
+        if did:
+            _IBM_EMIT_CACHE[did] = item_tmpl if valid else None
+        if valid and default_template is None:
+            default_template = item_tmpl
+    if default_template is not None:
+        _IBM_EMIT_CACHE[f"_service_default::{service}"] = default_template
+
+
+def _get_ibm_emit_template(discovery_id: str) -> Optional[Dict[str, Any]]:
+    """Return cached emit.item template, with service-default fallback."""
+    if discovery_id in _IBM_EMIT_CACHE:
+        return _IBM_EMIT_CACHE[discovery_id]
+    parts = discovery_id.split('.', 2)
+    if len(parts) < 2 or parts[0] != 'ibm':
+        _IBM_EMIT_CACHE[discovery_id] = None
+        return None
+    service = parts[1]
+    _load_ibm_service_emits(service)
+    direct = _IBM_EMIT_CACHE.get(discovery_id)
+    if direct is not None:
+        return direct
+    fallback = _IBM_EMIT_CACHE.get(f"_service_default::{service}")
+    _IBM_EMIT_CACHE[discovery_id] = fallback
+    return fallback
 
 # Thread pool for blocking IBM SDK calls
 _IBM_EXECUTOR = ThreadPoolExecutor(max_workers=10)
@@ -41,6 +96,8 @@ def _enrich_ibm_item(item: Dict) -> Dict:
 
     IBM Cloud uses CRN (Cloud Resource Name) as primary identifier.
     Maps CRN → resource_arn/resource_uid/resource_id.
+
+    DCAT-02-I: also renders the catalog `emit.item` template (Jinja).
     """
     crn = item.get('crn', item.get('id', ''))
     item['resource_arn'] = crn       # CRN as ARN equivalent
@@ -51,6 +108,33 @@ def _enrich_ibm_item(item: Dict) -> Dict:
     item['_raw_response'] = {k: v for k, v in item.items()
                              if not k.startswith('_') and k not in (
                                  'resource_arn', 'resource_uid', 'resource_id', 'resource_type')}
+
+    # DCAT-02-I: catalog-driven emit rendering
+    if _RENDERER_AVAILABLE:
+        discovery_id = item.get('_discovery_id')
+        if discovery_id:
+            template = _get_ibm_emit_template(discovery_id)
+            if template:
+                ctx = {
+                    'item': item,
+                    'response': item,
+                    'context': {
+                        'service': discovery_id.split('.')[1] if '.' in discovery_id else '',
+                        'name': item.get('name'),
+                        'crn': crn,
+                    },
+                }
+                try:
+                    rendered = render_emit_item(
+                        template, ctx,
+                        discovery_id=discovery_id,
+                        resource_uid=crn or item.get('id', ''),
+                        failure_sink=_emit_failure_sink,
+                    )
+                    if isinstance(rendered, dict) and rendered:
+                        item['emitted_fields'] = rendered
+                except Exception as exc:  # pragma: no cover
+                    logger.warning("IBM emit render failed %s: %s", discovery_id, exc)
     return item
 
 

@@ -12,7 +12,63 @@ import logging
 
 from common.models.provider_interface import DiscoveryScanner, AuthenticationError, DiscoveryError
 
+# DCAT-02-O: catalog-driven emit rendering (DB-backed, mirrors AWS/K8s/Azure/GCP)
+try:
+    from common.jinja_renderer import render_emit_item
+    _RENDERER_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    render_emit_item = None  # type: ignore
+    _RENDERER_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
+
+# Shared failure sink (flushed by run_scan at scan completion)
+_emit_failure_sink: List[Dict[str, Any]] = []
+_OCI_EMIT_CACHE: Dict[str, Optional[Dict[str, Any]]] = {}
+_OCI_SERVICE_LOADED: set = set()
+
+
+def _load_oci_service_emits(service: str) -> None:
+    """Populate _OCI_EMIT_CACHE from rule_discoveries (provider='oci')."""
+    if service in _OCI_SERVICE_LOADED:
+        return
+    _OCI_SERVICE_LOADED.add(service)
+    try:
+        from providers.aws.aws_utils.rules import load_service_rules
+        rules = load_service_rules(service, provider="oci")
+    except Exception as exc:
+        logger.warning("OCI rules load failed for service=%s: %s", service, exc)
+        return
+    default_template: Optional[Dict[str, Any]] = None
+    for disc in (rules or {}).get('discovery', []) or []:
+        did = disc.get('discovery_id')
+        emit = disc.get('emit') or {}
+        item_tmpl = emit.get('item') if isinstance(emit, dict) else None
+        valid = isinstance(item_tmpl, dict) and bool(item_tmpl)
+        if did:
+            _OCI_EMIT_CACHE[did] = item_tmpl if valid else None
+        if valid and default_template is None:
+            default_template = item_tmpl
+    if default_template is not None:
+        _OCI_EMIT_CACHE[f"_service_default::{service}"] = default_template
+
+
+def _get_oci_emit_template(discovery_id: str) -> Optional[Dict[str, Any]]:
+    """Return cached emit.item template, with service-default fallback."""
+    if discovery_id in _OCI_EMIT_CACHE:
+        return _OCI_EMIT_CACHE[discovery_id]
+    parts = discovery_id.split('.', 2)
+    if len(parts) < 2 or parts[0] != 'oci':
+        _OCI_EMIT_CACHE[discovery_id] = None
+        return None
+    service = parts[1]
+    _load_oci_service_emits(service)
+    direct = _OCI_EMIT_CACHE.get(discovery_id)
+    if direct is not None:
+        return direct
+    fallback = _OCI_EMIT_CACHE.get(f"_service_default::{service}")
+    _OCI_EMIT_CACHE[discovery_id] = fallback
+    return fallback
 
 # Thread pool for blocking OCI SDK calls
 _OCI_EXECUTOR = ThreadPoolExecutor(max_workers=10)
@@ -43,6 +99,9 @@ def _enrich_oci_item(item: Dict) -> Dict:
 
     OCI resources use OCID as primary identifier. This maps them to
     resource_arn/resource_uid/resource_id so the DB layer stores them.
+
+    DCAT-02-O: also renders the catalog `emit.item` template (Jinja) and
+    stores the flat result on `item['emitted_fields']`.
     """
     ocid = item.get('id', '')
     item['resource_arn'] = ocid       # OCID as ARN equivalent
@@ -53,6 +112,32 @@ def _enrich_oci_item(item: Dict) -> Dict:
     item['_raw_response'] = {k: v for k, v in item.items()
                              if not k.startswith('_') and k not in (
                                  'resource_arn', 'resource_uid', 'resource_id', 'resource_type')}
+
+    # DCAT-02-O: catalog-driven emit rendering
+    if _RENDERER_AVAILABLE:
+        discovery_id = item.get('_discovery_id')
+        if discovery_id:
+            template = _get_oci_emit_template(discovery_id)
+            if template:
+                ctx = {
+                    'item': item,
+                    'response': item,
+                    'context': {
+                        'service': discovery_id.split('.')[1] if '.' in discovery_id else '',
+                        'name': item.get('display_name') or item.get('name'),
+                    },
+                }
+                try:
+                    rendered = render_emit_item(
+                        template, ctx,
+                        discovery_id=discovery_id,
+                        resource_uid=ocid,
+                        failure_sink=_emit_failure_sink,
+                    )
+                    if isinstance(rendered, dict) and rendered:
+                        item['emitted_fields'] = rendered
+                except Exception as exc:  # pragma: no cover
+                    logger.warning("OCI emit render failed %s: %s", discovery_id, exc)
     return item
 
 
