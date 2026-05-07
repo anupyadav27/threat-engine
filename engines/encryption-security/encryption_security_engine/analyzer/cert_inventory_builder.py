@@ -125,11 +125,45 @@ def build_cert_inventory(
 
 
 def _merge_cert_emitted(entry: Dict, emitted: Dict):
-    """Merge additional emitted fields into existing cert entry."""
-    if emitted.get("InUse") is not None:
-        entry["in_use"] = emitted["InUse"]
-    if emitted.get("RenewalEligibility"):
-        entry["renewal_eligibility"] = emitted["RenewalEligibility"]
+    """Merge additional emitted fields into existing cert entry.
+
+    Same bug class as key_inventory_builder: list_certificates lands first
+    with sparse fields, then describe_certificate's rich data fell into this
+    merge path which dropped most fields. Fill any missing target field
+    from the new emitted's value.
+    """
+    field_map = (
+        ("Status",              "cert_status"),
+        ("Type",                "cert_type"),
+        ("KeyAlgorithm",        "key_algorithm"),
+        ("SignatureAlgorithm",  "signature_algorithm"),
+        ("Serial",              "serial_number"),
+        ("RenewalEligibility",  "renewal_eligibility"),
+        ("InUse",               "in_use"),
+        ("DomainName",          "domain_name"),
+        ("Issuer",              "issuer"),
+    )
+    for src, tgt in field_map:
+        val = emitted.get(src)
+        if val is not None and entry.get(tgt) in (None, "", "UNKNOWN"):
+            entry[tgt] = val
+
+    if emitted.get("NotBefore") and not entry.get("not_before"):
+        entry["not_before"] = _parse_date(emitted["NotBefore"])
+    if emitted.get("NotAfter") and not entry.get("not_after"):
+        entry["not_after"] = _parse_date(emitted["NotAfter"])
+
+    san = emitted.get("SubjectAlternativeNames")
+    if san and not entry.get("subject_alternative_names"):
+        if isinstance(san, list):
+            entry["subject_alternative_names"] = [str(s) for s in san]
+
+    tags = emitted.get("Tags")
+    if isinstance(tags, dict) and tags:
+        existing_tags = entry.get("tags") or {}
+        if isinstance(existing_tags, dict):
+            existing_tags.update(tags)
+            entry["tags"] = existing_tags
 
 
 def _parse_date(val) -> Optional[datetime]:

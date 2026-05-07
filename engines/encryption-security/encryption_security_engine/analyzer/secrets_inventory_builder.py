@@ -74,11 +74,39 @@ def build_secrets_inventory(
 
 
 def _merge_secret_emitted(entry: Dict, emitted: Dict):
-    """Merge additional emitted fields into existing secret entry."""
-    if emitted.get("RotationEnabled") is not None:
-        entry["rotation_enabled"] = emitted["RotationEnabled"]
-    if emitted.get("KmsKeyId") and not entry.get("kms_key_id"):
-        entry["kms_key_id"] = emitted["KmsKeyId"]
+    """Merge additional emitted fields into existing secret entry.
+
+    Same bug class as key/cert mappers: fill any missing target field from
+    the newer emitted source so list+describe data converges.
+    """
+    field_map = (
+        ("Name",                  "secret_name"),
+        ("KmsKeyId",              "kms_key_id"),
+        ("RotationEnabled",       "rotation_enabled"),
+    )
+    for src, tgt in field_map:
+        val = emitted.get(src)
+        if val is not None and entry.get(tgt) in (None, "", False):
+            entry[tgt] = val
+
+    if emitted.get("LastRotatedDate") and not entry.get("last_rotated_date"):
+        entry["last_rotated_date"] = _parse_date(emitted["LastRotatedDate"])
+    if emitted.get("LastAccessedDate") and not entry.get("last_accessed_date"):
+        entry["last_accessed_date"] = _parse_date(emitted["LastAccessedDate"])
+
+    rotation_rules = emitted.get("RotationRules")
+    if isinstance(rotation_rules, dict) and rotation_rules:
+        if not entry.get("rotation_interval_days"):
+            entry["rotation_interval_days"] = rotation_rules.get(
+                "AutomaticallyAfterDays"
+            )
+
+    tags = emitted.get("Tags")
+    if isinstance(tags, dict) and tags:
+        existing_tags = entry.get("tags") or {}
+        if isinstance(existing_tags, dict):
+            existing_tags.update(tags)
+            entry["tags"] = existing_tags
 
 
 def _parse_date(val) -> Optional[datetime]:

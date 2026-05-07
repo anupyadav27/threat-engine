@@ -123,15 +123,87 @@ def build_key_inventory(
 
 
 def _merge_emitted(entry: Dict, emitted: Dict):
-    """Merge additional emitted fields into an existing key entry."""
-    if emitted.get("KeyRotationEnabled") is not None:
-        entry["rotation_enabled"] = emitted["KeyRotationEnabled"]
+    """Merge additional emitted fields into an existing key entry.
+
+    Each KMS key produces multiple discovery_ids (list_keys, describe_key,
+    get_key_policy, get_key_rotation_status, list_aliases, list_grants).
+    The first one to populate the entry wins via the create path; later ones
+    fall through here. Previously this only merged 3 fields, which silently
+    dropped KeySpec/KeyUsage/KeyState/Origin/CreationDate when describe_key
+    arrived AFTER list_keys (sparse parent). Fix: fill any field that the
+    existing entry has as None/missing using the new emitted's value.
+    """
+    # AWS DescribeKey nests detail fields under KeyMetadata. Same flattening
+    # logic as the create path at line 54.
+    meta = emitted.get("KeyMetadata")
+    if isinstance(meta, dict):
+        emitted = {**meta, **{k: v for k, v in emitted.items() if k != "KeyMetadata"}}
+
+    # Field mapping: emitted.<src> → entry.<target>. Only fill if entry's
+    # current value is None/empty so the richer source (e.g. describe_key)
+    # doesn't get clobbered by the sparser one (e.g. list_keys) on second
+    # pass.
+    field_map = (
+        ("KeyId",                "key_id"),
+        ("KeyState",             "key_state"),
+        ("KeyManager",           "key_manager"),
+        ("KeySpec",              "key_spec"),
+        ("KeyUsage",             "key_usage"),
+        ("Origin",               "origin"),
+        ("MultiRegion",          "multi_region"),
+        ("Enabled",              "enabled"),
+        ("KeyRotationEnabled",   "rotation_enabled"),
+        ("RotationPeriodInDays", "rotation_interval_days"),
+        ("PendingDeletionWindowInDays", "pending_deletion_days"),
+    )
+    for src, tgt in field_map:
+        val = emitted.get(src)
+        if val is not None and entry.get(tgt) in (None, "", "Unknown"):
+            entry[tgt] = val
+
+    # Date fields — only fill if entry's is None
+    if emitted.get("CreationDate") and not entry.get("creation_date"):
+        entry["creation_date"] = _parse_date(emitted["CreationDate"])
+    if emitted.get("DeletionDate") and not entry.get("deletion_date"):
+        entry["deletion_date"] = _parse_date(emitted["DeletionDate"])
+
+    # EncryptionAlgorithms can be a list — fill if entry's is None
+    algs = emitted.get("EncryptionAlgorithms")
+    if isinstance(algs, list) and algs and not entry.get("encryption_algorithms"):
+        entry["encryption_algorithms"] = [str(a) for a in algs]
+
+    # Aliases (separate discovery_id)
     if emitted.get("AliasName") and not entry.get("key_alias"):
         entry["key_alias"] = emitted["AliasName"]
+    if emitted.get("AliasArn") and not entry.get("key_alias"):
+        entry["key_alias"] = emitted["AliasArn"]
+
+    # Grants count
     if emitted.get("Grants"):
         grants = emitted["Grants"]
         if isinstance(grants, list):
             entry["grant_count"] = max(entry.get("grant_count", 0), len(grants))
+
+    # Tags (merge dict)
+    tags = emitted.get("Tags")
+    if isinstance(tags, dict) and tags:
+        existing_tags = entry.get("tags") or {}
+        if isinstance(existing_tags, dict):
+            existing_tags.update(tags)
+            entry["tags"] = existing_tags
+
+    # Policy principals — merge from get_key_policy
+    if emitted.get("Policy"):
+        new_principals = _extract_policy_principals(emitted["Policy"])
+        if new_principals:
+            existing = entry.get("key_policy_principals") or []
+            if isinstance(existing, list):
+                merged_principals = list({*existing, *new_principals})
+                entry["key_policy_principals"] = merged_principals
+                # Recompute cross-account flag
+                entry["cross_account_access"] = _detect_cross_account(
+                    merged_principals, entry.get("account_id", "")
+                )
 
 
 def _parse_date(val) -> Optional[datetime]:
