@@ -177,8 +177,12 @@ def _extract_metadata(
         or raw.get("PublicAccessBlockConfiguration") == {}
     )
 
-    # Versioning (S3)
-    meta["versioning_enabled"] = raw.get("VersioningConfiguration", {}).get("Status") == "Enabled"
+    # Versioning (S3) — catalog flattens VersioningConfiguration.Status → Status.
+    # The top-level "Status" is generic so use VersioningStatus when present too.
+    meta["versioning_enabled"] = (
+        raw.get("VersioningStatus") == "Enabled"
+        or raw.get("VersioningConfiguration", {}).get("Status") == "Enabled"
+    )
 
     # Backup
     meta["backup_enabled"] = raw.get("BackupRetentionPeriod", 0) > 0

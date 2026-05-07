@@ -361,7 +361,8 @@ def _detect_model_type(
 
     # Check for explicit model type indicators
     model_name = (combined.get("ModelName") or combined.get("model_id") or "").lower()
-    image_uri = (combined.get("ImageUri") or combined.get("PrimaryContainer", {}).get("Image", "") or "").lower()
+    # Catalog flattens PrimaryContainer.Image → top-level Image.
+    image_uri = (combined.get("ImageUri") or combined.get("Image") or combined.get("PrimaryContainer", {}).get("Image", "") or "").lower()
 
     if any(kw in model_name or kw in image_uri for kw in ("llm", "gpt", "llama", "claude", "falcon")):
         return "llm"

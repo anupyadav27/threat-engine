@@ -53,10 +53,18 @@ def _extract_dynamodb(r: Dict[str, Any]) -> Dict[str, Any]:
         "publicly_accessible": False,  # DynamoDB is always behind IAM
         "encryption_at_rest": sse.get("Status") == "ENABLED",
         "iam_auth_enabled": True,  # DynamoDB uses IAM natively
-        "backup_enabled": bool(config.get("PointInTimeRecoveryDescription", {}).get("PointInTimeRecoveryStatus") == "ENABLED"),
+        # Catalog flattens DynamoDB envelopes — prefer top-level keys, keep
+        # nested fallback for any pre-DCAT data still in the table.
+        "backup_enabled": (
+            config.get("PointInTimeRecoveryStatus") == "ENABLED"
+            or config.get("PointInTimeRecoveryDescription", {}).get("PointInTimeRecoveryStatus") == "ENABLED"
+        ),
         "multi_az": True,  # DynamoDB is always multi-AZ
         "vpc_id": "",
-        "billing_mode": config.get("BillingModeSummary", {}).get("BillingMode", ""),
+        "billing_mode": (
+            config.get("BillingMode")
+            or config.get("BillingModeSummary", {}).get("BillingMode", "")
+        ),
     }
 
 

@@ -93,7 +93,8 @@ def build_cert_inventory(
 
             entry = {
                 "cert_arn": ca_arn,
-                "domain_name": emitted.get("Subject", {}).get("CommonName", ""),
+                # Catalog flattens Subject.CommonName → top-level CommonName.
+                "domain_name": emitted.get("CommonName") or emitted.get("Subject", {}).get("CommonName", ""),
                 "subject_alternative_names": None,
                 "account_id": r.get("account_id", ""),
                 "provider": r.get("provider", "aws"),
