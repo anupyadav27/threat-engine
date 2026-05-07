@@ -248,6 +248,7 @@ def main():
             "providers.aws.scanner.service_scanner",
             "providers.kubernetes.scanner.service_scanner",
             "providers.azure.scanner.service_scanner",
+            "providers.gcp.scanner.service_scanner",
         ):
             try:
                 _mod = __import__(_mod_path, fromlist=["_emit_failure_sink"])

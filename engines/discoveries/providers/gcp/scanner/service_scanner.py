@@ -20,7 +20,75 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from common.models.provider_interface import DiscoveryScanner, AuthenticationError, DiscoveryError
 
+# DCAT-02-G: catalog-driven emit rendering (DB-backed, mirrors AWS/K8s/Azure)
+try:
+    from common.jinja_renderer import render_emit_item
+    _RENDERER_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    render_emit_item = None  # type: ignore
+    _RENDERER_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
+
+# Shared failure sink (flushed by run_scan at scan completion)
+_emit_failure_sink: List[Dict[str, Any]] = []
+
+# Catalog cache: discovery_id -> emit.item template dict (or None)
+_GCP_EMIT_CACHE: Dict[str, Optional[Dict[str, Any]]] = {}
+# Per-service load tracking so we only hit the DB once per service per process
+_GCP_SERVICE_LOADED: set = set()
+
+
+def _load_gcp_service_emits(service: str) -> None:
+    """Populate _GCP_EMIT_CACHE for every discovery_id of a gcp service.
+
+    Reads from rule_discoveries (check DB) — single source of truth, same as
+    AWS / K8s / Azure. Service-default fallback added so divergent scanner
+    IDs still resolve to a flat-shape template.
+    """
+    if service in _GCP_SERVICE_LOADED:
+        return
+    _GCP_SERVICE_LOADED.add(service)
+    try:
+        from providers.aws.aws_utils.rules import load_service_rules
+        rules = load_service_rules(service, provider="gcp")
+    except Exception as exc:
+        logger.warning("GCP rules load failed for service=%s: %s", service, exc)
+        return
+    default_template: Optional[Dict[str, Any]] = None
+    for disc in (rules or {}).get('discovery', []) or []:
+        did = disc.get('discovery_id')
+        emit = disc.get('emit') or {}
+        item_tmpl = emit.get('item') if isinstance(emit, dict) else None
+        valid = isinstance(item_tmpl, dict) and bool(item_tmpl)
+        if did:
+            _GCP_EMIT_CACHE[did] = item_tmpl if valid else None
+        if valid and default_template is None:
+            default_template = item_tmpl
+    if default_template is not None:
+        _GCP_EMIT_CACHE[f"_service_default::{service}"] = default_template
+
+
+def _get_gcp_emit_template(discovery_id: str) -> Optional[Dict[str, Any]]:
+    """Return cached emit.item template for a discovery_id, loading on demand.
+
+    Falls back to the per-service default template if the exact discovery_id
+    isn't in the catalog. discovery_id format: 'gcp.<service>.<resource>.<op>'.
+    """
+    if discovery_id in _GCP_EMIT_CACHE:
+        return _GCP_EMIT_CACHE[discovery_id]
+    parts = discovery_id.split('.', 2)
+    if len(parts) < 2 or parts[0] != 'gcp':
+        _GCP_EMIT_CACHE[discovery_id] = None
+        return None
+    service = parts[1]
+    _load_gcp_service_emits(service)
+    direct = _GCP_EMIT_CACHE.get(discovery_id)
+    if direct is not None:
+        return direct
+    fallback = _GCP_EMIT_CACHE.get(f"_service_default::{service}")
+    _GCP_EMIT_CACHE[discovery_id] = fallback
+    return fallback
 
 # Thread pool for blocking GCP SDK calls
 _GCP_EXECUTOR = ThreadPoolExecutor(max_workers=10)
@@ -57,6 +125,11 @@ def _enrich_gcp_item(item: Dict) -> Dict:
     GCP resources use selfLink or name as primary identifier. This maps
     them to resource_arn/resource_uid/resource_id so the DB layer can
     store them correctly.
+
+    DCAT-02-G: also renders the catalog `emit.item` template (Jinja) and
+    stores the flat result on `item['emitted_fields']`. Discovery engine
+    pipes this into `discovery_findings.emitted_fields` JSONB so the column
+    is flat (no nested envelope objects).
     """
     self_link = item.get('selfLink', '')
     resource_id = item.get('id', '')
@@ -70,6 +143,38 @@ def _enrich_gcp_item(item: Dict) -> Dict:
     item['_raw_response'] = {k: v for k, v in item.items()
                              if not k.startswith('_') and k not in (
                                  'resource_arn', 'resource_uid', 'resource_id', 'resource_type')}
+
+    # DCAT-02-G: catalog-driven emit rendering (single chokepoint)
+    if _RENDERER_AVAILABLE:
+        discovery_id = item.get('_discovery_id')
+        if discovery_id:
+            template = _get_gcp_emit_template(discovery_id)
+            if template:
+                ctx = {
+                    'item': item,
+                    'response': item,
+                    'context': {
+                        'project_id': item.get('_project_id'),
+                        'service': discovery_id.split('.')[1] if '.' in discovery_id else '',
+                        'name': item.get('name'),
+                        'self_link': self_link,
+                    },
+                }
+                try:
+                    rendered = render_emit_item(
+                        template,
+                        ctx,
+                        discovery_id=discovery_id,
+                        resource_uid=uid,
+                        failure_sink=_emit_failure_sink,
+                    )
+                    if isinstance(rendered, dict) and rendered:
+                        item['emitted_fields'] = rendered
+                except Exception as exc:  # pragma: no cover
+                    logger.warning(
+                        "GCP emit render failed %s for %s: %s",
+                        discovery_id, uid, exc,
+                    )
     return item
 
 
