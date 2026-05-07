@@ -31,6 +31,17 @@ python3 -m pytest tests/engine_mappers/ -v
 
 Both paths exit non-zero on any failure.
 
+## Coverage
+
+| Engine | Test file | Reads from | Notes |
+| --- | --- | --- | --- |
+| encryption-security | test_encryption_mappers.py | emitted_fields | KMS / ACM / Secrets — order-independent merge regression for Bug 5 |
+| ai-security | test_ai_security_mappers.py | emitted_fields | Sagemaker / Bedrock — pins PrimaryContainer.Image nested fallback |
+| database-security | test_database_security_mappers.py | configuration | DynamoDB nested→flat (PointInTimeRecoveryStatus, BillingMode); RDS / snapshot filter |
+| container-security | test_container_security_mappers.py | configuration | EKS / ECS / ECR / Lambda extractors |
+| datasec | test_datasec_mappers.py | raw_response | S3 VersioningStatus flat + nested fallback; RDS GB→bytes; DynamoDB ItemCount |
+| network-security | test_network_security_mappers.py | raw_response | Special-case: envelope-preserving by design — VPC topology builder |
+
 ## When to add a fixture
 
 1. New engine mapper or new fixture-worthy regression
