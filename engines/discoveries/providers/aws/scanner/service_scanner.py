@@ -933,6 +933,16 @@ def run_service(
                         results.append(item_data)
 
                 discovery_results[discovery_id] = results
+            elif discovery_for_each:
+                # DCAT-02 fix-D: parent for_each list was empty (no contexts
+                # saved) — emit nothing rather than falling through to the
+                # regular item/items_for branches below which would read
+                # stale sibling response data from saved_data and produce
+                # placeholder rows like "kms:us-west-1:aws.kms.describe_key".
+                logger.debug(
+                    "%s: for_each parent empty, skipping emit", discovery_id
+                )
+                discovery_results[discovery_id] = []
             elif 'items_for' in emit_config:
                 items_path = emit_config['items_for'].replace('{{ ', '').replace(' }}', '')
                 items = extract_value(saved_data, items_path)
@@ -1449,6 +1459,13 @@ async def run_service_async(
                 async with discovery_results_lock:
                     discovery_results[discovery_id] = results
 
+            elif discovery_for_each:
+                # DCAT-02 fix-D: see sync block — empty for_each parent.
+                logger.debug(
+                    "[ASYNC] %s: for_each parent empty, skipping emit", discovery_id
+                )
+                async with discovery_results_lock:
+                    discovery_results[discovery_id] = []
             elif 'items_for' in emit_config:
                 items_path = emit_config['items_for'].replace('{{ ', '').replace(' }}', '')
                 items = extract_value(saved_data_copy, items_path)
@@ -1737,6 +1754,12 @@ async def run_service_async(
 
                 discovery_results[discovery_id] = results
 
+            elif discovery_for_each:
+                # DCAT-02 fix-D: see sync block — empty for_each parent.
+                logger.debug(
+                    "[ASYNC] %s: for_each parent empty, skipping emit", discovery_id
+                )
+                discovery_results[discovery_id] = []
             elif 'items_for' in emit_config:
                 items_path = emit_config['items_for'].replace('{{ ', '').replace(' }}', '')
                 items = extract_value(saved_data, items_path)
