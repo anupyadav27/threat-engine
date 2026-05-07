@@ -35,10 +35,22 @@ def build_cert_inventory(
         if not isinstance(emitted, dict):
             continue
 
+        # Skip non-certificate ACM responses: get_account_configuration,
+        # list_certificates summary, etc. Only describe_certificate (and
+        # list_certificates entries) carry CertificateArn at top level.
+        # resource_type is set by the catalog `emit.item.resource_type`
+        # template — anything other than "certificate" is filtered out.
+        rtype = (r.get("resource_type") or "").lower()
+        if rtype and rtype != "certificate" and "cert" not in rtype:
+            continue
+
         cert_arn = emitted.get("CertificateArn") or r.get("resource_uid", "")
-        if not cert_arn or cert_arn in cert_map:
-            if cert_arn and cert_arn in cert_map:
-                _merge_cert_emitted(cert_map[cert_arn], emitted)
+        # Reject placeholder/synthetic UIDs: catalog-flat output has real
+        # AWS ARNs like arn:aws:acm:<region>:<account>:certificate/<id>.
+        if not cert_arn or not str(cert_arn).startswith("arn:aws:acm:"):
+            continue
+        if cert_arn in cert_map:
+            _merge_cert_emitted(cert_map[cert_arn], emitted)
             continue
 
         not_after = _parse_date(emitted.get("NotAfter"))

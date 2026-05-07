@@ -95,15 +95,22 @@ def build_key_inventory(
             "account_id": r.get("account_id", ""),
             "provider": r.get("provider", "aws"),
             "region": r.get("region", ""),
-            "key_state": emitted.get("KeyState", "Unknown"),
-            "key_manager": emitted.get("KeyManager", "AWS"),
+            # Use None instead of literal defaults so merge fills correctly
+            # when sparse list_keys arrives before rich describe_key.
+            "key_state": emitted.get("KeyState"),
+            "key_manager": emitted.get("KeyManager"),
             "key_spec": emitted.get("KeySpec"),
             "key_usage": emitted.get("KeyUsage"),
             "encryption_algorithms": algorithms,
             "origin": emitted.get("Origin"),
-            "multi_region": emitted.get("MultiRegion", False),
-            "enabled": emitted.get("Enabled", True),
-            "rotation_enabled": emitted.get("KeyRotationEnabled", False),
+            # Use None instead of literal defaults so _merge_emitted can
+            # legitimately fill these from sibling discovery_ids (e.g.
+            # rotation_enabled comes from get_key_rotation_status, not
+            # describe_key). Boolean defaults block the merge fill-if-empty
+            # check.
+            "multi_region": emitted.get("MultiRegion"),
+            "enabled": emitted.get("Enabled"),
+            "rotation_enabled": emitted.get("KeyRotationEnabled"),
             "rotation_interval_days": emitted.get("RotationPeriodInDays"),
             "creation_date": creation_date,
             "deletion_date": _parse_date(emitted.get("DeletionDate")),
