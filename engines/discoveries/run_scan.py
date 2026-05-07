@@ -247,6 +247,7 @@ def main():
         for _mod_path in (
             "providers.aws.scanner.service_scanner",
             "providers.kubernetes.scanner.service_scanner",
+            "providers.azure.scanner.service_scanner",
         ):
             try:
                 _mod = __import__(_mod_path, fromlist=["_emit_failure_sink"])

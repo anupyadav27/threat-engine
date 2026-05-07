@@ -94,7 +94,13 @@ def main() -> int:
                     cur.execute(
                         "INSERT INTO rule_discoveries "
                         "(service, provider, version, discoveries_data, source, generated_by, is_active) "
-                        "VALUES (%s, %s, '1.0', %s::jsonb, 'dcat01_autogen', 'catalog_gap_autogen.py', true)",
+                        "VALUES (%s, %s, '1.0', %s::jsonb, 'dcat01_autogen', 'catalog_gap_autogen.py', true) "
+                        "ON CONFLICT (service, provider, customer_id, tenant_id) DO UPDATE SET "
+                        "  discoveries_data = EXCLUDED.discoveries_data, "
+                        "  updated_at = now(), "
+                        "  is_active = true, "
+                        "  source = EXCLUDED.source, "
+                        "  generated_by = EXCLUDED.generated_by",
                         (service, provider, discoveries_data_json),
                     )
                     inserted += 1

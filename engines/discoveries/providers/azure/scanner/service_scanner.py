@@ -32,7 +32,75 @@ from common.models.provider_interface import (
 from providers.azure.client_factory import AzureClientFactory
 from providers.azure.pagination import azure_list_all
 
+# DCAT-02-A: catalog-driven emit rendering (DB-backed, mirrors AWS/K8s)
+try:
+    from common.jinja_renderer import render_emit_item
+    _RENDERER_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    render_emit_item = None  # type: ignore
+    _RENDERER_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
+
+# Shared failure sink (flushed by run_scan at scan completion)
+_emit_failure_sink: List[Dict[str, Any]] = []
+
+# Catalog cache: discovery_id -> emit.item template dict (or None)
+_AZURE_EMIT_CACHE: Dict[str, Optional[Dict[str, Any]]] = {}
+# Per-service load tracking so we only hit the DB once per service per process
+_AZURE_SERVICE_LOADED: set = set()
+
+
+def _load_azure_service_emits(service: str) -> None:
+    """Populate _AZURE_EMIT_CACHE for every discovery_id of an azure service.
+
+    Reads from rule_discoveries (check DB) — single source of truth, same as
+    AWS / K8s. Service-default fallback added so divergent scanner IDs still
+    resolve to a flat-shape template instead of silently falling through.
+    """
+    if service in _AZURE_SERVICE_LOADED:
+        return
+    _AZURE_SERVICE_LOADED.add(service)
+    try:
+        from providers.aws.aws_utils.rules import load_service_rules
+        rules = load_service_rules(service, provider="azure")
+    except Exception as exc:
+        logger.warning("Azure rules load failed for service=%s: %s", service, exc)
+        return
+    default_template: Optional[Dict[str, Any]] = None
+    for disc in (rules or {}).get('discovery', []) or []:
+        did = disc.get('discovery_id')
+        emit = disc.get('emit') or {}
+        item_tmpl = emit.get('item') if isinstance(emit, dict) else None
+        valid = isinstance(item_tmpl, dict) and bool(item_tmpl)
+        if did:
+            _AZURE_EMIT_CACHE[did] = item_tmpl if valid else None
+        if valid and default_template is None:
+            default_template = item_tmpl
+    if default_template is not None:
+        _AZURE_EMIT_CACHE[f"_service_default::{service}"] = default_template
+
+
+def _get_azure_emit_template(discovery_id: str) -> Optional[Dict[str, Any]]:
+    """Return cached emit.item template for a discovery_id, loading on demand.
+
+    Falls back to the per-service default template if the exact discovery_id
+    isn't in the catalog. discovery_id format: 'azure.<service>.<resource>.<op>'.
+    """
+    if discovery_id in _AZURE_EMIT_CACHE:
+        return _AZURE_EMIT_CACHE[discovery_id]
+    parts = discovery_id.split('.', 2)
+    if len(parts) < 2 or parts[0] != 'azure':
+        _AZURE_EMIT_CACHE[discovery_id] = None
+        return None
+    service = parts[1]
+    _load_azure_service_emits(service)
+    direct = _AZURE_EMIT_CACHE.get(discovery_id)
+    if direct is not None:
+        return direct
+    fallback = _AZURE_EMIT_CACHE.get(f"_service_default::{service}")
+    _AZURE_EMIT_CACHE[discovery_id] = fallback
+    return fallback
 
 # Per-call timeout (seconds) — matches AWS scanner OPERATION_TIMEOUT
 OPERATION_TIMEOUT = 10
@@ -91,7 +159,14 @@ def azure_handler(service_name: str):
 
 def _enrich_azure_item(item: Dict, service: str, subscription_id: str,
                        discovery_id: Optional[str] = None) -> Dict:
-    """Inject standard resource identifier fields from Azure SDK as_dict() output."""
+    """Inject standard resource identifier fields from Azure SDK as_dict() output.
+
+    DCAT-02-A: also renders the catalog `emit.item` template (Jinja) and
+    stores the flat result on `item['emitted_fields']`. Discovery engine
+    pipes this into `discovery_findings.emitted_fields` JSONB so the column
+    is flat (no nested envelope objects). Falls back to whole-item dump
+    when no catalog template exists for the discovery_id.
+    """
     resource_uid = item.get("id", "")
     raw_type = item.get("type", "")
     resource_type = _RESOURCE_TYPE_MAP.get(raw_type) or raw_type or service
@@ -106,6 +181,38 @@ def _enrich_azure_item(item: Dict, service: str, subscription_id: str,
                              if not k.startswith("_") and k not in
                              ("resource_uid", "resource_id", "resource_type",
                               "resource_name", "account_id")}
+
+    # DCAT-02-A: catalog-driven emit rendering (single chokepoint)
+    if _RENDERER_AVAILABLE and discovery_id:
+        template = _get_azure_emit_template(discovery_id)
+        if template:
+            ctx = {
+                'item': item,
+                'response': item,
+                'context': {
+                    'subscription_id': subscription_id,
+                    'service': service,
+                    'resource_type': resource_type,
+                    'name': item.get('name'),
+                    'region': item.get('location'),
+                },
+            }
+            try:
+                rendered = render_emit_item(
+                    template,
+                    ctx,
+                    discovery_id=discovery_id,
+                    resource_uid=resource_uid,
+                    failure_sink=_emit_failure_sink,
+                )
+                if isinstance(rendered, dict) and rendered:
+                    item['emitted_fields'] = rendered
+            except Exception as exc:  # pragma: no cover
+                logger.warning(
+                    "Azure emit render failed %s for %s: %s",
+                    discovery_id, resource_uid, exc,
+                )
+
     return item
 
 
