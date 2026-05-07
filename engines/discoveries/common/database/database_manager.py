@@ -327,7 +327,13 @@ class DatabaseManager:
                     previous = previous_versions.get(resource_uid) if resource_uid else None
                     
                     raw_response_json = json.dumps(item.get('_raw_response', {}), default=json_serial)
-                    emitted_fields_json = json.dumps(item, default=json_serial)
+                    # DCAT-02-E: prefer rendered emit.item template if scanner attached it
+                    # (catalog-as-truth flat fields). Falls back to whole-item dump.
+                    rendered_emit = item.get('emitted_fields')
+                    if isinstance(rendered_emit, dict) and rendered_emit:
+                        emitted_fields_json = json.dumps(rendered_emit, default=json_serial)
+                    else:
+                        emitted_fields_json = json.dumps(item, default=json_serial)
                     history_resource_uid = resource_uid or f"account:{account_id}:{discovery_id}"
                     
                     if previous:
@@ -397,15 +403,50 @@ class DatabaseManager:
                 
                 # Execute UPDATE for unchanged resources
                 if discoveries_to_update:
+                    # DCAT-02-E: also refresh emitted_fields/raw_response so that
+                    # catalog changes propagate even when the resource config is
+                    # unchanged. The "unchanged" path now needs to update those
+                    # JSONB columns too — previously they stayed stale forever
+                    # after the first scan, masking catalog improvements.
+                    update_rows = []
+                    for tup in discoveries_to_update:
+                        s_scan_id, s_uid, s_did, s_cust, s_tenant, s_acct = tup
+                        # Find the matching item to pull fresh emitted_fields/raw
+                        match_item = None
+                        for it in items:
+                            if (it.get('resource_uid') or it.get('resource_arn')) == s_uid:
+                                match_item = it
+                                break
+                        if match_item is not None:
+                            _ef = match_item.get('emitted_fields')
+                            ef_json = (
+                                json.dumps(_ef, default=json_serial)
+                                if isinstance(_ef, dict) and _ef
+                                else json.dumps(match_item, default=json_serial)
+                            )
+                            rr_json = json.dumps(
+                                match_item.get('_raw_response', {}),
+                                default=json_serial,
+                            )
+                        else:
+                            ef_json = '{}'
+                            rr_json = '{}'
+                        update_rows.append((
+                            s_scan_id, ef_json, rr_json,
+                            s_uid, s_did, s_cust, s_tenant, s_acct,
+                        ))
                     cur.executemany("""
                         UPDATE discovery_findings
-                        SET scan_run_id = %s, first_seen_at = CURRENT_TIMESTAMP
+                        SET scan_run_id = %s,
+                            first_seen_at = CURRENT_TIMESTAMP,
+                            emitted_fields = %s::jsonb,
+                            raw_response = %s::jsonb
                         WHERE resource_uid = %s
                           AND discovery_id = %s
                           AND customer_id = %s
                           AND tenant_id = %s
                           AND account_id = %s
-                    """, discoveries_to_update)
+                    """, update_rows)
 
                 # Execute INSERT for new/modified resources
                 if discoveries_to_insert:

@@ -6,6 +6,12 @@ Each K8s resource type is a handler registered via @k8s_handler decorator.
 
 K8s is unique: no region concept, uses in-cluster auth or kubeconfig,
 discovers K8s API objects (pods, deployments, services, etc.).
+
+DCAT-02-E: Catalog-as-truth — `_enrich_k8s_item` now loads
+`step6_<service>.discovery.yaml` from the catalog and runs Jinja templates
+through `common.jinja_renderer.render_emit_item` to populate
+`emitted_fields` (flat, no nested envelopes). Failures recorded to the
+shared `_emit_failure_sink` and flushed by run_scan at scan-end.
 """
 
 from typing import Dict, List, Any, Optional, Tuple, Callable
@@ -15,7 +21,112 @@ import logging
 
 from common.models.provider_interface import DiscoveryScanner, AuthenticationError, DiscoveryError
 
+# DCAT-02-E: catalog-driven emit rendering (DB-backed, mirrors AWS pattern)
+try:
+    from common.jinja_renderer import render_emit_item
+    _RENDERER_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    render_emit_item = None  # type: ignore
+    _RENDERER_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
+
+# Shared failure sink (flushed by run_scan at scan completion)
+_emit_failure_sink: List[Dict[str, Any]] = []
+
+# Catalog cache: discovery_id -> emit.item template dict (or None)
+_K8S_EMIT_CACHE: Dict[str, Optional[Dict[str, Any]]] = {}
+# Per-service load tracking so we only hit the DB once per service per process
+_K8S_SERVICE_LOADED: set = set()
+
+# DCAT-02-E: cross-service alias map for scanner IDs whose service-stem
+# doesn't match the catalog file location. Without this, the loader would
+# look in the wrong service folder and miss the template.
+_K8S_SERVICE_ALIAS: Dict[str, str] = {
+    "deployments": "deployment",       # scanner: k8s.deployments.list
+    "hpa": "horizontalpodautoscaler",  # scanner: k8s.hpa.list
+    # k8s.cluster.list_namespace → namespace catalog
+    # k8s.network.list_service_* → service catalog
+    # k8s.monitoring.list_config_map_* → configmap catalog
+}
+
+# Per-(scanner-id) → resolved-service overrides for the few cases where the
+# discovery_id's first segment names a logical group rather than the catalog
+# folder. Resolved by exact discovery_id match before service-stem fallback.
+_K8S_DISCOVERY_ID_SERVICE: Dict[str, str] = {
+    "k8s.cluster.list_namespace": "namespace",
+    "k8s.network.list_service_for_all_namespaces": "service",
+    "k8s.monitoring.list_config_map_for_all_namespaces": "configmap",
+    "k8s.monitoring.list_service_for_all_namespaces": "service",
+    "k8s.rbac.list_role_for_all_namespaces": "role",
+    "k8s.rbac.list_cluster_role": "clusterrole",
+    "k8s.rbac.list_cluster_role_binding": "clusterrolebinding",
+}
+
+
+def _load_k8s_service_emits(service: str) -> None:
+    """Populate _K8S_EMIT_CACHE for every discovery_id of a k8s service.
+
+    Reads from rule_discoveries (check DB) — single source of truth, same as
+    AWS scanner. YAML on disk is seed data only.
+
+    Also caches `_service_default::<service>` → first non-empty emit.item
+    template found, so divergent scanner IDs (e.g. scanner emits
+    `k8s.pod.list_pods` while catalog has `k8s.pod.list_pod_for_all_namespaces`)
+    still resolve to a flat-shape template instead of silently falling through.
+    See DCAT-02-E audit: 21/33 scanner IDs use short-form, catalog uses verbose
+    form; check rules reference the short-form. Service-default fallback keeps
+    both sides untouched.
+    """
+    if service in _K8S_SERVICE_LOADED:
+        return
+    _K8S_SERVICE_LOADED.add(service)
+    try:
+        # Reuse AWS rules loader (provider-aware)
+        from providers.aws.aws_utils.rules import load_service_rules
+        rules = load_service_rules(service, provider="k8s")
+    except Exception as exc:
+        logger.warning("K8s rules load failed for service=%s: %s", service, exc)
+        return
+    default_template: Optional[Dict[str, Any]] = None
+    for disc in (rules or {}).get('discovery', []) or []:
+        did = disc.get('discovery_id')
+        emit = disc.get('emit') or {}
+        item_tmpl = emit.get('item') if isinstance(emit, dict) else None
+        valid = isinstance(item_tmpl, dict) and bool(item_tmpl)
+        if did:
+            _K8S_EMIT_CACHE[did] = item_tmpl if valid else None
+        if valid and default_template is None:
+            default_template = item_tmpl
+    if default_template is not None:
+        _K8S_EMIT_CACHE[f"_service_default::{service}"] = default_template
+
+
+def _get_k8s_emit_template(discovery_id: str) -> Optional[Dict[str, Any]]:
+    """Return cached emit.item template for a discovery_id, loading on demand.
+
+    Falls back to the per-service default template if the exact discovery_id
+    isn't in the catalog (DCAT-02-E alignment shortcut).
+    """
+    if discovery_id in _K8S_EMIT_CACHE:
+        return _K8S_EMIT_CACHE[discovery_id]
+    parts = discovery_id.split('.', 2)
+    if len(parts) < 2 or parts[0] != 'k8s':
+        _K8S_EMIT_CACHE[discovery_id] = None
+        return None
+    # Resolve scanner_id -> catalog service folder
+    service = (
+        _K8S_DISCOVERY_ID_SERVICE.get(discovery_id)
+        or _K8S_SERVICE_ALIAS.get(parts[1], parts[1])
+    )
+    _load_k8s_service_emits(service)
+    direct = _K8S_EMIT_CACHE.get(discovery_id)
+    if direct is not None:
+        return direct
+    # Service-default fallback for short-form scanner IDs
+    fallback = _K8S_EMIT_CACHE.get(f"_service_default::{service}")
+    _K8S_EMIT_CACHE[discovery_id] = fallback
+    return fallback
 
 # Thread pool for blocking K8s SDK calls
 _K8S_EXECUTOR = ThreadPoolExecutor(max_workers=10)
@@ -51,6 +162,11 @@ def _enrich_k8s_item(item: Dict) -> Dict:
     """Inject standard resource identifier fields used by database_manager.
 
     K8s uses namespace/kind/name as logical identifier and uid as unique ID.
+
+    DCAT-02-E: also renders the catalog `emit.item` template (Jinja) and
+    stores the flat result on `item['emitted_fields']`. Discovery engine
+    pipes this into `discovery_findings.emitted_fields` JSONB so the column
+    is flat (no nested envelope objects).
     """
     metadata = item.get('metadata', {}) or {}
     uid = metadata.get('uid', '')
@@ -68,6 +184,40 @@ def _enrich_k8s_item(item: Dict) -> Dict:
     item['_raw_response'] = {k: v for k, v in item.items()
                              if not k.startswith('_') and k not in (
                                  'resource_arn', 'resource_uid', 'resource_id', 'resource_type')}
+
+    # DCAT-02-E: catalog-driven emit rendering (single chokepoint)
+    if _RENDERER_AVAILABLE:
+        discovery_id = item.get('_discovery_id')
+        if discovery_id:
+            template = _get_k8s_emit_template(discovery_id)
+            if template:
+                ctx = {
+                    'item': item,
+                    'response': item,        # K8s items are already individual
+                    'context': {
+                        'namespace': namespace,
+                        'kind': kind,
+                        'name': name,
+                        'uid': uid,
+                        'cluster': item.get('_cluster_name'),
+                    },
+                }
+                try:
+                    rendered = render_emit_item(
+                        template,
+                        ctx,
+                        discovery_id=discovery_id,
+                        resource_uid=resource_path,
+                        failure_sink=_emit_failure_sink,
+                    )
+                    if isinstance(rendered, dict) and rendered:
+                        item['emitted_fields'] = rendered
+                except Exception as exc:  # pragma: no cover
+                    logger.warning(
+                        "K8s emit render failed %s for %s: %s",
+                        discovery_id, resource_path, exc,
+                    )
+
     return item
 
 

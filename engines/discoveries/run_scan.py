@@ -167,6 +167,21 @@ def main():
 
     db_manager = DatabaseManager()
 
+    # DCAT-01: ensure discovery_emit_failures table exists at scan startup
+    # so failure-flush at scan-end can always insert without table-missing errors.
+    try:
+        from common.jinja_renderer import ensure_failure_table as _ensure_table
+        from engine_common.db_connections import get_discoveries_conn
+        _conn = get_discoveries_conn()
+        try:
+            _ensure_table(_conn)
+            logger.info("[DCAT-EMIT] discovery_emit_failures table ensured")
+        finally:
+            try: _conn.close()
+            except Exception: pass
+    except Exception as _ddl_err:
+        logger.warning("[DCAT-EMIT] could not ensure failure table: %s", _ddl_err)
+
     # SIGTERM handler — mark scan as failed on timeout/preemption
     def _handle_sigterm(signum, frame):
         logger.warning("SIGTERM received — marking scan as failed (timeout/preemption)")
@@ -225,16 +240,37 @@ def main():
 
         logger.info("Discovery scan COMPLETED scan_id=%s", scan_run_id)
 
-        # DCAT-01: flush Jinja-render failures to discovery_emit_failures
-        try:
-            from providers.aws.scanner.service_scanner import _flush_emit_failures_to_db
-            _flush_emit_failures_to_db(
-                scan_run_id=str(scan_run_id),
-                tenant_id=str(metadata.get("tenant_id") or ""),
-                provider=str(metadata.get("provider") or "aws"),
-            )
-        except Exception as _flush_err:
-            logger.warning("[DCAT-EMIT] failure flush failed: %s", _flush_err)
+        # DCAT-01/02: flush Jinja-render failures to discovery_emit_failures.
+        # Each provider scanner maintains its own _emit_failure_sink.
+        # We try to flush both AWS and K8s sinks (only the active provider
+        # will have rows; the other will be a no-op).
+        for _mod_path in (
+            "providers.aws.scanner.service_scanner",
+            "providers.kubernetes.scanner.service_scanner",
+        ):
+            try:
+                _mod = __import__(_mod_path, fromlist=["_emit_failure_sink"])
+                _sink = getattr(_mod, "_emit_failure_sink", None)
+                if not _sink:
+                    continue
+                from common.jinja_renderer import flush_failures
+                from engine_common.db_connections import get_discoveries_conn
+                _conn = get_discoveries_conn()
+                try:
+                    flush_failures(
+                        _conn,
+                        rows=list(_sink),
+                        scan_run_id=str(scan_run_id),
+                        tenant_id=str(metadata.get("tenant_id") or ""),
+                        provider=str(metadata.get("provider") or ""),
+                    )
+                    _sink.clear()
+                    logger.info("[DCAT-EMIT] flushed failures from %s", _mod_path)
+                finally:
+                    try: _conn.close()
+                    except Exception: pass
+            except Exception as _flush_err:
+                logger.warning("[DCAT-EMIT] flush %s failed: %s", _mod_path, _flush_err)
 
         # Retention: archive old scans to S3, keep last 5 in DB
         try:

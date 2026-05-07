@@ -88,11 +88,13 @@ class RiskDBWriter:
             "asset_criticality": row.get("asset_criticality", "medium"),
             "is_public": row.get("is_public", False),
             "data_sensitivity": row.get("data_sensitivity", "internal"),
-            "data_types": row.get("data_types", []),
+            # data_types and applicable_regulations are Postgres TEXT[] arrays.
+            # Pass raw Python lists — psycopg2 adapts them to ARRAY[].
+            "data_types": list(row.get("data_types") or []),
             "estimated_record_count": row.get("estimated_record_count", 0),
             "industry": row.get("industry"),
             "estimated_revenue": row.get("estimated_revenue"),
-            "applicable_regulations": row.get("applicable_regulations", []),
+            "applicable_regulations": list(row.get("applicable_regulations") or []),
             "epss_score": row.get("epss_score", 0.05),
             "cve_id": row.get("cve_id"),
             "exposure_factor": row.get("exposure_factor", 1.0),
@@ -218,14 +220,18 @@ class RiskDBWriter:
             "scenario_type": row.get("scenario_type"),
             "data_records_at_risk": row.get("data_records_at_risk", 0),
             "data_sensitivity": row.get("data_sensitivity", "internal"),
-            "data_types": _jsonb_list(row.get("data_types", [])),
+            # data_types is Postgres TEXT[] — pass raw list
+            "data_types": list(row.get("data_types") or []),
             "loss_event_frequency": row.get("loss_event_frequency", 0),
             "primary_loss_min": row.get("primary_loss_min", 0),
             "primary_loss_max": row.get("primary_loss_max", 0),
             "primary_loss_likely": row.get("primary_loss_likely", 0),
             "regulatory_fine_min": row.get("regulatory_fine_min", 0),
             "regulatory_fine_max": row.get("regulatory_fine_max", 0),
-            "applicable_regulations": _jsonb_list(row.get("applicable_regulations", [])),
+            # applicable_regulations is a Postgres TEXT[] array (NOT jsonb).
+            # Pass the raw list — psycopg2 will adapt it. Wrapping in
+            # _jsonb_list() produces the string "[]" which Postgres rejects.
+            "applicable_regulations": list(row.get("applicable_regulations") or []),
             "total_exposure_min": row.get("total_exposure_min", 0),
             "total_exposure_max": row.get("total_exposure_max", 0),
             "total_exposure_likely": row.get("total_exposure_likely", 0),
