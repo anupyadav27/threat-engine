@@ -225,6 +225,17 @@ def main():
 
         logger.info("Discovery scan COMPLETED scan_id=%s", scan_run_id)
 
+        # DCAT-01: flush Jinja-render failures to discovery_emit_failures
+        try:
+            from providers.aws.scanner.service_scanner import _flush_emit_failures_to_db
+            _flush_emit_failures_to_db(
+                scan_run_id=str(scan_run_id),
+                tenant_id=str(metadata.get("tenant_id") or ""),
+                provider=str(metadata.get("provider") or "aws"),
+            )
+        except Exception as _flush_err:
+            logger.warning("[DCAT-EMIT] failure flush failed: %s", _flush_err)
+
         # Retention: archive old scans to S3, keep last 5 in DB
         try:
             from engine_common.retention import run_retention

@@ -34,6 +34,8 @@ try:
     from common.jinja_renderer import (
         render_emit_item,
         render_emit_for_list,
+        ensure_failure_table as _ensure_failure_table,
+        flush_failures as _flush_failures,
         feature_enabled as _emit_render_enabled,
     )
     _RENDERER_AVAILABLE = True
@@ -41,10 +43,58 @@ except ImportError:
     _RENDERER_AVAILABLE = False
     def _emit_render_enabled() -> bool:  # type: ignore[misc]
         return False
+    def _ensure_failure_table(_conn) -> None:  # type: ignore[misc]
+        return None
+    def _flush_failures(_conn, _rows, **_kw) -> int:  # type: ignore[misc]
+        return 0
 
 # Per-scan emit-failure sink — accumulates render failures for batch flush
 # at end of scan. Each entry: dict matching discovery_emit_failures schema.
 _emit_failure_sink: List[Dict[str, Any]] = []
+
+
+def _flush_emit_failures_to_db(
+    scan_run_id: str,
+    tenant_id: str,
+    provider: str = "aws",
+) -> None:
+    """Bulk insert accumulated emit failures into discovery_emit_failures.
+
+    Called after a scan completes. Ensures the table exists, then flushes
+    every row from the per-scan sink. Also raises a WARN-level log line
+    summarising total failures so they show up in scanner Job logs even
+    when no one is watching the failures table.
+    """
+    global _emit_failure_sink
+    rows = list(_emit_failure_sink)
+    _emit_failure_sink = []  # clear for next scan
+    if not rows:
+        return
+    try:
+        from common.database.database_manager import get_discoveries_conn
+        conn = get_discoveries_conn()
+        try:
+            _ensure_failure_table(conn)
+            inserted = _flush_failures(
+                conn, rows,
+                scan_run_id=scan_run_id,
+                tenant_id=tenant_id,
+                provider=provider,
+            )
+            # Loud log line — appears in scanner Job stdout
+            by_reason: Dict[str, int] = {}
+            for r in rows:
+                k = r.get("failure_reason", "unknown")
+                by_reason[k] = by_reason.get(k, 0) + 1
+            logger.warning(
+                "[DCAT-EMIT] scan_run_id=%s flushed %d emit failures (inserted=%d): %s",
+                scan_run_id, len(rows), inserted, by_reason,
+            )
+        finally:
+            try: conn.close()
+            except Exception: pass
+    except Exception as exc:
+        logger.warning("[DCAT-EMIT] failed to flush %d emit failures: %s", len(rows), exc)
 
 # ── Extracted utility modules (relative imports to avoid circular __init__.py) ─
 from ..aws_utils.extraction import (
@@ -565,7 +615,23 @@ def run_service(
                         discovery_results[discovery_id] = results
                 elif 'item' in emit_config:
                     response = saved_data_copy.get('response', {})
-                    if isinstance(response, dict):
+                    # DCAT-01: render emit.item template for single-record case
+                    emit_item_template = emit_config.get('item') if isinstance(emit_config, dict) else None
+                    use_renderer = (
+                        _RENDERER_AVAILABLE
+                        and _emit_render_enabled()
+                        and isinstance(emit_item_template, dict)
+                        and emit_item_template
+                    )
+                    if isinstance(response, dict) and use_renderer:
+                        ctx = {'response': response, 'item': {}, 'context': {}}
+                        item_data = render_emit_item(
+                            emit_item_template,
+                            ctx,
+                            discovery_id=discovery_id,
+                            failure_sink=_emit_failure_sink,
+                        )
+                    elif isinstance(response, dict):
                         item_data = {k: v for k, v in response.items() if k != 'ResponseMetadata'}
                         # Store raw response for DB raw_response column
                         item_data['_raw_response'] = dict(item_data)
@@ -827,6 +893,14 @@ def run_service(
 
                                 results.append(item_data)
                 else:
+                    # DCAT-01: catalog emit.item template renders flat fields.
+                    emit_item_template = emit_config.get('item') if isinstance(emit_config, dict) else None
+                    use_renderer = (
+                        _RENDERER_AVAILABLE
+                        and _emit_render_enabled()
+                        and isinstance(emit_item_template, dict)
+                        and emit_item_template
+                    )
                     for acc_data in accumulated_contexts:
                         response = acc_data['response']
                         item = acc_data['item']
@@ -834,7 +908,22 @@ def run_service(
                         if not isinstance(response, dict):
                             continue
 
-                        item_data = {k: v for k, v in response.items() if k != 'ResponseMetadata'}
+                        if use_renderer:
+                            ctx = {
+                                'response': response,
+                                'item': item if isinstance(item, dict) else {},
+                                'context': acc_data.get('context') or {},
+                            }
+                            rid = item.get('resource_arn') or item.get('Arn') or '' if isinstance(item, dict) else ''
+                            item_data = render_emit_item(
+                                emit_item_template,
+                                ctx,
+                                discovery_id=discovery_id,
+                                resource_uid=rid,
+                                failure_sink=_emit_failure_sink,
+                            )
+                        else:
+                            item_data = {k: v for k, v in response.items() if k != 'ResponseMetadata'}
 
                         if isinstance(item, dict):
                             parent_arn = item.get('resource_arn') or item.get('Arn') or item.get('arn')
