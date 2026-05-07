@@ -26,6 +26,14 @@ import traceback
 # Ensure /app is on the path (same as Dockerfile PYTHONPATH)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
+# DCAT-02 fix-B: turn on adaptive retries for all boto3 clients in this scan.
+# Without this, chained detail calls (describe_key, describe_certificate, etc.)
+# are throttled by AWS without retry → 50% of KMS keys and 97% of ACM certs
+# silently miss their detail data. Adaptive mode + 10 attempts gives the
+# scanner room to back off and recover. Set BEFORE any boto3 import.
+os.environ.setdefault("AWS_RETRY_MODE", "adaptive")
+os.environ.setdefault("AWS_MAX_ATTEMPTS", "10")
+
 from common.database.database_manager import DatabaseManager
 from common.orchestration.discovery_engine import DiscoveryEngine
 from common.models.provider_interface import DiscoveryScanner, AuthenticationError, DiscoveryError

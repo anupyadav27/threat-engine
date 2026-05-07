@@ -964,9 +964,35 @@ def run_service(
                 discovery_results[discovery_id] = results
             elif 'item' in emit_config:
                 response = saved_data.get('response', {})
-                if isinstance(response, dict):
+                # DCAT-01: catalog emit.item template renders flat fields.
+                # The bug fix: previously this branch only dumped response
+                # without lifting nested envelopes (e.g. KeyMetadata.KeyId).
+                emit_item_template = emit_config.get('item') if isinstance(emit_config, dict) else None
+                use_renderer = (
+                    _RENDERER_AVAILABLE
+                    and _emit_render_enabled()
+                    and isinstance(emit_item_template, dict)
+                    and emit_item_template
+                    and isinstance(response, dict)
+                )
+                if use_renderer:
+                    rendered = render_emit_item(
+                        emit_item_template,
+                        {'response': response, 'item': {}, 'context': {}},
+                        discovery_id=discovery_id,
+                        resource_uid='',
+                        failure_sink=_emit_failure_sink,
+                    )
+                    if isinstance(rendered, dict) and rendered:
+                        item_data = dict(rendered)
+                        item_data['_raw_response'] = (
+                            {k: v for k, v in response.items() if k != 'ResponseMetadata'}
+                        )
+                    else:
+                        item_data = {k: v for k, v in response.items() if k != 'ResponseMetadata'}
+                        item_data['_raw_response'] = dict(item_data)
+                elif isinstance(response, dict):
                     item_data = {k: v for k, v in response.items() if k != 'ResponseMetadata'}
-                    # Store raw response for DB raw_response column
                     item_data['_raw_response'] = dict(item_data)
                 else:
                     item_data = {'_raw_response': response}
@@ -1463,7 +1489,32 @@ async def run_service_async(
 
             elif 'item' in emit_config:
                 resp = saved_data_copy.get('response', {})
-                if isinstance(resp, dict):
+                # DCAT-01: catalog emit.item template renders flat fields.
+                emit_item_template = emit_config.get('item') if isinstance(emit_config, dict) else None
+                use_renderer = (
+                    _RENDERER_AVAILABLE
+                    and _emit_render_enabled()
+                    and isinstance(emit_item_template, dict)
+                    and emit_item_template
+                    and isinstance(resp, dict)
+                )
+                if use_renderer:
+                    rendered = render_emit_item(
+                        emit_item_template,
+                        {'response': resp, 'item': {}, 'context': {}},
+                        discovery_id=discovery_id,
+                        resource_uid='',
+                        failure_sink=_emit_failure_sink,
+                    )
+                    if isinstance(rendered, dict) and rendered:
+                        item_data = dict(rendered)
+                        item_data['_raw_response'] = (
+                            {k: v for k, v in resp.items() if k != 'ResponseMetadata'}
+                        )
+                    else:
+                        item_data = {k: v for k, v in resp.items() if k != 'ResponseMetadata'}
+                        item_data['_raw_response'] = dict(item_data)
+                elif isinstance(resp, dict):
                     item_data = {k: v for k, v in resp.items() if k != 'ResponseMetadata'}
                     item_data['_raw_response'] = dict(item_data)
                 else:
@@ -1715,7 +1766,32 @@ async def run_service_async(
 
             elif 'item' in emit_config:
                 resp = saved_data.get('response', {})
-                if isinstance(resp, dict):
+                # DCAT-01: catalog emit.item template renders flat fields.
+                emit_item_template = emit_config.get('item') if isinstance(emit_config, dict) else None
+                use_renderer = (
+                    _RENDERER_AVAILABLE
+                    and _emit_render_enabled()
+                    and isinstance(emit_item_template, dict)
+                    and emit_item_template
+                    and isinstance(resp, dict)
+                )
+                if use_renderer:
+                    rendered = render_emit_item(
+                        emit_item_template,
+                        {'response': resp, 'item': {}, 'context': {}},
+                        discovery_id=discovery_id,
+                        resource_uid='',
+                        failure_sink=_emit_failure_sink,
+                    )
+                    if isinstance(rendered, dict) and rendered:
+                        item_data = dict(rendered)
+                        item_data['_raw_response'] = (
+                            {k: v for k, v in resp.items() if k != 'ResponseMetadata'}
+                        )
+                    else:
+                        item_data = {k: v for k, v in resp.items() if k != 'ResponseMetadata'}
+                        item_data['_raw_response'] = dict(item_data)
+                elif isinstance(resp, dict):
                     item_data = {k: v for k, v in resp.items() if k != 'ResponseMetadata'}
                     item_data['_raw_response'] = dict(item_data)
                 else:

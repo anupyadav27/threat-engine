@@ -464,15 +464,29 @@ class DatabaseManager:
 
                 # History is non-critical — don't let it block findings
                 if history_batch:
+                    # DCAT-02 fix-A: discovery_history.discovery_scan_id is a
+                    # legacy NOT NULL column, replaced by scan_run_id but never
+                    # dropped. Pass scan_run_id as both — the table was silently
+                    # empty for non-AWS providers because the INSERT omitted
+                    # the legacy column and tripped NOT NULL on every row.
+                    history_rows = []
+                    for h in history_batch:
+                        # h is the original 15-tuple (customer_id, tenant_id,
+                        # provider, account_id, hierarchy_type, discovery_id,
+                        # resource_uid, scan_run_id, config_hash, raw_response,
+                        # emitted_fields, version, change_type, previous_hash,
+                        # diff_summary).  Extend with discovery_scan_id mirror
+                        # of scan_run_id (index 7).
+                        history_rows.append(h + (h[7],))
                     try:
                         cur.executemany("""
                             INSERT INTO discovery_history
                             (customer_id, tenant_id, provider, account_id, hierarchy_type,
                              discovery_id, resource_uid, scan_run_id, config_hash,
                              raw_response, emitted_fields, version, change_type,
-                             previous_hash, diff_summary)
-                            VALUES (COALESCE(%s, 'default'), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        """, history_batch)
+                             previous_hash, diff_summary, discovery_scan_id)
+                            VALUES (COALESCE(%s, 'default'), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """, history_rows)
                         conn.commit()
                     except Exception as hist_err:
                         conn.rollback()
