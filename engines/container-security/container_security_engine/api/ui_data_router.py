@@ -11,8 +11,7 @@ from fastapi import APIRouter, Depends, Query
 from engine_common.db_connections import get_container_sec_conn
 
 # ── Auth imports (engine_auth is COPY shared/auth/ ./engine_auth/ in Dockerfile) ──
-# TODO: container:read is not in the 23-key seed; using check:read as fallback.
-# File RBAC-02 amendment to add container:read when product confirms the key name.
+# container:read is seeded in platform DB (migration 0009 / permissions seed).
 try:
     from engine_auth.fastapi.dependencies import require_permission
     from engine_auth.core.models import AuthContext
@@ -113,7 +112,7 @@ async def get_container_sec_ui_data(
     tenant_id: str = Query(...),
     scan_id: str = Query(default="latest"),
     limit: int = Query(default=200, ge=1, le=1000),
-    auth: Any = Depends(require_permission("check:read") if _AUTH_AVAILABLE else (lambda: None)),
+    auth: Any = Depends(require_permission("container:read") if _AUTH_AVAILABLE else (lambda: None)),
 ) -> Dict[str, Any]:
     conn = None
     try:

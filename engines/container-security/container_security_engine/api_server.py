@@ -204,7 +204,7 @@ async def get_container_findings_by_resource(
     limit: int = Query(50, ge=1, le=100),
     status: Optional[str] = Query(None),
     auth: Any = Depends(
-        require_permission("container_security:read") if _AUTH_DEPS_AVAILABLE else (lambda: None)
+        require_permission("container:read") if _AUTH_DEPS_AVAILABLE else (lambda: None)
     ),
 ):
     """Return container security findings for a specific resource_uid.
