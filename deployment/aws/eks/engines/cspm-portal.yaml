@@ -33,7 +33,7 @@ spec:
       serviceAccountName: engine-sa
       initContainers:
       - name: migrate
-        image: yadavanup84/cspm-django-backend:v-di-sprint3
+        image: yadavanup84/cspm-django-backend:v-di-sprint2
         imagePullPolicy: Always
         command: ["python", "manage.py", "migrate", "--noinput"]
         env:
@@ -61,7 +61,7 @@ spec:
           value: "require"
       containers:
       - name: cspm-backend
-        image: yadavanup84/cspm-django-backend:v-di-sprint3
+        image: yadavanup84/cspm-django-backend:v-di-sprint2
         imagePullPolicy: Always
         ports:
         - containerPort: 8000
@@ -126,6 +126,8 @@ spec:
               name: cspm-celery-secrets
               key: CELERY_RESULT_BACKEND
               optional: true
+        - name: ACCESS_TOKEN_LIFETIME_MINUTES
+          value: "480"
         - name: ALLOW_LOCAL_SIGNUP
           value: "false"
         - name: THREAT_ENGINE_URL
@@ -148,6 +150,17 @@ spec:
           value: "http://api-gateway.threat-engine-engines.svc.cluster.local"
         - name: BILLING_ENGINE_URL
           value: "http://engine-billing.threat-engine-engines.svc.cluster.local:8040"
+        # ── Internal service auth secret (BILL-S11) ──────────────
+        # Must match BILLING_INTERNAL_SECRET on the billing engine pod.
+        # Create with:
+        # kubectl create secret generic threat-engine-secrets \
+        #   --from-literal=BILLING_INTERNAL_SECRET=$(openssl rand -hex 32) \
+        #   -n threat-engine-engines
+        - name: BILLING_INTERNAL_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-secrets
+              key: BILLING_INTERNAL_SECRET
         # ── Google OAuth ─────────────────────────────────────────
         - name: GOOGLE_CLIENT_ID
           valueFrom:
@@ -214,6 +227,115 @@ spec:
           periodSeconds: 10
           timeoutSeconds: 5
 ---
+# ────────────────────────────────────────────────────────────────
+# Celery worker — tenant-sync queue
+# ────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cspm-celery-worker
+  namespace: threat-engine-engines
+  labels:
+    app: cspm-celery-worker
+    tier: portal
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: cspm-celery-worker
+  template:
+    metadata:
+      labels:
+        app: cspm-celery-worker
+        tier: portal
+    spec:
+      serviceAccountName: engine-sa
+      containers:
+      - name: celery-worker
+        image: yadavanup84/cspm-django-backend:v-di-sprint2
+        imagePullPolicy: Always
+        command:
+          - celery
+          - -A
+          - config
+          - worker
+          - --loglevel=info
+          - --queues=tenant-sync
+          - --concurrency=4
+        env:
+        # ── Core ────────────────────────────────────────────────
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: cspm-portal-secret
+              key: SECRET_KEY
+              optional: true
+        - name: DEBUG
+          value: "False"
+        - name: ALLOWED_HOSTS
+          value: "*"
+        # ── Database ─────────────────────────────────────────────
+        - name: DB_NAME
+          value: "cspm"
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: threat-engine-db-config
+              key: DB_HOST
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_USER
+          value: "postgres"
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: ONBOARDING_DB_PASSWORD
+        - name: DB_SSLMODE
+          value: "require"
+        # ── Engine URLs ──────────────────────────────────────────
+        - name: ONBOARDING_ENGINE_URL
+          value: "http://engine-onboarding.threat-engine-engines.svc.cluster.local/api/v1"
+        - name: BILLING_ENGINE_URL
+          value: "http://engine-billing.threat-engine-engines.svc.cluster.local:8040"
+        # ── Internal service auth secret (BILL-S11) ──────────────
+        - name: BILLING_INTERNAL_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-secrets
+              key: BILLING_INTERNAL_SECRET
+        # ── Celery broker ────────────────────────────────────────
+        - name: CELERY_BROKER_URL
+          valueFrom:
+            secretKeyRef:
+              name: cspm-celery-secrets
+              key: CELERY_BROKER_URL
+              optional: true
+        - name: CELERY_RESULT_BACKEND
+          valueFrom:
+            secretKeyRef:
+              name: cspm-celery-secrets
+              key: CELERY_RESULT_BACKEND
+              optional: true
+        # ── AWS ──────────────────────────────────────────────────
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: platform-config
+              key: aws-region
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -261,7 +383,7 @@ spec:
       serviceAccountName: engine-sa
       containers:
       - name: cspm-frontend
-        image: yadavanup84/cspm-frontend:v-frontend-journey1
+        image: yadavanup84/cspm-frontend:v-cwpp-overview2
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
