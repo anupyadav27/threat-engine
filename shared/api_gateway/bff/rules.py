@@ -9,7 +9,8 @@ import logging
 from fastapi import APIRouter, Query, Request
 
 from ._auth import resolve_tenant_id
-from ._shared import fetch_many, safe_get
+from ._shared import fetch_many, safe_get, BFFMeta
+from .schemas.rules import RulesResponse
 from ._transforms import normalize_rule
 from ._page_context import rules_page_context, rules_filter_schema
 
@@ -18,7 +19,7 @@ logger = logging.getLogger("api-gateway.bff")
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
 
-@router.get("/rules")
+@router.get("/rules", response_model=RulesResponse, response_model_exclude_none=False)
 async def view_rules(
     request: Request,
     provider: Optional[str] = Query(None),
@@ -28,6 +29,7 @@ async def view_rules(
     tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+    meta = BFFMeta("rules")
 
     params: Dict[str, str] = {"tenant_id": tenant_id, "limit": "500"}
     if provider:
@@ -37,7 +39,9 @@ async def view_rules(
         ("rule", "/api/v1/rules/ui-data", params),
     ], auth_headers=fwd_headers)
 
-    data = results[0] or {}
+    data = results[0]
+    meta.record_engine("rule", "/api/v1/rules/ui-data", data)
+    data = data or {}
 
     # Normalize rules from rule engine
     raw_rules = safe_get(data, "rules", [])
@@ -139,4 +143,5 @@ async def view_rules(
             "byService": by_service,
             "byFramework": by_framework,
         },
+        "_meta": meta.to_dict(),
     }

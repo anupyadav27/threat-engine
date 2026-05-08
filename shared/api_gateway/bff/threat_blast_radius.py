@@ -9,7 +9,8 @@ from typing import Optional
 from fastapi import APIRouter, Query, Request
 
 from ._auth import resolve_tenant_id
-from ._shared import fetch_many, safe_get
+from ._shared import fetch_many, safe_get, BFFMeta
+from .schemas.threat_blast_radius import ThreatBlastRadiusResponse
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
@@ -28,7 +29,7 @@ def _fix_region(region: str, resource_uid: str) -> str:
     return region or "global"
 
 
-@router.get("/threats/blast-radius")
+@router.get("/threats/blast-radius", response_model=ThreatBlastRadiusResponse, response_model_exclude_none=False)
 async def view_threat_blast_radius(
     request: Request,
     scan_run_id: Optional[str] = Query(None),
@@ -43,6 +44,7 @@ async def view_threat_blast_radius(
     tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+    meta = BFFMeta("threat_blast_radius")
 
     params = {"tenant_id": tenant_id, "limit": "500"}
     if scan_run_id:
@@ -53,6 +55,7 @@ async def view_threat_blast_radius(
     ], auth_headers=fwd_headers)
 
     raw = results[0]
+    meta.record_engine("threat", "/api/v1/threat/analysis/blast-radius", raw)
     if not isinstance(raw, dict):
         raw = {}
 
@@ -118,4 +121,5 @@ async def view_threat_blast_radius(
     return {
         "kpi": kpi,
         "blastItems": blast_items,
+        "_meta": meta.to_dict(),
     }

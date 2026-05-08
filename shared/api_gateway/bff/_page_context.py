@@ -293,6 +293,7 @@ def encryption_page_context(summary: Dict[str, Any]) -> Dict:
 def encryption_filter_schema() -> List[Dict]:
     return [
         _enum_field("severity", "Severity", SEVERITY_VALUES),
+        _enum_field("status", "Status", STATUS_VALUES),
         _enum_field("encryption_status", "Encryption Status", [
             "encrypted", "unencrypted", "partial",
         ]),
@@ -305,6 +306,8 @@ def encryption_filter_schema() -> List[Dict]:
         _enum_field("provider", "Cloud Provider", PROVIDER_VALUES),
         _string_field("account_id", "Account"),
         _string_field("region", "Region"),
+        _string_field("resource_type", "Resource Type"),
+        _string_field("service", "Service"),
     ]
 
 
@@ -367,7 +370,10 @@ def network_security_filter_schema() -> List[Dict]:
             "security_group_rules", "load_balancer_security", "waf_protection",
             "internet_exposure", "network_monitoring",
         ]),
+        _string_field("service", "Service"),
+        _string_field("rule_id", "Rule ID"),
         _string_field("resource_type", "Resource Type"),
+        _string_field("resource_name", "Resource Name"),
         _enum_field("provider", "Cloud Provider", PROVIDER_VALUES),
         _string_field("account_id", "Account"),
         _string_field("region", "Region"),
@@ -425,6 +431,7 @@ def rules_page_context() -> Dict:
 def rules_filter_schema() -> List[Dict]:
     return [
         _enum_field("severity", "Severity", SEVERITY_VALUES),
+        _enum_field("status", "Status", ["active", "inactive", "deprecated"]),
         _string_field("rule_id", "Rule ID"),
         _string_field("service", "Service"),
         _enum_field("provider", "Cloud Provider", PROVIDER_VALUES),

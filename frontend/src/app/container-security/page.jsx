@@ -639,11 +639,6 @@ export default function ContainerSecurityPage() {
         columns: inventoryColumns,
         searchPlaceholder: 'Search clusters...',
       },
-      inventory: {
-        data: clusters,
-        columns: inventoryColumns,
-        searchPlaceholder: 'Search clusters...',
-      },
       findings:         findingTab(findings),
       cluster_security: findingTab(clusterSecFindings),
       image_security:   findingTab(imageSecFindings),

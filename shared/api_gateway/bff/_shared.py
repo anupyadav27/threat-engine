@@ -288,6 +288,79 @@ def is_empty_or_health(data) -> bool:
     return False
 
 
+class BFFMeta:
+    """Diagnostic envelope attached to every BFF response under ``_meta``.
+
+    Handlers create one instance, record engine call outcomes, log warnings
+    for unexpected shapes or missing fields, and embed the result in the
+    return dict so both the UI dev-tools and backend logs surface the same
+    context.  The ``_meta`` key is never used by the UI for rendering.
+    """
+
+    def __init__(self, view: str) -> None:
+        self.view = view
+        self._engine_calls: list[dict] = []
+        self.warnings: list[str] = []
+        self.fallback_triggered = False
+        self.data_source = "engine"
+
+    def record_engine(
+        self,
+        engine: str,
+        path: str,
+        result: Any,
+        *,
+        http_status: Optional[int] = None,
+    ) -> None:
+        """Record the outcome of a single engine call."""
+        if result is None:
+            status = "failed"
+        elif isinstance(result, dict) and is_empty_or_health(result):
+            status = "empty"
+        else:
+            status = "ok"
+        entry: dict = {"engine": engine, "path": path, "status": status}
+        if http_status is not None:
+            entry["http_status"] = http_status
+        self._engine_calls.append(entry)
+        if status in ("failed", "empty"):
+            logger.warning("BFF[%s] engine %s %s → %s", self.view, engine, path, status)
+
+    def set_fallback(self, reason: str, source: str = "check_engine_fallback") -> None:
+        """Mark that the primary engine failed and a fallback was used."""
+        self.fallback_triggered = True
+        self.data_source = source
+        self.warn(f"Fallback triggered — {reason}")
+
+    def warn(self, msg: str) -> None:
+        """Append a warning that will appear in ``_meta.warnings`` and the log."""
+        logger.warning("BFF[%s] %s", self.view, msg)
+        self.warnings.append(msg)
+
+    def expect_fields(
+        self,
+        data: Any,
+        fields: list[str],
+        context: str = "engine response",
+    ) -> None:
+        """Warn for each expected field missing from *data*."""
+        if not isinstance(data, dict):
+            self.warn(f"Expected dict for {context}, got {type(data).__name__}")
+            return
+        for field in fields:
+            if field not in data:
+                self.warn(f"Expected field '{field}' missing from {context}")
+
+    def to_dict(self) -> dict:
+        return {
+            "view": self.view,
+            "data_source": self.data_source,
+            "fallback_triggered": self.fallback_triggered,
+            "engine_calls": self._engine_calls,
+            "warnings": self.warnings,
+        }
+
+
 def mock_fallback(view_name: str):
     """
     Return mock data for a BFF view when engine calls fail.

@@ -302,9 +302,16 @@ app = FastAPI(
 # Each add_middleware call wraps the previous stack, making it the new
 # outermost layer. Outermost = first to execute on inbound requests.
 #
-# Execution order (inbound):
-#   AuthMiddleware → SubscriptionMiddleware → RequestLoggingMiddleware
-#   → CorrelationIDMiddleware → CORSMiddleware → route handler
+# IMPORTANT: @app.middleware("http") is equivalent to add_middleware() and
+# is called at decoration time. Since route_requests is decorated AFTER
+# these add_middleware calls, it becomes the outermost layer unless Auth
+# and Subscription are added AFTER the decorator. See after route_requests
+# for the Auth/Subscription add_middleware calls that make Auth outermost.
+#
+# Final execution order (inbound):
+#   AuthMiddleware → SubscriptionMiddleware → route_requests
+#   → RequestLoggingMiddleware → CorrelationIDMiddleware → CORSMiddleware
+#   → route handler (BFF FastAPI router or engine proxy)
 #
 # Registration order (reversed from execution order):
 # 1. CORS — innermost; last to see request, first to see response
@@ -319,16 +326,8 @@ app.add_middleware(
 app.add_middleware(CorrelationIDMiddleware)
 # 3. Request logging
 app.add_middleware(RequestLoggingMiddleware, engine_name="api-gateway")
-# 4. Subscription — enforces plan limits, injects X-Subscription-Context.
-#    Must be INNER relative to AuthMiddleware: AuthMiddleware (outer/first)
-#    populates X-Auth-Context in scope["headers"] before SubscriptionMiddleware
-#    reads it.  Registered here (before AuthMiddleware) so it is wrapped by
-#    AuthMiddleware, i.e. AuthMiddleware runs first on every request.
-app.add_middleware(SubscriptionMiddleware)
-# 5. Auth — outermost; runs first on every request. Validates access_token
-#    cookie, builds AuthContext, appends X-Auth-Context to scope["headers"].
-#    Skips: /gateway/*, health endpoints, public auth endpoints, OPTIONS.
-app.add_middleware(AuthMiddleware)
+# NOTE: Subscription and Auth are added AFTER route_requests (see below)
+# so that Auth wraps route_requests and runs first on every inbound request.
 
 # BFF views router — provides aggregated, UI-ready endpoints under /api/v1/views/
 # Mount WITHOUT extra prefix so it works through the ingress rewrite
@@ -475,6 +474,7 @@ async def route_requests(request: Request, call_next):
     # it verbatim to downstream engine calls — no stripping or re-encoding occurs here.
     if (request.url.path.startswith("/gateway/")
             or request.url.path.startswith("/api/v1/views/")
+            or request.url.path == "/api/v1/billing/trial-status"
             or request.url.path.startswith("/argo/")):
         return await call_next(request)
     
@@ -618,6 +618,20 @@ async def route_requests(request: Request, call_next):
                 status_code=502,
                 content={"error": "Service request failed"}
             )
+
+# Auth and Subscription middleware are added HERE (after route_requests is
+# registered via @app.middleware) so they wrap route_requests and execute
+# BEFORE it on every inbound request.  Auth validates the session cookie and
+# sets request.state.auth_header; route_requests then reads that value to
+# inject X-Auth-Context into engine proxy calls.
+#
+# 4. Subscription — reads X-Auth-Context set by Auth (inner to Auth)
+app.add_middleware(SubscriptionMiddleware)
+# 5. Auth — outermost; runs first on every request.  Validates access_token
+#    cookie, builds AuthContext, sets request.state.auth_header, and appends
+#    X-Auth-Context to scope["headers"] so BFF handlers can read it.
+#    Skips: /gateway/*, health endpoints, public auth endpoints, OPTIONS.
+app.add_middleware(AuthMiddleware)
 
 # Gateway management endpoints
 @app.get("/")

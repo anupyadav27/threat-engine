@@ -73,6 +73,35 @@ async def view_ciem(
         ident["actorPrincipalType"] = ident.get("actor_principal_type") or "unknown"
         ident["l2Findings"] = ident.get("l2_findings", 0)
         ident["l3Findings"] = ident.get("l3_findings", 0)
+        fc = ident.get("finding_count") or ident.get("total_findings", crit + high + med)
+        ident["finding_count"]  = fc
+        ident["total_findings"] = fc
+        ident["event_time"]     = ident.get("event_time") or ident.get("last_seen", "")
+        ident["earliest"]       = ident.get("earliest") or ident.get("first_seen", "")
+        ap = ident.get("actor_principal") or ident.get("principal", "")
+        ident["actor_principal"] = ap
+        ident["principal"]       = ap
+        # Table columns
+        ident["event_count"]    = ident.get("event_count", 0)
+        ident["resource_uid"]   = ident.get("resource_uid", "")
+        ident["rule_id"]        = ident.get("rule_id", "")
+        ident["rule_source"]    = ident.get("rule_source") or ident.get("source", "l1")
+        ident["services_used"]  = ident.get("services_used") or ident.get("services", [])
+        rs = ident["risk_score"]
+        ident["severity"]       = ident.get("severity") or (
+            "critical" if rs >= 75 else "high" if rs >= 40 else "medium" if rs >= 10 else "low"
+        )
+        ident["source_bucket"]  = ident.get("source_bucket", "")
+        ident["source_region"]  = ident.get("source_region") or ident.get("region", "")
+        ident["source_type"]    = ident.get("source_type", "")
+        ident["unique_actors"]  = ident.get("unique_actors", 0)
+        ident["unique_resources"] = ident.get("unique_resources", 0)
+        ident["original"]       = {
+            "actor_principal": ap,
+            "rule_source":     ident["rule_source"],
+            "source_type":     ident["source_type"],
+            "event_time":      ident["event_time"],
+        }
 
     # ── Derive KPI numbers from real data ─────────────────────────────────────
     total_findings = int(summary.get("total_findings", 0))
@@ -90,44 +119,96 @@ async def view_ciem(
     else:
         posture_score = 100
 
+    # -- Scan trend with chart dataKeys ----------------------------------------
+    raw_trend = safe_get(dashboard, "scan_trend", [])
+    color_map = {'critical': '#ef4444', 'high': '#f97316', 'medium': '#eab308', 'low': '#3b82f6'}
+    scan_trend = []
+    for pt in raw_trend:
+        sev_pt   = pt.get("by_severity") or {}
+        total_pt = pt.get("total_findings") or pt.get("total", 0)
+        scan_trend.append({
+            "date":     pt.get("scan_date") or pt.get("date", ""),
+            "critical": sev_pt.get("critical", pt.get("critical", 0)),
+            "high":     sev_pt.get("high",     pt.get("high",     0)),
+            "medium":   sev_pt.get("medium",   pt.get("medium",   0)),
+            "low":      sev_pt.get("low",      pt.get("low",      0)),
+            "passRate": pt.get("pass_rate") or pt.get("passRate", 0),
+            "total":    total_pt,
+            "earliest": pt.get("earliest", ""),
+            "latest":   pt.get("latest", ""),
+        })
+    first_pt  = scan_trend[0]  if scan_trend else {}
+    last_pt   = scan_trend[-1] if scan_trend else {}
+    first_obj = {"date": first_pt.get("date", ""), "critical": first_pt.get("critical", 0)}
+    last_obj  = {"date": last_pt.get("date",  ""), "critical": last_pt.get("critical",  0)}
+
+    # -- Donut slices (severity distribution) ----------------------------------
+    sev_counts = {"critical": critical, "high": high, "medium": medium, "low": low}
+    donut_slices = [
+        {"name": sev.title(), "value": sev_counts[sev], "color": color_map[sev]}
+        for sev in ("critical", "high", "medium", "low")
+        if sev_counts[sev] > 0
+    ]
+
+    # -- filters.account (account filter config) --------------------------------
+    filters = {
+        "account": safe_get(dashboard, "accounts", []),
+    }
+
     result = {
-        # ── KPI envelope (standard shape for all pages) ───────────────────────
+        # ── KPI envelope ────────────────────────────────────────────────────────
         "kpiGroups": [
             {
                 "title": "CIEM Posture",
                 "items": [
-                    {"label": "Posture Score",      "value": posture_score,                           "suffix": "/100"},
+                    {"label": "Posture Score",      "value": posture_score,                          "suffix": "/100"},
                     {"label": "Total Findings",     "value": total_findings},
                     {"label": "Critical",           "value": critical},
                     {"label": "High",               "value": high},
                     {"label": "Medium",             "value": medium},
                     {"label": "Low",                "value": low},
-                    {"label": "Identities at Risk", "value": int(summary.get("unique_actors",    0))},
-                    {"label": "Rules Triggered",    "value": int(summary.get("rules_triggered",  0))},
+                    {"label": "Identities at Risk", "value": int(summary.get("unique_actors",   0))},
+                    {"label": "Rules Triggered",    "value": int(summary.get("rules_triggered", 0))},
                 ],
             }
         ],
-        # ── Flat fields (backward compat + direct UI reads) ───────────────────
-        "totalFindings":  total_findings,
-        "rulesTriggered": int(summary.get("rules_triggered",  0)),
-        "uniqueActors":   int(summary.get("unique_actors",    0)),
-        "uniqueResources":int(summary.get("unique_resources", 0)),
-        "l2Findings":     int(summary.get("l2_findings", 0)),
-        "l3Findings":     int(summary.get("l3_findings", 0)),
-        "postureScore":   posture_score,
-        # ── Breakdowns ────────────────────────────────────────────────────────
+        # ── Flat fields ──────────────────────────────────────────────────────
+        "totalFindings":   total_findings,
+        "rulesTriggered":  int(summary.get("rules_triggered",  0)),
+        "uniqueActors":    int(summary.get("unique_actors",    0)),
+        "uniqueResources": int(summary.get("unique_resources", 0)),
+        "l2Findings":      int(summary.get("l2_findings", 0)),
+        "l3Findings":      int(summary.get("l3_findings", 0)),
+        "postureScore":    posture_score,
+        # ── Breakdowns ───────────────────────────────────────────────────────
         "severityBreakdown":   by_severity,
-        "engineBreakdown":     safe_get(dashboard, "by_engine",       []),
-        "ruleSourceBreakdown": safe_get(dashboard, "by_rule_source",  []),
-        "categoryBreakdown":   safe_get(dashboard, "by_category",     []),
-        # ── Lists ─────────────────────────────────────────────────────────────
-        "topCritical":  safe_get(dashboard,  "top_critical", []),
-        "identities":   identity_list,
-        "topRules":     safe_get(top_rules,  "rules",        []),
-        "logSources":   safe_get(log_sources_data, "sources",      []),
-        "eventStats":   safe_get(stats,      "summary",      {}),
-        "eventsBySource": safe_get(stats,    "by_source",    []),
-        "scanTrend":    safe_get(dashboard,  "scan_trend",   []),
+        "engineBreakdown":     safe_get(dashboard, "by_engine",      []),
+        "ruleSourceBreakdown": safe_get(dashboard, "by_rule_source", []),
+        "categoryBreakdown":   safe_get(dashboard, "by_category",    []),
+        # ── Lists ────────────────────────────────────────────────────────────
+        "topCritical":    safe_get(dashboard,        "top_critical", []),
+        "identities":     identity_list,
+        "topRules":       safe_get(top_rules,        "rules",        []),
+        "logSources":     safe_get(log_sources_data, "sources",      []),
+        "eventStats":     safe_get(stats,            "summary",      {}),
+        "eventsBySource": safe_get(stats,            "by_source",    []),
+        # ── Trend & comparison ───────────────────────────────────────────────
+        "scanTrend":       scan_trend,
+        "activeScanTrend": scan_trend,
+        "first":           first_obj,
+        "last":            last_obj,
+        "donutSlices":     donut_slices,
+        "filters":         filters,
+        # data.* wrapper so UI can access data.identities etc.
+        "data": {
+            "identities":     identity_list,
+            "totalFindings":  total_findings,
+            "postureScore":   posture_score,
+            "scanTrend":      scan_trend,
+            "donutSlices":    donut_slices,
+            "topRules":       safe_get(top_rules,        "rules",  []),
+            "logSources":     safe_get(log_sources_data, "sources", []),
+        },
     }
 
     cached_view(ck, result, ttl=TTL_CIEM)

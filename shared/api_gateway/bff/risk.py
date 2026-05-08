@@ -12,14 +12,15 @@ from typing import Optional
 from fastapi import APIRouter, Query, Request
 
 from ._auth import resolve_tenant_id
-from ._shared import fetch_many, safe_get
+from ._shared import fetch_many, safe_get, BFFMeta
+from .schemas.risk import RiskResponse
 from ._transforms import normalize_risk_scenario
 from ._page_context import risk_page_context
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
 
-@router.get("/risk")
+@router.get("/risk", response_model=RiskResponse, response_model_exclude_none=False)
 async def view_risk(
     request: Request,
     provider: Optional[str] = Query(None),
@@ -31,6 +32,7 @@ async def view_risk(
     tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+    meta = BFFMeta("risk")
 
     results = await fetch_many([
         ("risk", "/api/v1/risk/ui-data", {
@@ -44,6 +46,13 @@ async def view_risk(
     ], auth_headers=fwd_headers)
 
     risk_data, threat_data = results
+
+    meta.record_engine("risk",   "/api/v1/risk/ui-data",    risk_data)
+    meta.record_engine("threat", "/api/v1/threat/ui-data",  threat_data)
+    if risk_data is None:
+        meta.warn("Risk engine returned no data — scores and scenarios will be zero")
+    if threat_data is None:
+        meta.warn("Threat engine returned no data — risk score fallback unavailable")
 
     # Safely handle None responses
     if not isinstance(risk_data, dict):
@@ -185,6 +194,39 @@ async def view_risk(
     accepted = safe_get(risk_data, "accepted_risks") or safe_get(risk_data, "acceptedRisks", 0)
     reduction = safe_get(risk_data, "risk_reduction") or safe_get(risk_data, "riskReduction", 0)
 
+    # ── activeScanTrend: trendData items with risk_score field ───────────────
+    active_scan_trend = []
+    for d in trend_data:
+        score = d.get("score") or d.get("risk_score") or 0
+        active_scan_trend.append({
+            "date": d.get("date", ""),
+            "risk_score": score,
+            "score": score,
+        })
+
+    first_pt  = active_scan_trend[0]  if active_scan_trend else {}
+    last_pt   = active_scan_trend[-1] if active_scan_trend else {}
+    first_obj = {"date": first_pt.get("date", ""), "risk_score": first_pt.get("risk_score", 0)}
+    last_obj  = {"date": last_pt.get("date",  ""), "risk_score": last_pt.get("risk_score",  0)}
+
+    # ── domainBreakdown: same as riskCategories with category field ──────────
+    domain_breakdown = [
+        {**c, "category": c.get("category", "")} for c in risk_categories
+    ]
+
+    # ── filterSchema: domain filter keys ────────────────────────────────────
+    filter_schema = [
+        {"key": "iam_security",        "label": "IAM Security",        "type": "boolean"},
+        {"key": "network_security",    "label": "Network Security",    "type": "boolean"},
+        {"key": "data_security",       "label": "Data Security",       "type": "boolean"},
+        {"key": "container_security",  "label": "Container Security",  "type": "boolean"},
+        {"key": "database_security",   "label": "Database Security",   "type": "boolean"},
+        {"key": "encryption",          "label": "Encryption",          "type": "boolean"},
+        {"key": "misconfig",           "label": "Misconfiguration",    "type": "boolean"},
+        {"key": "provider",            "label": "Provider",            "type": "enum",
+         "values": ["aws", "azure", "gcp", "oci"]},
+    ]
+
     return {
         "pageContext": page_ctx,
         "kpiGroups": [
@@ -207,12 +249,20 @@ async def view_risk(
                 ],
             },
         ],
-        "riskCategories": risk_categories,
-        "riskRegister": risk_register,
-        "scenarios": scenarios,
-        "trendData": trend_data,
-        "mitigationRoadmap": mitigation_roadmap,
-        "topAssets": top_assets,
+        "riskScore":          risk_score,
+        "riskLevel":          risk_level,
+        "riskCategories":     risk_categories,
+        "domainBreakdown":    domain_breakdown,
+        "riskRegister":       risk_register,
+        "scenarios":          scenarios,
+        "trendData":          trend_data,
+        "activeScanTrend":    active_scan_trend,
+        "first":              first_obj,
+        "last":               last_obj,
+        "mitigationRoadmap":  mitigation_roadmap,
+        "topAssets":          top_assets,
+        "filterSchema":       filter_schema,
+        "_meta":              meta.to_dict(),
     }
 
 

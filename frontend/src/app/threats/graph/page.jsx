@@ -7,8 +7,10 @@ import React, {
   useMemo,
   useCallback,
 } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { fetchView, getFromEngine } from '@/lib/api';
 import { getServiceIcon } from '@/lib/inventory-taxonomy';
+import { useAuth } from '@/lib/auth-context';
 import * as LucideIcons from 'lucide-react';
 import {
   Network,
@@ -36,12 +38,18 @@ import {
   Layers,
   Scale,
   Box,
+  Bug,
+  Zap,
+  ChevronDown,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { TENANT_ID } from '@/lib/constants';
 import MetricStrip from '@/components/shared/MetricStrip';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import EmptyState from '@/components/shared/EmptyState';
 import ThreatsSubNav from '@/components/shared/ThreatsSubNav';
+import { ConfigPropertiesTable } from '@/components/graph/ConfigPropertiesTable';
+import { CVEDetailPanel } from '@/components/graph/CVEDetailPanel';
 
 // ---------------------------------------------------------------------------
 // Lucide icon resolver — maps icon name string to React component
@@ -78,9 +86,27 @@ const NODE_TYPE_CONFIG = {
   Account:         { color: '#0ea5e9', label: 'Account',        iconName: 'Building2' },
   Org:             { color: '#0284c7', label: 'Organization',   iconName: 'Building' },
   Finding:         { color: '#f97316', label: 'Finding',        iconName: 'AlertTriangle' },
+  // CVE nodes — diamond shape, severity-driven color (GRAPH-S3-02)
+  CVE:             { color: '#d32f2f', label: 'CVE',            iconName: 'Bug',          isCve: true },
 };
 
 const DEFAULT_NODE_COLOR = '#6b7280';
+
+// CVE node severity colors (GRAPH-S3-02) — distinct from attack-path severity palette
+const CVE_SEVERITY_COLORS = {
+  critical: '#d32f2f',
+  high:     '#f57c00',
+  medium:   '#f9a825',
+  low:      '#388e3c',
+};
+
+/**
+ * Returns fill color for a CVE node based on its severity string.
+ * Falls back to grey for unknown / undefined severity.
+ */
+function getCveSeverityColor(severity) {
+  return CVE_SEVERITY_COLORS[(severity || '').toLowerCase()] || '#9e9e9e';
+}
 
 // ---------------------------------------------------------------------------
 // Edge type configuration
@@ -121,6 +147,8 @@ const EDGE_TYPE_CONFIG = {
   HAS_ACCESS:      { color: '#a855f7', label: 'Has Access',     kind: 'association' },
   REFERENCES:      { color: '#3b82f6', label: 'References',     kind: 'association' },
   RELATES_TO:      { color: '#94a3b8', label: 'Relates To',     kind: 'association' },
+  // CVE relationship (GRAPH-S3-02) — dashed grey, association context only
+  HAS_CVE:         { color: '#9e9e9e', label: 'Has CVE',        kind: 'association' },
 };
 
 const DEFAULT_EDGE_COLOR = '#525252';
@@ -132,11 +160,18 @@ function clamp(val, min, max) {
   return Math.max(min, Math.min(max, val));
 }
 
+// Performance guard constants
+const PERF_WARN_THRESHOLD = 500;    // show warning badge above this node count
+const PERF_CAP_THRESHOLD  = 1000;   // block canvas render above this
+
 function forceSimulation(nodes, edges, width, height, iterations = 200) {
   const CHARGE = -500;
   const LINK_DIST = 140;
   const COLLISION_PAD = 14;
-  const ALPHA_DECAY = 0.02;
+  // Faster alpha decay when graph is large (fewer effective ticks)
+  const ALPHA_DECAY = nodes.length > PERF_CAP_THRESHOLD ? 0.05 : 0.02;
+  // Cap iterations for large graphs
+  const MAX_TICKS = nodes.length > PERF_CAP_THRESHOLD ? 100 : iterations;
 
   // Initialize positions from center with jitter
   const cx = width / 2;
@@ -154,7 +189,7 @@ function forceSimulation(nodes, edges, width, height, iterations = 200) {
 
   let alpha = 1;
 
-  for (let tick = 0; tick < iterations; tick++) {
+  for (let tick = 0; tick < MAX_TICKS; tick++) {
     alpha *= (1 - ALPHA_DECAY);
     if (alpha < 0.001) break;
 
@@ -247,6 +282,8 @@ function SecurityGraph({
   visibleNodeTypes,
   visibleEdgeTypes,
   viewPreset,
+  semanticView,
+  pathNodeIds,
   highlightedNodeIds,
   containerWidth,
   containerHeight,
@@ -262,12 +299,35 @@ function SecurityGraph({
   const width = containerWidth || 1200;
   const height = containerHeight || 600;
 
-  // Filter nodes and edges
+  // Filter nodes and edges — semantic view takes priority over legacy viewPreset
   const filteredNodes = useMemo(() => {
     return nodes.filter((n) => {
       const nType = normalizeType(n.type || n.resourceType || '');
       if (visibleNodeTypes && !visibleNodeTypes.has(nType)) return false;
-      // Threat hunting presets
+
+      // New semantic views (GRAPH-S3-06)
+      if (semanticView === 'attack_paths') {
+        if (!pathNodeIds || pathNodeIds.size === 0) return false;
+        return pathNodeIds.has(n.id);
+      }
+      if (semanticView === 'internet_risk') {
+        const props = n.properties || {};
+        return (
+          props.effective_exposure === 'internet' ||
+          n.internet_exposed ||
+          n.internetExposed ||
+          n.type === 'Internet'
+        );
+      }
+      if (semanticView === 'cve_risk') {
+        // Nodes that have at least one HAS_CVE edge (annotated by caller)
+        return n._has_cve_edge === true || (n.type || '').toLowerCase() === 'cve';
+      }
+      if (semanticView === 'full_graph') {
+        return true;
+      }
+
+      // Legacy viewPreset fallback (kept for backward compat with VQB)
       if (viewPreset === 'threats') {
         return n.has_threat || (n.threats ?? n.threatCount ?? 0) > 0;
       }
@@ -276,7 +336,7 @@ function SecurityGraph({
       }
       return true;
     });
-  }, [nodes, visibleNodeTypes, viewPreset]);
+  }, [nodes, visibleNodeTypes, viewPreset, semanticView, pathNodeIds]);
 
   const filteredNodeIds = useMemo(
     () => new Set(filteredNodes.map((n) => n.id)),
@@ -461,8 +521,35 @@ function SecurityGraph({
     return EDGE_TYPE_CONFIG[eType]?.color || DEFAULT_EDGE_COLOR;
   };
 
+  // BLOCKER 4: hard cap — refuse to render the SVG canvas when the node count
+  // exceeds PERF_CAP_THRESHOLD.  The O(n²) force simulation locks the browser
+  // main thread at this scale; show a friendly message instead.
+  if (filteredNodes.length > PERF_CAP_THRESHOLD) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 400, gap: 8, color: '#94a3b8' }}>
+        <p style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Graph too large to render ({filteredNodes.length.toLocaleString()} nodes)</p>
+        <p style={{ fontSize: 13, margin: 0 }}>Apply a filter or select a specific scan run to narrow the view.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="relative w-full" style={{ height: `${height}px` }}>
+      {/* Performance warning badge — shown when visible node count > PERF_WARN_THRESHOLD */}
+      {filteredNodes.length > PERF_WARN_THRESHOLD && (
+        <div
+          className="absolute top-3 left-3 z-20 flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium"
+          style={{
+            backgroundColor: 'rgba(234,179,8,0.12)',
+            borderColor: 'rgba(234,179,8,0.4)',
+            color: '#eab308',
+          }}
+        >
+          <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+          {filteredNodes.length} nodes — switch to Attack Paths for clearer signal
+        </div>
+      )}
+
       {/* Zoom controls */}
       <div className="absolute top-3 right-3 z-10 flex flex-col gap-1.5">
         <button
@@ -633,19 +720,28 @@ function SecurityGraph({
             });
           })()}
 
-          {/* Nodes — Wiz-style: circle with Lucide icon + label below */}
+          {/* Nodes — Wiz-style circles + CVE diamonds (GRAPH-S3-02) */}
           {filteredNodes.map((node) => {
             const pos = nodePositions[node.id];
             if (!pos) return null;
 
+            const nType = normalizeType(node.type || node.resourceType || '');
+            const isCveNode = nType === 'CVE' || (node.type || '').toLowerCase() === 'cve';
             const conns = connectionCounts[node.id] || 0;
-            const radius = Math.max(16, Math.min(24, 16 + Math.min(conns, 10) * 0.8));
-            const color = getNodeColor(node.type || node.resourceType);
+            // CVE nodes are 60% the size of resource nodes per spec
+            const baseRadius = Math.max(16, Math.min(24, 16 + Math.min(conns, 10) * 0.8));
+            const radius = isCveNode ? Math.round(baseRadius * 0.6) : baseRadius;
+            // CVE color driven by severity; others use type config
+            const color = isCveNode
+              ? getCveSeverityColor(node.severity)
+              : getNodeColor(node.type || node.resourceType);
             const NodeIcon = getNodeIcon(node.type || node.resourceType || '');
             const isSelected = selectedNodeId === node.id;
             const isConnectedToSel =
               selectedNodeId && connectedToSelected.has(node.id);
             const isSearchHit = searchMatch && searchMatch.has(node.id);
+            // GRAPH-S3-01: node is part of the attack path currently highlighted
+            const isInHighlightedPath = !!(highlightedNodeIds && highlightedNodeIds.has(node.id));
             // Dim when: selection active + not connected; OR search active + no match;
             // OR a path is highlighted + this node is not in that path
             const isDimmed =
@@ -653,19 +749,24 @@ function SecurityGraph({
               (!highlightedNodeIds && selectedNodeId && !isConnectedToSel) ||
               (!highlightedNodeIds && searchMatch && searchMatch.size > 0 && !isSearchHit);
             const hasThreat = node.threatCount > 0 || node.has_threat;
-            const name =
-              node.label ||
-              node.resourceName ||
-              node.id?.split('/')?.pop()?.split(':')?.pop() ||
-              '';
-            const truncName = name.length > 18 ? name.slice(0, 16) + '..' : name;
+            // CVE label is the cve_id truncated to 12 chars
+            const name = isCveNode
+              ? (node.cve_id || node.label || node.id || 'CVE')
+              : (node.label || node.resourceName || node.id?.split('/')?.pop()?.split(':')?.pop() || '');
+            const truncName = isCveNode
+              ? (name.length > 12 ? name.slice(0, 12) : name)
+              : (name.length > 18 ? name.slice(0, 16) + '..' : name);
+
+            // Diamond points for CVE nodes: rotated square centered on (pos.x, pos.y)
+            const dr = radius;
+            const diamondPoints = `${pos.x},${pos.y - dr} ${pos.x + dr},${pos.y} ${pos.x},${pos.y + dr} ${pos.x - dr},${pos.y}`;
 
             return (
               <g
                 key={node.id}
                 style={{
                   cursor: dragNode === node.id ? 'grabbing' : 'pointer',
-                  opacity: isDimmed ? 0.12 : 1,
+                  opacity: isDimmed ? 0.4 : 1,
                   transition: 'opacity 0.25s ease',
                 }}
                 onClick={(e) => {
@@ -674,90 +775,153 @@ function SecurityGraph({
                 }}
                 onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
               >
-                {/* Threat pulse ring */}
-                {hasThreat && (
-                  <circle
-                    cx={pos.x} cy={pos.y} r={radius + 6}
-                    fill="none" stroke="#ef4444" strokeWidth={1.5}
-                    strokeOpacity={0.5} strokeDasharray="4 3"
-                  />
-                )}
-
-                {/* Selection ring */}
-                {isSelected && (
-                  <circle
-                    cx={pos.x} cy={pos.y} r={radius + 5}
-                    fill="none" stroke="#fbbf24" strokeWidth={2.5}
-                    filter="url(#glow)"
-                  />
-                )}
-
-                {/* Search match ring */}
-                {isSearchHit && !isSelected && (
-                  <circle
-                    cx={pos.x} cy={pos.y} r={radius + 4}
-                    fill="none" stroke="#22d3ee" strokeWidth={1.5}
-                    strokeDasharray="5 3"
-                  />
-                )}
-
-                {/* Outer border ring (Wiz style) */}
-                <circle
-                  cx={pos.x} cy={pos.y} r={radius + 1}
-                  fill="none" stroke={color} strokeWidth={2}
-                  strokeOpacity={0.4}
-                />
-
-                {/* Main circle — dark fill with colored border */}
-                <circle
-                  cx={pos.x} cy={pos.y} r={radius}
-                  fill="#131a2b"
-                  stroke={color} strokeWidth={2}
-                />
-
-                {/* Lucide icon */}
-                <foreignObject
-                  x={pos.x - radius * 0.5}
-                  y={pos.y - radius * 0.5}
-                  width={radius}
-                  height={radius}
-                  style={{ pointerEvents: 'none', overflow: 'visible' }}
-                >
-                  <div style={{
-                    width: '100%', height: '100%',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <NodeIcon
-                      style={{
-                        width: Math.max(12, radius * 0.6),
-                        height: Math.max(12, radius * 0.6),
-                        color: color,
-                      }}
+                {/* ── CVE diamond rendering (GRAPH-S3-02) ── */}
+                {isCveNode ? (
+                  <>
+                    {/* Selection ring — diamond-shaped outer glow */}
+                    {isSelected && (
+                      <polygon
+                        points={`${pos.x},${pos.y - dr - 5} ${pos.x + dr + 5},${pos.y} ${pos.x},${pos.y + dr + 5} ${pos.x - dr - 5},${pos.y}`}
+                        fill="none" stroke="#fbbf24" strokeWidth={2.5}
+                        filter="url(#glow)"
+                      />
+                    )}
+                    {/* Search match ring */}
+                    {isSearchHit && !isSelected && (
+                      <polygon
+                        points={`${pos.x},${pos.y - dr - 4} ${pos.x + dr + 4},${pos.y} ${pos.x},${pos.y + dr + 4} ${pos.x - dr - 4},${pos.y}`}
+                        fill="none" stroke="#22d3ee" strokeWidth={1.5}
+                        strokeDasharray="5 3"
+                      />
+                    )}
+                    {/* Outer glow border */}
+                    <polygon
+                      points={`${pos.x},${pos.y - dr - 1} ${pos.x + dr + 1},${pos.y} ${pos.x},${pos.y + dr + 1} ${pos.x - dr - 1},${pos.y}`}
+                      fill="none" stroke={color} strokeWidth={2}
+                      strokeOpacity={0.4}
                     />
-                  </div>
-                </foreignObject>
-
-                {/* Risk badge (top-right corner) */}
-                {(node.riskScore || 0) > 0 && (
-                  <g>
-                    <circle
-                      cx={pos.x + radius * 0.7} cy={pos.y - radius * 0.7}
-                      r={7}
-                      fill={node.riskScore >= 70 ? '#ef4444' : node.riskScore >= 40 ? '#f97316' : '#22c55e'}
+                    {/* Main diamond — dark fill with severity-colored border */}
+                    <polygon
+                      points={diamondPoints}
+                      fill="#131a2b"
+                      stroke={color} strokeWidth={2}
                     />
-                    <text
-                      x={pos.x + radius * 0.7} y={pos.y - radius * 0.7}
-                      textAnchor="middle" dominantBaseline="central"
-                      fill="white" fontSize={7} fontWeight="bold"
-                      fontFamily="system-ui, sans-serif"
-                      style={{ pointerEvents: 'none' }}
+                    {/* Bug icon in the center */}
+                    <foreignObject
+                      x={pos.x - radius * 0.5}
+                      y={pos.y - radius * 0.5}
+                      width={radius}
+                      height={radius}
+                      style={{ pointerEvents: 'none', overflow: 'visible' }}
                     >
-                      {node.riskScore}
-                    </text>
-                  </g>
+                      <div style={{
+                        width: '100%', height: '100%',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Bug style={{ width: Math.max(8, radius * 0.6), height: Math.max(8, radius * 0.6), color }} />
+                      </div>
+                    </foreignObject>
+                  </>
+                ) : (
+                  <>
+                    {/* ── Standard circle rendering ── */}
+
+                    {/* Threat pulse ring */}
+                    {hasThreat && (
+                      <circle
+                        cx={pos.x} cy={pos.y} r={radius + 6}
+                        fill="none" stroke="#ef4444" strokeWidth={1.5}
+                        strokeOpacity={0.5} strokeDasharray="4 3"
+                      />
+                    )}
+
+                    {/* GRAPH-S3-01: Amber glow ring for attack-path-highlighted nodes */}
+                    {isInHighlightedPath && !isSelected && (
+                      <circle
+                        cx={pos.x} cy={pos.y} r={radius + 7}
+                        fill="none" stroke="#f59e0b" strokeWidth={2}
+                        filter="url(#glow)"
+                        strokeOpacity={0.85}
+                      />
+                    )}
+
+                    {/* Selection ring */}
+                    {isSelected && (
+                      <circle
+                        cx={pos.x} cy={pos.y} r={radius + 5}
+                        fill="none" stroke="#fbbf24" strokeWidth={2.5}
+                        filter="url(#glow)"
+                      />
+                    )}
+
+                    {/* Search match ring */}
+                    {isSearchHit && !isSelected && (
+                      <circle
+                        cx={pos.x} cy={pos.y} r={radius + 4}
+                        fill="none" stroke="#22d3ee" strokeWidth={1.5}
+                        strokeDasharray="5 3"
+                      />
+                    )}
+
+                    {/* Outer border ring (Wiz style) */}
+                    <circle
+                      cx={pos.x} cy={pos.y} r={radius + 1}
+                      fill="none" stroke={color} strokeWidth={2}
+                      strokeOpacity={0.4}
+                    />
+
+                    {/* Main circle — dark fill with colored border */}
+                    <circle
+                      cx={pos.x} cy={pos.y} r={radius}
+                      fill="#131a2b"
+                      stroke={color} strokeWidth={2}
+                    />
+
+                    {/* Lucide icon */}
+                    <foreignObject
+                      x={pos.x - radius * 0.5}
+                      y={pos.y - radius * 0.5}
+                      width={radius}
+                      height={radius}
+                      style={{ pointerEvents: 'none', overflow: 'visible' }}
+                    >
+                      <div style={{
+                        width: '100%', height: '100%',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <NodeIcon
+                          style={{
+                            width: Math.max(12, radius * 0.6),
+                            height: Math.max(12, radius * 0.6),
+                            color: color,
+                          }}
+                        />
+                      </div>
+                    </foreignObject>
+
+                    {/* Risk badge (top-right corner) */}
+                    {(node.riskScore || 0) > 0 && (
+                      <g>
+                        <circle
+                          cx={pos.x + radius * 0.7} cy={pos.y - radius * 0.7}
+                          r={7}
+                          fill={node.riskScore >= 70 ? '#ef4444' : node.riskScore >= 40 ? '#f97316' : '#22c55e'}
+                        />
+                        <text
+                          x={pos.x + radius * 0.7} y={pos.y - radius * 0.7}
+                          textAnchor="middle" dominantBaseline="central"
+                          fill="white" fontSize={7} fontWeight="bold"
+                          fontFamily="system-ui, sans-serif"
+                          style={{ pointerEvents: 'none' }}
+                        >
+                          {node.riskScore}
+                        </text>
+                      </g>
+                    )}
+                  </>
                 )}
 
-                {/* Label below node */}
+                {/* Label below node — both CVE and resource nodes */}
                 <text
                   x={pos.x}
                   y={pos.y + radius + 14}
@@ -812,6 +976,7 @@ function normalizeType(raw) {
   if (svc === 'eks') return 'EKS';
   if (svc === 'ecs') return 'ECS';
   if (raw === 'threat') return 'threat';
+  if (s === 'cve' || svc === 'cve') return 'CVE';
   return raw;
 }
 
@@ -965,6 +1130,25 @@ function DetailPanel({ node, edges, allNodes, onNodeClick, onClose }) {
             />
           </div>
         </div>
+
+        {/* Config Properties (Security Properties from Neo4j prop_* keys — GRAPH-S3-03) */}
+        {(() => {
+          const hasPropKeys = Object.keys(node).some(
+            (k) => k.startsWith('prop_') && !k.endsWith('_pass')
+          );
+          if (!hasPropKeys) return null;
+          return (
+            <div className="border-t pt-4" style={{ borderColor: 'var(--border-primary)' }}>
+              <p
+                className="text-xs font-semibold uppercase tracking-wider mb-3"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                Security Properties
+              </p>
+              <ConfigPropertiesTable nodeProperties={node} />
+            </div>
+          );
+        })()}
 
         {/* Counts */}
         <div className="grid grid-cols-2 gap-2">
@@ -1322,8 +1506,8 @@ async function runExploreQuery(tenantId, qstate) {
   if (edgeKind)       params.edge_kind        = edgeKind;
   if (withinHops > 1) params.within_hops      = withinHops;
 
-  // Use BFF proxy (gateway consistency) with fallback to direct engine call
-  const result = await getFromEngine('threat', '/api/v1/graph/explore', params);
+  // Route through gateway so AuthMiddleware sets X-Auth-Context before engine-threat
+  const result = await getFromEngine('gateway', '/api/v1/graph/explore', params);
   if (result?.error) throw new Error(result.error);
   return result;
 }
@@ -2136,9 +2320,243 @@ function OrcaPathPanel({ paths, highlightedPath, onHighlight }) {
 }
 
 // ---------------------------------------------------------------------------
+// Semantic view definitions (GRAPH-S3-06)
+// ---------------------------------------------------------------------------
+const SEMANTIC_VIEWS = [
+  { key: 'attack_paths',  label: 'Attack Paths',  icon: ShieldAlert, always: true, defaultOn: true },
+  { key: 'internet_risk', label: 'Internet Risk',  icon: Globe,       always: true, defaultOn: false },
+  { key: 'cve_risk',      label: 'CVE Risk',       icon: Bug,         always: false, defaultOn: false,
+    disabledTip: 'Available after CVE scan completes' },
+  { key: 'full_graph',    label: 'Full Graph',     icon: Network,     always: true, defaultOn: false },
+];
+
+const SEVERITY_OPTIONS = ['CRIT', 'HIGH', 'MED', 'LOW'];
+const SEV_NORM = { CRIT: 'critical', HIGH: 'high', MED: 'medium', LOW: 'low' };
+
+// ---------------------------------------------------------------------------
+// SeverityToggle — multi-select severity pill bar
+// ---------------------------------------------------------------------------
+function SeverityToggle({ selected, onChange }) {
+  const SEV_COLORS = { CRIT: '#ef4444', HIGH: '#f97316', MED: '#eab308', LOW: '#22c55e' };
+
+  function toggle(sev) {
+    if (selected.includes(sev)) {
+      onChange(selected.filter(s => s !== sev));
+    } else {
+      onChange([...selected, sev]);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-[10px] font-semibold uppercase tracking-wider mr-1"
+        style={{ color: 'var(--text-secondary)' }}>
+        Severity
+      </span>
+      {SEVERITY_OPTIONS.map(sev => {
+        const active = selected.includes(sev);
+        const color = SEV_COLORS[sev];
+        return (
+          <button key={sev} onClick={() => toggle(sev)} title={active ? `Remove ${sev}` : `Filter to ${sev}`}
+            className="px-2 py-0.5 rounded text-[10px] font-bold border transition-all"
+            style={{
+              backgroundColor: active ? `${color}22` : 'var(--bg-secondary)',
+              borderColor: active ? color : 'var(--border-primary)',
+              color: active ? color : 'var(--text-secondary)',
+            }}
+          >
+            {sev}
+          </button>
+        );
+      })}
+      {selected.length > 0 && (
+        <button onClick={() => onChange([])} className="text-[9px] hover:underline ml-1"
+          style={{ color: 'var(--text-secondary)' }} title="Show all severities">
+          show all
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// RiskSlider
+// ---------------------------------------------------------------------------
+function RiskSlider({ value, onChange }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap"
+        style={{ color: 'var(--text-secondary)' }}>
+        Risk &ge; {value}
+      </span>
+      <input type="range" min={0} max={100} step={5} value={value}
+        onChange={e => onChange(Number(e.target.value))}
+        className="w-24 accent-blue-500"
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ScopeDropdown
+// ---------------------------------------------------------------------------
+function ScopeDropdown({ label, options, value, onChange }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-[10px] font-semibold uppercase tracking-wider"
+        style={{ color: 'var(--text-secondary)' }}>
+        {label}
+      </span>
+      <select value={value} onChange={e => onChange(e.target.value)}
+        className="px-2 py-1 rounded border text-xs outline-none cursor-pointer"
+        style={{
+          backgroundColor: 'var(--bg-secondary)',
+          borderColor: 'var(--border-primary)',
+          color: 'var(--text-primary)',
+        }}
+      >
+        {options.map(o => (
+          <option key={o} value={o} style={{ backgroundColor: 'var(--bg-card)' }}>
+            {o === 'all' ? `All ${label}s` : o}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SemanticViewBar — replaces old 3-tab quick filter
+// ---------------------------------------------------------------------------
+function SemanticViewBar({ activeView, onChange, hasCveNodes }) {
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {SEMANTIC_VIEWS.map(view => {
+        const isActive = activeView === view.key;
+        const isDisabled = !view.always && !hasCveNodes;
+        const Icon = view.icon;
+
+        if (isDisabled) {
+          return (
+            <button key={view.key} disabled title={view.disabledTip}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium cursor-not-allowed opacity-40"
+              style={{
+                backgroundColor: 'var(--bg-secondary)',
+                borderColor: 'var(--border-primary)',
+                color: 'var(--text-secondary)',
+              }}
+            >
+              <Icon className="w-3 h-3" />
+              {view.label}
+            </button>
+          );
+        }
+
+        return (
+          <button key={view.key} onClick={() => onChange(view.key)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all hover:opacity-90"
+            style={isActive
+              ? { backgroundColor: 'rgba(59,130,246,0.18)', borderColor: '#3b82f6', color: '#60a5fa' }
+              : { backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }
+            }
+          >
+            <Icon className="w-3 h-3" />
+            {view.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AdvancedSection — collapsible wrapper for VQB (collapsed by default)
+// ---------------------------------------------------------------------------
+function AdvancedSection({ children, hasActiveQuery }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="rounded-xl border overflow-hidden"
+      style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
+    >
+      <div role="button" tabIndex={0}
+        onClick={() => setOpen(v => !v)}
+        onKeyDown={e => e.key === 'Enter' && setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:opacity-80 transition-opacity cursor-pointer"
+      >
+        <div className="flex items-center gap-2">
+          <SlidersHorizontal className="w-4 h-4"
+            style={{ color: hasActiveQuery ? '#3b82f6' : 'var(--text-secondary)' }} />
+          <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+            Advanced
+          </span>
+          {hasActiveQuery && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+              style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>
+              Query active — overrides view
+            </span>
+          )}
+          {!open && !hasActiveQuery && (
+            <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+              Graph Explorer — structured filters &rarr; real-time
+            </span>
+          )}
+        </div>
+        <ChevronDown className="w-4 h-4 transition-transform duration-200"
+          style={{ color: 'var(--text-secondary)', transform: open ? 'rotate(180deg)' : 'none' }}
+        />
+      </div>
+
+      {open && (
+        <div className="border-t" style={{ borderColor: 'var(--border-primary)' }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main Page
 // ---------------------------------------------------------------------------
 export default function SecurityGraphExplorer() {
+  // Auth context — used for CVE RBAC gate (GRAPH-S3-02)
+  const auth = useAuth();
+  // CVE nodes are hidden only from viewer role.
+  // tenant_admin, analyst, org_admin, platform_admin can all see CVE nodes.
+  // viewer (role === 'viewer') sees CVE nodes filtered out of the graph entirely.
+  const canSeeCveNodes = auth.role !== 'viewer';
+
+  // ── URL params — GRAPH-S3-06 semantic filter state + GRAPH-S3-01 highlight_path ──
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const urlHighlightPath = searchParams.get('highlight_path');
+
+  // Read all URL-driven filter state (ADR-CR-03)
+  const semanticView      = searchParams.get('view')    ?? 'attack_paths';
+  const selectedSevStr    = searchParams.get('sev')     ?? 'CRIT,HIGH';
+  const minRisk           = parseInt(searchParams.get('risk')    ?? '70', 10);
+  const accountFilter     = searchParams.get('account') ?? 'all';
+  const regionFilter      = searchParams.get('region')  ?? 'all';
+
+  const selectedSeverities = useMemo(
+    () => selectedSevStr ? selectedSevStr.split(',').filter(Boolean) : [],
+    [selectedSevStr]
+  );
+
+  // Stable helper: update one URL param without clobbering others
+  const setParam = useCallback((key, value) => {
+    const p = new URLSearchParams(searchParams.toString());
+    p.set(key, value);
+    router.replace(`?${p.toString()}`, { scroll: false });
+  }, [searchParams, router]);
+
+  const setSemanticView      = useCallback(v  => setParam('view',    v),          [setParam]);
+  const setSelectedSeverities = useCallback(ss => setParam('sev',    ss.join(',')), [setParam]);
+  const setMinRisk            = useCallback(r  => setParam('risk',   String(r)),   [setParam]);
+  const setAccountFilter      = useCallback(a  => setParam('account', a),          [setParam]);
+  const setRegionFilter       = useCallback(r  => setParam('region',  r),          [setParam]);
+
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -2146,11 +2564,13 @@ export default function SecurityGraphExplorer() {
   const [searchQuery, setSearchQuery] = useState('');
   const [visibleNodeTypes, setVisibleNodeTypes] = useState(null); // null = show all
   const [visibleEdgeTypes, setVisibleEdgeTypes] = useState(null); // null = show all
-  // Threat hunting: quick-filter presets
-  const [viewPreset, setViewPreset] = useState('all'); // 'all' | 'threats' | 'internet'
-  const [exploreResult, setExploreResult] = useState(null); // result from Graph Explorer query
+  // viewPreset kept for SecurityGraph backward compat when VQB overrides
+  const [viewPreset] = useState('all');
+  const [exploreResult, setExploreResult] = useState(null); // VQB query result — overrides semantic view
   const [orcaPaths, setOrcaPaths] = useState([]);           // Orca-style attack path cards
-  const [highlightedPath, setHighlightedPath] = useState(null); // path_id of highlighted path
+  // Initialize from URL so clicking a card on the threats page pre-highlights
+  // that attack path in the graph without any extra API call (GRAPH-S3-01 AC #6).
+  const [highlightedPath, setHighlightedPath] = useState(urlHighlightPath || null);
   const containerRef = useRef(null);
   const [containerDims, setContainerDims] = useState({ w: 1200, h: 600 });
 
@@ -2340,6 +2760,93 @@ export default function SecurityGraphExplorer() {
     return p ? new Set(p.nodes.map((n) => n.uid)) : null;
   }, [highlightedPath, orcaPaths]);
 
+  // ── GRAPH-S3-06: Semantic filter computed values ──
+
+  // graph_capabilities from BFF
+  const graphCapabilities = useMemo(() => data?.graph_capabilities ?? {}, [data]);
+  const hasCveNodes = graphCapabilities.has_cve_nodes === true;
+
+  // Collect unique accounts and regions from all nodes (for scope dropdowns)
+  const uniqueAccounts = useMemo(() => {
+    const s = new Set();
+    allNodes.forEach(n => { if (n.account || n.account_id) s.add(n.account || n.account_id); });
+    return ['all', ...Array.from(s).sort()];
+  }, [allNodes]);
+
+  const uniqueRegions = useMemo(() => {
+    const s = new Set();
+    allNodes.forEach(n => { if (n.region) s.add(n.region); });
+    return ['all', ...Array.from(s).sort()];
+  }, [allNodes]);
+
+  // Build set of node IDs on any attack path (for attack_paths view)
+  const pathNodeIds = useMemo(() => {
+    if (orcaPaths.length === 0) return new Set();
+    const ids = new Set();
+    orcaPaths.forEach(p => (p.node_graph_ids ?? p.nodes?.map(n => n.uid) ?? []).forEach(id => ids.add(id)));
+    return ids;
+  }, [orcaPaths]);
+
+  // Annotate nodes with _has_cve_edge for cve_risk view
+  const annotatedNodes = useMemo(() => {
+    if (!hasCveNodes) return nodes;
+    const cveLinkedIds = new Set();
+    edges.forEach(e => {
+      const eType = (e.type || e.relationship || '').toUpperCase();
+      if (eType === 'HAS_CVE') {
+        cveLinkedIds.add(e.source);
+        cveLinkedIds.add(e.target);
+      }
+    });
+    if (cveLinkedIds.size === 0) return nodes;
+    return nodes.map(n => cveLinkedIds.has(n.id) ? { ...n, _has_cve_edge: true } : n);
+  }, [nodes, edges, hasCveNodes]);
+
+  // Apply severity + risk + account + region filters on top of semantic view nodes
+  // These are applied at the page level (before passing to SecurityGraph) so the
+  // SecurityGraph itself only receives the nodes it should show.
+  const filteredByFilters = useMemo(() => {
+    // When VQB (exploreResult) is active, it overrides semantic view — pass nodes as-is
+    if (exploreResult) return annotatedNodes;
+
+    return annotatedNodes.filter(n => {
+      // Risk score filter
+      const riskScore = n.risk_score ?? n.riskScore ?? 0;
+      if (minRisk > 0 && riskScore < minRisk) return false;
+
+      // Severity filter (empty = show all)
+      if (selectedSeverities.length > 0) {
+        const nodeSev = (n.severity || '').toLowerCase();
+        const mapped = selectedSeverities.map(s => SEV_NORM[s] || s.toLowerCase());
+        if (nodeSev && !mapped.includes(nodeSev)) return false;
+      }
+
+      // Account scope filter
+      if (accountFilter !== 'all') {
+        const nodeAccount = n.account || n.account_id;
+        if (nodeAccount && nodeAccount !== accountFilter) return false;
+      }
+
+      // Region scope filter
+      if (regionFilter !== 'all') {
+        if (n.region && n.region !== regionFilter) return false;
+      }
+
+      return true;
+    });
+  }, [annotatedNodes, exploreResult, minRisk, selectedSeverities, accountFilter, regionFilter]);
+
+  // GRAPH-S3-02: RBAC gate — strip CVE nodes for roles that cannot see them.
+  // tenant_admin (level 4), analyst (level 4), viewer (level 4) must not see CVE nodes.
+  // org_admin (level 2) and platform_admin (level 1) can see them.
+  const rbacFilteredNodes = useMemo(() => {
+    if (canSeeCveNodes) return filteredByFilters;
+    return filteredByFilters.filter(n => {
+      const t = (n.type || '').toLowerCase();
+      return t !== 'cve';
+    });
+  }, [filteredByFilters, canSeeCveNodes]);
+
   // Graph height: fill viewport minus header space
   const graphHeight = typeof window !== 'undefined' ? Math.max(500, window.innerHeight - 340) : 600;
 
@@ -2527,33 +3034,28 @@ export default function SecurityGraphExplorer() {
         {/* Separator */}
         <div className="w-px h-6" style={{ backgroundColor: 'var(--border-primary)' }} />
 
-        {/* Threat hunting quick filters */}
-        {[
-          { key: 'all', label: 'All', icon: null },
-          { key: 'threats', label: 'With Threats', icon: <ShieldAlert className="w-3 h-3" /> },
-          { key: 'internet', label: 'Internet Exposed', icon: <Globe className="w-3 h-3" /> },
-        ].map((preset) => (
-          <button
-            key={preset.key}
-            onClick={() => setViewPreset(preset.key)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors"
-            style={{
-              backgroundColor: viewPreset === preset.key ? 'rgba(59,130,246,0.15)' : 'var(--bg-secondary)',
-              borderColor: viewPreset === preset.key ? '#3b82f6' : 'var(--border-primary)',
-              color: viewPreset === preset.key ? '#60a5fa' : 'var(--text-secondary)',
-            }}
-          >
-            {preset.icon}
-            {preset.label}
-          </button>
-        ))}
+        {/* Severity toggle (GRAPH-S3-06) */}
+        <div className="w-px h-6" style={{ backgroundColor: 'var(--border-primary)' }} />
+        <SeverityToggle selected={selectedSeverities} onChange={setSelectedSeverities} />
+
+        {/* Risk slider (GRAPH-S3-06) */}
+        <RiskSlider value={minRisk} onChange={setMinRisk} />
+
+        {/* Scope dropdowns (GRAPH-S3-06) */}
+        <div className="w-px h-6" style={{ backgroundColor: 'var(--border-primary)' }} />
+        <ScopeDropdown label="Account" options={uniqueAccounts} value={accountFilter} onChange={setAccountFilter} />
+        <ScopeDropdown label="Region"  options={uniqueRegions}  value={regionFilter}  onChange={setRegionFilter} />
 
         {/* Reset filters */}
         <button
           onClick={() => {
             setVisibleNodeTypes(new Set(allNodeTypes));
             setVisibleEdgeTypes(new Set(allEdgeTypes));
-            setViewPreset('all');
+            setSemanticView('attack_paths');
+            setSelectedSeverities(['CRIT', 'HIGH']);
+            setMinRisk(70);
+            setAccountFilter('all');
+            setRegionFilter('all');
             setSearchQuery('');
             setSelectedNodeId(null);
             setExploreResult(null);
@@ -2572,24 +3074,119 @@ export default function SecurityGraphExplorer() {
         </button>
       </div>
 
-      {/* Graph Explorer — structured filters → Neo4j Cypher */}
-      <VisualQueryBuilder
-        tenantId={TENANT_ID}
-        onResultChange={setExploreResult}
-        activeResult={exploreResult}
-      />
+      {/* Semantic view tab bar (GRAPH-S3-06) — replaces old 3-tab preset */}
+      <div
+        className="flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3"
+        style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
+      >
+        <SemanticViewBar
+          activeView={exploreResult ? null : semanticView}
+          onChange={v => { setSemanticView(v); setExploreResult(null); }}
+          hasCveNodes={hasCveNodes}
+        />
+        {exploreResult && (
+          <span className="text-[11px] ml-2 italic" style={{ color: '#60a5fa' }}>
+            Graph Explorer active — semantic view overridden
+          </span>
+        )}
+      </div>
+
+      {/* Advanced collapsible — VQB moved here (collapsed by default, GRAPH-S3-06) */}
+      <AdvancedSection hasActiveQuery={!!exploreResult}>
+        <VisualQueryBuilder
+          tenantId={TENANT_ID}
+          onResultChange={setExploreResult}
+          activeResult={exploreResult}
+        />
+      </AdvancedSection>
+
+      {/* GRAPH-S3-01: Highlight-active banner — shown when navigated from a
+          threats page card click. Amber border signals the active path filter.
+          Dismiss clears both the URL param (via router) and the local state. */}
+      {highlightedPath && urlHighlightPath && (
+        <div
+          className="flex items-center justify-between rounded-lg border px-4 py-2"
+          style={{
+            backgroundColor: 'rgba(245,158,11,0.08)',
+            borderColor: 'rgba(245,158,11,0.4)',
+          }}
+        >
+          <span className="text-xs font-medium" style={{ color: '#fbbf24' }}>
+            Showing attack path from Threat Command Room — amber-highlighted nodes are part of this path, others dimmed to 40%.
+          </span>
+          <button
+            onClick={() => {
+              setHighlightedPath(null);
+              // Remove highlight_path from URL without full page reload
+              const params = new URLSearchParams(searchParams.toString());
+              params.delete('highlight_path');
+              const qs = params.toString();
+              router.replace(qs ? `/threats/graph?${qs}` : '/threats/graph', { scroll: false });
+            }}
+            className="text-xs font-semibold hover:opacity-70 transition-opacity ml-4 flex-shrink-0"
+            style={{ color: '#f59e0b' }}
+          >
+            Clear
+          </button>
+        </div>
+      )}
 
       {/* Graph + Detail Panel */}
       <div
         ref={containerRef}
         className="relative rounded-xl border overflow-hidden"
         style={{
-          borderColor: 'var(--border-primary)',
+          borderColor: highlightedPath && urlHighlightPath ? 'rgba(245,158,11,0.5)' : 'var(--border-primary)',
           height: `${graphHeight}px`,
         }}
       >
+        {/* GRAPH-S3-02: CVE not-yet-loaded banner — muted, non-blocking */}
+        {semanticView === 'cve_risk' && !hasCveNodes && !exploreResult && (
+          <div
+            className="absolute top-3 left-1/2 z-20 flex items-center gap-2 px-4 py-2 rounded-lg border text-xs"
+            style={{
+              transform: 'translateX(-50%)',
+              backgroundColor: 'rgba(100,116,139,0.12)',
+              borderColor: 'rgba(100,116,139,0.3)',
+              color: 'var(--text-secondary)',
+              maxWidth: '480px',
+            }}
+          >
+            <Bug className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#94a3b8' }} />
+            CVE nodes are not yet loaded — run a vulnerability scan to see CVE relationships
+          </div>
+        )}
+
+        {/* Attack Paths empty state — shown when view=attack_paths but no paths exist */}
+        {semanticView === 'attack_paths' && !exploreResult && orcaPaths.length === 0 && !loading && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 z-20"
+            style={{ backgroundColor: 'rgba(10,14,23,0.92)', backdropFilter: 'blur(2px)' }}
+          >
+            <div className="flex flex-col items-center gap-3 text-center max-w-sm">
+              <div className="w-14 h-14 rounded-full flex items-center justify-center"
+                style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}
+              >
+                <ShieldAlert className="w-6 h-6" style={{ color: '#ef4444' }} />
+              </div>
+              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                No attack paths detected for this tenant
+              </p>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                Switch to Internet Risk or Full Graph to explore resources, or run a scan to detect attack paths.
+              </p>
+              <button onClick={() => setSemanticView('full_graph')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-opacity hover:opacity-80 mt-1"
+                style={{ backgroundColor: 'rgba(59,130,246,0.2)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.3)' }}
+              >
+                <Network className="w-3 h-3" />
+                Show Full Graph
+              </button>
+            </div>
+          </div>
+        )}
+
         <SecurityGraph
-          nodes={nodes}
+          nodes={rbacFilteredNodes}
           edges={edges}
           selectedNodeId={selectedNodeId}
           onNodeClick={handleNodeClick}
@@ -2597,12 +3194,14 @@ export default function SecurityGraphExplorer() {
           visibleNodeTypes={visibleNodeTypes}
           visibleEdgeTypes={visibleEdgeTypes}
           viewPreset={viewPreset}
+          semanticView={exploreResult ? null : semanticView}
+          pathNodeIds={pathNodeIds}
           highlightedNodeIds={highlightedNodeIds}
           containerWidth={containerDims.w}
           containerHeight={graphHeight}
         />
 
-        {/* Empty state overlay when filter returns no nodes */}
+        {/* Empty state overlay when VQB filter returns no nodes */}
         {exploreResult && nodes.length === 0 && (
           <div
             className="absolute inset-0 flex flex-col items-center justify-center gap-4 z-20"
@@ -2637,16 +3236,29 @@ export default function SecurityGraphExplorer() {
           </div>
         )}
 
-        {/* Detail Panel (slides in from right) */}
-        {selectedNode && (
-          <DetailPanel
-            node={selectedNode}
-            edges={edges}
-            allNodes={nodes}
-            onNodeClick={handleNodeClick}
-            onClose={() => setSelectedNodeId(null)}
-          />
-        )}
+        {/* Detail Panel — CVE diamonds use CVEDetailPanel; all others use DetailPanel (GRAPH-S3-02) */}
+        {selectedNode && (() => {
+          const isCve = (selectedNode.type || '').toLowerCase() === 'cve'
+            || normalizeType(selectedNode.type || selectedNode.resourceType || '') === 'CVE';
+          if (isCve) {
+            return (
+              <CVEDetailPanel
+                node={selectedNode}
+                userRole={auth.role}
+                onClose={() => setSelectedNodeId(null)}
+              />
+            );
+          }
+          return (
+            <DetailPanel
+              node={selectedNode}
+              edges={edges}
+              allNodes={nodes}
+              onNodeClick={handleNodeClick}
+              onClose={() => setSelectedNodeId(null)}
+            />
+          );
+        })()}
       </div>
 
       {/* Orca-style Attack Path Cards */}
@@ -2674,15 +3286,38 @@ export default function SecurityGraphExplorer() {
           </span>
           {Object.entries(NODE_TYPE_CONFIG).map(([key, cfg]) => (
             <div key={key} className="flex items-center gap-1.5">
-              <span
-                className="w-2.5 h-2.5 rounded-full"
-                style={{ backgroundColor: cfg.color }}
-              />
+              {cfg.isCve ? (
+                /* Diamond shape for CVE nodes */
+                <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+                  <polygon points="6,1 11,6 6,11 1,6" fill={cfg.color} />
+                </svg>
+              ) : (
+                <span
+                  className="w-2.5 h-2.5 rounded-full"
+                  style={{ backgroundColor: cfg.color }}
+                />
+              )}
               <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
                 {cfg.label}
               </span>
             </div>
           ))}
+          {/* CVE severity colour key — shown only to org_admin and above */}
+          {canSeeCveNodes && (
+            <div className="flex items-center gap-3 ml-2 pl-2 border-l" style={{ borderColor: 'var(--border-primary)' }}>
+              <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
+                CVE severity:
+              </span>
+              {Object.entries(CVE_SEVERITY_COLORS).map(([sev, col]) => (
+                <div key={sev} className="flex items-center gap-1">
+                  <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+                    <polygon points="5,0 10,5 5,10 0,5" fill={col} />
+                  </svg>
+                  <span className="text-[10px] capitalize" style={{ color: 'var(--text-secondary)' }}>{sev}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap gap-x-6 gap-y-2 mt-3 pt-3 border-t" style={{ borderColor: 'var(--border-primary)' }}>
           <span

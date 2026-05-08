@@ -7,6 +7,7 @@ import { GlobalFilterProvider } from '@/lib/global-filter-context';
 import { SavedFiltersProvider } from '@/lib/saved-filters-context';
 import { TenantProvider } from '@/lib/tenant-context';
 import ToastContainer from '@/components/shared/Toast';
+import FetchInterceptorMount from '@/components/billing/FetchInterceptorMount';
 
 export const metadata = {
   title: 'Threat Engine CSPM',
@@ -25,6 +26,7 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body className="min-h-screen font-sans antialiased" suppressHydrationWarning>
+        <FetchInterceptorMount />
         <ThemeProvider>
           <AuthProvider>
             <TenantProvider>

@@ -14,13 +14,14 @@ from typing import Dict
 from fastapi import APIRouter, Query, Request
 
 from ._auth import resolve_tenant_id
-from ._shared import fetch_many, safe_get
+from ._shared import fetch_many, safe_get, BFFMeta
+from .schemas.reports import ReportsResponse
 from ._transforms import normalize_report, normalize_scheduled_report, _safe_upper
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
 
-@router.get("/reports")
+@router.get("/reports", response_model=ReportsResponse, response_model_exclude_none=False)
 async def view_reports(
     request: Request,
 ):
@@ -29,6 +30,7 @@ async def view_reports(
     tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+    meta = BFFMeta("reports")
 
     results = await fetch_many([
         ("compliance", "/api/v1/compliance/ui-data", {"tenant_id": tenant_id, "scan_id": "latest"}),
@@ -36,6 +38,8 @@ async def view_reports(
     ], auth_headers=fwd_headers)
 
     compliance_data, onboarding_data = results
+    meta.record_engine("compliance", "/api/v1/compliance/ui-data", compliance_data)
+    meta.record_engine("onboarding", "/api/v1/cloud-accounts", onboarding_data)
 
     # Extract reports from compliance/ui-data
     raw_reports = safe_get(compliance_data, "reports", []) if isinstance(compliance_data, dict) else []
@@ -89,6 +93,42 @@ async def view_reports(
         tmpl = r.get("template", "Unknown")
         by_template[tmpl] = by_template.get(tmpl, 0) + 1
 
+    # Normalize report rows to have all table columns the UI expects
+    def _enrich_report(r: dict) -> dict:
+        return {
+            **r,
+            "date":        r.get("generated") or r.get("date", ""),
+            "framework":   r.get("template") or r.get("framework", ""),
+            "assessed":    r.get("assessed", ""),
+            "attestedBy":  r.get("generatedBy") or r.get("attestedBy", ""),
+            "auditPeriod": r.get("auditPeriod", ""),
+            "collected":   r.get("collected", ""),
+        }
+
+    def _enrich_scheduled(s: dict) -> dict:
+        return {
+            **s,
+            "frequency": s.get("schedule") or s.get("frequency", ""),
+            "lastRun":   s.get("last_run") or s.get("lastRun", ""),
+            "nextRun":   s.get("next_run") or s.get("nextRun", ""),
+            "recipients": s.get("email_recipients") or s.get("recipients", []),
+        }
+
+    enriched_reports    = [_enrich_report(r) for r in reports]
+    enriched_scheduled  = [_enrich_scheduled(s) for s in scheduled]
+
+    # Report templates (derived from unique frameworks)
+    templates = [
+        {"id": tmpl, "name": tmpl, "desc": f"{tmpl} compliance report template", "format": "PDF"}
+        for tmpl in by_template.keys()
+    ]
+
+    tabs = [
+        {"id": "reports",   "label": "Reports",           "count": total},
+        {"id": "scheduled", "label": "Scheduled Reports", "count": len(scheduled)},
+        {"id": "templates", "label": "Templates",         "count": len(templates)},
+    ]
+
     return {
         "kpi": {
             "totalReports": total,
@@ -96,6 +136,9 @@ async def view_reports(
             "byFormat": by_format,
             "byTemplate": by_template,
         },
-        "reports": reports,
-        "scheduled": scheduled,
+        "reports":   enriched_reports,
+        "scheduled": enriched_scheduled,
+        "templates": templates,
+        "tabs":      tabs,
+        "_meta":     meta.to_dict(),
     }

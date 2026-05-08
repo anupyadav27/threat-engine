@@ -17,13 +17,14 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Query, Request
 
 from ._auth import resolve_tenant_id
-from ._shared import fetch_many, safe_get, is_empty_or_health
+from ._shared import fetch_many, safe_get, is_empty_or_health, BFFMeta
+from .schemas.cwpp import CWPPResponse
 from ._page_context import cwpp_page_context, cwpp_filter_schema
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
 
-@router.get("/cwpp")
+@router.get("/cwpp", response_model=CWPPResponse, response_model_exclude_none=False)
 async def view_cwpp(
     request: Request,
     provider: Optional[str] = Query(None),
@@ -36,6 +37,7 @@ async def view_cwpp(
     tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+    meta = BFFMeta("cwpp")
 
     results = await fetch_many([
         ("cwpp", "/api/v1/cwpp/ui-data", {
@@ -45,6 +47,7 @@ async def view_cwpp(
     ], auth_headers=fwd_headers)
 
     cwpp_data = results[0]
+    meta.record_engine("cwpp", "/api/v1/cwpp/ui-data", cwpp_data)
     if not isinstance(cwpp_data, dict) or is_empty_or_health(cwpp_data):
         cwpp_data = {}
 
@@ -73,14 +76,19 @@ async def view_cwpp(
             "summary": summary,
             # surface image scan status explicitly for UI
             "image_scan_status": summary.get("image_scan_status") if wid == "images" else None,
+            "meta": {
+                "color": _WORKLOAD_COLORS.get(wid, "#6b7280"),
+                "desc":  _WORKLOAD_DESCRIPTIONS.get(wid, ""),
+                "icon":  wid,
+            },
         })
 
     # ── Workload extraction for sub-tables ────────────────────────────────────
-    containers_data = workloads.get("containers", {}).get("data", {})
-    images_data     = workloads.get("images",     {}).get("data", {})
-    hosts_data      = workloads.get("hosts",      {}).get("data", {})
-    serverless_data = workloads.get("serverless", {}).get("data", {})
-    runtime_data    = workloads.get("runtime",    {}).get("data", {})
+    containers_data = workloads.get("containers", {}).get("data", {}) or {}
+    images_data     = workloads.get("images",     {}).get("data", {}) or {}
+    hosts_data      = workloads.get("hosts",      {}).get("data", {}) or {}
+    serverless_data = workloads.get("serverless", {}).get("data", {}) or {}
+    runtime_data    = workloads.get("runtime",    {}).get("data", {}) or {}
 
     # ── KPI groups ────────────────────────────────────────────────────────────
     containers_summary  = workloads.get("containers", {}).get("summary", {})
@@ -112,9 +120,57 @@ async def view_cwpp(
         {"id": "runtime",     "label": "Runtime"},
     ]
 
+    # -- Top-level summary object (UI accesses summary.critical, summary.total_clusters, etc.) --
+    summary = {
+        "cwpp_posture_score":     cwpp_score,
+        "risk_band":              risk_band,
+        "total_findings":         total_findings,
+        "critical":               critical_findings,
+        "high":                   safe_get(cwpp_data, "high_findings", 0),
+        "total_clusters":         containers_summary.get("total_clusters", 0),
+        "public_clusters":        containers_summary.get("public_clusters", 0),
+        "total_images":           images_summary.get("total_images", 0),
+        "total_host_scans":       hosts_summary.get("total_host_scans", 0),
+        "total_vulnerabilities":  hosts_summary.get("total_vulnerabilities", 0),
+        "total_functions":        serverless_summary.get("total_functions", 0),
+        "privileged_containers":  containers_summary.get("privileged_containers", 0),
+        "host_network_findings":  containers_summary.get("host_network_findings", 0),
+        "deprecated_runtimes":    serverless_summary.get("deprecated_runtimes", 0),
+    }
+
     return {
         "pageContext": page_ctx,
         "filterSchema": cwpp_filter_schema(),
+        "summary": summary,
+        # Top-level workload object for UI direct access (workload.posture_score, etc.)
+        "workload": {
+            "posture_score": cwpp_score,
+            "risk_band": risk_band,
+            "status": "ok" if cwpp_score > 0 else "unavailable",
+            "summary": summary,
+        },
+        # Top-level sub-type aliases for UI direct access without data.* wrapper
+        "containers": {
+            "clusters": containers_data.get("clusters", []),
+            "findings": containers_data.get("findings", []),
+            "domain_breakdown": containers_data.get("domain_breakdown", []),
+        },
+        "images": {
+            "inventory": images_data.get("image_inventory", []),
+            "findings": images_data.get("posture_findings", []),
+        },
+        "hosts": {
+            "scans": hosts_data.get("host_scans", []),
+            "os_vulnerabilities": hosts_data.get("os_vulnerabilities", []),
+            "middleware_vulnerabilities": hosts_data.get("middleware_vulnerabilities", []),
+        },
+        "serverless": {
+            "functions": serverless_data.get("functions", []),
+            "findings": serverless_data.get("findings", []),
+        },
+        "runtime": {
+            "findings": (runtime_data.get("runtime_findings", []) + runtime_data.get("runtime_keyword_findings", [])),
+        },
         "kpiGroups": [
             {
                 "title": "CWPP Posture",
@@ -186,13 +242,14 @@ async def view_cwpp(
                 "runtime_breakdown": serverless_data.get("runtime_breakdown", {}),
             },
             "runtime": {
-                "findings": runtime_data.get("runtime_findings", []),
+                "findings": (runtime_data.get("runtime_findings", []) + runtime_data.get("runtime_keyword_findings", [])),
                 "ciemRuntimeEvents": workloads.get("runtime", {}).get("ciem_runtime_events", {
                     "count": 0, "critical": 0, "high": 0, "medium": 0, "low": 0,
                     "link_available": False, "sample_findings": [],
                 }),
             },
         },
+        "_meta": meta.to_dict(),
     }
 
 
@@ -306,6 +363,22 @@ _WORKLOAD_NAMES = {
     "hosts":      "Hosts / VMs / Middleware",
     "serverless": "Serverless Functions",
     "runtime":    "Runtime Threat Detection",
+}
+
+_WORKLOAD_COLORS = {
+    "containers": "#3b82f6",
+    "images":     "#8b5cf6",
+    "hosts":      "#f97316",
+    "serverless": "#10b981",
+    "runtime":    "#ef4444",
+}
+
+_WORKLOAD_DESCRIPTIONS = {
+    "containers": "K8s / EKS / ECS cluster and pod security posture",
+    "images":     "Container image CVE scanning and posture",
+    "hosts":      "OS / VM / middleware CVEs from agent-based scanning",
+    "serverless": "Lambda / Azure Functions / GCF security posture",
+    "runtime":    "Privileged containers, host-network, CIEM runtime events",
 }
 
 

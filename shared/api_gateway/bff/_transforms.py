@@ -511,7 +511,7 @@ def normalize_iam_role(r: dict) -> dict:
         "region": r.get("region", ""),
         "description": fd.get("description") or fd.get("rule_description", ""),
         "remediation": fd.get("remediation", ""),
-        "finding_id": r.get("finding_id", ""),
+        "finding_id": str(r.get("finding_id") or ""),
         "provider": _safe_upper(r.get("provider")),
     }
 
@@ -530,7 +530,7 @@ def normalize_access_key(k: dict) -> dict:
         "region": k.get("region", ""),
         "description": fd.get("description") or fd.get("rule_description", ""),
         "remediation": fd.get("remediation", ""),
-        "finding_id": k.get("finding_id", ""),
+        "finding_id": str(k.get("finding_id") or ""),
         "provider": _safe_upper(k.get("provider")),
     }
 
@@ -727,14 +727,16 @@ def normalize_risk_scenario(s: dict) -> dict:
     risk_rating = _safe_lower(s.get("risk_rating"))
     risk_score = s.get("risk_score") or s.get("score", 0)
     blast_radius = s.get("blast_radius") or s.get("blast_radius_score", 0)
+    expected = s.get("expected_loss", 0)
+    worst_case = s.get("worst_case_loss", 0)
     return {
         # snake_case (risk page reads these)
         "scenario_id": s.get("scenario_id", ""),
         "scenario_name": scenario_name,
         "threat_category": s.get("threat_category", ""),
         "probability": s.get("probability", 0),
-        "expected_loss": s.get("expected_loss", 0),
-        "worst_case_loss": s.get("worst_case_loss", 0),
+        "expected_loss": expected,
+        "worst_case_loss": worst_case,
         "risk_rating": risk_rating,
         "risk_score": risk_score,
         "blast_radius": blast_radius,
@@ -742,6 +744,11 @@ def normalize_risk_scenario(s: dict) -> dict:
         "vulnerability": s.get("vulnerability", 0),
         "loss_magnitude": s.get("loss_magnitude", 0),
         "account": s.get("account", ""),
+        # Additional table columns for the risk register / roadmap
+        "inherent":    s.get("inherent") or s.get("inherent_risk", worst_case),
+        "residual":    s.get("residual") or s.get("residual_risk", expected),
+        "target_risk": s.get("target_risk", 0),
+        "due_date":    s.get("due_date") or s.get("target_date", ""),
         # camelCase aliases
         "scenarioId": s.get("scenario_id", ""),
         "title": scenario_name,

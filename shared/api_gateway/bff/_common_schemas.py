@@ -31,11 +31,19 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 # ── Sensitive-key scrubber (mirrors views/_schemas.py B3) ────────────────────
-# Match snake_case field-name style only (e.g. credential_ref, secret_arn,
-# raw_event). Avoid false positives on legitimate display strings used as dict
-# keys — e.g. MITRE tactic name "Credential Access" in mitreMatrix.
+# Block actual credential-material field names.  Intentionally narrow:
+#   BLOCKED  → credential_ref, credential_type, raw_event,
+#              secret_access_key, secret_value, secret_key, secret_string,
+#              credentials (exact word)
+#   ALLOWED  → secrets_encrypted (boolean), secret_arn (ARN ref),
+#              secret_name (display name), sm_entries (collection key)
+# This avoids false-positive 500s on legitimate CSPM metadata fields while
+# still rejecting any field that carries actual credential material.
 _SENSITIVE_KEY_RE = re.compile(
-    r"(^|_)(credentials?|secrets?|raw_event)(_|$)", re.IGNORECASE
+    r"(^|_)(credential_ref|credential_type|raw_event"
+    r"|secret_access_key|secret_value|secret_key|secret_string)(_|$)"
+    r"|(^credentials?$)",
+    re.IGNORECASE,
 )
 
 

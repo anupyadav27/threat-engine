@@ -27,7 +27,8 @@ from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, Query, Request
 
 from ._auth import resolve_tenant_id
-from ._shared import fetch_many, safe_get
+from ._shared import fetch_many, safe_get, BFFMeta
+from .schemas.dashboard import DashboardResponse
 from ._transforms import (
     normalize_threat, severity_chart, apply_global_filters, _safe_upper,
 )
@@ -104,7 +105,7 @@ def _extract_resource_from_threat(t: dict) -> dict:
     }
 
 
-@router.get("/dashboard")
+@router.get("/dashboard", response_model=DashboardResponse, response_model_exclude_none=False)
 async def view_dashboard(
     request: Request,
     provider: Optional[str] = Query(None),
@@ -117,6 +118,7 @@ async def view_dashboard(
     tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+    meta = BFFMeta("dashboard")
 
     # ── 7 parallel calls instead of 14 ───────────────────────────────────
     iam_params: Dict[str, str] = {"tenant_id": tenant_id, "csp": provider.lower() if provider else "aws", "scan_id": "latest"}
@@ -135,6 +137,13 @@ async def view_dashboard(
         threat_data, compliance_data, inventory_data,
         iam_data, datasec_data, risk_data, onboarding_data,
     ) = results
+    meta.record_engine("threat",     "/api/v1/threat/ui-data",        threat_data)
+    meta.record_engine("compliance", "/api/v1/compliance/ui-data",    compliance_data)
+    meta.record_engine("inventory",  "/api/v1/inventory/ui-data",     inventory_data)
+    meta.record_engine("iam",        "/api/v1/iam-security/ui-data",  iam_data)
+    meta.record_engine("datasec",    "/api/v1/data-security/ui-data", datasec_data)
+    meta.record_engine("risk",       "/api/v1/risk/ui-data",          risk_data)
+    meta.record_engine("onboarding", "/api/v1/cloud-accounts",        onboarding_data)
 
     # Safely unwrap all responses
     threat_data = threat_data if isinstance(threat_data, dict) else {}
@@ -762,19 +771,30 @@ async def view_dashboard(
             "dataScope": "all_scans" if scan_run_id == "latest" else "single_scan",
             "hasData": bool(total_threats or inv_total_assets),
         },
+        # Flat aliases consumed directly by UI components
+        "cloudHealthData": cloud_health,
+        "frameworks": frameworks,
+        "securityScoreTrendData": security_score_trend,
+        "mitreTopTechniques": mitre_techniques,
+        "remediationSLA": remediation_sla,
+        "riskyResources": risky_resources,
+        "findingsByCategoryData": findings_by_category,
+        "_meta": meta.to_dict(),
     }
 
     # Apply global filters
     if provider or account or region:
         response["recentThreats"] = apply_global_filters(response["recentThreats"], provider, account, region)
-        # risky_resources lives inside chartCategories — filter in-place
+        # risky_resources lives in chartCategories AND flat alias — filter both
+        filtered_risky = [
+            r for r in risky_resources
+            if (not provider or r.get("provider", "").upper() == provider.upper())
+            and (not region or r.get("region") == region)
+        ]
+        response["riskyResources"] = filtered_risky
         for cat in response.get("chartCategories", []):
             for chart in cat.get("charts", []):
                 if chart.get("id") == "risky_resources":
-                    chart["data"] = [
-                        r for r in chart.get("data", [])
-                        if (not provider or r.get("provider", "").upper() == provider.upper())
-                        and (not region or r.get("region") == region)
-                    ]
+                    chart["data"] = filtered_risky
 
     return response

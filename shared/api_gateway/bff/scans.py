@@ -14,7 +14,8 @@ from typing import Optional
 from fastapi import APIRouter, Query, Request
 
 from ._auth import resolve_tenant_id
-from ._shared import fetch_many, safe_get
+from ._shared import fetch_many, safe_get, BFFMeta
+from .schemas.scans import ScansResponse
 from ._transforms import _safe_upper
 from ._page_context import scans_page_context
 
@@ -63,7 +64,7 @@ def _cron_to_frequency(cron):
     return cron
 
 
-@router.get("/scans")
+@router.get("/scans", response_model=ScansResponse, response_model_exclude_none=False)
 async def view_scans(
     request: Request,
     provider: Optional[str] = Query(None),
@@ -75,6 +76,7 @@ async def view_scans(
     tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+    meta = BFFMeta("scans")
 
     results = await fetch_many([
         ("onboarding", "/api/v1/cloud-accounts", {"tenant_id": tenant_id}),
@@ -83,6 +85,8 @@ async def view_scans(
 
     onboarding_data = results[0]
     scan_runs_resp = results[1]
+    meta.record_engine("onboarding", "/api/v1/cloud-accounts", onboarding_data)
+    meta.record_engine("onboarding", "/api/v1/scan-runs", scan_runs_resp)
 
     raw_accounts = safe_get(onboarding_data, "accounts", []) if isinstance(onboarding_data, dict) else []
     scan_stats = safe_get(onboarding_data, "scan_stats", {}) if isinstance(onboarding_data, dict) else {}
@@ -123,6 +127,7 @@ async def view_scans(
         scans.append({
             "id": i + 1,
             "scan_id": row.get("scan_run_id", ""),
+            "scan_run_id": row.get("scan_run_id", ""),
             "scan_name": f"{prov} - {acct_id}",
             "scan_type": row.get("scan_type") or "Full",
             "provider": prov,
@@ -302,13 +307,38 @@ async def view_scans(
         {"id": "coverage", "label": "Coverage", "count": len(coverage_by_provider)},
     ]
 
+    # Ensure scans have overall_status and engine_statuses fields
+    for s in scans:
+        s.setdefault("overall_status", s.get("status", "completed"))
+        s.setdefault("engine_statuses", {})
+        s.setdefault("account_name",   s.get("account_id", ""))
+
+    # Build accounts list for RunNow modal
+    accounts_list = [
+        {
+            "accountId":  a.get("account_id", ""),
+            "account_id": a.get("account_id", ""),
+            "accountName": a.get("account_name") or a.get("account_id", ""),
+            "account_name": a.get("account_name") or a.get("account_id", ""),
+            "provider": _safe_upper(a.get("provider") or a.get("csp") or ""),
+        }
+        for a in raw_accounts
+    ]
+
+    stats = {
+        "total":     scan_stats.get("total_scans") or total_scans,
+        "completed": completed_count,
+        "running":   running_count,
+        "failed":    failed_count,
+    }
+
     return {
         "pageContext": page_ctx,
         "kpiGroups": [
             {
                 "title": "Scan Status",
                 "items": [
-                    {"label": "Total Scans", "value": scan_stats.get("total_scans") or total_scans},
+                    {"label": "Total Scans", "value": stats["total"]},
                     {"label": "Completed", "value": completed_count},
                     {"label": "Running", "value": running_count},
                     {"label": "Failed", "value": failed_count},
@@ -324,8 +354,13 @@ async def view_scans(
                 ],
             },
         ],
-        "scans": scans[:limit],
-        "scheduled": scheduled,
+        "scans":             scans[:limit],
+        "runs":              scans[:limit],
+        "scheduled":         scheduled,
+        "schedules":         scheduled,
+        "accounts":          accounts_list,
         "coverageByProvider": coverage_by_provider,
-        "total": scan_stats.get("total_scans") or total_scans,
+        "stats":             stats,
+        "total":             stats["total"],
+        "_meta":             meta.to_dict(),
     }

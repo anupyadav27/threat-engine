@@ -90,7 +90,7 @@ export const NAV_ITEMS = [
     children: [
       { label: 'Command Room',     href: '/threats' },
       { label: 'Scenarios List',   href: '/threats/scenarios' },
-      { label: 'ATT&CK Coverage',  href: '/threats/attack-coverage' },
+      { label: 'ATT&CK Coverage',  href: '/threats/attack-map' },
       { label: 'Graph Explorer',   href: '/threats/graph' },
       { label: 'Trends & Posture', href: '/threats/trends' },
     ],
@@ -124,7 +124,6 @@ export const NAV_ITEMS = [
       { label: 'Posture Security', href: '/misconfig', icon: 'ShieldAlert' },
       { label: 'IAM Security', href: '/iam', icon: 'KeyRound' },
       { label: 'Network Security', href: '/network-security', icon: 'Network' },
-      { label: 'Security Graph', href: '/network-security/graph', icon: 'GitBranch' },
       { label: 'Data Security', href: '/datasec', icon: 'Lock' },
       { label: 'Encryption', href: '/encryption', icon: 'Lock' },
       { label: 'Database Security', href: '/database-security', icon: 'Database' },
@@ -133,15 +132,8 @@ export const NAV_ITEMS = [
     ],
   },
   { label: 'CIEM', href: '/ciem', icon: 'Eye' },
-  {
-    label: 'CNAPP',
-    href: '/cnapp',
-    icon: 'Shield',
-    children: [
-      { label: 'Unified View', href: '/cnapp', icon: 'Shield' },
-      { label: 'CWPP', href: '/cwpp', icon: 'Container' },
-    ],
-  },
+  { label: 'CNAPP', href: '/cnapp', icon: 'Shield' },
+  { label: 'CWPP', href: '/cwpp', icon: 'Container' },
   {
     label: 'Code Security',
     href: '/secops',
@@ -184,16 +176,16 @@ export const NAV_ITEMS = [
     ],
   },
   {
-    label: 'Billing',
-    href: '/billing',
-    icon: 'CreditCard',
-    permission: 'billing:read',
-    roles: ['org_admin', 'tenant_admin'],
-  },
-  {
     label: 'Admin Dashboard',
     href: '/admin/dashboard',
     icon: 'LayoutGrid',
+    permission: 'platform:admin',
+    roles: ['platform_admin'],
+  },
+  {
+    label: 'Admin Billing',
+    href: '/admin/billing',
+    icon: 'DollarSign',
     permission: 'platform:admin',
     roles: ['platform_admin'],
   },

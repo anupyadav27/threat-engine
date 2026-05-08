@@ -29,8 +29,13 @@ EngineSlug = Literal[
 
 
 # Keys that must NEVER appear anywhere in the serialized output.
+# Narrow to actual credential-material fields; allows metadata like
+# secrets_encrypted (bool), secret_arn (ARN ref), secret_name (label).
 _SENSITIVE_KEY_RE = re.compile(
-    r"(^|_)(credentials?|secrets?|raw_event)(_|$)", re.IGNORECASE
+    r"(^|_)(credential_ref|credential_type|raw_event"
+    r"|secret_access_key|secret_value|secret_key|secret_string)(_|$)"
+    r"|(^credentials?$)",
+    re.IGNORECASE,
 )
 # Denylist for EngineExtensions to block prototype-pollution-style smuggling.
 _EXTENSION_DENYLIST = {"__proto__", "constructor", "prototype"}
@@ -135,6 +140,9 @@ class RemediationBlock(BaseModel):
     references: List[str] = Field(default_factory=list)
     estimatedEffort: Optional[str] = None
     slaPriority: Optional[str] = None
+    guidance: Optional[str] = None
+    markdown: Optional[str] = None
+    runbook_url: Optional[str] = None
 
 
 class EngineExtensions(BaseModel):
@@ -166,12 +174,24 @@ class StatusUpdateRequest(BaseModel):
 
 class FindingDetailResponse(BaseModel):
     finding: FindingHeader
+    # UI accesses `header.*` — expose as alias at top level
+    header: Optional[FindingHeader] = None
     # FE calls /api/v1/asset-context/{uid} separately; BFF returns None here.
     resourceContext: Optional[Dict[str, Any]] = None
     relatedFindings: RelatedFindingsBlock
     compliance: ComplianceBlock
     remediation: RemediationBlock
     engineExtensions: EngineExtensions = Field(default_factory=EngineExtensions)
+    # Tab management fields the UI needs
+    tabPermissions: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    degradedEngines: Optional[List[str]] = Field(default_factory=list)
+    restrictedEngines: Optional[List[str]] = Field(default_factory=list)
+    # Tab content aliases for UI convenience
+    evidence: Optional[Dict[str, Any]] = None
+    related: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+    supporting: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+    partial: Optional[bool] = None
+    allTabs: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _scrub_sensitive_keys(self) -> "FindingDetailResponse":

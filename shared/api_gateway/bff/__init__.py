@@ -84,6 +84,7 @@ from .cwpp import router as cwpp_router
 from .vulnerability import router as vulnerability_router
 from .onboarding_cloud_accounts import router as onboarding_cloud_accounts_router
 from .billing import router as billing_router
+from .billing import _trial_router as billing_trial_router
 from .platform_admin import router as platform_admin_router
 from .views.finding_detail import router as finding_detail_router
 from .views.risk_scenario_detail import router as risk_scenario_detail_router
@@ -135,6 +136,7 @@ for _sub in (
     vulnerability_router,
     onboarding_cloud_accounts_router,
     billing_router,
+    billing_trial_router,
     platform_admin_router,
     finding_detail_router,
     risk_scenario_detail_router,

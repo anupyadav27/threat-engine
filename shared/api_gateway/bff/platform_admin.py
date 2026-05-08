@@ -136,6 +136,51 @@ async def view_platform_admin(
     }
 
 
+@router.get("/admin-billing")
+async def view_admin_billing(
+    request: Request,
+    org_id: Optional[str] = Query(None),
+    provider: Optional[str] = Query(None),
+):
+    """Billing overview for platform admin — resource counts and monthly amounts per org.
+
+    Optional filters: ?org_id=<id>, ?provider=aws|gcp|azure|oci|k8s
+    Requires platform:admin permission.
+    """
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(
+        request.state, "auth_header", None
+    )
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else {}
+
+    results = await fetch_many(
+        [("platform_admin", "/api/v1/padmin/billing", {})],
+        auth_headers=fwd_headers or None,
+    )
+    data = results[0] if results and results[0] else {}
+
+    orgs = data.get("orgs", [])
+
+    # Apply filters
+    if org_id:
+        orgs = [o for o in orgs if o.get("org_id") == org_id]
+    if provider:
+        filtered = []
+        for o in orgs:
+            accounts = [a for a in o.get("accounts", []) if a.get("provider") == provider]
+            if accounts:
+                total = sum(a["avg_billable_30d"] for a in accounts)
+                filtered.append({**o, "accounts": accounts, "total_billable": total,
+                                  "monthly_amount_usd": _calc_amount(total)})
+        orgs = filtered
+
+    return {
+        "orgs": orgs,
+        "total_orgs": len(orgs),
+        "pricing": data.get("pricing", {}),
+        "csv_rows": data.get("csv_rows", []),
+    }
+
+
 # ── Helper colour mappers ──────────────────────────────────────────────────────
 
 def _status_color(status: str) -> str:

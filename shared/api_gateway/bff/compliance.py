@@ -309,6 +309,60 @@ async def view_compliance(
         {"id": "matrix", "label": "Account Matrix", "count": len(account_matrix)},
     ]
 
+    # -- Build config_checks and ciem_checks from failing controls -------------
+    config_checks = []
+    ciem_checks   = []
+    for ctrl in failing:
+        check_obj = {
+            "check_id":     ctrl.get("control_id", ""),
+            "control_id":   ctrl.get("control_id", ""),
+            "control_name": ctrl.get("title", ""),
+            "severity":     ctrl.get("severity", "medium"),
+            "status":       "FAIL",
+            "failing_count":ctrl.get("total_failed", 0),
+            "provider":     ctrl.get("account", ""),
+            "framework":    ctrl.get("framework", ""),
+        }
+        if "ciem" in ctrl.get("framework", "").lower() or "identity" in ctrl.get("title", "").lower():
+            ciem_checks.append(check_obj)
+        else:
+            config_checks.append(check_obj)
+
+    # -- filteredControls — normalized control list for UI table ---------------
+    filtered_controls = [
+        {
+            "control_id":      c.get("control_id", ""),
+            "control_name":    c.get("title", ""),
+            "fail_count":      c.get("total_failed", 0),
+            "failing_count":   c.get("total_failed", 0),
+            "total_resources": c.get("total_resources") or c.get("total_tested", 0),
+            "severity":        c.get("severity", "medium"),
+            "status":          "FAIL" if c.get("total_failed", 0) > 0 else "PASS",
+            "framework":       c.get("framework", ""),
+            "account":         c.get("account", ""),
+            "provider":        c.get("provider") or c.get("account", ""),
+            "region":          c.get("region", ""),
+            "days_open":       c.get("days_open", 0),
+        }
+        for c in failing
+    ]
+
+    # -- totals summary object ------------------------------------------------
+    totals = {
+        "score":    overall_score or round(pass_rate, 1),
+        "passed":   passed_total,
+        "failed":   failed_total,
+        "controls": total_controls,
+        "pass_rate":round(pass_rate, 1),
+    }
+
+    # -- modes (available display modes) -------------------------------------
+    modes = [
+        {"id": "frameworks", "label": "Frameworks"},
+        {"id": "controls",   "label": "Controls"},
+        {"id": "matrix",     "label": "Account Matrix"},
+    ]
+
     result = {
         "pageContext": page_ctx,
         "filterSchema": compliance_filter_schema(),
@@ -317,27 +371,32 @@ async def view_compliance(
                 "title": "Compliance Posture",
                 "items": [
                     {"label": "Overall Score", "value": overall_score or round(pass_rate, 1), "suffix": "%"},
-                    {"label": "Pass Rate", "value": round(pass_rate, 1), "suffix": "%"},
-                    {"label": "Frameworks", "value": len(frameworks)},
-                    {"label": "At Risk", "value": at_risk_count},
+                    {"label": "Pass Rate",     "value": round(pass_rate, 1), "suffix": "%"},
+                    {"label": "Frameworks",    "value": len(frameworks)},
+                    {"label": "At Risk",       "value": at_risk_count},
                 ],
             },
             {
                 "title": "Control Status",
                 "items": [
                     {"label": "Total Controls", "value": total_controls},
-                    {"label": "Passed", "value": passed_total},
-                    {"label": "Failed", "value": failed_total},
-                    {"label": "Critical Gaps", "value": critical_failures},
+                    {"label": "Passed",         "value": passed_total},
+                    {"label": "Failed",         "value": failed_total},
+                    {"label": "Critical Gaps",  "value": critical_failures},
                 ],
             },
         ],
-        "frameworks": frameworks,
-        "failingControls": failing,
-        "trendData": trend_data_out,
-        "auditDeadlines": audit_deadlines,
-        "exceptions": exceptions,
-        "accountMatrix": account_matrix,
+        "frameworks":       frameworks,
+        "failingControls":  failing,
+        "filteredControls": filtered_controls,
+        "config_checks":    config_checks,
+        "ciem_checks":      ciem_checks,
+        "totals":           totals,
+        "modes":            modes,
+        "trendData":        trend_data_out,
+        "auditDeadlines":   audit_deadlines,
+        "exceptions":       exceptions,
+        "accountMatrix":    account_matrix,
     }
     cached_view(ck, result, ttl=TTL_COMPLIANCE)
     return result

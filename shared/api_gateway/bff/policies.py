@@ -60,17 +60,50 @@ async def view_policies(
     archived  = by_status.get("archived", 0)
     total     = len(policies)
 
+    # Enrich each policy with UI-expected table columns
+    enriched = []
+    for p in policies:
+        enriched.append({
+            **p,
+            "id":             p.get("rule_id") or p.get("id", ""),
+            "name":           p.get("name") or p.get("rule_name") or p.get("title", ""),
+            "category":       p.get("category", "general"),
+            "provider":       p.get("provider", "all"),
+            "severity":       p.get("severity", "medium"),
+            "status":         p.get("status", "active"),
+            "violations":     p.get("violations") or p.get("fail_count", 0),
+            "pass_rate":      p.get("pass_rate", 0),
+            "auto_remediate": p.get("auto_remediate", False),
+            "frameworks":     p.get("frameworks") or [],
+            "evaluations":    p.get("evaluations") or p.get("total_checks", 0),
+            "last_updated":   p.get("last_updated") or p.get("updated_at", ""),
+            "exceptions":     p.get("exceptions") or [],
+            "version_history":p.get("version_history") or [],
+        })
+
+    by_status_list = [{"status": k, "count": v} for k, v in
+                      sorted(by_status.items(), key=lambda x: -x[1])]
+
+    tabs = [
+        {"id": "policies",   "label": "Policies",    "count": total},
+        {"id": "exceptions", "label": "Exceptions",  "count": 0},
+        {"id": "changelog",  "label": "Change Log",  "count": 0},
+    ]
+
     result = {
-        "policies": policies,
-        "total":    total,
+        "policies":   enriched,
+        "total":      total,
+        "brief":      f"{active} active, {draft} draft — {total} total policies",
+        "details":    {},
+        "tabs":       tabs,
         "kpiGroups": [
             {
                 "title": "Policy Coverage",
                 "items": [
-                    {"label": "Total Policies",    "value": total},
-                    {"label": "Active",            "value": active},
-                    {"label": "Draft",             "value": draft},
-                    {"label": "Archived",          "value": archived},
+                    {"label": "Total Policies", "value": total},
+                    {"label": "Active",         "value": active},
+                    {"label": "Draft",          "value": draft},
+                    {"label": "Archived",       "value": archived},
                 ],
             }
         ],
@@ -78,6 +111,8 @@ async def view_policies(
                        sorted(by_category.items(), key=lambda x: -x[1])],
         "byProvider": [{"provider": k, "count": v} for k, v in
                        sorted(by_provider.items(), key=lambda x: -x[1])],
+        "byStatus":   by_status_list,
+        "items":      enriched,
         "filterSchema": [
             {"key": "status",   "label": "Status",   "type": "enum",
              "values": ["active", "draft", "archived"]},

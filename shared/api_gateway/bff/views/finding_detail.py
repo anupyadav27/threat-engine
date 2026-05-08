@@ -408,14 +408,17 @@ def _build_remediation(
         references = [str(r) for r in refs] if isinstance(refs, list) else []
 
         sla = _SLA_BY_SEVERITY.get((severity or "").lower())
+        raw_guidance = guidance.get("estimated_effort") if isinstance(guidance, dict) else None
+        plain_text = guidance.get("guidance") or guidance.get("description") or "" if isinstance(guidance, dict) else ""
         block = RemediationBlock(
             available=True,
             steps=steps,
             references=references,
-            estimatedEffort=guidance.get("estimated_effort")
-            if isinstance(guidance, dict)
-            else None,
+            estimatedEffort=raw_guidance,
             slaPriority=sla,
+            guidance=plain_text,
+            markdown=guidance.get("markdown") or plain_text if isinstance(guidance, dict) else plain_text,
+            runbook_url=guidance.get("runbook_url") or guidance.get("runbook") or "" if isinstance(guidance, dict) else "",
         )
         _remediation_cache[rule_id] = block
         return block
@@ -504,13 +507,41 @@ async def get_finding_detail(
     # Tab 5: remediation
     remediation = _build_remediation(row.get("rule_id"), row.get("severity"))
 
+    restricted = list(related.restrictedEngines) if related.restrictedEngines else []
+    degraded: list = []
+
+    tab_perms = {
+        "overview":    True,
+        "resource":    True,
+        "related":     related.available,
+        "compliance":  compliance.available,
+        "remediation": remediation.available,
+    }
+
+    all_tabs = [
+        {"tabId": "overview",    "label": "Overview"},
+        {"tabId": "resource",    "label": "Resource"},
+        {"tabId": "related",     "label": "Related"},
+        {"tabId": "compliance",  "label": "Compliance"},
+        {"tabId": "remediation", "label": "Remediation"},
+    ]
+
     return FindingDetailResponse(
         finding=header,
+        header=header,
         resourceContext=None,  # FE calls /asset-context separately
         relatedFindings=related,
+        related=[item.model_dump() for item in related.items] if related.items else [],
         compliance=compliance,
         remediation=remediation,
         engineExtensions=EngineExtensions(),
+        tabPermissions=tab_perms,
+        degradedEngines=degraded,
+        restrictedEngines=restricted,
+        evidence={},
+        supporting=[],
+        partial=len(degraded) > 0 or len(restricted) > 0,
+        allTabs=all_tabs,
     )
 
 

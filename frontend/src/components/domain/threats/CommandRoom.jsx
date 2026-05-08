@@ -1,31 +1,43 @@
 'use client';
 
 /**
- * CommandRoom — three-zone Threat Command Room layout container.
+ * CommandRoom — Threat Command Room (THREATS-UI-01).
  *
- * Zone A: ThreatPulseBar (full width, 72px)
- * Zone B: ScenarioCardList (55% / scrollable)
- * Zone C: PreviewPanel   (45% / sticky)
+ * Layout: flex column — ThreatSubNav → ThreatPulseBar → FilterBar → ScenarioCardList.
+ * Scenario selection opens a centered ScenarioModal overlay (no layout shift).
  *
- * All data is fetched once via useViewFetch('threat-command-room').
- * Filtering is entirely client-side (no re-fetch on filter changes).
- * The live badge count is written into ThreatBadgeContext so the Sidebar
- * can display a pill next to the "Threats" nav item.
+ * URL state (ADR-CR-03 / ADR-CR-04):
+ *   ?selected=<id>&sev=CRIT,HIGH&status=open&sort=risk_score
  *
+ * All filtering is client-side; no re-fetch on filter changes.
  * Poll interval: 30 seconds when scan_status === 'running'.
  */
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useViewFetch } from '@/lib/use-view-fetch';
 import { useThreatBadge } from '@/lib/threat-badge-context';
+import { useAuth } from '@/lib/auth-context';
 import ThreatPulseBar from './ThreatPulseBar';
 import ThreatSubNav from './ThreatSubNav';
 import ScenarioCardList from './ScenarioCardList';
-import PreviewPanel from './PreviewPanel';
-import ScenarioDetailPanel from './ScenarioDetailPanel';
+import { FilterBar } from './FilterBar';
+import { ScenarioModal } from './ScenarioModal';
 
-// ── Skeleton loader ───────────────────────────────────────────────────────────
+// ── Severity normalisation ─────────────────────────────────────────────────────
+// BFF uses lowercase ('critical'); FilterBar uses abbreviated uppercase ('CRIT').
+const SEV_MAP = {
+    CRIT: 'critical',
+    HIGH: 'high',
+    MED:  'medium',
+    LOW:  'low',
+};
+
+const SEV_ORDER = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+
+// ── Skeleton ───────────────────────────────────────────────────────────────────
+
 function SkeletonRow({ width = '100%', height = 16 }) {
     return (
         <div
@@ -61,40 +73,44 @@ function CommandRoomSkeleton() {
                 ))}
             </div>
 
-            {/* Cards + panel skeleton */}
-            <div style={{ display: 'grid', gridTemplateColumns: '55fr 45fr', gap: 12, minHeight: 500 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {[1, 2, 3, 4, 5].map((i) => (
-                        <div
-                            key={i}
-                            style={{
-                                backgroundColor: 'var(--bg-card)',
-                                border: '1px solid var(--border-primary)',
-                                borderRadius: 8,
-                                padding: '14px',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: 8,
-                            }}
-                        >
-                            <SkeletonRow width="70%" height={14} />
-                            <SkeletonRow width="45%" height={12} />
-                        </div>
-                    ))}
-                </div>
-                <div
-                    style={{
-                        backgroundColor: 'var(--bg-card)',
-                        border: '1px solid var(--border-primary)',
-                        borderRadius: 10,
-                    }}
-                />
+            {/* Filter bar skeleton */}
+            <div
+                style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-primary)',
+                    borderRadius: 8,
+                    padding: '8px 12px',
+                    height: 44,
+                }}
+            />
+
+            {/* Card list skeleton */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {[1, 2, 3, 4, 5].map((i) => (
+                    <div
+                        key={i}
+                        style={{
+                            backgroundColor: 'var(--bg-card)',
+                            border: '1px solid var(--border-primary)',
+                            borderRadius: 8,
+                            padding: '14px',
+                            height: 88,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 8,
+                            justifyContent: 'center',
+                        }}
+                    >
+                        <SkeletonRow width="70%" height={14} />
+                        <SkeletonRow width="45%" height={12} />
+                    </div>
+                ))}
             </div>
         </div>
     );
 }
 
-// ── Empty states ──────────────────────────────────────────────────────────────
+// ── Empty states ───────────────────────────────────────────────────────────────
 
 function RadarEmptyState() {
     const c = 60;
@@ -106,14 +122,33 @@ function RadarEmptyState() {
         }).join(' ');
     }
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, padding: '60px 20px', textAlign: 'center' }}>
+        <div
+            style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 20,
+                padding: '60px 20px',
+                textAlign: 'center',
+            }}
+        >
             <svg width={120} height={120} viewBox="0 0 120 120" aria-hidden="true" style={{ opacity: 0.5 }}>
                 <polygon points={hex(r1)} fill="none" stroke="var(--accent-primary)" strokeWidth="1.5" opacity="0.3" />
                 <polygon points={hex(r2)} fill="none" stroke="var(--accent-primary)" strokeWidth="1.5" opacity="0.25" />
                 <polygon points={hex(r3)} fill="none" stroke="var(--accent-primary)" strokeWidth="1.5" opacity="0.2" />
                 {Array.from({ length: 6 }, (_, i) => {
                     const a = (Math.PI / 3) * i - Math.PI / 2;
-                    return <line key={i} x1={c} y1={c} x2={c + r1 * Math.cos(a)} y2={c + r1 * Math.sin(a)} stroke="var(--accent-primary)" strokeWidth="0.75" opacity="0.2" />;
+                    return (
+                        <line
+                            key={i}
+                            x1={c} y1={c}
+                            x2={c + r1 * Math.cos(a)}
+                            y2={c + r1 * Math.sin(a)}
+                            stroke="var(--accent-primary)"
+                            strokeWidth="0.75"
+                            opacity="0.2"
+                        />
+                    );
                 })}
                 <circle cx={c} cy={c} r={4} fill="var(--accent-primary)" opacity="0.6" />
             </svg>
@@ -163,8 +198,16 @@ function RadarEmptyState() {
 
 function CleanEmptyState() {
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, padding: '60px 20px', textAlign: 'center' }}>
-            {/* Green shield */}
+        <div
+            style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 20,
+                padding: '60px 20px',
+                textAlign: 'center',
+            }}
+        >
             <svg width={80} height={80} viewBox="0 0 80 80" aria-hidden="true">
                 <path
                     d="M40 8 L68 20 L68 44 C68 58 56 70 40 76 C24 70 12 58 12 44 L12 20 Z"
@@ -191,10 +234,10 @@ function CleanEmptyState() {
                 </p>
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', fontSize: 13 }}>
                     <Link href="/misconfig" style={{ color: '#EA580C', textDecoration: 'underline', fontWeight: 600 }}>
-                        View all findings &rarr;
+                        View all findings
                     </Link>
-                    <Link href="/threats/attack-coverage" style={{ color: 'var(--text-muted)', textDecoration: 'underline' }}>
-                        Check ATT&amp;CK coverage &rarr;
+                    <Link href="/threats/attack-map" style={{ color: 'var(--text-muted)', textDecoration: 'underline' }}>
+                        Check ATT&amp;CK coverage
                     </Link>
                 </div>
             </div>
@@ -202,27 +245,41 @@ function CleanEmptyState() {
     );
 }
 
-// ── CommandRoom ───────────────────────────────────────────────────────────────
+// ── CommandRoom ────────────────────────────────────────────────────────────────
 
 export default function CommandRoom() {
     const { data, loading, error, refetch } = useViewFetch('threat-command-room');
     const { setBadgeCount } = useThreatBadge();
+    const auth = useAuth();
 
-    // ── Component state ────────────────────────────────────────────────────
-    const [selectedScenario,  setSelectedScenario]  = useState(null);
-    const [hoveredScenarioId, setHoveredScenarioId] = useState(null);
-    const [activeFilters,     setActiveFilters]      = useState({ sort: 'risk_score' });
-    const [searchQuery,       setSearchQuery]         = useState('');
+    // ── URL state ──────────────────────────────────────────────────────────
+    const searchParams = useSearchParams();
+    const router = useRouter();
 
-    // Detail panel (Scenario Detail Panel — THREAT-UI-02)
-    const [detailPanelOpen,   setDetailPanelOpen]   = useState(false);
-    const [detailScenarioId,  setDetailScenarioId]  = useState(null);
+    const selectedId  = searchParams.get('selected');
+    const isModalOpen = !!selectedId;
+
+    // Filters derived from URL (with defaults)
+    const urlSev    = searchParams.get('sev')    || '';
+    const urlStatus = searchParams.get('status') || 'open';
+    const urlSort   = searchParams.get('sort')   || 'risk_score';
+
+    // Local-only filter state (search is not URL-encoded — it's ephemeral)
+    const [searchQuery, setSearchQuery] = useState('');
+
+    // Merged filter object passed to FilterBar
+    const filters = {
+        sev:    urlSev,
+        status: urlStatus,
+        sort:   urlSort,
+        search: searchQuery,
+    };
 
     const pollRef = useRef(null);
 
     // ── Extract BFF data ───────────────────────────────────────────────────
-    const pulseStats = data.pulse_stats || {};
-    const scenarios  = data.scenarios   || [];
+    const pulseStats = useMemo(() => data.pulse_stats || {}, [data.pulse_stats]);
+    const scenarios  = useMemo(() => data.scenarios   || [], [data.scenarios]);
     const total      = data.total       || 0;
     const scanStatus = pulseStats.scan_status || null;
 
@@ -245,57 +302,146 @@ export default function CommandRoom() {
         return () => clearInterval(pollRef.current);
     }, [scanStatus, refetch]);
 
-    // ── Derived: hovered scenario object ──────────────────────────────────
-    const hoveredScenario = useMemo(() => {
-        if (!hoveredScenarioId) return null;
-        return scenarios.find((s) => s.scenario_id === hoveredScenarioId) || null;
-    }, [hoveredScenarioId, scenarios]);
-
-    // ── criticalHighCount for sub-nav badge ───────────────────────────────
+    // ── Derived: criticalHighCount for sub-nav badge ───────────────────────
     const criticalHighCount = (pulseStats.critical_count || 0) + (pulseStats.high_count || 0);
 
-    // ── Filter handlers ────────────────────────────────────────────────────
-    const handleFilterChange = useCallback(({ key, value }) => {
-        setActiveFilters((prev) => ({ ...prev, [key]: value }));
-    }, []);
+    // ── Filtering + sorting (all client-side) ─────────────────────────────
+    const filteredScenarios = useMemo(() => {
+        let list = [...scenarios];
 
-    const handleFilterBySeverity = useCallback((severity) => {
-        setActiveFilters((prev) => ({
-            ...prev,
-            severity: prev.severity === severity ? null : severity,
-        }));
-    }, []);
-
-    const handleSelectScenario = useCallback((scenario) => {
-        setSelectedScenario((prev) =>
-            prev?.scenario_id === scenario?.scenario_id ? null : scenario
-        );
-        // Open detail panel for the selected scenario (AC1, AC15)
-        if (scenario?.scenario_id) {
-            setDetailScenarioId(scenario.scenario_id);
-            setDetailPanelOpen(true);
+        // Severity filter (multi-select from URL sev param)
+        if (urlSev) {
+            const sevKeys = urlSev.split(',').filter(Boolean).map((s) => SEV_MAP[s]).filter(Boolean);
+            if (sevKeys.length > 0) {
+                list = list.filter((s) => sevKeys.includes((s.severity || '').toLowerCase()));
+            }
         }
-    }, []);
 
-    const handleHoverScenario = useCallback((scenarioId) => {
-        setHoveredScenarioId(scenarioId);
-    }, []);
-
-    const handleHoverEnd = useCallback(() => {
-        setHoveredScenarioId(null);
-    }, []);
-
-    const handleOpenDetail = useCallback((scenario) => {
-        setSelectedScenario(scenario);
-        if (scenario?.scenario_id) {
-            setDetailScenarioId(scenario.scenario_id);
-            setDetailPanelOpen(true);
+        // Status filter
+        if (urlStatus && urlStatus !== 'all') {
+            list = list.filter((s) => (s.status || 'open') === urlStatus);
         }
-    }, []);
 
-    const handleCloseDetailPanel = useCallback(() => {
-        setDetailPanelOpen(false);
-    }, []);
+        // Search filter
+        if (searchQuery.trim()) {
+            const q = searchQuery.trim().toLowerCase();
+            list = list.filter(
+                (s) =>
+                    s.title?.toLowerCase().includes(q) ||
+                    s.resource_name?.toLowerCase().includes(q) ||
+                    s.resource_uid?.toLowerCase().includes(q) ||
+                    (s.mitre_techniques || []).some((t) => t.id?.toLowerCase().includes(q))
+            );
+        }
+
+        // Sort
+        if (urlSort === 'risk_score') {
+            list.sort((a, b) => (b.risk_score || 0) - (a.risk_score || 0));
+        } else if (urlSort === 'severity') {
+            list.sort(
+                (a, b) =>
+                    (SEV_ORDER[(a.severity || '').toLowerCase()] ?? 9) -
+                    (SEV_ORDER[(b.severity || '').toLowerCase()] ?? 9)
+            );
+        } else if (urlSort === 'newest') {
+            list.sort((a, b) => {
+                const ta = a.first_seen_at || '';
+                const tb = b.first_seen_at || '';
+                return tb.localeCompare(ta);
+            });
+        } else if (urlSort === 'resource_name') {
+            list.sort((a, b) =>
+                (a.resource_name || '').localeCompare(b.resource_name || '')
+            );
+        }
+
+        return list;
+    }, [scenarios, urlSev, urlStatus, urlSort, searchQuery]);
+
+    // ── Selected scenario object ───────────────────────────────────────────
+    const selectedScenario = useMemo(() => {
+        if (!selectedId) return null;
+        return scenarios.find((s) => s.scenario_id === selectedId) || null;
+    }, [selectedId, scenarios]);
+
+    // ── URL navigation helpers ─────────────────────────────────────────────
+    const buildParams = useCallback(
+        (overrides = {}) => {
+            const params = new URLSearchParams(searchParams.toString());
+            Object.entries(overrides).forEach(([k, v]) => {
+                if (v === null || v === undefined || v === '') {
+                    params.delete(k);
+                } else {
+                    params.set(k, v);
+                }
+            });
+            return params.toString();
+        },
+        [searchParams]
+    );
+
+    const handleCardClick = useCallback(
+        (scenario) => {
+            // Mobile fallback: navigate directly instead of opening modal
+            if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                router.push(`/threats/${scenario.scenario_id}`);
+                return;
+            }
+            const qs = buildParams({ selected: scenario.scenario_id });
+            router.push(`/threats?${qs}`, { scroll: false });
+        },
+        [router, buildParams]
+    );
+
+    const handleClose = useCallback(() => {
+        const qs = buildParams({ selected: null });
+        router.push(qs ? `/threats?${qs}` : '/threats', { scroll: false });
+    }, [router, buildParams]);
+
+    // ── Filter change handler ──────────────────────────────────────────────
+    const handleFilterChange = useCallback(
+        (partial) => {
+            // Search is local state
+            if ('search' in partial) {
+                setSearchQuery(partial.search || '');
+                return;
+            }
+            const qs = buildParams(partial);
+            router.push(qs ? `/threats?${qs}` : '/threats', { scroll: false });
+        },
+        [buildParams, router]
+    );
+
+    // Wire ThreatPulseBar severity click to toggle the sev URL param
+    const handleSeverityToggle = useCallback(
+        (severity) => {
+            // PulseBar sends lowercase e.g. 'critical' — map to CRIT abbreviation
+            const abbr = Object.entries(SEV_MAP).find(([, v]) => v === severity)?.[0];
+            if (!abbr) return;
+            const current = urlSev ? urlSev.split(',').filter(Boolean) : [];
+            const next = current.includes(abbr)
+                ? current.filter((s) => s !== abbr)
+                : [...current, abbr];
+            handleFilterChange({ sev: next.join(',') });
+        },
+        [urlSev, handleFilterChange]
+    );
+
+    // ── ESC key closes modal ───────────────────────────────────────────────
+    useEffect(() => {
+        function onKeyDown(e) {
+            if (e.key === 'Escape' && isModalOpen) handleClose();
+        }
+        document.addEventListener('keydown', onKeyDown);
+        return () => document.removeEventListener('keydown', onKeyDown);
+    }, [isModalOpen, handleClose]);
+
+    // ── Auto-close modal when selected scenario is filtered out ────────────
+    useEffect(() => {
+        if (!selectedId) return;
+        const stillVisible = filteredScenarios.some((s) => s.scenario_id === selectedId);
+        if (!stillVisible) handleClose();
+    }, [filteredScenarios, selectedId, handleClose]);
 
     // ── Loading state ──────────────────────────────────────────────────────
     if (loading) {
@@ -343,10 +489,9 @@ export default function CommandRoom() {
         return (
             <div>
                 <ThreatSubNav criticalHighCount={criticalHighCount} />
-                {/* Show pulse bar even for clean state */}
                 <ThreatPulseBar
                     pulseStats={pulseStats}
-                    onFilterBySeverity={handleFilterBySeverity}
+                    onFilterBySeverity={handleSeverityToggle}
                 />
                 <CleanEmptyState />
             </div>
@@ -359,57 +504,32 @@ export default function CommandRoom() {
             {/* Sub-nav */}
             <ThreatSubNav criticalHighCount={criticalHighCount} />
 
-            {/* Zone A: Pulse Bar */}
+            {/* KPI strip */}
             <ThreatPulseBar
                 pulseStats={pulseStats}
-                onFilterBySeverity={handleFilterBySeverity}
+                onFilterBySeverity={handleSeverityToggle}
             />
 
-            {/* Zones B + C + Detail Panel */}
-            <div
-                style={{
-                    display: 'grid',
-                    /* AC2: Zone B compresses from 55% → 40% when detail panel opens */
-                    gridTemplateColumns: detailPanelOpen
-                        ? '40fr 0fr 60fr'   /* B compressed, C hidden, Detail expanded */
-                        : '55fr 45fr 0fr',  /* B normal, C visible, Detail off-screen */
-                    gap: 12,
-                    alignItems: 'stretch',
-                    minHeight: 520,
-                    transition: 'grid-template-columns 400ms ease',
-                    overflow: 'hidden',
-                }}
-            >
-                {/* Zone B: Scenario Cards */}
-                <ScenarioCardList
-                    scenarios={scenarios}
-                    selectedScenarioId={selectedScenario?.scenario_id || null}
-                    hoveredScenarioId={hoveredScenarioId}
-                    activeFilters={activeFilters}
-                    searchQuery={searchQuery}
-                    scanStatus={scanStatus}
-                    onSelectScenario={handleSelectScenario}
-                    onHoverScenario={handleHoverScenario}
-                    onHoverEnd={handleHoverEnd}
-                    onFilterChange={handleFilterChange}
-                    onSearchChange={setSearchQuery}
-                />
+            {/* Filter bar */}
+            <FilterBar filters={filters} onFilterChange={handleFilterChange} />
 
-                {/* Zone C: Preview Panel (hidden when detail panel is open) */}
-                <div style={{ overflow: 'hidden', display: detailPanelOpen ? 'none' : 'block' }}>
-                    <PreviewPanel
-                        hoveredScenario={hoveredScenario}
-                        onOpenDetail={handleOpenDetail}
-                    />
-                </div>
+            {/* Card list — always full width, never reflowed by modal */}
+            <ScenarioCardList
+                scenarios={filteredScenarios}
+                selectedId={selectedId}
+                onCardClick={handleCardClick}
+                scanStatus={scanStatus}
+                totalCount={total}
+            />
 
-                {/* Zone D: Scenario Detail Panel (slides in from right) */}
-                <ScenarioDetailPanel
-                    isOpen={detailPanelOpen}
-                    scenarioId={detailScenarioId}
-                    onClose={handleCloseDetailPanel}
+            {/* Centered modal — rendered via portal, no layout impact */}
+            {isModalOpen && selectedScenario && (
+                <ScenarioModal
+                    scenario={selectedScenario}
+                    onClose={handleClose}
+                    userRole={auth.role}
                 />
-            </div>
+            )}
         </div>
     );
 }

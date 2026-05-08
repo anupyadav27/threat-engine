@@ -376,6 +376,52 @@ async def view_threats(
         {"id": "timeline",     "label": "Timeline",        "count": len(trend_list)},
     ]
 
+    # -- pulse_stats: severity breakdown object for command-room components -----
+    pulse_stats = {
+        "total":           total,
+        "critical_count":  critical,
+        "high_count":      high,
+        "medium_count":    medium,
+        "low_count":       low,
+        "composite_score": avg_risk,
+        "delta_count":     engine_summary_safe.get("delta_count", 0),
+        "delta_direction": engine_summary_safe.get("delta_direction", "stable"),
+    }
+
+    # -- trendPoints: alias for trendData with tactics field ------------------
+    trend_points = [
+        {**pt, "tactics": list(mitre_matrix.keys())} for pt in trend_list
+    ]
+
+    # -- availableScans: list of distinct scan runs the UI can select ----------
+    raw_scans = safe_get(threat_data, "available_scans", [])
+    if not raw_scans:
+        # Derive from scan_meta if only one scan available
+        if scan_meta.get("scan_run_id"):
+            raw_scans = [{"scan_run_id": scan_meta["scan_run_id"]}]
+    available_scans = raw_scans
+
+    # -- summary: comparison object for posture delta -------------------------
+    prev_summary = safe_get(threat_data, "prev_summary", {})
+    summary_obj = {
+        "critical_a": critical,
+        "critical_b": prev_summary.get("critical", 0),
+        "delta":      critical - prev_summary.get("critical", 0),
+        "prev": {
+            "severity": "critical" if prev_summary.get("critical", 0) > 0 else "high",
+            "total":    prev_summary.get("total", 0),
+        },
+    }
+
+    # -- visibleTech: MITRE techniques list for tech map UI ------------------
+    visible_tech = [
+        {"id": tid, "tactic": tac, "count": item.get("count", 0)}
+        for tac, items in mitre_matrix.items()
+        for item in items
+        for tid in [item.get("id", "")]
+        if tid
+    ][:50]
+
     result = {
         "pageContext": page_ctx,
         "filterSchema": threats_filter_schema(),
@@ -384,45 +430,64 @@ async def view_threats(
                 "title": "Threat Severity",
                 "items": [
                     {"label": "Critical", "value": critical},
-                    {"label": "High", "value": high},
-                    {"label": "Medium", "value": medium},
-                    {"label": "Low", "value": low},
-                    {"label": "Total", "value": total},
+                    {"label": "High",     "value": high},
+                    {"label": "Medium",   "value": medium},
+                    {"label": "Low",      "value": low},
+                    {"label": "Total",    "value": total},
                 ],
             },
             {
                 "title": "Threat Intelligence",
                 "items": [
                     {"label": "MITRE Techniques", "value": mitre_count},
-                    {"label": "Attack Paths", "value": len(chains)},
-                    {"label": "Avg Risk Score", "value": avg_risk, "suffix": "/100"},
-                    {"label": "Active", "value": active_count},
-                    {"label": "Total Findings", "value": total_findings},
+                    {"label": "Attack Paths",     "value": len(chains)},
+                    {"label": "Avg Risk Score",   "value": avg_risk, "suffix": "/100"},
+                    {"label": "Active",           "value": active_count},
+                    {"label": "Total Findings",   "value": total_findings},
                 ],
             },
         ],
         "scanMeta": {
-            "scanRunId": scan_meta.get("scan_run_id") or scan_run_id,
+            "scanRunId":     scan_meta.get("scan_run_id") or scan_run_id,
             "latestDetection": latest_detection_ts,
-            "dataScope": "all_scans" if scan_run_id == "latest" else "single_scan",
+            "dataScope":     "all_scans" if scan_run_id == "latest" else "single_scan",
         },
-        "threats": filtered,
-        "threatFindings": threat_findings,
-        "total": total,
-        "trendData": trend_list,
-        "mitreMatrix": mitre_matrix,
-        "attackChains": chains,
-        "threatIntel": threat_intel,
-        "accountHeatmap": account_heatmap,
-        # Legacy keys for UI fallback
+        # data.* wrapper (UI accesses data.scenarios, data.pulse_stats, data.total, etc.)
+        "data": {
+            "scenarios":   filtered,
+            "pulse_stats": pulse_stats,
+            "total":       total,
+            "finding_id":  filtered[0].get("finding_id", "") if filtered else "",
+            "scan_run_id": scan_meta.get("scan_run_id") or scan_run_id,
+            "scenario_id": filtered[0].get("id", "") if filtered else "",
+        },
+        # Top-level aliases for backward compat
+        "threats":         filtered,
+        "scenarios":       filtered,
+        "filtered":        filtered,
+        "threatFindings":  threat_findings,
+        "total":           total,
+        "pulse_stats":     pulse_stats,
+        "trendData":       trend_list,
+        "trendPoints":     trend_points,
+        "availableScans":  available_scans,
+        "summary":         summary_obj,
+        "visibleTech":     visible_tech,
+        "mitreMatrix":     mitre_matrix,
+        "attackChains":    chains,
+        "threatIntel":     threat_intel,
+        "accountHeatmap":  account_heatmap,
+        "topServices":     top_services,
+        "byProvider":      by_provider,
+        "byCategory":      by_category,
         "kpi": {
-            "total": total,
-            "critical": critical,
-            "high": high,
-            "medium": medium,
-            "low": low,
-            "active": active_count,
-            "unassigned": sum(1 for t in filtered if not t.get("assignee")),
+            "total":      total,
+            "critical":   critical,
+            "high":       high,
+            "medium":     medium,
+            "low":        low,
+            "active":     active_count,
+            "unassigned": unassigned_count,
             "avgRiskScore": avg_risk,
         },
     }

@@ -635,11 +635,6 @@ export default function DatabaseSecurityPage() {
         extraFilters: findings.length ? extraFilters : [],
         searchPlaceholder: 'Search by rule, resource, title...',
       },
-      inventory: {
-        data: databases,
-        columns: inventoryColumns,
-        searchPlaceholder: 'Search databases...',
-      },
       findings: findingTab(findings),
       access_control: findingTab(accessFindings),
       encryption:     findingTab(encFindings),

@@ -11,7 +11,8 @@ from typing import Optional, Dict
 from fastapi import APIRouter, Query, Request
 
 from ._auth import resolve_tenant_id
-from ._shared import fetch_many, safe_get
+from ._shared import fetch_many, safe_get, BFFMeta
+from .schemas.misconfig import MisconfigResponse
 from ._cache import cache_key, cached_view, TTL_MISCONFIG, auth_level_from_header
 from ._transforms import normalize_check_finding, build_misconfig_heatmap, apply_global_filters
 from ._page_context import misconfig_page_context, misconfig_filter_schema
@@ -47,7 +48,7 @@ def _extract_service(t: dict) -> str:
     return svc or rt or "other"
 
 
-@router.get("/misconfig")
+@router.get("/misconfig", response_model=MisconfigResponse, response_model_exclude_none=False)
 async def view_misconfig(
     request: Request,
     provider: Optional[str] = Query(None),
@@ -61,6 +62,7 @@ async def view_misconfig(
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
     role_level = auth_level_from_header(auth_ctx_header)
+    meta = BFFMeta("misconfig")
 
     ck = cache_key("misconfig", tenant_id, scan_run_id, provider or "", account or "", region or "", role_level=role_level)
     cached = cached_view(ck)
@@ -73,14 +75,18 @@ async def view_misconfig(
         }),
     ], auth_headers=fwd_headers)
 
-    data = results[0] or {}
+    data = results[0]
+    meta.record_engine("threat", "/api/v1/threat/ui-data", data)
+    if data is None:
+        meta.warn("Threat engine returned no data — misconfig findings will be empty")
+    data = data or {}
 
     # threat_findings = enriched check findings (FAIL/WARN only)
     raw_threats = safe_get(data, "threats", [])
     summary = safe_get(data, "summary", {})
 
     findings = [normalize_check_finding({
-        "finding_id": t.get("finding_id") or t.get("id", ""),
+        "finding_id": str(t.get("finding_id") or t.get("id") or ""),
         "rule_id": t.get("rule_id", ""),
         "rule_name": t.get("title", ""),
         "severity": t.get("severity", "medium"),
@@ -113,7 +119,7 @@ async def view_misconfig(
     # KPIs
     total = len(filtered)
     failed = sum(1 for f in filtered if f["status"] == "FAIL")
-    passed = total - failed
+    passed = total - failed  # used in kpi dict below
     critical = sum(1 for f in filtered if f["severity"] == "critical")
     high = sum(1 for f in filtered if f["severity"] == "high")
     medium = sum(1 for f in filtered if f["severity"] == "medium")
@@ -180,7 +186,7 @@ async def view_misconfig(
             "medium": medium,
             "low": low,
             "failed": sum(1 for f in filtered if f.get("status") == "FAIL"),
-            "passed": sum(1 for f in filtered if f.get("status") == "PASS"),
+            "passed": passed,
             "auto_remediable": auto_remediable,
             "avg_age": avg_age,
             "sla_breached": sla_breached,
@@ -188,5 +194,6 @@ async def view_misconfig(
         # scan_trend from threat engine (pass-through; engine must supply it)
         "scanTrend": safe_get(data, "scan_trend", []),
     }
+    result["_meta"] = meta.to_dict()
     cached_view(ck, result, ttl=TTL_MISCONFIG)
     return result

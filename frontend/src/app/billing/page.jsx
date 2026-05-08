@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { useViewFetch } from '@/lib/use-view-fetch';
 import { useAuth } from '@/lib/auth-context';
+import { Suspense } from 'react';
+import PaywallOverlay from '@/components/billing/PaywallOverlay';
 
 // ── Colour helpers ────────────────────────────────────────────────────────────
 const TIER_COLORS = {
@@ -140,10 +142,10 @@ function UsageMeter({ label, used, limit, upgradeHint }) {
 }
 
 function TrialBanner({ subscription, onUpgradeClick }) {
-    if (subscription?.status !== 'trialing' || !subscription.trial_end) return null;
-    const trialEndMs = typeof subscription.trial_end === 'number'
-        ? (subscription.trial_end > 1e10 ? subscription.trial_end : subscription.trial_end * 1000)
-        : new Date(subscription.trial_end).getTime();
+    if (subscription?.status !== 'trialing' || !subscription.trial_end_at) return null;
+    const trialEndMs = typeof subscription.trial_end_at === 'number'
+        ? (subscription.trial_end_at > 1e10 ? subscription.trial_end_at : subscription.trial_end_at * 1000)
+        : new Date(subscription.trial_end_at).getTime();
     const daysLeft = Math.max(0, Math.ceil((trialEndMs - Date.now()) / 86400000));
     const expired = daysLeft === 0;
     return (
@@ -550,6 +552,8 @@ export default function BillingPage() {
     );
 
     return (
+        <>
+        <Suspense fallback={null}><PaywallOverlay /></Suspense>
         <div className="p-6 space-y-5 max-w-6xl">
             {/* Page heading */}
             <div className="flex items-center gap-3">
@@ -595,5 +599,6 @@ export default function BillingPage() {
                 </div>
             </div>
         </div>
+        </>
     );
 }

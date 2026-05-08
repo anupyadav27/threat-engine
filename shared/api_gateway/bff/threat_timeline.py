@@ -13,7 +13,8 @@ from typing import Optional
 from fastapi import APIRouter, Query, Request
 
 from ._auth import resolve_tenant_id
-from ._shared import fetch_many, safe_get
+from ._shared import fetch_many, safe_get, BFFMeta
+from .schemas.threat_timeline import ThreatTimelineResponse
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
@@ -37,7 +38,7 @@ def _parse_ts(ts_str: Optional[str]) -> Optional[datetime]:
         return None
 
 
-@router.get("/threats/timeline")
+@router.get("/threats/timeline", response_model=ThreatTimelineResponse, response_model_exclude_none=False)
 async def threat_timeline_view(
     request: Request,
     provider: Optional[str] = Query(None),
@@ -54,6 +55,7 @@ async def threat_timeline_view(
     tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+    meta = BFFMeta("threat_timeline")
 
     # Use threat engine's ui-data endpoint (returns detections with timestamps)
     threat_params = {
@@ -66,6 +68,8 @@ async def threat_timeline_view(
         ("threat", "/api/v1/threat/ui-data", threat_params),
         ("onboarding", "/api/v1/scan-runs", {"tenant_id": tenant_id, "limit": "20"}),
     ], auth_headers=fwd_headers)
+    meta.record_engine("threat", "/api/v1/threat/ui-data", threat_data)
+    meta.record_engine("onboarding", "/api/v1/scan-runs", scan_data)
 
     if not isinstance(threat_data, dict):
         threat_data = {}
@@ -237,4 +241,5 @@ async def threat_timeline_view(
             "avgResponseTime": avg_response_time,
             "openInvestigations": investigating_count,
         },
+        "_meta": meta.to_dict(),
     }

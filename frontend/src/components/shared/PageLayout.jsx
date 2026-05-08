@@ -226,7 +226,7 @@ export default function PageLayout({
               Showing {displayData.length.toLocaleString()} of {rawData.length.toLocaleString()}
             </div>
           )}
-          <DataTable data={displayData} columns={columns} pageSize={25} onRowClick={onRowClick} />
+          <DataTable data={displayData} columns={columns} pageSize={25} onRowClick={currentTab.onRowClick !== undefined ? currentTab.onRowClick : onRowClick} />
         </>
       )}
     </div>

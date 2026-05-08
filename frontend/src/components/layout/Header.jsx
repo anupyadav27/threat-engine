@@ -8,6 +8,7 @@ import { useTenant } from '@/lib/tenant-context';
 import { useAuth } from '@/lib/auth-context';
 import { CLOUD_PROVIDERS } from '@/lib/constants';
 import { Sun, Moon, Bell, ChevronDown, LogOut, User, Settings, Globe } from 'lucide-react';
+import TrialCountdownChip from '@/components/billing/TrialCountdownChip';
 
 const _TENANT_TYPE_STYLES = {
   cloud:        { bg: 'rgba(59,130,246,0.15)',  color: '#60a5fa' },
@@ -36,11 +37,18 @@ export default function Header() {
   const userMenuRef = useRef(null);
 
   const { tenants, activeTenant, setActiveTenant } = useTenant();
-  const { switchTenant, level } = useAuth();
+  const { switchTenant, level, user, logout } = useAuth();
   const isPlatformAdmin = level === 1;
   const currentTenantName = activeTenant?.tenant_name ?? 'All Tenants';
 
-  const mockUser = { name: 'Anup Yadav', email: 'yadav.anup@gmail.com', role: 'Admin', initials: 'AY' };
+  const displayName = user?.name || user?.email || 'User';
+  const displayEmail = user?.email || '';
+  const initials = displayName
+    .split(' ')
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase() || 'U';
   const unreadNotifications = 3;
 
   useEffect(() => {
@@ -66,6 +74,9 @@ export default function Header() {
 
       {/* ── Right: Notification, Tenant, Theme, Profile ── */}
       <div className="flex items-center gap-2">
+        {/* Trial countdown chip — amber pill; renders only in last 7 days of trial */}
+        <TrialCountdownChip />
+
         {/* Notifications */}
         <button onClick={() => router.push('/notifications')} className="relative p-1.5 rounded-lg hover:opacity-75" style={{ color: 'var(--text-tertiary)' }} title="Notifications">
           <Bell size={16} />
@@ -122,7 +133,7 @@ export default function Header() {
                 {tenants.map(t => (
                   <button
                     key={t.tenant_id}
-                    onClick={() => { setActiveTenant(t); switchTenant(t.tenant_id); setShowTenantMenu(false); }}
+                    onClick={() => { setActiveTenant(t); switchTenant(t.engine_tenant_id || t.tenant_id); setShowTenantMenu(false); }}
                     className="w-full text-left px-3 py-2 text-xs border-b last:border-b-0 hover:opacity-75"
                     style={{ backgroundColor: activeTenant?.tenant_id === t.tenant_id ? 'var(--bg-tertiary)' : 'transparent', color: 'var(--text-secondary)', borderColor: 'var(--border-primary)' }}
                   >
@@ -165,19 +176,19 @@ export default function Header() {
           <button onClick={() => setShowUserMenu(!showUserMenu)}
             className="flex items-center justify-center w-7 h-7 rounded-full font-semibold text-xs hover:opacity-75"
             style={{ backgroundColor: 'rgb(59,130,246)', color: 'white' }}
-            title={`${mockUser.name} - ${mockUser.role}`}>
-            {mockUser.initials}
+            title={`${displayName}`}>
+            {initials}
           </button>
           {showUserMenu && (
             <div className="absolute top-full right-0 mt-1 w-52 rounded-lg border shadow-lg z-50" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
               <div className="px-3 py-2 border-b" style={{ borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-tertiary)' }}>
-                <div className="font-medium text-xs" style={{ color: 'var(--text-primary)' }}>{mockUser.name}</div>
-                <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{mockUser.email}</div>
+                <div className="font-medium text-xs" style={{ color: 'var(--text-primary)' }}>{displayName}</div>
+                <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{displayEmail}</div>
               </div>
               {[
                 { icon: User, label: 'Profile', action: () => { router.push('/profile'); setShowUserMenu(false); } },
                 { icon: Settings, label: 'Settings', action: () => { router.push('/settings'); setShowUserMenu(false); } },
-                { icon: LogOut, label: 'Logout', action: () => { router.push('/auth/login'); setShowUserMenu(false); } },
+                { icon: LogOut, label: 'Logout', action: async () => { setShowUserMenu(false); await logout(); router.push('/auth/login'); } },
               ].map(({ icon: Icon, label, action }) => (
                 <button key={label} onClick={action}
                   className="w-full flex items-center gap-2.5 px-3 py-2 text-xs border-b last:border-b-0 hover:opacity-75"

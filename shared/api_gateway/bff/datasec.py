@@ -240,6 +240,51 @@ async def view_datasec(
         {"id": "access",    "label": "Access Monitoring", "count": len(monitoring)},
     ]
 
+    # ── Scan trend with chart dataKeys ────────────────────────────────────────
+    raw_trend = safe_get(datasec_data, "scan_trend", [])
+    color_map = {"critical": "#ef4444", "high": "#f97316", "medium": "#eab308", "low": "#3b82f6"}
+    active_scan_trend = []
+    for pt in (raw_trend if isinstance(raw_trend, list) else []):
+        sev_pt = pt.get("by_severity") or {}
+        active_scan_trend.append({
+            "date":     pt.get("scan_date") or pt.get("date", ""),
+            "critical": sev_pt.get("critical", pt.get("critical", 0)),
+            "high":     sev_pt.get("high",     pt.get("high",     0)),
+            "medium":   sev_pt.get("medium",   pt.get("medium",   0)),
+            "low":      sev_pt.get("low",      pt.get("low",      0)),
+            "passRate": pt.get("pass_rate") or pt.get("passRate", 0),
+            "total":    pt.get("total_findings") or pt.get("total", 0),
+        })
+
+    first_pt  = active_scan_trend[0]  if active_scan_trend else {}
+    last_pt   = active_scan_trend[-1] if active_scan_trend else {}
+    first_obj = {k: first_pt.get(k, 0) for k in ("date", "critical", "high", "total", "passRate")}
+    last_obj  = {k: last_pt.get(k, 0)  for k in ("date", "critical", "high", "total", "passRate")}
+
+    # ── Active module scores (data domains) ───────────────────────────────────
+    domain_breakdown = safe_get(datasec_data, "domain_breakdown", [])
+    active_module_scores = [
+        {
+            "key":   d.get("domain", ""),
+            "label": d.get("domain", "").replace("_", " ").title(),
+            "score": d.get("score", 0),
+            "pass":  (d.get("score") or 0) >= 70,
+        }
+        for d in (domain_breakdown if isinstance(domain_breakdown, list) else [])
+    ]
+
+    # ── Donut slices ──────────────────────────────────────────────────────────
+    sev_counts = {
+        "critical": sum(1 for f in raw_findings if (f.get("severity") or "").lower() == "critical"),
+        "high":     sum(1 for f in raw_findings if (f.get("severity") or "").lower() == "high"),
+        "medium":   sum(1 for f in raw_findings if (f.get("severity") or "").lower() == "medium"),
+        "low":      sum(1 for f in raw_findings if (f.get("severity") or "").lower() == "low"),
+    }
+    donut_slices = [
+        {"name": sev.title(), "value": cnt, "color": color_map[sev]}
+        for sev, cnt in sev_counts.items() if cnt > 0
+    ]
+
     return {
         "pageContext": page_ctx,
         "filterSchema": datasec_filter_schema(),
@@ -273,6 +318,12 @@ async def view_datasec(
         "dlp": dlp,
         "encryption": encryption,
         "accessMonitoring": monitoring,
-        "domainBreakdown": safe_get(datasec_data, "domain_breakdown", []),
-        "scanTrend": safe_get(datasec_data, "scan_trend", []),
+        "domainBreakdown": domain_breakdown,
+        "db":              domain_breakdown,
+        "scanTrend":       active_scan_trend,
+        "activeScanTrend": active_scan_trend,
+        "activeModuleScores": active_module_scores,
+        "donutSlices":     donut_slices,
+        "first":           first_obj,
+        "last":            last_obj,
     }

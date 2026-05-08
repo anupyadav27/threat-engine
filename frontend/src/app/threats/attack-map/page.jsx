@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * /threats/attack-coverage — MITRE ATT&CK Heatmap (Attack Map page)
+ * /threats/attack-map — MITRE ATT&CK Heatmap (Attack Map page)
  *
  * Visualises which of the 14 canonical MITRE ATT&CK for Cloud tactics and
  * their techniques have active findings in the current scan.

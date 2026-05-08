@@ -1,5 +1,5 @@
--- DI-14: compliance_report — add overall_score if missing
--- compliance_report already has: total_controls, controls_passed, controls_failed, total_findings
+-- DI-14: compliance tables — add missing columns found by gap report (DI-13)
+-- Gap: compliance_frameworks.csp missing; compliance_report needs overall_score + index.
 -- Apply via:
 --   kubectl cp DI-14-compliance-columns.sql threat-engine-engines/<compliance-pod>:/tmp/
 --   kubectl exec -n threat-engine-engines deployment/engine-compliance -- \
@@ -8,7 +8,24 @@
 
 BEGIN;
 
+-- compliance_frameworks: add csp column (BFF filters frameworks by CSP)
+ALTER TABLE compliance_frameworks
+    ADD COLUMN IF NOT EXISTS csp VARCHAR(20);
+
+-- Backfill csp from framework_name heuristics (CIS AWS → aws, CIS Azure → azure, etc.)
+UPDATE compliance_frameworks
+SET csp = CASE
+    WHEN LOWER(framework_name) LIKE '%aws%'   THEN 'aws'
+    WHEN LOWER(framework_name) LIKE '%azure%' THEN 'azure'
+    WHEN LOWER(framework_name) LIKE '%gcp%'   THEN 'gcp'
+    WHEN LOWER(framework_name) LIKE '%oci%'   THEN 'oci'
+    ELSE 'multi'
+END
+WHERE csp IS NULL;
+
+-- compliance_report: add framework_id link + overall_score and index
 ALTER TABLE compliance_report
+    ADD COLUMN IF NOT EXISTS framework_id    UUID,
     ADD COLUMN IF NOT EXISTS overall_score   NUMERIC(5,2) DEFAULT 0.0;
 
 -- Backfill overall_score as pass rate where we have data

@@ -28,7 +28,8 @@ from typing import List, Optional
 from fastapi import APIRouter, Query, Request
 
 from ._auth import resolve_tenant_id
-from ._shared import fetch_many, safe_get
+from ._shared import fetch_many, safe_get, BFFMeta
+from .schemas.threat_command_room import ThreatCommandRoomResponse
 from ._cache import cache_key, cached_view, TTL_THREATS, auth_level_from_header
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
@@ -168,7 +169,7 @@ def _composite_score(scenarios: List[dict]) -> int:
 
 # ── Main endpoint ─────────────────────────────────────────────────────────────
 
-@router.get("/threat-command-room")
+@router.get("/threat-command-room", response_model=ThreatCommandRoomResponse, response_model_exclude_none=False)
 async def view_threat_command_room(
     request: Request,
     provider: Optional[str] = Query(None),
@@ -189,6 +190,7 @@ async def view_threat_command_room(
     )
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
     role_level = auth_level_from_header(auth_ctx_header)
+    meta = BFFMeta("threat_command_room")
 
     ck = cache_key(
         "threat-command-room",
@@ -220,6 +222,9 @@ async def view_threat_command_room(
         auth_headers=fwd_headers,
     )
 
+    meta.record_engine("threat", "/api/v1/threat/ui-data", threat_data)
+    if threat_data is None:
+        meta.warn("Threat engine returned no data — scenarios will be empty")
     if not isinstance(threat_data, dict):
         threat_data = {}
 
@@ -319,6 +324,8 @@ async def view_threat_command_room(
             "last_scan_age": _human_age(last_seen_at or first_seen_at),
             "delta_since_last_scan": 0,
             "first_seen_at": first_seen_at,
+            "attack_chain":  det.get("attack_chain") or det.get("attack_path") or [],
+            "top_findings":  det.get("top_findings") or det.get("contributing_findings") or [],
         }
         scenarios.append(scenario)
 
@@ -386,6 +393,32 @@ async def view_threat_command_room(
     # ── Scan status ───────────────────────────────────────────────────────
     scan_status = safe_get(scan_meta, "status") or "completed"
 
+    # ── Trend points: per-scan chart data with chart dataKeys ───────────────
+    raw_trend = safe_get(threat_data, "scan_trend") or safe_get(threat_data, "trend", []) or []
+    trend_points = []
+    for pt in (raw_trend if isinstance(raw_trend, list) else []):
+        sev_pt = pt.get("by_severity") or {}
+        trend_points.append({
+            "date":        pt.get("scan_date") or pt.get("date", ""),
+            "critical":    sev_pt.get("critical", pt.get("critical", 0)),
+            "high":        sev_pt.get("high",     pt.get("high",     0)),
+            "medium":      sev_pt.get("medium",   pt.get("medium",   0)),
+            "low":         sev_pt.get("low",      pt.get("low",      0)),
+            "risk_score":  pt.get("risk_score") or pt.get("composite_score", 0),
+            "total":       pt.get("total_findings") or pt.get("total", 0),
+            "passRate":    pt.get("pass_rate") or pt.get("passRate", 0),
+            "tactics":     pt.get("tactics") or [],
+        })
+    # Synthetic single point if engine has no trend data
+    if not trend_points:
+        trend_points = [{
+            "date": last_scan_at or "",
+            "critical": critical_count, "high": high_count,
+            "medium": medium_count, "low": low_count,
+            "risk_score": composite_score, "total": total,
+            "passRate": 0, "tactics": [],
+        }]
+
     # ── Build response (no credential_ref) ───────────────────────────────
     result = {
         "pulse_stats": {
@@ -399,11 +432,37 @@ async def view_threat_command_room(
             "new_today": new_today,
             "last_scan_at": last_scan_at or None,
             "last_scan_age_human": last_scan_age_human,
+            "last_scan_age": last_scan_age_human,
             "scan_status": scan_status,
         },
-        "scenarios": scenarios,
-        "total": total,
-        "scan_run_id": resolved_scan_run_id,
+        # Top-level flat aliases (UI may access both paths)
+        "critical":       critical_count,
+        "high":           high_count,
+        "medium":         medium_count,
+        "low":            low_count,
+        "risk_score":     composite_score,
+        "composite_score":composite_score,
+        "critical_count": critical_count,
+        "high_count":     high_count,
+        "medium_count":   medium_count,
+        "low_count":      low_count,
+        "new_today":      new_today,
+        "delta_count":    abs(delta_count),
+        "delta_direction":delta_direction,
+        "last_scan_at":   last_scan_at or None,
+        "last_scan_age":  last_scan_age_human,
+        "last_scan_age_human": last_scan_age_human,
+        "scan_status":    scan_status,
+        "scenarios":      scenarios,
+        "count":          total,
+        "total":          total,
+        "scan_run_id":    resolved_scan_run_id,
+        "finding_id":     scenarios[0].get("scenario_id", "") if scenarios else "",
+        "scenario_id":    scenarios[0].get("scenario_id", "") if scenarios else "",
+        "trendPoints":    trend_points,
+        "brief":          f"{critical_count} critical, {high_count} high — {total} total detections",
+        "details":        {"scan_run_id": resolved_scan_run_id, "scan_status": scan_status},
+        "_meta":          meta.to_dict(),
     }
 
     cached_view(ck, result, ttl=TTL_THREATS)

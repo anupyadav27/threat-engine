@@ -394,6 +394,17 @@ class SubscriptionMiddleware(BaseHTTPMiddleware):
         if tier == "unknown" or scan_freq == -1 or org_id is None:
             return None  # Unlimited or fail-open
 
+        # 0 = explicitly blocked (Free plan no-scan); -1 = unlimited (handled above)
+        if scan_freq == 0:
+            return JSONResponse(
+                status_code=402,
+                content={
+                    "error": "account_blocked",
+                    "scan_freq_per_day": 0,
+                    "upgrade_url": "/billing/upgrade?from=scan_blocked",
+                },
+            )
+
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.get(

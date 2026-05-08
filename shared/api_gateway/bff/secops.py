@@ -13,12 +13,14 @@ Returns:
   scanTrend    – last 8 scans combined, oldest-first (for sparkline)
 """
 
+import json as _j
 from typing import Optional
 
 from fastapi import APIRouter, Query, Request
 
 from ._auth import resolve_tenant_id
-from ._shared import fetch_many, safe_get
+from ._shared import fetch_many, safe_get, BFFMeta
+from .schemas.secops import SecopsResponse
 from ._cache import cache_key, cached_view, TTL_SECOPS, auth_level_from_header
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
@@ -27,20 +29,61 @@ _SEV_ORDER = {"critical": 1, "high": 2, "medium": 3, "low": 4, "info": 5}
 
 
 def _normalise_scan(raw: dict, source: str) -> dict:
-    """Map a raw engine scan record to a consistent shape."""
+    """Map a raw engine scan record to a consistent shape.
+
+    Severity resolution order:
+      1. Flat ``{col}_count`` columns from ``secops_latest_scan`` (new).
+      2. Flat ``{col}`` columns (legacy SAST list endpoint).
+      3. ``summary`` JSONB dict (legacy DAST list endpoint).
+      Falls back to 0 when none of the above is present.
+
+    Args:
+        raw: Raw scan row dict from the engine.
+        source: Scan type label, e.g. ``"sast"`` or ``"dast"``.
+
+    Returns:
+        Normalised scan dict with consistent field names.
+    """
+    summary = raw.get("summary") or {}
+    if isinstance(summary, str):
+        try:
+            summary = _j.loads(summary)
+        except Exception:
+            summary = {}
+
+    def _sev(col_key: str, summary_key: str) -> int:
+        """Resolve severity count with three-tier fallback.
+
+        Args:
+            col_key: Flat column name, e.g. ``"critical_count"``.
+            summary_key: Key inside ``summary`` JSONB, e.g. ``"critical"``.
+
+        Returns:
+            Integer count; 0 when none of the tiers is present.
+        """
+        if raw.get(col_key) is not None:
+            return int(raw[col_key])
+        if raw.get(summary_key) is not None:
+            return int(raw[summary_key])
+        return int(summary.get(summary_key) or 0)
+
+    c = _sev("critical_count", "critical")
+    h = _sev("high_count",     "high")
+    m = _sev("medium_count",   "medium")
+    lo = _sev("low_count",     "low")
+
     return {
         "scan_id":        raw.get("secops_scan_id") or raw.get("dast_scan_id") or raw.get("id", ""),
+        "account_id":     raw.get("account_id", ""),
         "source":         source,
         "project":        raw.get("project_name") or raw.get("repo_url") or raw.get("target_url", "—"),
         "language":       raw.get("language", ""),
         "status":         (raw.get("status") or "unknown").lower(),
-        "critical":       int(raw.get("critical", 0)),
-        "high":           int(raw.get("high", 0)),
-        "medium":         int(raw.get("medium", 0)),
-        "low":            int(raw.get("low", 0)),
-        "total_findings": int(raw.get("total_findings") or raw.get("findings_count") or
-                              (raw.get("critical", 0) + raw.get("high", 0) +
-                               raw.get("medium", 0) + raw.get("low", 0))),
+        "critical":       c,
+        "high":           h,
+        "medium":         m,
+        "low":            lo,
+        "total_findings": int(raw.get("total_findings") or raw.get("findings_count") or (c + h + m + lo)),
         "scan_timestamp": raw.get("scan_timestamp") or raw.get("created_at", ""),
         "duration_s":     raw.get("duration_seconds") or raw.get("duration", 0),
         "_raw":           raw,
@@ -115,7 +158,7 @@ def _build_scan_trend(all_scans: list) -> list:
     return trend
 
 
-@router.get("/secops")
+@router.get("/secops", response_model=SecopsResponse, response_model_exclude_none=False)
 async def view_secops(
     request: Request,
     scan_run_id: Optional[str] = Query(None),
@@ -123,11 +166,17 @@ async def view_secops(
     """
     Unified SecOps view — SAST + DAST scan summaries.
     SCA (SBOM) remains a direct frontend call (requires per-user API key).
+
+    Calls ``GET /api/v1/secops/sast/latest-scans`` (one row per
+    account_id/scan_type from ``secops_latest_scan``).  Falls back to the
+    legacy ``/sast/scans`` + ``/dast/scans`` pair when the new endpoint is
+    unavailable (graceful degradation during transition).
     """
     tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
     role_level = auth_level_from_header(auth_ctx_header)
+    meta = BFFMeta("secops")
 
     ck = cache_key("secops", tenant_id, role_level=role_level)
     cached = cached_view(ck)
@@ -136,24 +185,61 @@ async def view_secops(
 
     qs = {"tenant_id": tenant_id}
 
-    results = await fetch_many([
-        ("secops", "/api/v1/secops/sast/scans", qs),
-        ("secops", "/api/v1/secops/dast/scans", qs),
-    ], auth_headers=fwd_headers)
-
-    raw_sast, raw_dast = results
-
-    # Normalise — engine may return list or {scans: [...]} or {results: [...]}
-    def _extract(raw) -> list:
+    # Normalise — engine may return list, {latest_scans:[...]}, {scans:[...]},
+    # {results:[...]}, or {data:[...]}.
+    def _extract(raw: object) -> list:
         if isinstance(raw, list):
             return raw
         if isinstance(raw, dict):
-            return raw.get("scans") or raw.get("results") or raw.get("data") or []
+            return (
+                raw.get("latest_scans")
+                or raw.get("scans")
+                or raw.get("results")
+                or raw.get("data")
+                or []
+            )
         return []
 
-    sast_scans = [_normalise_scan(r, "sast") for r in _extract(raw_sast)]
-    dast_scans = [_normalise_scan(r, "dast") for r in _extract(raw_dast)]
-    all_scans  = sast_scans + dast_scans
+    # ── Primary: single call returning all scan types ─────────────────────────
+    (raw_latest,) = await fetch_many(
+        [("secops", "/api/v1/secops/sast/latest-scans", {"tenant_id": tenant_id})],
+        auth_headers=fwd_headers,
+    )
+
+    if raw_latest is not None:
+        # New path: engine guarantees one row per (account_id, scan_type)
+        meta.record_engine("secops", "/api/v1/secops/sast/latest-scans", raw_latest)
+        raw_all = _extract(raw_latest)
+        sast_scans = [
+            _normalise_scan(r, r.get("scan_type") or "sast")
+            for r in raw_all
+            if r.get("scan_type") in ("sast", "iac", None)
+        ]
+        dast_scans = [
+            _normalise_scan(r, "dast")
+            for r in raw_all
+            if r.get("scan_type") == "dast"
+        ]
+    else:
+        # ── Fallback: legacy two-endpoint path (graceful degradation) ─────────
+        meta.warn("latest-scans endpoint unavailable; falling back to /sast/scans + /dast/scans")
+        results = await fetch_many([
+            ("secops", "/api/v1/secops/sast/scans", qs),
+            ("secops", "/api/v1/secops/dast/scans", qs),
+        ], auth_headers=fwd_headers)
+        raw_sast, raw_dast = results
+
+        meta.record_engine("secops", "/api/v1/secops/sast/scans", raw_sast)
+        meta.record_engine("secops", "/api/v1/secops/dast/scans", raw_dast)
+        if raw_sast is None:
+            meta.warn("SAST scans endpoint returned no data")
+        if raw_dast is None:
+            meta.warn("DAST scans endpoint returned no data")
+
+        sast_scans = [_normalise_scan(r, "sast") for r in _extract(raw_sast)]
+        dast_scans = [_normalise_scan(r, "dast") for r in _extract(raw_dast)]
+
+    all_scans = sast_scans + dast_scans
 
     agg = _aggregate_kpis(all_scans)
     trend = _build_scan_trend(all_scans)
@@ -179,5 +265,6 @@ async def view_secops(
         ],
     }
 
+    result["_meta"] = meta.to_dict()
     cached_view(ck, result, ttl=TTL_SECOPS)
     return result

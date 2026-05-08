@@ -6,6 +6,9 @@
  * Displays severity, risk score, title, resource name, signal type badges,
  * MITRE technique chips, and CSP/region metadata.
  *
+ * GRAPH-S3-01: clicking the graph icon navigates to /threats/graph?highlight_path=<scenario_id>
+ * which pre-highlights that attack path in the security graph canvas.
+ *
  * @param {Object}   props
  * @param {Object}   props.scenario       - Scenario object from BFF
  * @param {boolean}  props.isSelected     - Whether this card is currently selected
@@ -16,6 +19,7 @@
  */
 
 import { useState, useRef, useCallback } from 'react';
+import Link from 'next/link';
 
 // Signal type badge config — story spec §ScenarioCard
 const SIGNAL_CONFIG = {
@@ -250,6 +254,31 @@ export default function ScenarioCard({
                         {csp.toUpperCase()}{region ? `/${region}` : ''}
                     </span>
                 )}
+
+                {/* GRAPH-S3-01: View in graph — stops click propagation so card modal
+                    does not open when the user explicitly wants to go to the graph. */}
+                <Link
+                    href={`/threats/graph?highlight_path=${encodeURIComponent(scenario_id)}`}
+                    onClick={(e) => e.stopPropagation()}
+                    title="View attack path in security graph"
+                    style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 3,
+                        fontSize: 10,
+                        fontWeight: 600,
+                        color: 'var(--text-muted)',
+                        textDecoration: 'none',
+                        padding: '1px 5px',
+                        borderRadius: 4,
+                        border: '1px solid var(--border-primary)',
+                        backgroundColor: 'var(--bg-tertiary)',
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
+                    }}
+                >
+                    Graph
+                </Link>
             </div>
         </div>
     );

@@ -14,7 +14,8 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Query, Request
 
 from ._auth import resolve_tenant_id
-from ._shared import fetch_many, safe_get
+from ._shared import fetch_many, safe_get, BFFMeta
+from .schemas.threat_attack_paths import ThreatAttackPathsResponse
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
@@ -211,7 +212,7 @@ def _normalize_orca_path(op: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-@router.get("/threats/attack-paths")
+@router.get("/threats/attack-paths", response_model=ThreatAttackPathsResponse, response_model_exclude_none=False)
 async def view_threat_attack_paths(
     request: Request,
     scan_run_id: Optional[str] = Query(None),
@@ -226,6 +227,7 @@ async def view_threat_attack_paths(
     tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+    meta = BFFMeta("threat_attack_paths")
 
     pg_params: Dict[str, str] = {"tenant_id": tenant_id, "limit": "500"}
     if scan_run_id:
@@ -243,6 +245,8 @@ async def view_threat_attack_paths(
     ], auth_headers=fwd_headers)
 
     pg_raw, neo_raw = results[0], results[1]
+    meta.record_engine("threat", "/api/v1/threat/analysis/attack-paths", pg_raw)
+    meta.record_engine("threat", "/api/v1/graph/orca-paths", neo_raw)
 
     # PostgreSQL paths
     if not isinstance(pg_raw, dict):
@@ -296,4 +300,5 @@ async def view_threat_attack_paths(
         },
         "chainTypes": chain_types,
         "attackPaths": paths,
+        "_meta": meta.to_dict(),
     }

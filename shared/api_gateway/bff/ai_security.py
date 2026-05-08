@@ -12,7 +12,8 @@ from typing import Optional, Dict, List
 from fastapi import APIRouter, Query, Request
 
 from ._auth import resolve_tenant_id
-from ._shared import fetch_many, safe_get
+from ._shared import fetch_many, safe_get, BFFMeta
+from .schemas.ai_security import AISecurityResponse
 from ._transforms import apply_global_filters
 from ._page_context import ai_security_page_context, ai_security_filter_schema
 
@@ -69,8 +70,8 @@ def _normalize_ai_finding(f: dict) -> dict:
         frameworks = [frameworks]
     account_id = f.get("account_id") or f.get("account", "")
     return {
-        "id":              f.get("finding_id") or f.get("id", ""),
-        "finding_id":      f.get("finding_id") or f.get("id", ""),
+        "id":              str(f.get("finding_id") or f.get("id") or ""),
+        "finding_id":      str(f.get("finding_id") or f.get("id") or ""),
         "severity":        severity,
         "rule_id":         f.get("rule_id", ""),
         "title":           f.get("title") or f.get("rule_name", ""),
@@ -119,7 +120,7 @@ def _normalize_shadow_ai_item(item: dict) -> dict:
     }
 
 
-@router.get("/ai-security")
+@router.get("/ai-security", response_model=AISecurityResponse, response_model_exclude_none=False)
 async def view_ai_security(
     request: Request,
     provider: Optional[str] = Query(None),
@@ -135,6 +136,7 @@ async def view_ai_security(
 
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+    meta = BFFMeta("ai_security")
 
     results = await fetch_many([
         ("ai_security", "/api/v1/ai-security/ui-data", {
@@ -145,6 +147,7 @@ async def view_ai_security(
     ], auth_headers=fwd_headers)
 
     data = results[0]
+    meta.record_engine("ai_security", "/api/v1/ai-security/ui-data", data)
     if not isinstance(data, dict):
         data = {}
 
@@ -247,6 +250,63 @@ async def view_ai_security(
         {"id": "shadow_ai", "label": "Shadow AI", "count": shadow_count},
     ]
 
+    # -- Scan trend with chart dataKeys ----------------------------------------
+    raw_trend = safe_get(data, "scan_trend", [])
+    color_map = {'critical': '#ef4444', 'high': '#f97316', 'medium': '#eab308', 'low': '#3b82f6'}
+    scan_trend = []
+    for pt in raw_trend:
+        sev_pt = pt.get("by_severity") or {}
+        total_pt = pt.get("total_findings") or pt.get("total", 0)
+        scan_trend.append({
+            "date":     pt.get("scan_date") or pt.get("date", ""),
+            "critical": sev_pt.get("critical", pt.get("critical", 0)),
+            "high":     sev_pt.get("high",     pt.get("high",     0)),
+            "medium":   sev_pt.get("medium",   pt.get("medium",   0)),
+            "low":      sev_pt.get("low",      pt.get("low",      0)),
+            "passRate": pt.get("pass_rate") or pt.get("passRate", 0),
+            "total":    total_pt,
+        })
+
+    first_pt  = scan_trend[0]  if scan_trend else {}
+    last_pt   = scan_trend[-1] if scan_trend else {}
+    first_obj = {k: first_pt.get(k, 0) for k in ("date", "critical", "high", "total")}
+    last_obj  = {k: last_pt.get(k, 0)  for k in ("date", "critical", "high", "total")}
+
+    # -- Donut slices ----------------------------------------------------------
+    donut_slices = [
+        {"name": sev.title(), "value": by_severity.get(sev, 0), "color": color_map[sev]}
+        for sev in ("critical", "high", "medium", "low")
+        if by_severity.get(sev, 0) > 0
+    ]
+
+    # -- Active module scores (modules with pass/fail) -------------------------
+    active_module_scores = [
+        {
+            "key":   m["key"],
+            "label": m["name"],
+            "score": m.get("score", 0),
+            "pass":  (m.get("score") or 0) >= 70,
+        }
+        for m in modules
+    ]
+
+    # -- DB domain breakdown --------------------------------------------------
+    domain_breakdown = safe_get(data, "domain_breakdown", [])
+
+    # -- Coverage items array (UI expects list with label + pct per item) ------
+    _coverage_labels = {
+        "vpc_isolation_pct":      "VPC Isolation",
+        "encryption_rest_pct":    "Encryption at Rest",
+        "encryption_transit_pct": "Encryption in Transit",
+        "model_card_pct":         "Model Cards",
+        "monitoring_pct":         "Monitoring",
+        "guardrails_pct":         "Guardrails",
+    }
+    coverage_items = [
+        {"key": k, "label": label, "pct": coverage.get(k, 0)}
+        for k, label in _coverage_labels.items()
+    ]
+
     return {
         "pageContext": page_ctx,
         "filterSchema": ai_security_filter_schema(list(MODULE_DISPLAY.keys())),
@@ -254,38 +314,45 @@ async def view_ai_security(
             {
                 "title": "AI Risk",
                 "items": [
-                    {"label": "Critical", "value": critical},
-                    {"label": "High", "value": high},
-                    {"label": "Medium", "value": medium},
-                    {"label": "Risk Score", "value": risk_score, "suffix": "/100"},
+                    {"label": "Critical",       "value": critical},
+                    {"label": "High",           "value": high},
+                    {"label": "Medium",         "value": medium},
+                    {"label": "Risk Score",     "value": risk_score,    "suffix": "/100"},
                     {"label": "Total Findings", "value": total_findings},
                 ],
             },
             {
                 "title": "AI Posture",
                 "items": [
-                    {"label": "Posture Score", "value": posture_score, "suffix": "/100"},
-                    {"label": "ML Resources", "value": total_ml_resources},
-                    {"label": "Shadow AI", "value": shadow_count},
-                    {"label": "Guardrails", "value": coverage.get("guardrails_pct", 0), "suffix": "%"},
-                    {"label": "Modules", "value": len(modules)},
+                    {"label": "Posture Score",  "value": posture_score, "suffix": "/100"},
+                    {"label": "ML Resources",   "value": total_ml_resources},
+                    {"label": "Shadow AI",      "value": shadow_count},
+                    {"label": "Guardrails",     "value": coverage.get("guardrails_pct", 0), "suffix": "%"},
+                    {"label": "Modules",        "value": len(modules)},
                 ],
             },
         ],
-        "modules": modules,
+        "modules":            modules,
+        "activeModuleScores": active_module_scores,
         "coverage": {
-            "vpc_isolation_pct": coverage.get("vpc_isolation_pct", 0),
-            "encryption_rest_pct": coverage.get("encryption_rest_pct", 0),
+            "vpc_isolation_pct":      coverage.get("vpc_isolation_pct",      0),
+            "encryption_rest_pct":    coverage.get("encryption_rest_pct",    0),
             "encryption_transit_pct": coverage.get("encryption_transit_pct", 0),
-            "model_card_pct": coverage.get("model_card_pct", 0),
-            "monitoring_pct": coverage.get("monitoring_pct", 0),
-            "guardrails_pct": coverage.get("guardrails_pct", 0),
+            "model_card_pct":         coverage.get("model_card_pct",         0),
+            "monitoring_pct":         coverage.get("monitoring_pct",         0),
+            "guardrails_pct":         coverage.get("guardrails_pct",         0),
         },
-        "inventory": inventory_rows,
-        "shadowAi": {
-            "count": shadow_count,
-            "items": shadow_items,
-        },
-        "findings": findings,
+        "coverageItems": coverage_items,
+        "inventory":       inventory_rows,
+        "shadowAi":        {"count": shadow_count, "items": shadow_items},
+        "findings":        findings,
         "topFailingRules": top_failing_rules,
+        "scanTrend":          scan_trend,
+        "activeScanTrend":    scan_trend,
+        "first":              first_obj,
+        "last":               last_obj,
+        "donutSlices":        donut_slices,
+        "domainBreakdown":    domain_breakdown,
+        "db":                 domain_breakdown,
+        "_meta":              meta.to_dict(),
     }

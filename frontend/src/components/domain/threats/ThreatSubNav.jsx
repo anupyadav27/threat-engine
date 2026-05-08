@@ -16,7 +16,7 @@ import { usePathname } from 'next/navigation';
 
 const TABS = [
     { label: 'Command Room', href: '/threats'                 },
-    { label: 'Attack Map',   href: '/threats/attack-coverage' },
+    { label: 'Attack Map',   href: '/threats/attack-map' },
     { label: 'Graph',        href: '/threats/graph'           },
     { label: 'Trends',       href: '/threats/trends'          },
 ];
