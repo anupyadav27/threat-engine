@@ -546,13 +546,15 @@ function Step4Invite({ onNext, onBack, onSkip }) {
         const body = {
           email: row.email.trim(),
           tenant_id: activeTenant?.tenant_id,
-          role_name: row.role,
+          role: row.role,
         };
-        const res = await fetchFromCspm('/api/auth/invite/create/', {
+        const res = await fetch('/gateway/api/v1/invites/', {
           method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
-        results.push({ email: row.email, ok: !res?.error });
+        results.push({ email: row.email, ok: res.ok });
       } catch {
         results.push({ email: row.email, ok: false });
       }

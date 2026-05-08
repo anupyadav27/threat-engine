@@ -46,6 +46,13 @@ class DastScanRequest(BaseModel):
     target_url: str = Field(..., description="Target URL to scan")
     scan_run_id: Optional[str] = Field(default=None, description="Pipeline-wide scan_run_id")
     customer_id: Optional[str] = Field(default=None, description="Customer identifier")
+    account_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "Onboarded code_security account ID. Optional for DAST — DAST scans may not "
+            "have a code repo account. When present, secops_latest_scan is upserted on completion."
+        ),
+    )
     profile: str = Field(default="quick", description="Scan profile: quick, normal, deep")
     auth: Optional[DastAuthConfig] = Field(default=None, description="Authentication config")
     scope_include: Optional[List[str]] = Field(default=None, description="URL patterns to include")
@@ -168,9 +175,11 @@ def _run_dast_pipeline(dast_scan_id: str, req: DastScanRequest) -> None:
                 repo_url=req.target_url,
                 branch="",
                 status="failed",
-                customer_id=req.customer_id,
+                customer_id=req.tenant_id,  # always use tenant_id
                 orchestration_id=req.scan_run_id,
                 scan_type="dast",
+                account_id=req.account_id,
+                scan_run_id=req.scan_run_id,
             )
             complete_scan_report(
                 secops_scan_id=dast_scan_id,
@@ -195,9 +204,11 @@ def _run_dast_pipeline(dast_scan_id: str, req: DastScanRequest) -> None:
             repo_url=req.target_url,
             branch="",
             status="running",
-            customer_id=req.customer_id,
+            customer_id=req.tenant_id,  # always use tenant_id
             orchestration_id=req.scan_run_id,
             scan_type="dast",
+            account_id=req.account_id,
+            scan_run_id=req.scan_run_id,
         )
     except Exception as e:
         logger.warning(f"[{dast_scan_id}] DB persist_scan_report failed: {e}")
@@ -600,24 +611,27 @@ async def list_dast_scans(
     tenant_id: str = Query(..., description="Tenant ID"),
     limit: int = Query(50, description="Max scans to return"),
 ):
-    """List DAST scans for a tenant."""
+    """List DAST scans for a tenant — one row per (account_id, scan_type) from secops_latest_scan."""
     try:
         from database.db_config import get_dict_connection
         conn = get_dict_connection()
         try:
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT secops_scan_id AS dast_scan_id, orchestration_id AS scan_run_id,
-                           tenant_id, project_name AS target_url, status,
-                           scan_timestamp, completed_at, total_findings, summary
-                    FROM secops_report
+                    SELECT tenant_id, account_id, scan_type, repo_url,
+                           project_name AS target_url, default_branch,
+                           secops_scan_id AS dast_scan_id, scan_run_id, status,
+                           total_findings, critical_count, high_count, medium_count, low_count,
+                           files_scanned, languages_detected, scan_timestamp, completed_at,
+                           first_seen_at, last_seen_at
+                    FROM secops_latest_scan
                     WHERE tenant_id = %s AND scan_type = 'dast'
-                    ORDER BY scan_timestamp DESC LIMIT %s
+                    ORDER BY last_seen_at DESC LIMIT %s
                 """, (tenant_id, limit))
                 scans = []
                 for row in cur.fetchall():
                     d = dict(row)
-                    for k in ("scan_timestamp", "completed_at"):
+                    for k in ("scan_timestamp", "completed_at", "first_seen_at", "last_seen_at"):
                         if d.get(k) and hasattr(d[k], "isoformat"):
                             d[k] = d[k].isoformat()
                     scans.append(d)

@@ -35,12 +35,14 @@ RUNTIME_DOMAINS = {"runtime_audit"}
 RUNTIME_KEYWORDS = {"privileged", "host_network", "hostpid", "hostpath", "seccomp", "apparmor", "syscall"}
 
 
-async def fetch(scan_run_id: str, tenant_id: str, auth_header: Optional[str] = None) -> Dict[str, Any]:
+async def fetch(scan_run_id: Optional[str], tenant_id: str, auth_header: Optional[str] = None) -> Dict[str, Any]:
     """Fetch runtime threat signals from container-security and CIEM engines in parallel."""
+    rt_params: Dict[str, Any] = {"tenant_id": tenant_id}
+    if scan_run_id:
+        rt_params["scan_id"] = scan_run_id  # container-security uses scan_id
     container_task = get(
         f"{CONTAINER_SEC_URL}/api/v1/container-security/ui-data",
-        # container-security engine uses scan_id (not scan_run_id)
-        params={"tenant_id": tenant_id, "scan_id": scan_run_id},
+        params=rt_params,
         auth_header=auth_header,
     )
     ciem_task = _fetch_ciem_runtime_events(scan_run_id, auth_header)
@@ -142,21 +144,21 @@ async def fetch(scan_run_id: str, tenant_id: str, auth_header: Optional[str] = N
 
 def _is_privileged(f: Dict[str, Any]) -> bool:
     """Return True if the finding indicates a privileged container."""
-    return "privileged" in (f.get("rule_id", "") + f.get("title", "")).lower()
+    return "privileged" in ((f.get("rule_id") or "") + (f.get("title") or "")).lower()
 
 
 def _is_host_network(f: Dict[str, Any]) -> bool:
     """Return True if the finding indicates host network usage."""
-    return "hostnetwork" in (f.get("rule_id", "") + f.get("title", "")).lower()
+    return "hostnetwork" in ((f.get("rule_id") or "") + (f.get("title") or "")).lower()
 
 
 def _is_host_pid(f: Dict[str, Any]) -> bool:
     """Return True if the finding indicates host PID namespace usage."""
-    return "hostpid" in (f.get("rule_id", "") + f.get("title", "")).lower()
+    return "hostpid" in ((f.get("rule_id") or "") + (f.get("title") or "")).lower()
 
 
 async def _fetch_ciem_runtime_events(
-    scan_run_id: str, auth_header: Optional[str]
+    scan_run_id: Optional[str], auth_header: Optional[str]
 ) -> Dict[str, Any]:
     """Fetch CIEM behavioral events with action_category=runtime.
 
@@ -164,13 +166,12 @@ async def _fetch_ciem_runtime_events(
     Returns _empty_ciem() on any failure.
     """
     try:
+        ciem_params: Dict[str, Any] = {"action_category": "runtime", "limit": 10}
+        if scan_run_id:
+            ciem_params["scan_run_id"] = scan_run_id
         resp = await get(
             f"{CIEM_ENGINE_URL}/ciem/findings",
-            params={
-                "action_category": "runtime",
-                "scan_run_id": scan_run_id,
-                "limit": 10,
-            },
+            params=ciem_params,
             timeout=5.0,
             auth_header=auth_header,
         )

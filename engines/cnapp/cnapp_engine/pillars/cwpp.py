@@ -2,19 +2,7 @@
 CWPP pillar — Cloud Workload Protection Platform.
 
 Delegates entirely to the dedicated CWPP engine (engine-cwpp, port 8016)
-which handles all workload-type aggregation internally:
-
-  containers  — K8s / EKS / ECS / AKS / GKE cluster + pod security
-  images      — Image posture checks + CVE scanning (placeholder)
-  hosts       — OS/VM/middleware CVEs via vul_engine (agent-based)
-  serverless  — Lambda / Azure Functions / GCF
-  runtime     — Privileged containers, host-network, CIEM runtime events
-
-The CWPP engine calls:
-  container-security, vul_engine, sbom_engine, secops
-
-This pillar just proxies the CWPP engine's /api/v1/cwpp/ui-data response
-and extracts the fields the CNAPP aggregator needs (posture_score, summary).
+which handles all workload-type aggregation internally.
 
 Service env var:
   CWPP_ENGINE_URL (default: http://engine-cwpp)
@@ -33,11 +21,16 @@ logger = logging.getLogger("cnapp.pillars.cwpp")
 CWPP_URL = os.getenv("CWPP_ENGINE_URL", "http://engine-cwpp")
 
 
-async def fetch(scan_run_id: str, tenant_id: str) -> Dict[str, Any]:
+async def fetch(scan_run_id: Optional[str], tenant_id: str, auth_headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
     """Fetch CWPP data from the dedicated CWPP engine."""
+    params: Dict[str, Any] = {"tenant_id": tenant_id}
+    if scan_run_id:
+        params["scan_run_id"] = scan_run_id
+
     data = await get(
         f"{CWPP_URL}/api/v1/cwpp/ui-data",
-        params={"scan_run_id": scan_run_id, "tenant_id": tenant_id},
+        params=params,
+        headers=auth_headers,
     )
 
     if data is None:
@@ -49,7 +42,6 @@ async def fetch(scan_run_id: str, tenant_id: str) -> Dict[str, Any]:
 
     workloads = data.get("workloads", {})
 
-    # Distinguish genuine score=0 from empty result (engine up but no workload data)
     total_findings = int(data.get("total_findings", 0) or 0)
     total_workload_types_available = len(data.get("workload_types_available") or [])
     if posture_score == 0 and total_findings == 0 and total_workload_types_available == 0:

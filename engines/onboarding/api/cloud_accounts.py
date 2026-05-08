@@ -58,12 +58,15 @@ _CF_TEMPLATE = os.path.join(
 
 _CLOUD_PROVIDERS    = "aws|azure|gcp|oci|alicloud|ibm|k8s"
 _DB_PROVIDERS       = "postgres|mysql|mssql|mongodb|oracle"
-_ALL_PROVIDERS_RE   = f"^({_CLOUD_PROVIDERS}|{_DB_PROVIDERS}|agent)$"
+_GIT_PROVIDERS      = "github|gitlab|bitbucket"
+_ALL_PROVIDERS_RE   = f"^({_CLOUD_PROVIDERS}|{_DB_PROVIDERS}|{_GIT_PROVIDERS}|agent)$"
 
 _DB_PROVIDER_SET    = {"postgres", "mysql", "mssql", "mongodb", "oracle"}
+_GIT_PROVIDER_SET   = {"github", "gitlab", "bitbucket"}
 
 # account_type values — agent-based types use 'agent' as provider
-_ACCOUNT_TYPES      = {"cloud_csp", "vulnerability", "secops", "database", "middleware"}
+_ACCOUNT_TYPES      = {"cloud_csp", "vulnerability", "secops", "code_security",
+                       "database", "middleware"}
 
 # Agent bootstrap token TTL (15 minutes)
 _BOOTSTRAP_TOKEN_TTL_MINUTES = 15
@@ -158,6 +161,8 @@ async def create_account(
         account_type = body.account_type
     elif body.account_category == "database" or body.provider in _DB_PROVIDER_SET:
         account_type = "database"
+    elif body.provider in _GIT_PROVIDER_SET:
+        account_type = "code_security"
     else:
         account_type = PROVIDER_TO_ACCOUNT_TYPE.get(body.provider, "cloud_csp")
 
@@ -173,6 +178,23 @@ async def create_account(
             ),
         )
 
+    # Build auth_config — for code_security accounts derive canonical fields from repo_url
+    auth_config = body.auth_config or {}
+    if account_type == "code_security":
+        repo_url = auth_config.get("repo_url", "")
+        project_name = (
+            repo_url.rstrip("/").split("/")[-1].removesuffix(".git")
+            if repo_url
+            else ""
+        )
+        auth_config = {
+            "repo_url":       repo_url,
+            "default_branch": auth_config.get("default_branch", "main"),
+            "project_name":   auth_config.get("project_name") or project_name,
+            "vcs_platform":   body.provider,
+            "scan_types":     auth_config.get("scan_types", ["sast"]),
+        }
+
     data = {
         "account_id":    str(uuid.uuid4()),
         "customer_id":   body.customer_id,
@@ -181,7 +203,7 @@ async def create_account(
         "account_type":  account_type,
         "provider":      body.provider,
         "account_number": body.account_number,
-        "auth_config":   body.auth_config or {},
+        "auth_config":   auth_config,
     }
     try:
         account = create_cloud_account(data)
@@ -199,7 +221,8 @@ async def list_accounts(
     customer_id:      Optional[str] = Query(None),
     tenant_id:        Optional[str] = Query(None),
     provider:         Optional[str] = Query(None),
-    account_category: Optional[str] = Query(None),
+    account_type:     Optional[str] = Query(None, description="Filter by account_type (e.g. code_security, cloud_csp)"),
+    account_category: Optional[str] = Query(None, description="Alias for account_type — kept for backward compatibility"),
     status:           Optional[str] = Query(None),
     limit:            int           = Query(100, ge=1, le=1000),
     offset:           int           = Query(0, ge=0),
@@ -207,11 +230,13 @@ async def list_accounts(
 ):
     """List cloud accounts with optional filters and pagination."""
     filters = {}
-    if customer_id:      filters["customer_id"]   = customer_id
-    if tenant_id:        filters["tenant_id"]     = tenant_id
-    if provider:         filters["provider"]       = provider
-    if account_category: filters["account_type"]  = account_category  # backward-compat
-    if status:           filters["account_status"] = status
+    if customer_id:                           filters["customer_id"]   = customer_id
+    if tenant_id:                             filters["tenant_id"]     = tenant_id
+    if provider:                              filters["provider"]       = provider
+    # account_type takes precedence; account_category is the legacy alias
+    if account_type:                          filters["account_type"]  = account_type
+    elif account_category:                    filters["account_type"]  = account_category
+    if status:                                filters["account_status"] = status
 
     try:
         accounts = list_cloud_accounts(filters=filters, limit=limit, offset=offset)
@@ -607,6 +632,10 @@ def _get_validator(provider: str, credential_type: str):
     if p == "oracle":
         from engine_onboarding.validators.db_oracle_validator import DBOracleValidator
         return DBOracleValidator()
+    # VCS / code-repository providers
+    if p in ("github", "gitlab", "bitbucket"):
+        from engine_onboarding.validators.git_validator import GitValidator
+        return GitValidator()
     raise ValueError(f"Unsupported provider: {provider}")
 
 

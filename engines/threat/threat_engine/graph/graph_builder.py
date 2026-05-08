@@ -75,13 +75,57 @@ Node labels map resource types → graph-friendly labels across all CSPs:
 
 from __future__ import annotations
 
+import json
 import logging
 import os
-import json
+import re
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+import boto3
+from botocore.exceptions import BotoCoreError, ClientError
+
 logger = logging.getLogger(__name__)
+
+# ── Config property allowlist (GRAPH-S1-03) ───────────────────────────────────
+# Only property names matching this regex are written to Neo4j nodes.
+# Prevents injection via schema keys and enforces Neo4j property name safety.
+SAFE_PROP_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+
+# ── Cypher label / relationship-type allowlists (BLOCKER 1 & 2) ──────────────
+# Labels are backtick-quoted in Cypher — a backtick inside terminates the
+# quoting and allows arbitrary Cypher injection.  Validate before interpolation.
+_SAFE_LABEL_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
+_SAFE_REL_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
+
+
+def _safe_prop(name: str) -> bool:
+    """Return True if name is a safe Neo4j property key."""
+    return bool(SAFE_PROP_RE.match(name))
+
+
+def _extract_path(emitted_fields: Any, path: str) -> Any:
+    """Traverse a dot-notation path into a nested dict.
+
+    Args:
+        emitted_fields: The top-level dict (JSONB from psycopg2, already a dict).
+        path: Dot-separated key path, e.g. ``"ServerSideEncryptionConfiguration.Rules"``.
+
+    Returns:
+        The value at the path, or None if any key is missing or the
+        intermediate node is not a dict.
+    """
+    if not isinstance(emitted_fields, dict):
+        return None
+    parts = path.split(".")
+    node: Any = emitted_fields
+    for part in parts:
+        if not isinstance(node, dict):
+            return None
+        node = node.get(part)
+    return node
+
 
 # ── Resource type → Neo4j label mapping ──────────────────────────────────────
 # Covers AWS, Azure, GCP, OCI, K8s. Falls back to "CloudResource" for unknowns.
@@ -315,7 +359,18 @@ def _neo4j_label(resource_type: str) -> str:
 
     # Azure/GCP/K8s types are already PascalCase — return as-is
     # e.g. "VirtualMachine", "GCEInstance", "Pod", "StorageAccount"
-    return resource_type
+    label = resource_type
+
+    # BLOCKER 1: validate computed label against allowlist before Cypher interpolation.
+    # A backtick in a DB-sourced value would terminate the backtick-quoted label and
+    # allow arbitrary Cypher injection.  Reject anything that doesn't match.
+    if not _SAFE_LABEL_RE.match(label):
+        logger.warning(
+            "Unsafe Neo4j label rejected (resource_type=%r) — falling back to 'Resource'",
+            resource_type,
+        )
+        return "Resource"
+    return label
 
 
 # ── Relation type mapping ─────────────────────────────────────────────────────
@@ -415,8 +470,22 @@ def _infer_rel_type(
     # Default: look up the static map, fall back to uppercased raw
     mapped = _RELATION_TYPE_MAP.get(raw_type.lower())
     if mapped and not mapped.startswith("_"):
-        return mapped
-    return raw_type.upper().replace(" ", "_").replace("-", "_")
+        rel_type = mapped
+    else:
+        rel_type = raw_type.upper().replace(" ", "_").replace("-", "_")
+
+    # BLOCKER 2: validate relationship type against allowlist before Cypher interpolation.
+    # Relationship types are backtick-quoted in MERGE clauses — a malicious DB value
+    # could terminate quoting and inject Cypher.  Reject anything that doesn't match.
+    if not _SAFE_REL_RE.match(rel_type):
+        logger.warning(
+            "Unsafe Neo4j relationship type rejected (raw_type=%r, computed=%r) — "
+            "falling back to 'RELATED_TO'",
+            raw_type,
+            rel_type,
+        )
+        return "RELATED_TO"
+    return rel_type
 
 
 def _safe_props(d: Dict[str, Any], max_depth: int = 1) -> Dict[str, Any]:
@@ -444,6 +513,44 @@ def _safe_props(d: Dict[str, Any], max_depth: int = 1) -> Dict[str, Any]:
     return flat
 
 
+def _emit_empty_graph_metric(tenant_id: str) -> None:
+    """Emit a CloudWatch metric when a graph build produces zero nodes.
+
+    This is best-effort: any error (missing credentials, network issue,
+    missing AWS_REGION env var) is logged as a warning and silently swallowed
+    so it never propagates to the caller.
+
+    Args:
+        tenant_id: Tenant UUID used as a CloudWatch dimension value.
+    """
+    aws_region = os.environ.get("AWS_REGION")
+    if not aws_region:
+        # Skip metric emission in local / CI environments where AWS_REGION is absent.
+        logger.debug("AWS_REGION not set — skipping EmptyGraphBuild CloudWatch metric")
+        return
+    try:
+        cw = boto3.client("cloudwatch", region_name=aws_region)
+        cw.put_metric_data(
+            Namespace="ThreatEngine",
+            MetricData=[
+                {
+                    "MetricName": "EmptyGraphBuild",
+                    "Dimensions": [{"Name": "TenantId", "Value": tenant_id}],
+                    "Value": 1,
+                    "Unit": "Count",
+                }
+            ],
+        )
+        logger.warning(
+            "EmptyGraphBuild metric emitted for tenant %s — graph produced 0 nodes",
+            tenant_id,
+        )
+    except (BotoCoreError, ClientError) as exc:
+        logger.warning("Failed to emit EmptyGraphBuild CloudWatch metric: %s", exc)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Unexpected error emitting CloudWatch metric: %s", exc)
+
+
 class SecurityGraphBuilder:
     """
     Builds and maintains the security graph in Neo4j.
@@ -464,6 +571,43 @@ class SecurityGraphBuilder:
         self._user = neo4j_user or os.getenv("NEO4J_USER", "neo4j")
         self._password = neo4j_password or os.getenv("NEO4J_PASSWORD", "")
         self._driver = None
+
+        # Fix 5: fail fast at construction time — never allow silent empty-string defaults.
+        if not self._uri:
+            raise RuntimeError("NEO4J_URI environment variable is required")
+
+        # GRAPH-S2-03: vulnerability DB connection config for CVE node loading.
+        # VULN_DB_HOST empty → CVELoader logs a warning and returns zeros (graceful degradation).
+        # SECURITY: password is read from env, never logged.
+        self.vuln_db_config: Dict[str, Any] = {
+            "host": os.environ.get("VULN_DB_HOST", ""),
+            "dbname": os.environ.get("VULN_DB_NAME", "vulnerability_db"),
+            "user": os.environ.get("VULN_DB_USER", ""),
+            "password": os.environ.get("VULN_DB_PASSWORD", ""),
+            "port": 5432,
+        }
+
+        # GRAPH-S2-04: network engine DB connection config for EXPOSES edge loading.
+        # NETWORK_DB_HOST empty -> ExposureLoader logs a warning and falls back to
+        # inferred exposure from Resource.is_public (graceful degradation).
+        # SECURITY: password is read from env, never logged.
+        from .exposure_loader import build_network_db_config
+        self.network_db_config: Dict[str, Any] = build_network_db_config()
+
+        # GRAPH-S1-03: load config property schema once at startup.
+        # Schema is the allowlist of security-relevant fields to expand onto Resource nodes.
+        schema_path = Path(__file__).parent / "config_property_schema.json"
+        if schema_path.exists():
+            self._config_schema: Dict[str, Any] = json.loads(schema_path.read_text())
+            logger.info(
+                "config_property_schema.json loaded — %d resource types",
+                len(self._config_schema),
+            )
+        else:
+            self._config_schema = {}
+            logger.warning(
+                "config_property_schema.json not found — skipping property expansion"
+            )
 
     def _get_driver(self):
         if not self._uri:
@@ -489,7 +633,7 @@ class SecurityGraphBuilder:
         user = os.getenv("THREAT_DB_USER", "postgres")
         pwd = os.getenv("THREAT_DB_PASSWORD", "")
         return psycopg2.connect(
-            f"postgresql://{user}:{pwd}@{host}:{port}/{db_name}"
+            f"postgresql://{user}:{pwd}@{host}:{port}/{db_name}?sslmode=require"
         )
 
     def _load_attack_path_categories_for_graph(self, tenant_id: str) -> Optional[Dict[str, Optional[str]]]:
@@ -521,15 +665,15 @@ class SecurityGraphBuilder:
         conn = self._pg_conn("threat_engine_inventory")
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                # Match by tenant_id OR account_id (inventory may use different tenant naming)
+                # Fix 3: scope strictly to tenant_id from AuthContext — no OR bypass.
                 cur.execute("""
                     SELECT asset_id, resource_uid, provider, account_id, region,
                            resource_type, resource_id, name,
                            configuration::text AS configuration,
                            compliance_status, risk_score, criticality
                     FROM inventory_findings
-                    WHERE tenant_id = %s OR account_id = %s
-                """, (tenant_id, tenant_id))
+                    WHERE tenant_id = %s
+                """, (tenant_id,))
                 return [dict(r) for r in cur.fetchall()]
         finally:
             conn.close()
@@ -539,6 +683,7 @@ class SecurityGraphBuilder:
         conn = self._pg_conn("threat_engine_inventory")
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # Fix 3: scope strictly to tenant_id from AuthContext — no OR bypass.
                 cur.execute("""
                     SELECT from_uid, to_uid, relation_type,
                            source_resource_uid, target_resource_uid,
@@ -546,8 +691,8 @@ class SecurityGraphBuilder:
                            bidirectional, properties,
                            from_resource_type, to_resource_type
                     FROM inventory_relationships
-                    WHERE tenant_id = %s OR account_id = %s
-                """, (tenant_id, tenant_id))
+                    WHERE tenant_id = %s
+                """, (tenant_id,))
                 return [dict(r) for r in cur.fetchall()]
         finally:
             conn.close()
@@ -639,6 +784,10 @@ class SecurityGraphBuilder:
                     session.run(c)
                 except Exception as e:
                     logger.debug(f"Constraint/index note: {e}")
+
+            # GRAPH-S2-03: CVE node constraints and indexes
+            from .cve_loader import CVELoader
+            CVELoader(driver, self.vuln_db_config).ensure_constraints(session)
 
     def _create_resource_nodes(
         self, session, findings: List[Dict[str, Any]], tenant_id: str
@@ -1523,6 +1672,172 @@ class SecurityGraphBuilder:
         from .exposure import detect_all
         return detect_all(session, tenant_id, self._pg_conn)
 
+    # ── Config property expansion (GRAPH-S1-03) ──────────────────────────
+
+    def _expand_config_properties(self, tenant_id: str, session) -> int:
+        """Expand emitted_fields from discovery_findings onto Resource nodes as native properties.
+
+        Reads the latest emitted_fields per (resource_uid, resource_type) from the
+        check engine's discovery_findings table (tenant-scoped).  For each resource,
+        looks up matching entries in ``self._config_schema`` and writes
+        ``prop_<name>`` (value) and ``prop_<name>_pass`` (bool heuristic) onto the
+        matching Neo4j Resource node.
+
+        Design constraints:
+          - Max 60 ``prop_*`` properties written per node.
+          - Only names passing ``_safe_prop()`` are written (allowlist regex).
+          - Batched writes: 200 nodes per UNWIND (no per-node Cypher calls).
+          - emitted_fields is JSONB — psycopg2 returns it as a dict; never call json.loads().
+          - Fully tenant-isolated: WHERE tenant_id = %s, MATCH on tenant_id in Neo4j.
+
+        Args:
+            tenant_id: The tenant whose Resource nodes should be enriched.
+            session: An active Neo4j driver session.
+
+        Returns:
+            Total number of Resource nodes that received at least one prop_* property.
+        """
+        schema = self._config_schema
+        if not schema:
+            logger.warning("_expand_config_properties: schema is empty — nothing to expand")
+            return 0
+
+        # Query check engine DB for the latest emitted_fields per resource.
+        # DISTINCT ON (resource_uid, resource_type) with ORDER BY last_seen_at DESC
+        # gives us the freshest snapshot per resource.
+        try:
+            conn = self._pg_conn("threat_engine_check")
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT DISTINCT ON (df.resource_uid, df.resource_type)
+                            df.resource_uid,
+                            df.resource_type,
+                            df.emitted_fields
+                        FROM discovery_findings df
+                        WHERE df.tenant_id = %s
+                        ORDER BY df.resource_uid, df.resource_type, df.last_seen_at DESC
+                        """,
+                        (tenant_id,),
+                    )
+                    rows = cur.fetchall()
+            finally:
+                conn.close()
+        except Exception as exc:
+            logger.warning("_expand_config_properties: DB query failed — %s", exc)
+            return 0
+
+        logger.info(
+            "_expand_config_properties: processing %d resource rows for tenant %s",
+            len(rows),
+            tenant_id,
+        )
+
+        batch: List[Dict[str, Any]] = []
+        nodes_written = 0
+
+        for resource_uid, resource_type, emitted_fields in rows:
+            # Normalise resource_type to the schema key format
+            rt_key = (resource_type or "").replace(".", "_").replace("-", "_").lower()
+            rt_schema: Dict[str, Any] = schema.get(rt_key, {})
+            if not rt_schema:
+                continue
+
+            # emitted_fields comes from psycopg2 JSONB — already a dict.
+            # If it is None or not a dict (e.g. a legacy TEXT row), skip safely.
+            if not isinstance(emitted_fields, dict):
+                continue
+
+            props: Dict[str, Any] = {}
+            count = 0
+
+            for prop_name, spec in rt_schema.items():
+                if count >= 60:
+                    break
+                if not _safe_prop(prop_name):
+                    continue
+
+                emitted_field_path = spec.get("emitted_field_path") if isinstance(spec, dict) else spec
+                if not emitted_field_path:
+                    continue
+
+                value = _extract_path(emitted_fields, emitted_field_path)
+                if value is None:
+                    continue
+
+                # Simple pass heuristic: truthy non-empty values are considered passing.
+                # A value of False (boolean) is explicitly a violation.
+                if isinstance(value, bool):
+                    pass_val = value
+                elif isinstance(value, str):
+                    pass_val = bool(value) and value.lower() not in ("false", "none", "disabled", "")
+                elif isinstance(value, (int, float)):
+                    pass_val = value != 0
+                elif isinstance(value, (list, dict)):
+                    pass_val = bool(value)
+                else:
+                    pass_val = bool(value)
+
+                # Coerce value to a Neo4j-safe primitive (no nested maps/objects)
+                if isinstance(value, (dict, list)):
+                    value = json.dumps(value)[:500]
+                elif not isinstance(value, (str, int, float, bool)):
+                    value = str(value)[:500]
+
+                props[f"prop_{prop_name}"] = value
+                props[f"prop_{prop_name}_pass"] = pass_val
+                count += 1
+
+            if props:
+                batch.append({"uid": resource_uid, "props": props})
+                nodes_written += 1
+
+            # Flush every 200 nodes
+            if len(batch) >= 200:
+                self._flush_config_props(session, batch, tenant_id)
+                batch = []
+
+        # Flush remainder
+        if batch:
+            self._flush_config_props(session, batch, tenant_id)
+
+        logger.info(
+            "_expand_config_properties: wrote prop_* properties onto %d nodes for tenant %s",
+            nodes_written,
+            tenant_id,
+        )
+        return nodes_written
+
+    def _flush_config_props(
+        self, session, batch: List[Dict[str, Any]], tenant_id: str
+    ) -> None:
+        """Write a batch of config property dicts onto matching Neo4j Resource nodes.
+
+        Uses parameterised UNWIND SET — no f-string Cypher in this method.
+
+        Args:
+            session: Active Neo4j driver session.
+            batch: List of ``{"uid": str, "props": dict}`` entries.
+            tenant_id: Tenant identifier used to scope the MATCH.
+        """
+        try:
+            session.run(
+                """
+                UNWIND $rows AS row
+                MATCH (r:Resource {uid: row.uid, tenant_id: $tid})
+                SET r += row.props
+                """,
+                rows=batch,
+                tid=tenant_id,
+            )
+        except Exception as exc:
+            logger.warning(
+                "_flush_config_props: batch flush failed (%d nodes) — %s",
+                len(batch),
+                exc,
+            )
+
     # ── Main orchestrator ────────────────────────────────────────────────
 
     def _load_iam_policy_statements(self, tenant_id: str) -> List[Dict[str, Any]]:
@@ -1681,11 +1996,24 @@ class SecurityGraphBuilder:
         )
         return count
 
-    def build_graph(self, tenant_id: str) -> Dict[str, Any]:
-        """
-        Build complete security graph for a tenant.
+    def build_graph(
+        self, tenant_id: str, scan_run_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Build complete security graph for a tenant.
 
-        Loads data from all 3 PostgreSQL databases and creates the Neo4j graph.
+        Loads data from all relevant PostgreSQL databases and populates Neo4j.
+
+        Args:
+            tenant_id:   Tenant UUID — all DB queries and Neo4j writes are
+                         scoped to this value (never read from DB rows).
+            scan_run_id: Optional scan run UUID used to scope CVE data loaded
+                         from the vulnerability DB.  If omitted, no CVE nodes
+                         are written (graceful degradation).
+
+        Returns:
+            Stats dict with node/edge counts including cve_nodes and
+            has_cve_edges keys added by GRAPH-S2-03, and exposes_edges /
+            inferred_edges keys added by GRAPH-S2-04.
         """
         logger.info(f"Building security graph for tenant {tenant_id}")
         stats: Dict[str, int] = {}
@@ -1734,6 +2062,26 @@ class SecurityGraphBuilder:
             # 4b. Resource nodes from inventory
             stats["resource_nodes"] = self._create_resource_nodes(session, inv_findings, tenant_id)
             logger.info(f"  → {stats['resource_nodes']} resource nodes")
+
+            # 4b-ii. Expand native config properties onto Resource nodes (GRAPH-S1-03)
+            # Reads emitted_fields from check engine DB, writes prop_* properties.
+            stats["config_props_nodes"] = self._expand_config_properties(tenant_id, session)
+            logger.info(f"  → {stats['config_props_nodes']} nodes enriched with config properties")
+
+            # 4b-iii. Load CVE nodes and HAS_CVE edges from vulnerability DB (GRAPH-S2-03)
+            # Graceful degradation: if VULN_DB_HOST is not set, returns zeros and logs a warning.
+            # If scan_run_id is None, CVELoader receives "" and the PG query returns 0 rows (safe).
+            from .cve_loader import CVELoader
+            cve_stats = CVELoader(driver, self.vuln_db_config).load(
+                tenant_id, scan_run_id or ""
+            )
+            stats["cve_nodes"] = cve_stats["cve_nodes"]
+            stats["has_cve_edges"] = cve_stats["has_cve_edges"]
+            logger.info(
+                "  → %d CVE nodes, %d HAS_CVE edges",
+                stats["cve_nodes"],
+                stats["has_cve_edges"],
+            )
 
             # 4c. Also create Resource nodes for any uid referenced in threats
             # but not in inventory (so we don't lose threat→resource links)
@@ -1790,9 +2138,28 @@ class SecurityGraphBuilder:
             stats["internet_edges"] = self._create_internet_edges(session, tenant_id)
             logger.info(f"  → {stats['internet_edges']} data store reachability edges")
 
-            # 4j. Infer additional internet exposure from network boundary config
-            stats["exposure_edges"] = self._infer_internet_exposure(session, tenant_id)
-            logger.info(f"  → {stats['exposure_edges']} internet exposure edges")
+            # 4j. EXPOSES edges from network engine findings (GRAPH-S2-04).
+            # ExposureLoader queries network_findings (FAIL rows) and creates topology-accurate
+            # EXPOSES edges in Neo4j.  If NETWORK_DB_HOST is empty or 0 rows are returned,
+            # falls back to inferred exposure from Resource.is_public properties.
+            # SECURITY: all cross-DB inputs are validated (rule_id, sg_id, CIDR) before Cypher write.
+            from .exposure_loader import ExposureLoader
+            _exp_loader = ExposureLoader(
+                neo4j_driver=driver,
+                network_db_config=self.network_db_config,
+                pg_conn_fn=self._pg_conn,
+            )
+            _exp_stats = _exp_loader.load(tenant_id=tenant_id, scan_run_id=scan_run_id)
+            stats["exposes_edges"] = _exp_stats["exposes_edges"]
+            stats["inferred_edges"] = _exp_stats["inferred_edges"]
+            # exposure_edges is the union of topology-accurate + inferred edges
+            stats["exposure_edges"] = _exp_stats["exposes_edges"] + _exp_stats["inferred_edges"]
+            logger.info(
+                "  → %d EXPOSES edges (topology-accurate=%d inferred=%d)",
+                stats["exposure_edges"],
+                stats["exposes_edges"],
+                stats["inferred_edges"],
+            )
 
             # 4k. IAM permission edges from iam_policy_statements (CAN_ACCESS, ASSUMES)
             iam_stmts = self._load_iam_policy_statements(tenant_id)
@@ -1801,14 +2168,33 @@ class SecurityGraphBuilder:
             logger.info(f"  → {stats['iam_permission_edges']} IAM permission edges")
 
         # Summary
-        total_nodes = stats.get("virtual_nodes", 0) + stats.get("resource_nodes", 0) + \
-                      stats.get("threat_nodes", 0) + stats.get("finding_nodes", 0)
-        total_rels = stats.get("resource_rels", 0) + stats.get("hierarchy_rels", 0) + \
-                     stats.get("analysis_edges", 0) + stats.get("exposure_edges", 0) + \
-                     stats.get("internet_edges", 0) + stats.get("iam_permission_edges", 0)
+        total_nodes = (
+            stats.get("virtual_nodes", 0)
+            + stats.get("resource_nodes", 0)
+            + stats.get("threat_nodes", 0)
+            + stats.get("finding_nodes", 0)
+            + stats.get("cve_nodes", 0)  # GRAPH-S2-03
+        )
+        total_rels = (
+            stats.get("resource_rels", 0)
+            + stats.get("hierarchy_rels", 0)
+            + stats.get("analysis_edges", 0)
+            + stats.get("exposure_edges", 0)
+            + stats.get("internet_edges", 0)
+            + stats.get("iam_permission_edges", 0)
+            + stats.get("has_cve_edges", 0)  # GRAPH-S2-03
+            + stats.get("inferred_edges", 0)    # GRAPH-S2-04
+        )
 
         stats["total_nodes"] = total_nodes
         stats["total_relationships"] = total_rels
 
         logger.info(f"Security graph built: {total_nodes} nodes, {total_rels} relationships")
+
+        # GRAPH-S2-05: emit CloudWatch metric when the build produces no resource nodes.
+        # This is best-effort — a CloudWatch failure must never crash the graph build.
+        # The metric is only emitted when AWS_REGION is present (skips in local/CI env).
+        if total_nodes == 0:
+            _emit_empty_graph_metric(tenant_id)
+
         return stats

@@ -19,11 +19,12 @@ async def get(
     url: str,
     params: Optional[Dict[str, Any]] = None,
     timeout: float = DEFAULT_TIMEOUT,
+    headers: Optional[Dict[str, str]] = None,
 ) -> Optional[Dict[str, Any]]:
     """GET a JSON endpoint; returns None on any error (engine unavailable, timeout, etc.)."""
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
-            resp = await client.get(url, params=params)
+            resp = await client.get(url, params=params, headers=headers or {})
             resp.raise_for_status()
             return resp.json()
     except httpx.TimeoutException:
@@ -39,11 +40,12 @@ async def post(
     url: str,
     body: Optional[Dict[str, Any]] = None,
     timeout: float = DEFAULT_TIMEOUT,
+    headers: Optional[Dict[str, str]] = None,
 ) -> Optional[Dict[str, Any]]:
     """POST JSON to an endpoint; returns None on any error."""
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
-            resp = await client.post(url, json=body or {})
+            resp = await client.post(url, json=body or {}, headers=headers or {})
             resp.raise_for_status()
             return resp.json()
     except httpx.TimeoutException:

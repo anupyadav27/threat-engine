@@ -39,6 +39,13 @@ ONBOARDING_ENGINE_URL = os.getenv(
     "http://engine-onboarding.threat-engine-engines.svc.cluster.local/api/v1",
 )
 
+# ── Billing internal service secret (BILL-S11) ────────────────────────────────
+# Shared secret used by the Celery worker when calling the billing engine's
+# internal provisioning endpoint. Must match BILLING_INTERNAL_SECRET on the
+# billing engine pod. Never log this value — log len() or bool() only.
+# To rotate: update the K8s secret and rollout both billing + cspm-backend.
+BILLING_INTERNAL_SECRET = os.environ.get("BILLING_INTERNAL_SECRET", "")
+
 DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost").split(",")
 

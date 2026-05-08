@@ -3,12 +3,19 @@ Database operations for the cloud_accounts table.
 Schema after migration 004: no schedule_* columns, tenant_id FK to tenants.
 """
 import json
+import re
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from engine_onboarding.database.connection import get_db_connection
+
+# B-5: credential_ref must follow the canonical Secrets Manager path format.
+# Pattern: threat-engine/account/<UUID-v4>
+_CRED_REF_PATTERN = re.compile(
+    r"^threat-engine/account/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+)
 
 
 def create_cloud_account(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -200,6 +207,15 @@ def update_cloud_account(
     fields = {k: v for k, v in updates.items() if k in allowed}
     if not fields:
         return get_cloud_account(account_id)
+
+    # B-5: Validate credential_ref matches the canonical Secrets Manager path format.
+    if "credential_ref" in fields:
+        cred_ref = fields["credential_ref"]
+        if not _CRED_REF_PATTERN.match(str(cred_ref)):
+            raise ValueError(
+                f"credential_ref must match 'threat-engine/account/<uuid-v4>'; "
+                f"got: {cred_ref!r}"
+            )
 
     fields.setdefault("updated_at", datetime.now(timezone.utc))
 

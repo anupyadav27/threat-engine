@@ -64,7 +64,16 @@ def compute_auth_caches(user: Any) -> Tuple[List[str], dict]:
     platform_admin = _UR.objects.filter(user=user, role__level=1).exists()
     if platform_admin:
         from tenant_management.models import Tenants
-        first_tenant = Tenants.objects.order_by("created_at").first()
+        # Prefer tenants with UUID-format engine_tenant_id (the seeded platform tenant
+        # uses "00000000-0000-0000-0000-000000000001"). String labels like "my-tenant"
+        # are skipped so platform_admin logins don't scope to empty demo tenants.
+        first_tenant = (
+            Tenants.objects
+            .filter(engine_tenant_id__regex=r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+            .order_by("created_at")
+            .first()
+            or Tenants.objects.order_by("created_at").first()
+        )
         default_engine_tenant_id = (
             first_tenant.engine_tenant_id or str(first_tenant.id)
         ) if first_tenant else None

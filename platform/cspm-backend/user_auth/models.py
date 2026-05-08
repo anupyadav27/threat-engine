@@ -211,6 +211,15 @@ class InviteTokens(models.Model):
     )
     expires_at = models.DateTimeField()
     used = models.BooleanField(default=False)
+    group = models.ForeignKey(
+        'tenant_management.CsmGroups',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='group_id',
+        db_index=True,
+        related_name='invite_tokens',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

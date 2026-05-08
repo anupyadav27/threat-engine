@@ -9,17 +9,44 @@ already has a prior subscription with an active/trialing status, provisions
 Free tier instead of trial.
 """
 
+import hmac
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, HTTPException, Request, Response
 
 from db import get_conn, put_conn
 from models import TrialProvisionRequest, TrialProvisionResponse
 
+# ---------------------------------------------------------------------------
+# Internal service auth — loaded once at startup
+# ---------------------------------------------------------------------------
+# Timing-safe comparison prevents timing oracle attacks
+_BILLING_INTERNAL_SECRET = os.environ.get("BILLING_INTERNAL_SECRET", "")
+
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["trial"])
+
+# Known public/consumer email domains — excluded from the admin email domain
+# abuse check because these domains are shared across millions of unrelated users.
+# The org_email_domain check (check 1) still applies to these users' company domain.
+_PUBLIC_EMAIL_DOMAINS: frozenset = frozenset([
+    "gmail.com",
+    "yahoo.com",
+    "yahoo.co.uk",
+    "outlook.com",
+    "hotmail.com",
+    "hotmail.co.uk",
+    "icloud.com",
+    "protonmail.com",
+    "proton.me",
+    "live.com",
+    "msn.com",
+    "aol.com",
+    "me.com",
+])
 
 
 def _extract_domain(email: str) -> Optional[str]:
@@ -41,7 +68,11 @@ def _extract_domain(email: str) -> Optional[str]:
 
 
 @router.post("/trial/provision", status_code=201)
-async def provision_trial(body: TrialProvisionRequest, response: Response) -> Dict[str, Any]:
+async def provision_trial(
+    body: TrialProvisionRequest,
+    request: Request,
+    response: Response,
+) -> Dict[str, Any]:
     """Provision a 14-day Pro trial for a new organisation.
 
     Domain-abuse guard (two checks):
@@ -58,11 +89,38 @@ async def provision_trial(body: TrialProvisionRequest, response: Response) -> Di
     Args:
         body: TrialProvisionRequest with org_id, optional email_domain, and
               optional admin_email.
+        request: FastAPI Request — used to read X-Internal-Secret header.
+        response: FastAPI Response — used to override status_code on 200 paths.
 
     Returns:
         TrialProvisionResponse dict. HTTP 201 on fresh trial, HTTP 200 on
         domain-abuse or existing subscription.
     """
+    # ------------------------------------------------------------------
+    # Internal auth gate — must be first, before any business logic.
+    # Fail closed: if the env var is not set on this pod, reject all calls
+    # with 503 (misconfiguration) rather than allowing open access.
+    # ------------------------------------------------------------------
+    if not _BILLING_INTERNAL_SECRET:
+        logger.critical(
+            "BILLING_INTERNAL_SECRET not configured — rejecting all provision "
+            "requests. Set this env var and restart the billing engine."
+        )
+        raise HTTPException(status_code=503, detail="Service misconfigured")
+
+    caller_secret = request.headers.get("X-Internal-Secret", "")
+    # Timing-safe comparison prevents timing oracle attacks
+    if not hmac.compare_digest(
+        caller_secret.encode("utf-8"),
+        _BILLING_INTERNAL_SECRET.encode("utf-8"),
+    ):
+        logger.warning(
+            "provision_trial: rejected call with invalid X-Internal-Secret "
+            "(caller_secret_length=%d)",
+            len(caller_secret),
+        )
+        raise HTTPException(status_code=403, detail="Forbidden")
+
     org_id = body.org_id
     email_domain = (body.email_domain or "").strip().lower()
 
@@ -88,25 +146,37 @@ async def provision_trial(body: TrialProvisionRequest, response: Response) -> Di
         # Domain-abuse check 2: admin_email_domain
         # Check if any existing row for this admin email domain has a non-free
         # tier OR a trialing/active status — catching both paid and trial abuse.
+        # Public/consumer domains (gmail.com, yahoo.com, etc.) are exempt because
+        # they are shared across millions of unrelated users — blocking on them
+        # would prevent legitimate registrations.
         # ------------------------------------------------------------------
         admin_domain_abused = False
         if admin_email_domain and domain_count == 0:
-            cur.execute(
-                """
-                SELECT COUNT(*)
-                FROM org_subscriptions os
-                JOIN subscription_plans sp ON sp.plan_id = os.plan_id
-                WHERE os.admin_email_domain = %s
-                  AND (
-                      sp.plan_name != 'free'
-                      OR os.status IN ('trialing', 'active')
-                  )
-                """,
-                (admin_email_domain,),
-            )
-            admin_domain_count = cur.fetchone()[0]
-            if admin_domain_count > 0:
-                admin_domain_abused = True
+            if admin_email_domain in _PUBLIC_EMAIL_DOMAINS:
+                # Public/consumer domain — skip admin domain abuse check.
+                logger.debug(
+                    "provision_trial: public email domain %s — skipping admin domain "
+                    "check for org %s",
+                    admin_email_domain,
+                    org_id,
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM org_subscriptions os
+                    JOIN subscription_plans sp ON sp.plan_id = os.plan_id
+                    WHERE os.admin_email_domain = %s
+                      AND (
+                          sp.plan_name != 'free'
+                          OR os.status IN ('trialing', 'active')
+                      )
+                    """,
+                    (admin_email_domain,),
+                )
+                admin_domain_count = cur.fetchone()[0]
+                if admin_domain_count > 0:
+                    admin_domain_abused = True
 
         if domain_count > 0 or admin_domain_abused:
             # Provision Free tier instead of trial

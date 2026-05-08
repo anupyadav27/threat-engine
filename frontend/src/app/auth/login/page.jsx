@@ -257,8 +257,16 @@ function LoginContent() {
               </div>
             )}
 
+            {/* ── Password / local login ── */}
+            <p style={{ textAlign: 'center', fontSize: 12, color: '#475569', marginTop: 16 }}>
+              No SSO?{' '}
+              <Link href="/auth/login?method=local" style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 600 }}>
+                Sign in with password
+              </Link>
+            </p>
+
             {/* ── Admin break-glass (very subtle) ── */}
-            <p style={{ textAlign: 'center', fontSize: 12, color: '#1e293b', marginTop: 8 }}>
+            <p style={{ textAlign: 'center', fontSize: 12, color: '#1e293b', marginTop: 4 }}>
               <Link href="/auth/platform-admin" style={{ color: '#334155', textDecoration: 'none' }}>
                 Platform admin access
               </Link>

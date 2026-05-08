@@ -34,9 +34,9 @@ import asyncio
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -60,20 +60,6 @@ except ImportError:
     configure_telemetry = None
     RequestLoggingMiddleware = None
     CorrelationIDMiddleware = None
-
-# ── Auth imports (engine_auth is COPY shared/auth/ ./engine_auth/ in Dockerfile) ──
-try:
-    from engine_auth.fastapi.middleware import AuthMiddleware
-    from engine_auth.fastapi.dependencies import require_permission
-    _AUTH_AVAILABLE = True
-except ImportError:
-    _AUTH_AVAILABLE = False
-    def require_permission(perm: str):  # type: ignore[misc]
-        """No-op permission checker used when engine_auth is unavailable."""
-        return lambda: None
-    class AuthMiddleware:  # type: ignore[no-redef]
-        """Stub middleware used when engine_auth is unavailable."""
-        pass
 
 logging.basicConfig(
     level=logging.INFO,
@@ -105,9 +91,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# AuthMiddleware validates access_token / X-Auth-Context for every non-health path
-if _AUTH_AVAILABLE:
-    app.add_middleware(AuthMiddleware)
+# CWPP is a pure aggregation engine (no DB) — no AuthMiddleware.
+# tenant_id comes from the ?tenant_id query param forwarded by the BFF.
 
 # ── Workload registry ─────────────────────────────────────────────────────────
 
@@ -236,7 +221,7 @@ async def health():
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 
 async def _run_dashboard(
-    scan_run_id: str,
+    scan_run_id: Optional[str],
     tenant_id: str,
     auth_header: Optional[str],
     workload_types: Optional[str],
@@ -244,7 +229,7 @@ async def _run_dashboard(
     """Core dashboard aggregation logic shared by /dashboard and /ui-data.
 
     Args:
-        scan_run_id: Pipeline run identifier used to scope all workload queries.
+        scan_run_id: Pipeline run identifier; None means all-tenant latest data.
         tenant_id: Tenant identifier extracted from AuthContext.
         auth_header: Serialised X-Auth-Context value forwarded to upstream engines.
         workload_types: Optional comma-separated workload type filter.
@@ -310,13 +295,13 @@ async def _run_dashboard(
 @app.get("/api/v1/cwpp/dashboard", response_model=CwppDashboardResponse, response_model_exclude_none=False)
 async def dashboard(
     request: Request,
-    scan_run_id: str = Query(..., description="scan_run_id to scope all workload queries"),
+    scan_run_id: Optional[str] = Query(default=None, description="scan_run_id to scope all workload queries; omit for latest"),
+    tenant_id: str = Query(default="default-tenant"),
     workload_types: Optional[str] = Query(
         default=None,
         description="Comma-separated workload types (default: all). "
                     "Options: containers, images, hosts, serverless, runtime",
     ),
-    auth: Any = Depends(require_permission("cwpp:read") if _AUTH_AVAILABLE else (lambda: None)),
 ):
     """
     Fetch all CWPP workload data concurrently and return a unified dashboard.
@@ -324,13 +309,10 @@ async def dashboard(
     All workload-type calls run in parallel. Unavailable engines are gracefully
     skipped — their type returns status='unavailable' with null score.
     """
-    tenant_id: str = (
-        getattr(auth, "engine_tenant_id", None)
-        or getattr(auth, "tenant_id", None)
-        or os.getenv("DEFAULT_TENANT_ID", "default-tenant")
-    )
+    tenant_id = tenant_id or os.getenv("DEFAULT_TENANT_ID", "default-tenant")
     auth_header = request.headers.get("X-Auth-Context") or request.headers.get("x-auth-context")
-    return await _run_dashboard(scan_run_id, tenant_id, auth_header, workload_types)
+    resolved = scan_run_id if (scan_run_id and scan_run_id != "latest") else None
+    return await _run_dashboard(resolved, tenant_id, auth_header, workload_types)
 
 
 # ── Single workload type ──────────────────────────────────────────────────────
@@ -340,14 +322,10 @@ async def get_workload(
     request: Request,
     workload_type: str,
     scan_run_id: str = Query(...),
-    auth: Any = Depends(require_permission("cwpp:read") if _AUTH_AVAILABLE else (lambda: None)),
+    tenant_id: str = Query(default="default-tenant"),
 ):
     """Fetch data for a single CWPP workload type."""
-    tenant_id: str = (
-        getattr(auth, "engine_tenant_id", None)
-        or getattr(auth, "tenant_id", None)
-        or os.getenv("DEFAULT_TENANT_ID", "default-tenant")
-    )
+    tenant_id = tenant_id or os.getenv("DEFAULT_TENANT_ID", "default-tenant")
     if workload_type not in WORKLOADS:
         raise HTTPException(
             status_code=404,
@@ -364,17 +342,13 @@ async def get_workload(
 @app.get("/api/v1/cwpp/posture", response_model=CwppPostureResponse, response_model_exclude_none=False)
 async def posture_score(
     scan_run_id: str = Query(...),
-    auth: Any = Depends(require_permission("cwpp:read") if _AUTH_AVAILABLE else (lambda: None)),
+    tenant_id: str = Query(default="default-tenant"),
 ):
     """
     Returns only the CWPP posture score across all workload types (parallel calls).
     Faster than /dashboard — extracts scores only, not full data.
     """
-    tenant_id: str = (
-        getattr(auth, "engine_tenant_id", None)
-        or getattr(auth, "tenant_id", None)
-        or os.getenv("DEFAULT_TENANT_ID", "default-tenant")
-    )
+    tenant_id = tenant_id or os.getenv("DEFAULT_TENANT_ID", "default-tenant")
     tasks = [fn(scan_run_id, tenant_id) for fn in WORKLOADS.values()]
     results = await asyncio.gather(*tasks)
 
@@ -415,7 +389,7 @@ _SCORE_PILLAR_MAP = {
 async def cwpp_score(
     scan_run_id: str = Query(..., description="scan_run_id to scope all pillar score queries"),
     provider: str = Query(default="aws"),
-    auth: Any = Depends(require_permission("cwpp:read") if _AUTH_AVAILABLE else (lambda: None)),
+    tenant_id: str = Query(default="default-tenant"),
 ):
     """
     Unified CWPP score with graceful degradation.
@@ -430,11 +404,7 @@ async def cwpp_score(
     Unavailable pillar → score=null, findings=null, reason="engine_unavailable".
     If ALL pillars unavailable → overall_score=null (never 0).
     """
-    tenant_id: str = (
-        getattr(auth, "engine_tenant_id", None)
-        or getattr(auth, "tenant_id", None)
-        or os.getenv("DEFAULT_TENANT_ID", "default-tenant")
-    )
+    tenant_id = tenant_id or os.getenv("DEFAULT_TENANT_ID", "default-tenant")
     # Step 1 — parallel health checks (5s per pillar)
     health = await check_pillar_health(CWPP_PILLAR_HEALTH_ENDPOINTS)
 
@@ -523,21 +493,18 @@ async def list_workloads():
 @app.get("/api/v1/cwpp/ui-data", response_model=CwppUiDataResponse, response_model_exclude_none=False)
 async def ui_data(
     request: Request,
-    scan_run_id: str = Query(...),
-    auth: Any = Depends(require_permission("cwpp:read") if _AUTH_AVAILABLE else (lambda: None)),
+    scan_run_id: Optional[str] = Query(default=None),
+    tenant_id: str = Query(default="default-tenant"),
 ):
     """
-    Alias for /dashboard — used by the CNAPP engine CWPP pillar.
-    Returns the same unified payload under a standard 'ui-data' path
-    so the CNAPP pillar can call this with the same pattern as other engines.
+    Alias for /dashboard — used by the CNAPP engine CWPP pillar and BFF.
+    Returns the same unified payload under a standard 'ui-data' path.
+    Treats scan_run_id='latest' as None (returns all-tenant latest data).
     """
-    tenant_id: str = (
-        getattr(auth, "engine_tenant_id", None)
-        or getattr(auth, "tenant_id", None)
-        or os.getenv("DEFAULT_TENANT_ID", "default-tenant")
-    )
+    tenant_id = tenant_id or os.getenv("DEFAULT_TENANT_ID", "default-tenant")
     auth_header = request.headers.get("X-Auth-Context") or request.headers.get("x-auth-context")
-    return await _run_dashboard(scan_run_id, tenant_id, auth_header, workload_types=None)
+    resolved = scan_run_id if (scan_run_id and scan_run_id != "latest") else None
+    return await _run_dashboard(resolved, tenant_id, auth_header, workload_types=None)
 
 
 if __name__ == "__main__":

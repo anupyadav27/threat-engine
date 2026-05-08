@@ -1,7 +1,7 @@
 """
 Mistral AI integration — generates Ansible playbooks for CVE remediation.
 
-fix_package_ansible() sends Mistral:
+fix_package_ansible() builds a detailed prompt from:
   - OS / architecture / environment type (from scan system_info + vul_agent_id)
   - Package name + current version + known fixed version hint
   - All CVEs affecting this package (id, severity, CVSS score, description)
@@ -10,37 +10,35 @@ fix_package_ansible() sends Mistral:
 Returns a raw YAML string (the Ansible playbook).
 Raises ValueError if MISTRAL_API_KEY is not set.
 
-Retry logic: validate → if errors, call fix_package_ansible() again with
-error_context kwarg so Mistral can self-correct (max retries controlled by router).
+Retry logic: Pydantic AI's ModelRetry mechanism is used inside the result
+validator (_validate_yaml).  The router may also call fix_package_ansible()
+again with error_context kwarg so Mistral can self-correct — that kwarg is
+still accepted for full backward compatibility.
 """
 
 import logging
 import os
 import re
-import time
 from typing import Optional
 
-import requests
+from pydantic import BaseModel
+from pydantic_ai import Agent, ModelRetry
+from pydantic_ai.models.mistral import MistralModel
 
 from core.git_connector import AnsibleRepoContext
 
 logger = logging.getLogger(__name__)
 
-MISTRAL_API_URL = "https://api.mistral.ai/v1/chat/completions"
+# ── Priority / lookup maps (unchanged) ────────────────────────────────────────
 
-# Statuses that are transient and safe to retry
-_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
-_MISTRAL_MAX_RETRIES = 3
-_MISTRAL_BACKOFF_BASE = 2  # seconds — doubled each attempt (2 → 4 → 8)
-
-_PRIORITY_MAP = {
+_PRIORITY_MAP: dict[str, str] = {
     "CRITICAL": "immediate",
     "HIGH":     "high",
     "MEDIUM":   "medium",
     "LOW":      "low",
 }
 
-_PACKAGE_MANAGER_MAP = {
+_PACKAGE_MANAGER_MAP: dict[str, str] = {
     "ubuntu":   "apt-get",
     "debian":   "apt-get",
     "centos":   "yum",
@@ -55,7 +53,7 @@ _PACKAGE_MANAGER_MAP = {
     "opensuse": "zypper",
 }
 
-_ENV_CONTEXT_MAP = {
+_ENV_CONTEXT_MAP: dict[str, str] = {
     "docker":     "Docker container",
     "container":  "Docker container",
     "k8s":        "Kubernetes pod",
@@ -72,7 +70,10 @@ _ENV_CONTEXT_MAP = {
 }
 
 
+# ── Helper functions (all unchanged) ──────────────────────────────────────────
+
 def _detect_package_manager(os_id: str, platform: str = "") -> str:
+    """Return the package manager keyword for the given OS identifier."""
     for text in [os_id, platform]:
         p = (text or "").lower()
         for keyword, pm in _PACKAGE_MANAGER_MAP.items():
@@ -82,6 +83,7 @@ def _detect_package_manager(os_id: str, platform: str = "") -> str:
 
 
 def _env_description(env_type: str) -> str:
+    """Return a human-readable environment description."""
     et = (env_type or "unknown").lower()
     for key, desc in _ENV_CONTEXT_MAP.items():
         if key in et:
@@ -90,6 +92,7 @@ def _env_description(env_type: str) -> str:
 
 
 def _top_severity(cves: list) -> str:
+    """Return the highest severity found across the CVE list."""
     order = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
     severities = {(c.get("severity") or "").upper() for c in cves}
     for s in order:
@@ -99,11 +102,13 @@ def _top_severity(cves: list) -> str:
 
 
 def _sanitize(text: str) -> str:
+    """Strip non-printable control characters from a string."""
     return re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', ' ', (text or "").strip())
 
 
 def _ansible_module_for_pm(pkg_manager: str, fqcn: bool = True) -> str:
-    mapping = {
+    """Return the FQCN (or short) Ansible module name for a package manager."""
+    mapping: dict[str, str] = {
         "apt-get": "ansible.builtin.apt"     if fqcn else "apt",
         "yum":     "ansible.builtin.yum"     if fqcn else "yum",
         "dnf":     "ansible.builtin.dnf"     if fqcn else "dnf",
@@ -115,16 +120,56 @@ def _ansible_module_for_pm(pkg_manager: str, fqcn: bool = True) -> str:
     return mapping.get(pkg_manager, "ansible.builtin.package" if fqcn else "package")
 
 
-def _strip_yaml_fences(text: str) -> str:
-    """Remove ```yaml / ```yml / ``` fences the AI may wrap around output."""
-    text = text.strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        start = 1
-        end = len(lines) - 1 if lines[-1].strip() == "```" else len(lines)
-        text = "\n".join(lines[start:end])
-    return text.strip()
+# ── Pydantic AI model ─────────────────────────────────────────────────────────
 
+class _PlaybookResult(BaseModel):
+    """Structured output from the Mistral agent — one field, no fences."""
+
+    playbook_yaml: str  # Full YAML content, no markdown fences
+
+
+# Agent is created once at module import time.
+# MistralModel reads MISTRAL_API_KEY from the environment automatically.
+# The model name is resolved lazily inside fix_package_ansible() because it
+# can be overridden via the MISTRAL_MODEL env var; the Agent is therefore
+# created with a factory below.
+
+def _build_agent() -> Agent[None, _PlaybookResult]:
+    """Construct and return the module-level Pydantic AI agent."""
+    model_name = os.getenv("MISTRAL_MODEL", "mistral-medium")
+    agent: Agent[None, _PlaybookResult] = Agent(
+        MistralModel(model_name),
+        result_type=_PlaybookResult,
+        system_prompt=(
+            "You are a senior Ansible automation engineer and cybersecurity expert. "
+            "You generate complete, production-ready Ansible playbooks to remediate "
+            "vulnerable packages. Always output pure YAML — never wrap the playbook "
+            "in markdown code fences. Start the document with '---'."
+        ),
+    )
+
+    @agent.result_validator
+    async def _validate_yaml(
+        _ctx: object, result: _PlaybookResult
+    ) -> _PlaybookResult:
+        """Validate the generated playbook; ask Mistral to fix it on failure."""
+        from core.ansible_validator import validate_playbook  # local import to avoid circular
+
+        v = validate_playbook(result.playbook_yaml)
+        if not v.passed:
+            raise ModelRetry(
+                f"YAML lint failed — fix ALL of these errors before responding:\n"
+                f"{v.as_error_context()}"
+            )
+        return result
+
+    return agent
+
+
+_agent: Agent[None, _PlaybookResult] = _build_agent()
+
+
+# ── Public API (signature unchanged) ──────────────────────────────────────────
 
 def fix_package_ansible(
     package_name: str,
@@ -141,22 +186,36 @@ def fix_package_ansible(
     hosts_pattern: str = "all",
     error_context: Optional[str] = None,
 ) -> str:
-    """
-    Call Mistral AI to generate an Ansible playbook that patches one package.
+    """Call Mistral AI (via Pydantic AI) to generate an Ansible playbook
+    that patches one vulnerable package.
+
+    Args:
+        package_name: Name of the vulnerable package.
+        package_version: Currently installed version.
+        cves: List of CVE dicts (cve_id, severity, cvss_v3_score, cve_description).
+        ansible_ctx: Repo conventions extracted from the organisation's Ansible repo.
+        system_info: Optional dict from the vulnerability agent (os_id, hostname, …).
+        platform: OS/platform override string.
+        hostname: Target hostname override.
+        fixed_version_hint: Confirmed patched version if known; None → use latest.
+        os_name: OS name override.
+        os_version: OS version override.
+        env_type: Environment type (docker, k8s, ec2, …).
+        hosts_pattern: Ansible hosts pattern for the play (default "all").
+        error_context: If provided, prepended to the prompt as a self-correction
+            block.  Accepted for backward compatibility; Pydantic AI's ModelRetry
+            mechanism handles the primary retry cycle via the result validator.
 
     Returns:
-        YAML string — the complete Ansible playbook, always ending with newline.
+        YAML string — the complete Ansible playbook, always ending with a newline.
 
     Raises:
         ValueError:   if MISTRAL_API_KEY is not set.
-        RuntimeError: if Mistral API call fails.
+        RuntimeError: if the Mistral API call fails.
     """
     api_key = os.getenv("MISTRAL_API_KEY", "").strip()
     if not api_key:
         raise ValueError("MISTRAL_API_KEY is not set.")
-
-    model   = os.getenv("MISTRAL_MODEL",   "mistral-medium")
-    timeout = int(os.getenv("MISTRAL_TIMEOUT", "90"))
 
     # ── System context ────────────────────────────────────────────────────────
     si           = system_info or {}
@@ -184,7 +243,7 @@ def fix_package_ansible(
     cve_text   = "\n".join(cve_lines)
     top_sev    = _top_severity(cves)
     priority   = _PRIORITY_MAP.get(top_sev, "medium")
-    # Only provide fixed version hint when it is confirmed — never let AI guess
+    # Only provide fixed version hint when confirmed — never let the AI guess
     fixed_hint = (
         f"\nConfirmed patched version available: {fixed_version_hint}"
         if fixed_version_hint else
@@ -241,7 +300,10 @@ def fix_package_ansible(
             "bake a new AMI so new instances are not deployed with the vulnerable package."
         )
 
-    # ── Retry error context ───────────────────────────────────────────────────
+    # ── Retry / self-correction context ───────────────────────────────────────
+    # error_context is accepted for backward compat (router may call again with it).
+    # Pydantic AI's ModelRetry handles the primary lint-failure retry cycle
+    # through _validate_yaml; this block surfaces router-level context in the prompt.
     retry_block = ""
     if error_context:
         retry_block = f"""
@@ -317,84 +379,32 @@ This playbook will be REVIEWED BY HUMANS before execution — never add auto-exe
 - Start with `---` (YAML document start marker).
 - End the file with a single blank line (newline at end of file).
 - Valid YAML that passes yamllint strict mode.
+
+## Response format
+Respond with JSON matching this schema exactly (no other text):
+{{"playbook_yaml": "<full YAML playbook content here — no fences>"}}
 """
 
-    # ── Mistral API call with exponential backoff on transient errors ──────────
-    payload = {
-        "model":       model,
-        "messages":    [{"role": "user", "content": prompt}],
-        "temperature": 0.05,   # very low — deterministic code generation
-        "max_tokens":  3500,
-    }
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type":  "application/json",
-    }
+    # ── Invoke the agent (sync wrapper over async run) ────────────────────────
+    try:
+        result = _agent.run_sync(prompt)
+        playbook_yaml: str = result.data.playbook_yaml
 
-    last_exc: Exception = RuntimeError("Mistral call did not execute")
-    for attempt in range(1, _MISTRAL_MAX_RETRIES + 1):
-        try:
-            resp = requests.post(
-                MISTRAL_API_URL,
-                headers=headers,
-                json=payload,
-                timeout=timeout,
-            )
+        # Guarantee trailing newline (yamllint: new-line-at-end-of-file)
+        if not playbook_yaml.endswith("\n"):
+            playbook_yaml += "\n"
 
-            # Transient server-side errors — back off and retry
-            if resp.status_code in _RETRYABLE_STATUS and attempt < _MISTRAL_MAX_RETRIES:
-                wait = _MISTRAL_BACKOFF_BASE * (2 ** (attempt - 1))
-                logger.warning(
-                    f"[AI] Mistral {resp.status_code} for '{package_name}' "
-                    f"(attempt {attempt}/{_MISTRAL_MAX_RETRIES}) — retrying in {wait}s"
-                )
-                time.sleep(wait)
-                continue
+        logger.info(
+            "[AI] Playbook generated for '%s' — %d CVE(s), priority=%s, env=%s, %s",
+            package_name,
+            len(cves),
+            priority,
+            _env_type,
+            "retry" if error_context else "first attempt",
+        )
+        return playbook_yaml
 
-            resp.raise_for_status()
-            raw           = resp.json()["choices"][0]["message"]["content"].strip()
-            playbook_yaml = _strip_yaml_fences(raw)
-
-            # Guarantee trailing newline (yamllint: new-line-at-end-of-file)
-            if not playbook_yaml.endswith("\n"):
-                playbook_yaml += "\n"
-
-            logger.info(
-                f"[AI] Playbook generated for '{package_name}' — "
-                f"{len(cves)} CVE(s), priority={priority}, env={_env_type}, "
-                f"{'retry' if error_context else 'first attempt'}"
-                + (f" (Mistral attempt {attempt})" if attempt > 1 else "")
-            )
-            return playbook_yaml
-
-        except requests.HTTPError as e:
-            http_status = e.response.status_code if e.response is not None else "?"
-            last_exc = RuntimeError(
-                f"Mistral HTTP {http_status} for '{package_name}': {e}"
-            )
-            if http_status not in _RETRYABLE_STATUS or attempt == _MISTRAL_MAX_RETRIES:
-                raise last_exc from e
-            wait = _MISTRAL_BACKOFF_BASE * (2 ** (attempt - 1))
-            logger.warning(
-                f"[AI] Mistral HTTP {http_status} for '{package_name}' "
-                f"(attempt {attempt}/{_MISTRAL_MAX_RETRIES}) — retrying in {wait}s"
-            )
-            time.sleep(wait)
-
-        except requests.Timeout:
-            last_exc = RuntimeError(
-                f"Mistral timed out after {timeout}s for '{package_name}'"
-            )
-            if attempt == _MISTRAL_MAX_RETRIES:
-                raise last_exc
-            wait = _MISTRAL_BACKOFF_BASE * (2 ** (attempt - 1))
-            logger.warning(
-                f"[AI] Mistral timeout for '{package_name}' "
-                f"(attempt {attempt}/{_MISTRAL_MAX_RETRIES}) — retrying in {wait}s"
-            )
-            time.sleep(wait)
-
-        except Exception as e:
-            raise RuntimeError(f"Mistral error for '{package_name}': {e}") from e
-
-    raise last_exc
+    except Exception as exc:
+        raise RuntimeError(
+            f"Mistral playbook generation failed for '{package_name}': {exc}"
+        ) from exc

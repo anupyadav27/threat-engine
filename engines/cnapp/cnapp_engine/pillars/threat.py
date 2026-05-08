@@ -21,21 +21,23 @@ logger = logging.getLogger("cnapp.pillars.threat")
 THREAT_URL = os.getenv("THREAT_ENGINE_URL", "http://engine-threat")
 
 
-async def fetch(scan_run_id: str, tenant_id: str) -> Dict[str, Any]:
-    # threat/ui-data: tenant_id required, scan_run_id optional; 30s for large datasets
+async def fetch(scan_run_id: Optional[str], tenant_id: str, auth_headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+    params: Dict[str, Any] = {"tenant_id": tenant_id}
+    if scan_run_id:
+        params["scan_run_id"] = scan_run_id
+
     data = await get(
         f"{THREAT_URL}/api/v1/threat/ui-data",
-        params={"tenant_id": tenant_id, "scan_run_id": scan_run_id},
+        params=params,
         timeout=30.0,
+        headers=auth_headers,
     )
 
     if data is None:
         return _unavailable()
 
-    # Threat posture: inverse of risk — fewer high-severity findings → higher score
     posture_score = _derive_score(data)
 
-    # Distinguish genuine score=0 from empty result (engine up but no threat findings)
     total_threats = int(data.get("total_threats", data.get("total_findings", 0)) or 0)
     if posture_score == 0 and total_threats == 0:
         return {
@@ -66,17 +68,15 @@ async def fetch(scan_run_id: str, tenant_id: str) -> Dict[str, Any]:
 
 
 def _derive_score(data: Dict) -> Optional[float]:
-    # If engine returns a posture/risk score directly, use it
     score = data.get("posture_score") or data.get("security_score")
     if score is not None:
         return round(float(score), 1)
 
-    # Derive: penalise critical/high findings (simple heuristic)
     critical = int(data.get("critical", 0))
     high = int(data.get("high", 0))
     total = int(data.get("total_threats", data.get("total_findings", 0)))
     if total == 0:
-        return 100.0  # no threats → perfect score
+        return 100.0
     penalty = min(critical * 5 + high * 2, 80)
     return round(max(100 - penalty, 20), 1)
 

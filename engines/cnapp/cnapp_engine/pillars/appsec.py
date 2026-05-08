@@ -5,7 +5,6 @@ CNAPP's AppSec pillar covers shift-left security:
   - SAST : static code analysis (14 languages, ~2,900 rules)
   - DAST : runtime web application testing (OWASP Top 10)
   - SCA  : software composition analysis / SBOM / dependency CVEs
-  - Image scan : container image scanning (placeholder — not yet implemented)
 
 Source:
   - SecOps engine : SAST + DAST + SCA (unified code security)
@@ -27,17 +26,14 @@ logger = logging.getLogger("cnapp.pillars.appsec")
 SECOPS_URL = os.getenv("SECOPS_ENGINE_URL", "http://engine-secops")
 
 
-async def fetch(scan_run_id: str, tenant_id: str) -> Dict[str, Any]:
-    params = {"scan_run_id": scan_run_id, "tenant_id": tenant_id, "limit": 50}
+async def fetch(scan_run_id: Optional[str], tenant_id: str, auth_headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+    params: Dict[str, Any] = {"tenant_id": tenant_id, "limit": 50}
+    if scan_run_id:
+        params["scan_run_id"] = scan_run_id
 
-    # Fetch recent SAST scans
-    sast_data = await get(f"{SECOPS_URL}/api/v1/secops/sast/scans", params=params)
+    sast_data = await get(f"{SECOPS_URL}/api/v1/secops/sast/scans", params=params, headers=auth_headers)
+    dast_data = await get(f"{SECOPS_URL}/api/v1/secops/dast/scans", params={"limit": 20}, headers=auth_headers)
 
-    # Fetch recent DAST scans (use scan_run_id as filter if engine supports it)
-    dast_params = {"limit": 20}
-    dast_data = await get(f"{SECOPS_URL}/api/v1/secops/dast/scans", params=dast_params)
-
-    # Image scanning — placeholder
     image_scan = {
         "status": "not_implemented",
         "note": "Container image scanning is planned. Endpoint: POST /api/v1/secops/image-scan",
@@ -50,11 +46,9 @@ async def fetch(scan_run_id: str, tenant_id: str) -> Dict[str, Any]:
 
     posture_score = _derive_score(sast_data, dast_data)
 
-    # Normalise sast_data — could be a list of scans or a dict summary
     sast_summary = _extract_sast_summary(sast_data)
     dast_summary = _extract_dast_summary(dast_data)
 
-    # Distinguish genuine score=0 from empty result (engine up but no scans submitted)
     total_scans = int(sast_summary.get("count", 0) or 0) + int(dast_summary.get("count", 0) or 0)
     total_critical = int(sast_summary.get("critical", 0) or 0) + int(dast_summary.get("critical", 0) or 0)
     total_high = int(sast_summary.get("high", 0) or 0) + int(dast_summary.get("high", 0) or 0)
@@ -113,7 +107,7 @@ def _extract_sast_summary(data: Optional[Any]) -> Dict:
 
 
 def _extract_dast_summary(data: Optional[Any]) -> Dict:
-    return _extract_sast_summary(data)  # same shape
+    return _extract_sast_summary(data)
 
 
 def _derive_score(sast_data: Optional[Any], dast_data: Optional[Any]) -> Optional[float]:

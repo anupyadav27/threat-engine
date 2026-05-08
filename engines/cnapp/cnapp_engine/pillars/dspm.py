@@ -21,20 +21,19 @@ logger = logging.getLogger("cnapp.pillars.dspm")
 DATASEC_URL = os.getenv("DATASEC_ENGINE_URL", "http://engine-datasec")
 
 
-async def fetch(scan_run_id: str, tenant_id: str) -> Dict[str, Any]:
-    params = {"scan_run_id": scan_run_id, "tenant_id": tenant_id}
+async def fetch(scan_run_id: Optional[str], tenant_id: str, auth_headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+    params: Dict[str, Any] = {"tenant_id": tenant_id}
+    if scan_run_id:
+        params["scan_run_id"] = scan_run_id
 
-    data = await get(f"{DATASEC_URL}/api/v1/data-security/ui-data", params=params)
+    data = await get(f"{DATASEC_URL}/api/v1/data-security/ui-data", params=params, headers=auth_headers)
 
     if data is None:
         return _unavailable()
 
-    # datasec ui-data: score is in summary.data_risk_score
-    # Use explicit None checks — data_risk_score = 0 is valid (no risk = perfect)
     summary = data.get("summary") or {}
     data_risk = summary.get("data_risk_score")
     if data_risk is not None:
-        # data_risk_score is 0-100 risk scale; 0 = no risk = posture 100
         posture_score = round(max(0.0, 100.0 - float(data_risk)), 1) if data_risk > 0 else 100.0
     elif data.get("posture_score") is not None:
         posture_score = round(float(data["posture_score"]), 1)
@@ -42,9 +41,7 @@ async def fetch(scan_run_id: str, tenant_id: str) -> Dict[str, Any]:
         posture_score = round(float(data["overall_score"]), 1)
     else:
         posture_score = None
-    # posture_score already rounded above
 
-    # Distinguish genuine score=0 (terrible security) from no-data (engine up but empty result)
     total_findings = int(data.get("total_findings", 0) or summary.get("total_findings", 0) or 0)
     total_resources = int(
         summary.get("total_data_stores", 0)

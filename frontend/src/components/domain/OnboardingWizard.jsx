@@ -3,15 +3,15 @@
  * OnboardingWizard — multi-step cloud/agent account onboarding
  *
  * Account types:
- *   cloud_csp   — Cloud providers (AWS, Azure, GCP, OCI, AliCloud, IBM, K8s)
- *   database    — Self-hosted DB engines (postgres, mysql, mssql, mongodb, oracle)
- *   vulnerability — Agent-based CVE / SBOM scanning (phones-home via token)
- *   secops      — SAST / DAST / IaC scanning from a Git repository
- *   middleware  — Application middleware security monitoring (agent-based)
+ *   cloud_csp      — Cloud providers (AWS, Azure, GCP, OCI, AliCloud, IBM, K8s)
+ *   database       — Self-hosted DB engines (postgres, mysql, mssql, mongodb, oracle)
+ *   vulnerability  — Agent-based CVE / SBOM scanning (phones-home via token)
+ *   code_security  — SAST / DAST / IaC scanning from a Git repository (GitHub/GitLab/Bitbucket)
+ *   middleware     — Application middleware security monitoring (agent-based)
  *
  * Flows:
- *   cloud_csp / database : 1 → 2 (credentials) → 3 (validate) → 4 (schedule) → 5 (summary)
- *   secops               : 1 → 2 (git repo) → 3 (validate git) → 4 (schedule) → 5 (summary)
+ *   cloud_csp / database  : 1 → 2 (credentials) → 3 (validate) → 4 (schedule) → 5 (summary)
+ *   code_security         : 1 → 2 (git repo) → 3 (validate git) → 4 (schedule) → 5 (summary)
  *   vulnerability / middleware : 1 → 2 (agent install) → 4 (schedule) → 5 (summary)
  */
 
@@ -26,11 +26,11 @@ import { useTenant } from '@/lib/tenant-context';
 // ── Account type catalogue ────────────────────────────────────────────────────
 
 const ACCOUNT_TYPE_OPTIONS = [
-  { key: 'cloud_csp',     icon: '☁️',  label: 'Cloud Provider',   desc: 'AWS, Azure, GCP, OCI, AliCloud, IBM, K8s' },
-  { key: 'vulnerability', icon: '🔍',  label: 'Vulnerability',    desc: 'Agent-based CVE scanning & SBOM' },
-  { key: 'secops',        icon: '🔒',  label: 'SecOps / Code',    desc: 'SAST, DAST, IaC scanning via Git repo' },
-  { key: 'database',      icon: '🗄️', label: 'Database',         desc: 'PostgreSQL, MySQL, SQL Server, MongoDB, Oracle' },
-  { key: 'middleware',    icon: '⚙️',  label: 'Middleware',       desc: 'Application middleware security monitoring' },
+  { key: 'cloud_csp',      icon: '☁️',  label: 'Cloud Provider',   desc: 'AWS, Azure, GCP, OCI, AliCloud, IBM, K8s' },
+  { key: 'vulnerability',  icon: '🔍',  label: 'Vulnerability',    desc: 'Agent-based CVE scanning & SBOM' },
+  { key: 'code_security',  icon: '🔒',  label: 'SecOps / Code',    desc: 'SAST, DAST, IaC scanning via Git repo' },
+  { key: 'database',       icon: '🗄️', label: 'Database',         desc: 'PostgreSQL, MySQL, SQL Server, MongoDB, Oracle' },
+  { key: 'middleware',     icon: '⚙️',  label: 'Middleware',       desc: 'Application middleware security monitoring' },
 ];
 
 const AGENT_ACCOUNT_TYPES = new Set(['vulnerability', 'middleware']);
@@ -55,10 +55,20 @@ const DB_PROVIDERS = {
   oracle:   { name: 'Oracle DB',  full: 'Oracle Database',        color: '#C74634' },
 };
 
+// VCS providers — used when account_type = 'code_security'
+const VCS_PROVIDERS = {
+  github:    { name: 'GitHub',    full: 'GitHub Repository',    color: '#24292E' },
+  gitlab:    { name: 'GitLab',    full: 'GitLab Repository',    color: '#FC6D26' },
+  bitbucket: { name: 'Bitbucket', full: 'Bitbucket Repository', color: '#0052CC' },
+};
+
+const VCS_PROVIDER_SET = new Set(Object.keys(VCS_PROVIDERS));
+
 const PROVIDERS = {
   ...CLOUD_PROVIDERS,
   ...DB_PROVIDERS,
-  git:   { name: 'Git',   full: 'Git Repository',       color: '#F05032' },
+  ...VCS_PROVIDERS,
+  git:   { name: 'Git',   full: 'Git Repository',       color: '#F05032' }, // legacy alias — not shown in UI
   agent: { name: 'Agent', full: 'Agent-based scanning', color: '#8B5CF6' },
 };
 
@@ -85,6 +95,19 @@ const AUTH_METHODS = {
   git: [
     { value: 'pat_token', label: 'Personal Access Token', desc: 'GitHub / GitLab / Bitbucket PAT' },
     { value: 'ssh_key',   label: 'SSH Key',               desc: 'Deploy key (read-only access)' },
+  ],
+  // VCS providers — same auth methods, kept separate for per-provider field customisation
+  github: [
+    { value: 'pat_token', label: 'Personal Access Token', desc: 'GitHub PAT with repo:read scope' },
+    { value: 'ssh_key',   label: 'SSH Key',               desc: 'GitHub deploy key (read-only)' },
+  ],
+  gitlab: [
+    { value: 'pat_token', label: 'Personal Access Token', desc: 'GitLab PAT with read_repository scope' },
+    { value: 'ssh_key',   label: 'SSH Key',               desc: 'GitLab deploy key (read-only)' },
+  ],
+  bitbucket: [
+    { value: 'pat_token', label: 'Personal Access Token', desc: 'Bitbucket App Password with Repository Read' },
+    { value: 'ssh_key',   label: 'SSH Key',               desc: 'Bitbucket access key (read-only)' },
   ],
 };
 
@@ -168,6 +191,39 @@ const CREDENTIAL_FIELDS = {
     { key: 'private_key', label: 'SSH Private Key', placeholder: '-----BEGIN OPENSSH PRIVATE KEY-----…', secret: true, textarea: true },
     { key: 'branch',      label: 'Branch',          placeholder: 'main (default)',              secret: false, optional: true },
   ],
+  // GitHub
+  github_pat_token: [
+    { key: 'repo_url',       label: 'Repository URL',        placeholder: 'https://github.com/org/repo', secret: false },
+    { key: 'pat_token',      label: 'Personal Access Token', placeholder: 'ghp_…',                       secret: true  },
+    { key: 'default_branch', label: 'Default Branch',        placeholder: 'main',                        secret: false, optional: true },
+  ],
+  github_ssh_key: [
+    { key: 'repo_url',       label: 'Repository URL',  placeholder: 'git@github.com:org/repo.git',          secret: false },
+    { key: 'private_key',    label: 'SSH Private Key', placeholder: '-----BEGIN OPENSSH PRIVATE KEY-----…', secret: true, textarea: true },
+    { key: 'default_branch', label: 'Default Branch',  placeholder: 'main',                                 secret: false, optional: true },
+  ],
+  // GitLab
+  gitlab_pat_token: [
+    { key: 'repo_url',       label: 'Repository URL',        placeholder: 'https://gitlab.com/group/project', secret: false },
+    { key: 'pat_token',      label: 'Personal Access Token', placeholder: 'glpat-…',                          secret: true  },
+    { key: 'default_branch', label: 'Default Branch',        placeholder: 'main',                             secret: false, optional: true },
+  ],
+  gitlab_ssh_key: [
+    { key: 'repo_url',       label: 'Repository URL',  placeholder: 'git@gitlab.com:group/project.git',      secret: false },
+    { key: 'private_key',    label: 'SSH Private Key', placeholder: '-----BEGIN OPENSSH PRIVATE KEY-----…',  secret: true, textarea: true },
+    { key: 'default_branch', label: 'Default Branch',  placeholder: 'main',                                  secret: false, optional: true },
+  ],
+  // Bitbucket
+  bitbucket_pat_token: [
+    { key: 'repo_url',       label: 'Repository URL',  placeholder: 'https://bitbucket.org/workspace/repo',  secret: false },
+    { key: 'pat_token',      label: 'App Password',    placeholder: 'ATBBxxxxxxxxxxxxxxxx',                  secret: true  },
+    { key: 'default_branch', label: 'Default Branch',  placeholder: 'main',                                  secret: false, optional: true },
+  ],
+  bitbucket_ssh_key: [
+    { key: 'repo_url',       label: 'Repository URL',  placeholder: 'git@bitbucket.org:workspace/repo.git',  secret: false },
+    { key: 'private_key',    label: 'SSH Private Key', placeholder: '-----BEGIN OPENSSH PRIVATE KEY-----…',  secret: true, textarea: true },
+    { key: 'default_branch', label: 'Default Branch',  placeholder: 'main',                                  secret: false, optional: true },
+  ],
 };
 
 function getFields(provider, authMethod) {
@@ -221,7 +277,7 @@ function getStepConfig(accountType) {
   }
   return [
     { n: 1, label: 'Account Setup' },
-    { n: 2, label: accountType === 'secops' ? 'Repository' : 'Credentials' },
+    { n: 2, label: accountType === 'code_security' ? 'Repository' : 'Credentials' },
     { n: 3, label: 'Validate' },
     { n: 4, label: 'Schedule' },
     { n: 5, label: 'Summary' },
@@ -255,10 +311,15 @@ function Field({ def, value, onChange }) {
 
 function Step1({ form, setForm }) {
   const { tenants } = useTenant();
-  const isAgentType   = AGENT_ACCOUNT_TYPES.has(form.accountType);
-  const isSecops      = form.accountType === 'secops';
-  const showProviders = form.accountType === 'cloud_csp' || form.accountType === 'database';
-  const providerMap   = form.accountType === 'database' ? DB_PROVIDERS : CLOUD_PROVIDERS;
+  const isAgentType      = AGENT_ACCOUNT_TYPES.has(form.accountType);
+  const isCodeSecurity   = form.accountType === 'code_security';
+  const showCloudOrDb    = form.accountType === 'cloud_csp' || form.accountType === 'database';
+  const showProviders    = showCloudOrDb || isCodeSecurity;
+  const providerMap      = form.accountType === 'database'
+    ? DB_PROVIDERS
+    : isCodeSecurity
+      ? VCS_PROVIDERS
+      : CLOUD_PROVIDERS;
 
   function selectType(key) {
     setForm(f => ({ ...f, accountType: key, provider: '', authMethod: '', credentials: {} }));
@@ -328,17 +389,22 @@ function Step1({ form, setForm }) {
         </div>
       )}
 
-      {/* Provider grid — cloud_csp or database */}
+      {/* Provider grid — cloud_csp, database, or code_security (VCS) */}
       {showProviders && (
         <div>
           <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
-            {form.accountType === 'database' ? 'Database Engine' : 'Cloud Provider'} <span className="text-red-400">*</span>
+            {form.accountType === 'database'
+              ? 'Database Engine'
+              : isCodeSecurity
+                ? 'VCS Platform'
+                : 'Cloud Provider'} <span className="text-red-400">*</span>
           </label>
-          <div className="grid grid-cols-4 gap-2">
+          <div className={`grid gap-2 ${isCodeSecurity ? 'grid-cols-3' : 'grid-cols-4'}`}>
             {Object.entries(providerMap).map(([key, p]) => {
               const selected = form.provider === key;
               return (
-                <button key={key} onClick={() => setForm(f => ({ ...f, provider: key, authMethod: '' }))}
+                <button key={key}
+                  onClick={() => setForm(f => ({ ...f, provider: key, authMethod: '', credentials: {} }))}
                   className="flex flex-col items-center gap-1.5 p-3 rounded-lg text-center transition-all"
                   style={{
                     border: `2px solid ${selected ? p.color : 'var(--border-primary)'}`,
@@ -353,49 +419,26 @@ function Step1({ form, setForm }) {
         </div>
       )}
 
-      {/* Auth method — cloud_csp or database */}
+      {/* Auth method — shown once a provider is selected (covers cloud_csp, database, and code_security) */}
       {showProviders && form.provider && (
         <div>
           <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
-            Authentication Method <span className="text-red-400">*</span>
+            {isCodeSecurity ? 'Git Authentication Method' : 'Authentication Method'} <span className="text-red-400">*</span>
           </label>
           <div className="space-y-2">
-            {AUTH_METHODS[form.provider]?.map(m => {
+            {(AUTH_METHODS[form.provider] || []).map(m => {
               const selected = form.authMethod === m.value;
+              const accentColor = isCodeSecurity ? (PROVIDERS[form.provider]?.color || 'var(--accent-primary)') : 'var(--accent-primary)';
               return (
-                <button key={m.value} onClick={() => setForm(f => ({ ...f, authMethod: m.value }))}
+                <button key={m.value} onClick={() => setForm(f => ({ ...f, authMethod: m.value, credentials: {} }))}
                   className="w-full flex items-start gap-3 p-3 rounded-lg text-left transition-all"
-                  style={{ border: `2px solid ${selected ? 'var(--accent-primary)' : 'var(--border-primary)'}`, backgroundColor: selected ? 'rgba(59,130,246,0.08)' : 'var(--bg-tertiary)' }}>
-                  <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${selected ? 'border-blue-500' : 'border-gray-500'}`}>
-                    {selected && <div className="w-2 h-2 rounded-full bg-blue-500" />}
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{m.label}</div>
-                    <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{m.desc}</div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* SecOps: git auth method */}
-      {isSecops && (
-        <div>
-          <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
-            Git Authentication Method <span className="text-red-400">*</span>
-          </label>
-          <div className="space-y-2">
-            {AUTH_METHODS['git'].map(m => {
-              const selected = form.authMethod === m.value;
-              return (
-                <button key={m.value} onClick={() => setForm(f => ({ ...f, provider: 'git', authMethod: m.value, credentials: {} }))}
-                  className="w-full flex items-start gap-3 p-3 rounded-lg text-left transition-all"
-                  style={{ border: `2px solid ${selected ? '#F05032' : 'var(--border-primary)'}`, backgroundColor: selected ? 'rgba(240,80,50,0.06)' : 'var(--bg-tertiary)' }}>
-                  <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center`}
-                    style={{ borderColor: selected ? '#F05032' : 'var(--border-primary)' }}>
-                    {selected && <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#F05032' }} />}
+                  style={{
+                    border: `2px solid ${selected ? accentColor : 'var(--border-primary)'}`,
+                    backgroundColor: selected ? `${accentColor}12` : 'var(--bg-tertiary)',
+                  }}>
+                  <div className="mt-0.5 w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center"
+                    style={{ borderColor: selected ? accentColor : 'var(--border-primary)' }}>
+                    {selected && <div className="w-2 h-2 rounded-full" style={{ backgroundColor: accentColor }} />}
                   </div>
                   <div>
                     <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{m.label}</div>
@@ -411,11 +454,31 @@ function Step1({ form, setForm }) {
   );
 }
 
-// ── Step 2: Credential fields (cloud_csp / database / secops) ─────────────────
+// ── Step 2: Credential fields (cloud_csp / database / code_security) ─────────
+
+const DEFAULT_BRANCH_PATTERN = /^[a-zA-Z0-9._/-]{1,128}$/;
 
 function Step2({ form, setForm }) {
-  const fields   = getFields(form.provider, form.authMethod);
-  const provider = PROVIDERS[form.provider];
+  const fields      = getFields(form.provider, form.authMethod);
+  const provider    = PROVIDERS[form.provider];
+  const isVcs       = VCS_PROVIDER_SET.has(form.provider);
+  const provColor   = provider?.color || '#F05032';
+
+  // Separate default_branch out of the field list (rendered below all other fields)
+  const mainFields   = fields.filter(f => f.key !== 'default_branch');
+  const hasBranch    = fields.some(f => f.key === 'default_branch');
+
+  const [branchError, setBranchError] = useState('');
+
+  function handleBranchChange(v) {
+    const val = v || '';
+    if (val && !DEFAULT_BRANCH_PATTERN.test(val)) {
+      setBranchError('Only letters, numbers, dots, dashes, underscores and slashes (max 128 chars)');
+    } else {
+      setBranchError('');
+    }
+    setForm(f => ({ ...f, credentials: { ...f.credentials, default_branch: val || 'main' } }));
+  }
 
   return (
     <div className="space-y-4">
@@ -436,17 +499,34 @@ function Step2({ form, setForm }) {
         </div>
       )}
 
-      {form.provider === 'git' && (
+      {(isVcs || form.provider === 'git') && (
         <div className="flex items-start gap-2 px-3 py-2 rounded-lg text-xs"
-          style={{ backgroundColor: 'rgba(240,80,50,0.06)', border: '1px solid rgba(240,80,50,0.2)', color: 'var(--text-secondary)' }}>
+          style={{ backgroundColor: `${provColor}0F`, border: `1px solid ${provColor}33`, color: 'var(--text-secondary)' }}>
           <span>The scanner will clone your repository and run SAST / IaC / dependency checks. Grant read-only access.</span>
         </div>
       )}
 
-      {fields.map(def => (
+      {mainFields.map(def => (
         <Field key={def.key} def={def} value={form.credentials[def.key]}
           onChange={(k, v) => setForm(f => ({ ...f, credentials: { ...f.credentials, [k]: v } }))} />
       ))}
+
+      {hasBranch && (
+        <div>
+          <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+            Default Branch <span className="ml-1 text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(optional)</span>
+          </label>
+          <input
+            type="text"
+            value={form.credentials.default_branch || 'main'}
+            onChange={e => handleBranchChange(e.target.value)}
+            placeholder="main"
+            className="w-full px-3 py-2 rounded-lg text-sm outline-none transition-colors"
+            style={{ backgroundColor: 'var(--bg-tertiary)', border: `1px solid ${branchError ? '#f87171' : 'var(--border-primary)'}`, color: 'var(--text-primary)' }}
+          />
+          {branchError && <p className="mt-1 text-xs text-red-400">{branchError}</p>}
+        </div>
+      )}
     </div>
   );
 }
@@ -646,7 +726,8 @@ function Step4({ schedule, setSchedule, accountType }) {
   const engineMap = {
     cloud_csp:     ALL_ENGINES,
     database:      DB_ENGINES,
-    secops:        SECOPS_ENGINES,
+    code_security: SECOPS_ENGINES,
+    secops:        SECOPS_ENGINES,   // legacy alias
     vulnerability: VULN_ENGINES,
     middleware:    VULN_ENGINES,
   };
@@ -795,8 +876,9 @@ function Step4({ schedule, setSchedule, accountType }) {
 function Step5({ form, schedule, accountId, result, launching, launchError }) {
   const provider    = PROVIDERS[form.provider];
   const typeOption  = ACCOUNT_TYPE_OPTIONS.find(o => o.key === form.accountType);
-  const isAgent     = AGENT_ACCOUNT_TYPES.has(form.accountType);
-  const isSecops    = form.accountType === 'secops';
+  const isAgent        = AGENT_ACCOUNT_TYPES.has(form.accountType);
+  const isCodeSecurity = form.accountType === 'code_security';
+  const isSecops       = isCodeSecurity; // alias — wizard uses code_security internally
   const authLabel   = AUTH_METHODS[form.provider]?.find(m => m.value === form.authMethod)?.label;
   const freqPreset  = CRON_PRESETS.find(p => p.cron === schedule.cron_expression)?.label || schedule.cron_expression;
 
@@ -878,20 +960,22 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
   const [form, setForm] = useState({
     tenantId:    '',
     accountName: '',
-    accountType: '',    // cloud_csp | vulnerability | secops | database | middleware
-    provider:    '',    // set by Step1 for CSP/DB/secops; 'agent' for vuln/middleware
+    accountType: '',    // cloud_csp | vulnerability | code_security | database | middleware
+    provider:    '',    // set by Step1 for CSP/DB/VCS; 'agent' for vuln/middleware
     authMethod:  '',
     credentials: {},
   });
 
-  const isAgentType = AGENT_ACCOUNT_TYPES.has(form.accountType);
-  const isSecops    = form.accountType === 'secops';
-  const isDbAccount = DB_PROVIDER_SET.has(form.provider);
+  const isAgentType    = AGENT_ACCOUNT_TYPES.has(form.accountType);
+  const isCodeSecurity = form.accountType === 'code_security';
+  const isSecops       = isCodeSecurity; // wizard uses code_security internally
+  const isDbAccount    = DB_PROVIDER_SET.has(form.provider);
 
   const defaultEngines = {
     cloud_csp:     ALL_ENGINES,
     database:      DB_ENGINES,
-    secops:        SECOPS_ENGINES,
+    code_security: SECOPS_ENGINES,
+    secops:        SECOPS_ENGINES,   // legacy alias
     vulnerability: VULN_ENGINES,
     middleware:    VULN_ENGINES,
   };
@@ -925,8 +1009,8 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
   }
 
   async function runValidation() {
-    const providerLabel  = PROVIDERS[form.provider]?.name || form.provider;
-    const connectingLabel = isSecops ? 'Connecting to Git repository…' : `Connecting to ${providerLabel}…`;
+    const providerLabel   = PROVIDERS[form.provider]?.name || form.provider;
+    const connectingLabel = isCodeSecurity ? `Connecting to ${providerLabel} repository…` : `Connecting to ${providerLabel}…`;
     const steps = [
       { label: 'Creating account record…', status: 'running' },
       { label: connectingLabel,            status: 'pending' },
@@ -936,13 +1020,32 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
     setResult(null);
 
     try {
-      const created = await postToEngine('onboarding', '/api/v1/cloud-accounts', {
-        customer_id:  customerId,
-        tenant_id:    form.tenantId,
-        account_name: form.accountName,
-        account_type: form.accountType,
-        provider:     form.provider,
-      });
+      // Build the account payload — VCS providers always send account_type=code_security
+      const isVcs = VCS_PROVIDER_SET.has(form.provider);
+      const accountPayload = isVcs
+        ? {
+            customer_id:     customerId,
+            tenant_id:       form.tenantId,
+            account_name:    form.accountName,
+            account_type:    'code_security',               // hardcoded — not user-editable
+            provider:        form.provider,                  // github | gitlab | bitbucket
+            credential_type: form.authMethod,
+            auth_config: {
+              repo_url:       form.credentials.repo_url || '',
+              default_branch: form.credentials.default_branch || 'main',
+              vcs_platform:   form.provider,
+              scan_types:     ['sast'],
+            },
+          }
+        : {
+            customer_id:  customerId,
+            tenant_id:    form.tenantId,
+            account_name: form.accountName,
+            account_type: form.accountType,
+            provider:     form.provider,
+          };
+
+      const created = await postToEngine('onboarding', '/api/v1/cloud-accounts', accountPayload);
 
       if (created.error || !created.account_id) {
         updateVStep(0, { status: 'error', detail: created.error || 'No account_id returned' });
@@ -975,8 +1078,10 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
     setLaunching(true);
     setLaunchError(null);
     try {
-      const sched = await postToEngine('onboarding', '/api/v1/schedules', {
-        account_id:        accountId,
+      const isVcs = VCS_PROVIDER_SET.has(form.provider);
+
+      const schedPayload = {
+        account_id:        accountId,             // UUID from POST /cloud-accounts
         tenant_id:         form.tenantId,
         customer_id:       customerId,
         schedule_name:     `${form.accountName} — ${schedule.cron_expression}`,
@@ -986,7 +1091,13 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
         engines_requested: schedule.engines_requested,
         notify_on_failure: schedule.notify_on_failure,
         notify_on_success: schedule.notify_on_success,
-      });
+        ...(isVcs && {
+          // VCS scan trigger — pass branch; repo_url resolved server-side from auth_config
+          branch: form.credentials.default_branch || 'main',
+        }),
+      };
+
+      const sched = await postToEngine('onboarding', '/api/v1/schedules', schedPayload);
 
       if (sched.error) throw new Error(sched.error);
 
@@ -1036,7 +1147,8 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
   const step1Valid = (() => {
     if (!form.tenantId || !form.accountName.trim() || !form.accountType) return false;
     if (isAgentType) return true;
-    if (isSecops) return !!form.authMethod;
+    // code_security: provider (github/gitlab/bitbucket) AND auth method both required
+    if (isCodeSecurity) return !!(form.provider && form.authMethod);
     return !!(form.provider && form.authMethod);
   })();
 
@@ -1175,7 +1287,7 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
               <button onClick={handleNext} disabled={!step2Valid}
                 className="px-5 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-40"
                 style={{ backgroundColor: 'var(--accent-primary)' }}>
-                {isSecops ? 'Validate Repository →' : 'Validate Credentials →'}
+                {isCodeSecurity ? 'Validate Repository →' : 'Validate Credentials →'}
               </button>
             )}
             {step === 2 && isAgentType && (

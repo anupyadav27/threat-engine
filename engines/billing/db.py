@@ -34,6 +34,7 @@ def get_pool() -> pool.ThreadedConnectionPool:
             user=os.environ["BILLING_DB_USER"],
             password=os.environ["BILLING_DB_PASSWORD"],
             connect_timeout=10,
+            sslmode=os.environ.get("DB_SSLMODE", "require"),
         )
     return _pool
 

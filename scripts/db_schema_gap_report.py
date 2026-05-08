@@ -47,25 +47,25 @@ ENGINES: Dict[str, Any] = {
     "inventory": {
         "deployment": "engine-inventory",
         "db_env": "INVENTORY_DB",
-        "tables_to_check": ["resource_inventory", "resource_relationships"],
+        "tables_to_check": ["inventory_findings", "inventory_relationships", "inventory_scans"],
         "expected_columns": {
-            "resource_inventory": [
+            "inventory_findings": [
                 "resource_uid", "resource_type", "tenant_id", "account_id",
-                "provider", "region", "tags", "first_seen_at", "last_seen_at",
+                "provider", "region", "first_seen_at", "last_seen_at",
             ],
         },
     },
     "compliance": {
         "deployment": "engine-compliance",
         "db_env": "COMPLIANCE_DB",
-        "tables_to_check": ["compliance_scores", "compliance_frameworks", "rule_control_mapping"],
+        "tables_to_check": ["compliance_report", "compliance_frameworks", "rule_control_mapping"],
         "expected_columns": {
             "compliance_frameworks": [
                 "framework_id", "framework_name", "version", "csp", "is_active",
             ],
-            "compliance_scores": [
-                "scan_run_id", "tenant_id", "framework_id", "score",
-                "pass_count", "fail_count", "total_controls",
+            "compliance_report": [
+                "scan_run_id", "tenant_id", "framework_id",
+                "total_controls", "controls_passed", "controls_failed", "overall_score",
             ],
         },
     },

@@ -644,6 +644,15 @@ class InviteCreateView(APIView):
             # Silently cap to viewer
             target_role = Roles.objects.filter(name="viewer").first()
 
+        # Optional group assignment — scoped to the inviter's own org (BILL-S06)
+        group_id = request.data.get("group_id")
+        group = None
+        if group_id:
+            try:
+                group = CsmGroups.objects.get(id=group_id, customer_id=customer_id)
+            except CsmGroups.DoesNotExist:
+                return Response({"error": "Group not found or not in your organisation"}, status=404)
+
         raw_token = _secrets.token_urlsafe(32)
         invite = InviteTokens.objects.create(
             token=raw_token,
@@ -651,8 +660,9 @@ class InviteCreateView(APIView):
             tenant=tenant,
             role=target_role,
             invited_by=request.user,
-            expires_at=timezone.now() + timedelta(days=7),
+            expires_at=timezone.now() + timedelta(hours=48),
             used=False,
+            group=group,
         )
         try:
             send_invite_email(email, invite_token=raw_token, tenant_name=tenant.name, invited_by=request.user.email)
@@ -703,15 +713,19 @@ class InviteAcceptView(APIView):
         if invite.expires_at < timezone.now():
             return Response({"error": "Invite expired"}, status=410)
 
-        result = accept_invite_membership(user=request.user, invite=invite)
-        invite.used = True
-        invite.save(update_fields=["used"])
+        from user_auth.models import InviteTokens as _InviteTokens
+        try:
+            accept_invite_membership(user=request.user, invite=invite)
+        except _InviteTokens.DoesNotExist:
+            # Concurrent request already consumed this token — the atomic
+            # SELECT FOR UPDATE guard in accept_invite_membership raised
+            # DoesNotExist after the other transaction committed.
+            return Response({"error": "This invite has already been used"}, status=409)
 
-        cross_org = result.get("cross_org_invite", False) if isinstance(result, dict) else False
-        if cross_org:
-            log_auth_event("invite.cross_org_capped", request=request, user=request.user)
+        # invite.used = True is handled atomically inside accept_invite_membership;
+        # the redundant save has been removed (BILL-S01).
 
-        return Response({"joined": True, "cross_org": cross_org})
+        return Response({"joined": True})
 
 
 # ── D-3: Group access assignment ──────────────────────────────────────────────

@@ -53,8 +53,7 @@ except ImportError:
     _AUTH_AVAILABLE = False
     logger.warning("engine_auth not found — running WITHOUT auth enforcement")
 
-from background.trial_expiry import run_trial_expiry_check
-from routers import checkout, health, invoices, plans, subscriptions, trial, usage, webhooks
+from routers import health, plans, subscriptions, trial, usage
 
 # ---------------------------------------------------------------------------
 # In-process sliding-window rate limiter (token bucket per key)
@@ -142,12 +141,9 @@ def _get_source_ip(request: Request) -> str:
 # APScheduler
 # ---------------------------------------------------------------------------
 
-scheduler = AsyncIOScheduler()
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Configure background jobs and manage the APScheduler lifecycle.
+    """Manage application lifecycle.
 
     Args:
         app: The FastAPI application instance.
@@ -155,17 +151,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     Yields:
         Control to the request-handling loop.
     """
-    scheduler.add_job(
-        run_trial_expiry_check,
-        "interval",
-        minutes=60,
-        id="trial_expiry",
-        replace_existing=True,
-    )
-    scheduler.start()
-    logger.info("Billing engine started on port 8040 — trial_expiry job scheduled (60 min)")
+    logger.info("Billing engine started on port 8040")
     yield
-    scheduler.shutdown(wait=False)
     logger.info("Billing engine shutting down")
 
 
@@ -207,10 +194,7 @@ app.include_router(health.router)
 app.include_router(plans.router,         prefix="/api/v1/billing")
 app.include_router(subscriptions.router, prefix="/api/v1/billing")
 app.include_router(usage.router,         prefix="/api/v1/billing")
-app.include_router(invoices.router,      prefix="/api/v1/billing")
 app.include_router(trial.router,         prefix="/api/v1/billing")
-app.include_router(checkout.router,      prefix="/api/v1/billing")
-app.include_router(webhooks.router,      prefix="/api/v1/billing")
 
 
 # ---------------------------------------------------------------------------
@@ -243,14 +227,8 @@ async def billing_rate_limit_middleware(request: Request, call_next):
     if not path.startswith("/api/v1/billing/"):
         return await call_next(request)
 
-    # Stripe webhook: 100 req/min per source IP
-    if path.startswith("/api/v1/billing/webhooks/"):
-        key = _get_source_ip(request)
-        allowed = _check_rate_limit(key, limit=100)
-    else:
-        # All other billing endpoints: 60 req/min per org_id
-        key = _extract_org_id(request)
-        allowed = _check_rate_limit(key, limit=60)
+    key = _extract_org_id(request)
+    allowed = _check_rate_limit(key, limit=60)
 
     if not allowed:
         logger.warning(

@@ -1,13 +1,16 @@
 """
-Invite flow:
-  POST /api/auth/invite/create/              — admin creates invite
+Invite flow (token-based accept — email link handlers):
   GET  /api/auth/invite/{token}/             — validate invite (public)
   GET  /api/auth/invite/{token}/sso/         — redirect to SSO for invite acceptance (AUTH-09)
   POST /api/auth/invite/{token}/accept/      — accept invite via password or SSO (public)
+
+  Invite creation (POST) is handled by /gateway/api/v1/invites/
+  (tenant_management.views.InviteCreateView).  The old /api/auth/invite/create/ endpoint
+  was removed in BILL-S07 — it lacked customer_id scoping, DRF RBAC (HasPermission), and
+  inviter-level role-cap enforcement.
 """
 import json
 import uuid
-import secrets
 from datetime import timedelta
 
 from django.conf import settings
@@ -20,8 +23,6 @@ from rest_framework.views import APIView
 from user_auth.models import Users, UserSessions, InviteTokens
 from user_auth.utils.auth_utils import compute_auth_caches, generate_token, hash_token, verify_token
 from user_auth.utils.cookie_utils import set_auth_cookies
-from user_auth.utils.email_utils import send_invite_email
-from user_auth.utils.audit_utils import log_auth_event
 from user_auth.utils.tenant_utils import accept_invite_membership
 
 
@@ -51,80 +52,12 @@ def _invite_idp(tenant_id: str):
     )
 
 
-class CreateInviteView(APIView):
-    """Admin creates an invite link for a given email."""
-
-    def post(self, request):
-        user = _current_user(request)
-        if not user:
-            return JsonResponse({"message": "Authentication required"}, status=401)
-
-        try:
-            data = json.loads(request.body)
-        except json.JSONDecodeError:
-            return JsonResponse({"message": "Invalid JSON"}, status=400)
-
-        email = (data.get("email") or "").strip().lower()
-        tenant_id = data.get("tenant_id") or ""
-        role_id = data.get("role_id") or None
-
-        if not email or not tenant_id:
-            return JsonResponse({"message": "email and tenant_id are required"}, status=400)
-
-        from tenant_management.models import Tenants, TenantUsers
-        try:
-            tenant = Tenants.objects.get(id=tenant_id)
-        except Tenants.DoesNotExist:
-            return JsonResponse({"message": "Tenant not found"}, status=404)
-
-        if not TenantUsers.objects.filter(user=user, tenant=tenant, is_active=True).exists():
-            return JsonResponse({"message": "Not authorized for this tenant"}, status=403)
-
-        role = None
-        if role_id:
-            from user_auth.models import Roles
-            try:
-                role = Roles.objects.get(id=role_id)
-            except Roles.DoesNotExist:
-                pass
-
-        token = secrets.token_urlsafe(32)
-        expires_at = timezone.now() + timedelta(hours=48)
-
-        InviteTokens.objects.create(
-            id=str(uuid.uuid4()),
-            token=token,
-            email=email,
-            tenant=tenant,
-            role=role,
-            invited_by=user,
-            expires_at=expires_at,
-        )
-
-        invited_by_name = f"{user.first_name or ''} {user.last_name or ''}".strip() or user.email
-        send_invite_email(email, token, tenant.name, invited_by_name)
-
-        log_auth_event(
-            "invite.create",
-            request=request,
-            user=user,
-            tenant_id=tenant_id,
-            extra={"invited_email": email},
-        )
-
-        return JsonResponse({
-            "message": "Invite sent",
-            "email": email,
-            "expires_at": expires_at.isoformat(),
-        }, status=201)
-
-
 class ValidateInviteView(APIView):
     """Check if an invite token is valid (not used/expired). Public."""
 
     def get(self, request, token):
         try:
-            invite = InviteTokens.objects.select_related('tenant', 'role').get(token=token)
+            invite = InviteTokens.objects.select_related('tenant', 'role', 'group').get(token=token)
         except InviteTokens.DoesNotExist:
             return JsonResponse({"message": "Invalid invite link"}, status=404)
 
@@ -144,6 +77,8 @@ class ValidateInviteView(APIView):
             "expires_at": invite.expires_at.isoformat(),
             "idp_available": idp is not None,
             "idp_type": idp.idp_type if idp else None,
+            # group_name only — group_id (internal PK) is never sent to this public endpoint
+            "group_name": invite.group.name if invite.group_id else None,
         })
 
 
@@ -225,15 +160,16 @@ class AcceptInviteView(APIView):
                 status="active",
             )
 
-        accept_invite_membership(user, invite)
-
-        log_auth_event(
-            "invite.accept",
-            request=request,
-            user=user,
-            tenant_id=str(invite.tenant_id),
-            extra={"method": "password"},
-        )
+        try:
+            accept_invite_membership(user, invite)
+        except InviteTokens.DoesNotExist:
+            # A concurrent request already consumed this token inside the
+            # atomic block — the SELECT FOR UPDATE / used=False filter raised
+            # DoesNotExist after the other transaction committed.
+            return JsonResponse(
+                {"message": "This invite has already been used"},
+                status=409,
+            )
 
         UserSessions.objects.filter(user=user).delete()
         access_token = generate_token()

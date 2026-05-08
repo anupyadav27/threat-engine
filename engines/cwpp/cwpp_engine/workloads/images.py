@@ -35,14 +35,16 @@ IMAGE_DOMAIN = "image_security"
 IMAGE_SERVICE = "ecr"  # catches ecr / acr / gcr / ocir (all registry discoveries map here)
 
 
-async def fetch(scan_run_id: str, tenant_id: str, auth_header: Optional[str] = None) -> Dict[str, Any]:
+async def fetch(scan_run_id: Optional[str], tenant_id: str, auth_header: Optional[str] = None) -> Dict[str, Any]:
     """Fetch image workload data from container-security + secops image-scan."""
 
     # 1. Posture checks from container-security engine
+    img_params: Dict[str, Any] = {"tenant_id": tenant_id}
+    if scan_run_id:
+        img_params["scan_id"] = scan_run_id  # container-security uses scan_id
     container_data = await get(
         f"{CONTAINER_SEC_URL}/api/v1/container-security/ui-data",
-        # container-security engine uses scan_id (not scan_run_id)
-        params={"tenant_id": tenant_id, "scan_id": scan_run_id},
+        params=img_params,
         auth_header=auth_header,
     )
 

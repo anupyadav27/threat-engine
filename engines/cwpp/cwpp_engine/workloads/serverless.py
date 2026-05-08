@@ -46,12 +46,14 @@ DEPRECATED_RUNTIMES = {
 }
 
 
-async def fetch(scan_run_id: str, tenant_id: str, auth_header: Optional[str] = None) -> Dict[str, Any]:
+async def fetch(scan_run_id: Optional[str], tenant_id: str, auth_header: Optional[str] = None) -> Dict[str, Any]:
     """Fetch serverless workload data from container-security engine."""
+    sl_params: Dict[str, Any] = {"tenant_id": tenant_id}
+    if scan_run_id:
+        sl_params["scan_id"] = scan_run_id  # container-security uses scan_id
     data = await get(
         f"{CONTAINER_SEC_URL}/api/v1/container-security/ui-data",
-        # container-security engine uses scan_id (not scan_run_id)
-        params={"tenant_id": tenant_id, "scan_id": scan_run_id},
+        params=sl_params,
         auth_header=auth_header,
     )
 
@@ -107,7 +109,7 @@ async def fetch(scan_run_id: str, tenant_id: str, auth_header: Optional[str] = N
     iam_finding_uids = {
         f["resource_uid"] for f in serverless_findings
         if any(
-            kw in (f.get("rule_id", "") + f.get("title", "")).lower()
+            kw in ((f.get("rule_id") or "") + (f.get("title") or "")).lower()
             for kw in ["iam", "role", "permission", "policy"]
         )
     }

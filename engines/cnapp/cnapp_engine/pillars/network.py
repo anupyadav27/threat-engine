@@ -21,18 +21,22 @@ logger = logging.getLogger("cnapp.pillars.network")
 NETWORK_URL = os.getenv("NETWORK_ENGINE_URL", "http://engine-network")
 
 
-async def fetch(scan_run_id: str, tenant_id: str) -> Dict[str, Any]:
+async def fetch(scan_run_id: Optional[str], tenant_id: str, auth_headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
     # network engine uses scan_id (not scan_run_id); 30s timeout for slow topology queries
+    params: Dict[str, Any] = {"tenant_id": tenant_id}
+    if scan_run_id:
+        params["scan_id"] = scan_run_id
+
     data = await get(
         f"{NETWORK_URL}/api/v1/network-security/ui-data",
-        params={"tenant_id": tenant_id, "scan_id": scan_run_id},
+        params=params,
         timeout=30.0,
+        headers=auth_headers,
     )
 
     if data is None:
         return _unavailable()
 
-    # network ui-data: score is in summary.pass_rate (aliased from posture_score in DB)
     summary = data.get("summary") or {}
     posture_score = (
         summary.get("pass_rate")
@@ -44,7 +48,6 @@ async def fetch(scan_run_id: str, tenant_id: str) -> Dict[str, Any]:
     if posture_score is not None:
         posture_score = round(float(posture_score), 1)
 
-    # Distinguish genuine score=0 from empty result (engine up but no network findings)
     total_findings = int(data.get("total_findings", 0) or 0)
     if posture_score == 0 and total_findings == 0:
         return {

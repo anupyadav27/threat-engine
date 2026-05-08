@@ -194,11 +194,11 @@ function Step4Invite({ onNext, onSkip }) {
       const me = await meResp.json();
       const tenantId = me?.tenants?.[0]?.tenant_id;
       if (tenantId) {
-        await fetch(`${API_BASE}/api/auth/invite/create/`, {
+        await fetch('/gateway/api/v1/invites/', {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email.trim(), tenant_id: tenantId }),
+          body: JSON.stringify({ email: email.trim(), tenant_id: tenantId, role: 'viewer' }),
         });
         setSent(true);
       }

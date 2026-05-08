@@ -37,7 +37,7 @@ except ImportError:
     _AUTH_AVAILABLE = False
     logger.warning("engine_auth not found — running WITHOUT auth enforcement")
 
-from routers import audit, engines, health, metrics, orgs, pipelines  # noqa: E402
+from routers import audit, billing, engines, health, metrics, orgs, pipelines  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # FastAPI application
@@ -76,6 +76,22 @@ app.include_router(pipelines.router, prefix="/api/v1/padmin")
 app.include_router(orgs.router,      prefix="/api/v1/padmin")
 app.include_router(metrics.router,   prefix="/api/v1/padmin")
 app.include_router(audit.router,     prefix="/api/v1/padmin")
+app.include_router(billing.router,   prefix="/api/v1/padmin")
+
+# ---------------------------------------------------------------------------
+# Background scheduler — daily billing snapshot at 01:00 UTC
+# ---------------------------------------------------------------------------
+
+try:
+    from apscheduler.schedulers.background import BackgroundScheduler
+    from background.billing_snapshot import run_billing_snapshot
+
+    _scheduler = BackgroundScheduler(timezone="UTC")
+    _scheduler.add_job(run_billing_snapshot, "cron", hour=1, minute=0, id="billing_snapshot")
+    _scheduler.start()
+    logger.info("billing_snapshot scheduler started (daily 01:00 UTC)")
+except Exception as _sched_err:
+    logger.warning("billing_snapshot scheduler failed to start: %s", _sched_err)
 
 # ---------------------------------------------------------------------------
 # Entry point

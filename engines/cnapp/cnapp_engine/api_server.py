@@ -32,7 +32,7 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -194,7 +194,8 @@ async def health():
 
 @app.get("/api/v1/cnapp/dashboard", response_model=CnappDashboardResponse, response_model_exclude_none=False)
 async def dashboard(
-    scan_run_id: str = Query(..., description="scan_run_id to scope all pillar queries"),
+    request: Request,
+    scan_run_id: Optional[str] = Query(default=None, description="scan_run_id to scope all pillar queries; omit for latest"),
     tenant_id: str = Query(default="default-tenant"),
     pillars: Optional[str] = Query(
         default=None,
@@ -207,13 +208,20 @@ async def dashboard(
     All pillar calls run in parallel. Unavailable engines are gracefully
     skipped — their pillar returns status='unavailable' with null score.
     """
+    # Forward auth context header to all downstream pillar engine calls
+    auth_header = request.headers.get("X-Auth-Context")
+    auth_headers = {"X-Auth-Context": auth_header} if auth_header else None
+
+    # Treat "latest" as None — pillar engines return all-tenant data when omitted
+    resolved_scan_id = scan_run_id if (scan_run_id and scan_run_id != "latest") else None
+
     requested = (
         [p.strip() for p in pillars.split(",") if p.strip() in PILLARS]
         if pillars
         else list(PILLARS.keys())
     )
 
-    tasks = [PILLARS[p](scan_run_id, tenant_id) for p in requested]
+    tasks = [PILLARS[p](resolved_scan_id, tenant_id, auth_headers) for p in requested]
     results: List[Dict[str, Any]] = await asyncio.gather(*tasks)
 
     cnapp_score = compute_cnapp_score(results)
@@ -252,8 +260,9 @@ async def dashboard(
 
 @app.get("/api/v1/cnapp/pillars/{pillar_name}", response_model=CnappPillarDetailResponse, response_model_exclude_none=False)
 async def get_pillar(
+    request: Request,
     pillar_name: str,
-    scan_run_id: str = Query(...),
+    scan_run_id: Optional[str] = Query(default=None),
     tenant_id: str = Query(default="default-tenant"),
 ):
     """Fetch data for a single CNAPP pillar."""
@@ -262,7 +271,10 @@ async def get_pillar(
             status_code=404,
             detail=f"Unknown pillar '{pillar_name}'. Valid: {list(PILLARS.keys())}",
         )
-    result = await PILLARS[pillar_name](scan_run_id, tenant_id)
+    auth_header = request.headers.get("X-Auth-Context")
+    auth_headers = {"X-Auth-Context": auth_header} if auth_header else None
+    resolved = scan_run_id if (scan_run_id and scan_run_id != "latest") else None
+    result = await PILLARS[pillar_name](resolved, tenant_id, auth_headers)
     meta = PILLAR_META.get(pillar_name, {})
     return {**result, "meta": meta}
 
@@ -271,14 +283,18 @@ async def get_pillar(
 
 @app.get("/api/v1/cnapp/posture", response_model=CnappPostureResponse, response_model_exclude_none=False)
 async def posture_score(
-    scan_run_id: str = Query(...),
+    request: Request,
+    scan_run_id: Optional[str] = Query(default=None),
     tenant_id: str = Query(default="default-tenant"),
 ):
     """
     Returns only the CNAPP posture score (all pillars, parallel).
     Faster than /dashboard because it only extracts scores, not full data.
     """
-    tasks = [fn(scan_run_id, tenant_id) for fn in PILLARS.values()]
+    auth_header = request.headers.get("X-Auth-Context")
+    auth_headers = {"X-Auth-Context": auth_header} if auth_header else None
+    resolved = scan_run_id if (scan_run_id and scan_run_id != "latest") else None
+    tasks = [fn(resolved, tenant_id, auth_headers) for fn in PILLARS.values()]
     results = await asyncio.gather(*tasks)
 
     cnapp_score = compute_cnapp_score(results)

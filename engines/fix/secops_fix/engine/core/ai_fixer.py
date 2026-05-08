@@ -9,24 +9,23 @@ Strategy (adopted from peer's safepatch_engine.py and integrated into production
 Environment variables:
   MISTRAL_API_KEY     — required (get from console.mistral.ai)
   MISTRAL_MODEL       — optional (default: mistral-medium)
-  MISTRAL_TIMEOUT     — optional seconds (default: 120)
 """
 
 import logging
 import os
-import time
 from typing import Optional
 
-import requests
+from pydantic import BaseModel
+from pydantic_ai import Agent, ModelRetry
+from pydantic_ai.models.mistral import MistralModel
 
 logger = logging.getLogger(__name__)
 
-MISTRAL_API_URL = "https://api.mistral.ai/v1/chat/completions"
 
-# Transient status codes safe to retry with exponential backoff
-_RETRYABLE_STATUS    = {429, 500, 502, 503, 504}
-_MISTRAL_MAX_RETRIES = 3
-_MISTRAL_BACKOFF_BASE = 2   # seconds — doubles each attempt (2 → 4 → 8)
+class _FixResult(BaseModel):
+    """Structured output from the Mistral fix agent."""
+
+    fixed_code: str  # full corrected file content, no markdown fences
 
 
 def fix_file(
@@ -34,8 +33,8 @@ def fix_file(
     findings: list,
     language: str,
 ) -> Optional[str]:
-    """
-    Send the full file content + all security findings to Mistral.
+    """Send the full file content + all security findings to Mistral.
+
     Returns the corrected full file content, or None if the call fails
     or the API key is not configured.
 
@@ -46,15 +45,20 @@ def fix_file(
         recommendation   — str, how to fix (from rule metadata)
         compliant_example— str, safe code example (from rule metadata)
 
-    Adapted from peer's _call_mistral() in safepatch_engine.py.
+    Args:
+        file_content: The full source file to be fixed.
+        findings: List of finding dicts describing each security issue.
+        language: Programming/config language of the file (e.g. "python").
+
+    Returns:
+        Corrected full file content string, or None on failure/skip.
     """
     api_key = os.getenv("MISTRAL_API_KEY", "").strip()
     if not api_key:
         logger.debug("MISTRAL_API_KEY not set — AI fix skipped, using regex fallback")
         return None
 
-    model   = os.getenv("MISTRAL_MODEL",   "mistral-medium")
-    timeout = int(os.getenv("MISTRAL_TIMEOUT", "120"))
+    model_name = os.getenv("MISTRAL_MODEL", "mistral-medium")
 
     # Build human-readable issues block
     issues_text = "\n".join(
@@ -78,97 +82,33 @@ def fix_file(
     )
 
     logger.info(
-        f"[AI] Calling Mistral ({model}) for {len(findings)} finding(s) — "
+        f"[AI] Calling Mistral ({model_name}) for {len(findings)} finding(s) — "
         f"file size: {len(file_content)} chars"
     )
 
-    payload = {
-        "model": model,
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You are a precise security code-fixing assistant. "
-                    "You return only the corrected file content, nothing else."
-                ),
-            },
-            {"role": "user", "content": prompt},
-        ],
-        "temperature": 0.2,
-        "max_tokens": 8192,
-    }
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
+    # Agent is created inside fix_file so MISTRAL_API_KEY is guaranteed to be
+    # present before MistralModel resolves it from the environment at construction.
+    agent: Agent[None, _FixResult] = Agent(
+        MistralModel(model_name),
+        result_type=_FixResult,
+        system_prompt=(
+            "You are a precise security code-fixing assistant. "
+            "Return only the corrected file content, nothing else. "
+            "No markdown fences. No explanations."
+        ),
+    )
 
-    for attempt in range(1, _MISTRAL_MAX_RETRIES + 1):
-        try:
-            resp = requests.post(
-                MISTRAL_API_URL,
-                headers=headers,
-                json=payload,
-                timeout=timeout,
-            )
+    @agent.result_validator
+    async def _validate_fix(ctx, result: _FixResult) -> _FixResult:  # type: ignore[misc]
+        if not result.fixed_code.strip():
+            raise ModelRetry("Returned empty content — provide the full corrected file.")
+        return result
 
-            # Transient server-side errors — back off and retry
-            if resp.status_code in _RETRYABLE_STATUS and attempt < _MISTRAL_MAX_RETRIES:
-                wait = _MISTRAL_BACKOFF_BASE * (2 ** (attempt - 1))
-                logger.warning(
-                    f"[AI] Mistral {resp.status_code} (attempt {attempt}/{_MISTRAL_MAX_RETRIES})"
-                    f" — retrying in {wait}s"
-                )
-                time.sleep(wait)
-                continue
-
-            resp.raise_for_status()
-            corrected = resp.json()["choices"][0]["message"]["content"].strip()
-
-            # Strip markdown fences if model accidentally added them
-            if corrected.startswith("```"):
-                lines = corrected.splitlines()
-                corrected = "\n".join(
-                    line for line in lines[1:]
-                    if not line.strip().startswith("```")
-                ).strip()
-
-            if not corrected:
-                logger.warning("[AI] Mistral returned empty content")
-                return None
-
-            logger.info(
-                "[AI] Fix received successfully"
-                + (f" (attempt {attempt})" if attempt > 1 else "")
-            )
-            return corrected
-
-        except requests.exceptions.Timeout:
-            if attempt == _MISTRAL_MAX_RETRIES:
-                logger.warning(f"[AI] Mistral timed out after {timeout}s (all retries exhausted)")
-                return None
-            wait = _MISTRAL_BACKOFF_BASE * (2 ** (attempt - 1))
-            logger.warning(
-                f"[AI] Mistral timeout (attempt {attempt}/{_MISTRAL_MAX_RETRIES})"
-                f" — retrying in {wait}s"
-            )
-            time.sleep(wait)
-
-        except requests.exceptions.HTTPError as e:
-            http_status = e.response.status_code if e.response is not None else "?"
-            if http_status not in _RETRYABLE_STATUS or attempt == _MISTRAL_MAX_RETRIES:
-                logger.warning(
-                    f"[AI] Mistral HTTP {http_status} — {e.response.text[:200] if e.response else ''}"
-                )
-                return None
-            wait = _MISTRAL_BACKOFF_BASE * (2 ** (attempt - 1))
-            logger.warning(
-                f"[AI] Mistral HTTP {http_status} (attempt {attempt}/{_MISTRAL_MAX_RETRIES})"
-                f" — retrying in {wait}s"
-            )
-            time.sleep(wait)
-
-        except Exception as e:
-            logger.warning(f"[AI] Mistral call failed: {e}")
-            return None
-
-    return None
+    try:
+        result = agent.run_sync(prompt)
+        corrected = result.data.fixed_code.strip()
+        logger.info("[AI] Fix received successfully")
+        return corrected
+    except Exception as e:
+        logger.warning(f"[AI] Mistral call failed: {e}")
+        return None

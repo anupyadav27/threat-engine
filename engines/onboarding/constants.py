@@ -7,15 +7,16 @@ from typing import Dict, FrozenSet
 # A 'cloud' tenant can hold any account type.
 # A 'security' tenant (future) might restrict to secops/vulnerability only.
 VALID_ACCOUNT_TYPES: Dict[str, FrozenSet[str]] = {
-    "cloud":     frozenset({"cloud_csp", "vulnerability", "secops", "database", "middleware"}),
-    "security":  frozenset({"vulnerability", "secops"}),
+    "cloud":     frozenset({"cloud_csp", "vulnerability", "secops", "code_security",
+                            "database", "middleware"}),
+    "security":  frozenset({"vulnerability", "secops", "code_security"}),
     "database":  frozenset({"database"}),
     "agent":     frozenset({"cloud_csp"}),
 }
 
 # Fallback set used when tenant_type is unknown / not set.
 DEFAULT_VALID_ACCOUNT_TYPES: FrozenSet[str] = frozenset(
-    {"cloud_csp", "vulnerability", "secops", "database", "middleware"}
+    {"cloud_csp", "vulnerability", "secops", "code_security", "database", "middleware"}
 )
 
 # Maps cloud/db provider string → default account_type when the caller omits account_type.
@@ -33,4 +34,8 @@ PROVIDER_TO_ACCOUNT_TYPE: Dict[str, str] = {
     "mssql":     "database",
     "mongodb":   "database",
     "oracle":    "database",
+    # VCS / code-repository providers → code_security account type
+    "github":    "code_security",
+    "gitlab":    "code_security",
+    "bitbucket": "code_security",
 }

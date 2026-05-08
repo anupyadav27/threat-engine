@@ -24,18 +24,22 @@ CHECK_URL = os.getenv("CHECK_ENGINE_URL", "http://engine-check")
 COMPLIANCE_URL = os.getenv("COMPLIANCE_ENGINE_URL", "http://engine-compliance")
 
 
-async def fetch(scan_run_id: str, tenant_id: str) -> Dict[str, Any]:
+async def fetch(scan_run_id: Optional[str], tenant_id: str, auth_headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
     """Fetch CSPM data from check + compliance engines."""
-    # check/findings/summary: tenant_id required, scan_run_id optional
+    params: Dict[str, Any] = {"tenant_id": tenant_id}
+    if scan_run_id:
+        params["scan_run_id"] = scan_run_id
+
     check_data = await get(
         f"{CHECK_URL}/api/v1/check/findings/summary",
-        params={"tenant_id": tenant_id, "scan_run_id": scan_run_id},
+        params=params,
+        headers=auth_headers,
     )
-    # compliance/frameworks: slow endpoint — short timeout, graceful on None
     compliance_data = await get(
         f"{COMPLIANCE_URL}/api/v1/compliance/frameworks",
         params={"tenant_id": tenant_id},
         timeout=10.0,
+        headers=auth_headers,
     )
 
     if check_data is None and compliance_data is None:
@@ -43,7 +47,6 @@ async def fetch(scan_run_id: str, tenant_id: str) -> Dict[str, Any]:
 
     posture_score = _derive_score(check_data, compliance_data)
 
-    # Distinguish genuine score=0 (all checks failed) from empty scan result (no checks at all)
     total_checks = int(
         _safe(check_data, "total_checks", _safe(check_data, "total", 0)) or 0
     )
@@ -80,14 +83,10 @@ async def fetch(scan_run_id: str, tenant_id: str) -> Dict[str, Any]:
 
 
 def _derive_score(check_data: Optional[Dict], compliance_data: Optional[Dict]) -> Optional[float]:
-    # Derive from check pass-rate (primary — check/findings/summary)
-    # Response shape: {total, status_counts, severity_counts, by_service, ...}
     if check_data:
         total = check_data.get("total") or check_data.get("total_checks") or 0
         if total == 0:
-            # No findings for this scan → perfect posture
             return 100.0
-        # status_counts has {PASS: n, FAIL: n} or similar
         sc = check_data.get("status_counts") or {}
         passed = sc.get("PASS") or sc.get("pass") or check_data.get("passed") or check_data.get("pass_count") or 0
         if passed or total:
@@ -96,7 +95,6 @@ def _derive_score(check_data: Optional[Dict], compliance_data: Optional[Dict]) -
         if rate is not None:
             return round(float(rate), 1)
 
-    # Secondary: compliance aggregate score
     if compliance_data:
         score = compliance_data.get("overall_score") or compliance_data.get("posture_score")
         if score is not None:

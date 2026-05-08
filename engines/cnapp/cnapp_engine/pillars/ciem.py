@@ -24,16 +24,20 @@ CIEM_URL = os.getenv("CIEM_ENGINE_URL", "http://engine-ciem")
 IAM_URL = os.getenv("IAM_ENGINE_URL", "http://engine-iam")
 
 
-async def fetch(scan_run_id: str, tenant_id: str) -> Dict[str, Any]:
-    # ciem/dashboard: tenant_id + scan_run_id
+async def fetch(scan_run_id: Optional[str], tenant_id: str, auth_headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+    ciem_params: Dict[str, Any] = {"tenant_id": tenant_id}
+    if scan_run_id:
+        ciem_params["scan_run_id"] = scan_run_id
+
     ciem_data = await get(
         f"{CIEM_URL}/api/v1/ciem/dashboard",
-        params={"tenant_id": tenant_id, "scan_run_id": scan_run_id},
+        params=ciem_params,
+        headers=auth_headers,
     )
-    # iam-security/ui-data: tenant_id + scan_id (not scan_run_id)
     iam_data = await get(
         f"{IAM_URL}/api/v1/iam-security/ui-data",
         params={"tenant_id": tenant_id, "scan_id": "latest"},
+        headers=auth_headers,
     )
 
     if ciem_data is None and iam_data is None:
@@ -41,7 +45,6 @@ async def fetch(scan_run_id: str, tenant_id: str) -> Dict[str, Any]:
 
     posture_score = _derive_score(ciem_data, iam_data)
 
-    # Distinguish genuine score=0 from empty scan result (engine up but no identity findings)
     ciem_summary = (ciem_data or {}).get("summary") or {}
     total_findings = int(
         ciem_summary.get("total_findings", 0)
@@ -82,7 +85,6 @@ async def fetch(scan_run_id: str, tenant_id: str) -> Dict[str, Any]:
 def _derive_score(ciem_data: Optional[Dict], iam_data: Optional[Dict]) -> Optional[float]:
     scores = []
     if iam_data:
-        # iam-security/ui-data: score is in summary.risk_score (risk scale → invert for posture)
         iam_summary = iam_data.get("summary") or {}
         risk = iam_summary.get("risk_score")
         s = iam_data.get("posture_score") or iam_data.get("pass_rate") or iam_data.get("overall_score")
@@ -92,8 +94,6 @@ def _derive_score(ciem_data: Optional[Dict], iam_data: Optional[Dict]) -> Option
             scores.append(float(s))
 
     if ciem_data:
-        # ciem/dashboard returns {summary: {total_findings, ...}, by_severity: [...]}
-        # No pre-computed score; derive from finding count + severity breakdown
         summary = ciem_data.get("summary") or {}
         total = int(summary.get("total_findings") or 0)
         by_sev = {item.get("severity", "").lower(): int(item.get("count", 0))

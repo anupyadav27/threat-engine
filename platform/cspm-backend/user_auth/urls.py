@@ -10,7 +10,7 @@ from user_auth.views.oidc_auth import OIDCLoginView, OIDCCallbackView
 from user_auth.views.saml_auth import (
     SAMLLoginView, SAMLACSView, SAMLMetadataView, SAMLLogoutView,
 )
-from user_auth.views.invite import CreateInviteView, ValidateInviteView, AcceptInviteView, InviteSSORedirectView
+from user_auth.views.invite import ValidateInviteView, AcceptInviteView, InviteSSORedirectView
 from user_auth.views.password_reset import PasswordResetRequestView, PasswordResetConfirmView
 from user_auth.views.account_access import UserAccountAccessView
 
@@ -47,7 +47,7 @@ urlpatterns = [
     path("saml/<str:tenant_id>/logout/", SAMLLogoutView.as_view(), name="saml_logout"),
 
     # ── Invite flow ───────────────────────────────────────────────────────────
-    path("invite/create/", CreateInviteView.as_view(), name="invite_create"),
+    # POST invite/create/ removed — BILL-S07. Use /gateway/api/v1/invites/ instead.
     path("invite/<str:token>/", ValidateInviteView.as_view(), name="invite_validate"),
     path("invite/<str:token>/sso/", InviteSSORedirectView.as_view(), name="invite_sso"),
     path("invite/<str:token>/accept/", AcceptInviteView.as_view(), name="invite_accept"),

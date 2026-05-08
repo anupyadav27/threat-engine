@@ -69,16 +69,20 @@ def detect(
     # ── 1. Check findings with internet-exposure rule_id patterns ─────────────
     # The check engine evaluated rules like SG open ports, public access, public IP.
     # These finding nodes are already in the graph via HAS_FINDING edges.
+    #
+    # Fix 4: parameterized UNWIND — never build Cypher with f-string interpolation.
+    # Each pattern is passed as a list element and matched server-side.
     try:
-        where_clauses = " OR ".join(
-            f"f.rule_id CONTAINS '{p}'" for p in _EXPOSURE_RULE_PATTERNS
+        result = session.run(
+            """
+            UNWIND $patterns AS pattern
+            MATCH (r:Resource {tenant_id: $tid})-[:HAS_FINDING]->(f:Finding)
+            WHERE f.rule_id CONTAINS pattern
+            RETURN DISTINCT r.uid AS uid, r.resource_type AS rtype
+            """,
+            patterns=_EXPOSURE_RULE_PATTERNS,
+            tid=tenant_id,
         )
-        result = session.run(f"""
-            MATCH (r:Resource {{tenant_id: $tid}})-[:HAS_FINDING]->(f:Finding)
-            WHERE {where_clauses}
-            RETURN DISTINCT r.uid AS uid, r.resource_type AS rtype,
-                   collect(DISTINCT f.rule_id)[0..3] AS sample_rules
-        """, tid=tenant_id)
 
         new_uids = []
         for record in result:
@@ -86,13 +90,17 @@ def detect(
             if uid and uid not in exposed_uids:
                 exposed_uids.add(uid)
                 new_uids.append(uid)
-                session.run("""
+                session.run(
+                    """
                     MATCH (i:Internet {uid: 'INTERNET'})
                     MATCH (r:Resource {uid: $uid})
                     MERGE (i)-[e:EXPOSES]->(r)
                     SET e.reason = 'check_finding_exposure',
                         e.resource_type = $rtype
-                """, uid=uid, rtype=record["rtype"] or "")
+                    """,
+                    uid=uid,
+                    rtype=record["rtype"] or "",
+                )
         count += len(new_uids)
         logger.debug(f"common: check_findings patterns matched {len(new_uids)} resources")
     except Exception as exc:

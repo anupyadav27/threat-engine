@@ -5,8 +5,6 @@ class UserAuthConfig(AppConfig):
     name = 'user_auth'
 
     def ready(self):
-        from user_auth import signals  # noqa: F401
-        signals._connect()
         self._validate_frontend_url()
 
     def _validate_frontend_url(self):

@@ -701,7 +701,7 @@ function FixThisFirst({ findings, onViewAll, onItemClick }) {
   const byRule = {};
   findings.forEach(f => {
     const r = (f.rule_id || '').toLowerCase().replace(/[^a-z0-9_]/g, '_');
-    if (!byRule[r]) byRule[r] = { rule_id: r, rawRuleId: f.rule_id, count: 0, score: 0, sev: f.severity, files: new Set(), scanId: f._scan?.secops_scan_id };
+    if (!byRule[r]) byRule[r] = { rule_id: r, rawRuleId: f.rule_id, count: 0, score: 0, sev: f.severity, files: new Set(), scanId: f._scan?.scan_id };
     byRule[r].count++;
     byRule[r].score += weight[f.severity] || 1;
     if (f.file_path) byRule[r].files.add(f.file_path);
@@ -866,7 +866,7 @@ export default function SecOpsPage() {
         findings.forEach(f => {
           const sev = normalizeSev(f.severity);
           merged.push({
-            _id:      f.id || `${scan.secops_scan_id}-${f.rule_id}-${f.line_number}`,
+            _id:      f.id || `${scan.scan_id}-${f.rule_id}-${f.line_number}`,
             source:   'sast',
             severity: sev,
             rule_id:  f.rule_id,
@@ -887,7 +887,7 @@ export default function SecOpsPage() {
         findings.forEach(f => {
           const sev = normalizeSev(f.severity);
           merged.push({
-            _id:      f.id || `${scan.dast_scan_id}-${f.rule_id}`,
+            _id:      f.id || `${scan.scan_id}-${f.rule_id}`,
             source:   'dast',
             severity: sev,
             rule_id:  f.rule_id || f.vulnerability_type,
@@ -944,8 +944,8 @@ export default function SecOpsPage() {
 
   const allScans = useMemo(() => {
     const combined = [
-      ...sastScans.map(s => ({ ...s, _type: 'sast', _ts: s.scan_timestamp, _id: s.secops_scan_id })),
-      ...dastScans.map(s => ({ ...s, _type: 'dast', _ts: s.scan_timestamp, _id: s.dast_scan_id })),
+      ...sastScans.map(s => ({ ...s, _type: 'sast', _ts: s.scan_timestamp, _id: s.scan_id })),
+      ...dastScans.map(s => ({ ...s, _type: 'dast', _ts: s.scan_timestamp, _id: s.scan_id })),
       ...scaScans.map(s  => ({ ...s, _type: 'sca',  _ts: s.created_at,     _id: s.sbom_id })),
     ];
     return combined.sort((a, b) => new Date(b._ts || 0) - new Date(a._ts || 0));
@@ -2153,7 +2153,7 @@ export default function SecOpsPage() {
                   pageSize={15}
                   loading={loading}
                   emptyMessage="No SAST scans found. Launch a scan pipeline to get started."
-                  onRowClick={row => router.push(`/secops/${row.secops_scan_id}`)}
+                  onRowClick={row => router.push(`/secops/${row.scan_id}`)}
                 />
               </div>
             </div>
@@ -2236,7 +2236,7 @@ export default function SecOpsPage() {
                   pageSize={15}
                   loading={loading}
                   emptyMessage="No DAST scans found. Launch a scan pipeline with a target URL to get started."
-                  onRowClick={row => router.push(`/secops/dast/${row.dast_scan_id}`)}
+                  onRowClick={row => router.push(`/secops/dast/${row.scan_id}`)}
                 />
               </div>
             </div>

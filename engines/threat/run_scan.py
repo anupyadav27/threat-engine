@@ -328,15 +328,12 @@ def main():
             logger.warning(f"Threat analysis failed (report still saved): {e}", exc_info=True)
 
         # 9. Build security graph (Neo4j)
-        try:
-            from threat_engine.graph.graph_builder import SecurityGraphBuilder
-            graph_start = time.time()
-            logger.info("Building security graph in Neo4j...")
-            builder = SecurityGraphBuilder()
-            graph_stats = builder.build_graph(tenant_id=tenant_id)
-            logger.info(f"Graph build complete in {time.time() - graph_start:.1f}s: {graph_stats}")
-        except Exception as e:
-            logger.warning(f"Graph build failed (scan still successful): {e}", exc_info=True)
+        # GRAPH-S1-04: Graph build is now a dedicated Argo step that runs AFTER
+        # the domain-engine fan-out (network, vuln, IAM, datasec) so that CVE
+        # nodes and EXPOSES edges are available when the graph is constructed.
+        # The API endpoint POST /api/v1/graph/build is called by Argo directly;
+        # do NOT trigger it here from the threat scan job.
+        # (kept as a no-op comment block so the step numbering stays consistent)
 
         # 10. Update status to completed
         duration = time.time() - start

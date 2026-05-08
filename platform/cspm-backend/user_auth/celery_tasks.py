@@ -2,6 +2,7 @@
 Celery tasks for user_auth.
 
 sync_tenant_to_onboarding — async tenant sync with exponential backoff and dead-letter.
+provision_billing_trial   — async 14-day Pro trial provisioning after tenant creation.
 """
 import logging
 import os
@@ -83,3 +84,5 @@ def sync_tenant_to_onboarding(self, tenant_id: str, customer_id: str) -> None:
             _dead_letter(tenant_id)
     except MaxRetriesExceededError:
         _dead_letter(tenant_id)
+
+

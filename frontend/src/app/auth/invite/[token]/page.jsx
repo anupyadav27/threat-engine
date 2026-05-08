@@ -177,6 +177,11 @@ export default function InviteAcceptPage() {
                 </div>
                 <div style={{ fontSize: 12, color: '#64748b' }}>
                   Invited as {invite.role} · {invite.email}
+                  {invite.group_name && (
+                    <span style={{ fontSize: 11, color: '#818cf8', marginLeft: 8 }}>
+                      · Group: {invite.group_name}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
