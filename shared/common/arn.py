@@ -43,6 +43,13 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
+# ── RDS hostname → ARN ────────────────────────────────────────────────────────
+# AWS RDS endpoint format: {db-identifier}.{random}.{region}.rds.amazonaws.com
+_RDS_HOST_RE = re.compile(
+    r"^([^.]+)\.[^.]+\.([a-z][a-z0-9-]+)\.rds\.amazonaws\.com$",
+    re.IGNORECASE,
+)
+
 
 # ── ARN prefix-to-resource-type mapping ──────────────────────────────────────
 # Maps resource-id prefix (e.g. "sg-") to the ARN resource-type segment
@@ -290,6 +297,44 @@ def normalize_resource_uid(
         resource_id=res_id,
         partition=partition,
     )
+
+
+def host_to_resource_uid(
+    host: str,
+    provider: str = "",
+    account_id: str = "",
+) -> str:
+    """Convert a database credential hostname to the canonical resource_uid.
+
+    For AWS RDS the endpoint encodes the db-identifier and region, allowing
+    us to construct ``arn:aws:rds:{region}:{account_id}:db:{identifier}`` —
+    identical to the ``DBInstanceArn`` the cloud discovery engine stores in
+    ``discovery_findings.resource_uid`` for the same instance.
+
+    For all other cases (Azure, GCP, self-hosted) the hostname is returned
+    unchanged.  It will not match a cloud ARN, but it is at least a
+    consistent identifier across every finding for that database.
+
+    Args:
+        host:       Hostname from tech_credentials (e.g. mydb.abc.ap-south-1.rds.amazonaws.com).
+        provider:   Tech type or cloud provider string ('aws', 'azure', 'postgresql', …).
+        account_id: Cloud account ID — required to build the RDS ARN.
+
+    Returns:
+        Canonical resource_uid string.
+    """
+    if not host:
+        return host
+
+    m = _RDS_HOST_RE.match(host)
+    if m:
+        db_identifier = m.group(1)
+        region = m.group(2)
+        # RDS ARN uses colon notation: arn:aws:rds:region:account:db:identifier
+        # (NOT slash — _build_arn uses slash which is wrong for RDS)
+        return f"arn:aws:rds:{region}:{account_id}:db:{db_identifier}"
+
+    return host
 
 
 # ── DB-backed pattern lookup ────────────────────────────────────────────────

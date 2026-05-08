@@ -8,10 +8,11 @@ description: >
 
 discovery:
 
+
   - discovery_id: mysql.section_3.datadir_has_appropriate_permissions
     description: Ensure 'datadir' Has Appropriate Permissions
+    applicable_to: ["cloud_managed", "self_hosted"]
     calls:
-
 
       - action: query_setting
         query: "SELECT VARIABLE_NAME, VARIABLE_VALUE FROM performance_schema.global_variables WHERE VARIABLE_NAME LIKE 'datadir';"
@@ -20,15 +21,16 @@ discovery:
       as: item
       item:
         check: datadir_has_appropriate_permissions
-        setting_name: datadir
+        setting_name: "datadir"
         value: "{{ result.value }}"
         expected: ""
 
 
+
   - discovery_id: mysql.section_3.ssl_key_files_have_appropriate_permissions
     description: Ensure SSL Key Files Have Appropriate Permissions
+    applicable_to: ["cloud_managed", "self_hosted"]
     calls:
-
 
       - action: query_setting
         query: "SELECT * FROM performance_schema.global_variables WHERE REGEXP_LIKE(VARIABLE_NAME,'^.*ssl_(ca|capath|cert|crl|crlpath|key)$') AND VARIABLE_VALUE <> '';"
@@ -37,15 +39,16 @@ discovery:
       as: item
       item:
         check: ssl_key_files_have_appropriate_permissions
-        setting_name: all
+        setting_name: "all"
         value: "{{ result.value }}"
         expected: ""
 
 
+
   - discovery_id: mysql.section_3.plugin_directory_has_appropriate_permissions
     description: Ensure Plugin Directory Has Appropriate Permissions
+    applicable_to: ["cloud_managed", "self_hosted"]
     calls:
-
 
       - action: query_setting
         query: "SHOW VARIABLES LIKE 'plugin_dir';"
@@ -54,25 +57,26 @@ discovery:
       as: item
       item:
         check: plugin_directory_has_appropriate_permissions
-        setting_name: plugin_dir
+        setting_name: "plugin_dir"
         value: "{{ result.value }}"
         expected: ""
 
 
+
   - discovery_id: mysql.section_3.secure_mysql_keyring
     description: Secure MySQL Keyring
+    applicable_to: ["self_hosted"]
     calls:
 
-
-      - action: query_setting
-        query: "SHOW VARIABLES LIKE 'secure_mysql_keyring';"
+      - action: query_table
+        query: "SELECT VARIABLE_NAME, VARIABLE_VALUE FROM performance_schema.global_variables WHERE VARIABLE_NAME LIKE 'keyring%';"
         save_as: result
+    emit_as: rows
     emit:
-      as: item
+      as: rows
       item:
         check: secure_mysql_keyring
-        setting_name: secure_mysql_keyring
-        value: "{{ result.value }}"
+        value: "{{ result.VARIABLE_VALUE }}"
         expected: ""
 
 

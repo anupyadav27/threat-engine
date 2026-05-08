@@ -41,6 +41,84 @@ import yaml
 ROOT     = Path(__file__).resolve().parents[2]
 RULE_DIR = ROOT / "catalog" / "rule"
 
+# ── CIS section → framework control cross-walk ────────────────────────────────
+# Used as fallback when the YAML's compliance_mappings fields are empty.
+# Keys are CIS section numbers (string). Sections 5+ default to section-5 entry.
+
+_NIST_BY_SECTION: Dict[str, List[str]] = {
+    "1": ["CM-6", "CM-7", "SI-2"],
+    "2": ["AC-2", "AC-3", "AC-6", "IA-5"],
+    "3": ["AU-2", "AU-3", "AU-9", "AU-12"],
+    "4": ["SC-7", "SC-8", "SC-28"],
+    "5": ["CM-6", "SC-28", "SI-7"],
+    "6": ["AC-1", "AC-2", "AC-6"],
+    "7": ["AU-1", "AU-2", "SC-7"],
+}
+
+_SOC2_BY_SECTION: Dict[str, List[str]] = {
+    "1": ["CC6.1", "CC6.6"],
+    "2": ["CC6.1", "CC6.2", "CC6.3"],
+    "3": ["CC7.2", "CC7.3"],
+    "4": ["CC6.6", "CC6.7"],
+    "5": ["CC6.8", "CC6.6"],
+    "6": ["CC6.1", "CC6.2"],
+    "7": ["CC7.2", "CC7.3"],
+}
+
+_PCI_BY_SECTION: Dict[str, List[str]] = {
+    "1": ["6.3", "6.4"],
+    "2": ["8.1", "8.2", "8.3"],
+    "3": ["10.1", "10.2", "10.3"],
+    "4": ["1.1", "1.2", "4.1"],
+    "5": ["3.4", "6.2"],
+    "6": ["8.1", "8.2"],
+    "7": ["10.1", "10.2"],
+}
+
+_FALLBACK_SECTION = "5"  # used when cis_section is missing or > 7
+
+
+def _crosswalk_mappings(
+    rule_id: str,
+    cis_section: str,
+    rule_title: str,
+    compliance_mappings: Dict[str, Any],
+) -> List[tuple]:
+    """
+    Build (rule_id, framework, control_id, control_name) rows for non-CIS frameworks.
+
+    Uses explicit mappings from compliance_mappings when present; falls back to
+    the CIS-section cross-walk tables when they are empty.
+    """
+    rows: List[tuple] = []
+    sec = cis_section.strip() if cis_section else _FALLBACK_SECTION
+    if sec not in _NIST_BY_SECTION:
+        sec = _FALLBACK_SECTION
+
+    def _add(framework: str, controls: List[str]) -> None:
+        for ctrl in controls:
+            if ctrl:
+                rows.append((rule_id, framework, ctrl, rule_title[:500]))
+
+    # NIST 800-53
+    nist_explicit = [c for c in (compliance_mappings.get("nist_800_53") or []) if c]
+    _add("nist_800_53", nist_explicit if nist_explicit else _NIST_BY_SECTION[sec])
+
+    # SOC 2
+    soc2_explicit = [c for c in (compliance_mappings.get("soc2") or []) if c]
+    _add("soc2", soc2_explicit if soc2_explicit else _SOC2_BY_SECTION[sec])
+
+    # PCI-DSS
+    pci_explicit = [c for c in (compliance_mappings.get("pci_dss") or []) if c]
+    _add("pci_dss", pci_explicit if pci_explicit else _PCI_BY_SECTION[sec])
+
+    # ISO 27001 (only from explicit mappings — no generic cross-walk)
+    iso_explicit = [c for c in (compliance_mappings.get("iso_27001") or []) if c]
+    _add("iso_27001", iso_explicit)
+
+    return rows
+
+
 CATEGORY_DIRS = [
     "database_rule_metadata",
     "linux_rule_metadata",
@@ -141,15 +219,24 @@ def _upsert_rules(
         ))
 
         # CIS framework mapping
-        cis_bench = rule.get("cis_benchmark", "")
-        cis_ctrl  = rule.get("cis_control", "")
+        cis_bench   = rule.get("cis_benchmark", "")
+        cis_ctrl    = rule.get("cis_control", "")
+        cis_section = str(rule.get("cis_section", "")).strip()
+        rule_title  = rule.get("title", "")
+
         if cis_bench and cis_ctrl:
             mapping_rows.append((
                 rule_id,
                 cis_bench.lower().replace(" ", "_"),
                 cis_ctrl,
-                rule.get("title", "")[:500],
+                rule_title[:500],
             ))
+
+        # NIST 800-53 / SOC2 / PCI-DSS / ISO 27001 — explicit or cross-walk
+        compliance_mappings = rule.get("compliance_mappings") or {}
+        mapping_rows.extend(
+            _crosswalk_mappings(rule_id, cis_section, rule_title, compliance_mappings)
+        )
 
     if dry_run:
         return len(metadata_rows)
