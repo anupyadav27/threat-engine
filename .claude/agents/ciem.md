@@ -189,7 +189,7 @@ WHERE ads.tenant_id = $1 AND b.metric_type = 'event_count'
 ```yaml
 name: engine-ciem
 namespace: threat-engine-engines
-image: yadavanup84/engine-ciem:v-ciem-internal1
+image: yadavanup84/engine-ciem:v-jny-a
 containerPort: 8025
 service: ClusterIP port 80 → targetPort 8025
 replicas: 1

@@ -174,7 +174,7 @@ GROUP BY resource_uid, resource_type;
 ```yaml
 name: engine-compliance
 namespace: threat-engine-engines
-image: yadavanup84/threat-engine-compliance-engine:v-compliance-auth
+image: yadavanup84/threat-engine-compliance-engine:v-compliance-pydantic2
 containerPort: 8010
 service: ClusterIP port 80 → targetPort 8010
 replicas: 1

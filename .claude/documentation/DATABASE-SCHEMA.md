@@ -1,6 +1,6 @@
 # Database Schema Reference
 
-Auto-generated from live RDS. Last updated: 2026-03-21
+Auto-generated from live RDS. Last updated: 2026-05-07 (DI-14 columns added)
 
 Host: postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
 
@@ -1008,8 +1008,11 @@ Host: postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
 | created_at | timestamptz | YES | now() |
 | updated_at | timestamptz | YES | now() |
 | resource_uid | text | YES |  |
+| scan_run_id | uuid | YES |  |
+| finding_id | varchar | YES |  |
+| risk_score | integer | YES | 0 |
 
-**Indexes:** 11
+**Indexes:** 13
 - `threat_detections_pkey`
 - `idx_detection_tenant`
 - `idx_detection_status_severity`
@@ -1021,6 +1024,8 @@ Host: postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
 - `idx_detection_mitre_gin`
 - `idx_detection_rule_name_trgm`
 - `idx_detection_resource_uid`
+- `idx_threat_detections_tenant_scan`
+- `idx_threat_detections_scan_run_id`
 
 **PK:** detection_id
 **FK:** tenant_id (fk_tenant_detection)
@@ -1357,6 +1362,7 @@ Host: postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
 | framework_data | jsonb | NO |  |
 | created_at | timestamptz | YES | now() |
 | updated_at | timestamptz | YES | now() |
+| csp | text | YES |  |
 
 **Indexes:** 2
 - `compliance_frameworks_pkey`
@@ -1388,6 +1394,8 @@ Host: postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
 | status | varchar | YES | 'completed'::character varying |
 | execution_id | varchar | YES |  |
 | check_scan_id | varchar | YES |  |
+| framework_id | uuid | YES |  |
+| overall_score | numeric | YES |  |
 
 **Indexes:** 8
 - `idx_report_tenant_scan`
@@ -2111,6 +2119,10 @@ Host: postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com
 | region | varchar | YES |  |
 | csp | varchar | YES | 'aws'::character varying |
 | created_at | timestamp | YES | now() |
+| risk_score | integer | YES | 0 |
+| severity | text | YES |  |
+| blast_radius | numeric | YES |  |
+| resource_count | integer | YES | 0 |
 
 **Indexes:** 1
 - `risk_scenarios_pkey`

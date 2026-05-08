@@ -136,7 +136,7 @@ WHERE scan_run_id = $1 AND tenant_id = $2 AND is_publicly_accessible = TRUE;
 ```yaml
 name: engine-dbsec
 namespace: threat-engine-engines
-image: yadavanup84/engine-dbsec:v-dbsec-enterprise
+image: yadavanup84/engine-dbsec:v-dbsec-journey1
 containerPort: 8007
 service: ClusterIP port 80 → targetPort 8007
 replicas: 1

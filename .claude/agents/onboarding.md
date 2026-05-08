@@ -70,7 +70,7 @@ scan_run_id (PK), tenant_id, customer_id, account_id, provider, overall_status, 
 - **BFF files**: `shared/api_gateway/bff/scans.py`, `dashboard.py`
 - **Engine code**: `engines/onboarding/`
 - **K8s manifest**: `deployment/aws/eks/engines/engine-onboarding.yaml`
-- **Image**: `yadavanup84/threat-engine-onboarding-api:v-m6`
+- **Image**: `yadavanup84/threat-engine-onboarding-api:v-m8`
 
 ## Pipeline Dependencies
 ```

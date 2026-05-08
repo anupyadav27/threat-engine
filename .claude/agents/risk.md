@@ -241,7 +241,7 @@ ORDER BY scan_date DESC LIMIT 6;
 ```yaml
 name: engine-risk
 namespace: threat-engine-engines
-image: yadavanup84/engine-risk:v-risk-enterprise
+image: yadavanup84/engine-risk:v-risk-dcat01
 containerPort: 8009
 service: ClusterIP port 8009 → targetPort 8009   ← NOT port 80
 replicas: 1

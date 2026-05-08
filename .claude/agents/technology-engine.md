@@ -30,9 +30,9 @@ Read `.claude/documentation/CSPM_CONSTITUTION.md` before acting.
 
 | Sub-Engine | Port | Image | Purpose |
 |------------|------|-------|---------|
-| tech-discovery | 8030 | `yadavanup84/engine-tech-discovery:v-tech-disc-v1` | Enumerate technology stack (software, frameworks, versions) |
+| tech-discovery | 8030 | `yadavanup84/engine-tech-discovery:v-te6-linux1` | Enumerate technology stack (software, frameworks, versions) |
 | tech-inventory | 8031 | `yadavanup84/engine-tech-inventory:v-tech-inv-v1` | Normalize and catalog discovered tech assets |
-| tech-check | 8032 | `yadavanup84/engine-tech-check:v-tech-check-v4` | Evaluate 5025 rules against tech assets |
+| tech-check | 8032 | `yadavanup84/engine-tech-check:v-te6-linux1` | Evaluate 5025 rules against tech assets |
 | tech-ciem | 8033 | `yadavanup84/engine-tech-ciem:v-tech-ciem-v2` | Technology identity and access management posture |
 
 **Mirrors the CSPM pipeline** — same 4-stage pattern (discovery → inventory → check → ciem) but scoped to software technology instead of cloud infrastructure.
@@ -190,7 +190,7 @@ Technology engine results feed into a dedicated BFF view:
 ```yaml
 # tech-discovery
 name: engine-tech-discovery, port 80 → 8030
-image: yadavanup84/engine-tech-discovery:v-tech-disc-v1
+image: yadavanup84/engine-tech-discovery:v-te6-linux1
 
 # tech-inventory  
 name: engine-tech-inventory, port 80 → 8031
@@ -198,7 +198,7 @@ image: yadavanup84/engine-tech-inventory:v-tech-inv-v1
 
 # tech-check
 name: engine-tech-check, port 80 → 8032
-image: yadavanup84/engine-tech-check:v-tech-check-v4
+image: yadavanup84/engine-tech-check:v-te6-linux1
 
 # tech-ciem
 name: engine-tech-ciem, port 80 → 8033

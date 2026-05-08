@@ -189,7 +189,7 @@ ORDER BY severity;
 ```yaml
 name: engine-iam
 namespace: threat-engine-engines
-image: yadavanup84/engine-iam:v-iam-auth2
+image: yadavanup84/engine-iam:v-iam-journey1
 containerPort: 8003
 service: ClusterIP port 80 → targetPort 8003
 replicas: 1

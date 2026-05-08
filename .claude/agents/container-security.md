@@ -136,7 +136,7 @@ WHERE scan_run_id = $1 AND tenant_id = $2 AND privileged = TRUE;
 ```yaml
 name: engine-container-sec
 namespace: threat-engine-engines
-image: yadavanup84/engine-container-sec:v-container-enterprise
+image: yadavanup84/engine-container-sec:v-container-journey2
 containerPort: 8008
 service: ClusterIP port 80 → targetPort 8008
 replicas: 1

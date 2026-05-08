@@ -95,7 +95,7 @@ All calls are parallel (`asyncio.gather`) with a shared timeout.
 ```yaml
 name: engine-cnapp
 namespace: threat-engine-engines
-image: yadavanup84/engine-cnapp:v-cnapp-enterprise
+image: yadavanup84/engine-cnapp:v-cnapp-authfix1
 containerPort: 8015
 service: ClusterIP port 80 → targetPort 8015
 replicas: 1

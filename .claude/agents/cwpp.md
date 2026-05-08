@@ -83,7 +83,7 @@ Score formula: weighted average across 5 workload type scores.
 ```yaml
 name: engine-cwpp
 namespace: threat-engine-engines
-image: yadavanup84/engine-cwpp:v-cwpp-enterprise
+image: yadavanup84/engine-cwpp:v-cwpp-authfix1
 containerPort: 8016
 service: ClusterIP port 80 → targetPort 8016
 replicas: 1

@@ -199,7 +199,7 @@ ORDER BY record_count_estimate DESC LIMIT 20;
 ```yaml
 name: engine-datasec
 namespace: threat-engine-engines
-image: yadavanup84/engine-datasec:v-dspm-enterprise2
+image: yadavanup84/engine-datasec:v-datasec-pydantic1
 containerPort: 8004
 service: ClusterIP port 80 → targetPort 8004
 replicas: 1

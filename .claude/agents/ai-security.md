@@ -157,7 +157,7 @@ WHERE scan_run_id = $1 AND tenant_id = $2 AND internet_accessible = TRUE;
 ```yaml
 name: engine-ai-security
 namespace: threat-engine-engines
-image: yadavanup84/engine-ai-security:v-ai-coverage1
+image: yadavanup84/engine-ai-security:v-ai-journey1
 containerPort: 8032
 service: ClusterIP port 80 → targetPort 8032
 replicas: 1

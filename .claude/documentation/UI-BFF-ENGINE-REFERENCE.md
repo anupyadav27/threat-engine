@@ -1,7 +1,7 @@
 # UI ↔ BFF ↔ Engine ↔ DB — Reference Map
 
 > Single source of truth for "what does the UI need vs. what does the BFF provide".
-> Generated 2026-05-04 from a code scan; refresh after major refactors.
+> Generated 2026-05-04 from a code scan; last updated 2026-05-07 (attack-coverage → attack-map route rename).
 > Authoritative file paths are absolute (`/Users/apple/Desktop/threat-engine/...`).
 
 ---
@@ -104,7 +104,7 @@ Source root: `/Users/apple/Desktop/threat-engine/frontend/src/app/`
 | `/threats` | `threats/page.jsx` | Command Room (Pulse, Scenarios, Preview) | `threat-command-room` | via `<CommandRoom/>` |
 | `/threats/[threatId]` | `threats/[threatId]/page.jsx` | Overview, MITRE, Misconfig, Attack Path, Blast Radius, Risk, Evidence, Remediation, Timeline | `threats/{threatId}` | postToEngine for actions |
 | `/threats/attack-paths` | `threats/attack-paths/page.jsx` | Attack-path list | `threats/attack-paths` | — |
-| `/threats/attack-coverage` | `threats/attack-coverage/page.jsx` | MITRE technique heatmap | `threat-mitre-heatmap` | — |
+| `/threats/attack-map` | `threats/attack-map/page.jsx` | MITRE technique heatmap | `threat-mitre-heatmap` | — |
 | `/threats/toxic-combinations` | `threats/toxic-combinations/page.jsx` | Toxic combo cards | `threats/toxic-combinations` | — |
 | `/threats/graph` | `threats/graph/page.jsx` | Cytoscape graph explorer | `threats/graph` | `getFromEngine('threat','/api/v1/graph/explore')` |
 | `/threats/timeline` | `threats/timeline/page.jsx` | Redirect → per-threat timeline | — | redirect only |

@@ -134,6 +134,9 @@ ORDER BY severity, risk_score DESC;
 | GET | `/api/v1/threat/detections/{detection_id}/check-findings` | path | Mapped check findings |
 | GET | `/api/v1/threat/analytics/trend` | `tenant_id`, `?days=30` | Time-series trends |
 | GET | `/api/v1/threat/drift` | `tenant_id` | Drift vs previous scan |
+| POST | `/api/v1/graph/build` | `tenant_id`, `scan_run_id` | Trigger Neo4j graph build; returns 202 + `job_id` |
+| GET | `/api/v1/graph/build/status/{job_id}` | path | Poll graph build status (completed/failed/running) |
+| GET | `/api/v1/graph/explore` | `tenant_id`, `?resource_uid`, `?depth` | Cytoscape graph explorer data |
 | GET | `/api/v1/health/live` | — | Liveness |
 | GET | `/api/v1/health/ready` | — | Readiness |
 
@@ -164,7 +167,7 @@ Also: `inventory.py` calls `http://engine-threat:8020/api/v1/threat/ui-data` for
 ```yaml
 name: engine-threat
 namespace: threat-engine-engines
-image: yadavanup84/engine-threat:v-multicsp4-auth
+image: yadavanup84/engine-threat:v-graph-sprint5
 containerPort: 8020
 service: ClusterIP port 80 → targetPort 8020
 replicas: 1

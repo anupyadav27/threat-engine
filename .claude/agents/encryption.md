@@ -157,7 +157,7 @@ ORDER BY days_to_expiry ASC;
 ```yaml
 name: engine-encryption
 namespace: threat-engine-engines
-image: yadavanup84/engine-encryption:v-encryption-auth
+image: yadavanup84/engine-encryption:v-encryption-mapfix2
 containerPort: 8006
 service: ClusterIP port 80 → targetPort 8006
 replicas: 1

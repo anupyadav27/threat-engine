@@ -184,7 +184,7 @@ FROM billing_events WHERE org_id = $1 ORDER BY processed_at DESC LIMIT 10;
 ```yaml
 name: engine-billing
 namespace: threat-engine-engines
-image: yadavanup84/engine-billing:v-billing-3
+image: yadavanup84/engine-billing:v-billing-sprint3
 containerPort: 8040
 service: ClusterIP port 8040 → targetPort 8040   ← NOT port 80
 replicas: 2                                        ← 2 replicas for availability

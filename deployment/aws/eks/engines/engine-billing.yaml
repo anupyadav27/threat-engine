@@ -26,7 +26,7 @@ spec:
       serviceAccountName: engine-sa
       containers:
         - name: engine-billing
-          image: yadavanup84/engine-billing:v-billing-2
+          image: yadavanup84/engine-billing:v-billing-sprint3
           imagePullPolicy: Always
           ports:
             - containerPort: 8040
@@ -61,6 +61,16 @@ spec:
             - name: PYTHONPATH
               value: "/app"
             # ── Service discovery ────────────────────────────────────────────
+            # ── Internal service auth secret (BILL-S11) ──────────────────────
+            # Must be created before deploying:
+            # kubectl create secret generic threat-engine-secrets \
+            #   --from-literal=BILLING_INTERNAL_SECRET=$(openssl rand -hex 32) \
+            #   -n threat-engine-engines
+            - name: BILLING_INTERNAL_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-secrets
+                  key: BILLING_INTERNAL_SECRET
             # ── Stripe secrets (loaded from Secrets Manager at startup) ────────
             - name: STRIPE_SECRET_ARN
               value: "arn:aws:secretsmanager:ap-south-1:588989875114:secret:threat-engine/billing/stripe"

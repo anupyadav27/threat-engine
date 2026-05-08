@@ -73,7 +73,7 @@ spec:
       serviceAccountName: engine-sa
       containers:
         - name: engine-platform-admin
-          image: yadavanup84/engine-platform-admin:v-padmin-1
+          image: yadavanup84/engine-platform-admin:v-padmin-billing1
           imagePullPolicy: Always
           ports:
             - containerPort: 8041
@@ -123,6 +123,21 @@ spec:
               value: "INFO"
             - name: PYTHONPATH
               value: "/app"
+            # ── Inventory DB (for billing snapshot job) ───────────────────
+            - name: INVENTORY_DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_HOST
+            - name: INVENTORY_DB_NAME
+              value: "threat_engine_inventory"
+            - name: INVENTORY_DB_USER
+              value: "postgres"
+            - name: INVENTORY_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: INVENTORY_DB_PASSWORD
             # ── Service discovery ─────────────────────────────────────────
             - name: BILLING_ENGINE_URL
               value: "http://engine-billing:8040"

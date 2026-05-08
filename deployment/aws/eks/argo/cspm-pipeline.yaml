@@ -513,13 +513,111 @@ spec:
           - name: timeout
             value: "14400"
 
+      # Step 5b: graph-build — builds the Neo4j security graph AFTER domain engines
+      # complete so that CVE nodes (vulnerability engine) and network EXPOSES edges
+      # (network-security engine) are present in the graph.
+      #
+      # GRAPH-S1-04: POST /api/v1/graph/build now returns 202 + job_id immediately.
+      # This inline script captures the job_id from the trigger response and polls
+      # GET /api/v1/graph/build/status/{job_id} until status=completed|failed.
+      # Failure is non-blocking for risk (see risk.depends below) so a Neo4j outage
+      # does not halt the rest of the pipeline.
+      - name: graph-build
+        depends: >-
+          (compliance.Succeeded || compliance.Failed || compliance.Errored || compliance.Skipped) &&
+          (iam.Succeeded || iam.Failed || iam.Errored || iam.Skipped) &&
+          (datasec.Succeeded || datasec.Failed || datasec.Errored || datasec.Skipped) &&
+          (encryption.Succeeded || encryption.Failed || encryption.Errored || encryption.Skipped) &&
+          (database-security.Succeeded || database-security.Failed || database-security.Errored || database-security.Skipped) &&
+          (container-security.Succeeded || container-security.Failed || container-security.Errored || container-security.Skipped) &&
+          (ai-security.Succeeded || ai-security.Failed || ai-security.Errored || ai-security.Skipped) &&
+          (network-security.Succeeded || network-security.Failed || network-security.Errored || network-security.Skipped) &&
+          (vulnerability.Succeeded || vulnerability.Failed || vulnerability.Errored || vulnerability.Skipped) &&
+          (ciem.Succeeded || ciem.Failed || ciem.Errored || ciem.Skipped)
+        retryStrategy:
+          limit: 1
+          retryPolicy: OnFailure
+        timeout: "600s"
+        script:
+          image: python:3.11-slim
+          command: [python3, -u]
+          source: |
+            import subprocess; subprocess.run(["pip", "install", "-q", "requests"], check=True)
+            import requests, time, sys, json
+
+            TRIGGER_URL = "http://engine-threat/api/v1/graph/build"
+            POLL_BASE   = "http://engine-threat/api/v1/graph/build/status"
+            SCAN_RUN_ID = "{{workflow.parameters.scan-run-id}}"
+            TIMEOUT     = 540  # seconds — well inside the 600s step timeout
+
+            payload = json.dumps({"scan_run_id": SCAN_RUN_ID})
+            headers = {"Content-Type": "application/json"}
+
+            print(f"[graph-build] Triggering graph build for scan_run_id={SCAN_RUN_ID}")
+            try:
+                resp = requests.post(TRIGGER_URL, data=payload, headers=headers, timeout=30)
+            except Exception as e:
+                print(f"[graph-build] Trigger request failed: {e}")
+                sys.exit(1)
+
+            print(f"[graph-build] Trigger HTTP {resp.status_code}: {resp.text[:300]}")
+
+            if resp.status_code not in (200, 202):
+                print(f"[graph-build] Unexpected status {resp.status_code} — failing step")
+                sys.exit(1)
+
+            try:
+                body = resp.json()
+                job_id = body.get("job_id", "")
+            except Exception:
+                job_id = ""
+
+            if not job_id:
+                print("[graph-build] No job_id in trigger response — failing step")
+                sys.exit(1)
+
+            print(f"[graph-build] Job accepted: job_id={job_id}")
+
+            poll_url = f"{POLL_BASE}/{job_id}"
+            elapsed, interval = 0, 15
+
+            while elapsed < TIMEOUT:
+                time.sleep(interval)
+                elapsed += interval
+
+                try:
+                    sr = requests.get(poll_url, timeout=15)
+                    data = sr.json() if sr.status_code != 404 else {}
+                except Exception as poll_err:
+                    print(f"[graph-build] Poll error at {elapsed}s: {poll_err}")
+                    data = {}
+
+                status = data.get("status", "unknown")
+                if elapsed % 60 < interval:
+                    print(f"[graph-build] {elapsed}s | status={status}")
+
+                if status == "completed":
+                    stats = data.get("stats", {})
+                    print(f"[graph-build] Completed in {elapsed}s | stats={stats}")
+                    sys.exit(0)
+
+                if status == "failed":
+                    err = data.get("error", "")
+                    print(f"[graph-build] FAILED at {elapsed}s: {err}")
+                    sys.exit(1)
+
+            print(f"[graph-build] TIMEOUT after {TIMEOUT}s")
+            sys.exit(1)
+
       # Step 6: risk — aggregates all engine findings, computes FAIR scores
-      # Runs for all CSPs. Waits for all domain engines; continues if any fail.
+      # Runs for all CSPs. Waits for all domain engines AND graph-build; continues
+      # if any fail (.Failed || .Errored) so a Neo4j outage doesn't stall scoring.
       - name: risk
-        # Wait for all domain engines; continue regardless of outcome.
+        # Wait for all domain engines + graph-build; continue regardless of outcome.
         # .Errored covers pod-level timeouts (activeDeadlineSeconds); .Failed covers script sys.exit(1).
         # Parentheses are required — && binds tighter than || in Argo expression syntax.
         depends: >-
+          (graph-build.Succeeded || graph-build.Failed || graph-build.Errored || graph-build.Skipped) &&
           (compliance.Succeeded || compliance.Failed || compliance.Errored || compliance.Skipped) &&
           (iam.Succeeded || iam.Failed || iam.Errored || iam.Skipped) &&
           (datasec.Succeeded || datasec.Failed || datasec.Errored || datasec.Skipped) &&

@@ -85,7 +85,7 @@ Relevant tables:
 ```yaml
 name: engine-platform-admin
 namespace: threat-engine-engines
-image: yadavanup84/engine-platform-admin:v-padmin-2
+image: yadavanup84/engine-platform-admin:v-padmin-billing1
 containerPort: 8041
 service: ClusterIP port 8041 → targetPort 8041   ← NOT port 80
 replicas: 1

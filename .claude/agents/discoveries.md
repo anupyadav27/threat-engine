@@ -154,7 +154,7 @@ Also called by `inventory.py` BFF for discovery metadata enrichment.
 ```yaml
 name: engine-discoveries
 namespace: threat-engine-engines
-image: yadavanup84/engine-discoveries:v-disc-auth
+image: yadavanup84/engine-discoveries:v-dcat02p4
 containerPort: 8001
 service: ClusterIP port 80 → targetPort 8001
 replicas: 1
@@ -166,7 +166,7 @@ readiness: GET /api/v1/health/ready port 8001  initialDelay=15  period=10  failT
 ```
 
 Scanner Job (spot node):
-- Image: `yadavanup84/engine-discoveries:v-disc-auth` (same image, different entrypoint)
+- Image: `yadavanup84/engine-discoveries:v-dcat02p4` (same image, different entrypoint)
 - Taint: `spot-scanner=true:NoSchedule`
 - Resources: 4 vCPU, 16Gi memory
 - `active_deadline_seconds: 7200`

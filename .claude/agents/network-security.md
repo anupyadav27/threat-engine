@@ -225,7 +225,7 @@ UI data endpoint (for BFF):
 ```yaml
 name: engine-network
 namespace: threat-engine-engines
-image: yadavanup84/engine-network-security:v-net-subtabs1
+image: yadavanup84/engine-network-security:v-net-journey1
 containerPort: 8004
 service: ClusterIP port 80 → targetPort 8004
 replicas: 1

@@ -31,9 +31,11 @@ Stage 5: PARALLEL (all depend on threat.Succeeded):
          ├─ container-security (when: aws||azure||gcp||k8s||oci||alicloud||ibm — 1800s)
          ├─ ai-security   (when: aws||azure||gcp||oci — 1800s)
          └─ network-security (when: aws||azure||gcp||k8s||oci||alicloud — 14400s)
-Stage 6: risk              (waits for ALL stage-5 with OR logic — continues if any fail)
-Stage 7: threat-narrative  (best-effort, depends on risk.Succeeded only — 3600s)
-Stage 8: mark-complete     (depends on risk success/failure/error)
+Stage 6: graph-build       (POST /api/v1/graph/build → 202+job_id; Argo polls status until done;
+                            runs AFTER stage-5 so CVE nodes + EXPOSES edges are present — 1800s)
+Stage 7: risk              (waits for ALL stage-5+6 with OR logic — continues if any fail)
+Stage 8: threat-narrative  (best-effort, depends on risk.Succeeded only — 3600s)
+Stage 9: mark-complete     (depends on risk success/failure/error)
 ```
 
 **Critical rule:** The order is a correctness constraint, not just a performance one. Check reads discovery_findings. Threat reads check_findings. Compliance reads check_findings. Reversing this produces wrong results.
