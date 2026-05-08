@@ -1,0 +1,46 @@
+# ============================================================
+# Discovery YAML — admission (final_discovery v1)
+# Generated: 2026-04-16T09:36:43Z
+# Check rules: 49 | ops in scope: 1
+# ============================================================
+version: '1.0'
+provider: k8s
+service: admission
+
+services:
+  client: core_v1_api
+  module: kubernetes.client
+  api_class: CoreV1Api
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: 
+    identifier_op: k8s.admission.list_validating_webhook_configuration
+    identifier_field: metadata.name
+    item_var_path: item.metadata.name
+    identifier_template: '{name}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── k8s.admission.list_validating_webhook_configuration ──
+  - discovery_id: k8s.admission.list_validating_webhook_configuration
+    calls:
+      - action: list_validating_webhook_configuration
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        metadata.name: '{{ item.metadata.name }}'
+        webhooks: '{{ item.webhooks }}'
+        webhooks[].failurePolicy: '{{ item.webhooks[].failurePolicy }}'
+        webhooks[].name: '{{ item.webhooks[].name }}'
+        webhooks[].namespaceSelector: '{{ item.webhooks[].namespaceSelector }}'
+        webhooks[].rules: '{{ item.webhooks[].rules }}'
+        webhooks[].sideEffects: '{{ item.webhooks[].sideEffects }}'
+        webhooks[].timeoutSeconds: '{{ item.webhooks[].timeoutSeconds }}'
+

@@ -1,0 +1,67 @@
+version: '1.0'
+provider: alicloud
+service: network
+discovery:
+- discovery_id: alicloud.slb.DescribeAccessControlListAttribute
+  calls:
+  - action: DescribeAccessControlListAttribute
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Data }}'
+    item:
+      access_control_list_attribute_status: '{{ item.Status }}'
+      creation_time: '{{ item.CreationTime }}'
+      instance_id: '{{ item.InstanceId }}'
+      instance_name: '{{ item.InstanceName }}'
+      region_id: '{{ item.RegionId }}'
+      tags: '{{ item.Tags }}'
+      zone_id: '{{ item.ZoneId }}'
+      internet_facing: '{{ item.InternetFacing }}'
+      permissions: '{{ item.Permissions }}'
+      security_group_rules: '{{ item.SecurityGroupRules }}'
+      backup_enabled: '{{ item.BackupEnabled }}'
+      logging_enabled: '{{ item.LoggingEnabled }}'
+      mfa_enabled: '{{ item.MfaEnabled }}'
+      ssl_enabled: '{{ item.SslEnabled }}'
+      versioning_enabled: '{{ item.VersioningEnabled }}'
+      min_tls_version: '{{ item.MinTlsVersion }}'
+  _used_by_rules:
+  - alicloud.slb.alb.https_redirect_configured
+  - alicloud.slb.listeners.tls_enabled
+- discovery_id: alicloud.vpc.DescribePhysicalConnections
+  calls:
+  - action: DescribePhysicalConnections
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{PhysicalConnectionSet.PhysicalConnectionType}}'
+    item:
+      id: '{{ item.PhysicalconnectiontypeId }}'
+      name: '{{ item.PhysicalconnectiontypeName }}'
+      resource_type: physicalconnectiontype
+      region: '{{ region }}'
+      encrypted: '{{ item.Encrypted }}'
+      kms_key_id: '{{ item.KMSKeyId }}'
+      public_ip_address: '{{ item.PublicIpAddress }}'
+      vpc_id: '{{ item.VpcId }}'
+      status: '{{ item.Status }}'
+      tags: '{{ item.Tags }}'
+      internet_facing: '{{ item.InternetFacing }}'
+      permissions: '{{ item.Permissions }}'
+      security_group_rules: '{{ item.SecurityGroupRules }}'
+      backup_enabled: '{{ item.BackupEnabled }}'
+      logging_enabled: '{{ item.LoggingEnabled }}'
+      mfa_enabled: '{{ item.MfaEnabled }}'
+      ssl_enabled: '{{ item.SslEnabled }}'
+      versioning_enabled: '{{ item.VersioningEnabled }}'
+      min_tls_version: '{{ item.MinTlsVersion }}'
+  _used_by_rules:
+  - alicloud.vpc.endpoint.for_ecs_enabled
+  - alicloud.vpc.endpoint.services_allowed_principals_trust_boundaries_configured
+  - alicloud.vpc.network_acl.entry_policy_configured
+  - alicloud.vpc.peering_connection.accept_status_configured
+  - alicloud.vpc.security_group.deny_all_ingress_restricted
+  - alicloud.vpc.security_group.ingress_restricted

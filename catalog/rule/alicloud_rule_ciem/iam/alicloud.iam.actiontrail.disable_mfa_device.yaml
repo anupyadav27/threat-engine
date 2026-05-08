@@ -1,0 +1,84 @@
+rule_id: alicloud.iam.actiontrail.disable_mfa_device
+service: iam
+provider: alicloud
+check_type: log
+severity: high
+title: 'AliCloud IMS: MFA Device Disabled'
+description: MFA was disabled for a RAM user. Removing MFA weakens authentication
+  and enables password-only login, increasing account takeover risk.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+- credential_access
+mitre_techniques:
+- T1556
+- T1098
+risk_score: 85
+resource: alicloud_ram_user
+source: alicloud_ciem_generator
+is_active: true
+domain: identity_and_access_management
+action_category: modify
+log_source_type: alicloud_actiontrail
+posture_category: iam_posture
+threat_tags:
+- T1556
+- T1098
+- defense_evasion
+- credential_access
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: true
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '2.1'
+  - '2.2'
+  - '2.3'
+  nist_800_53_r5:
+  - AC-2
+  - AC-3
+  - AC-6
+  - IA-2
+  - IA-5
+  pci_dss_v4:
+  - '7.1'
+  - '8.2'
+  - '10.2'
+  iso_27001_2022:
+  - A.5.18
+  - A.8.2
+  - A.9.2
+remediation: '1. Investigate why MFA was disabled.
+
+  2. Re-enable MFA immediately if unauthorized.
+
+  3. Review login activity for the user after MFA removal.
+
+  4. Enforce MFA via RAM security settings.'
+references:
+- https://attack.mitre.org/techniques/T1556/
+- https://www.alibabacloud.com/help/en/ram/user-guide/configure-mfa
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: ims
+    - field: operation
+      op: equals
+      value: UnbindMFADevice
+version: '1.0'

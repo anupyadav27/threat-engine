@@ -1,0 +1,21 @@
+version: '1.0'
+provider: gcp
+service: elasticsearch
+services:
+  client: elasticsearch
+  module: boto3.client
+discovery:
+- discovery_id: gcp.elasticsearch.projects.locations.deployments.list
+  calls:
+  - action: projects.locations.deployments.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.deployments }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      displayName: '{{ item.displayName }}'
+      state: '{{ item.state }}'
+      createTime: '{{ item.createTime }}'

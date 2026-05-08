@@ -1,0 +1,89 @@
+version: '1.0'
+provider: technology
+category: db
+tech_type: cassandra
+display_name: Apache Cassandra
+action_type: cql_query
+cis_benchmark: CIS Apache Cassandra 4.0
+cis_section: '3'
+
+# ─── Authentication & Access ───────────────────────────────────────────────────
+discovery:
+  - discovery_id: cassandra.auth.local_accounts
+    description: Enumerate local user accounts and privilege levels
+    calls:
+      - action: cql_query
+        target: auth.accounts
+        save_as: accounts
+    emit:
+      as: items
+      items: "{{ accounts }}"
+      item:
+        resource_uid: "{{ item.username or item.name or item.id }}"
+        resource_type: cassandra.user_account
+        username: "{{ item.username or item.name }}"
+        is_admin: "{{ item.is_admin or item.privileged }}"
+        last_login: "{{ item.last_login }}"
+
+  - discovery_id: cassandra.auth.password_policy
+    description: Retrieve password policy configuration
+    calls:
+      - action: cql_query
+        target: auth.password_policy
+        save_as: policy
+    emit:
+      as: item
+      item:
+        resource_uid: "cassandra.password_policy"
+        resource_type: cassandra.policy
+        min_length: "{{ policy.min_length }}"
+        require_complexity: "{{ policy.complexity_enabled }}"
+        max_age_days: "{{ policy.max_age_days }}"
+
+# ─── Logging & Auditing ────────────────────────────────────────────────────────
+  - discovery_id: cassandra.logging.audit_config
+    description: Retrieve audit/logging configuration
+    calls:
+      - action: cql_query
+        target: logging.audit_config
+        save_as: audit_cfg
+    emit:
+      as: item
+      item:
+        resource_uid: "cassandra.audit_config"
+        resource_type: cassandra.config
+        audit_enabled: "{{ audit_cfg.enabled }}"
+        log_destination: "{{ audit_cfg.destination }}"
+        log_level: "{{ audit_cfg.level }}"
+
+# ─── Encryption & Transport ────────────────────────────────────────────────────
+  - discovery_id: cassandra.encryption.transport
+    description: Check transport encryption (TLS/SSL) configuration
+    calls:
+      - action: cql_query
+        target: encryption.transport
+        save_as: tls_cfg
+    emit:
+      as: item
+      item:
+        resource_uid: "cassandra.transport_encryption"
+        resource_type: cassandra.config
+        tls_enabled: "{{ tls_cfg.enabled }}"
+        tls_version: "{{ tls_cfg.min_version }}"
+        cert_path: "{{ tls_cfg.cert_path }}"
+
+# ─── Access Controls ──────────────────────────────────────────────────────────
+  - discovery_id: cassandra.acl.admin_privileges
+    description: Identify accounts with administrative or superuser privileges
+    calls:
+      - action: cql_query
+        target: acl.admin_accounts
+        save_as: admins
+    emit:
+      as: items
+      items: "{{ admins }}"
+      item:
+        resource_uid: "{{ item.username or item.name }}"
+        resource_type: cassandra.privileged_account
+        username: "{{ item.username or item.name }}"
+        privilege_level: "{{ item.role or item.level }}"

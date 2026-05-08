@@ -1,0 +1,111 @@
+version: '1.0'
+provider: gcp
+service: logging
+checks:
+- rule_id: gcp.logging.log_sink.destination_endpoint_private_networking
+  for_each: gcp.logging.sinks.list
+  severity: HIGH
+  conditions:
+    var: item.destination
+    op: not_contains
+    value: public.googleapis.com
+- rule_id: gcp.logging.log_sink.destination_iam_policy_least_privilege
+  for_each: gcp.logging.sinks.list
+  severity: HIGH
+  conditions:
+    var: item.destination
+    op: exists
+    value: null
+- rule_id: gcp.logging.log_sink.destination_tls_min_1_2_enforced
+  for_each: gcp.logging.sinks.list
+  severity: HIGH
+  conditions:
+    var: item.version
+    op: in
+    value:
+    - '1.2'
+    - '1.3'
+- rule_id: gcp.logging.log_stream.stream_encryption_at_rest_enabled
+  for_each: gcp.logging.billingAccounts.locations.buckets.list
+  severity: HIGH
+  conditions:
+    var: item.bucketOptions
+    op: exists
+    value: null
+- rule_id: gcp.logging.log_stream.stream_ingestion_auth_required
+  for_each: gcp.logging.sinks.list
+  severity: MEDIUM
+  conditions:
+    var: item.disabled
+    op: is_true
+    value: null
+- rule_id: gcp.logging.log_stream.stream_retention_days_minimum
+  for_each: gcp.logging.billingAccounts.locations.buckets.list
+  severity: MEDIUM
+  conditions:
+    var: item.bucketOptions
+    op: exists
+    value: null
+- rule_id: gcp.logging.query_definition.query_definition_access_rbac_least_privilege
+  for_each: gcp.logging.projects.metrics.list
+  severity: HIGH
+  conditions:
+    var: item.filter
+    op: exists
+    value: null
+- rule_id: gcp.logging.query_definition.query_definition_storage_encrypted
+  for_each: gcp.logging.projects.metrics.list
+  severity: MEDIUM
+  conditions:
+    var: item.bucketOptions
+    op: exists
+    value: null
+- rule_id: gcp.logging.sink.sink_cross_account_destinations_restricted
+  for_each: gcp.logging.sinks.list
+  severity: MEDIUM
+  conditions:
+    var: item.destination
+    op: not_contains
+    value: projects/
+- rule_id: gcp.logging.sink.sink_destination_encrypted
+  for_each: gcp.logging.sinks.list
+  severity: MEDIUM
+  conditions:
+    var: item.bucketOptions
+    op: exists
+    value: null
+- rule_id: gcp.logging.sink.sink_destination_least_privilege
+  for_each: gcp.logging.sinks.list
+  severity: HIGH
+  conditions:
+    var: item.destination
+    op: not_contains
+    value: storage.googleapis.com
+- rule_id: gcp.logging.store.store_access_rbac_least_privilege
+  for_each: gcp.logging.sinks.list
+  severity: HIGH
+  conditions:
+    var: item.bucketName
+    op: exists
+    value: null
+- rule_id: gcp.logging.store.store_encryption_at_rest_cmek
+  for_each: gcp.logging.billingAccounts.locations.buckets.list
+  severity: HIGH
+  conditions:
+    var: item.bucketOptions
+    op: exists
+    value: null
+- rule_id: gcp.logging.store.store_immutability_or_object_lock_where_supported
+  for_each: gcp.logging.billingAccounts.locations.buckets.list
+  severity: MEDIUM
+  conditions:
+    var: item.bucketOptions
+    op: exists
+    value: null
+- rule_id: gcp.logging.store.store_retention_days_minimum
+  for_each: gcp.logging.billingAccounts.locations.buckets.list
+  severity: MEDIUM
+  conditions:
+    var: item.bucketOptions
+    op: exists
+    value: null

@@ -1,0 +1,68 @@
+version: '1.0'
+provider: gcp
+service: flow
+checks:
+- rule_id: gcp.flow.database_port
+  for_each: gcp.sql.list_instances
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.settings.ipConfiguration.authorizedNetworks[].value
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.settings.ipConfiguration.authorizedNetworks[].value
+      op: not_contains
+      value: ::/0
+- rule_id: gcp.flow.dns_traffic
+  for_each: gcp.dns.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.networks[].networkUrl
+    op: not_contains
+    value: global/networks/default
+- rule_id: gcp.flow.high_volume_egress
+  for_each: gcp.compute.list_instances
+  severity: MEDIUM
+  conditions:
+    var: item.networkInterfaces[].accessConfigs[].natIP
+    op: not_exists
+    value: null
+- rule_id: gcp.flow.rdp_inbound
+  for_each: gcp.compute.list_firewalls
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.direction
+      op: equals
+      value: INGRESS
+    - var: item.allowed[].ports[]
+      op: not_contains
+      value: '3389'
+    - var: item.sourceRanges[]
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: gcp.flow.rejected_traffic
+  for_each: gcp.compute.list_firewalls
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.Denied[].IPProtocol
+      op: exists
+      value: null
+    - var: item.Denied[].ports[]
+      op: exists
+      value: null
+- rule_id: gcp.flow.ssh_inbound
+  for_each: gcp.compute.list_firewalls
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.direction
+      op: equals
+      value: INGRESS
+    - var: item.allowed[].ports[]
+      op: contains
+      value: '22'
+    - var: item.sourceRanges[]
+      op: not_contains
+      value: 0.0.0.0/0

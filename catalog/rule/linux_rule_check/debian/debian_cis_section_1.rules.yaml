@@ -1,0 +1,1344 @@
+tech_type: debian
+category: linux
+cis_benchmark: CIS Debian 12 v1.1.0
+cis_section: '1'
+
+rules:
+
+  - rule_id: debian.cis.1.cramfs_kernel_module_is_not_available
+    title: "Ensure cramfs kernel module is not available"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.1.1'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.cramfs_kernel_module_is_not_available
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following script to unload and disable the cramfs module: - IF - the
+      cramfs kernel module is available in ANY installed kernel: • Create a file
+      ending in .conf with install cramfs /bin/false in the /etc/modprobe.d/
+      directory • Create a file ending in .conf with blacklist cramfs in the
+      /etc/modprobe.d/ directory • Run modprobe -r cramfs 2>/dev/null; rmmod cramfs
+      2>/dev/null to remove cramfs from the kernel - IF - the cramfs kernel module
+      is not available on the system, or pre-compiled into the kernel, no
+      remediation is necessary #!/usr/bin/env bash { a_output2=() a_output3=()
+      l_dl='' l_mod_name='cramfs' l_mod_type='fs' l_mod_path='$(readlink -f
+      /lib/modules/**/kernel/$l_mod_type | sort -u)' f_module_fix() { l_dl='y'
+      a_showconfig=() while IFS= read -r l_showconfig; do
+      a_showconfig+=('$l_showconfig') done < <(modprobe --showconfig | grep -P --
+      '\b(install|blacklist)\h+''${l_mod_chk_name//-/_}''\b') if lsmod | grep
+      '$l_mod_chk_name' &> /dev/null; then a_output2+=(' - unloading kernel module:
+      \'$l_mod_name\'') modprobe -r '$l_mod_chk_name' 2>/dev/null; rmmod
+      '$l_mod_name' 2>/dev/null fi if ! grep -Pq --
+      '\binstall\h+''${l_mod_chk_name//- /_}''\h+(\/usr)?\/bin\/(true|false)\b' <<<
+      '${a_showconfig[*]}'; then a_output2+=(' - setting kernel module:
+      \'$l_mod_name\' to \'$(readlink -f /bin/false)\'') printf '%s\n' 'install
+      $l_mod_chk_name $(readlink -f /bin/false)' >>
+      /etc/modprobe.d/'$l_mod_name'.conf fi if ! grep -Pq --
+      '\bblacklist\h+''${l_mod_chk_name//-/_}''\b' <<< '${a_showconfig[*]}'; then
+      a_output2+=(' - denylisting kernel module: \'$l_mod_name\'') printf '%s\n'
+      'blacklist $l_mod_chk_name' >> /etc/modprobe.d/'$l_mod_name'.conf fi } for
+      l_mod_base_directory in $l_mod_path; do # Check if the module exists on the
+      system if [ -d '$l_mod_base_directory/${l_mod_name/-/\/}' ] && [ -n '$(ls -A
+      '$l_mod_base_directory/${l_mod_name/-/\/}')' ]; then a_output3+=(' -
+      \'$l_mod_base_directory\'') l_mod_chk_name='$l_mod_name' [[ '$l_mod_name' =~
+      overlay ]] && l_mod_chk_name='${l_mod_name::-2}' [ '$l_dl' != 'y' ] &&
+      f_module_fix else printf '%s\n' ' - kernel module: \'$l_mod_name\' doesn't
+      exist in \'$l_mod_base_directory\'' fi done [ '${#a_output3[@]}' -gt 0 ] &&
+      printf '%s\n' '' ' -- INFO --' ' - module: \'$l_mod_name\' exists in:'
+      '${a_output3[@]}' [ '${#a_output2[@]}' -gt 0 ] && printf '%s\n' ''
+      '${a_output2[@]}' || printf '%s\n' '' ' - No changes needed' printf '%s\n' ''
+      ' - remediation of kernel module: \'$l_mod_name\' complete' '' } References:
+      1. NIST SP 800-53 Rev. 5: CM-7 2. STIG Finding ID: V-230498
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_1_1
+
+  - rule_id: debian.cis.1.freevxfs_kernel_module_is_not_available
+    title: "Ensure freevxfs kernel module is not available"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.1.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.freevxfs_kernel_module_is_not_available
+    assertion:
+      field: version
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following script to unload and disable the freevxfs module: - IF - the
+      freevxfs kernel module is available in ANY installed kernel: • Create a file
+      ending in .conf with install freevxfs /bin/false in the /etc/modprobe.d/
+      directory • Create a file ending in .conf with blacklist freevxfs in the
+      /etc/modprobe.d/ directory • Run modprobe -r freevxfs 2>/dev/null; rmmod
+      freevxfs 2>/dev/null to remove freevxfs from the kernel - IF - the freevxfs
+      kernel module is not available on the system, or pre-compiled into the kernel,
+      no remediation is necessary #!/usr/bin/env bash { a_output2=() a_output3=()
+      l_dl='' l_mod_name='freevxfs' l_mod_type='fs' l_mod_path='$(readlink -f
+      /lib/modules/**/kernel/$l_mod_type | sort -u)' f_module_fix() { l_dl='y'
+      a_showconfig=() while IFS= read -r l_showconfig; do
+      a_showconfig+=('$l_showconfig') done < <(modprobe --showconfig | grep -P --
+      '\b(install|blacklist)\h+''${l_mod_chk_name//-/_}''\b') if lsmod | grep
+      '$l_mod_chk_name' &> /dev/null; then a_output2+=(' - unloading kernel module:
+      \'$l_mod_name\'') modprobe -r '$l_mod_chk_name' 2>/dev/null; rmmod
+      '$l_mod_name' 2>/dev/null fi if ! grep -Pq --
+      '\binstall\h+''${l_mod_chk_name//- /_}''\h+(\/usr)?\/bin\/(true|false)\b' <<<
+      '${a_showconfig[*]}'; then a_output2+=(' - setting kernel module:
+      \'$l_mod_name\' to \'$(readlink -f /bin/false)\'') printf '%s\n' 'install
+      $l_mod_chk_name $(readlink -f /bin/false)' >>
+      /etc/modprobe.d/'$l_mod_name'.conf fi if ! grep -Pq --
+      '\bblacklist\h+''${l_mod_chk_name//-/_}''\b' <<< '${a_showconfig[*]}'; then
+      a_output2+=(' - denylisting kernel module: \'$l_mod_name\'') printf '%s\n'
+      'blacklist $l_mod_chk_name' >> /etc/modprobe.d/'$l_mod_name'.conf fi } for
+      l_mod_base_directory in $l_mod_path; do # Check if the module exists on the
+      system if [ -d '$l_mod_base_directory/${l_mod_name/-/\/}' ] && [ -n '$(ls -A
+      '$l_mod_base_directory/${l_mod_name/-/\/}')' ]; then a_output3+=(' -
+      \'$l_mod_base_directory\'') l_mod_chk_name='$l_mod_name' [[ '$l_mod_name' =~
+      overlay ]] && l_mod_chk_name='${l_mod_name::-2}' [ '$l_dl' != 'y' ] &&
+      f_module_fix else printf '%s\n' ' - kernel module: \'$l_mod_name\' doesn't
+      exist in \'$l_mod_base_directory\'' fi done [ '${#a_output3[@]}' -gt 0 ] &&
+      printf '%s\n' '' ' -- INFO --' ' - module: \'$l_mod_name\' exists in:'
+      '${a_output3[@]}' [ '${#a_output2[@]}' -gt 0 ] && printf '%s\n' ''
+      '${a_output2[@]}' || printf '%s\n' '' ' - No changes needed' printf '%s\n' ''
+      ' - remediation of kernel module: \'$l_mod_name\' complete' '' } References:
+      1. NIST SP 800-53 Rev. 5: CM-7
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_1_2
+
+  - rule_id: debian.cis.1.hfs_kernel_module_is_not_available
+    title: "Ensure hfs kernel module is not available"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.1.3'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.hfs_kernel_module_is_not_available
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following script to unload and disable the hfs module: - IF - the hfs
+      kernel module is available in ANY installed kernel: • Create a file ending in
+      .conf with install hfs /bin/false in the /etc/modprobe.d/ directory • Create a
+      file ending in .conf with blacklist hfs in the /etc/modprobe.d/ directory •
+      Run modprobe -r hfs 2>/dev/null; rmmod hfs 2>/dev/null to remove hfs from the
+      kernel - IF - the hfs kernel module is not available on the system, or pre-
+      compiled into the kernel, no remediation is necessary #!/usr/bin/env bash {
+      a_output2=() a_output3=() l_dl='' l_mod_name='hfs' l_mod_type='fs'
+      l_mod_path='$(readlink -f /lib/modules/**/kernel/$l_mod_type | sort -u)'
+      f_module_fix() { l_dl='y' a_showconfig=() while IFS= read -r l_showconfig; do
+      a_showconfig+=('$l_showconfig') done < <(modprobe --showconfig | grep -P --
+      '\b(install|blacklist)\h+''${l_mod_chk_name//-/_}''\b') if lsmod | grep
+      '$l_mod_chk_name' &> /dev/null; then a_output2+=(' - unloading kernel module:
+      \'$l_mod_name\'') modprobe -r '$l_mod_chk_name' 2>/dev/null; rmmod
+      '$l_mod_name' 2>/dev/null fi if ! grep -Pq --
+      '\binstall\h+''${l_mod_chk_name//- /_}''\h+(\/usr)?\/bin\/(true|false)\b' <<<
+      '${a_showconfig[*]}'; then a_output2+=(' - setting kernel module:
+      \'$l_mod_name\' to \'$(readlink -f /bin/false)\'') printf '%s\n' 'install
+      $l_mod_chk_name $(readlink -f /bin/false)' >>
+      /etc/modprobe.d/'$l_mod_name'.conf fi if ! grep -Pq --
+      '\bblacklist\h+''${l_mod_chk_name//-/_}''\b' <<< '${a_showconfig[*]}'; then
+      a_output2+=(' - denylisting kernel module: \'$l_mod_name\'') printf '%s\n'
+      'blacklist $l_mod_chk_name' >> /etc/modprobe.d/'$l_mod_name'.conf fi } for
+      l_mod_base_directory in $l_mod_path; do # Check if the module exists on the
+      system if [ -d '$l_mod_base_directory/${l_mod_name/-/\/}' ] && [ -n '$(ls -A
+      '$l_mod_base_directory/${l_mod_name/-/\/}')' ]; then a_output3+=(' -
+      \'$l_mod_base_directory\'') l_mod_chk_name='$l_mod_name' [[ '$l_mod_name' =~
+      overlay ]] && l_mod_chk_name='${l_mod_name::-2}' [ '$l_dl' != 'y' ] &&
+      f_module_fix else printf '%s\n' ' - kernel module: \'$l_mod_name\' doesn't
+      exist in \'$l_mod_base_directory\'' fi done [ '${#a_output3[@]}' -gt 0 ] &&
+      printf '%s\n' '' ' -- INFO --' ' - module: \'$l_mod_name\' exists in:'
+      '${a_output3[@]}' [ '${#a_output2[@]}' -gt 0 ] && printf '%s\n' ''
+      '${a_output2[@]}' || printf '%s\n' '' ' - No changes needed' printf '%s\n' ''
+      ' - remediation of kernel module: \'$l_mod_name\' complete' '' } References:
+      1. NIST SP 800-53 Rev. 5: CM-7
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_1_3
+
+  - rule_id: debian.cis.1.hfsplus_kernel_module_is_not_available
+    title: "Ensure hfsplus kernel module is not available"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.1.4'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.hfsplus_kernel_module_is_not_available
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following script to unload and disable the hfsplus module: - IF - the
+      hfsplus kernel module is available in ANY installed kernel: • Create a file
+      ending in .conf with install hfsplus /bin/false in the /etc/modprobe.d/
+      directory • Create a file ending in .conf with blacklist hfsplus in the
+      /etc/modprobe.d/ directory • Run modprobe -r hfsplus 2>/dev/null; rmmod
+      hfsplus 2>/dev/null to remove hfsplus from the kernel - IF - the hfsplus
+      kernel module is not available on the system, or pre-compiled into the kernel,
+      no remediation is necessary #!/usr/bin/env bash { a_output2=() a_output3=()
+      l_dl='' l_mod_name='hfsplus' l_mod_type='fs' l_mod_path='$(readlink -f
+      /lib/modules/**/kernel/$l_mod_type | sort -u)' f_module_fix() { l_dl='y'
+      a_showconfig=() while IFS= read -r l_showconfig; do
+      a_showconfig+=('$l_showconfig') done < <(modprobe --showconfig | grep -P --
+      '\b(install|blacklist)\h+''${l_mod_chk_name//-/_}''\b') if lsmod | grep
+      '$l_mod_chk_name' &> /dev/null; then a_output2+=(' - unloading kernel module:
+      \'$l_mod_name\'') modprobe -r '$l_mod_chk_name' 2>/dev/null; rmmod
+      '$l_mod_name' 2>/dev/null fi if ! grep -Pq --
+      '\binstall\h+''${l_mod_chk_name//- /_}''\h+(\/usr)?\/bin\/(true|false)\b' <<<
+      '${a_showconfig[*]}'; then a_output2+=(' - setting kernel module:
+      \'$l_mod_name\' to \'$(readlink -f /bin/false)\'') printf '%s\n' 'install
+      $l_mod_chk_name $(readlink -f /bin/false)' >>
+      /etc/modprobe.d/'$l_mod_name'.conf fi if ! grep -Pq --
+      '\bblacklist\h+''${l_mod_chk_name//-/_}''\b' <<< '${a_showconfig[*]}'; then
+      a_output2+=(' - denylisting kernel module: \'$l_mod_name\'') printf '%s\n'
+      'blacklist $l_mod_chk_name' >> /etc/modprobe.d/'$l_mod_name'.conf fi } for
+      l_mod_base_directory in $l_mod_path; do # Check if the module exists on the
+      system if [ -d '$l_mod_base_directory/${l_mod_name/-/\/}' ] && [ -n '$(ls -A
+      '$l_mod_base_directory/${l_mod_name/-/\/}')' ]; then a_output3+=(' -
+      \'$l_mod_base_directory\'') l_mod_chk_name='$l_mod_name' [[ '$l_mod_name' =~
+      overlay ]] && l_mod_chk_name='${l_mod_name::-2}' [ '$l_dl' != 'y' ] &&
+      f_module_fix else printf '%s\n' ' - kernel module: \'$l_mod_name\' doesn't
+      exist in \'$l_mod_base_directory\'' fi done [ '${#a_output3[@]}' -gt 0 ] &&
+      printf '%s\n' '' ' -- INFO --' ' - module: \'$l_mod_name\' exists in:'
+      '${a_output3[@]}' [ '${#a_output2[@]}' -gt 0 ] && printf '%s\n' ''
+      '${a_output2[@]}' || printf '%s\n' '' ' - No changes needed' printf '%s\n' ''
+      ' - remediation of kernel module: \'$l_mod_name\' complete' '' } References:
+      1. NIST SP 800-53 Rev. 5: CM-7
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_1_4
+
+  - rule_id: debian.cis.1.jffs2_kernel_module_is_not_available
+    title: "Ensure jffs2 kernel module is not available"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.1.5'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.jffs2_kernel_module_is_not_available
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following script to unload and disable the jffs2 module: - IF - the
+      jffs2 kernel module is available in ANY installed kernel: • Create a file
+      ending in .conf with install jffs2 /bin/false in the /etc/modprobe.d/
+      directory • Create a file ending in .conf with blacklist jffs2 in the
+      /etc/modprobe.d/ directory • Run modprobe -r jffs2 2>/dev/null; rmmod jffs2
+      2>/dev/null to remove jffs2 from the kernel - IF - the jffs2 kernel module is
+      not available on the system, or pre-compiled into the kernel, no remediation
+      is necessary #!/usr/bin/env bash { a_output2=() a_output3=() l_dl=''
+      l_mod_name='jffs2' l_mod_type='fs' l_mod_path='$(readlink -f
+      /lib/modules/**/kernel/$l_mod_type | sort -u)' f_module_fix() { l_dl='y'
+      a_showconfig=() while IFS= read -r l_showconfig; do
+      a_showconfig+=('$l_showconfig') done < <(modprobe --showconfig | grep -P --
+      '\b(install|blacklist)\h+''${l_mod_chk_name//-/_}''\b') if lsmod | grep
+      '$l_mod_chk_name' &> /dev/null; then a_output2+=(' - unloading kernel module:
+      \'$l_mod_name\'') modprobe -r '$l_mod_chk_name' 2>/dev/null; rmmod
+      '$l_mod_name' 2>/dev/null fi if ! grep -Pq --
+      '\binstall\h+''${l_mod_chk_name//- /_}''\h+(\/usr)?\/bin\/(true|false)\b' <<<
+      '${a_showconfig[*]}'; then a_output2+=(' - setting kernel module:
+      \'$l_mod_name\' to \'$(readlink -f /bin/false)\'') printf '%s\n' 'install
+      $l_mod_chk_name $(readlink -f /bin/false)' >>
+      /etc/modprobe.d/'$l_mod_name'.conf fi if ! grep -Pq --
+      '\bblacklist\h+''${l_mod_chk_name//-/_}''\b' <<< '${a_showconfig[*]}'; then
+      a_output2+=(' - denylisting kernel module: \'$l_mod_name\'') printf '%s\n'
+      'blacklist $l_mod_chk_name' >> /etc/modprobe.d/'$l_mod_name'.conf fi } for
+      l_mod_base_directory in $l_mod_path; do # Check if the module exists on the
+      system if [ -d '$l_mod_base_directory/${l_mod_name/-/\/}' ] && [ -n '$(ls -A
+      '$l_mod_base_directory/${l_mod_name/-/\/}')' ]; then a_output3+=(' -
+      \'$l_mod_base_directory\'') l_mod_chk_name='$l_mod_name' [[ '$l_mod_name' =~
+      overlay ]] && l_mod_chk_name='${l_mod_name::-2}' [ '$l_dl' != 'y' ] &&
+      f_module_fix else printf '%s\n' ' - kernel module: \'$l_mod_name\' doesn't
+      exist in \'$l_mod_base_directory\'' fi done [ '${#a_output3[@]}' -gt 0 ] &&
+      printf '%s\n' '' ' -- INFO --' ' - module: \'$l_mod_name\' exists in:'
+      '${a_output3[@]}' [ '${#a_output2[@]}' -gt 0 ] && printf '%s\n' ''
+      '${a_output2[@]}' || printf '%s\n' '' ' - No changes needed' printf '%s\n' ''
+      ' - remediation of kernel module: \'$l_mod_name\' complete' '' } References:
+      1. NIST SP 800-53 Rev. 5: CM-7
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_1_5
+
+  - rule_id: debian.cis.1.overlayfs_kernel_module_is_not_available
+    title: "Ensure overlayfs kernel module is not available"
+    severity: medium
+    automation_type: automated
+    cis_control: '1.1.1.6'
+    cis_section: '1'
+    profile_applicability: "Level 2"
+    scope: debian.section_1.overlayfs_kernel_module_is_not_available
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following script to unload and disable the overlayfs module: - IF -
+      the overlayfs kernel module is available in ANY installed kernel: • Create a
+      file ending in .conf with install overlayfs /bin/false in the /etc/modprobe.d/
+      directory • Create a file ending in .conf with blacklist overlayfs in the
+      /etc/modprobe.d/ directory • Run modprobe -r overlay 2>/dev/null; rmmod
+      overlay 2>/dev/null to remove overlayfs from the kernel - IF - the overlayfs
+      kernel module is not available on the system, or pre-compiled into the kernel,
+      no remediation is necessary #!/usr/bin/env bash { a_output2=() a_output3=()
+      l_dl='' l_mod_name='overlayfs' l_mod_type='fs' l_mod_path='$(readlink -f
+      /lib/modules/**/kernel/$l_mod_type | sort -u)' f_module_fix() { l_dl='y'
+      a_showconfig=() while IFS= read -r l_showconfig; do
+      a_showconfig+=('$l_showconfig') done < <(modprobe --showconfig | grep -P --
+      '\b(install|blacklist)\h+''${l_mod_chk_name//-/_}''\b') if lsmod | grep
+      '$l_mod_chk_name' &> /dev/null; then a_output2+=(' - unloading kernel module:
+      \'$l_mod_name\'') modprobe -r '$l_mod_chk_name' 2>/dev/null; rmmod
+      '$l_mod_name' 2>/dev/null fi if ! grep -Pq --
+      '\binstall\h+''${l_mod_chk_name//- /_}''\h+(\/usr)?\/bin\/(true|false)\b' <<<
+      '${a_showconfig[*]}'; then a_output2+=(' - setting kernel module:
+      \'$l_mod_name\' to \'$(readlink -f /bin/false)\'') printf '%s\n' 'install
+      $l_mod_chk_name $(readlink -f /bin/false)' >>
+      /etc/modprobe.d/'$l_mod_name'.conf fi if ! grep -Pq --
+      '\bblacklist\h+''${l_mod_chk_name//-/_}''\b' <<< '${a_showconfig[*]}'; then
+      a_output2+=(' - denylisting kernel module: \'$l_mod_name\'') printf '%s\n'
+      'blacklist $l_mod_chk_name' >> /etc/modprobe.d/'$l_mod_name'.conf fi } for
+      l_mod_base_directory in $l_mod_path; do # Check if the module exists on the
+      system if [ -d '$l_mod_base_directory/${l_mod_name/-/\/}' ] && [ -n '$(ls -A
+      '$l_mod_base_directory/${l_mod_name/-/\/}')' ]; then a_output3+=(' -
+      \'$l_mod_base_directory\'') l_mod_chk_name='$l_mod_name' [[ '$l_mod_name' =~
+      overlay ]] && l_mod_chk_name='${l_mod_name::-2}' [ '$l_dl' != 'y' ] &&
+      f_module_fix else printf '%s\n' ' - kernel module: \'$l_mod_name\' doesn't
+      exist in \'$l_mod_base_directory\'' fi done [ '${#a_output3[@]}' -gt 0 ] &&
+      printf '%s\n' '' ' -- INFO --' ' - module: \'$l_mod_name\' exists in:'
+      '${a_output3[@]}' [ '${#a_output2[@]}' -gt 0 ] && printf '%s\n' ''
+      '${a_output2[@]}' || printf '%s\n' '' ' - No changes needed' printf '%s\n' ''
+      ' - remediation of kernel module: \'$l_mod_name\' complete' '' } References:
+      1. NIST SP 800-53 Rev. 5: CM-7 2.
+      https://docs.kernel.org/filesystems/overlayfs.html 3.
+      https://wiki.archlinux.org/title/Overlay_filesystem 4.
+      https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword=overlayfs
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_1_6
+
+  - rule_id: debian.cis.1.squashfs_kernel_module_is_not_available
+    title: "Ensure squashfs kernel module is not available"
+    severity: medium
+    automation_type: automated
+    cis_control: '1.1.1.7'
+    cis_section: '1'
+    profile_applicability: "Level 2"
+    scope: debian.section_1.squashfs_kernel_module_is_not_available
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following script to unload and disable the udf module: - IF - the
+      squashfs kernel module is available in ANY installed kernel: • Create a file
+      ending in .conf with install squashfs /bin/false in the /etc/modprobe.d/
+      directory • Create a file ending in .conf with blacklist squashfs in the
+      /etc/modprobe.d/ directory • Run modprobe -r squashfs 2>/dev/null; rmmod
+      squashfs 2>/dev/null to remove squashfs from the kernel - IF - the squashfs
+      kernel module is not available on the system, or pre-compiled into the kernel,
+      no remediation is necessary #!/usr/bin/env bash { a_output2=() a_output3=()
+      l_dl='' l_mod_name='squashfs' l_mod_type='fs' l_mod_path='$(readlink -f
+      /lib/modules/**/kernel/$l_mod_type | sort -u)' f_module_fix() { l_dl='y'
+      a_showconfig=() while IFS= read -r l_showconfig; do
+      a_showconfig+=('$l_showconfig') done < <(modprobe --showconfig | grep -P --
+      '\b(install|blacklist)\h+''${l_mod_chk_name//-/_}''\b') if lsmod | grep
+      '$l_mod_chk_name' &> /dev/null; then a_output2+=(' - unloading kernel module:
+      \'$l_mod_name\'') modprobe -r '$l_mod_chk_name' 2>/dev/null; rmmod
+      '$l_mod_name' 2>/dev/null fi if ! grep -Pq --
+      '\binstall\h+''${l_mod_chk_name//- /_}''\h+(\/usr)?\/bin\/(true|false)\b' <<<
+      '${a_showconfig[*]}'; then a_output2+=(' - setting kernel module:
+      \'$l_mod_name\' to \'$(readlink -f /bin/false)\'') printf '%s\n' 'install
+      $l_mod_chk_name $(readlink -f /bin/false)' >>
+      /etc/modprobe.d/'$l_mod_name'.conf fi if ! grep -Pq --
+      '\bblacklist\h+''${l_mod_chk_name//-/_}''\b' <<< '${a_showconfig[*]}'; then
+      a_output2+=(' - denylisting kernel module: \'$l_mod_name\'') printf '%s\n'
+      'blacklist $l_mod_chk_name' >> /etc/modprobe.d/'$l_mod_name'.conf fi } for
+      l_mod_base_directory in $l_mod_path; do # Check if the module exists on the
+      system if [ -d '$l_mod_base_directory/${l_mod_name/-/\/}' ] && [ -n '$(ls -A
+      '$l_mod_base_directory/${l_mod_name/-/\/}')' ]; then a_output3+=(' -
+      \'$l_mod_base_directory\'') l_mod_chk_name='$l_mod_name' [[ '$l_mod_name' =~
+      overlay ]] && l_mod_chk_name='${l_mod_name::-2}' [ '$l_dl' != 'y' ] &&
+      f_module_fix else printf '%s\n' ' - kernel module: \'$l_mod_name\' doesn't
+      exist in \'$l_mod_base_directory\'' fi done [ '${#a_output3[@]}' -gt 0 ] &&
+      printf '%s\n' '' ' -- INFO --' ' - module: \'$l_mod_name\' exists in:'
+      '${a_output3[@]}' [ '${#a_output2[@]}' -gt 0 ] && printf '%s\n' ''
+      '${a_output2[@]}' || printf '%s\n' '' ' - No changes needed' printf '%s\n' ''
+      ' - remediation of kernel module: \'$l_mod_name\' complete' '' } References:
+      1. NIST SP 800-53 Rev. 5: CM-7
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_1_7
+
+  - rule_id: debian.cis.1.udf_kernel_module_is_not_available
+    title: "Ensure udf kernel module is not available"
+    severity: medium
+    automation_type: automated
+    cis_control: '1.1.1.8'
+    cis_section: '1'
+    profile_applicability: "Level 2"
+    scope: debian.section_1.udf_kernel_module_is_not_available
+    assertion:
+      field: port
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following script to unload and disable the udf module: - IF - the udf
+      kernel module is available in ANY installed kernel: • Create a file ending in
+      .conf with install udf /bin/false in the /etc/modprobe.d/ directory • Create a
+      file ending in .conf with blacklist udf in the /etc/modprobe.d/ directory •
+      Run modprobe -r udf 2>/dev/null; rmmod udf 2>/dev/null to remove udf from the
+      kernel - IF - the udf kernel module is not available on the system, or pre-
+      compiled into the kernel, no remediation is necessary #!/usr/bin/env bash {
+      a_output2=() a_output3=() l_dl='' l_mod_name='udf' l_mod_type='fs'
+      l_mod_path='$(readlink -f /lib/modules/**/kernel/$l_mod_type | sort -u)'
+      f_module_fix() { l_dl='y' a_showconfig=() while IFS= read -r l_showconfig; do
+      a_showconfig+=('$l_showconfig') done < <(modprobe --showconfig | grep -P --
+      '\b(install|blacklist)\h+''${l_mod_chk_name//-/_}''\b') if lsmod | grep
+      '$l_mod_chk_name' &> /dev/null; then a_output2+=(' - unloading kernel module:
+      \'$l_mod_name\'') modprobe -r '$l_mod_chk_name' 2>/dev/null; rmmod
+      '$l_mod_name' 2>/dev/null fi if ! grep -Pq --
+      '\binstall\h+''${l_mod_chk_name//- /_}''\h+(\/usr)?\/bin\/(true|false)\b' <<<
+      '${a_showconfig[*]}'; then a_output2+=(' - setting kernel module:
+      \'$l_mod_name\' to \'$(readlink -f /bin/false)\'') printf '%s\n' 'install
+      $l_mod_chk_name $(readlink -f /bin/false)' >>
+      /etc/modprobe.d/'$l_mod_name'.conf fi if ! grep -Pq --
+      '\bblacklist\h+''${l_mod_chk_name//-/_}''\b' <<< '${a_showconfig[*]}'; then
+      a_output2+=(' - denylisting kernel module: \'$l_mod_name\'') printf '%s\n'
+      'blacklist $l_mod_chk_name' >> /etc/modprobe.d/'$l_mod_name'.conf fi } for
+      l_mod_base_directory in $l_mod_path; do # Check if the module exists on the
+      system if [ -d '$l_mod_base_directory/${l_mod_name/-/\/}' ] && [ -n '$(ls -A
+      '$l_mod_base_directory/${l_mod_name/-/\/}')' ]; then a_output3+=(' -
+      \'$l_mod_base_directory\'') l_mod_chk_name='$l_mod_name' [[ '$l_mod_name' =~
+      overlay ]] && l_mod_chk_name='${l_mod_name::-2}' [ '$l_dl' != 'y' ] &&
+      f_module_fix else printf '%s\n' ' - kernel module: \'$l_mod_name\' doesn't
+      exist in \'$l_mod_base_directory\'' fi done [ '${#a_output3[@]}' -gt 0 ] &&
+      printf '%s\n' '' ' -- INFO --' ' - module: \'$l_mod_name\' exists in:'
+      '${a_output3[@]}' [ '${#a_output2[@]}' -gt 0 ] && printf '%s\n' ''
+      '${a_output2[@]}' || printf '%s\n' '' ' - No changes needed' printf '%s\n' ''
+      ' - remediation of kernel module: \'$l_mod_name\' complete' '' } References:
+      1. NIST SP 800-53 Rev. 5: CM-7
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_1_8
+
+  - rule_id: debian.cis.1.usb_storage_kernel_module_is_not_available
+    title: "Ensure usb-storage kernel module is not available"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.1.9'
+    cis_section: '1'
+    profile_applicability: "Level 1 + Level 2"
+    scope: debian.section_1.usb_storage_kernel_module_is_not_available
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following script to unload and disable the usb-storage module: - IF -
+      the usb-storage kernel module is available in ANY installed kernel: • Create a
+      file ending in .conf with install usb-storage /bin/false in the
+      /etc/modprobe.d/ directory • Create a file ending in .conf with blacklist usb-
+      storage in the /etc/modprobe.d/ directory • Run modprobe -r usb-storage
+      2>/dev/null; rmmod usb-storage 2>/dev/null to remove usb-storage from the
+      kernel - IF - the usb-storage kernel module is not available on the system, or
+      pre-compiled into the kernel, no remediation is necessary #!/usr/bin/env bash
+      { a_output2=() a_output3=() l_dl='' l_mod_name='usb-storage'
+      l_mod_type='drivers' l_mod_path='$(readlink -f
+      /lib/modules/**/kernel/$l_mod_type | sort -u)' f_module_fix() { l_dl='y'
+      a_showconfig=() while IFS= read -r l_showconfig; do
+      a_showconfig+=('$l_showconfig') done < <(modprobe --showconfig | grep -P --
+      '\b(install|blacklist)\h+''${l_mod_chk_name//-/_}''\b') if lsmod | grep
+      '$l_mod_chk_name' &> /dev/null; then a_output2+=(' - unloading kernel module:
+      \'$l_mod_name\'') modprobe -r '$l_mod_chk_name' 2>/dev/null; rmmod
+      '$l_mod_name' 2>/dev/null fi if ! grep -Pq --
+      '\binstall\h+''${l_mod_chk_name//- /_}''\h+(\/usr)?\/bin\/(true|false)\b' <<<
+      '${a_showconfig[*]}'; then a_output2+=(' - setting kernel module:
+      \'$l_mod_name\' to \'$(readlink -f /bin/false)\'') printf '%s\n' 'install
+      $l_mod_chk_name $(readlink -f /bin/false)' >>
+      /etc/modprobe.d/'$l_mod_name'.conf fi if ! grep -Pq --
+      '\bblacklist\h+''${l_mod_chk_name//-/_}''\b' <<< '${a_showconfig[*]}'; then
+      a_output2+=(' - denylisting kernel module: \'$l_mod_name\'') printf '%s\n'
+      'blacklist $l_mod_chk_name' >> /etc/modprobe.d/'$l_mod_name'.conf fi } for
+      l_mod_base_directory in $l_mod_path; do # Check if the module exists on the
+      system if [ -d '$l_mod_base_directory/${l_mod_name/-/\/}' ] && [ -n '$(ls -A
+      '$l_mod_base_directory/${l_mod_name/-/\/}')' ]; then a_output3+=(' -
+      \'$l_mod_base_directory\'') l_mod_chk_name='$l_mod_name' [[ '$l_mod_name' =~
+      overlay ]] && l_mod_chk_name='${l_mod_name::-2}' [ '$l_dl' != 'y' ] &&
+      f_module_fix else printf '%s\n' ' - kernel module: \'$l_mod_name\' doesn't
+      exist in \'$l_mod_base_directory\'' fi done [ '${#a_output3[@]}' -gt 0 ] &&
+      printf '%s\n' '' ' -- INFO --' ' - module: \'$l_mod_name\' exists in:'
+      '${a_output3[@]}' [ '${#a_output2[@]}' -gt 0 ] && printf '%s\n' ''
+      '${a_output2[@]}' || printf '%s\n' '' ' - No changes needed' printf '%s\n' ''
+      ' - remediation of kernel module: \'$l_mod_name\' complete' '' } References:
+      1. NIST SP 800-53 Rev. 5: SI-3 Additional Information: An alternative solution
+      to disabling the usb-storage module may be found in USBGuard. Use of USBGuard
+      and construction of USB device policies should be done in alignment with site
+      policy.
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_1_9
+
+  - rule_id: debian.cis.1.tmp_is_a_separate_partition
+    title: "Ensure /tmp is a separate partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.1.1'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.tmp_is_a_separate_partition
+    assertion:
+      field: row_count
+      operator: lte
+      expected: "true"
+    remediation: >
+      First ensure that systemd is correctly configured to ensure that /tmp will be
+      mounted at boot time. # systemctl unmask tmp.mount For specific configuration
+      requirements of the /tmp mount for your environment, modify /etc/fstab.
+      Example of using tmpfs with specific mount options: tmpfs /tmp tmpfs
+      defaults,rw,nosuid,nodev,noexec,relatime,size=2G 0 0 Note: the size=2G is an
+      example of setting a specific size for tmpfs. Example of using a volume or
+      disk with specific mount options. The source location of the volume or disk
+      will vary depending on your environment: <device> /tmp <fstype>
+      defaults,nodev,nosuid,noexec 0 0 References: 1.
+      https://www.freedesktop.org/wiki/Software/systemd/APIFileSystems/ 2.
+      https://www.freedesktop.org/software/systemd/man/systemd-fstab-generator.html
+      3. https://www.kernel.org/doc/Documentation/filesystems/tmpfs.txt 4. NIST SP
+      800-53 Rev. 5: CM-7
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_2_1_1
+
+  - rule_id: debian.cis.1.nodev_option_set_on_tmp_partition
+    title: "Ensure nodev option set on /tmp partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.1.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.nodev_option_set_on_tmp_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /tmp. Edit the /etc/fstab file and add
+      nodev to the fourth field (mounting options) for the /tmp partition. Example:
+      <device> /tmp <fstype> defaults,rw,nosuid,nodev,noexec,relatime 0 0 Run the
+      following command to remount /tmp with the configured options: # mount -o
+      remount /tmp References: 1. See the fstab(5) manual page for more information.
+      2. NIST SP 800-53 Rev. 5: CM-7
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_2_1_2
+
+  - rule_id: debian.cis.1.nosuid_option_set_on_tmp_partition
+    title: "Ensure nosuid option set on /tmp partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.1.3'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.nosuid_option_set_on_tmp_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /tmp. Edit the /etc/fstab file and add
+      nosuid to the fourth field (mounting options) for the /tmp partition. Example:
+      <device> /tmp <fstype> defaults,rw,nosuid,nodev,noexec,relatime 0 0 Run the
+      following command to remount /tmp with the configured options: # mount -o
+      remount /tmp References: 1. See the fstab(5) manual page for more information.
+      2. NIST SP 800-53 Rev. 5: AC-3, MP-2
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_2_1_3
+
+  - rule_id: debian.cis.1.noexec_option_set_on_tmp_partition
+    title: "Ensure noexec option set on /tmp partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.1.4'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.noexec_option_set_on_tmp_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /tmp. Edit the /etc/fstab file and add
+      noexec to the fourth field (mounting options) for the /tmp partition. Example:
+      <device> /tmp <fstype> defaults,rw,nosuid,nodev,noexec,relatime 0 0 Run the
+      following command to remount /tmp with the configured options: # mount -o
+      remount /tmp References: 1. See the fstab(5) manual page for more information.
+      2. NIST SP 800-53 Rev. 5: AC-3, MP-2
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_2_1_4
+
+  - rule_id: debian.cis.1.dev_shm_is_a_separate_partition
+    title: "Ensure /dev/shm is a separate partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.2.1'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.dev_shm_is_a_separate_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      For specific configuration requirements of the /dev/shm mount for your
+      environment, modify /etc/fstab. Example: tmpfs /dev/shm tmpfs
+      defaults,rw,nosuid,nodev,noexec,relatime,size=2G 0 0 References: 1.
+      https://www.freedesktop.org/wiki/Software/systemd/APIFileSystems/ 2.
+      https://www.freedesktop.org/software/systemd/man/systemd-fstab-generator.html
+      3. NIST SP 800-53 Rev. 5: CM-7
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_2_2_1
+
+  - rule_id: debian.cis.1.nodev_option_set_on_dev_shm_partition
+    title: "Ensure nodev option set on /dev/shm partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.2.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.nodev_option_set_on_dev_shm_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /dev/shm. Edit the /etc/fstab file and
+      add nodev to the fourth field (mounting options) for the /dev/shm partition.
+      See the fstab(5) manual page for more information. Example: tmpfs /dev/shm
+      tmpfs defaults,rw,nosuid,nodev,noexec,relatime 0 0 Run the following command
+      to remount /dev/shm with the configured options: # mount -o remount /dev/shm
+      Note: It is recommended to use tmpfs as the device/filesystem type as /dev/shm
+      is used as shared memory space by applications. References: 1. NIST SP 800-53
+      Rev. 5: AC-3, MP-2 Additional Information: Some distributions mount /dev/shm
+      through other means and require /dev/shm to be added to /etc/fstab even though
+      it is already being mounted on boot. Others may configure /dev/shm in other
+      locations and may override /etc/fstab configuration. Consult the documentation
+      appropriate for your distribution.
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_2_2_2
+
+  - rule_id: debian.cis.1.nosuid_option_set_on_dev_shm_partition
+    title: "Ensure nosuid option set on /dev/shm partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.2.3'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.nosuid_option_set_on_dev_shm_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /dev/shm. Edit the /etc/fstab file and
+      add nosuid to the fourth field (mounting options) for the /dev/shm partition.
+      See the fstab(5) manual page for more information. Example: tmpfs /dev/shm
+      tmpfs defaults,rw,nosuid,nodev,noexec,relatime 0 0 Run the following command
+      to remount /dev/shm with the configured options: # mount -o remount /dev/shm
+      Note: It is recommended to use tmpfs as the device/filesystem type as /dev/shm
+      is used as shared memory space by applications. References: 1. NIST SP 800-53
+      Rev. 5: AC-3, MP-2 Additional Information: Some distributions mount /dev/shm
+      through other means and require /dev/shm to be added to /etc/fstab even though
+      it is already being mounted on boot. Others may configure /dev/shm in other
+      locations and may override /etc/fstab configuration. Consult the documentation
+      appropriate for your distribution.
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_2_2_3
+
+  - rule_id: debian.cis.1.noexec_option_set_on_dev_shm_partition
+    title: "Ensure noexec option set on /dev/shm partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.2.4'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.noexec_option_set_on_dev_shm_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /dev/shm. Edit the /etc/fstab file and
+      add noexec to the fourth field (mounting options) for the /dev/shm partition.
+      Example: tmpfs /dev/shm tmpfs defaults,rw,nosuid,nodev,noexec,relatime 0 0 Run
+      the following command to remount /dev/shm with the configured options: # mount
+      -o remount /dev/shm Note: It is recommended to use tmpfs as the
+      device/filesystem type as /dev/shm is used as shared memory space by
+      applications. References: 1. See the fstab(5) manual page for more
+      information. 2. NIST SP 800-53 Rev. 5: AC-3, MP-2
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_2_2_4
+
+  - rule_id: debian.cis.1.separate_partition_exists_for_home
+    title: "Ensure separate partition exists for /home"
+    severity: medium
+    automation_type: automated
+    cis_control: '1.1.2.3.1'
+    cis_section: '1'
+    profile_applicability: "Level 2"
+    scope: debian.section_1.separate_partition_exists_for_home
+    assertion:
+      field: port
+      operator: exists
+      expected: "true"
+    remediation: >
+      For new installations, during installation create a custom partition setup and
+      specify a separate partition for /home. For systems that were previously
+      installed, create a new partition and configure /etc/fstab as appropriate.
+      References: 1. AJ Lewis, 'LVM HOWTO', http://tldp.org/HOWTO/LVM-HOWTO/ 2. NIST
+      SP 800-53 Rev. 5: CM-7 Additional Information: When modifying /home it is
+      advisable to bring the system to emergency mode (so auditd is not running),
+      rename the existing directory, mount the new file system, and migrate the data
+      over before returning to multi-user mode.
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_2_3_1
+
+  - rule_id: debian.cis.1.nodev_option_set_on_home_partition
+    title: "Ensure nodev option set on /home partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.3.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.nodev_option_set_on_home_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /home. Edit the /etc/fstab file and add
+      nodev to the fourth field (mounting options) for the /home partition. Example:
+      <device> /home <fstype> defaults,rw,nosuid,nodev,noexec,relatime 0 0 Run the
+      following command to remount /home with the configured options: # mount -o
+      remount /home References: 1. See the fstab(5) manual page for more
+      information. 2. NIST SP 800-53 Rev. 5: AC-3, MP-2
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_2_3_2
+
+  - rule_id: debian.cis.1.nosuid_option_set_on_home_partition
+    title: "Ensure nosuid option set on /home partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.3.3'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.nosuid_option_set_on_home_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /home. Edit the /etc/fstab file and add
+      nosuid to the fourth field (mounting options) for the /home partition.
+      Example: <device> /home <fstype> defaults,rw,nosuid,nodev,noexec,relatime 0 0
+      Run the following command to remount /home with the configured options: #
+      mount -o remount /home References: 1. See the fstab(5) manual page for more
+      information. 2. NIST SP 800-53 Rev. 5: AC-3, MP-2
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_2_3_3
+
+  - rule_id: debian.cis.1.separate_partition_exists_for_var
+    title: "Ensure separate partition exists for /var"
+    severity: medium
+    automation_type: automated
+    cis_control: '1.1.2.4.1'
+    cis_section: '1'
+    profile_applicability: "Level 2"
+    scope: debian.section_1.separate_partition_exists_for_var
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      For new installations, during installation create a custom partition setup and
+      specify a separate partition for /var. For systems that were previously
+      installed, create a new partition and configure /etc/fstab as appropriate.
+      References: 1. AJ Lewis, 'LVM HOWTO', http://tldp.org/HOWTO/LVM-HOWTO/ 2. NIST
+      SP 800-53 Rev. 5: CM-7 Additional Information: When modifying /var it is
+      advisable to bring the system to emergency mode (so auditd is not running),
+      rename the existing directory, mount the new file system, and migrate the data
+      over before returning to multi-user mode.
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_2_4_1
+
+  - rule_id: debian.cis.1.nodev_option_set_on_var_partition
+    title: "Ensure nodev option set on /var partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.4.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.nodev_option_set_on_var_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /var. Edit the /etc/fstab file and add
+      nodev to the fourth field (mounting options) for the /var partition. Example:
+      <device> /var <fstype> defaults,rw,nosuid,nodev,noexec,relatime 0 0 Run the
+      following command to remount /var with the configured options: # mount -o
+      remount /var References: 1. See the fstab(5) manual page for more information.
+      2. NIST SP 800-53 Rev. 5: AC-3, MP-2
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_2_4_2
+
+  - rule_id: debian.cis.1.nosuid_option_set_on_var_partition
+    title: "Ensure nosuid option set on /var partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.4.3'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.nosuid_option_set_on_var_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /var. Edit the /etc/fstab file and add
+      nosuid to the fourth field (mounting options) for the /var partition. Example:
+      <device> /var <fstype> defaults,rw,nosuid,nodev,noexec,relatime 0 0 Run the
+      following command to remount /var with the configured options: # mount -o
+      remount /var References: 1. See the fstab(5) manual page for more information.
+      2. NIST SP 800-53 Rev. 5: AC-3, MP-2
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_2_4_3
+
+  - rule_id: debian.cis.1.separate_partition_exists_for_var_tmp
+    title: "Ensure separate partition exists for /var/tmp"
+    severity: medium
+    automation_type: automated
+    cis_control: '1.1.2.5.1'
+    cis_section: '1'
+    profile_applicability: "Level 2"
+    scope: debian.section_1.separate_partition_exists_for_var_tmp
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      For new installations, during installation create a custom partition setup and
+      specify a separate partition for /var/tmp. For systems that were previously
+      installed, create a new partition and configure /etc/fstab as appropriate.
+      References: 1. AJ Lewis, 'LVM HOWTO', http://tldp.org/HOWTO/LVM-HOWTO/ 2. NIST
+      SP 800-53 Rev. 5: CM-7 Additional Information: When modifying /var/tmp it is
+      advisable to bring the system to emergency mode (so auditd is not running),
+      rename the existing directory, mount the new file system, and migrate the data
+      over before returning to multi-user mode.
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_2_5_1
+
+  - rule_id: debian.cis.1.nodev_option_set_on_var_tmp_partition
+    title: "Ensure nodev option set on /var/tmp partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.5.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.nodev_option_set_on_var_tmp_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /var/tmp. Edit the /etc/fstab file and
+      add nodev to the fourth field (mounting options) for the /var/tmp partition.
+      Example: <device> /var/tmp <fstype> defaults,rw,nosuid,nodev,noexec,relatime 0
+      0 Run the following command to remount /var/tmp with the configured options: #
+      mount -o remount /var/tmp References: 1. See the fstab(5) manual page for more
+      information. 2. NIST SP 800-53 Rev. 5: AC-3, MP-2
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_2_5_2
+
+  - rule_id: debian.cis.1.nosuid_option_set_on_var_tmp_partition
+    title: "Ensure nosuid option set on /var/tmp partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.5.3'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.nosuid_option_set_on_var_tmp_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /var/tmp. Edit the /etc/fstab file and
+      add nosuid to the fourth field (mounting options) for the /var/tmp partition.
+      Example: <device> /var/tmp <fstype> defaults,rw,nosuid,nodev,noexec,relatime 0
+      0 Run the following command to remount /var/tmp with the configured options: #
+      mount -o remount /var/tmp References: 1. See the fstab(5) manual page for more
+      information. 2. NIST SP 800-53 Rev. 5: AC-3, MP-2
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_2_5_3
+
+  - rule_id: debian.cis.1.noexec_option_set_on_var_tmp_partition
+    title: "Ensure noexec option set on /var/tmp partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.5.4'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.noexec_option_set_on_var_tmp_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /var/tmp. Edit the /etc/fstab file and
+      add noexec to the fourth field (mounting options) for the /var/tmp partition.
+      Example: <device> /var/tmp <fstype> defaults,rw,nosuid,nodev,noexec,relatime 0
+      0 Run the following command to remount /var/tmp with the configured options: #
+      mount -o remount /var/tmp References: 1. See the fstab(5) manual page for more
+      information. 2. NIST SP 800-53 Rev. 5: AC-3, MP-2
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_2_5_4
+
+  - rule_id: debian.cis.1.separate_partition_exists_for_var_log
+    title: "Ensure separate partition exists for /var/log"
+    severity: medium
+    automation_type: automated
+    cis_control: '1.1.2.6.1'
+    cis_section: '1'
+    profile_applicability: "Level 2"
+    scope: debian.section_1.separate_partition_exists_for_var_log
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      For new installations, during installation create a custom partition setup and
+      specify a separate partition for /var/log . For systems that were previously
+      installed, create a new partition and configure /etc/fstab as appropriate.
+      References: 1. AJ Lewis, 'LVM HOWTO', http://tldp.org/HOWTO/LVM-HOWTO/ 2. NIST
+      SP 800-53 Rev. 5: CM-7 Additional Information: When modifying /var/log it is
+      advisable to bring the system to emergency mode (so auditd is not running),
+      rename the existing directory, mount the new file system, and migrate the data
+      over before returning to multiuser mode.
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_2_6_1
+
+  - rule_id: debian.cis.1.nodev_option_set_on_var_log_partition
+    title: "Ensure nodev option set on /var/log partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.6.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.nodev_option_set_on_var_log_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /var/log. Edit the /etc/fstab file and
+      add nodev to the fourth field (mounting options) for the /var/log partition.
+      Example: <device> /var/log <fstype> defaults,rw,nosuid,nodev,noexec,relatime 0
+      0 Run the following command to remount /var/log with the configured options: #
+      mount -o remount /var/log References: 1. See the fstab(5) manual page for more
+      information. 2. NIST SP 800-53 Rev. 5: AC-3, MP-2
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_2_6_2
+
+  - rule_id: debian.cis.1.nosuid_option_set_on_var_log_partition
+    title: "Ensure nosuid option set on /var/log partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.6.3'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.nosuid_option_set_on_var_log_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /var/log. Edit the /etc/fstab file and
+      add nosuid to the fourth field (mounting options) for the /var/log partition.
+      Example: <device> /var/log <fstype> defaults,rw,nosuid,nodev,noexec,relatime 0
+      0 Run the following command to remount /var/log with the configured options: #
+      mount -o remount /var/log References: 1. See the fstab(5) manual page for more
+      information. 2. NIST SP 800-53 Rev. 5: AC-3, MP-2
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_2_6_3
+
+  - rule_id: debian.cis.1.noexec_option_set_on_var_log_partition
+    title: "Ensure noexec option set on /var/log partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.6.4'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.noexec_option_set_on_var_log_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /var/log. Edit the /etc/fstab file and
+      add noexec to the fourth field (mounting options) for the /var/log partition.
+      Example: <device> /var/log <fstype> defaults,rw,nosuid,nodev,noexec,relatime 0
+      0 Run the following command to remount /var/log with the configured options: #
+      mount -o remount /var/log References: 1. See the fstab(5) manual page for more
+      information. 2. NIST SP 800-53 Rev. 5: AC-3, MP-2
+    compliance:
+      - cis_debian_12_v1_1_0_1_1_2_6_4
+
+  - rule_id: debian.cis.1.apparmor_is_enabled_in_the_bootloader
+    title: "Ensure AppArmor is enabled in the bootloader configuration"
+    severity: high
+    automation_type: automated
+    cis_control: '1.3.1.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.apparmor_is_enabled_in_the_bootloader
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Edit /etc/default/grub and add the apparmor=1 and security=apparmor parameters
+      to the GRUB_CMDLINE_LINUX= line GRUB_CMDLINE_LINUX='apparmor=1
+      security=apparmor' Run the following command to update the grub2
+      configuration: # update-grub References: 1. NIST SP 800-53 Rev. 5: AC-3
+    compliance:
+      - cis_debian_12_v1_1_0_1_3_1_2
+
+  - rule_id: debian.cis.1.bootloader_password_is_set
+    title: "Ensure bootloader password is set"
+    severity: high
+    automation_type: automated
+    cis_control: '1.4.1'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.bootloader_password_is_set
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Create an encrypted password with grub-mkpasswd-pbkdf2: # grub-mkpasswd-pbkdf2
+      --iteration-count=600000 --salt=64 Enter password: <password> Reenter
+      password: <password> PBKDF2 hash of your password is <encrypted-password> Add
+      the following into a custom /etc/grub.d configuration file: cat <<EOF exec
+      tail -n +2 $0 set superusers='<username>' password_pbkdf2 <username>
+      <encrypted-password> EOF The superuser/user information and password should
+      not be contained in the /etc/grub.d/00_header file as this file could be
+      overwritten in a package update. If there is a requirement to be able to
+      boot/reboot without entering the password, edit /etc/grub.d/10_linux and add
+      --unrestricted to the line CLASS= Example: CLASS='--class gnu-linux --class
+      gnu --class os --unrestricted' Run the following command to update the grub2
+      configuration: # update-grub Default Value: This recommendation is designed
+      around the grub bootloader, if LILO or another bootloader is in use in your
+      environment enact equivalent settings. Replace /boot/grub/grub.cfg with the
+      appropriate grub configuration file for your environment. References: 1. NIST
+      SP 800-53 Rev. 5: AC-3 Additional Information: Changes to /etc/grub.d/10_linux
+      may be overwritten during updates to the grub- common package. You should
+      review any changes to this file before rebooting otherwise the system may
+      unexpectedly prompt for a password on the next boot.
+    compliance:
+      - cis_debian_12_v1_1_0_1_4_1
+
+  - rule_id: debian.cis.1.address_space_layout_randomization_is_enabled
+    title: "Ensure address space layout randomization is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '1.5.1'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.address_space_layout_randomization_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Set the following parameter in /etc/sysctl.conf or a file in /etc/sysctl.d/
+      ending in .conf: • kernel.randomize_va_space = 2 Example: # printf '%s\n'
+      'kernel.randomize_va_space = 2' >> /etc/sysctl.d/60- kernel_sysctl.conf Run
+      the following command to set the active kernel parameter: # sysctl -w
+      kernel.randomize_va_space=2 Note: If these settings appear in a canonically
+      later file, or later in the same file, these settings will be overwritten
+      Default Value: kernel.randomize_va_space = 2 References: 1.
+      http://manpages.ubuntu.com/manpages/focal/man5/sysctl.d.5.html 2. CCI-000366:
+      The organization implements the security configuration settings 3. NIST SP
+      800-53 Rev. 5: CM-6
+    compliance:
+      - cis_debian_12_v1_1_0_1_5_1
+
+  - rule_id: debian.cis.1.core_dumps_are_restricted
+    title: "Ensure core dumps are restricted"
+    severity: high
+    automation_type: automated
+    cis_control: '1.5.3'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.core_dumps_are_restricted
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Add the following line to /etc/security/limits.conf or a
+      /etc/security/limits.d/* file: * hard core 0 Set the following parameter in
+      /etc/sysctl.conf or a file in /etc/sysctl.d/ ending in .conf: •
+      fs.suid_dumpable = 0 Example: # printf '\n%s' 'fs.suid_dumpable = 0' >>
+      /etc/sysctl.d/60-fs_sysctl.conf Run the following command to set the active
+      kernel parameter: # sysctl -w fs.suid_dumpable=0 Note: If these settings
+      appear in a canonically later file, or later in the same file, these settings
+      will be overwritten -IF- systemd-coredump is installed: edit
+      /etc/systemd/coredump.conf and add/modify the following lines: Storage=none
+      ProcessSizeMax=0 Run the command: systemctl daemon-reload References: 1. NIST
+      SP 800-53 Rev. 5: CM-6 MITRE ATT&CK Mappings: Techniques / Sub- techniques
+      Tactics Mitigations T1005, T1005.000 TA0007 M1057 1.6 Configure Command Line
+      Warning Banners Presenting a warning message prior to the normal user login
+      may assist in the prosecution of trespassers on the computer system. Changing
+      some of these login banners also has the side effect of hiding OS version
+      information and other detailed system information from attackers attempting to
+      target specific exploits at a system. Guidelines published by the US
+      Department of Defense require that warning messages include at least the name
+      of the organization that owns the system, the fact that the system is subject
+      to monitoring and that such monitoring is in compliance with local statutes,
+      and that use of the system implies consent to such monitoring. It is important
+      that the organization's legal counsel review the content of all messages
+      before any system modifications are made, as these warning messages are
+      inherently site-specific. More information (including citations of relevant
+      case law) can be found at http://www.justice.gov/criminal/cybercrime/ The
+      /etc/motd, /etc/issue, and /etc/issue.net files govern warning banners for
+      standard command line logins for both local and remote users. Note: The text
+      provided in the remediation actions for these items is intended as an example
+      only. Please edit to include the specific text for your organization as
+      approved by your legal department.
+    compliance:
+      - cis_debian_12_v1_1_0_1_5_3
+
+  - rule_id: debian.cis.1.gdm_screen_locks_when_the_user_is_idle
+    title: "Ensure GDM screen locks when the user is idle"
+    severity: high
+    automation_type: automated
+    cis_control: '1.7.4'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.gdm_screen_locks_when_the_user_is_idle
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - A user profile is already created run the following commands to enable
+      screen locks when the user is idle: # gsettings set
+      org.gnome.desktop.screensaver lock-delay 5 # gsettings set
+      org.gnome.desktop.session idle-delay 900 Note: • gsettings commands in this
+      section MUST be done from a command window on a graphical desktop or an error
+      will be returned. • The system must be restarted after all gsettings
+      configurations have been set in order for CIS-CAT Assessor to appropriately
+      assess. • If the dconf database is not updating correctly due to umask
+      requirements contain in the benchmark, then use (umask 0022 && gsetting set)
+      commands from above to temporarily set umask ensuring that any files or
+      directories created by gsettings will have the required permissions. - OR/IF-
+      A user profile does not exist: 1. Create or edit the user profile in the
+      /etc/dconf/profile/ and verify it includes the following: user-db:user system-
+      db:{NAME_OF_DCONF_DATABASE} Note: local is the name of a dconf database used
+      in the examples. 2. Create the directory /etc/dconf/db/local.d/ if it doesn't
+      already exist: 3. Create the key file /etc/dconf/db/local.d/00-screensaver to
+      provide information for the local database: Example key file: # Specify the
+      dconf path [org/gnome/desktop/session] # Number of seconds of inactivity
+      before the screen goes blank # Set to 0 seconds if you want to deactivate the
+      screensaver. idle-delay=uint32 180 # Specify the dconf path
+      [org/gnome/desktop/screensaver] # Number of seconds after the screen is blank
+      before locking the screen lock-delay=uint32 0 Note: You must include the
+      uint32 along with the integer key values as shown. 4. Run the following
+      command to update the system databases: # dconf update 5. Users must log out
+      and back in again before the system-wide settings take effect. References: 1.
+      https://help.gnome.org/admin/system-admin-guide/stable/desktop-
+      lockscreen.html.en
+    compliance:
+      - cis_debian_12_v1_1_0_1_7_4
+
+  - rule_id: debian.cis.1.gdm_screen_locks_cannot_be_overridden
+    title: "Ensure GDM screen locks cannot be overridden"
+    severity: high
+    automation_type: automated
+    cis_control: '1.7.5'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.gdm_screen_locks_cannot_be_overridden
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "true"
+    remediation: >
+      1. To prevent the user from overriding these settings, create the file
+      /etc/dconf/db/local.d/locks/00-screensaver with the following content: # Lock
+      desktop screensaver settings /org/gnome/desktop/session/idle-delay
+      /org/gnome/desktop/screensaver/lock-delay 2. Update the system databases: #
+      dconf update Note: • A user profile must exist in order to apply locks. •
+      Users must log out and back in again before the system-wide settings take
+      effect. References: 1. https://help.gnome.org/admin/system-admin-
+      guide/stable/desktop- lockscreen.html.en 2.
+      https://help.gnome.org/admin/system-admin-guide/stable/dconf-lockdown.html.en
+      3. NIST SP 800-53 Rev. 5: CM-11
+    compliance:
+      - cis_debian_12_v1_1_0_1_7_5
+
+  - rule_id: debian.cis.1.gdm_automatic_mounting_of_removable_media_is
+    title: "Ensure GDM automatic mounting of removable media is disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '1.7.6'
+    cis_section: '1'
+    profile_applicability: "Level 1 + Level 2"
+    scope: debian.section_1.gdm_automatic_mounting_of_removable_media_is
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      - IF - A user profile exists run the following commands to ensure automatic
+      mounting is disabled: # gsettings set org.gnome.desktop.media-handling
+      automount false # gsettings set org.gnome.desktop.media-handling automount-
+      open false Note: • gsettings commands in this section MUST be done from a
+      command window on a graphical desktop or an error will be returned. • The
+      system must be restarted after all gsettings configurations have been set in
+      order for CIS-CAT Assessor to appropriately assess. • If the dconf database is
+      not updating correctly due to umask requirements contain in the benchmark,
+      then use (umask 0022 && gsetting set) commands from above to temporarily set
+      umask ensuring that any files or directories created by gsettings will have
+      the required permissions. - OR/IF - A user profile does not exist: 1. Create a
+      file /etc/dconf/db/local.d/00-media-automount with following content:
+      [org/gnome/desktop/media-handling] automount=false automount-open=false 2.
+      After creating the file, apply the changes using below command : # dconf
+      update Note: Users must log out and back in again before the system-wide
+      settings take effect. References: 1. https://access.redhat.com/solutions/20107
+      2. NIST SP 800-53 Rev. 5: CM-1,CM-2, CM-6, CM-7, IA-5
+    compliance:
+      - cis_debian_12_v1_1_0_1_7_6
+
+  - rule_id: debian.cis.1.gdm_disabling_automatic_mounting_of_removable
+    title: "Ensure GDM disabling automatic mounting of removable media is not overridden"
+    severity: high
+    automation_type: automated
+    cis_control: '1.7.7'
+    cis_section: '1'
+    profile_applicability: "Level 1 + Level 2"
+    scope: debian.section_1.gdm_disabling_automatic_mounting_of_removable
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "true"
+    remediation: >
+      1. To prevent the user from overriding these settings, create the file
+      /etc/dconf/db/local.d/locks/00-media-automount with the following content:
+      [org/gnome/desktop/media-handling] automount=false automount-open=false 2.
+      Update the systems databases: # dconf update Note: • A user profile must exist
+      in order to apply locks. • Users must log out and back in again before the
+      system-wide settings take effect. References: 1.
+      https://help.gnome.org/admin/system-admin-guide/stable/dconf-lockdown.html.en
+      2. NIST SP 800-53 Rev. 5: CM-1,CM-2, CM-6, CM-7, IA-5 3.
+      https://manpages.ubuntu.com/manpages/trusty/man1/gsettings.1.html 4.
+      https://access.redhat.com/solutions/20107 MITRE ATT&CK Mappings: Techniques /
+      Sub- techniques Tactics Mitigations T1091, T1091.000 TA0001, TA0008 M1042
+    compliance:
+      - cis_debian_12_v1_1_0_1_7_7
+
+  - rule_id: debian.cis.1.gdm_autorun_never_is_enabled
+    title: "Ensure GDM autorun-never is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '1.7.8'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.gdm_autorun_never_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - A user profile exists run the following command to set autorun-never to
+      true for GDM users: # gsettings set org.gnome.desktop.media-handling autorun-
+      never true Note: • gsettings commands in this section MUST be done from a
+      command window on a graphical desktop or an error will be returned. • The
+      system must be restarted after all gsettings configurations have been set in
+      order for CIS-CAT Assessor to appropriately assess. • If the dconf database is
+      not updating correctly due to umask requirements contain in the benchmark,
+      then use (umask 0022 && gsetting set) commands from above to temporarily set
+      umask ensuring that any files or directories created by gsettings will have
+      the required permissions. - OR/IF - A lock does not exist: 1. create the file
+      /etc/dconf/db/local.d/locks/00-media-autorun with the following content:
+      [org/gnome/desktop/media-handling] autorun-never=true 2. Update the systems
+      databases: # dconf update Note: Users must log out and back in again before
+      the system-wide settings take effect. Default Value: false References: 1. NIST
+      SP 800-53 Rev. 5: CM-1,CM-2, CM-6, CM-7, IA-5
+    compliance:
+      - cis_debian_12_v1_1_0_1_7_8
+
+  - rule_id: debian.cis.1.gdm_autorun_never_is_not_overridden
+    title: "Ensure GDM autorun-never is not overridden"
+    severity: high
+    automation_type: automated
+    cis_control: '1.7.9'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.gdm_autorun_never_is_not_overridden
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "true"
+    remediation: >
+      1. To prevent the user from overriding these settings, create the file
+      /etc/dconf/db/local.d/locks/00-media-autorun with the following content:
+      [org/gnome/desktop/media-handling] autorun-never=true 2. Update the systems
+      databases: # dconf update Note: • A user profile must exist in order to apply
+      locks. • Users must log out and back in again before the system-wide settings
+      take effect. References: 1. NIST SP 800-53 Rev. 5: CM-1,CM-2, CM-6, CM-7, IA-5
+    compliance:
+      - cis_debian_12_v1_1_0_1_7_9
+
+  - rule_id: debian.cis.1.prelink_is_not_installed
+    title: "Ensure prelink is not installed"
+    severity: high
+    automation_type: automated
+    cis_control: '1.5.4'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.prelink_is_not_installed
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to restore binaries to normal: # prelink -ua
+      Uninstall prelink using the appropriate package manager or manual
+      installation: # apt purge prelink References: 1. NIST SP 800-53 Rev. 5: CM-6,
+      CM-1, CM-3
+    compliance:
+      - cis_debian_11_v2_0_0_1_5_4
+
+  - rule_id: debian.cis.1.automatic_error_reporting_is_not_enabled
+    title: "Ensure Automatic Error Reporting is not enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '1.5.5'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: debian.section_1.automatic_error_reporting_is_not_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Edit /etc/default/apport and add or edit the enabled parameter to equal 0:
+      enabled=0 Run the following commands to stop and mask the apport service #
+      systemctl stop apport.service # systemctl mask apport.service - OR - Run the
+      following command to remove the apport package: # apt purge apport Default
+      Value: enabled=1
+    compliance:
+      - cis_debian_11_v2_0_0_1_5_5
+
+

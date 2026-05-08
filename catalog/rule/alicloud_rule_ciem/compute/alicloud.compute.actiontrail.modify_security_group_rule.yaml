@@ -1,0 +1,76 @@
+rule_id: alicloud.compute.actiontrail.modify_security_group_rule
+service: compute
+provider: alicloud
+check_type: log
+severity: high
+title: 'AliCloud ECS: Security Group Inbound Rule Added (All Traffic)'
+description: A security group inbound rule was added. Rules permitting 0.0.0.0/0 expose
+  instances to internet-wide access and are a common misconfiguration exploited for
+  initial access.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: initial_access
+mitre_tactics:
+- initial_access
+mitre_techniques:
+- T1190
+risk_score: 80
+resource: alicloud_security_group
+source: alicloud_ciem_generator
+is_active: true
+domain: network_security_and_connectivity
+action_category: create
+log_source_type: alicloud_actiontrail
+posture_category: network_posture
+threat_tags:
+- T1190
+- initial_access
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '4.1'
+  - '4.2'
+  nist_800_53_r5:
+  - SC-7
+  - AC-17
+  - CM-7
+  pci_dss_v4:
+  - '1.2'
+  - '1.3'
+  - '7.1'
+  iso_27001_2022:
+  - A.8.20
+  - A.8.21
+  - A.8.22
+remediation: '1. Review the added rule — remove any 0.0.0.0/0 rules for sensitive
+  ports.
+
+  2. Use specific source CIDR ranges or security group references.
+
+  3. Alert on any security group rule that permits all source IPs on privileged ports.'
+references:
+- https://attack.mitre.org/techniques/T1190/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: ecs
+    - field: operation
+      op: equals
+      value: AuthorizeSecurityGroup
+version: '1.0'

@@ -2,7 +2,7 @@
 Threat-Engine Pipeline Worker (HTTP)
 =====================================
 
-Stateless orchestrator — all state lives in scan_orchestration (PostgreSQL).
+Stateless orchestrator — all state lives in scan_runs (PostgreSQL).
 scan_run_id is the sole identifier. No pipeline_id, no in-memory state.
 
     POST /api/v1/pipeline/run  {"scan_run_id": "..."}
@@ -11,7 +11,7 @@ Pipeline stages (sequential/parallel):
     discovery → check + inventory (parallel) → threat → compliance + IAM + datasec (parallel)
 
 Each stage is triggered via HTTP to the respective engine service.
-Each engine writes its scan_id back to scan_orchestration via update_orchestration_scan_id().
+Each engine writes its scan_id back to scan_runs via update_orchestration_scan_id().
 
 Run
 ---
@@ -42,7 +42,7 @@ logger = logging.getLogger("pipeline_worker")
 
 app = FastAPI(
     title="Threat Engine Pipeline Worker",
-    description="Stateless orchestrator — all state in scan_orchestration (PostgreSQL)",
+    description="Stateless orchestrator — all state in scan_runs (PostgreSQL)",
     version="3.0.0",
 )
 
@@ -58,7 +58,7 @@ app.add_middleware(
 # ── DB helpers ───────────────────────────────────────────────────────────────
 
 def _get_orch_conn():
-    """Connect to threat_engine_onboarding (scan_orchestration table)."""
+    """Connect to threat_engine_onboarding (scan_runs table)."""
     import psycopg2
     return psycopg2.connect(
         host=os.getenv("ONBOARDING_DB_HOST"),
@@ -70,7 +70,7 @@ def _get_orch_conn():
 
 
 def _update_orchestration(scan_run_id: str, **kwargs) -> None:
-    """Update scan_orchestration columns. Only updates provided kwargs."""
+    """Update scan_runs columns. Only updates provided kwargs."""
     if not kwargs:
         return
     set_clauses = ", ".join(f"{k} = %s" for k in kwargs)
@@ -79,7 +79,7 @@ def _update_orchestration(scan_run_id: str, **kwargs) -> None:
         conn = _get_orch_conn()
         with conn.cursor() as cur:
             cur.execute(
-                f"UPDATE scan_orchestration SET {set_clauses} WHERE scan_run_id = %s::uuid",
+                f"UPDATE scan_runs SET {set_clauses} WHERE scan_run_id = %s::uuid",
                 values,
             )
         conn.commit()
@@ -89,13 +89,13 @@ def _update_orchestration(scan_run_id: str, **kwargs) -> None:
 
 
 def _get_orchestration(scan_run_id: str) -> Optional[Dict[str, Any]]:
-    """Read full scan_orchestration row."""
+    """Read full scan_runs row."""
     try:
         conn = _get_orch_conn()
         from psycopg2.extras import RealDictCursor
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
-                "SELECT * FROM scan_orchestration WHERE scan_run_id = %s::uuid",
+                "SELECT * FROM scan_runs WHERE scan_run_id = %s::uuid",
                 (scan_run_id,),
             )
             row = cur.fetchone()
@@ -112,7 +112,7 @@ def _add_engine_completed(scan_run_id: str, engine: str) -> None:
         conn = _get_orch_conn()
         with conn.cursor() as cur:
             cur.execute(
-                """UPDATE scan_orchestration
+                """UPDATE scan_runs
                    SET engines_completed = COALESCE(engines_completed, '[]'::jsonb) || %s::jsonb
                    WHERE scan_run_id = %s::uuid""",
                 (f'["{engine}"]', scan_run_id),
@@ -141,7 +141,7 @@ class PipelineResponse(BaseModel):
 async def run_pipeline(scan_run_id: str) -> None:
     """Execute the full pipeline for one scan.
 
-    All state is read/written to scan_orchestration in PostgreSQL.
+    All state is read/written to scan_runs in PostgreSQL.
     This function is stateless — safe to run from any worker replica.
 
     Stages:
@@ -248,14 +248,14 @@ async def run_pipeline(scan_run_id: str) -> None:
 async def trigger_pipeline(request: PipelineRequest):
     """Trigger the full scan pipeline. Runs in background, returns immediately.
 
-    scan_run_id must already exist in scan_orchestration table
+    scan_run_id must already exist in scan_runs table
     (created by onboarding engine).
     """
     orch = _get_orchestration(request.scan_run_id)
     if not orch:
         raise HTTPException(
             status_code=404,
-            detail=f"scan_run_id {request.scan_run_id} not found in scan_orchestration",
+            detail=f"scan_run_id {request.scan_run_id} not found in scan_runs",
         )
 
     if orch.get("overall_status") == "running":
@@ -275,7 +275,7 @@ async def trigger_pipeline(request: PipelineRequest):
 
 @app.get("/api/v1/pipeline/{scan_run_id}")
 async def get_pipeline_status(scan_run_id: str):
-    """Get pipeline status from scan_orchestration table."""
+    """Get pipeline status from scan_runs table."""
     orch = _get_orchestration(scan_run_id)
     if not orch:
         raise HTTPException(status_code=404, detail="Orchestration not found")
@@ -293,7 +293,7 @@ async def get_pipeline_status(scan_run_id: str):
 
 @app.get("/api/v1/pipeline/list")
 async def list_pipelines():
-    """List recent orchestrations from scan_orchestration table."""
+    """List recent scan runs from scan_runs table."""
     try:
         conn = _get_orch_conn()
         from psycopg2.extras import RealDictCursor
@@ -301,7 +301,7 @@ async def list_pipelines():
             cur.execute(
                 """SELECT scan_run_id, overall_status, engines_completed,
                           started_at, completed_at
-                   FROM scan_orchestration
+                   FROM scan_runs
                    ORDER BY created_at DESC LIMIT 20"""
             )
             rows = cur.fetchall()

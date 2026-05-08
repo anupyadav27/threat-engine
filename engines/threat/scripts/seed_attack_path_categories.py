@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Seed attack_path_category on resource_relationship_rules.
+Seed attack_path_category on resource_security_relationship_rules.
 
 Classifies all 38 RelationType values into attack-path categories:
   - exposure:             Internet entry points
@@ -62,6 +62,11 @@ ATTACK_PATH_CLASSIFICATION = {
     "subscribes_to":         "data_flow",
     "resolves_to":           "data_flow",
 
+    # -- New enterprise attack path types --
+    "invokes":               "execution",      # ECR→Lambda, API GW→Lambda, Cognito triggers
+    "stores_data_in":        "data_access",    # Compute→SecretsManager/SSM/KMS/S3
+    "provides_image_to":     "lateral_movement", # ECR supply chain
+
     # -- NOT attack paths (defensive / organizational / operational) --
     "contained_by":          None,
     "controlled_by":         None,
@@ -108,13 +113,13 @@ def seed(args):
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT column_name FROM information_schema.columns
-                WHERE table_name = 'resource_relationship_rules'
+                WHERE table_name = 'resource_security_relationship_rules'
                   AND column_name = 'attack_path_category'
             """)
             if not cur.fetchone():
                 logger.info("Adding attack_path_category column...")
                 cur.execute("""
-                    ALTER TABLE resource_relationship_rules
+                    ALTER TABLE resource_security_relationship_rules
                     ADD COLUMN attack_path_category VARCHAR(50)
                 """)
                 conn.commit()
@@ -128,7 +133,7 @@ def seed(args):
         with conn.cursor() as cur:
             for relation_type, category in ATTACK_PATH_CLASSIFICATION.items():
                 cur.execute("""
-                    UPDATE resource_relationship_rules
+                    UPDATE resource_security_relationship_rules
                     SET    attack_path_category = %s,
                            updated_at = NOW()
                     WHERE  relation_type = %s
@@ -148,7 +153,7 @@ def seed(args):
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT attack_path_category, COUNT(*)
-                FROM resource_relationship_rules
+                FROM resource_security_relationship_rules
                 WHERE is_active = TRUE
                 GROUP BY attack_path_category
                 ORDER BY attack_path_category NULLS LAST
@@ -163,7 +168,7 @@ def seed(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Seed attack_path_category on resource_relationship_rules")
+    parser = argparse.ArgumentParser(description="Seed attack_path_category on resource_security_relationship_rules")
     parser.add_argument("--db-host", help="DB host (or INVENTORY_DB_HOST env)")
     parser.add_argument("--db-port", help="DB port (or INVENTORY_DB_PORT env)")
     parser.add_argument("--db-name", help="DB name (or INVENTORY_DB_NAME env)")

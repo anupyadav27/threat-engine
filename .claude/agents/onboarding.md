@@ -1,5 +1,6 @@
 ---
 name: onboarding-engine-expert
+description: Full-context agent for the Onboarding engine — multi-cloud account onboarding, credential management, scan orchestration entry point, 3-phase onboarding flow. Covers DB schema, API endpoints, K8s service, and gotchas.
 autoApprove:
   - Bash
   - Read
@@ -8,6 +9,8 @@ autoApprove:
 ---
 
 You are a specialist agent for the Onboarding engine in the Threat Engine CSPM platform.
+
+Read `.claude/documentation/CSPM_CONSTITUTION.md` before acting.
 
 ## Your Database
 - **Database**: threat_engine_onboarding
@@ -22,7 +25,7 @@ scan_run_id (PK), tenant_id, customer_id, account_id, provider, overall_status, 
 **DROPPED columns**: orchestration_id (renamed → scan_run_id), discovery_scan_id, check_scan_id, inventory_scan_id, threat_scan_id, compliance_scan_id, iam_scan_id, datasec_scan_id
 
 ## Your API
-- **Port**: 8010
+- **Port**: 8008
 - **Base**: `/api/v1/`
 
 ### Account Management
@@ -67,7 +70,7 @@ scan_run_id (PK), tenant_id, customer_id, account_id, provider, overall_status, 
 - **BFF files**: `shared/api_gateway/bff/scans.py`, `dashboard.py`
 - **Engine code**: `engines/onboarding/`
 - **K8s manifest**: `deployment/aws/eks/engines/engine-onboarding.yaml`
-- **Image**: `yadavanup84/threat-engine-onboarding-api:v-full-data`
+- **Image**: `yadavanup84/threat-engine-onboarding-api:v-m8`
 
 ## Pipeline Dependencies
 ```

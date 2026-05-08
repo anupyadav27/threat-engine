@@ -1,0 +1,81 @@
+rule_id: gcp.resourcemanager.audit.folder_iam_modified
+service: resourcemanager
+provider: gcp
+check_type: log
+severity: high
+title: 'GCP: Folder IAM Policy Modified'
+description: The IAM policy on a GCP folder was modified. Folder-level IAM changes propagate to all projects and resources within the folder.
+rationale: 'Adversaries circumvent elevation control mechanisms to gain higher-level permissions. In cloud environments this includes SAML assertion manipulation, IAM role privilege boundary modifications, and STS:AssumeRole chaining to escalate from limited to administrative access. Detected via: privilege boundary removal events, STS role chaining with unusually broad permissions, and unexpected policy attachments.'
+threat_category: privilege_escalation
+mitre_tactics:
+- privilege_escalation
+mitre_techniques:
+- T1548
+risk_score: 85
+resource: gcp_folder
+source: default
+is_active: true
+domain: identity_and_access_management
+action_category: privilege_escalation
+posture_category: iam_posture
+threat_tags:
+- T1548
+- cloud_iam
+- privilege_escalation
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: privilege_change
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_gcp_v2:
+  - 1.1
+  - 1.4
+  - 1.7
+  - 2.4
+  nist_800_53_r5:
+  - AC-2
+  - AC-3
+  - AC-6
+  - IA-2
+  pci_dss_v4:
+  - 7.1
+  - 7.2
+  - 8.2
+  iso_27001_2022:
+  - A.5.18
+  - A.8.2
+  - A.8.3
+detection_events:
+- 'iam:CreateRole with permissive trust'
+- 'sts:AssumeRole with cross-account escalation'
+- Microsoft.Authorization/elevateAccess/action
+remediation: |
+  1. Immediately audit the modified IAM policy and revoke unauthorized role grants.
+  2. Enable Cloud Asset Inventory change notifications for IAM policy updates.
+  3. Apply Org Policy constraints to restrict role assignment to approved principals.
+  4. Require two-person approval for Owner/Editor role grants via Cloud Identity workflows.
+  5. Configure VPC Service Controls to prevent cross-project privilege escalation.
+references:
+- https://attack.mitre.org/techniques/T1548/
+- https://cloud.google.com/iam/docs/impersonating-service-accounts
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: cloudresourcemanager.googleapis.com
+    - field: operation
+      op: equals
+      value: google.cloud.resourcemanager.v3.Folders.SetIamPolicy
+version: '1.0'

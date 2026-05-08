@@ -1,0 +1,74 @@
+rule_id: ibm.iam.activity_log.account_invite
+service: iam
+provider: ibm
+check_type: log
+severity: medium
+title: Monitor invitations of external users to the account and subsequent API key
+  generation for them.
+description: Monitors external user invites and subsequent API key generation.
+rationale: Monitoring this activity is essential for detecting adversary persistence
+  against IBM resources. Unauthorized or unexpected API calls may indicate account
+  compromise, privilege escalation, or an active attack chain.
+threat_category: persistence
+mitre_tactics:
+- persistence
+mitre_techniques:
+- T1136
+- T1136.003
+risk_score: 68
+resource: cloud_iam_principal
+source: csv_generated
+is_active: true
+domain: identity_and_access_management
+action_category: audit_activity
+log_source_type: ibm_activity_tracker
+posture_category: threat_posture
+threat_tags:
+- T1136
+- T1136.003
+- persistence
+- ciem_detection
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: read
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: true
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_ibm:
+  - '1.4'
+remediation: '1. Remove the unauthorized resource (user, key, image, account) immediately.
+
+  2. Audit all resources created by the same principal.
+
+  3. Restrict resource creation to approved provisioning pipelines.
+
+  4. Add detection for resource creation outside of business hours or from unusual
+  IPs.
+
+  5. Review SCPs and permission boundaries to limit persistence mechanisms.'
+references:
+- https://attack.mitre.org/techniques/T1136/
+- https://attack.mitre.org/techniques/T1136.003/
+- https://cloud.ibm.com/docs/account?topic=account-iamoverview
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_activity_tracker
+    - field: service
+      op: equals
+      value: iam-am
+    - field: operation
+      op: in
+      value:
+      - iam-am.account.invite
+      - iam-identity.apikey.create
+  type: log
+  version: '1.0'

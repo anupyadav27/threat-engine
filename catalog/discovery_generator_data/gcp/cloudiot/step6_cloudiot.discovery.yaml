@@ -1,0 +1,22 @@
+version: '1.0'
+provider: gcp
+service: cloudiot
+services:
+  client: cloudiot
+  module: boto3.client
+discovery:
+- discovery_id: gcp.cloudiot.projects.locations.registries.list
+  calls:
+  - action: projects.locations.registries.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.deviceRegistries }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      mqttConfig: '{{ item.mqttConfig }}'
+      httpConfig: '{{ item.httpConfig }}'
+      stateNotificationConfig: '{{ item.stateNotificationConfig }}'
+      credentials: '{{ item.credentials }}'

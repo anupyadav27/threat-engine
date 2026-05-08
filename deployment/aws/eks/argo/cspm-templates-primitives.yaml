@@ -1,0 +1,585 @@
+# CSPM Pipeline — Shared Primitive Templates
+#
+# PURPOSE:
+#   Reusable mechanics referenced by cspm-pipeline.yaml and cspm-single-engine.yaml
+#   via templateRef. These templates contain the "how" (DB connections, HTTP polling,
+#   phase-2 verification). They do NOT contain the "what" (engine list, CSP conditions,
+#   pipeline topology) — that lives in cspm-pipeline.yaml.
+#
+# WHEN TO EDIT THIS FILE:
+#   - Changing polling logic or retry behaviour in trigger-and-poll
+#   - Changing DB auto-provisioning logic in create-orch-record
+#   - Adding/removing per-engine DB verification config in ENGINE_DB_CONFIG
+#   - Changing the single-engine trigger logic (trigger-engine-direct)
+#
+# WHEN NOT TO EDIT THIS FILE:
+#   - Adding a new engine to the pipeline → edit cspm-pipeline.yaml
+#   - Changing which CSPs an engine supports → edit cspm-pipeline.yaml (when: condition)
+#   - Adding a new provider → edit cspm-pipeline.yaml
+#
+# DEPLOYMENT:
+#   kubectl apply -f deployment/aws/eks/argo/cspm-templates-primitives.yaml
+#   Must be applied before cspm-pipeline.yaml (templateRef resolution is at submit time).
+#
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: cspm-templates-primitives
+  namespace: threat-engine-engines
+  labels:
+    app: cspm-pipeline
+spec:
+  serviceAccountName: default
+  templates:
+
+  # ── Create orchestration record ────────────────────────────────────────────
+  # Inserts scan_runs row in onboarding DB. Also auto-provisions tenant +
+  # cloud_account if they don't exist — so ad-hoc GCP/Azure/K8s/AliCloud/OCI/IBM
+  # scans never fail here due to missing FK rows.
+  - name: create-orch-record
+    script:
+      image: python:3.11-slim
+      command: [python3, -u]
+      envFrom:
+      - configMapRef:
+          name: threat-engine-db-config
+      - secretRef:
+          name: threat-engine-db-passwords
+          optional: true
+      source: |
+        import subprocess; subprocess.run(["pip", "install", "-q", "psycopg2-binary", "requests"], check=True)
+        import psycopg2, os, json
+        host = os.getenv('ONBOARDING_DB_HOST', os.getenv('DB_HOST', 'localhost'))
+        port = int(os.getenv('ONBOARDING_DB_PORT', os.getenv('DB_PORT', '5432')))
+        db   = os.getenv('ONBOARDING_DB_NAME', 'threat_engine_onboarding')
+        user = os.getenv('ONBOARDING_DB_USER', os.getenv('DB_USER', 'postgres'))
+        pw   = os.getenv('ONBOARDING_DB_PASSWORD', os.getenv('DB_PASSWORD', ''))
+
+        scan_run_id = '{{workflow.parameters.scan-run-id}}'
+        tenant_id   = '{{workflow.parameters.tenant-id}}'
+        account_id  = '{{workflow.parameters.account-id}}'
+        provider    = '{{workflow.parameters.provider}}'
+        cred_type   = '{{workflow.parameters.credential-type}}'
+        cred_ref    = '{{workflow.parameters.credential-ref}}'
+        svc_param   = '{{workflow.parameters.include-services}}'.strip()
+        include_services = json.dumps([s.strip() for s in svc_param.split(',') if s.strip()]) if svc_param else None
+
+        engines = json.dumps([
+            'discovery','check','inventory','threat',
+            'compliance','iam','datasec','encryption',
+            'database-security','container-security','ciem',
+            'ai-security','network-security','risk'
+        ])
+
+        conn = psycopg2.connect(host=host, port=port, database=db, user=user, password=pw)
+        cur  = conn.cursor()
+
+        # Auto-provision tenant so cloud_accounts FK is satisfied
+        cur.execute("""
+            INSERT INTO tenants (tenant_id, tenant_name, customer_id)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (tenant_id) DO NOTHING
+        """, (tenant_id, tenant_id, tenant_id))
+
+        # Auto-provision cloud account so scan_runs FK is satisfied.
+        # This handles accounts that haven't gone through full UI onboarding.
+        cur.execute("""
+            INSERT INTO cloud_accounts
+                (account_id, customer_id, customer_email, tenant_id, account_name,
+                 provider, credential_type, credential_ref,
+                 account_status, account_onboarding_status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'active', 'deployed')
+            ON CONFLICT (account_id) DO NOTHING
+        """, (account_id, tenant_id, f'{tenant_id}@cspm.local',
+              tenant_id, account_id, provider, cred_type, cred_ref))
+
+        cur.execute("""
+            INSERT INTO scan_runs
+                (scan_run_id, tenant_id, scan_type, trigger_type, engines_requested,
+                 engines_completed, overall_status, started_at, provider, account_id,
+                 credential_type, credential_ref, include_services, created_at)
+            VALUES (%s, %s, 'full', 'argo', %s::jsonb,
+                '[]'::jsonb, 'running', NOW(), %s, %s, %s, %s, %s::jsonb, NOW())
+            ON CONFLICT (scan_run_id) DO UPDATE SET overall_status='running', started_at=NOW()
+        """, (scan_run_id, tenant_id, engines, provider, account_id, cred_type, cred_ref, include_services))
+
+        conn.commit()
+        conn.close()
+        print(f'Orchestration record created: {scan_run_id}')
+
+  # ── Trigger + Poll ─────────────────────────────────────────────────────────
+  #
+  # Single template for all engines. Works for both:
+  #   Async engines — creates K8s Job, returns 202, poll-url checks progress
+  #   Sync engines  — runs inline, trigger response contains status=completed
+  #
+  # Phase 2 DB verification: after HTTP poll returns "completed", verifies data
+  # was actually written to the engine's DB. Catches spot eviction + silent failures.
+  # Engines with findings_table also require count > 0.
+  #
+  # ENGINE_DB_CONFIG: add an entry here when a new engine is added to the pipeline.
+  # Set findings_table=None for engines where 0 findings is a valid result.
+  - name: trigger-and-poll
+    inputs:
+      parameters:
+      - name: engine
+      - name: trigger-url
+      - name: payload
+      - name: poll-url
+        value: ""        # empty = sync engine, detected from trigger response
+      - name: timeout
+        value: "1800"
+    retryStrategy:
+      limit: 2
+      retryPolicy: OnFailure
+    timeout: "{{inputs.parameters.timeout}}s"
+    script:
+      image: python:3.11-slim
+      command: [python3, -u]
+      envFrom:
+      - configMapRef:
+          name: threat-engine-db-config
+      - secretRef:
+          name: threat-engine-db-passwords
+          optional: true
+      source: |
+        import subprocess; subprocess.run(["pip", "install", "-q", "psycopg2-binary", "requests"], check=True)
+        import requests, time, os, psycopg2, json, sys
+
+        ENGINE      = "{{inputs.parameters.engine}}"
+        TRIGGER_URL = "{{inputs.parameters.trigger-url}}"
+        POLL_URL    = "{{inputs.parameters.poll-url}}"
+        TIMEOUT     = int("{{inputs.parameters.timeout}}")
+        SCAN_RUN_ID = "{{workflow.parameters.scan-run-id}}"
+
+        # ── Per-engine DB verification config ─────────────────────────────
+        # report_table:   must have a row for this scan_run_id after completion
+        # findings_table: if set, COUNT(*) must be > 0 (critical engines only)
+        # pw_env:         env var holding the DB password
+        #
+        # To add a new engine: add its entry here with db, report_table, pw_env.
+        ENGINE_DB_CONFIG = {
+            'discovery': {
+                'db': 'threat_engine_discoveries',
+                'report_table': 'discovery_report',
+                'findings_table': 'discovery_findings',
+                'pw_env': 'DISCOVERIES_DB_PASSWORD',
+            },
+            'inventory': {
+                'db': 'threat_engine_inventory',
+                'report_table': 'inventory_report',
+                'findings_table': 'inventory_findings',
+                'pw_env': 'INVENTORY_DB_PASSWORD',
+            },
+            'check': {
+                'db': 'threat_engine_check',
+                'report_table': 'check_report',
+                'findings_table': 'check_findings',
+                'pw_env': 'CHECK_DB_PASSWORD',
+            },
+            'threat': {
+                'db': 'threat_engine_threat',
+                'report_table': 'threat_report',
+                'findings_table': None,  # 0 threats is valid in a clean environment
+                'pw_env': 'THREAT_DB_PASSWORD',
+            },
+            'compliance': {
+                'db': 'threat_engine_compliance',
+                'report_table': 'compliance_report',
+                'findings_table': None,
+                'pw_env': 'COMPLIANCE_DB_PASSWORD',
+            },
+            'iam': {
+                'db': 'threat_engine_iam',
+                'report_table': 'iam_report',
+                'findings_table': 'iam_findings',
+                'pw_env': 'IAM_DB_PASSWORD',
+            },
+            'datasec': {
+                'db': 'threat_engine_datasec',
+                'report_table': 'datasec_report',
+                'findings_table': None,
+                'pw_env': 'DATASEC_DB_PASSWORD',
+            },
+            'encryption': {
+                'db': 'threat_engine_encryption',
+                'report_table': 'encryption_report',
+                'findings_table': None,
+                'pw_env': 'ENCRYPTION_DB_PASSWORD',
+            },
+            'database-security': {
+                'db': 'threat_engine_database_security',
+                'report_table': 'dbsec_report',
+                'findings_table': None,
+                'pw_env': 'DBSEC_DB_PASSWORD',
+            },
+            'container-security': {
+                'db': 'threat_engine_container_security',
+                'report_table': 'container_sec_report',
+                'findings_table': None,
+                'pw_env': 'CSEC_DB_PASSWORD',
+            },
+            'ciem': {
+                'db': 'threat_engine_ciem',
+                'report_table': 'ciem_report',
+                'findings_table': None,
+                'pw_env': 'CIEM_DB_PASSWORD',
+            },
+            'ai-security': {
+                'db': 'threat_engine_ai_security',
+                'report_table': 'ai_security_report',
+                'findings_table': None,
+                'pw_env': 'AI_SECURITY_DB_PASSWORD',
+            },
+            'network-security': {
+                'db': 'threat_engine_network',
+                'report_table': 'network_report',
+                'findings_table': None,
+                'pw_env': 'NETWORK_DB_PASSWORD',
+            },
+            'risk': {
+                'db': 'threat_engine_risk',
+                'report_table': 'risk_report',
+                'findings_table': None,
+                'pw_env': 'SHARED_DB_PASSWORD',
+            },
+        }
+
+        def verify_phase2():
+            cfg = ENGINE_DB_CONFIG.get(ENGINE)
+            if not cfg:
+                print(f"[{ENGINE}] No DB verification config — skipping Phase 2 check")
+                return True
+
+            host = os.getenv('DB_HOST', 'localhost')
+            port = int(os.getenv('DB_PORT', '5432'))
+            pw   = os.getenv(cfg['pw_env'], os.getenv('DB_PASSWORD', ''))
+
+            for attempt in range(3):
+                try:
+                    conn = psycopg2.connect(
+                        host=host, port=port, database=cfg['db'],
+                        user='postgres', password=pw, connect_timeout=10
+                    )
+                    cur = conn.cursor()
+                    cur.execute(
+                        f"SELECT COUNT(*) FROM {cfg['report_table']} WHERE scan_run_id = %s",
+                        (SCAN_RUN_ID,)
+                    )
+                    report_count = cur.fetchone()[0]
+
+                    if report_count == 0:
+                        conn.close()
+                        if attempt < 2:
+                            print(f"[{ENGINE}] Phase 2: report not found yet (attempt {attempt+1}/3), waiting 5s...")
+                            time.sleep(5)
+                            continue
+                        print(f"[{ENGINE}] PHASE 2 FAILED: no record in {cfg['report_table']} for scan_run_id={SCAN_RUN_ID}")
+                        print(f"[{ENGINE}] Likely cause: scanner pod killed before completing DB writes (spot eviction?)")
+                        return False
+
+                    if cfg.get('findings_table'):
+                        cur.execute(
+                            f"SELECT COUNT(*) FROM {cfg['findings_table']} WHERE scan_run_id = %s",
+                            (SCAN_RUN_ID,)
+                        )
+                        findings_count = cur.fetchone()[0]
+
+                        if findings_count == 0:
+                            # Check report status — a completed scan with 0 findings is valid
+                            # (e.g. new/empty account). Only fail if scan did not complete.
+                            cur.execute(
+                                f"SELECT status FROM {cfg['report_table']} WHERE scan_run_id = %s",
+                                (SCAN_RUN_ID,)
+                            )
+                            row = cur.fetchone()
+                            conn.close()
+                            report_status = row[0] if row else None
+                            if report_status == 'completed':
+                                print(f"[{ENGINE}] Phase 2 verified: 0 findings but report status=completed (empty account)")
+                                return True
+                            if attempt < 2:
+                                print(f"[{ENGINE}] Phase 2: 0 findings yet (attempt {attempt+1}/3), waiting 5s...")
+                                time.sleep(5)
+                                continue
+                            print(f"[{ENGINE}] PHASE 2 FAILED: 0 rows in {cfg['findings_table']} for scan_run_id={SCAN_RUN_ID}")
+                            return False
+
+                        conn.close()
+                        print(f"[{ENGINE}] Phase 2 verified: {findings_count} findings in {cfg['findings_table']}")
+                    else:
+                        conn.close()
+                        print(f"[{ENGINE}] Phase 2 verified: report record exists in {cfg['report_table']}")
+
+                    return True
+
+                except Exception as e:
+                    print(f"[{ENGINE}] Phase 2 DB check error (attempt {attempt+1}/3): {e}")
+                    if attempt < 2:
+                        time.sleep(5)
+
+            print(f"[{ENGINE}] WARNING: Phase 2 could not connect to DB — treating as passed")
+            return True
+
+        def update_engines_completed():
+            for attempt in range(3):
+                try:
+                    conn = psycopg2.connect(
+                        host=os.getenv('ONBOARDING_DB_HOST', os.getenv('DB_HOST', 'localhost')),
+                        port=int(os.getenv('ONBOARDING_DB_PORT', os.getenv('DB_PORT', '5432'))),
+                        database=os.getenv('ONBOARDING_DB_NAME', 'threat_engine_onboarding'),
+                        user=os.getenv('ONBOARDING_DB_USER', os.getenv('DB_USER', 'postgres')),
+                        password=os.getenv('ONBOARDING_DB_PASSWORD', os.getenv('DB_PASSWORD', ''))
+                    )
+                    cur = conn.cursor()
+                    cur.execute("""
+                        UPDATE scan_runs
+                        SET engines_completed = COALESCE(engines_completed, '[]'::jsonb) || to_jsonb(%s::text)
+                        WHERE scan_run_id = %s
+                    """, (ENGINE, SCAN_RUN_ID))
+                    conn.commit()
+                    conn.close()
+                    print(f"[{ENGINE}] engines_completed updated")
+                    return True
+                except Exception as e:
+                    print(f"[{ENGINE}] DB update attempt {attempt+1}/3 failed: {e}")
+                    if attempt < 2:
+                        time.sleep(2)
+            print(f"[{ENGINE}] ERROR: all 3 DB update attempts failed — engines_completed NOT updated")
+            return False
+
+        print(f"=== Triggering {ENGINE} | scan_run_id={SCAN_RUN_ID} ===")
+        print(f"  trigger_url : {TRIGGER_URL}")
+        print(f"  poll_url    : {POLL_URL or '(none — sync engine)'}")
+
+        payload = json.loads('''{{inputs.parameters.payload}}''')
+        svc = payload.get("include_services", "")
+        if svc:
+            payload["include_services"] = [s.strip() for s in svc.split(",") if s.strip()]
+        else:
+            payload.pop("include_services", None)
+
+        try:
+            resp = requests.post(TRIGGER_URL, json=payload, timeout=60)
+        except requests.Timeout:
+            print(f"[{ENGINE}] ERROR: trigger timed out after 60s")
+            sys.exit(1)
+        except Exception as e:
+            print(f"[{ENGINE}] ERROR: trigger failed: {e}")
+            sys.exit(1)
+
+        print(f"[{ENGINE}] HTTP {resp.status_code}: {resp.text[:300]}")
+
+        if resp.status_code >= 400:
+            print(f"[{ENGINE}] FAILED: HTTP {resp.status_code}")
+            sys.exit(1)
+
+        immediate_status = ""
+        try:
+            body = resp.json()
+            immediate_status = body.get("status", "")
+        except Exception:
+            pass
+
+        if immediate_status == "completed":
+            print(f"=== {ENGINE} Phase 1 complete (sync) — verifying Phase 2 DB write ===")
+            if not verify_phase2():
+                sys.exit(1)
+            update_engines_completed()
+            sys.exit(0)
+        elif immediate_status == "failed":
+            print(f"=== {ENGINE} FAILED synchronously ===")
+            sys.exit(1)
+
+        if not POLL_URL:
+            print(f"[{ENGINE}] No poll URL — treating HTTP {resp.status_code} as success")
+            if not verify_phase2():
+                sys.exit(1)
+            update_engines_completed()
+            sys.exit(0)
+
+        print(f"=== {ENGINE} async triggered — polling every 15s (max {TIMEOUT}s) ===")
+        elapsed, interval = 0, 15
+        data = {}
+
+        while elapsed < TIMEOUT:
+            time.sleep(interval)
+            elapsed += interval
+
+            try:
+                sr = requests.get(POLL_URL, timeout=15)
+                if sr.status_code == 404:
+                    print(f"[{ENGINE}] poll 404 — status endpoint not ready yet, retrying")
+                    data = {}
+                else:
+                    data = sr.json()
+            except Exception as e:
+                print(f"[{ENGINE}] poll error: {e}")
+                data = {}
+
+            status   = data.get("status", "unknown")
+            findings = data.get("total_findings", data.get("findings_count", data.get("total_scenarios", "?")))
+
+            if elapsed % 60 < interval:
+                print(f"[{ENGINE}] {elapsed}s | status={status} | findings={findings}")
+
+            if status == "completed":
+                print(f"=== {ENGINE} Phase 1 complete ({elapsed}s) | findings={findings} ===")
+                if not verify_phase2():
+                    sys.exit(1)
+                print(f"=== {ENGINE} FULLY COMPLETE: Phase 1 + Phase 2 confirmed ===")
+                update_engines_completed()
+                sys.exit(0)
+
+            if status == "failed":
+                err = data.get("error", data.get("error_message", ""))
+                print(f"=== {ENGINE} FAILED ({elapsed}s){' — ' + err if err else ''} ===")
+                sys.exit(1)
+
+        print(f"=== {ENGINE} TIMEOUT after {TIMEOUT}s ===")
+        sys.exit(1)
+
+  # ── Update orchestration status ────────────────────────────────────────────
+  - name: update-orch-status
+    inputs:
+      parameters:
+      - name: status
+    script:
+      image: python:3.11-slim
+      command: [python3, -u]
+      envFrom:
+      - configMapRef:
+          name: threat-engine-db-config
+      - secretRef:
+          name: threat-engine-db-passwords
+          optional: true
+      source: |
+        import subprocess; subprocess.run(["pip", "install", "-q", "psycopg2-binary"], check=True)
+        import psycopg2, os
+        host = os.getenv('ONBOARDING_DB_HOST', os.getenv('DB_HOST', 'localhost'))
+        port = int(os.getenv('ONBOARDING_DB_PORT', os.getenv('DB_PORT', '5432')))
+        db   = os.getenv('ONBOARDING_DB_NAME', 'threat_engine_onboarding')
+        user = os.getenv('ONBOARDING_DB_USER', os.getenv('DB_USER', 'postgres'))
+        pw   = os.getenv('ONBOARDING_DB_PASSWORD', os.getenv('DB_PASSWORD', ''))
+
+        scan_run_id = '{{workflow.parameters.scan-run-id}}'
+        status      = '{{inputs.parameters.status}}'
+
+        conn = psycopg2.connect(host=host, port=port, database=db, user=user, password=pw)
+        cur  = conn.cursor()
+        cur.execute("""
+            UPDATE scan_runs
+            SET overall_status = %s,
+                completed_at = NOW(),
+                engines_completed = engines_requested
+            WHERE scan_run_id = %s
+        """, (status, scan_run_id))
+        conn.commit()
+        conn.close()
+        print(f'Pipeline {status} for scan_run_id={scan_run_id}')
+
+  # ── Single-engine direct trigger ───────────────────────────────────────────
+  # Used by cspm-single-engine.yaml for ad-hoc / debug runs.
+  # Simpler than trigger-and-poll: no polling, no Phase 2 verification.
+  - name: trigger-engine-direct
+    inputs:
+      parameters:
+      - name: engine
+      - name: scan-run-id
+      - name: tenant-id
+      - name: account-id
+      - name: provider
+      - name: include-services
+        value: ""
+      - name: include-regions
+        value: ""
+    retryStrategy:
+      limit: 2
+      retryPolicy: OnFailure
+    timeout: "30m"
+    script:
+      image: python:3.11-slim
+      command: [python3, -u]
+      envFrom:
+      - configMapRef:
+          name: threat-engine-db-config
+      - secretRef:
+          name: threat-engine-db-passwords
+          optional: true
+      source: |
+        import subprocess; subprocess.run(["pip", "install", "-q", "psycopg2-binary", "requests"], check=True)
+        import requests, os, psycopg2, json, sys
+
+        ENGINE          = "{{inputs.parameters.engine}}"
+        SCAN_RUN_ID     = "{{inputs.parameters.scan-run-id}}"
+        TENANT_ID       = "{{inputs.parameters.tenant-id}}"
+        ACCOUNT_ID      = "{{inputs.parameters.account-id}}"
+        PROVIDER        = "{{inputs.parameters.provider}}"
+        INCLUDE_SERVICES = "{{inputs.parameters.include-services}}"
+        INCLUDE_REGIONS  = "{{inputs.parameters.include-regions}}"
+
+        # To add a new engine: add its trigger URL here.
+        ENGINE_URLS = {
+            "discovery":         "http://engine-discoveries/api/v1/discovery",
+            "check":             "http://engine-check/api/v1/scan",
+            "inventory":         "http://engine-inventory/api/v1/inventory/scan/discovery",
+            "threat":            "http://engine-threat/api/v1/scan",
+            "compliance":        "http://engine-compliance/api/v1/scan",
+            "iam":               "http://engine-iam/api/v1/scan",
+            "datasec":           "http://engine-datasec/api/v1/scan",
+            "encryption":        "http://engine-encryption/api/v1/encryption/scan",
+            "database-security": "http://engine-dbsec/api/v1/database-security/scan",
+            "container-security":"http://engine-container-sec/api/v1/container-security/scan",
+            "ciem":              "http://engine-ciem/api/v1/scan",
+            "ai-security":       "http://engine-ai-security/api/v1/ai-security/scan",
+            "network-security":  "http://engine-network/api/v1/network-security/scan",
+            "risk":              "http://engine-risk:8009/api/v1/scan",
+            "secops":            "http://engine-secops/api/v1/scan",
+            "threat-narrative":  "http://engine-threat-narrative/api/v1/generate",
+        }
+
+        if ENGINE not in ENGINE_URLS:
+            print(f"Unknown engine: {ENGINE}")
+            sys.exit(1)
+
+        payload = {
+            "scan_run_id": SCAN_RUN_ID,
+            "tenant_id":   TENANT_ID,
+            "account_id":  ACCOUNT_ID,
+            "provider":    PROVIDER,
+            "csp":         PROVIDER,
+        }
+        if INCLUDE_SERVICES:
+            payload["include_services"] = [s.strip() for s in INCLUDE_SERVICES.split(",") if s.strip()]
+        if INCLUDE_REGIONS:
+            payload["include_regions"] = [r.strip() for r in INCLUDE_REGIONS.split(",") if r.strip()]
+
+        print(f"=== Triggering {ENGINE} at {ENGINE_URLS[ENGINE]} ===")
+        resp = requests.post(ENGINE_URLS[ENGINE], json=payload, timeout=1800)
+        print(f"HTTP {resp.status_code}: {resp.text[:300]}")
+
+        if resp.status_code >= 400:
+            print(f"FAILED: {ENGINE} returned HTTP {resp.status_code}")
+            sys.exit(1)
+
+        try:
+            conn = psycopg2.connect(
+                host=os.getenv('ONBOARDING_DB_HOST', os.getenv('DB_HOST', 'localhost')),
+                port=int(os.getenv('ONBOARDING_DB_PORT', os.getenv('DB_PORT', '5432'))),
+                database=os.getenv('ONBOARDING_DB_NAME', 'threat_engine_onboarding'),
+                user=os.getenv('ONBOARDING_DB_USER', os.getenv('DB_USER', 'postgres')),
+                password=os.getenv('ONBOARDING_DB_PASSWORD', os.getenv('DB_PASSWORD', ''))
+            )
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE scan_runs
+                SET engines_completed = COALESCE(engines_completed, '[]'::jsonb) || to_jsonb(%s::text)
+                WHERE scan_run_id = %s
+            """, (ENGINE, SCAN_RUN_ID))
+            conn.commit()
+            conn.close()
+            print(f"Updated engines_completed += {ENGINE}")
+        except Exception as e:
+            print(f"Warning: could not update engines_completed: {e}")
+
+        print(f"=== {ENGINE} COMPLETED ===")

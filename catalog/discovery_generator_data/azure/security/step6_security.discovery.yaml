@@ -1,0 +1,126 @@
+version: '1.0'
+provider: azure
+service: security
+services:
+  client: security
+  module: azure.mgmt.security.v2015_06_01_preview
+discovery:
+- discovery_id: azure.security.locations.list
+  calls:
+  - action: locations.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      creation_time_utc: '{{ item.creation_time_utc }}'
+      last_state_change_time_utc: '{{ item.last_state_change_time_utc }}'
+      security_task_parameters: '{{ item.security_task_parameters }}'
+      state: '{{ item.state }}'
+      sub_state: '{{ item.sub_state }}'
+- discovery_id: azure.security.tasks.list
+  calls:
+  - action: tasks.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      creation_time_utc: '{{ item.creation_time_utc }}'
+      last_state_change_time_utc: '{{ item.last_state_change_time_utc }}'
+      security_task_parameters: '{{ item.security_task_parameters }}'
+      state: '{{ item.state }}'
+      sub_state: '{{ item.sub_state }}'
+- discovery_id: azure.security.tasks.get_resource_group_level_task
+  for_each: azure.security.tasks.list
+  calls:
+  - action: tasks.get_resource_group_level_task
+    save_as: response
+    on_error: continue
+    params:
+      task_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.security.tasks.get_subscription_level_task
+  for_each: azure.security.tasks.list
+  calls:
+  - action: tasks.get_subscription_level_task
+    save_as: response
+    on_error: continue
+    params:
+      task_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.security.root.list
+  calls:
+  - action: root.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+- discovery_id: azure.security.api_collections_list_by_subscription
+  calls:
+  - action: APICollections_ListBySubscription
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.security.api_collections_list_by_resource_group
+  calls:
+  - action: APICollections_ListByResourceGroup
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'

@@ -2,7 +2,7 @@
 """
 Apply Relationship Rules to Inventory Findings
 ================================================
-Reads resource_relationship_rules (is_active=TRUE) and inventory_findings,
+Reads resource_security_relationship_rules (is_active=TRUE) and inventory_findings,
 extracts field values from each finding's properties, matches them against
 target findings by resource_uid, and writes edges to inventory_relationships.
 
@@ -211,7 +211,7 @@ def _load_rules(conn: psycopg2.extensions.connection) -> List[Dict[str, Any]]:
         cur.execute("""
             SELECT csp, service, from_resource_type, relation_type, to_resource_type,
                    source_field, source_field_item, target_uid_pattern
-            FROM resource_relationship_rules
+            FROM resource_security_relationship_rules
             WHERE is_active = TRUE
             ORDER BY csp, from_resource_type
         """)
@@ -350,7 +350,7 @@ def apply_rules(
                     "relationship_strength": "strong",
                     "bidirectional":       False,
                     "properties":          json.dumps({"matched_field": src_field, "matched_value": val}),
-                    "metadata":            json.dumps({"rule_source": "resource_relationship_rules"}),
+                    "metadata":            json.dumps({"rule_source": "resource_security_relationship_rules"}),
                     "source_resource_uid": asset["resource_uid"],
                     "target_resource_uid": target["resource_uid"],
                     "relationship_type":   relation,

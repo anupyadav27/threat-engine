@@ -1,0 +1,139 @@
+version: '1.0'
+provider: azure
+service: policy
+services:
+  client: policy
+  module: boto3.client
+discovery:
+- discovery_id: azure.policy.policyAssignments.list
+  calls:
+  - action: policyAssignments.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      properties.displayName: '{{ item.properties.displayName }}'
+      properties.policyDefinitionId: '{{ item.properties.policyDefinitionId }}'
+      properties.scope: '{{ item.properties.scope }}'
+      properties.enforcementMode: '{{ item.properties.enforcementMode }}'
+- discovery_id: azure.policy.policyDefinitions.list
+  calls:
+  - action: policyDefinitions.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      properties.policyType: '{{ item.properties.policyType }}'
+      properties.mode: '{{ item.properties.mode }}'
+      properties.policyRule: '{{ item.properties.policyRule }}'
+- discovery_id: azure.policy.policySetDefinitions.list
+  calls:
+  - action: policySetDefinitions.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      properties.policyType: '{{ item.properties.policyType }}'
+      properties.displayName: '{{ item.properties.displayName }}'
+- discovery_id: azure.authorization.roleassignments.list
+  calls:
+  - action: roleassignments.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      scope: '{{ item.scope }}'
+      role_definition_id: '{{ item.role_definition_id }}'
+      principal_id: '{{ item.principal_id }}'
+      can_delegate: '{{ item.can_delegate }}'
+- discovery_id: azure.authorization.roledefinitions.list
+  calls:
+  - action: roledefinitions.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      role_name: '{{ item.role_name }}'
+      description: '{{ item.description }}'
+      role_type: '{{ item.role_type }}'
+      permissions: '{{ item.permissions }}'
+      assignable_scopes: '{{ item.assignable_scopes }}'
+- discovery_id: azure.containerregistry.root.list
+  calls:
+  - action: root.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      system_data: '{{ item.system_data }}'
+      description: '{{ item.description }}'
+      type_properties_type: '{{ item.type_properties_type }}'
+      creation_date: '{{ item.creation_date }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      actions: '{{ item.actions }}'
+- discovery_id: azure.policyinsights.policystates.list_query_results_for_subscription
+  calls:
+  - action: policystates.list_query_results_for_subscription
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      odata_context: '{{ item.odata_context }}'
+      odata_count: '{{ item.odata_count }}'
+      odata_next_link: '{{ item.odata_next_link }}'
+- discovery_id: azure.resources.policyassignments.policyassignments_list
+  calls:
+  - action: policyassignments.PolicyAssignments_List
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+- discovery_id: azure.resources.policydefinitions.policydefinitions_list
+  calls:
+  - action: policydefinitions.PolicyDefinitions_List
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+- discovery_id: azure.resources.policysetdefinitions.policysetdefinitions_list
+  calls:
+  - action: policysetdefinitions.PolicySetDefinitions_List
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'

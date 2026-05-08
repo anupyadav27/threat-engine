@@ -1,0 +1,54 @@
+version: '1.0'
+provider: aws
+service: kinesisfirehose
+checks:
+- rule_id: aws.kinesisfirehose.deliverystream.consumer_auth_required
+  for_each: aws.kinesisfirehose.describe_delivery_stream
+  severity: MEDIUM
+  conditions:
+    var: item.DestinationDescription.HttpEndpointDestinationDescription.AuthenticationConfiguration.Connectivity
+    op: exists
+    value: null
+- rule_id: aws.kinesisfirehose.deliverystream.encryption_at_rest_enabled
+  for_each: aws.kinesisfirehose.describe_delivery_stream
+  severity: HIGH
+  conditions:
+    var: item.DeliveryStreamEncryptionConfiguration.Status
+    op: equals
+    value: ENABLED
+- rule_id: aws.kinesisfirehose.deliverystream.kinesisfirehose_destination_encrypted
+  for_each: aws.kinesisfirehose.describe_delivery_stream
+  severity: HIGH
+  conditions:
+    var: item.DeliveryStreamEncryptionConfiguration
+    op: exists
+    value: null
+- rule_id: aws.kinesisfirehose.deliverystream.kinesisfirehose_destination_least_privilege
+  for_each: aws.kinesisfirehose.describe_delivery_stream
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.DeliveryStreamStatus
+      op: equals
+      value: ACTIVE
+    - var: item.Destinations[].KinesisStreamSourceConfiguration.RoleARN
+      op: not_exists
+      value: null
+- rule_id: aws.kinesisfirehose.deliverystream.logging_enabled
+  for_each: aws.kinesisfirehose.describe_delivery_stream
+  severity: MEDIUM
+  conditions:
+    var: item.DeliveryStreamEncryptionConfiguration
+    op: exists
+    value: null
+- rule_id: aws.kinesisfirehose.deliverystream.private_network_only_if_supported
+  for_each: aws.kinesisfirehose.describe_delivery_stream
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.DeliveryStreamEncryptionConfiguration
+      op: exists
+      value: null
+    - var: item.DeliveryStreamEncryptionConfiguration.Status
+      op: equals
+      value: ENABLED

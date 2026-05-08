@@ -1,0 +1,92 @@
+# ============================================================
+# Discovery YAML — pubsub (final_discovery v1)
+# Generated: 2026-04-16T09:26:48Z
+# Source: gcp_master_field_catalog.csv
+# Check rules: 49 | ops in scope: 2 (2 independent, 0 dependent)
+# ============================================================
+version: '1.0'
+provider: gcp
+service: pubsub
+
+services:
+  client: pubsub
+  module: "googleapiclient.discovery.build('pubsub', 'v1')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: snapshots
+    identifier_op: gcp.pubsub.projects.topics.list
+    identifier_field: topics[].name
+    item_var_path: item.topics[].name
+    identifier_template: '{snapshot}'
+  - resource_type: unknown
+    identifier_op: gcp.pubsub.projects.subscriptions.list
+    identifier_field: subscriptions[].name
+    item_var_path: item.subscriptions[].name
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── gcp.pubsub.projects.subscriptions.list ──
+  - discovery_id: gcp.pubsub.projects.subscriptions.list
+    calls:
+      - action: projects.subscriptions.list
+        params:
+          project: '{{ project_id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        ackDeadlineSeconds: '{{ item.ackDeadlineSeconds }}'
+        analyticsHubSubscriptionInfo: '{{ item.analyticsHubSubscriptionInfo }}'
+        bigqueryConfig: '{{ item.bigqueryConfig }}'
+        cloudStorageConfig: '{{ item.cloudStorageConfig }}'
+        deadLetterPolicy: '{{ item.deadLetterPolicy }}'
+        detached: '{{ item.detached }}'
+        enableExactlyOnceDelivery: '{{ item.enableExactlyOnceDelivery }}'
+        enableMessageOrdering: '{{ item.enableMessageOrdering }}'
+        expirationPolicy: '{{ item.expirationPolicy }}'
+        filter: '{{ item.filter }}'
+        kmsKeyName: '{{ item.kmsKeyName }}'
+        labels: '{{ item.labels }}'
+        messageRetentionDuration: '{{ item.messageRetentionDuration }}'
+        messageStoragePolicy: '{{ item.messageStoragePolicy }}'
+        messageTransforms: '{{ item.messageTransforms }}'
+        name: '{{ item.name }}'
+        pushConfig: '{{ item.pushConfig }}'
+        retainAckedMessages: '{{ item.retainAckedMessages }}'
+        retryPolicy: '{{ item.retryPolicy }}'
+        state: '{{ item.state }}'
+        tags: '{{ item.tags }}'
+        topic: '{{ item.topic }}'
+        topicMessageRetentionDuration: '{{ item.topicMessageRetentionDuration }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── gcp.pubsub.projects.topics.list ──
+  - discovery_id: gcp.pubsub.projects.topics.list
+    calls:
+      - action: projects.topics.list
+        params:
+          project: '{{ project_id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        ingestionDataSourceSettings: '{{ item.ingestionDataSourceSettings }}'
+        kmsKeyName: '{{ item.kmsKeyName }}'
+        labels: '{{ item.labels }}'
+        messageRetentionDuration: '{{ item.messageRetentionDuration }}'
+        messageStoragePolicy: '{{ item.messageStoragePolicy }}'
+        messageTransforms: '{{ item.messageTransforms }}'
+        name: '{{ item.name }}'
+        satisfiesPzs: '{{ item.satisfiesPzs }}'
+        schemaSettings: '{{ item.schemaSettings }}'
+        state: '{{ item.state }}'
+        tags: '{{ item.tags }}'
+

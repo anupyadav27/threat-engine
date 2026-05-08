@@ -1,0 +1,82 @@
+rule_id: aws.container.cloudtrail.ecr_repo_policy_changed
+service: container
+provider: aws
+check_type: log
+severity: medium
+title: 'Container: Ecr Repo Policy Changed'
+description: ECR repository policy changed — image access permissions modified.
+rationale: 'Adversaries circumvent elevation control mechanisms to gain higher-level permissions. In cloud environments this includes SAML assertion manipulation, IAM role privilege boundary modifications, and STS:AssumeRole chaining to escalate from limited to administrative access. Detected via: privilege boundary removal events, STS role chaining with unusually broad permissions, and unexpected policy attachments.'
+threat_category: lateral_movement
+mitre_tactics:
+- lateral_movement
+mitre_techniques:
+- T1548.005
+risk_score: 58
+resource: eks_cluster
+source: ciem_rule_generator
+is_active: true
+domain: container_and_kubernetes_security
+action_category: modify
+log_source_type: cloudtrail
+posture_category: network_posture
+threat_tags:
+- T1548.005
+- T1548
+- lateral_movement
+- cloud_pivot
+- kubernetes
+- container_security
+risk_indicators:
+  actor_type: service_account_or_workload
+  action_type: write
+  target_type: kubernetes_workload
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 5.1
+  - 5.2
+  - 5.3
+  cis_azure_v2:
+  - 6.1
+  - 6.2
+  nist_800_53_r5:
+  - SC-7
+  - AC-4
+  - SI-3
+  pci_dss_v4:
+  - 1.2
+  - 1.3
+  - 7.2
+  iso_27001_2022:
+  - A.8.20
+  - A.8.22
+  - A.5.14
+detection_events:
+- 'iam:CreateRole with permissive trust'
+- 'sts:AssumeRole with cross-account escalation'
+- Microsoft.Authorization/elevateAccess/action
+remediation: |
+  1. Review and revoke temporary elevated credentials.
+  2. Implement SCP / Azure Policy guardrails to prevent unauthorized role chaining.
+  3. Enable session recording for all privileged access sessions.
+  4. Alert on all AssumeRole / elevateAccess API calls.
+references:
+- https://attack.mitre.org/techniques/T1548/005/
+- https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use.html
+check_config:
+  conditions:
+    field: operation
+    op: in
+    value:
+    - SetRepositoryPolicy
+    - DeleteRepositoryPolicy
+  for_each: log_events
+  log_source_type: cloudtrail
+  type: log
+version: '1.0'

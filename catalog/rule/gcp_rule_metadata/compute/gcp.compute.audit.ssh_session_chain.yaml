@@ -1,0 +1,60 @@
+rule_id: gcp.compute.audit.ssh_session_chain
+service: compute
+provider: gcp
+check_type: log
+severity: medium
+title: Detect two-step verification disablement and chained SSH sessions bypassing
+  inactivity timeouts.
+description: Detects chained SSH sessions or 2FA disablement to bypass timeouts.
+rationale: Monitoring this activity is essential for detecting adversary lateral movement
+  against GCP resources. Unauthorized or unexpected API calls may indicate account
+  compromise, privilege escalation, or an active attack chain.
+threat_category: lateral_movement
+mitre_tactics:
+- lateral_movement
+mitre_techniques:
+- T1563
+- T1021.001
+risk_score: 70
+resource: cloud_compute_instance
+source: csv_generated
+is_active: true
+domain: logging_monitoring_and_alerting
+action_category: audit_activity
+log_source_type: gcp_audit_log
+posture_category: threat_posture
+subcategory: attack_chain
+threat_tags:
+- T1563
+- T1021.001
+- T1021
+- lateral_movement
+- ciem_detection
+- attack_chain
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: read
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+remediation: '1. Terminate the suspicious session immediately.
+
+  2. Audit all resources accessed during the session.
+
+  3. Enforce session timeout and MFA for remote access protocols.
+
+  4. Use jump-hosts/bastion hosts with full session recording.
+
+  5. Restrict direct instance access to approved principals only.'
+references:
+- https://attack.mitre.org/techniques/T1563/
+- https://attack.mitre.org/techniques/T1021.001/
+- https://cloud.google.com/iam/docs/
+generated_by: step1_build_metadata
+compliance:
+- nist_800_171_r2_3_1_10

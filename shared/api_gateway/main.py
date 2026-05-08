@@ -7,7 +7,7 @@ import os
 import sys
 from fastapi import FastAPI, Request, HTTPException, Depends, Body
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 import httpx
 import json
@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from engine_common.logger import setup_logger, LogContext
 from engine_common.middleware import RequestLoggingMiddleware, CorrelationIDMiddleware
 from engine_auth.fastapi.middleware import AuthMiddleware
+from subscription_middleware import SubscriptionMiddleware
 
 # Import orchestration (local module)
 try:
@@ -34,6 +35,12 @@ try:
     from bff import router as views_router
 except ImportError:
     views_router = None
+
+# Import asset context aggregator router
+try:
+    from asset_context import router as asset_context_router
+except ImportError:
+    asset_context_router = None
 
 logger = setup_logger(__name__, engine_name="api-gateway")
 
@@ -107,8 +114,8 @@ SERVICE_ROUTES = {
     },
     "onboarding": {
         "url": os.getenv("ONBOARDING_ENGINE_URL", "http://engine-onboarding:8008"),
-        "prefix": "/api/v1/onboarding",
-        "prefixes": ["/api/v1/onboarding", "/api/v1/schedules", "/api/v1/accounts"],
+        "prefix": "/api/v1/cloud-accounts",
+        "prefixes": ["/api/v1/cloud-accounts", "/api/v1/scan-runs", "/api/v1/accounts", "/api/v1/tenants", "/api/v1/schedules"],
         "health_endpoint": "/api/v1/health"
     },
     "compliance": {
@@ -136,10 +143,93 @@ SERVICE_ROUTES = {
         "health_endpoint": "/health"
     },
     "secops": {
-        "url": os.getenv("SECOPS_ENGINE_URL", "http://engine-secops:8000"),
+        "url": os.getenv("SECOPS_ENGINE_URL", "http://engine-secops:8009"),
         "prefix": "/api/v1/secops",
         "prefixes": ["/api/v1/secops"],
+        "health_endpoint": "/api/v1/health/live"
+    },
+    "ciem": {
+        "url": os.getenv("CIEM_ENGINE_URL", "http://engine-ciem"),
+        "prefix": "/api/v1/ciem",
+        "prefixes": ["/api/v1/ciem", "/api/v1/log-collection"],
+        "health_endpoint": "/api/v1/health/live"
+    },
+    "pipeline-monitor": {
+        "url": os.getenv("PIPELINE_MONITOR_URL", "http://engine-pipeline-monitor"),
+        "prefix": "/api/v1/pipeline",
+        "prefixes": ["/api/v1/pipeline", "/api/v1/admin/logs"],
+        "health_endpoint": "/api/v1/health/live"
+    },
+    "cnapp": {
+        "url": os.getenv("CNAPP_ENGINE_URL", "http://engine-cnapp"),
+        "prefix": "/api/v1/cnapp",
+        "prefixes": ["/api/v1/cnapp"],
+        "health_endpoint": "/api/v1/health/live"
+    },
+    "cwpp": {
+        "url": os.getenv("CWPP_ENGINE_URL", "http://engine-cwpp"),
+        "prefix": "/api/v1/cwpp",
+        "prefixes": ["/api/v1/cwpp"],
+        "health_endpoint": "/api/v1/health/live"
+    },
+    # K8s svc port 80 → targetPort 8004
+    "network-security": {
+        "url": os.getenv("NETWORK_ENGINE_URL", "http://engine-network"),
+        "prefix": "/api/v1/network-security",
+        "prefixes": ["/api/v1/network-security"],
+        "health_endpoint": "/api/v1/health/live"
+    },
+    "risk": {
+        "url": os.getenv("RISK_ENGINE_URL", "http://engine-risk:8009"),
+        "prefix": "/api/v1/risk",
+        "prefixes": ["/api/v1/risk"],
+        "health_endpoint": "/api/v1/health/live"
+    },
+    # K8s svc port 80 → targetPort 8006
+    "encryption": {
+        "url": os.getenv("ENCRYPTION_ENGINE_URL", "http://engine-encryption"),
+        "prefix": "/api/v1/encryption",
+        "prefixes": ["/api/v1/encryption"],
+        "health_endpoint": "/api/v1/health/live"
+    },
+    # K8s svc port 80 → targetPort 8008
+    "container-security": {
+        "url": os.getenv("CONTAINER_SEC_ENGINE_URL", "http://engine-container-sec"),
+        "prefix": "/api/v1/container-security",
+        "prefixes": ["/api/v1/container-security"],
+        "health_endpoint": "/api/v1/health/live"
+    },
+    # K8s svc port 80 → targetPort 8032
+    "ai-security": {
+        "url": os.getenv("AI_SECURITY_ENGINE_URL", "http://engine-ai-security"),
+        "prefix": "/api/v1/ai-security",
+        "prefixes": ["/api/v1/ai-security"],
+        "health_endpoint": "/api/v1/health/live"
+    },
+    # K8s svc port 80 → targetPort 8007
+    "dbsec": {
+        "url": os.getenv("DBSEC_ENGINE_URL", "http://engine-dbsec"),
+        "prefix": "/api/v1/database-security",
+        "prefixes": ["/api/v1/database-security"],
+        "health_endpoint": "/api/v1/health/live"
+    },
+    "vulnerability": {
+        "url": os.getenv("VULNERABILITY_ENGINE_URL", "http://engine-vulnerability"),
+        "prefix": "/api/v1/vulnerabilities",
+        "prefixes": ["/api/v1/vulnerabilities", "/api/v1/agents", "/api/v1/reports", "/api/v1/scans", "/vulnerability"],
         "health_endpoint": "/health"
+    },
+    "billing": {
+        "url": os.getenv("BILLING_ENGINE_URL", "http://engine-billing:8040"),
+        "prefix": "/api/v1/billing",
+        "prefixes": ["/api/v1/billing"],
+        "health_endpoint": "/api/v1/health/live"
+    },
+    "platform-admin": {
+        "url": os.getenv("PLATFORM_ADMIN_ENGINE_URL", "http://engine-platform-admin:8041"),
+        "prefix": "/api/v1/padmin",
+        "prefixes": ["/api/v1/padmin"],
+        "health_endpoint": "/api/v1/health/live"
     },
 }
 
@@ -208,8 +298,23 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Add middleware (order matters: last added = first executed)
-# 1. CORS — must be outermost to handle preflight
+# Add middleware (order matters: last added = first executed in ASGI).
+# Each add_middleware call wraps the previous stack, making it the new
+# outermost layer. Outermost = first to execute on inbound requests.
+#
+# IMPORTANT: @app.middleware("http") is equivalent to add_middleware() and
+# is called at decoration time. Since route_requests is decorated AFTER
+# these add_middleware calls, it becomes the outermost layer unless Auth
+# and Subscription are added AFTER the decorator. See after route_requests
+# for the Auth/Subscription add_middleware calls that make Auth outermost.
+#
+# Final execution order (inbound):
+#   AuthMiddleware → SubscriptionMiddleware → route_requests
+#   → RequestLoggingMiddleware → CorrelationIDMiddleware → CORSMiddleware
+#   → route handler (BFF FastAPI router or engine proxy)
+#
+# Registration order (reversed from execution order):
+# 1. CORS — innermost; last to see request, first to see response
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -221,9 +326,8 @@ app.add_middleware(
 app.add_middleware(CorrelationIDMiddleware)
 # 3. Request logging
 app.add_middleware(RequestLoggingMiddleware, engine_name="api-gateway")
-# 4. Auth — validate access_token cookie, build AuthContext, set X-Auth-Context
-#    Skips: /gateway/*, health endpoints, public auth endpoints, OPTIONS
-app.add_middleware(AuthMiddleware)
+# NOTE: Subscription and Auth are added AFTER route_requests (see below)
+# so that Auth wraps route_requests and runs first on every inbound request.
 
 # BFF views router — provides aggregated, UI-ready endpoints under /api/v1/views/
 # Mount WITHOUT extra prefix so it works through the ingress rewrite
@@ -232,6 +336,11 @@ app.add_middleware(AuthMiddleware)
 if views_router is not None:
     app.include_router(views_router)                    # /api/v1/views/*  (through ingress)
     app.include_router(views_router, prefix="/gateway")  # /gateway/api/v1/views/* (direct)
+
+# Asset context aggregator — investigation panel cross-engine summary
+if asset_context_router is not None:
+    app.include_router(asset_context_router)
+    app.include_router(asset_context_router, prefix="/gateway")
 
 
 def get_target_service(path: str) -> Optional[str]:
@@ -299,12 +408,74 @@ def get_tenant_context(request: Request) -> Dict[str, Any]:
         "correlation_id": request.headers.get("X-Correlation-ID")
     }
 
+ARGO_URL = os.getenv("ARGO_SERVER_URL", "http://argo-server.argo.svc.cluster.local:2746")
+
+
+@app.api_route("/argo/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"])
+async def proxy_argo(request: Request, path: str):
+    """Transparent streaming proxy for the Argo Workflows UI and API.
+
+    Forwards /argo/<path> → argo-server:2746/argo/<path> preserving
+    all content types (HTML, JS, CSS, JSON) without JSON-wrapping.
+    WebSocket upgrade requests (live log streaming) are also forwarded.
+    """
+    target = f"{ARGO_URL}/argo/{path}"
+    if request.url.query:
+        target += f"?{request.url.query}"
+
+    headers = {
+        k: v for k, v in request.headers.items()
+        if k.lower() not in ("host", "content-length")
+    }
+
+    body = await request.body()
+
+    async def _stream(response: httpx.Response):
+        async for chunk in response.aiter_bytes(chunk_size=8192):
+            yield chunk
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            req = client.build_request(
+                method=request.method,
+                url=target,
+                headers=headers,
+                content=body or None,
+            )
+            response = await client.send(req, stream=True)
+
+            # Pass all headers through except ones httpx/ASGI manage
+            resp_headers = {
+                k: v for k, v in response.headers.items()
+                if k.lower() not in ("transfer-encoding", "content-encoding")
+            }
+            return StreamingResponse(
+                _stream(response),
+                status_code=response.status_code,
+                headers=resp_headers,
+                media_type=response.headers.get("content-type"),
+            )
+    except httpx.ConnectError:
+        return JSONResponse(status_code=503, content={"error": "Argo server unreachable"})
+    except Exception as exc:
+        logger.error(f"Argo proxy error: {exc}", exc_info=True)
+        return JSONResponse(status_code=502, content={"error": "Argo proxy failed"})
+
+
 @app.middleware("http")
 async def route_requests(request: Request, call_next):
     """Main routing middleware - forwards requests to appropriate services"""
-    
-    # Skip gateway routes and BFF views (handled by FastAPI routers, not proxy)
-    if request.url.path.startswith("/gateway/") or request.url.path.startswith("/api/v1/views/"):
+
+    # Skip gateway routes, BFF views, and Argo proxy (handled by FastAPI routers above)
+    # RBAC-07 verified: /api/v1/views/* routes pass through call_next() here which
+    # delivers the request to the FastAPI BFF router with all original headers intact,
+    # including any X-Auth-Context header present on the incoming request.
+    # The BFF handlers read request.headers.get("X-Auth-Context") directly and forward
+    # it verbatim to downstream engine calls — no stripping or re-encoding occurs here.
+    if (request.url.path.startswith("/gateway/")
+            or request.url.path.startswith("/api/v1/views/")
+            or request.url.path == "/api/v1/billing/trial-status"
+            or request.url.path.startswith("/argo/")):
         return await call_next(request)
     
     # Handle unified ConfigScan endpoint
@@ -365,63 +536,73 @@ async def route_requests(request: Request, call_next):
         })
         
         try:
-            # Forward request to target service
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                # Handle path processing for unified vs direct CSP routing
-                if request.url.path.startswith("/api/v1/configscan") and not any(
-                    request.url.path.startswith(config["prefix"]) 
-                    for config in SERVICE_ROUTES.values() 
-                    if "csp" in config
-                ):
-                    # Unified ConfigScan request - remove /api/v1/configscan prefix
-                    internal_path = request.url.path[len("/api/v1/configscan"):]
-                    if not internal_path.startswith("/"):
-                        internal_path = "/" + internal_path
-                else:
-                    # Direct service routing - pass full path to backend engine
-                    # Engines handle their own /api/v1/... routing internally
-                    internal_path = request.url.path
-                
-                # Build target URL
-                target_url = f"{service_url}{internal_path}"
-                if request.url.query:
-                    target_url += f"?{request.url.query}"
-                
-                # Forward headers (add/modify as needed)
-                headers = dict(request.headers)
-                headers["X-Forwarded-For"] = request.client.host
-                headers["X-Forwarded-Proto"] = "http"
+            # Build internal path
+            if request.url.path.startswith("/api/v1/configscan") and not any(
+                request.url.path.startswith(config["prefix"])
+                for config in SERVICE_ROUTES.values()
+                if "csp" in config
+            ):
+                internal_path = request.url.path[len("/api/v1/configscan"):]
+                if not internal_path.startswith("/"):
+                    internal_path = "/" + internal_path
+            elif request.url.path.startswith("/vulnerability/"):
+                # Strip /vulnerability prefix — engine listens at /api/v1/...
+                internal_path = request.url.path[len("/vulnerability"):]
+            else:
+                internal_path = request.url.path
 
-                # Forward auth context to downstream engines (set by AuthMiddleware)
-                auth_header = getattr(request.state, "auth_header", None)
-                if auth_header:
-                    headers["X-Auth-Context"] = auth_header
-                
-                # Forward request
+            target_url = f"{service_url}{internal_path}"
+            if request.url.query:
+                target_url += f"?{request.url.query}"
+
+            fwd_headers = dict(request.headers)
+            fwd_headers["X-Forwarded-For"] = request.client.host
+            fwd_headers["X-Forwarded-Proto"] = "http"
+            auth_header = getattr(request.state, "auth_header", None)
+            if auth_header:
+                fwd_headers["X-Auth-Context"] = auth_header
+
+            # SSE streaming passthrough (Accept: text/event-stream)
+            is_sse = "text/event-stream" in request.headers.get("accept", "")
+            if is_sse:
+                async def _sse_stream(url: str, headers: dict):
+                    async with httpx.AsyncClient(timeout=None) as streaming_client:
+                        async with streaming_client.stream("GET", url, headers=headers) as resp:
+                            async for chunk in resp.aiter_bytes(chunk_size=256):
+                                yield chunk
+
+                return StreamingResponse(
+                    _sse_stream(target_url, fwd_headers),
+                    status_code=200,
+                    media_type="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+                )
+
+            # Standard (non-streaming) request
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 if request.method == "GET":
-                    response = await client.get(target_url, headers=headers)
+                    response = await client.get(target_url, headers=fwd_headers)
                 elif request.method == "POST":
                     body = await request.body()
-                    response = await client.post(target_url, headers=headers, content=body)
+                    response = await client.post(target_url, headers=fwd_headers, content=body)
                 elif request.method == "PUT":
                     body = await request.body()
-                    response = await client.put(target_url, headers=headers, content=body)
+                    response = await client.put(target_url, headers=fwd_headers, content=body)
                 elif request.method == "DELETE":
-                    response = await client.delete(target_url, headers=headers)
+                    response = await client.delete(target_url, headers=fwd_headers)
                 elif request.method == "PATCH":
                     body = await request.body()
-                    response = await client.patch(target_url, headers=headers, content=body)
+                    response = await client.patch(target_url, headers=fwd_headers, content=body)
                 else:
                     return JSONResponse(
                         status_code=405,
                         content={"error": f"Method {request.method} not supported"}
                     )
-                
-                # Return response
+
                 return JSONResponse(
                     status_code=response.status_code,
                     content=response.json() if response.headers.get("content-type", "").startswith("application/json") else {"data": response.text},
-                    headers={k: v for k, v in response.headers.items() 
+                    headers={k: v for k, v in response.headers.items()
                             if k.lower() not in ["content-length", "transfer-encoding"]}
                 )
                 
@@ -437,6 +618,20 @@ async def route_requests(request: Request, call_next):
                 status_code=502,
                 content={"error": "Service request failed"}
             )
+
+# Auth and Subscription middleware are added HERE (after route_requests is
+# registered via @app.middleware) so they wrap route_requests and execute
+# BEFORE it on every inbound request.  Auth validates the session cookie and
+# sets request.state.auth_header; route_requests then reads that value to
+# inject X-Auth-Context into engine proxy calls.
+#
+# 4. Subscription — reads X-Auth-Context set by Auth (inner to Auth)
+app.add_middleware(SubscriptionMiddleware)
+# 5. Auth — outermost; runs first on every request.  Validates access_token
+#    cookie, builds AuthContext, sets request.state.auth_header, and appends
+#    X-Auth-Context to scope["headers"] so BFF handlers can read it.
+#    Skips: /gateway/*, health endpoints, public auth endpoints, OPTIONS.
+app.add_middleware(AuthMiddleware)
 
 # Gateway management endpoints
 @app.get("/")

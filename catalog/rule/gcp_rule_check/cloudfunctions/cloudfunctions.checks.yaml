@@ -1,0 +1,103 @@
+version: '1.0'
+provider: gcp
+service: cloudfunctions
+checks:
+- rule_id: gcp.cloudfunctions.event_source.event_source_permissions_least_privilege
+  for_each: gcp.cloudfunctions.projects.locations.functions.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.eventTrigger.eventType
+      op: exists
+      value: null
+    - var: item.eventTrigger.serviceAccountEmail
+      op: exists
+      value: null
+    - var: item.eventTrigger.serviceAccountEmail
+      op: not_contains
+      value: '@cloudservices.gserviceaccount.com'
+- rule_id: gcp.cloudfunctions.event_source.event_source_source_authenticated
+  for_each: gcp.cloudfunctions.projects.locations.functions.list
+  severity: MEDIUM
+  conditions:
+    var: item.eventTrigger.eventFilters[].attribute
+    op: not_contains
+    value: unauthenticated
+- rule_id: gcp.cloudfunctions.function.function_dead_letter_queue_configured
+  for_each: gcp.cloudfunctions.projects.locations.functions.list
+  severity: MEDIUM
+  conditions:
+    var: item.eventTrigger.eventFilters[].value
+    op: exists
+    value: null
+- rule_id: gcp.cloudfunctions.function.function_env_no_plaintext_secrets
+  for_each: gcp.cloudfunctions.projects.locations.functions.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.environmentVariables
+      op: exists
+      value: null
+    - var: item.environmentVariables
+      op: is_empty
+      value: null
+- rule_id: gcp.cloudfunctions.function.function_logging_and_tracing_enabled
+  for_each: gcp.cloudfunctions.projects.locations.functions.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.availableMemoryMb
+      op: exists
+      value: null
+    - var: item.buildId
+      op: exists
+      value: null
+- rule_id: gcp.cloudfunctions.function.function_role_least_privilege
+  for_each: gcp.cloudfunctions.projects.locations.functions.list
+  severity: HIGH
+  conditions:
+    var: item.serviceConfig.serviceAccountEmail
+    op: not_contains
+    value: '@cloudfunctions.gserviceaccount.com'
+- rule_id: gcp.cloudfunctions.function.function_vpc_private_networking_enabled
+  for_each: gcp.cloudfunctions.projects.locations.functions.list
+  severity: HIGH
+  conditions:
+    var: item.vpcConnector
+    op: exists
+    value: null
+- rule_id: gcp.cloudfunctions.layer.layer_source_trusted
+  for_each: gcp.cloudfunctions.projects.locations.functions.list
+  severity: MEDIUM
+  conditions:
+    var: item.dockerRegistry
+    op: equals
+    value: ARTIFACT_REGISTRY
+- rule_id: gcp.cloudfunctions.layer.layer_version_immutable
+  for_each: gcp.cloudfunctions.projects.locations.functions.list
+  severity: MEDIUM
+  conditions:
+    var: item.automaticUpdatePolicy
+    op: exists
+    value: null
+- rule_id: gcp.cloudfunctions.provisioned_concurrency.prov_conc_execution_role_least_privilege
+  for_each: gcp.cloudfunctions.projects.locations.functions.list
+  severity: HIGH
+  conditions:
+    var: item.serviceConfig.serviceAccountEmail
+    op: exists
+    value: null
+- rule_id: gcp.cloudfunctions.version.version_published_and_immutable
+  for_each: gcp.cloudfunctions.projects.locations.functions.list
+  severity: MEDIUM
+  conditions:
+    var: item.automaticUpdatePolicy
+    op: exists
+    value: null
+- rule_id: gcp.cloudfunctions.version.version_rollforward_rollback_controls_present
+  for_each: gcp.cloudfunctions.projects.locations.functions.list
+  severity: MEDIUM
+  conditions:
+    var: item.automaticUpdatePolicy
+    op: exists
+    value: null

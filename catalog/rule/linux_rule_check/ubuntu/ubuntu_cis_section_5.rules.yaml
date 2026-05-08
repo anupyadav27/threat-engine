@@ -1,0 +1,1426 @@
+tech_type: ubuntu
+category: linux
+cis_benchmark: CIS Ubuntu 24.04 v1.0.0
+cis_section: '5'
+
+rules:
+
+  - rule_id: ubuntu.cis.5.permissions_on_etc_ssh_sshd_config_are_configured
+    title: "Ensure permissions on /etc/ssh/sshd_config are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.1'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.permissions_on_etc_ssh_sshd_config_are_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following script to set ownership and permissions on
+      /etc/ssh/sshd_config and files ending in .conf in the /etc/ssh/sshd_config.d
+      directory: #!/usr/bin/env bash { chmod u-x,og-rwx /etc/ssh/sshd_config chown
+      root:root /etc/ssh/sshd_config while IFS= read -r -d $'\0' l_file; do if [ -e
+      '$l_file' ]; then chmod u-x,og-rwx '$l_file' chown root:root '$l_file' fi done
+      < <(find /etc/ssh/sshd_config.d -type f -print0 2>/dev/null) } - IF - other
+      locations are listed in an Include statement, *.conf files in these locations
+      access should also be modified. References: 1. NIST SP 800-53 Rev. 5: AC-3.
+      MP-2
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_1_1
+
+  - rule_id: ubuntu.cis.5.permissions_on_ssh_private_host_key_files_are
+    title: "Ensure permissions on SSH private host key files are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.2'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.permissions_on_ssh_private_host_key_files_are
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following script to set mode, ownership, and group on the private SSH
+      host key files: #!/usr/bin/env bash { a_output=(); a_output2=();
+      l_ssh_group_name='$(awk -F: '($1 ~ /^(ssh_keys|_?ssh)$/) {print $1}'
+      /etc/group)' f_file_access_fix() { while IFS=: read -r l_file_mode
+      l_file_owner l_file_group; do a_out2=() [ '$l_file_group' =
+      '$l_ssh_group_name' ] && l_pmask='0137' || l_pmask='0177' l_maxperm='$( printf
+      '%o' $(( 0777 & ~$l_pmask )) )' if [ $(( $l_file_mode & $l_pmask )) -gt 0 ];
+      then a_out2+=(' Mode: \'$l_file_mode\' should be mode: \'$l_maxperm\' or more
+      restrictive' \ ' updating to mode: \:$l_maxperm\'') if [ 'l_file_group' =
+      '$l_ssh_group_name' ]; then chmod u-x,g-wx,o-rwx '$l_file' else chmod u-x,go-
+      rwx '$l_file' fi fi if [ '$l_file_owner' != 'root' ]; then a_out2+=(' Owned
+      by: \'$l_file_owner\' should be owned by \'root\'' \ ' Changing ownership to
+      \'root\'') chown root '$l_file' fi if [[ ! '$l_file_group' =~
+      ($l_ssh_group_name|root) ]]; then [ -n '$l_ssh_group_name' ] &&
+      l_new_group='$l_ssh_group_name' || l_new_group='root' a_out2+=(' Owned by
+      group \'$l_file_group\' should be group owned by: \'$l_ssh_group_name\' or
+      \'root\'' \ ' Changing group ownership to \'$l_new_group\'') chgrp
+      '$l_new_group' '$l_file' fi if [ '${#a_out2[@]}' -gt '0' ]; then a_output2+=('
+      - File: \'$l_file\'' '${a_out2[@]}') else a_output+=(' - File: \'$l_file\'' \
+      'Correct: mode: \'$l_file_mode\', owner: \'$l_file_owner\', and group owner:
+      \'$l_file_group\' configured') fi done < <(stat -Lc '%#a:%U:%G' '$l_file') }
+      while IFS= read -r -d $'\0' l_file; do if ssh-keygen -lf &>/dev/null
+      '$l_file'; then file '$l_file' | grep -Piq --
+      '\bopenssh\h+([^#\n\r]+\h+)?private\h+key\b' && f_file_access_fix fi done <
+      <(find -L /etc/ssh -xdev -type f -print0 2>/dev/null) if [ '${#a_output2[@]}'
+      -le '0' ]; then printf '%s\n' '' ' - No access changes required' '' else
+      printf '%s\n' '' ' - Remediation results:' '${a_output2[@]}' '' fi }
+      References: 1. NIST SP 800-53 Rev. 5: AC-3. MP-2
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_1_2
+
+  - rule_id: ubuntu.cis.5.permissions_on_ssh_public_host_key_files_are
+    title: "Ensure permissions on SSH public host key files are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.3'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.permissions_on_ssh_public_host_key_files_are
+    assertion:
+      field: value
+      operator: exists
+      expected: "no"
+    remediation: >
+      Run the following script to set mode, ownership, and group on the public SSH
+      host key files: #!/usr/bin/env bash { a_output=(); a_output2=()
+      l_pmask='0133'; l_maxperm='$( printf '%o' $(( 0777 & ~$l_pmask )) )'
+      f_file_access_fix() { while IFS=: read -r l_file_mode l_file_owner
+      l_file_group; do a_out2=() [ $(( $l_file_mode & $l_pmask )) -gt 0 ] && \
+      a_out2+=(' Mode: \'$l_file_mode\' should be mode: \'$l_maxperm\' or more
+      restrictive' \ ' updating to mode: \'$l_maxperm\'') && chmod u-x,go-wx
+      '$l_file' [ '$l_file_owner' != 'root' ] && \ a_out2+=(' Owned by:
+      \'$l_file_owner\' should be owned by \'root\'' \ ' Changing ownership to
+      \'root\'') && chown root '$l_file' [ '$l_file_group' != 'root' ] && \
+      a_out2+=(' Owned by group \'$l_file_group\' should be group owned by:
+      \'root\'' \ ' Changing group ownership to \'root\'') && chgrp root '$l_file'
+      if [ '${#a_out2[@]}' -gt '0' ]; then a_output2+=(' - File: \'$l_file\''
+      '${a_out2[@]}') else a_output+=(' - File: \'$l_file\'' \ ' Correct: mode:
+      \'$l_file_mode\', owner: \'$l_file_owner\', and group owner: \'$l_file_group\'
+      configured') fi done < <(stat -Lc '%#a:%U:%G' '$l_file') } while IFS= read -r
+      -d $'\0' l_file; do if ssh-keygen -lf &>/dev/null '$l_file'; then file
+      '$l_file' | grep -Piq -- '\bopenssh\h+([^#\n\r]+\h+)?public\h+key\b' &&
+      f_file_access_fix fi done < <(find -L /etc/ssh -xdev -type f -print0
+      2>/dev/null) if [ '${#a_output2[@]}' -le '0' ]; then printf '%s\n' '' ' - No
+      access changes required' '' else printf '%s\n' ' - Remediation results:'
+      '${a_output2[@]}' '' fi } Default Value: 644 0/root 0/root References: 1. NIST
+      SP 800-53 Rev. 5: AC-3. MP-2
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_1_3
+
+  - rule_id: ubuntu.cis.5.sshd_banner_is_configured
+    title: "Ensure sshd Banner is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.5'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.sshd_banner_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "no"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the Banner parameter above any
+      Include and Match entries as follows: Banner /etc/issue.net Note: First
+      occurrence of a option takes precedence, Match set statements withstanding. If
+      Include locations are enabled, used, and order of precedence is understood in
+      your environment, the entry may be created in a file in Include location. Edit
+      the file being called by the Banner argument with the appropriate contents
+      according to your site policy, remove any instances of \m , \r , \s , \v or
+      references to the OS platform Example: # printf '%s\n' 'Authorized users only.
+      All activity may be monitored and reported.' > '$(sshd -T | awk '$1 ==
+      'banner' {print $2}')' References: 1. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6,
+      CM-7, IA-5 MITRE ATT&CK Mappings: Techniques / Sub- techniques Tactics
+      Mitigations TA0001, TA0007 M1035
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_1_5
+
+  - rule_id: ubuntu.cis.5.sshd_ciphers_are_configured
+    title: "Ensure sshd Ciphers are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.6'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.sshd_ciphers_are_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "no"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file and add/modify the Ciphers line to contain
+      a comma separated list of the site unapproved (weak) Ciphers preceded with a -
+      above any Include entries: Example: Ciphers -3des-
+      cbc,aes128-cbc,aes192-cbc,aes256-cbc,chacha20- poly1305@openssh.com - IF -
+      CVE-2023-48795 has been addressed, and it meets local site policy, chacha20-
+      poly1305@openssh.com may be removed from the list of excluded ciphers. Note:
+      First occurrence of an option takes precedence. If Include locations are
+      enabled, used, and order of precedence is understood in your environment, the
+      entry may be created in a file in Include location. Default Value: Ciphers
+      chacha20-poly1305@openssh.com,aes128-ctr,aes192-ctr,aes256-ctr,aes128-
+      gcm@openssh.com,aes256-gcm@openssh.com References: 1.
+      https://nvd.nist.gov/vuln/detail/CVE-2023-48795 2.
+      https://nvd.nist.gov/vuln/detail/CVE-2019-1543 3.
+      https://nvd.nist.gov/vuln/detail/CVE-2016-2183 4.
+      https://nvd.nist.gov/vuln/detail/CVE-2008-5161 5.
+      https://www.openssh.com/txt/cbc.adv 6. https://www.openssh.com/txt/cbc.adv 7.
+      SSHD_CONFIG(5) 8. NIST SP 800-53 Rev. 5: SC-8
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_1_6
+
+  - rule_id: ubuntu.cis.5.sshd_clientaliveinterval_and_clientalivecountmax
+    title: "Ensure sshd ClientAliveInterval and ClientAliveCountMax are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.7'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.sshd_clientaliveinterval_and_clientalivecountmax
+    assertion:
+      field: row_count
+      operator: exists
+      expected: "true"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the ClientAliveInterval and
+      ClientAliveCountMax parameters above any Include and Match entries according
+      to site policy. Example: ClientAliveInterval 15 ClientAliveCountMax 3 Note:
+      First occurrence of a option takes precedence, Match set statements
+      withstanding. If Include locations are enabled, used, and order of precedence
+      is understood in your environment, the entry may be created in a file in
+      Include location. Default Value: ClientAliveInterval 0 ClientAliveCountMax 3
+      References: 1. SSHD_CONFIG(5) 2. SSHD(8) 3. NIST SP 800-53 Rev. 5: CM-1, CM-2,
+      CM-6, CM-7, IA-5 Additional Information:
+      https://bugzilla.redhat.com/show_bug.cgi?id=1873547
+      https://github.com/openssh/openssh-portable/blob/V_8_9/serverloop.c#L137 MITRE
+      ATT&CK Mappings: Techniques / Sub- techniques Tactics Mitigations T1078,
+      T1078.001, T1078.002, T1078.003 TA0001 M1026
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_1_7
+
+  - rule_id: ubuntu.cis.5.sshd_disableforwarding_is_enabled
+    title: "Ensure sshd DisableForwarding is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.8'
+    cis_section: '5'
+    profile_applicability: "Level 1 + Level 2"
+    scope: ubuntu.section_5.sshd_disableforwarding_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "yes"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the DisableForwarding parameter to
+      yes above any Include entry as follows: DisableForwarding yes Note: First
+      occurrence of a option takes precedence. If Include locations are enabled,
+      used, and order of precedence is understood in your environment, the entry may
+      be created in a file in Include location. References: 1. sshd_config(5) 2.
+      SSHD(8) 3. NIST SP 800-53 Rev. 5: CM-7
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_1_8
+
+  - rule_id: ubuntu.cis.5.sshd_gssapiauthentication_is_disabled
+    title: "Ensure sshd GSSAPIAuthentication is disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.9'
+    cis_section: '5'
+    profile_applicability: "Level 1 + Level 2"
+    scope: ubuntu.section_5.sshd_gssapiauthentication_is_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the GSSAPIAuthentication parameter
+      to no above any Include and Match entries as follows: GSSAPIAuthentication no
+      Note: First occurrence of an option takes precedence, Match set statements
+      withstanding. If Include locations are enabled, used, and order of precedence
+      is understood in your environment, the entry may be created in a file in
+      Include location. Default Value: GSSAPIAuthentication no References: 1.
+      SSHD_CONFIG(5) 2. SSHD(8) 3. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7,
+      IA-5
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_1_9
+
+  - rule_id: ubuntu.cis.5.sshd_hostbasedauthentication_is_disabled
+    title: "Ensure sshd HostbasedAuthentication is disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.10'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.sshd_hostbasedauthentication_is_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the HostbasedAuthentication
+      parameter to no above any Include and Match entries as follows:
+      HostbasedAuthentication no Note: First occurrence of a option takes
+      precedence, Match set statements withstanding. If Include locations are
+      enabled, used, and order of precedence is understood in your environment, the
+      entry may be created in a file in Include location. Default Value:
+      HostbasedAuthentication no References: 1. SSHD_CONFIG(5) 2. SSHD(8) 3. NIST SP
+      800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5 MITRE ATT&CK Mappings: Techniques
+      / Sub- techniques Tactics Mitigations T1078, T1078.001, T1078.003 TA0001 M1042
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_1_10
+
+  - rule_id: ubuntu.cis.5.sshd_ignorerhosts_is_enabled
+    title: "Ensure sshd IgnoreRhosts is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.11'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.sshd_ignorerhosts_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "yes"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the IgnoreRhosts parameter to yes
+      above any Include and Match entries as follows: IgnoreRhosts yes Note: First
+      occurrence of a option takes precedence, Match set statements withstanding. If
+      Include locations are enabled, used, and order of precedence is understood in
+      your environment, the entry may be created in a file in Include location.
+      Default Value: IgnoreRhosts yes References: 1. SSHD_CONFIG(5) 2. SSHD(8) 3.
+      NIST SP 800-53 Rev. 5: CM-1,CM-2, CM-6, CM-7, IA-5
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_1_11
+
+  - rule_id: ubuntu.cis.5.sshd_kexalgorithms_is_configured
+    title: "Ensure sshd KexAlgorithms is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.12'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.sshd_kexalgorithms_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file and add/modify the KexAlgorithms line to
+      contain a comma separated list of the site unapproved (weak) KexAlgorithms
+      preceded with a - above any Include entries: Example: KexAlgorithms -diffie-
+      hellman-group1-sha1,diffie-hellman-group14-sha1,diffie- hellman-group-
+      exchange-sha1 Note: First occurrence of an option takes precedence. If Include
+      locations are enabled, used, and order of precedence is understood in your
+      environment, the entry may be created in a file in Include location. Default
+      Value: KexAlgorithms sntrup761x25519-sha512@openssh.com,curve25519-
+      sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-
+      sha2-nistp384,ecdh- sha2-nistp521,diffie-hellman-group-exchange-sha256,diffie-
+      hellman-group16- sha512,diffie-hellman-group18-sha512,diffie-hellman-
+      group14-sha256 References: 1. https://ubuntu.com/server/docs/openssh-crypto-
+      configuration 2. NIST SP 800-53 Rev. 5: SC-8 3. SSHD(8) 4. SSHD_CONFIG(5)
+      Additional Information: The supported algorithms are: curve25519-sha256
+      curve25519-sha256@libssh.org diffie-hellman-group1-sha1 diffie-hellman-
+      group14-sha1 diffie-hellman-group14-sha256 diffie-hellman-group16-sha512
+      diffie-hellman-group18-sha512 diffie-hellman-group-exchange-sha1 diffie-
+      hellman-group-exchange-sha256 ecdh-sha2-nistp256 ecdh-sha2-nistp384 ecdh-
+      sha2-nistp521 sntrup4591761x25519-sha512@tinyssh.org
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_1_12
+
+  - rule_id: ubuntu.cis.5.sshd_loglevel_is_configured
+    title: "Ensure sshd LogLevel is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.14'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.sshd_loglevel_is_configured
+    assertion:
+      field: port
+      operator: exists
+      expected: "true"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the LogLevel parameter to VERBOSE or
+      INFO above any Include and Match entries as follows: LogLevel VERBOSE - OR -
+      LogLevel INFO Note: First occurrence of an option takes precedence, Match set
+      statements withstanding. If Include locations are enabled, used, and order of
+      precedence is understood in your environment, the entry may be created in a
+      file in Include location. Default Value: LogLevel INFO References: 1.
+      https://www.ssh.com/ssh/sshd_config/ 2. NIST SP 800-53 Rev. 5: AU-3, AU-12,
+      SI-5
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_1_14
+
+  - rule_id: ubuntu.cis.5.sshd_macs_are_configured
+    title: "Ensure sshd MACs are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.15'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.sshd_macs_are_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file and add/modify the MACs line to contain a
+      comma separated list of the site unapproved (weak) MACs preceded with a -
+      above any Include entries: Example: MACs -hmac-md5,hmac-md5-96,hmac-
+      ripemd160,hmac-sha1-96,umac- 64@openssh.com,hmac-md5-etm@openssh.com,hmac-
+      md5-96-etm@openssh.com,hmac- ripemd160-etm@openssh.com,hmac-
+      sha1-96-etm@openssh.com,umac-64- etm@openssh.com,umac-128-etm@openssh.com - IF
+      - CVE-2023-48795 has not been reviewed and addressed, the following etm MACs
+      should be added to the exclude list: hmac-sha1-etm@openssh.com,hmac-sha2-256-
+      etm@openssh.com,hmac-sha2-512-etm@openssh.com Note: First occurrence of an
+      option takes precedence. If Include locations are enabled, used, and order of
+      precedence is understood in your environment, the entry may be created in a
+      file in Include location. Default Value: MACs
+      umac-64-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-256-
+      etm@openssh.com,hmac-sha2-512-etm@openssh.com,hmac-sha1-
+      etm@openssh.com,umac-64@openssh.com,umac-128@openssh.com,hmac-sha2- 256,hmac-
+      sha2-512,hmac-sha1 References: 1.
+      https://nvd.nist.gov/vuln/detail/CVE-2023-48795 2. More information on SSH
+      downgrade attacks can be found here: http://www.mitls.org/pages/attacks/SLOTH
+      3. SSHD_CONFIG(5) 4. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_1_15
+
+  - rule_id: ubuntu.cis.5.sshd_maxsessions_is_configured
+    title: "Ensure sshd MaxSessions is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.17'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.sshd_maxsessions_is_configured
+    assertion:
+      field: row_count
+      operator: lte
+      expected: "true"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the MaxSessions parameter to 10 or
+      less above any Include and Match entries as follows: MaxSessions 10 Note:
+      First occurrence of an option takes precedence, Match set statements
+      withstanding. If Include locations are enabled, used, and order of precedence
+      is understood in your environment, the entry may be created in a file in
+      Include location. Default Value: MaxSessions 10 References: 1. SSHD_CONFIG(5)
+      2. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5 MITRE ATT&CK Mappings:
+      Techniques / Sub- techniques Tactics Mitigations T1499, T1499.002 TA0040
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_1_17
+
+  - rule_id: ubuntu.cis.5.sshd_maxstartups_is_configured
+    title: "Ensure sshd MaxStartups is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.18'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.sshd_maxstartups_is_configured
+    assertion:
+      field: row_count
+      operator: lte
+      expected: "true"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the MaxStartups parameter to
+      10:30:60 or more restrictive above any Include entries as follows: MaxStartups
+      10:30:60 Note: First occurrence of a option takes precedence. If Include
+      locations are enabled, used, and order of precedence is understood in your
+      environment, the entry may be created in a file in Include location. Default
+      Value: MaxStartups 10:30:100 References: 1. SSHD_CONFIG(5) 2. NIST SP 800-53
+      Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5 MITRE ATT&CK Mappings: Techniques / Sub-
+      techniques Tactics Mitigations T1499, T1499.002 TA0040
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_1_18
+
+  - rule_id: ubuntu.cis.5.sshd_permituserenvironment_is_disabled
+    title: "Ensure sshd PermitUserEnvironment is disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.21'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.sshd_permituserenvironment_is_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the PermitUserEnvironment parameter
+      to no above any Include entries as follows: PermitUserEnvironment no Note:
+      First occurrence of an option takes precedence. If Include locations are
+      enabled, used, and order of precedence is understood in your environment, the
+      entry may be created in a file in Include location. Default Value:
+      PermitUserEnvironment no References: 1. SSHD_CONFIG(5) 2. NIST SP 800-53 Rev.
+      5: CM-1,CM-2, CM-6, CM-7, IA-5 3. SSHD(8) MITRE ATT&CK Mappings: Techniques /
+      Sub- techniques Tactics Mitigations T1021 TA0008 M1042
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_1_21
+
+  - rule_id: ubuntu.cis.5.sshd_usepam_is_enabled
+    title: "Ensure sshd UsePAM is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.22'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.sshd_usepam_is_enabled
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "yes"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the UsePAM parameter to yes above
+      any Include entries as follows: UsePAM yes Note: First occurrence of an option
+      takes precedence. If Include locations are enabled, used, and order of
+      precedence is understood in your environment, the entry may be created in a
+      file in Include location. Default Value: UsePAM yes References: 1.
+      SSHD_CONFIG(5) 2. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5 3.
+      SSHD(8)
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_1_22
+
+  - rule_id: ubuntu.cis.5.latest_version_of_pam_is_installed
+    title: "Ensure latest version of pam is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '5.3.1.1'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.latest_version_of_pam_is_installed
+    assertion:
+      field: version
+      operator: equals
+      expected: "on"
+    remediation: >
+      - IF - the version of libpam-runtime on the system is less than version
+      1.5.3-5: Run the following command to update to the latest version of PAM: #
+      apt upgrade libpam-runtime
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_3_1_1
+
+  - rule_id: ubuntu.cis.5.libpam_modules_is_installed
+    title: "Ensure libpam-modules is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '5.3.1.2'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.libpam_modules_is_installed
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - the version of libpam-modules on the system is less than version
+      1.5.3-5: Run the following command to update to the latest version of PAM: #
+      apt upgrade libpam-modules
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_3_1_2
+
+  - rule_id: ubuntu.cis.5.libpam_pwquality_is_installed
+    title: "Ensure libpam-pwquality is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '5.3.1.3'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.libpam_pwquality_is_installed
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to install libpam-pwquality: # apt install libpam-
+      pwquality References: 1. https://packages.debian.org/buster/libpam-pwquality
+      5.3.2 Configure pam-auth-update profiles pam-auth-update is a utility that
+      permits configuring the central authentication policy for the system using
+      pre-defined profiles as supplied by PAM module packages. Profiles - Shipped in
+      the /usr/share/pam-configs/ directory specify the modules, with options, to
+      enable; the preferred ordering with respect to other profiles; and whether a
+      profile should be enabled by default. Packages providing PAM modules register
+      their profiles at install time by calling pam-auth-update --package. Selection
+      of profiles is done using the standard debconf interface. The profile
+      selection question will be asked at medium priority when packages are added or
+      removed, so no user interaction is required by default. Users may invoke pam-
+      auth-update directly to change their authentication configuration. The pam-
+      auth-update script makes every effort to respect local changes to
+      /etc/pam.d/common-*. Local modifications to the list of module options will be
+      preserved, and additions of modules within the managed portion of the stack
+      will cause pam-auth-update to treat the config files as locally modified and
+      not make further changes to the config files unless given the --force option.
+      If the user specifies that pam-auth-update should override local configuration
+      changes, the locally-modified files will be saved in /etc/pam.d/ with a suffix
+      of .pam-old.
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_3_1_3
+
+  - rule_id: ubuntu.cis.5.pam_faillock_module_is_enabled
+    title: "Ensure pam_faillock module is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '5.3.2.2'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.pam_faillock_module_is_enabled
+    assertion:
+      field: row_count
+      operator: exists
+      expected: "true"
+    remediation: >
+      Create two pam-auth-update profiles in /usr/share/pam-configs/: 1. Create the
+      faillock profile in /usr/share/pam-configs/ with the following lines: Name:
+      Enable pam_faillock to deny access Default: yes Priority: 0 Auth-Type: Primary
+      Auth: [default=die] pam_faillock.so authfail Example Script: #!/usr/bin/env
+      bash { arr=('Name: Enable pam_faillock to deny access' 'Default: yes'
+      'Priority: 0' 'Auth-Type: Primary' 'Auth:' ' [default=die] pam_faillock.so
+      authfail') printf '%s\n' '${arr[@]}' > /usr/share/pam-configs/faillock } 2.
+      Create the faillock_notify profile in /usr/share/pam-configs/ with the
+      following lines: Name: Notify of failed login attempts and reset count upon
+      success Default: yes Priority: 1024 Auth-Type: Primary Auth: requisite
+      pam_faillock.so preauth Account-Type: Primary Account: required
+      pam_faillock.so Example Script: #!/usr/bin/env bash { arr=('Name: Notify of
+      failed login attempts and reset count upon success' 'Default: yes' 'Priority:
+      1024' 'Auth-Type: Primary' 'Auth:' ' requisite pam_faillock.so preauth'
+      'Account-Type: Primary' 'Account:' ' required pam_faillock.so') printf '%s\n'
+      '${arr[@]}' > /usr/share/pam-configs/faillock_notify } Run the following
+      command to update the common-auth and common-account PAM files with the new
+      profiles: # pam-auth-update --enable <profile_filename> Example: # pam-auth-
+      update --enable faillock # pam-auth-update --enable faillock_notify Note: •
+      The name used for the file must be used in the pam-auth-update --enable
+      command • The Name: line should be easily recognizable and understood • The
+      Priority: Line is important as it effects the order of the lines in the
+      /etc/pam.d/ files • If a site specific custom profile is being used in your
+      environment to configure PAM that includes the configuration for the
+      pam_faillock module, enable that module instead
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_3_2_2
+
+  - rule_id: ubuntu.cis.5.pam_pwquality_module_is_enabled
+    title: "Ensure pam_pwquality module is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '5.3.2.3'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.pam_pwquality_module_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following script to verify the pam_pwquality.so line exists in a pam-
+      auth- update profile: # grep -P -- '\bpam_pwquality\.so\b' /usr/share/pam-
+      configs/* Output should be similar to: /usr/share/pam-configs/pwquality:
+      requisite pam_pwquality.so retry=3 /usr/share/pam-configs/pwquality: requisite
+      pam_pwquality.so retry=3 - IF - similar output is returned: Run the following
+      command to update /etc/pam.d/common-password with the returned profile: # pam-
+      auth-update --enable {PROFILE_NAME} Example: # pam-auth-update pwquality - IF
+      - similar output is NOT returned: Create a pam-auth-update profile in
+      /usr/share/pam-configs/ with the following lines: Name: Pwquality password
+      strength checking Default: yes Priority: 1024 Conflicts: cracklib Password-
+      Type: Primary Password: requisite pam_pwquality.so retry=3 Example:
+      #!/usr/bin/env bash { arr=('Name: Pwquality password strength checking'
+      'Default: yes' 'Priority: 1024' 'Conflicts: cracklib' 'Password-Type: Primary'
+      'Password:' ' requisite pam_pwquality.so retry=3') printf '%s\n' '${arr[@]}' >
+      /usr/share/pam-configs/pwquality } Run the following command to update
+      /etc/pam.d/common-password with the pwquality profile: # pam-auth-update
+      --enable pwquality Note: • The name used for the file must be used in the pam-
+      auth-update --enable command • The Name: line should be easily recognizable
+      and understood • The Priority: Line is important as it effects the order of
+      the lines in the /etc/pam.d/ files • If a site specific custom profile is
+      being used in your environment to configure PAM that includes the
+      configuration for the pam_pwquality module, enable that module instead
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_3_2_3
+
+  - rule_id: ubuntu.cis.5.pam_pwhistory_module_is_enabled
+    title: "Ensure pam_pwhistory module is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '5.3.2.4'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.pam_pwhistory_module_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following script to verify the pam_pwquality.so line exists in a pam-
+      auth- update profile: # grep -P -- '\bpam_pwhistory\.so\b' /usr/share/pam-
+      configs/* Output should be similar to: /usr/share/pam-configs/pwhistory:
+      requisite pam_pwhistory.so remember=24 enforce_for_root try_first_pass
+      use_authtok - IF - similar output is returned: Run the following command to
+      update /etc/pam.d/common-password with the returned profile: # pam-auth-update
+      --enable {PROFILE_NAME} Example: # pam-auth-update pwhistory - IF - similar
+      output is NOT returned: Create a pwhistory profile in /usr/share/pam-configs/
+      with the following lines: Name: pwhistory password history checking Default:
+      yes Priority: 1024 Password-Type: Primary Password: requisite pam_pwhistory.so
+      remember=24 enforce_for_root try_first_pass use_authtok Example Script:
+      #!/usr/bin/env bash { arr=('Name: pwhistory password history checking'
+      'Default: yes' 'Priority: 1024' 'Password-Type: Primary' 'Password:' '
+      requisite pam_pwhistory.so remember=24 enforce_for_root try_first_pass
+      use_authtok') printf '%s\n' '${arr[@]}' > /usr/share/pam-configs/pwhistory }
+      Run the following command to update /etc/pam.d/common-password with the
+      pwhistory profile: # pam-auth-update --enable pwhistory Note: • The name used
+      for the file must be used in the pam-auth-update --enable command • The Name:
+      line should be easily recognizable and understood • The Priority: Line is
+      important as it effects the order of the lines in the /etc/pam.d/ files • If a
+      site specific custom profile is being used in your environment to configure
+      PAM that includes the configuration for the pam_pwhistory module, enable that
+      module instead
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_3_2_4
+
+  - rule_id: ubuntu.cis.5.password_number_of_changed_characters_is
+    title: "Ensure password number of changed characters is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '5.3.3.2.1'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.password_number_of_changed_characters_is
+    assertion:
+      field: row_count
+      operator: not_equals
+      expected: "true"
+    remediation: >
+      Create or modify a file ending in .conf in the /etc/security/pwquality.conf.d/
+      directory or the file /etc/security/pwquality.conf and add or modify the
+      following line to set difok to 2 or more. Ensure setting conforms to local
+      site policy: Example: #!/usr/bin/env bash { sed -ri 's/^\s*difok\s*=/# &/'
+      /etc/security/pwquality.conf [ ! -d /etc/security/pwquality.conf.d/ ] && mkdir
+      /etc/security/pwquality.conf.d/ printf '\n%s' 'difok = 2' >
+      /etc/security/pwquality.conf.d/50-pwdifok.conf } Run the following command: #
+      grep -Pl -- '\bpam_pwquality\.so\h+([^#\n\r]+\h+)?difok\b' /usr/share/pam-
+      configs/* Edit any returned files and remove the difok argument from the
+      pam_pwquality.so line(s): Default Value: difok = 1 References: 1. NIST SP
+      800-53 Rev. 5: IA-5
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_3_3_2_1
+
+  - rule_id: ubuntu.cis.5.minimum_password_length_is_configured
+    title: "Ensure minimum password length is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '5.3.3.2.2'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.minimum_password_length_is_configured
+    assertion:
+      field: row_count
+      operator: gte
+      expected: "false"
+    remediation: >
+      Create or modify a file ending in .conf in the /etc/security/pwquality.conf.d/
+      directory or the file /etc/security/pwquality.conf and add or modify the
+      following line to set password length of 14 or more characters. Ensure that
+      password length conforms to local site policy: Example: #!/usr/bin/env bash {
+      sed -ri 's/^\s*minlen\s*=/# &/' /etc/security/pwquality.conf [ ! -d
+      /etc/security/pwquality.conf.d/ ] && mkdir /etc/security/pwquality.conf.d/
+      printf '\n%s' 'minlen = 14' > /etc/security/pwquality.conf.d/50- pwlength.conf
+      } Run the following command: # grep -Pl --
+      '\bpam_pwquality\.so\h+([^#\n\r]+\h+)?minlen\b' /usr/share/pam- configs/* Edit
+      any returned files and remove the minlen argument from the pam_pwquality.so
+      line(s): Default Value: minlen = 8 References: 1. pam_pwquality(8) 2. CIS
+      Password Policy Guide 3. NIST SP 800-53 Rev. 5: IA-5(1)
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_3_3_2_2
+
+  - rule_id: ubuntu.cis.5.password_same_consecutive_characters_is_configured
+    title: "Ensure password same consecutive characters is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '5.3.3.2.4'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.password_same_consecutive_characters_is_configured
+    assertion:
+      field: row_count
+      operator: lte
+      expected: "true"
+    remediation: >
+      Create or modify a file ending in .conf in the /etc/security/pwquality.conf.d/
+      directory or the file /etc/security/pwquality.conf and add or modify the
+      following line to set maxrepeat to 3 or less and not 0. Ensure setting
+      conforms to local site policy: Example: #!/usr/bin/env bash { sed -ri
+      's/^\s*maxrepeat\s*=/# &/' /etc/security/pwquality.conf [ ! -d
+      /etc/security/pwquality.conf.d/ ] && mkdir /etc/security/pwquality.conf.d/
+      printf '\n%s' 'maxrepeat = 3' > /etc/security/pwquality.conf.d/50-
+      pwrepeat.conf } Run the following command: # grep -Pl --
+      '\bpam_pwquality\.so\h+([^#\n\r]+\h+)?maxrepeat\b' /usr/share/pam-configs/*
+      Edit any returned files and remove the maxrepeat argument from the
+      pam_pwquality.so line(s): Default Value: maxrepeat = 0 References: 1. NIST SP
+      800-53 Rev. 5: IA-5
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_3_3_2_4
+
+  - rule_id: ubuntu.cis.5.password_maximum_sequential_characters_is
+    title: "Ensure password maximum sequential characters is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '5.3.3.2.5'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.password_maximum_sequential_characters_is
+    assertion:
+      field: enabled
+      operator: lte
+      expected: "false"
+    remediation: >
+      Create or modify a file ending in .conf in the /etc/security/pwquality.conf.d/
+      directory or the file /etc/security/pwquality.conf and add or modify the
+      following line to set maxsequence to 3 or less and not 0. Ensure setting
+      conforms to local site policy: Example: #!/usr/bin/env bash { sed -ri
+      's/^\s*maxsequence\s*=/# &/' /etc/security/pwquality.conf [ ! -d
+      /etc/security/pwquality.conf.d/ ] && mkdir /etc/security/pwquality.conf.d/
+      printf '\n%s' 'maxsequence = 3' > /etc/security/pwquality.conf.d/50-
+      pwmaxsequence.conf } Run the following command: # grep -Pl --
+      '\bpam_pwquality\.so\h+([^#\n\r]+\h+)?maxsequence\b' /usr/share/pam-configs/*
+      Edit any returned files and remove the maxsequence argument from the
+      pam_pwquality.so line(s): Default Value: maxsequence = 0 References: 1. NIST
+      SP 800-53 Rev. 5: IA-5
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_3_3_2_5
+
+  - rule_id: ubuntu.cis.5.password_dictionary_check_is_enabled
+    title: "Ensure password dictionary check is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '5.3.3.2.6'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.password_dictionary_check_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Edit any file ending in .conf in the /etc/security/pwquality.conf.d/ directory
+      and/or the file /etc/security/pwquality.conf and comment out or remove any
+      instance of dictcheck = 0: Example: # sed -ri 's/^\s*dictcheck\s*=/# &/'
+      /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf Run the
+      following command: # grep -Pl --
+      '\bpam_pwquality\.so\h+([^#\n\r]+\h+)?dictcheck\b' /usr/share/pam-configs/*
+      Edit any returned files and remove the dictcheck argument from the
+      pam_pwquality.so line(s) Default Value: dictcheck = 1 References: 1. NIST SP
+      800-53 Rev. 5: IA-5
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_3_3_2_6
+
+  - rule_id: ubuntu.cis.5.password_quality_checking_is_enforced
+    title: "Ensure password quality checking is enforced"
+    severity: high
+    automation_type: automated
+    cis_control: '5.3.3.2.7'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.password_quality_checking_is_enforced
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      Run the following command: # grep -Pl --
+      '\bpam_pwquality\.so\h+([^#\n\r]+\h+)?enforcing=0\b' /usr/share/pam-configs/*
+      Edit any returned files and remove the enforcing=0 argument from the
+      pam_pwquality.so line(s) Edit /etc/security/pwquality.conf and all files
+      ending in .conf in the /etc/security/pwquality.conf.d/ directory and remove or
+      comment out any line containing the enforcing = 0 argument: Example: # sed -ri
+      's/^\s*enforcing\s*=\s*0/# &/' /etc/security/pwquality.conf
+      /etc/security/pwquality.conf.d/*.conf Default Value: enforcing=1 References:
+      1. pam_pwquality(8) 2. PWQUALITY.CONF(5) 3. NIST SP 800-53 Rev. 5: IA-5
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_3_3_2_7
+
+  - rule_id: ubuntu.cis.5.password_quality_is_enforced_for_the_root_user
+    title: "Ensure password quality is enforced for the root user"
+    severity: high
+    automation_type: automated
+    cis_control: '5.3.3.2.8'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.password_quality_is_enforced_for_the_root_user
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Edit or add the following line in a *.conf file in
+      /etc/security/pwquality.conf.d or in /etc/security/pwquality.conf: Example:
+      #!/urs/bin/env bash { [ ! -d /etc/security/pwquality.conf.d/ ] && mkdir
+      /etc/security/pwquality.conf.d/ printf '\n%s\n' 'enforce_for_root' >
+      /etc/security/pwquality.conf.d/50- pwroot.conf } Default Value: disabled
+      References: 1. NIST SP 800-53 Rev. 5: IA-5
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_3_3_2_8
+
+  - rule_id: ubuntu.cis.5.password_history_remember_is_configured
+    title: "Ensure password history remember is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '5.3.3.3.1'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.password_history_remember_is_configured
+    assertion:
+      field: row_count
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following command: # awk '/Password-Type:/{ f = 1;next } /-Type:/{ f =
+      0 } f {if (/pam_pwhistory\.so/) print FILENAME}' /usr/share/pam-configs/* Edit
+      any returned files and edit or add the remember= argument, with a value of 24
+      or more, that meets local site policy to the pam_pwhistory line in the
+      Password section: Example File: Name: pwhistory password history checking
+      Default: yes Priority: 1024 Password-Type: Primary Password: requisite
+      pam_pwhistory.so remember=24 enforce_for_root try_first_pass use_authtok # <-
+      **ensure line includes remember=<N>** Run the following command to update the
+      files in the /etc/pam.d/ directory: # pam-auth-update --enable
+      <MODIFIED_PROFILE_NAME> Example: # pam-auth-update --enable pwhistory
+      References: 1. NIST SP 800-53 Rev. 5: IA-5(1)
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_3_3_3_1
+
+  - rule_id: ubuntu.cis.5.password_history_is_enforced_for_the_root_user
+    title: "Ensure password history is enforced for the root user"
+    severity: high
+    automation_type: automated
+    cis_control: '5.3.3.3.2'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.password_history_is_enforced_for_the_root_user
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following command: # awk '/Password-Type:/{ f = 1;next } /-Type:/{ f =
+      0 } f {if (/pam_pwhistory\.so/) print FILENAME}' /usr/share/pam-configs/* Edit
+      any returned files and add the enforce_for_root argument to the pam_pwhistory
+      line in the Password section: Example File: Name: pwhistory password history
+      checking Default: yes Priority: 1024 Password-Type: Primary Password:
+      requisite pam_pwhistory.so remember=24 enforce_for_root try_first_pass
+      use_authtok # <- **ensure line includes enforce_for_root** Run the following
+      command to update the files in the /etc/pam.d/ directory: # pam-auth-update
+      --enable <MODIFIED_PROFILE_NAME> Example: # pam-auth-update --enable pwhistory
+      Default Value: disabled References: 1. NIST SP 800-53 Rev. 5: IA-5
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_3_3_3_2
+
+  - rule_id: ubuntu.cis.5.pam_pwhistory_includes_use_authtok
+    title: "Ensure pam_pwhistory includes use_authtok"
+    severity: high
+    automation_type: automated
+    cis_control: '5.3.3.3.3'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.pam_pwhistory_includes_use_authtok
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following command: # awk '/Password-Type:/{ f = 1;next } /-Type:/{ f =
+      0 } f {if (/pam_pwhistory\.so/) print FILENAME}' /usr/share/pam-configs/* Edit
+      any returned files and add the use_authtok argument to the pam_pwhistory line
+      in the Password section: Example File: Name: pwhistory password history
+      checking Default: yes Priority: 1024 Password-Type: Primary Password:
+      requisite pam_pwhistory.so remember=24 enforce_for_root try_first_pass
+      use_authtok # <- **ensure line includes use_authtok** Run the following
+      command to update the files in the /etc/pam.d/ directory: # pam-auth-update
+      --enable <MODIFIED_PROFILE_NAME> Example: # pam-auth-update --enable pwhistory
+      References: 1. NIST SP 800-53 Rev. 5: IA-5
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_3_3_3_3
+
+  - rule_id: ubuntu.cis.5.pam_unix_does_not_include_remember
+    title: "Ensure pam_unix does not include remember"
+    severity: high
+    automation_type: automated
+    cis_control: '5.3.3.4.2'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.pam_unix_does_not_include_remember
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following command: # grep -PH --
+      '^\h*([^#\n\r]+\h+)?pam_unix\.so\h+([^#\n\r]+\h+)?remember\b' /usr/share/pam-
+      configs/* Edit any files returned and remove the remember=_<N>_ argument for
+      the pam_unix lines Example output: [success=end default=ignore] pam_unix.so
+      obscure use_authtok try_first_pass yescrypt remember=5 # **<- remove
+      remember=<N>** [success=end default=ignore] pam_unix.so obscure yescrypt
+      remember=5 # **<- remove remember=<N>** Run the following command to update
+      the files in the /etc/pam.d/ directory: # pam-auth-update --enable
+      <EDITED_PROFILE_NAME> Example: # pam-auth-update --enable unix Note: If custom
+      files are being used, the corresponding files in /etc/pam.d/ would need to be
+      edited directly, and the pam-auth-update --enable <EDITED_PROFILE_NAME>
+      command skipped
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_3_3_4_2
+
+  - rule_id: ubuntu.cis.5.pam_unix_includes_a_strong_password_hashing
+    title: "Ensure pam_unix includes a strong password hashing algorithm"
+    severity: high
+    automation_type: automated
+    cis_control: '5.3.3.4.3'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.pam_unix_includes_a_strong_password_hashing
+    assertion:
+      field: length
+      operator: exists
+      expected: "on"
+    remediation: >
+      Run the following command: # awk '/Password-Type:/{ f = 1;next } /-Type:/{ f =
+      0 } f {if (/pam_unix\.so/) print FILENAME}' /usr/share/pam-configs/* Edit any
+      returned files and edit or add a strong hashing algorithm, either sha512 or
+      yescrypt, that meets local site policy to the pam_unix lines in the Password
+      section: Example File: Name: Unix authentication Default: yes Priority: 256
+      Auth-Type: Primary # <- Start of 'Auth' section Auth: [success=end
+      default=ignore] pam_unix.so try_first_pass Auth-Initial: [success=end
+      default=ignore] pam_unix.so Account-Type: Primary # <- Start of 'Account'
+      section Account: [success=end new_authtok_reqd=done default=ignore]
+      pam_unix.so Account-Initial: [success=end new_authtok_reqd=done
+      default=ignore] pam_unix.so Session-Type: Additional # <- Start of 'Session'
+      section Session: required pam_unix.so Session-Initial: required pam_unix.so
+      Password-Type: Primary # <- Start of 'Password' section Password: [success=end
+      default=ignore] pam_unix.so obscure use_authtok try_first_pass yescrypt # <-
+      **ensure hashing algorithm is either sha512 or yescrypt** Password-Initial:
+      [success=end default=ignore] pam_unix.so obscure yescrypt # <- **ensure
+      hashing algorithm is either sha512 or yescrypt** Run the following command to
+      update the files in the /etc/pam.d/ directory: # pam-auth-update --enable
+      <MODIFIED_PROFILE_NAME> Example: # pam-auth-update --enable unix References:
+      1. NIST SP 800-53 Rev. 5: IA-5 Additional Information: The following command
+      may be used to expire all non-system user ID's immediately and force them to
+      change their passwords on next login. Any system accounts that need to be
+      expired should be carefully done separately by the system administrator to
+      prevent any potential problems. # awk -F: '( $3<''$(awk '/^\s*UID_MIN/{print
+      $2}' /etc/login.defs)'' && $1 != 'nfsnobody' ) { print $1 }' /etc/passwd |
+      xargs -n 1 chage -d 0
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_3_3_4_3
+
+  - rule_id: ubuntu.cis.5.pam_unix_includes_use_authtok
+    title: "Ensure pam_unix includes use_authtok"
+    severity: high
+    automation_type: automated
+    cis_control: '5.3.3.4.4'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.pam_unix_includes_use_authtok
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following command: # awk '/Password-Type:/{ f = 1;next } /-Type:/{ f =
+      0 } f {if (/pam_unix\.so/) print FILENAME}' /usr/share/pam-configs/* Edit any
+      returned files add use_authtok to the pam_unix line in the Password section
+      under Password: subsection: Note: The if the file's Password section includes
+      a Password-Initial: subsection, use_authtok should not be added to the
+      pam_unix line in the Password-Initial: subsection Example File: Name: Unix
+      authentication Default: yes Priority: 256 Auth-Type: Primary # <- Start of
+      'Auth' section Auth: [success=end default=ignore] pam_unix.so try_first_pass
+      Auth-Initial: [success=end default=ignore] pam_unix.so Account-Type: Primary #
+      <- Start of 'Account' section Account: [success=end new_authtok_reqd=done
+      default=ignore] pam_unix.so Account-Initial: [success=end
+      new_authtok_reqd=done default=ignore] pam_unix.so Session-Type: Additional #
+      <- Start of 'Session' section Session: required pam_unix.so Session-Initial:
+      required pam_unix.so Password-Type: Primary # <- Start of 'Password' section
+      Password: [success=end default=ignore] pam_unix.so obscure use_authtok
+      try_first_pass yescrypt # <- **ensure line includes use_authtok** Password-
+      Initial: [success=end default=ignore] pam_unix.so obscure yescrypt # <-
+      **Password-Initial: subsection does not include use_authtok Run the following
+      command to update the files in the /etc/pam.d/ directory: # pam-auth-update
+      --enable <MODIFIED_PROFILE_NAME> Example: # pam-auth-update --enable unix
+      References: 1. NIST SP 800-53 Rev. 5: IA-5
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_3_3_4_4
+
+  - rule_id: ubuntu.cis.5.strong_password_hashing_algorithm_is_configured
+    title: "Ensure strong password hashing algorithm is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '5.4.1.4'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.strong_password_hashing_algorithm_is_configured
+    assertion:
+      field: length
+      operator: exists
+      expected: "true"
+    remediation: >
+      Edit /etc/login.defs and set the ENCRYPT_METHOD to SHA512 or YESCRYPT:
+      ENCRYPT_METHOD <HASHING_ALGORITHM> Example: ENCRYPT_METHOD YESCRYPT Note: •
+      This only effects local groups' passwords created after updating the file to
+      use sha512 or yescrypt. • If it is determined that the password algorithm
+      being used is not sha512 or yescrypt, once it is changed, it is recommended
+      that all group passwords be updated to use the stronger hashing algorithm. •
+      It is recommended that the chosen hashing algorithm is consistent across
+      /etc/login.defs and the PAM configuration Default Value: ENCRYPT_METHOD SHA512
+      References: 1. NIST SP 800-53 Rev. 5: IA-5
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_4_1_4
+
+  - rule_id: ubuntu.cis.5.inactive_password_lock_is_configured
+    title: "Ensure inactive password lock is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '5.4.1.5'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.inactive_password_lock_is_configured
+    assertion:
+      field: row_count
+      operator: lte
+      expected: "false"
+    remediation: >
+      Run the following command to set the default password inactivity period to 45
+      days or less that meets local site policy: # useradd -D -f <N> Example: #
+      useradd -D -f 45 Run the following command to modify user parameters for all
+      users with a password set to a inactive age of 45 days or less that follows
+      local site policy: # chage --inactive <N> <user> Example: # awk -F:
+      '($2~/^\$.+\$/) {if($7 > 45 || $7 < 0)system ('chage --inactive 45 ' $1)}'
+      /etc/shadow Default Value: INACTIVE=-1 References: 1. CIS Password Policy
+      Guide Additional Information: A value of -1 would disable this setting.
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_4_1_5
+
+  - rule_id: ubuntu.cis.5.all_users_last_password_change_date_is_in_the_past
+    title: "Ensure all users last password change date is in the past"
+    severity: high
+    automation_type: automated
+    cis_control: '5.4.1.6'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.all_users_last_password_change_date_is_in_the_past
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Investigate any users with a password change date in the future and correct
+      them. Locking the account, expiring the password, or resetting the password
+      manually may be appropriate.
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_4_1_6
+
+  - rule_id: ubuntu.cis.5.root_is_the_only_gid_0_account
+    title: "Ensure root is the only GID 0 account"
+    severity: high
+    automation_type: automated
+    cis_control: '5.4.2.2'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.root_is_the_only_gid_0_account
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "no"
+    remediation: >
+      Run the following command to set the root user's GID to 0: # usermod -g 0 root
+      Run the following command to set the root group's GID to 0: # groupmod -g 0
+      root Remove any users other than the root user with GID 0 or assign them a new
+      GID if appropriate. References: 1. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6,
+      CM-7, IA-5
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_4_2_2
+
+  - rule_id: ubuntu.cis.5.group_root_is_the_only_gid_0_group
+    title: "Ensure group root is the only GID 0 group"
+    severity: high
+    automation_type: automated
+    cis_control: '5.4.2.3'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.group_root_is_the_only_gid_0_group
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Run the following command to set the root group's GID to 0: # groupmod -g 0
+      root Remove any groups other than the root group with GID 0 or assign them a
+      new GID if appropriate. References: 1. NIST SP 800-53 Rev. 5: CM-1, CM-2,
+      CM-6, CM-7, IA-5
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_4_2_3
+
+  - rule_id: ubuntu.cis.5.root_path_integrity
+    title: "Ensure root path integrity"
+    severity: high
+    automation_type: automated
+    cis_control: '5.4.2.5'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.root_path_integrity
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Correct or justify any: • Locations that are not directories • Empty
+      directories (::) • Trailing (:) • Current working directory (.) • Non root
+      owned directories • Directories that less restrictive than mode 0755
+      References: 1. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5 MITRE
+      ATT&CK Mappings: Techniques / Sub- techniques Tactics Mitigations T1204,
+      T1204.002 TA0006 M1022
+    compliance:
+      - cis_ubuntu_24_04_v1_0_0_5_4_2_5
+
+  - rule_id: ubuntu.cis.5.latest_version_of_libpam_pwquality_is_installed
+    title: "Ensure latest version of libpam-pwquality is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '5.3.1.3'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.latest_version_of_libpam_pwquality_is_installed
+    assertion:
+      field: version
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to install the latest version of libpam-pwquality: #
+      apt install libpam-pwquality References: 1.
+      https://packages.debian.org/buster/libpam-pwquality
+    compliance:
+      - cis_ubuntu_20_04_v3_0_0_5_3_1_3
+
+  - rule_id: ubuntu.cis.5.systemd_journal_remote_is_installed
+    title: "Ensure systemd-journal-remote is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.1.1.1'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.systemd_journal_remote_is_installed
+    assertion:
+      field: port
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to install systemd-journal-remote: # apt install
+      systemd-journal-remote References: 1. NIST SP 800-53 Rev. 5: AU-2, AU-12, SI-5
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_5_1_1_1_1
+
+  - rule_id: ubuntu.cis.5.journald_is_not_configured_to_receive_logs_from_a
+    title: "Ensure journald is not configured to receive logs from a remote client"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.1.1.4'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.journald_is_not_configured_to_receive_logs_from_a
+    assertion:
+      field: port
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following command to disable systemd-journal-remote.socket: #
+      systemctl --now disable systemd-journal-remote.socket References: 1. NIST SP
+      800-53 Rev. 5: AU-2, AU-12, CM-6, CM-7
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_5_1_1_1_4
+
+  - rule_id: ubuntu.cis.5.journald_service_is_enabled
+    title: "Ensure journald service is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.1.2'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.journald_service_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      By default the systemd-journald service does not have an [Install] section and
+      thus cannot be enabled / disabled. It is meant to be referenced as Requires or
+      Wants by other unit files. As such, if the status of systemd-journald is not
+      static, investigate why. References: 1. NIST SP 800-53 Rev. 5: AU-2, AU-7
+      AU-12
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_5_1_1_2
+
+  - rule_id: ubuntu.cis.5.journald_is_configured_to_compress_large_log_files
+    title: "Ensure journald is configured to compress large log files"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.1.3'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.journald_is_configured_to_compress_large_log_files
+    assertion:
+      field: value
+      operator: exists
+      expected: "yes"
+    remediation: >
+      Edit the /etc/systemd/journald.conf file or a file ending in .conf in
+      /etc/systemd/journald.conf.d/ and add the following line: Compress=yes Restart
+      the service: # systemctl restart systemd-journald References: 1. NIST SP
+      800-53 Rev. 5: AU-4 Additional Information: The main configuration file
+      /etc/systemd/journald.conf is read before any of the custom *.conf files. If
+      there are custom configs present, they override the main configuration
+      parameters. It is possible to change the default threshold of 512 bytes per
+      object before compression is used.
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_5_1_1_3
+
+  - rule_id: ubuntu.cis.5.journald_is_configured_to_write_logfiles_to
+    title: "Ensure journald is configured to write logfiles to persistent disk"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.1.4'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.journald_is_configured_to_write_logfiles_to
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Edit the /etc/systemd/journald.conf file or a file ending in .conf in
+      /etc/systemd/journald.conf.d/ and add the following line: Storage=persistent
+      Restart the service: # systemctl restart systemd-journald References: 1. NIST
+      SP 800-53 Rev. 5: AU-3, AU-12 Additional Information: The main configuration
+      file /etc/systemd/journald.conf is read before any of the custom *.conf files.
+      If there are custom configs present, they override the main configuration
+      parameters. Note: a bug in systemd versions prior to v243 caused an error at
+      the unmounting of /var/log (and thus, /var) if Storage=persistent is set in
+      /etc/systemd/journald.conf.
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_5_1_1_4
+
+  - rule_id: ubuntu.cis.5.rsyslog_is_installed
+    title: "Ensure rsyslog is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.2.1'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.rsyslog_is_installed
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to install rsyslog: # apt install rsyslog
+      References: 1. NIST SP 800-53 Rev. 5: AU-3, AU-12, SI-5
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_5_1_2_1
+
+  - rule_id: ubuntu.cis.5.rsyslog_service_is_enabled
+    title: "Ensure rsyslog service is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.2.2'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.rsyslog_service_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to enable rsyslog: # systemctl --now enable rsyslog
+      References: 1. NIST SP 800-53 Rev. 5: AU-3, AU-12
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_5_1_2_2
+
+  - rule_id: ubuntu.cis.5.rsyslog_default_file_permissions_are_configured
+    title: "Ensure rsyslog default file permissions are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.2.4'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.rsyslog_default_file_permissions_are_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Edit either /etc/rsyslog.conf or a dedicated .conf file in /etc/rsyslog.d/ and
+      set $FileCreateMode to 0640 or more restrictive: $FileCreateMode 0640 Restart
+      the service: # systemctl restart rsyslog References: 1. See the
+      rsyslog.conf(5) man page for more information. 2. NIST SP 800-53 Rev. 5: AC-3,
+      AC-6, MP-2
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_5_1_2_4
+
+  - rule_id: ubuntu.cis.5.rsyslog_is_not_configured_to_receive_logs_from_a
+    title: "Ensure rsyslog is not configured to receive logs from a remote client"
+    severity: high
+    automation_type: automated
+    cis_control: '5.1.2.7'
+    cis_section: '5'
+    profile_applicability: "Level 1"
+    scope: ubuntu.section_5.rsyslog_is_not_configured_to_receive_logs_from_a
+    assertion:
+      field: port
+      operator: exists
+      expected: "no"
+    remediation: >
+      Should there be any active log server configuration found in the auditing
+      section, modify those file and remove the specific lines highlighted by the
+      audit. Ensure none of the following entries are present in any of
+      /etc/rsyslog.conf or /etc/rsyslog.d/*.conf. Old format $ModLoad imtcp
+      $InputTCPServerRun New format module(load='imtcp') input(type='imtcp'
+      port='514') Restart the service: # systemctl restart rsyslog References: 1.
+      NIST SP 800-53 Rev. 5: AU-2, AU-6, AU-7, AU-12
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_5_1_2_7
+
+  - rule_id: ubuntu.cis.5.file_deletion_events_by_users_are_collected
+    title: "Ensure file deletion events by users are collected"
+    severity: medium
+    automation_type: automated
+    cis_control: '5.2.3.13'
+    cis_section: '5'
+    profile_applicability: "Level 2"
+    scope: ubuntu.section_5.file_deletion_events_by_users_are_collected
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Create audit rules Edit or create a file in the /etc/audit/rules.d/ directory,
+      ending in .rules extension, with the relevant rules to monitor file deletion
+      events by users. 64 Bit systems Example: # { UID_MIN=$(awk
+      '/^\s*UID_MIN/{print $2}' /etc/login.defs) [ -n '${UID_MIN}' ] && printf ' -a
+      always,exit -F arch=b64 -S rename,unlink,unlinkat,renameat -F auid>=${UID_MIN}
+      -F auid!=unset -F key=delete -a always,exit -F arch=b32 -S
+      rename,unlink,unlinkat,renameat -F auid>=${UID_MIN} -F auid!=unset -F
+      key=delete ' >> /etc/audit/rules.d/50-delete.rules || printf 'ERROR: Variable
+      'UID_MIN' is unset.\n' } Load audit rules Merge and load the rules into active
+      configuration: # augenrules --load Check if reboot is required. # if [[
+      $(auditctl -s | grep 'enabled') =~ '2' ]]; then printf 'Reboot required to
+      load rules\n'; fi 32 Bit systems Follow the same procedures as for 64 bit
+      systems and ignore any entries with b64. References: 1. NIST SP 800-53 Rev. 5:
+      AU-12, SC-7 Additional Information: Potential reboot required If the auditing
+      configuration is locked (-e 2), then augenrules will not warn in any way that
+      rules could not be loaded into the running configuration. A system reboot will
+      be required to load the rules into the running configuration. System call
+      structure For performance (man 7 audit.rules) reasons it is preferable to have
+      all the system calls on one line. However, your configuration may have them on
+      one line each or some other combination. This is important to understand for
+      both the auditing and remediation sections as the examples given are optimized
+      for performance as per the man page.
+    compliance:
+      - cis_ubuntu_18_04_v2_2_0_5_2_3_13
+
+

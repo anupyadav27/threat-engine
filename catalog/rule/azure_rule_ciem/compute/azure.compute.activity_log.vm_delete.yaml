@@ -1,0 +1,89 @@
+rule_id: azure.compute.activity_log.vm_delete
+service: compute
+provider: azure
+check_type: log
+severity: high
+title: 'Compute: Vm Delete'
+description: Virtual machine deleted — compute resource destroyed.
+rationale: 'Adversaries destroy data and files on cloud storage or databases at scale to interrupt availability, render services inoperable, or destroy evidence. Cloud data destruction is often irreversible without backups. Detected via: bulk S3 object deletion via elevated IAM credentials, EC2/EBS/snapshot mass deletion events, storage account deletion with soft-delete disabled, and database cluster deletion without final snapshot.'
+threat_category: data_destruction
+mitre_tactics:
+- impact
+mitre_techniques:
+- T1485
+risk_score: 75
+resource: azure_vm
+source: default
+is_active: true
+domain: compute_and_workload_security
+action_category: delete
+log_source_type: activity_log
+posture_category: data_security_posture
+threat_tags:
+- T1485
+- data_destruction
+- impact
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: destructive
+  target_type: compute_instance
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - data_loss_prevention
+  categories:
+  - data_loss
+  - availability_impact
+  priority: high
+  impact:
+    pci: PCI DSS Requirement 12.3 — Implement security awareness program and protect systems
+    gdpr: GDPR Article 32 — Appropriate technical and organizational measures for data security
+    hipaa: §164.306(a) — Ensure confidentiality, integrity, and availability of ePHI
+compliance_frameworks:
+  cis_aws_v3:
+  - 2.1
+  - 2.6
+  - 3.1
+  cis_azure_v2:
+  - 3.1
+  - 7.5
+  nist_800_53_r5:
+  - CP-9
+  - CP-10
+  - SI-12
+  pci_dss_v4:
+  - 3.2
+  - 3.3
+  - 12.3
+  iso_27001_2022:
+  - A.8.13
+  - A.8.14
+  - A.5.33
+detection_events:
+- 's3:DeleteObject (bulk)'
+- 's3:DeleteBucket'
+- 'ec2:TerminateInstances (mass)'
+- Microsoft.Storage/storageAccounts/delete
+- 'rds:DeleteDBCluster without SkipFinalSnapshot=false'
+remediation: |
+  1. Immediately quarantine the actor's credentials and halt further destructive operations.
+  2. Initiate incident response and activate backup/recovery procedures.
+  3. Enable S3 Object Lock / Azure Blob immutable storage to protect backups.
+  4. Require MFA for bucket/storage account deletion operations.
+references:
+- https://attack.mitre.org/techniques/T1485/
+- https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html
+- https://learn.microsoft.com/en-us/azure/storage/blobs/immutable-storage-overview
+check_config:
+  conditions:
+    all:
+    - field: operation
+      op: equals
+      value: Microsoft.Compute/virtualMachines/delete
+  log_source_type: activity_log
+version: '1.0'

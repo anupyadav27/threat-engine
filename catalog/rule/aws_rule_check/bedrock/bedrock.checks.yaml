@@ -1,0 +1,96 @@
+version: '1.0'
+provider: aws
+service: bedrock
+checks:
+- rule_id: aws.bedrock.model.bedrock_artifact_encrypted_at_rest
+  for_each: aws.bedrock.get_custom_model
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.importedModelKmsKeyArn
+      op: exists
+      value: null
+    - var: item.modelKmsKeyArn
+      op: exists
+      value: null
+    - var: item.outputModelKmsKeyArn
+      op: exists
+      value: null
+- rule_id: aws.bedrock.model.bedrock_image_scan_passed_configured
+  for_each: aws.bedrock.get_model_invocation_logging_configuration
+  severity: MEDIUM
+  conditions:
+    var: item.imageDataDeliveryEnabled
+    op: is_true
+    value: null
+- rule_id: aws.bedrock.model.bedrock_kms_cmk_used_configured
+  for_each: aws.bedrock.get_custom_model
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.importedModelKmsKeyArn
+      op: exists
+      value: null
+    - var: item.modelKmsKeyArn
+      op: exists
+      value: null
+    - var: item.outputModelKmsKeyArn
+      op: exists
+      value: null
+- rule_id: aws.bedrock.model.bedrock_package_approved_configured
+  for_each: aws.bedrock.list_enforced_guardrails_configuration
+  severity: MEDIUM
+  conditions:
+    var: item
+    op: not_empty
+    value: null
+- rule_id: aws.bedrock.model.execution_role_least_privilege
+  for_each: aws.bedrock.list_model_invocation_jobs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.roleArn
+      op: exists
+      value: null
+    - var: item.roleArn
+      op: not_contains
+      value: arn:aws:iam::*:role/AdministratorAccess
+    - var: item.roleArn
+      op: not_contains
+      value: arn:aws:iam::*:role/AWSBedrockFullAccess
+- rule_id: aws.bedrock.model.kms_encryption_enabled
+  for_each: aws.bedrock.get_custom_model
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.importedModelKmsKeyArn
+      op: exists
+      value: null
+    - var: item.modelKmsKeyArn
+      op: exists
+      value: null
+    - var: item.outputModelKmsKeyArn
+      op: exists
+      value: null
+- rule_id: aws.bedrock.resource.model_invocation_logging_enabled
+  for_each: aws.bedrock.get_model_invocation_logging_configuration
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.cloudWatchConfig
+      op: exists
+      value: null
+    - var: item.s3Config
+      op: exists
+      value: null
+- rule_id: aws.bedrock.resource.model_invocation_logs_encryption_enabled
+  for_each: aws.bedrock.get_model_invocation_logging_configuration
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.cloudWatchConfig.kmsKeyId
+      op: exists
+      value: null
+    - var: item.s3Config.kmsKeyId
+      op: exists
+      value: null

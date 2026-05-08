@@ -1,0 +1,62 @@
+version: '1.0'
+provider: azure
+service: appservice
+checks:
+- rule_id: azure.appservice.app.ip.security.restrictions.disabled
+  for_each: azure.web.webapps.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.siteConfig.ipSecurityRestrictions
+      op: exists
+      value: null
+    - var: item.properties.siteConfig.ipSecurityRestrictions
+      op: not_empty
+      value: null
+- rule_id: azure.appservice.ase.internal.encryption.check
+  for_each: azure.web.webapps.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.HTTPSOnly
+      op: is_true
+      value: null
+    - var: item.SiteConfig.MinTlsVersion
+      op: gte
+      value: '1.2'
+- rule_id: azure.appservice.ase.tls.cipher.suite.order.configured
+  for_each: azure.web.webapps.list
+  severity: MEDIUM
+  conditions:
+    var: item.SiteConfig.MinTlsCipherSuite
+    op: exists
+    value: null
+- rule_id: azure.appservice.authentication.enabled.check
+  for_each: azure.web.webapps.list
+  severity: MEDIUM
+  conditions:
+    var: item.SiteConfig.AuthenticationEnabled
+    op: is_true
+    value: null
+- rule_id: azure.appservice.deployment.slot.php.version.check
+  for_each: azure.web.webapps.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.SiteConfig.PHPVersion
+      op: exists
+      value: null
+    - var: item.SiteConfig.PHPVersion
+      op: not_equals
+      value: ''
+- rule_id: azure.appservice.deployment.slot.vnet.integration.check
+  for_each: azure.web.webapps.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.SiteConfig.VnetRouteAllEnabled
+      op: is_true
+      value: null
+    - var: item.VirtualNetworkSubnetId
+      op: exists
+      value: null

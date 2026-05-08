@@ -1,0 +1,81 @@
+rule_id: alicloud.iam.actiontrail.assume_role
+service: iam
+provider: alicloud
+check_type: log
+severity: medium
+title: 'AliCloud STS: Role Assumed via AssumeRole'
+description: An STS AssumeRole call was made, creating temporary credentials for another
+  role. Lateral movement via role assumption is a core cloud attack technique.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: lateral_movement
+mitre_tactics:
+- lateral_movement
+- privilege_escalation
+mitre_techniques:
+- T1550.001
+- T1548
+risk_score: 60
+resource: alicloud_ram_role
+source: alicloud_ciem_generator
+is_active: true
+domain: identity_and_access_management
+action_category: audit_activity
+log_source_type: alicloud_actiontrail
+posture_category: iam_posture
+threat_tags:
+- T1550.001
+- T1548
+- lateral_movement
+- privilege_escalation
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: true
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '2.1'
+  - '2.2'
+  - '2.3'
+  nist_800_53_r5:
+  - AC-2
+  - AC-3
+  - AC-6
+  - IA-2
+  - IA-5
+  pci_dss_v4:
+  - '7.1'
+  - '8.2'
+  - '10.2'
+  iso_27001_2022:
+  - A.5.18
+  - A.8.2
+  - A.9.2
+remediation: '1. Baseline normal AssumeRole patterns and alert on anomalies.
+
+  2. Restrict role trust policies to specific principals.
+
+  3. Monitor for role chaining (assuming a role that then assumes another).'
+references:
+- https://attack.mitre.org/techniques/T1550/001/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: sts
+    - field: operation
+      op: equals
+      value: AssumeRole
+version: '1.0'

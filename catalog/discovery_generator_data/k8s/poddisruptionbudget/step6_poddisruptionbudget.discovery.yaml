@@ -1,0 +1,34 @@
+version: '1.0'
+provider: k8s
+service: poddisruptionbudget
+services:
+  client: poddisruptionbudget
+  module: kubernetes.client
+discovery:
+- discovery_id: k8s.poddisruptionbudget.list_pod_disruption_budget_for_all_namespaces
+  calls:
+  - action: list_pod_disruption_budget_for_all_namespaces
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+    item:
+      apiVersion: '{{ item.apiVersion }}'
+      kind: '{{ item.kind }}'
+      metadata.uid: '{{ item.metadata.uid }}'
+      metadata.name: '{{ item.metadata.name }}'
+      metadata.namespace: '{{ item.metadata.namespace }}'
+      metadata.labels: '{{ item.metadata.labels }}'
+      metadata.annotations: '{{ item.metadata.annotations }}'
+      metadata.creationTimestamp: '{{ item.metadata.creationTimestamp }}'
+      metadata.resourceVersion: '{{ item.metadata.resourceVersion }}'
+      metadata.ownerReferences: '{{ item.metadata.ownerReferences }}'
+      spec.minAvailable: '{{ item.spec.minAvailable }}'
+      spec.maxUnavailable: '{{ item.spec.maxUnavailable }}'
+      spec.selector: '{{ item.spec.selector }}'
+      status.currentHealthy: '{{ item.status.currentHealthy }}'
+      status.desiredHealthy: '{{ item.status.desiredHealthy }}'
+      status.disruptionsAllowed: '{{ item.status.disruptionsAllowed }}'
+      status.expectedPods: '{{ item.status.expectedPods }}'
+      status.conditions: '{{ item.status.conditions }}'

@@ -1,0 +1,47 @@
+rule_id: k8s.configmap.audit.bulk_list
+rule_type: ciem
+title: 'ConfigMap: Bulk ConfigMap Enumeration'
+scope: configmap.audit
+domain: container_and_kubernetes_security
+subcategory: container_security
+severity: medium
+service: configmap
+resource: audit
+requirement: Bulk List
+description: ConfigMaps listed in bulk — may contain application credentials, connection
+  strings, or configuration secrets stored outside proper Secrets management.
+rationale: 'Adversaries search local file systems, remote file shares, and cloud storage
+  for files containing insecurely stored credentials — including config files, source
+  code, .env files, and shell history. Cloud-specific targets include ~/.aws/credentials,
+  terraform.tfstate (containing plaintext secrets), and container environment variable
+  dumps. Detected via: file read access to .env/.xml/.ps1/config files, grep commands
+  targeting credential patterns, and container process access to mounted secret paths.'
+remediation: '1. Revoke the unauthorized RBAC access used for secret/configmap enumeration.
+
+  2. Rotate all secrets and credentials in the affected namespace.
+
+  3. Apply namespace isolation and RBAC least-privilege for secrets access.
+
+  4. Enable K8s audit alerting on secrets/list and configmaps/list from unexpected
+  subjects.
+
+  5. Use external secret stores to prevent lateral secret access within the cluster.
+
+  '
+references:
+- https://attack.mitre.org/techniques/T1552/001/
+- https://kubernetes.io/docs/concepts/configuration/secret/
+- https://kubernetes.io/docs/concepts/security/secrets-good-practices/
+compliance:
+- canada_pbmm_moderate_CCCS_SI_4_4
+threat_category: collection
+mitre_tactics:
+- collection
+- credential_access
+mitre_techniques:
+- T1552.001
+risk_score: 60
+action_category: read
+source: default
+metadata_source: auto_generated
+generated_by: k8s_ciem_generator

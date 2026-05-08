@@ -11,20 +11,36 @@ Architecture:
         dashboard.py            -- /views/dashboard  (cross-engine)
         inventory.py            -- /views/inventory
         threats.py              -- /views/threats  (Threat Detection — merged overview + analytics)
-        threat_detail.py        -- /views/threats/{threat_id}
+        threat_command_room.py      -- /views/threat-command-room  (Command Room landing)
+        threat_scenario_detail.py   -- /views/threat-scenario/{id}  (4-chapter drawer)
+        threat_detail.py            -- /views/threats/{threat_id}
         threat_attack_paths.py  -- /views/threats/attack-paths
         threat_blast_radius.py  -- /views/threats/blast-radius
         threat_graph.py         -- /views/threats/graph
         threat_toxic_combos.py  -- /views/threats/toxic-combinations
         threat_timeline.py      -- /views/threats/timeline
+        threat_posture_delta.py -- /views/threat-posture-delta  (Trends & Posture Delta)
+                                   /views/threat-trend           (90-day trend chart data)
         compliance.py           -- /views/compliance
         iam.py                  -- /views/iam
         datasec.py              -- /views/datasec
+        encryption.py           -- /views/encryption
+        database_security.py    -- /views/database-security
+        network_security.py     -- /views/network-security
         misconfig.py            -- /views/misconfig
         risk.py                 -- /views/risk
         scans.py                -- /views/scans
         reports.py              -- /views/reports
         rules.py                -- /views/rules
+        secops.py               -- /views/secops  (SAST+DAST scan summary)
+        policies.py             -- /views/policies (rule engine proxy)
+        ai_security.py          -- /views/ai-security
+        container_security.py   -- /views/container-security
+        cnapp.py                -- /views/cnapp  (unified CNAPP dashboard)
+        cwpp.py                 -- /views/cwpp   (workload protection platform)
+        vulnerability.py        -- /views/vulnerability (agent scan overview)
+        billing.py              -- /views/billing  (billing portal — org_admin)
+        platform_admin.py       -- /views/platform-admin  (operator dashboard — platform_admin)
 """
 
 from fastapi import APIRouter
@@ -32,20 +48,47 @@ from fastapi import APIRouter
 from .dashboard import router as dashboard_router
 from .inventory import router as inventory_router
 from .threats import router as threats_router
+from .threat_command_room import router as threat_command_room_router
 from .threat_detail import router as threat_detail_router
+from .threat_scenario_detail import router as threat_scenario_detail_router
 from .threat_attack_paths import router as threat_attack_paths_router
 from .threat_blast_radius import router as threat_blast_radius_router
 from .threat_graph import router as threat_graph_router
 from .threat_toxic_combos import router as threat_toxic_combos_router
 from .threat_timeline import router as threat_timeline_router
+from .threat_posture_delta import router as threat_posture_delta_router
+from .threat_mitre_heatmap import router as threat_mitre_heatmap_router
+from .technique_detail import router as technique_detail_router
 from .compliance import router as compliance_router
 from .iam import router as iam_router
 from .datasec import router as datasec_router
+from .encryption import router as encryption_router
+from .database_security import router as database_security_router
+from .network_security import router as network_security_router
 from .misconfig import router as misconfig_router
 from .risk import router as risk_router
 from .scans import router as scans_router
+from .scan_timing import router as scan_timing_router
+from .scan_status import router as scan_status_router
 from .reports import router as reports_router
 from .rules import router as rules_router
+from .scope import router as scope_router
+from .ciem import router as ciem_router
+from .ciem_identity import router as ciem_identity_router
+from .secops import router as secops_router
+from .policies import router as policies_router
+from .ai_security import router as ai_security_router
+from .container_security import router as container_security_router
+from .cnapp import router as cnapp_router
+from .cwpp import router as cwpp_router
+from .vulnerability import router as vulnerability_router
+from .onboarding_cloud_accounts import router as onboarding_cloud_accounts_router
+from .billing import router as billing_router
+from .billing import _trial_router as billing_trial_router
+from .platform_admin import router as platform_admin_router
+from .views.finding_detail import router as finding_detail_router
+from .views.risk_scenario_detail import router as risk_scenario_detail_router
+from .views.vulnerability_agent_detail import router as vulnerability_agent_detail_router
 
 # Combined router — include this in main.py
 router = APIRouter()
@@ -57,19 +100,46 @@ for _sub in (
     dashboard_router,
     inventory_router,
     threats_router,
+    threat_command_room_router,
+    threat_scenario_detail_router,
     threat_attack_paths_router,
     threat_blast_radius_router,
     threat_graph_router,
     threat_toxic_combos_router,
     threat_timeline_router,
+    threat_posture_delta_router,
+    threat_mitre_heatmap_router,
+    technique_detail_router,
     threat_detail_router,
     compliance_router,
     iam_router,
     datasec_router,
+    encryption_router,
+    database_security_router,
+    network_security_router,
     misconfig_router,
     risk_router,
     scans_router,
+    scan_timing_router,
+    scan_status_router,
     reports_router,
     rules_router,
+    scope_router,
+    ciem_router,
+    ciem_identity_router,
+    secops_router,
+    policies_router,
+    ai_security_router,
+    container_security_router,
+    cnapp_router,
+    cwpp_router,
+    vulnerability_router,
+    onboarding_cloud_accounts_router,
+    billing_router,
+    billing_trial_router,
+    platform_admin_router,
+    finding_detail_router,
+    risk_scenario_detail_router,
+    vulnerability_agent_detail_router,
 ):
     router.include_router(_sub)

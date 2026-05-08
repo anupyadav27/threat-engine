@@ -1,0 +1,32 @@
+version: '1.0'
+provider: aws
+service: budgets
+checks:
+- rule_id: aws.budgets.budget.alert_destinations_configured
+  for_each: aws.budgets.describe_budget
+  severity: MEDIUM
+  conditions:
+    var: item.BudgetName
+    op: exists
+    value: null
+- rule_id: aws.budgets.budget.alert_thresholds_configured
+  for_each: aws.budgets.describe_notifications_for_budget
+  severity: MEDIUM
+  conditions:
+    var: item
+    op: not_empty
+    value: null
+- rule_id: aws.budgets.budget.budgets_s_defined_for_accounts_or_projects_configured
+  for_each: aws.budgets.describe_budget
+  severity: MEDIUM
+  conditions:
+    var: item.BudgetName
+    op: exists
+    value: null
+- rule_id: aws.budgets.budget.modify_permissions_restricted
+  for_each: aws.budgets.describe_budget_action
+  severity: HIGH
+  conditions:
+    var: item.Definition.IamActionDefinition.PolicyArn
+    op: not_contains
+    value: budgets:ModifyBudget

@@ -1,0 +1,36 @@
+version: '1.0'
+provider: web_server
+engine: websphere
+category: section_10
+cis_section: '10'
+description: >
+  websphere CIS Section 10 — Passwords are Encrypted
+
+discovery:
+
+  - discovery_id: websphere.section_10.passwords_are_encrypted
+    description: Ensure Passwords are Encrypted
+    calls:
+      - action: run_command
+        command: "Review the passwords in the Liberty configuration and the ${wlp.user.dir}/clients/\u003cClient Name\u003e/client.xml files. Check the values on any password related attributes that are defined as Reversably encoded password (string) type. Some examples of password related attributes include password, bindPassword, secret, keyStoreSecret, etc. All values should be obscured using encryption or hashing. Some example greps to check for attributes containing password or secret in the name. grep -R -i \u0027password\u0027 ${server.config.dir} grep -R -i \u0027secret\u0027 ${server.config.dir} Also check for the wlp.password.encryption.key property that is used for encrypting and decrypting and where it is located. The wlp.password.encryption.key property should be set to a custom value and stored in a separate file. grep -R -i \u0027wlp.password.encryption.key\u0027 ${server.config.dir} If the wlp.password.encryption.key property is in a standalone file, review the permissions for accessing the file. ls -al \u003ckeyFileName.xml\u003e"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: passwords_are_encrypted
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: websphere.section_10.keyspassword_is_set_to_a_custom_password_for_ltpa
+    description: Ensure 'keysPassword' is set to a custom password for ltpa keys
+    calls:
+      - action: run_command
+        command: "Ensure the existence of a keysPassword attribute on the ltpa element in the Liberty configuration. The value should be obscured using encryption. grep -R -i \u0027keysPassword\u0027 ${server.config.dir}"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: keyspassword_is_set_to_a_custom_password_for_ltpa
+        value: "{{ result.stdout }}"
+        expected: ""
+

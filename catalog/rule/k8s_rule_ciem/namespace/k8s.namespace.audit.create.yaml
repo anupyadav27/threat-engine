@@ -1,0 +1,80 @@
+rule_id: k8s.namespace.audit.create
+service: namespace
+provider: k8s
+check_type: log
+severity: medium
+title: 'Namespace: New Namespace Created'
+description: New Kubernetes namespace created outside standard provisioning — may establish isolated execution environment for attacker workloads outside normal monitoring scope.
+rationale: 'Adversaries create cloud accounts (IAM users, Entra ID users, service principals) to maintain access to victim systems without deploying persistent remote access tools. Such accounts establish secondary credentialed access that survives password resets of the initially compromised account. Detected via: IAM CreateUser + AttachUserPolicy from non-standard sources, Add User events from unusual IPs, and SaaS account provisioning outside business hours.'
+threat_category: persistence
+mitre_tactics:
+- persistence
+mitre_techniques:
+- T1136.003
+risk_score: 55
+resource: k8s_namespace
+source: default
+is_active: true
+domain: identity_and_access_management
+action_category: create
+posture_category: iam_posture
+threat_tags:
+- T1136.003
+- T1136
+- persistence
+- backdoor
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_k8s_v1:
+  - 5.1.1
+  - 5.1.4
+  - 5.4.1
+  nist_800_53_r5:
+  - AC-2
+  - AC-6
+  - CM-7
+  pci_dss_v4:
+  - 7.1
+  - 8.2
+  - 6.4
+  iso_27001_2022:
+  - A.5.18
+  - A.8.19
+detection_events:
+- 'iam:CreateUser'
+- microsoft.directory/users/create
+- 'organizations:CreateAccount'
+- New-MsolUser (PowerShell)
+remediation: |
+  1. Delete the unauthorized DaemonSet, CronJob, or ServiceAccount immediately.
+  2. Audit all resources in kube-system: `kubectl get all -n kube-system`
+  3. Enable admission control policies restricting resource creation to known CI/CD identities.
+  4. Use RBAC least-privilege: restrict create verbs on DaemonSets/CronJobs to dedicated service accounts.
+  5. Monitor for new ServiceAccount creation via Falco or audit log alerting.
+references:
+- https://attack.mitre.org/techniques/T1136/003/
+- https://kubernetes.io/docs/reference/access-authn-authz/service-accounts-admin/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: k8s_audit
+    - field: resource
+      op: equals
+      value: namespaces
+    - field: verb
+      op: equals
+      value: create
+version: '1.0'

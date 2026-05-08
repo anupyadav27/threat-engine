@@ -28,12 +28,14 @@ class IAMGraphWriter:
         neo4j_user: Optional[str] = None,
         neo4j_password: Optional[str] = None,
     ):
-        self._uri = neo4j_uri or os.getenv("NEO4J_URI", "neo4j+s://17ec5cbb.databases.neo4j.io")
+        self._uri = neo4j_uri or os.getenv("NEO4J_URI")
         self._user = neo4j_user or os.getenv("NEO4J_USER", "neo4j")
         self._password = neo4j_password or os.getenv("NEO4J_PASSWORD", "")
         self._driver = None
 
     def _get_driver(self):
+        if not self._uri:
+            raise RuntimeError("NEO4J_URI env var is required but not set")
         if self._driver is None:
             from neo4j import GraphDatabase
             self._driver = GraphDatabase.driver(

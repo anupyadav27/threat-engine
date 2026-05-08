@@ -1,0 +1,66 @@
+rule_id: aws.ciem.correlation.cloudtrail.admin_api_call
+service: ciem
+provider: aws
+check_type: log
+severity: medium
+title: 'CIEM: Admin API Call'
+description: Administrative API call made — management-plane action recorded.
+rationale: Cloud account enumeration identifies IAM users, service principals, and roles that can be targeted for credential attacks or privilege escalation.
+threat_category: discovery
+mitre_tactics:
+- discovery
+mitre_techniques:
+- T1087.004
+risk_score: 50
+resource: multi_resource
+source: ciem_rule_generator
+is_active: true
+domain: threat_detection
+action_category: privilege_escalation
+log_source_type: cloudtrail
+posture_category: threat_posture
+threat_tags:
+- T1087.004
+- T1087
+- ciem_correlation
+- attack_chain
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: privilege_change
+  target_type: cloud_resource
+  blast_radius: tenant_or_account
+  stealth_risk: medium
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: |
+  1. Apply IAM permission restrictions on ListUsers/ListRoles/ListServicePrincipals.
+  2. Alert on unexpected enumeration API call patterns.
+  3. Use AWS Organizations SCPs / Azure Policy to limit who can enumerate identities.
+references:
+- https://attack.mitre.org/techniques/T1087/004/
+- https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_examples_iam_limited-identities.html
+check_config:
+  conditions:
+    field: operation
+    op: starts_with_any
+    value:
+    - Create
+    - Delete
+    - Put
+    - Update
+    - Modify
+    - Attach
+    - Detach
+    - Enable
+    - Disable
+    - Revoke
+    - Grant
+  for_each: log_events
+  log_source_type: cloudtrail
+  type: log
+version: '1.0'

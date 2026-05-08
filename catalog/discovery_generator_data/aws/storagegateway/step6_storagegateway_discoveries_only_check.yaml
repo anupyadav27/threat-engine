@@ -1,0 +1,137 @@
+# discoveries_only_check: 6 kept / 27 removed from 33 total
+# generated_from: step6_storagegateway.discovery.yaml
+# purpose: only discoveries needed by storagegateway.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: storagegateway
+services:
+  client: storagegateway
+  module: boto3.client
+discovery:
+- discovery_id: aws.storagegateway.describe_tape_archives
+  calls:
+  - action: describe_tape_archives
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.TapeArchives }}'
+    item:
+      CacheAllocatedInBytes: '{{ item.CacheAllocatedInBytes }}'
+      CompletionTime: '{{ item.CompletionTime }}'
+      KMSKey: '{{ item.KMSKey }}'
+      PoolEntryDate: '{{ item.PoolEntryDate }}'
+      PoolId: '{{ item.PoolId }}'
+      RetentionStartDate: '{{ item.RetentionStartDate }}'
+      RetrievedTo: '{{ item.RetrievedTo }}'
+      TapeARN: '{{ item.TapeARN }}'
+      TapeArchives: '{{ item.TapeArchives }}'
+      TapeBarcode: '{{ item.TapeBarcode }}'
+      TapeCreatedDate: '{{ item.TapeCreatedDate }}'
+      TapeSizeInBytes: '{{ item.TapeSizeInBytes }}'
+      TapeStatus: '{{ item.TapeStatus }}'
+      TapeUsedInBytes: '{{ item.TapeUsedInBytes }}'
+      UploadBufferUsedInBytes: '{{ item.UploadBufferUsedInBytes }}'
+      WorkingStorageAllocatedInBytes: '{{ item.WorkingStorageAllocatedInBytes }}'
+      WorkingStorageUsedInBytes: '{{ item.WorkingStorageUsedInBytes }}'
+      Worm: '{{ item.Worm }}'
+- discovery_id: aws.storagegateway.list_automatic_tape_creation_policies
+  calls:
+  - action: list_automatic_tape_creation_policies
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.AutomaticTapeCreationPolicyInfos }}'
+    item:
+      AutomaticTapeCreationRules: '{{ item.AutomaticTapeCreationRules }}'
+      GatewayARN: '{{ item.GatewayARN }}'
+      Statement: '{{ item.Statement }}'
+      Version: '{{ item.Version }}'
+- discovery_id: aws.storagegateway.list_gateways
+  calls:
+  - action: list_gateways
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Gateways }}'
+    item:
+      DeprecationDate: '{{ item.DeprecationDate }}'
+      Ec2InstanceId: '{{ item.Ec2InstanceId }}'
+      Ec2InstanceRegion: '{{ item.Ec2InstanceRegion }}'
+      GatewayARN: '{{ item.GatewayARN }}'
+      GatewayId: '{{ item.GatewayId }}'
+      GatewayName: '{{ item.GatewayName }}'
+      GatewayOperationalState: '{{ item.GatewayOperationalState }}'
+      GatewayType: '{{ item.GatewayType }}'
+      HostEnvironment: '{{ item.HostEnvironment }}'
+      HostEnvironmentId: '{{ item.HostEnvironmentId }}'
+      SoftwareVersion: '{{ item.SoftwareVersion }}'
+- discovery_id: aws.storagegateway.list_volumes
+  calls:
+  - action: list_volumes
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.VolumeInfos }}'
+    item:
+      GatewayARN: '{{ item.GatewayARN }}'
+      GatewayId: '{{ item.GatewayId }}'
+      VolumeARN: '{{ item.VolumeARN }}'
+      VolumeAttachmentStatus: '{{ item.VolumeAttachmentStatus }}'
+      VolumeId: '{{ item.VolumeId }}'
+      VolumeSizeInBytes: '{{ item.VolumeSizeInBytes }}'
+      VolumeType: '{{ item.VolumeType }}'
+- discovery_id: aws.storagegateway.describe_nfs_file_shares
+  calls:
+  - action: describe_nfs_file_shares
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.NFSFileShareInfoList }}'
+    item:
+      EncryptionType: '{{ item.EncryptionType }}'
+      Tags: '{{ item.Tags }}'
+      AuditDestinationARN: '{{ item.AuditDestinationARN }}'
+      BucketRegion: '{{ item.BucketRegion }}'
+      CacheAttributes: '{{ item.CacheAttributes }}'
+      ClientList: '{{ item.ClientList }}'
+      DefaultStorageClass: '{{ item.DefaultStorageClass }}'
+      FileShareARN: '{{ item.FileShareARN }}'
+      FileShareId: '{{ item.FileShareId }}'
+      FileShareName: '{{ item.FileShareName }}'
+      FileShareStatus: '{{ item.FileShareStatus }}'
+      GatewayARN: '{{ item.GatewayARN }}'
+      GuessMIMETypeEnabled: '{{ item.GuessMIMETypeEnabled }}'
+      KMSEncrypted: '{{ item.KMSEncrypted }}'
+      KMSKey: '{{ item.KMSKey }}'
+      LocationARN: '{{ item.LocationARN }}'
+      NFSFileShareDefaults: '{{ item.NFSFileShareDefaults }}'
+      NFSFileShareInfoList: '{{ item.NFSFileShareInfoList }}'
+      NotificationPolicy: '{{ item.NotificationPolicy }}'
+      ObjectACL: '{{ item.ObjectACL }}'
+      Path: '{{ item.Path }}'
+      ReadOnly: '{{ item.ReadOnly }}'
+      RequesterPays: '{{ item.RequesterPays }}'
+      Role: '{{ item.Role }}'
+      Squash: '{{ item.Squash }}'
+      VPCEndpointDNSName: '{{ item.VPCEndpointDNSName }}'
+- discovery_id: aws.storagegateway.list_volume_recovery_points
+  for_each: aws.storagegateway.list_automatic_tape_creation_policies
+  calls:
+  - action: list_volume_recovery_points
+    params:
+      GatewayARN: '{{ item.GatewayARN }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.VolumeRecoveryPointInfos }}'
+    item:
+      VolumeARN: '{{ item.VolumeARN }}'
+      VolumeRecoveryPointTime: '{{ item.VolumeRecoveryPointTime }}'
+      VolumeSizeInBytes: '{{ item.VolumeSizeInBytes }}'
+      VolumeUsageInBytes: '{{ item.VolumeUsageInBytes }}'

@@ -1,0 +1,78 @@
+rule_id: aws.netsec.cloudtrail.network_firewall_deleted
+service: netsec
+provider: aws
+check_type: log
+severity: critical
+title: 'Network Security: Network Firewall Deleted'
+description: AWS Network Firewall deleted — network-level protection removed.
+rationale: Weakening or disabling cloud security policies reduces the enforcement surface for compliance controls and may allow prohibited actions to succeed silently.
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1562.007
+risk_score: 88
+resource: security_group
+source: default
+is_active: true
+domain: network_security_and_connectivity
+action_category: delete
+log_source_type: 
+posture_category: security_posture
+threat_tags:
+- T1562.007
+- T1562
+- defense_evasion
+- log_tampering
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: destructive
+  target_type: network_resource
+  blast_radius: resource_group
+  stealth_risk: critical
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 3.1
+  - 3.2
+  - 3.3
+  - 3.4
+  cis_azure_v2:
+  - 5.1
+  - 5.2
+  - 5.3
+  nist_800_53_r5:
+  - AU-2
+  - AU-6
+  - AU-12
+  - SI-4
+  pci_dss_v4:
+  - 10.1
+  - 10.2
+  - 10.3
+  iso_27001_2022:
+  - A.8.15
+  - A.8.16
+  - A.5.28
+remediation: |
+  1. Restore disabled policy assignments and investigate the actor.
+  2. Apply RBAC restrictions so only authorized principals can modify security policies.
+  3. Enable activity log alerts for all policy assignment changes.
+  4. Use Azure Policy / AWS Config mandatory enforcement modes.
+references:
+- https://attack.mitre.org/techniques/T1562/007/
+- https://learn.microsoft.com/en-us/azure/governance/policy/overview
+check_config:
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: network-firewall
+    - field: operation
+      op: equals
+      value: DeleteFirewall
+version: '1.0'

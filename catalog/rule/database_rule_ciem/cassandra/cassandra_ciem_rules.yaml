@@ -1,0 +1,29 @@
+# CASSANDRA — CIEM Detection Rules
+# Real-time authentication & access event analysis
+# Log source: system.log, audit.log
+
+tech_type: cassandra
+category: database
+log_source: system.log, audit.log
+
+rules:
+
+  - rule_id: tciem.cassandra.cassandra_is_run_using_a_non_privileged_dedicated
+    title: "Ensure that Cassandra is run using a non-privileged, dedicated service account"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '3.4'
+    cis_section: '3'
+    log_source: "system.log, audit.log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Create a user which is only used for running Cassandra and directly related
+      processes. This user must not have administrative rights to the system.
+

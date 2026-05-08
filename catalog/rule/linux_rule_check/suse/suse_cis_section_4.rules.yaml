@@ -1,0 +1,306 @@
+tech_type: suse
+category: linux
+cis_benchmark: CIS SUSE Linux 15 v2.0.1
+cis_section: '4'
+
+rules:
+
+  - rule_id: suse.cis.4.a_single_firewall_configuration_utility_is_in_use
+    title: "Ensure a single firewall configuration utility is in use"
+    severity: high
+    automation_type: automated
+    cis_control: '4.1.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: suse.section_4.a_single_firewall_configuration_utility_is_in_use
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Remediating to a single firewall configuration is a complex process and
+      involves several steps. The following provides the basic steps to follow for a
+      single firewall configuration: 1. Determine which firewall utility best fits
+      organizational needs 2. If you are upgrading from a release older than SUSE
+      Linux Enterprise Server 15 GA, SuSEfirewall2 will be unchanged and you must
+      manually upgrade to firewalld 3. Return to this recommendation to ensure a
+      single firewall configuration utility is in use References: 1.
+      https://documentation.suse.com/sles/15-SP6/html/SLES-all/cha-security-
+      firewall.html#sec-security-firewall-firewalld
+    compliance:
+      - cis_suse_15_v2_0_1_4_1_1
+
+  - rule_id: suse.cis.4.firewalld_is_installed
+    title: "Ensure firewalld is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: suse.section_4.firewalld_is_installed
+    assertion:
+      field: port
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to install firewalld: # zypper install firewalld
+      Note: If you are upgrading from a release older than SUSE Linux Enterprise
+      Server 15 GA, SuSEfirewall2 will be unchanged and you must manually upgrade to
+      firewalld. References: 1.
+      https://documentation.suse.com/sles/15-SP6/html/SLES-all/cha-security-
+      firewall.html#sec-security-firewall-firewalld 2. NIST SP 800-53 Rev. 5: CA-9
+    compliance:
+      - cis_suse_15_v2_0_1_4_2_1
+
+  - rule_id: suse.cis.4.firewalld_loopback_traffic_is_configured
+    title: "Ensure firewalld loopback traffic is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.3'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: suse.section_4.firewalld_loopback_traffic_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      Run the following script to implement the loopback rules: #!/usr/bin/env bash
+      { l_hbfw='' if systemctl is-enabled firewalld.service | grep -q 'enabled';
+      then echo -e '\n - FirewallD is in use on the system' && l_hbfw='fwd' elif
+      systemctl is-enabled nftables.service 2>/dev/null | grep -q 'enabled'; then
+      echo -e '\n - nftables is in use on the system \n - Recommendation is NA \n -
+      Remediation Complete' && l_hbfw='nft' fi if [ '$l_hbfw' = 'fwd' ]; then
+      l_ipsaddr='$(nft list ruleset | awk
+      '/filter_IN_public_deny|hook\s+input\s+/,/\}\s*(#.*)?$/' | grep -P --
+      'ip\h+saddr')' if ! nft list ruleset | awk '/hook\s+input\s+/,/\}\s*(#.*)?$/'
+      | grep -Pq -- '\H+\h+'lo'\h+accept'; then echo -e '\n - Enabling input to
+      accept for loopback address' firewall-cmd --permanent --zone=trusted --add-
+      interface=lo firewall-cmd --reload else echo -e '\n - firewalld input
+      correctly set to accept for loopback address' if ! grep -Pq --
+      'ip\h+saddr\h+127\.0\.0\.0\/8\h+(counter\h+packets\h+\d+\h+bytes\h+\d+\h+)?drop'
+      <<< '$l_ipsaddr' && ! grep -Pq --
+      'ip\h+daddr\h+\!\=\h+127\.0\.0\.1\h+ip\h+saddr\h+127\.0\.0\.1\h+drop' <<<
+      '$l_ipsaddr'; then echo -e '\n - Setting IPv4 network traffic from loopback
+      address to drop' firewall-cmd --permanent --add-rich-rule='rule family=ipv4
+      source address='127.0.0.1' destination not address='127.0.0.1' drop' firewall-
+      cmd --permanent --zone=trusted --add-rich-rule='rule family=ipv4 source
+      address='127.0.0.1' destination not address='127.0.0.1' drop' firewall-cmd
+      --reload else echo -e '\n - firewalld correctly set IPv4 network traffic from
+      loopback address to drop' fi if grep -Pq -- '^\h*0\h*$'
+      /sys/module/ipv6/parameters/disable; then l_ip6saddr='$(nft list ruleset | awk
+      '/filter_IN_public_deny|hook input/,/}/' | grep 'ip6 saddr')' if ! grep -Pq
+      'ip6\h+saddr\h+::1\h+(counter\h+packets\h+\d+\h+bytes\h+\d+\h+)?drop' <<<
+      '$l_ip6saddr' && ! grep -Pq --
+      'ip6\h+daddr\h+\!=\h+::1\h+ip6\h+saddr\h+::1\h+drop' <<< '$l_ip6saddr'; then
+      echo -e '\n - Setting IPv6 network traffic from loopback address to drop'
+      firewall-cmd --permanent --add-rich-rule='rule family=ipv6 source
+      address='::1' destination not address='::1' drop' firewall-cmd --permanent
+      --zone=trusted --add-rich-rule='rule family=ipv6 source address='::1'
+      destination not address='::1' drop' firewall-cmd --reload else echo -e '\n -
+      firewalld correctly set IPv6 network traffic from loopback address to drop' fi
+      fi fi fi } References: 1. NIST SP 800-53 Rev. 5: CA-9 2.
+      https://documentation.suse.com/sles/15-SP6/html/SLES-all/cha-security-
+      firewall.html
+    compliance:
+      - cis_suse_15_v2_0_1_4_2_3
+
+  - rule_id: suse.cis.4.default_zone_is_set
+    title: "Ensure default zone is set"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.4'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: suse.section_4.default_zone_is_set
+    assertion:
+      field: length
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to set the default zone: # firewall-cmd --set-
+      default-zone=<NAME_OF_ZONE> Example: # firewall-cmd --set-default-zone=public
+      References: 1. https://firewalld.org/documentation 2.
+      https://firewalld.org/documentation/man-pages/firewalld.zone 3.
+      https://documentation.suse.com/sles/15-SP6/html/SLES-all/cha-security-
+      firewall.html
+    compliance:
+      - cis_suse_15_v2_0_1_4_2_4
+
+  - rule_id: suse.cis.4.firewalld_service_is_enabled_and_running
+    title: "Ensure firewalld service is enabled and running"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.5'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: suse.section_4.firewalld_service_is_enabled_and_running
+    assertion:
+      field: enabled
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following command to unmask firewalld # systemctl unmask firewalld Run
+      the following command to enable and start firewalld # systemctl --now enable
+      firewalld References: 1. https://documentation.suse.com/sles/15-SP6/html/SLES-
+      all/cha-security- firewall.html
+    compliance:
+      - cis_suse_15_v2_0_1_4_2_5
+
+  - rule_id: suse.cis.4.rsyslog_is_installed
+    title: "Ensure rsyslog is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.1.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: suse.section_4.rsyslog_is_installed
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to install rsyslog: # zypper install rsyslog
+    compliance:
+      - cis_suse_12_v3_2_1_4_2_1_1
+
+  - rule_id: suse.cis.4.rsyslog_service_is_enabled_and_running
+    title: "Ensure rsyslog Service is enabled and running"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.1.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: suse.section_4.rsyslog_service_is_enabled_and_running
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to enable and start rsyslog: # systemctl --now
+      enable rsyslog
+    compliance:
+      - cis_suse_12_v3_2_1_4_2_1_2
+
+  - rule_id: suse.cis.4.rsyslog_default_file_permissions_configured
+    title: "Ensure rsyslog default file permissions configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.1.3'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: suse.section_4.rsyslog_default_file_permissions_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "no"
+    remediation: >
+      Edit the /etc/rsyslog.conf and /etc/rsyslog.d/*.conf files and set
+      $FileCreateMode to 0640 or more restrictive: $FileCreateMode 0640 References:
+      1. See the rsyslog.conf(5) man page for more information.
+    compliance:
+      - cis_suse_12_v3_2_1_4_2_1_3
+
+  - rule_id: suse.cis.4.rsyslog_is_configured_to_send_logs_to_a_remote
+    title: "Ensure rsyslog is configured to send logs to a remote log host"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.1.5'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: suse.section_4.rsyslog_is_configured_to_send_logs_to_a_remote
+    assertion:
+      field: port
+      operator: exists
+      expected: "true"
+    remediation: >
+      Edit the /etc/rsyslog.conf and /etc/rsyslog.d/*.conf files and add the
+      following line (where loghost.example.com is the name of your central log
+      host). *.* @@loghost.example.com Run the following command to reload the
+      rsyslogd configuration: # systemctl restart rsyslog References: 1. See the
+      rsyslog.conf(5) man page for more information.
+    compliance:
+      - cis_suse_12_v3_2_1_4_2_1_5
+
+  - rule_id: suse.cis.4.journald_is_configured_to_send_logs_to_rsyslog
+    title: "Ensure journald is configured to send logs to rsyslog"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.2.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: suse.section_4.journald_is_configured_to_send_logs_to_rsyslog
+    assertion:
+      field: port
+      operator: exists
+      expected: "yes"
+    remediation: >
+      Edit the /etc/systemd/journald.conf file and add the following line:
+      ForwardToSyslog=yes Default Value: ForwardToSyslog=yes References: 1.
+      https://github.com/konstruktoid/hardening/blob/master/systemd.adoc#etcsystemd
+      journaldconf
+    compliance:
+      - cis_suse_12_v3_2_1_4_2_2_1
+
+  - rule_id: suse.cis.4.journald_is_configured_to_compress_large_log_files
+    title: "Ensure journald is configured to compress large log files"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.2.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: suse.section_4.journald_is_configured_to_compress_large_log_files
+    assertion:
+      field: value
+      operator: exists
+      expected: "yes"
+    remediation: >
+      Edit the /etc/systemd/journald.conf file and add the following line:
+      Compress=yes Default Value: Compress=yes References: 1.
+      https://github.com/konstruktoid/hardening/blob/master/systemd.adoc#etcsystemd
+      journaldconf
+    compliance:
+      - cis_suse_12_v3_2_1_4_2_2_2
+
+  - rule_id: suse.cis.4.journald_is_configured_to_write_logfiles_to
+    title: "Ensure journald is configured to write logfiles to persistent disk"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.2.3'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: suse.section_4.journald_is_configured_to_write_logfiles_to
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Edit the /etc/systemd/journald.conf file and add the following line:
+      Storage=persistent References: 1.
+      https://github.com/konstruktoid/hardening/blob/master/systemd.adoc#etcsystemd
+      journaldconf
+    compliance:
+      - cis_suse_12_v3_2_1_4_2_2_3
+
+  - rule_id: suse.cis.4.permissions_on_all_logfiles_are_configured
+    title: "Ensure permissions on all logfiles are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.3'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: suse.section_4.permissions_on_all_logfiles_are_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      Run the following commands to set permissions on all existing log files: find
+      /var/log -type f -exec chmod g-wx,o-rwx '{}' + -o -type d -exec chmod g-
+      wx,o-rwx '{}' + Note: The configuration for your logging software or services
+      may need to also be modified for any logs that had incorrect permissions,
+      otherwise, the permissions may be reverted to the incorrect permissions
+    compliance:
+      - cis_suse_12_v3_2_1_4_2_3
+
+

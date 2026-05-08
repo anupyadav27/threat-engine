@@ -1,0 +1,26 @@
+version: '1.0'
+provider: k8s
+service: rolebinding
+checks:
+- rule_id: k8s.rolebinding.binding.admin_role_not_bound
+  for_each: k8s.rolebinding.list_role_bindings
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.roleRef.name
+      op: not_equals
+      value: admin
+    - var: item.roleRef.kind
+      op: not_equals
+      value: ClusterRole
+- rule_id: k8s.rolebinding.binding.default_sa_not_bound
+  for_each: k8s.rolebinding.list_rolebindings
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.subjects[].kind
+      op: not_contains
+      value: ServiceAccount
+    - var: item.subjects[].name
+      op: not_contains
+      value: default

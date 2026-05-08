@@ -1,0 +1,161 @@
+version: '1.0'
+provider: azure
+service: defender
+checks:
+- rule_id: azure.defender.agentless.scanning.status.check
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.Status
+    op: equals
+    value: Enabled
+- rule_id: azure.defender.app.services.status.check
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.isEnabled
+    op: is_true
+    value: null
+- rule_id: azure.defender.app.services_is_on
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.isEnabled
+    op: is_true
+    value: null
+- rule_id: azure.defender.cspm.pricing.tier.standard.check
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.PricingTier
+    op: equals
+    value: Standard
+- rule_id: azure.defender.email.notifications.attack.paths.enabled
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.notificationsOnAttackPaths
+    op: is_true
+    value: null
+- rule_id: azure.defender.email.notifications.owner.check
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.notificationsByRole.state
+      op: equals
+      value: 'On'
+    - var: item.Properties.notificationsByRole.roles[]
+      op: contains
+      value: Owner
+- rule_id: azure.defender.email.notifications.severity.check
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.enablementState
+      op: equals
+      value: Enabled
+    - var: item.Properties.notificationsSettings.state
+      op: equals
+      value: Enabled
+    - var: item.Properties.notificationsSettings.minimalSeverity
+      op: in
+      value:
+      - High
+      - Medium
+- rule_id: azure.defender.fim.status.check
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.Status
+    op: equals
+    value: Enabled
+- rule_id: azure.defender.for.cloud.endpoint.protection.status.check
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.Status
+    op: equals
+    value: Healthy
+- rule_id: azure.defender.for.cloud.security.contact.email.check
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.Email
+    op: exists
+    value: null
+- rule_id: azure.defender.for.containers.pricing.tier.and.extensions.enabled
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.pricingTier
+      op: equals
+      value: Standard
+    - var: item.properties.extensions[].name
+      op: contains
+      value: ContainerRegistriesVulnerabilityAssessments
+    - var: item.properties.extensions[].isEnabled
+      op: is_true
+      value: null
+- rule_id: azure.defender.for.servers.pricing.tier.standard.check
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.pricingTier
+    op: equals
+    value: Standard
+- rule_id: azure.defender.open.source.relational.databases.enabled
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.enabled
+      op: is_true
+      value: null
+    - var: item.properties.kind
+      op: equals
+      value: DefenderForDatabases
+- rule_id: azure.defender.resource.manager.pricing.standard.check
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.pricingTier
+    op: equals
+    value: Standard
+- rule_id: azure.defender.sql.server.pricing.tier.check
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.pricingTier
+    op: equals
+    value: Standard
+- rule_id: azure.defender.storage.alerts.export.enabled
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.enabled
+    op: is_true
+    value: null
+- rule_id: azure.defender.vm.endpoint_protection_installed
+  for_each: azure.compute.virtualmachines.list
+  severity: MEDIUM
+  conditions:
+    var: item.resources[].type
+    op: contains
+    value: Microsoft.Security/assessments/subAssessments
+- rule_id: azure.defender.vm.os.updates.configured
+  for_each: azure.compute.virtualmachines.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.osProfile.linuxConfiguration.patchSettings.patchMode
+    op: equals
+    value: AutomaticByPlatform
+- rule_id: azure.defender.vulnerability.assessment.status.check
+  for_each: azure.security.tasks.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.enabled
+    op: is_true
+    value: null

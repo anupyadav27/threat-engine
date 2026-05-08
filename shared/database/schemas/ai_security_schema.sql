@@ -5,6 +5,15 @@
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
+-- tenants — Tenant registry (FK requirement for all engine tables)
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS tenants (
+    tenant_id   VARCHAR(255) PRIMARY KEY,
+    tenant_name VARCHAR(500),
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- -----------------------------------------------------------------------------
 -- ai_security_rules — Rule definitions for AI/ML security evaluation
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS ai_security_rules (
@@ -20,7 +29,7 @@ CREATE TABLE IF NOT EXISTS ai_security_rules (
     mitre_techniques TEXT[] DEFAULT '{}',         -- T1195.003, T1565.002, etc.
     remediation     TEXT,
     is_active       BOOLEAN DEFAULT true,
-    csp             TEXT[] DEFAULT '{aws,azure,gcp}',
+    provider        TEXT[] DEFAULT '{aws,azure,gcp}',
     created_at      TIMESTAMP DEFAULT NOW(),
     updated_at      TIMESTAMP DEFAULT NOW()
 );
@@ -30,14 +39,13 @@ CREATE TABLE IF NOT EXISTS ai_security_rules (
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS ai_security_input_transformed (
     id                      BIGSERIAL PRIMARY KEY,
-    ai_security_scan_id     UUID NOT NULL,
+    scan_run_id             VARCHAR(255) NOT NULL,
     tenant_id               VARCHAR(255),
-    orchestration_id        UUID NOT NULL,
 
     -- Resource identification
     resource_id             VARCHAR(500),
     resource_type           VARCHAR(100),        -- sagemaker_endpoint, sagemaker_model, sagemaker_notebook, bedrock_model, lambda_ml, s3_ml_artifact, openai_endpoint
-    resource_arn            VARCHAR(1000),
+    resource_uid            TEXT,
     resource_name           VARCHAR(500),
 
     -- ML service details
@@ -86,26 +94,25 @@ CREATE TABLE IF NOT EXISTS ai_security_input_transformed (
     -- Metadata
     account_id              VARCHAR(255),
     region                  VARCHAR(50),
-    csp                     VARCHAR(20) DEFAULT 'aws',
+    provider                VARCHAR(20) DEFAULT 'aws',
     tags                    JSONB DEFAULT '{}',
     created_at              TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_ai_sec_transformed_scan ON ai_security_input_transformed (ai_security_scan_id);
+CREATE INDEX idx_ai_sec_transformed_scan ON ai_security_input_transformed (scan_run_id);
 CREATE INDEX idx_ai_sec_transformed_resource ON ai_security_input_transformed (resource_type, ml_service);
 
 -- -----------------------------------------------------------------------------
 -- ai_security_findings — Stage 2 evaluation results
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS ai_security_findings (
-    finding_id              BIGSERIAL PRIMARY KEY,
-    ai_security_scan_id     UUID NOT NULL,
+    finding_id              VARCHAR(255) PRIMARY KEY,
+    scan_run_id             VARCHAR(255) NOT NULL,
     tenant_id               VARCHAR(255),
-    orchestration_id        UUID NOT NULL,
     rule_id                 VARCHAR(50) NOT NULL,
     resource_id             VARCHAR(500),
     resource_type           VARCHAR(100),
-    resource_arn            VARCHAR(1000),
+    resource_uid            TEXT,
     ml_service              VARCHAR(100),
     model_type              VARCHAR(100),
     severity                VARCHAR(20) NOT NULL,
@@ -118,11 +125,12 @@ CREATE TABLE IF NOT EXISTS ai_security_findings (
     mitre_techniques        TEXT[] DEFAULT '{}',
     account_id              VARCHAR(255),
     region                  VARCHAR(50),
-    csp                     VARCHAR(20) DEFAULT 'aws',
-    created_at              TIMESTAMP DEFAULT NOW()
+    provider                VARCHAR(20) DEFAULT 'aws',
+    first_seen_at           TIMESTAMPTZ DEFAULT NOW(),
+    last_seen_at            TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_ai_sec_findings_scan ON ai_security_findings (ai_security_scan_id);
+CREATE INDEX idx_ai_sec_findings_scan ON ai_security_findings (scan_run_id);
 CREATE INDEX idx_ai_sec_findings_severity ON ai_security_findings (severity, status);
 CREATE INDEX idx_ai_sec_findings_rule ON ai_security_findings (rule_id);
 CREATE INDEX idx_ai_sec_findings_category ON ai_security_findings (category);
@@ -132,12 +140,11 @@ CREATE INDEX idx_ai_sec_findings_category ON ai_security_findings (category);
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS ai_security_inventory (
     id                      BIGSERIAL PRIMARY KEY,
-    ai_security_scan_id     UUID NOT NULL,
+    scan_run_id             VARCHAR(255) NOT NULL,
     tenant_id               VARCHAR(255),
-    orchestration_id        UUID NOT NULL,
     resource_id             VARCHAR(500),
     resource_type           VARCHAR(100),
-    resource_arn            VARCHAR(1000),
+    resource_uid            TEXT,
     resource_name           VARCHAR(500),
     ml_service              VARCHAR(100),
     model_type              VARCHAR(100),
@@ -149,19 +156,18 @@ CREATE TABLE IF NOT EXISTS ai_security_inventory (
     risk_score              INTEGER DEFAULT 0,     -- 0-100
     account_id              VARCHAR(255),
     region                  VARCHAR(50),
-    csp                     VARCHAR(20) DEFAULT 'aws',
+    provider                VARCHAR(20) DEFAULT 'aws',
     tags                    JSONB DEFAULT '{}',
     created_at              TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_ai_sec_inventory_scan ON ai_security_inventory (ai_security_scan_id);
+CREATE INDEX idx_ai_sec_inventory_scan ON ai_security_inventory (scan_run_id);
 
 -- -----------------------------------------------------------------------------
 -- ai_security_report — Stage 3 scan summary
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS ai_security_report (
-    ai_security_scan_id     UUID PRIMARY KEY,
-    orchestration_id        UUID NOT NULL,
+    scan_run_id             VARCHAR(255) PRIMARY KEY,
     tenant_id               VARCHAR(255),
     account_id              VARCHAR(255),
     provider                VARCHAR(50) DEFAULT 'aws',

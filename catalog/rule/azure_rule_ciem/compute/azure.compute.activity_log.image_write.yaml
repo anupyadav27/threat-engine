@@ -1,0 +1,78 @@
+rule_id: azure.compute.activity_log.image_write
+service: compute
+provider: azure
+check_type: log
+severity: medium
+title: 'Compute: Image Write'
+description: VM gallery image created or updated — shared image may be used to deploy backdoored instances.
+rationale: 'Adversaries create new instances or VMs within cloud accounts to execute from a clean environment that bypasses existing firewall rules and permissions tied to existing resources. Fresh compute resources are also used for cryptomining, C2 hosting, or as pivot points. Detected via: VM launch by rarely-used or newly-created accounts, instance creation from unexpected geographic locations, and large instance type selection.'
+threat_category: persistence
+mitre_tactics:
+- persistence
+mitre_techniques:
+- T1578.002
+risk_score: 55
+resource: azure_vm
+source: default
+is_active: true
+domain: compute_and_workload_security
+action_category: create
+log_source_type: activity_log
+posture_category: iam_posture
+threat_tags:
+- T1578.002
+- T1578
+- persistence
+- backdoor
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: compute_instance
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.1
+  - 1.4
+  - 1.16
+  cis_azure_v2:
+  - 1.1
+  - 2.1
+  - 2.9
+  nist_800_53_r5:
+  - AC-2
+  - AC-6
+  - IA-2
+  - SC-7
+  pci_dss_v4:
+  - 7.1
+  - 8.2
+  - 10.2
+  iso_27001_2022:
+  - A.8.2
+  - A.9.2
+  - A.5.18
+detection_events:
+- 'ec2:RunInstances'
+- Microsoft.Compute/virtualMachines/write
+- 'containers:create with privileged=true'
+remediation: |
+  1. Restrict snapshot creation permissions to authorized backup roles.
+  2. Alert on snapshot exports or cross-account snapshot copy operations.
+  3. Enable encryption for all EBS / managed disk snapshots.
+references:
+- https://attack.mitre.org/techniques/T1578/002/
+check_config:
+  conditions:
+    all:
+    - field: operation
+      op: equals
+      value: Microsoft.Compute/galleries/images/write
+  log_source_type: activity_log
+version: '1.0'

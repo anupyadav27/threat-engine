@@ -1,0 +1,40 @@
+version: '1.0'
+provider: k8s
+service: replicaset
+checks:
+- rule_id: k8s.replicaset.container.automount_sa_token_disabled
+  for_each: k8s.replicasets.list
+  severity: MEDIUM
+  conditions:
+    var: item.spec.template.spec.automountServiceAccountToken
+    op: is_false
+    value: null
+- rule_id: k8s.replicaset.container.host_network_disabled
+  for_each: k8s.replicaset.list
+  severity: HIGH
+  conditions:
+    var: item.spec.template.spec.hostNetwork
+    op: is_false
+    value: null
+- rule_id: k8s.replicaset.container.privileged_disabled
+  for_each: k8s.replicaset.list
+  severity: CRITICAL
+  conditions:
+    var: item.spec.template.spec.containers[].securityContext.privileged
+    op: not_contains
+    value: true
+- rule_id: k8s.replicaset.container.resource_limits_configured
+  for_each: k8s.replicaset.list
+  severity: MEDIUM
+  conditions:
+    var: item.spec.template.spec.containers[].resources.limits
+    op: not_empty
+    value: null
+- rule_id: k8s.replicaset.container.run_as_non_root_enabled
+  for_each: k8s.replicaset.list_replicasets
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.spec.template.spec.containers[].securityContext.runAsNonRoot
+      op: is_true
+      value: null

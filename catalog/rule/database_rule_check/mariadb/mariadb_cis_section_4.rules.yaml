@@ -1,0 +1,207 @@
+tech_type: mariadb
+category: database
+cis_benchmark: CIS MariaDB 10.6 v1.1.0
+cis_section: '4'
+
+rules:
+
+  - rule_id: mariadb.cis.4.example_or_test_databases_are_not_installed_on
+    title: "Ensure Example or Test Databases are Not Installed on Production Servers"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: mariadb.section_4.example_or_test_databases_are_not_installed_on
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Execute the following SQL statement to drop an example database: DROP DATABASE
+      <database name> ; Default Value: By default, MariaDB 10.6 does not contain any
+      example or test databases. References: 1.
+      https://mariadb.com/docs/server/deploy/community-primary-cs10-6/
+    compliance:
+      - cis_mariadb_10_6_v1_1_0_4_2
+
+  - rule_id: mariadb.cis.4.allow_suspicious_udfs_is_set_to_off
+    title: "Ensure 'allow-suspicious-udfs' is Set to 'OFF'"
+    severity: medium
+    automation_type: automated
+    cis_control: '4.3'
+    cis_section: '4'
+    profile_applicability: "Level 2"
+    scope: mariadb.section_4.allow_suspicious_udfs_is_set_to_off
+    assertion:
+      field: value
+      operator: gte
+      expected: "off"
+    remediation: >
+      Perform the following to establish the recommended state: • Remove --allow-
+      suspicious-udfs from the mariadbd start up command line. • Remove allow-
+      suspicious-udfs from the MariaDB option file. Default Value: OFF References:
+      1. https://mariadb.com/docs/server/ref/mdb/cli/mariadbd/allow-suspicious-udfs/
+      2. https://mariadb.com/kb/en/user-defined-functions-security/ Additional
+      Information: This option has no corresponding state in SHOW VARIABLES.
+    compliance:
+      - cis_mariadb_10_6_v1_1_0_4_3
+
+  - rule_id: mariadb.cis.4.harden_usage_for_local_infile_on_mariadb_clients
+    title: "Harden Usage for 'local_infile' on MariaDB Clients"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: mariadb.section_4.harden_usage_for_local_infile_on_mariadb_clients
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Upgrade all MariaDB clients and connectors to 10.2.0 or higher. In the case
+      where using local_infile is needed, the following changes further harden
+      security: On client side, secure by: Limiting the location from where data can
+      be read using --load-data-local-dir. mariadb --local-infile=0 --load-data-
+      local-dir=/my/local/data Adding TLS connection to assure server identity by
+      requiring verification. mariadb --local-infile=0 --load-data-local-
+      dir=/my/local/data --ssl- mode=VERIFY_IDENTITY If local_infile is not in use
+      or if clients are not upgraded - add the following line to the [mariadbd]
+      section of the MySQL configuration file and restart the MariaDB service:
+      local-infile=0 Default Value: 0 (OFF) References: 1.
+      https://mariadb.com/docs/server/ref/mdb/cli/mariadbd/local-infile/
+    compliance:
+      - cis_mariadb_10_6_v1_1_0_4_4
+
+  - rule_id: mariadb.cis.4.symbolic_links_are_disabled
+    title: "Ensure Symbolic Links are Disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '4.6'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: mariadb.section_4.symbolic_links_are_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Perform the following actions to remediate this setting: • Open the MariaDB
+      configuration file (mariadb.cnf) • Locate skip-symbolic-links in the
+      configuration • Set the skip-symbolic-links to YES Note: If skip-symbolic-
+      links does not exist, add it to the configuration file in the mariadbd
+      section. References: 1.
+      https://mariadb.com/docs/server/ref/mdb/cli/mariadbd/symbolic-links/
+    compliance:
+      - cis_mariadb_10_6_v1_1_0_4_6
+
+  - rule_id: mariadb.cis.4.secure_file_priv_is_configured_correctly
+    title: "Ensure the 'secure_file_priv' is Configured Correctly"
+    severity: high
+    automation_type: automated
+    cis_control: '4.7'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: mariadb.section_4.secure_file_priv_is_configured_correctly
+    assertion:
+      field: enabled
+      operator: exists
+      expected: "false"
+    remediation: >
+      If you are not going to use this feature, remove secure_file_priv from the
+      [mariadbd] section of the MariaDB configuration file and restart the MariaDB
+      service. If you need this feature add the following line to the [mariadbd]
+      section of the MariaDB configuration file and restart the MariaDB service:
+      secure_file_priv= <path_to_load_directory> Default Value: No value set.
+      References: 1. https://mariadb.com/docs/server/ref/mdb/system-
+      variables/secure_file_priv/
+    compliance:
+      - cis_mariadb_10_6_v1_1_0_4_7
+
+  - rule_id: mariadb.cis.4.sql_mode_contains_strict_all_tables
+    title: "Ensure 'sql_mode' Contains 'STRICT_ALL_TABLES'"
+    severity: medium
+    automation_type: automated
+    cis_control: '4.8'
+    cis_section: '4'
+    profile_applicability: "Level 2"
+    scope: mariadb.section_4.sql_mode_contains_strict_all_tables
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Set STRICT_ALL_TABLES to the sql_mode in the server's global configuration,
+      for example: SET GLOBAL sql_mode
+      ='STRICT_ALL_TABLES,ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO
+      _ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'; Default Value:
+      STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_
+      SUBSTITUTION References: 1.
+      https://mariadb.com/docs/server/ref/mdb/cli/mariadbd/sql-mode/ 2.
+      https://mariadb.com/docs/server/ref/mdb/sql-modes/STRICT_ALL_TABLES/ 3.
+      https://mariadb.com/kb/en/sql-mode/ Additional Information: The sql_mode is a
+      set and might contain more elements than just STRICT_ALL_TABLES. There is a
+      global sql_mode and a per session sql_mode. The per session sql_mode is based
+      on the global sql_mode on initialization and might be changed by the
+      application.
+    compliance:
+      - cis_mariadb_10_6_v1_1_0_4_8
+
+  - rule_id: mariadb.cis.4.enable_data_at_rest_encryption_in_mariadb
+    title: "Enable data-at-rest encryption in MariaDB"
+    severity: medium
+    automation_type: automated
+    cis_control: '4.9'
+    cis_section: '4'
+    profile_applicability: "Level 2"
+    scope: mariadb.section_4.enable_data_at_rest_encryption_in_mariadb
+    assertion:
+      field: value
+      operator: equals
+      expected: "off"
+    remediation: >
+      MariaDB's data-at-rest encryption requires the use of a key management and
+      encryption plugin. Create the key file: $ sudo mkdir -p /etc/mysql/encryption
+      && (echo -n '1;' ; openssl rand -hex 32 ) | sudo tee -a
+      /etc/mysql/encryption/keyfile Generate a random encryption password: $ sudo
+      openssl rand -hex 128 | sudo tee -a /etc/mysql/encryption/keyfile.key Encrypt
+      the key file: $ sudo openssl enc -aes-256-cbc -md sha1 \ -pass
+      file:/etc/mysql/encryption/keyfile.key \ -in /etc/mysql/encryption/keyfile \
+      -out /etc/mysql/encryption/keyfile.enc Delete the unencrypted key file: $ sudo
+      rm /etc/mysql/encryption/keyfile Set permissions and ownership on the keyfile
+      and key: $ sudo chown mysql:mysql -R /etc/mysql/encryption $ sudo chmod 640
+      /etc/mysql/encryption/keyfile* Edit mariadb.cnf to resemble the following
+      block, optionally uncommenting file_key_management_encryption_algorithm =
+      AES_CTR: [mariadb] ... plugin_load_add = file_key_management
+      file_key_management_filename = /etc/mysql/encryption/keyfile.enc
+      file_key_management_filekey = FILE:/etc/mysql/encryption/keyfile.key # Binary
+      Log Encryption encrypt_binlog = ON # Redo Log Encryption innodb_encrypt_log =
+      ON # Encrypting Temporary Files encrypt_tmp_files = ON # Encrypt Temporary
+      Tables innodb_encrypt_temporary_tables = ON # You can configure InnoDB
+      encryption to automatically have all new InnoDB tables automatically
+      encrypted, or specify encrypt per table. innodb_encrypt_tables = ON #
+      Uncomment the line below if utilizing MariaDB built with OpenSSL #
+      file_key_management_encryption_algorithm = AES_CTR If needed, see References
+      for information about file_key_management_encryption_algorithm and OpenSSL
+      usage. Restart MariaDB: $ sudo systemctl restart mariadb.service Run ALTER to
+      enable encryption ( Note: This will lock the table as table is encrypted).
+      ALTER TABLE tab1 ENCRYPTED=YES ENCRYPTION_KEY_ID=1; Revisit recommendation
+      3.10 after completing remediation. Default Value: At rest encryption is off by
+      default. When innodb_encrypt_tables is set to ON, InnoDB tables are
+      automatically encrypted by default. mariadb.cnf. innodb_encrypt_tables=ON
+      References: 1. https://mariadb.com/resources/blog/mariadb-encryption-tde-
+      using-mariadbs-file- key-management-encryption-plugin/ 2.
+      https://mariadb.com/kb/en/data-at-rest-encryption-overview/ 3.
+      https://mariadb.com/kb/en/encrypting-binary-logs/ 4.
+      https://mariadb.com/kb/en/innodb-encryption-overview/ 5.
+      https://mariadb.com/kb/en/using-encryption-and-compression-tools-with-
+      mariabackup/ 6. https://mariadb.com/kb/en/encryption-key-management/ 7.
+      https://mariadb.com/kb/en/innodb-enabling-encryption/ 8.
+      https://mariadb.com/kb/en/file-key-management-encryption-plugin/#choosing-an-
+      encryption-algorithm 9. https://mariadb.com/kb/en/tls-and-cryptography-
+      libraries-used-by-mariadb/
+    compliance:
+      - cis_mariadb_10_6_v1_1_0_4_9
+
+

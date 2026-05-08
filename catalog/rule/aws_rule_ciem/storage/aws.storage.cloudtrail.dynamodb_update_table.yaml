@@ -1,0 +1,92 @@
+rule_id: aws.storage.cloudtrail.dynamodb_update_table
+service: storage
+provider: aws
+check_type: log
+severity: medium
+title: 'Storage: Dynamodb Update Table'
+description: DynamoDB table updated — provisioning or encryption settings changed.
+rationale: Moving cloud resources between accounts can transfer sensitive data to attacker-controlled accounts while appearing as a legitimate cloud operation.
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1578.004
+risk_score: 45
+resource: storage_resource
+source: default
+is_active: true
+domain: data_protection_and_privacy
+action_category: modify
+log_source_type: 
+posture_category: security_posture
+threat_tags:
+- T1578.004
+- T1578
+- defense_evasion
+- log_tampering
+- storage_access
+- data
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: storage_account
+  blast_radius: resource_group
+  stealth_risk: critical
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - data_access_governance
+  categories:
+  - sensitive_data_access
+  priority: medium
+  impact:
+    pci: PCI DSS Requirement 3.1 — Minimize cardholder data storage
+    gdpr: GDPR Article 25 — Data protection by design; minimize data exposure
+    hipaa: §164.312(a)(1) — Access controls on data repositories containing ePHI
+  sensitive_data_context: |
+  Unauthorized defense evasion on storage resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks:
+  cis_aws_v3:
+  - 3.1
+  - 3.2
+  - 3.3
+  - 3.4
+  cis_azure_v2:
+  - 5.1
+  - 5.2
+  - 5.3
+  nist_800_53_r5:
+  - AU-2
+  - AU-6
+  - AU-12
+  - SI-4
+  pci_dss_v4:
+  - 10.1
+  - 10.2
+  - 10.3
+  iso_27001_2022:
+  - A.8.15
+  - A.8.16
+  - A.5.28
+remediation: |
+  1. Apply SCPs / Azure Policy to prevent cross-account resource moves.
+  2. Alert on resource moves to non-standard or external accounts.
+  3. Require explicit management approval for cross-account resource transfers.
+references:
+- https://attack.mitre.org/techniques/T1578/004/
+check_config:
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: dynamodb
+    - field: operation
+      op: equals
+      value: UpdateTable
+version: '1.0'

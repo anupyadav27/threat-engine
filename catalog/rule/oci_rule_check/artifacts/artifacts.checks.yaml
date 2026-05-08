@@ -1,0 +1,125 @@
+version: '1.0'
+provider: oci
+service: artifacts
+checks:
+- rule_id: oci.artifacts.container_repository.container_analysis_enabled
+  for_each: oci.artifacts.list_container_repositories
+  severity: LOW
+  conditions:
+    var: item.container_analysis_enabled
+    op: is_true
+    value: null
+- rule_id: oci.artifacts.container_repository.container_scanning_enabled
+  for_each: oci.artifacts.list_container_repositories
+  severity: LOW
+  conditions:
+    var: item.is_immutable
+    op: is_true
+    value: null
+- rule_id: oci.artifacts.container_repository.lifecycle_policy_storage_encrypted
+  for_each: oci.artifacts.list_container_repositories
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_policy
+    op: exists
+    value: null
+- rule_id: oci.artifacts.container_repository.lifecycle_policy_unused_or_old_tags_expire
+  for_each: oci.artifacts.list_container_repositories
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_policy
+    op: exists
+    value: null
+- rule_id: oci.artifacts.container_repository.packages_external_public_publishing_disabled
+  for_each: oci.artifacts.list_container_repositories
+  severity: CRITICAL
+  conditions:
+    var: item.is_immutable
+    op: is_true
+    value: null
+- rule_id: oci.artifacts.container_repository.public_access_blocked
+  for_each: oci.artifacts.list_container_repositories
+  severity: CRITICAL
+  conditions:
+    var: item.is_public
+    op: is_false
+    value: null
+- rule_id: oci.artifacts.container_repository.registry_image_scanning_enabled
+  for_each: oci.artifacts.list_container_repositories
+  severity: LOW
+  conditions:
+    var: item.is_immutable
+    op: is_true
+    value: null
+- rule_id: oci.artifacts.container_repository.registry_immutable_tags_or_signing_enforced
+  for_each: oci.artifacts.list_container_repositories
+  severity: LOW
+  conditions:
+    all:
+    - var: item.is_immutable
+      op: is_true
+      value: null
+    - var: item.is_public
+      op: is_false
+      value: null
+- rule_id: oci.artifacts.container_repository.registry_policy_no_public_pull_push_blocked
+  for_each: oci.artifacts.list_container_repositories
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.artifacts.container_repository.registry_policy_no_wildcard_admin
+  for_each: oci.artifacts.list_container_repositories
+  severity: CRITICAL
+  conditions:
+    var: item.registry_policy.statements[].principal
+    op: not_contains
+    value: '*'
+- rule_id: oci.artifacts.container_repository.registry_replication_cross_region_encrypted
+  for_each: oci.artifacts.list_container_repositories
+  severity: MEDIUM
+  conditions:
+    var: item.registry_replication_cross_region_encrypted
+    op: is_true
+    value: null
+- rule_id: oci.artifacts.container_repository.registry_replication_destinations_least_privilege_required
+  for_each: oci.artifacts.list_container_repositories
+  severity: HIGH
+  conditions:
+    var: item.registry_replication_destinations
+    op: not_exists
+    value: null
+- rule_id: oci.artifacts.container_repository.registry_repo_private_or_access_restricted_restricted
+  for_each: oci.artifacts.list_container_repositories
+  severity: LOW
+  conditions:
+    any:
+    - var: item.is_public
+      op: is_false
+      value: null
+    - var: item.readme.content
+      op: contains
+      value: access restricted
+- rule_id: oci.artifacts.container_repository.repositories_public_access_blocked
+  for_each: oci.artifacts.list_container_repositories
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.is_public
+      op: exists
+      value: null
+    - var: item.is_public
+      op: is_false
+      value: null
+- rule_id: oci.artifacts.container_repository.uses_private_link
+  for_each: oci.artifacts.list_container_repositories
+  severity: LOW
+  conditions:
+    var: item.private_endpoint
+    op: exists
+    value: null

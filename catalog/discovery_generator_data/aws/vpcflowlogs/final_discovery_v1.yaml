@@ -1,0 +1,54 @@
+# ==========================================================
+# Discovery YAML — vpcflowlogs (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 10 | ops: 1 independent, 0 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: vpcflowlogs
+
+services:
+  client: vpcflowlogs
+  module: "boto3.client('vpcflowlogs')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: flow_log
+    identifier_op: aws.ec2.describe_flow_logs
+    identifier_field: DeliverLogsPermissionArn
+    item_var_path: item.DeliverLogsPermissionArn
+    identifier_template: '{deliverlogspermissionarn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.ec2.describe_flow_logs  ──
+  - discovery_id: aws.ec2.describe_flow_logs
+    calls:
+      - action: describe_flow_logs
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.FlowLogs }}'
+      item:
+        CreationTime: '{{ item.CreationTime }}'
+        DeliverCrossAccountRole: '{{ item.DeliverCrossAccountRole }}'
+        DeliverLogsErrorMessage: '{{ item.DeliverLogsErrorMessage }}'
+        DeliverLogsPermissionArn: '{{ item.DeliverLogsPermissionArn }}'
+        DeliverLogsStatus: '{{ item.DeliverLogsStatus }}'
+        DestinationOptions: '{{ item.DestinationOptions }}'
+        FlowLogId: '{{ item.FlowLogId }}'
+        FlowLogStatus: '{{ item.FlowLogStatus }}'
+        FlowLogs: '{{ item.FlowLogs }}'
+        LogDestination: '{{ item.LogDestination }}'
+        LogDestinationType: '{{ item.LogDestinationType }}'
+        LogFormat: '{{ item.LogFormat }}'
+        LogGroupName: '{{ item.LogGroupName }}'
+        MaxAggregationInterval: '{{ item.MaxAggregationInterval }}'
+        ResourceId: '{{ item.ResourceId }}'
+        Tags: '{{ item.Tags }}'
+        TrafficType: '{{ item.TrafficType }}'
+

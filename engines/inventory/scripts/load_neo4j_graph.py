@@ -19,7 +19,7 @@ Relationship types (dynamic, from relation_type column):
   (:Asset)-[:BELONGS_TO]->(:Account)
   (:Account)-[:MEMBER_OF]->(:Tenant)
   (:Asset)-[:IN_REGION]->(:Region)
-  ... (all relation_types from resource_relationship_rules)
+  ... (all relation_types from resource_security_relationship_rules)
 
 Usage:
     export INVENTORY_DB_URL="postgresql://user:pass@host:5432/threat_engine_inventory"

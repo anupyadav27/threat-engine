@@ -1,0 +1,89 @@
+version: '1.0'
+provider: technology
+category: web_server
+tech_type: tomcat
+display_name: Apache Tomcat
+action_type: ssh_config_parse
+cis_benchmark: CIS Apache Tomcat 10
+cis_section: '1'
+
+# ─── Authentication & Access ───────────────────────────────────────────────────
+discovery:
+  - discovery_id: tomcat.auth.local_accounts
+    description: Enumerate local user accounts and privilege levels
+    calls:
+      - action: ssh_config_parse
+        target: auth.accounts
+        save_as: accounts
+    emit:
+      as: items
+      items: "{{ accounts }}"
+      item:
+        resource_uid: "{{ item.username or item.name or item.id }}"
+        resource_type: tomcat.user_account
+        username: "{{ item.username or item.name }}"
+        is_admin: "{{ item.is_admin or item.privileged }}"
+        last_login: "{{ item.last_login }}"
+
+  - discovery_id: tomcat.auth.password_policy
+    description: Retrieve password policy configuration
+    calls:
+      - action: ssh_config_parse
+        target: auth.password_policy
+        save_as: policy
+    emit:
+      as: item
+      item:
+        resource_uid: "tomcat.password_policy"
+        resource_type: tomcat.policy
+        min_length: "{{ policy.min_length }}"
+        require_complexity: "{{ policy.complexity_enabled }}"
+        max_age_days: "{{ policy.max_age_days }}"
+
+# ─── Logging & Auditing ────────────────────────────────────────────────────────
+  - discovery_id: tomcat.logging.audit_config
+    description: Retrieve audit/logging configuration
+    calls:
+      - action: ssh_config_parse
+        target: logging.audit_config
+        save_as: audit_cfg
+    emit:
+      as: item
+      item:
+        resource_uid: "tomcat.audit_config"
+        resource_type: tomcat.config
+        audit_enabled: "{{ audit_cfg.enabled }}"
+        log_destination: "{{ audit_cfg.destination }}"
+        log_level: "{{ audit_cfg.level }}"
+
+# ─── Encryption & Transport ────────────────────────────────────────────────────
+  - discovery_id: tomcat.encryption.transport
+    description: Check transport encryption (TLS/SSL) configuration
+    calls:
+      - action: ssh_config_parse
+        target: encryption.transport
+        save_as: tls_cfg
+    emit:
+      as: item
+      item:
+        resource_uid: "tomcat.transport_encryption"
+        resource_type: tomcat.config
+        tls_enabled: "{{ tls_cfg.enabled }}"
+        tls_version: "{{ tls_cfg.min_version }}"
+        cert_path: "{{ tls_cfg.cert_path }}"
+
+# ─── Access Controls ──────────────────────────────────────────────────────────
+  - discovery_id: tomcat.acl.admin_privileges
+    description: Identify accounts with administrative or superuser privileges
+    calls:
+      - action: ssh_config_parse
+        target: acl.admin_accounts
+        save_as: admins
+    emit:
+      as: items
+      items: "{{ admins }}"
+      item:
+        resource_uid: "{{ item.username or item.name }}"
+        resource_type: tomcat.privileged_account
+        username: "{{ item.username or item.name }}"
+        privilege_level: "{{ item.role or item.level }}"

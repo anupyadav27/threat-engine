@@ -1,0 +1,75 @@
+rule_id: aws.compute.cloudtrail.ec2_stop_instances
+service: compute
+provider: aws
+check_type: log
+severity: medium
+title: 'Compute: EC2 Stop Instances'
+description: EC2 instances stopped — compute resources taken offline.
+rationale: System shutdown/reboot attacks cause availability loss and may be used to delete evidence, force service restarts, or trigger incident response procedures.
+threat_category: defense_evasion
+mitre_tactics:
+- impact
+mitre_techniques:
+- T1529
+risk_score: 55
+resource: ec2_instance
+source: default
+is_active: true
+domain: compute_and_workload_security
+action_category: audit_activity
+log_source_type: 
+posture_category: security_posture
+threat_tags:
+- T1529
+- defense_evasion
+- log_tampering
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: compute_instance
+  blast_radius: resource_group
+  stealth_risk: critical
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 3.1
+  - 3.2
+  - 3.3
+  - 3.4
+  cis_azure_v2:
+  - 5.1
+  - 5.2
+  - 5.3
+  nist_800_53_r5:
+  - AU-2
+  - AU-6
+  - AU-12
+  - SI-4
+  pci_dss_v4:
+  - 10.1
+  - 10.2
+  - 10.3
+  iso_27001_2022:
+  - A.8.15
+  - A.8.16
+  - A.5.28
+remediation: |
+  1. Revoke credentials of the actor and restore affected systems.
+  2. Apply RBAC restrictions on instance stop/terminate/reboot operations.
+  3. Use resource locks where appropriate to prevent unauthorized termination.
+references:
+- https://attack.mitre.org/techniques/T1529/
+check_config:
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: ec2
+    - field: operation
+      op: equals
+      value: StopInstances
+version: '1.0'

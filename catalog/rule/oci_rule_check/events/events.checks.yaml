@@ -1,0 +1,406 @@
+version: '1.0'
+provider: oci
+service: events
+checks:
+- rule_id: oci.events.rule.ai_services_pipeline_iam_role_least_privileged_enforced
+  for_each: oci.events.list_rules
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.actions[].actionType
+      op: contains
+      value: FAAS
+    - var: item.actions[?(@.actionType == 'FAAS')].isEnabled
+      op: is_true
+      value: null
+    - var: item.actions[?(@.actionType == 'FAAS')].functionId
+      op: exists
+      value: null
+- rule_id: oci.events.rule.ai_services_pipeline_kms_encryption_enabled
+  for_each: oci.events.list_rules
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.actions[].actionType
+      op: contains
+      value: OSS
+    - var: item.actions[].isEnabled
+      op: is_true
+      value: null
+- rule_id: oci.events.rule.ai_services_pipeline_logging_enabled
+  for_each: oci.events.list_rules
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.condition
+      op: contains
+      value: Logging
+- rule_id: oci.events.rule.bucket_notification_cross_account_destinations_restricted
+  for_each: oci.events.list_rules
+  severity: LOW
+  conditions:
+    var: item.actions[].actionType
+    op: not_contains
+    value: OSS
+- rule_id: oci.events.rule.bucket_notification_destination_encrypted
+  for_each: oci.events.list_rules
+  severity: MEDIUM
+  conditions:
+    var: item.actions[].actionType
+    op: equals
+    value: OSS
+- rule_id: oci.events.rule.bucket_notification_destination_least_privilege_required
+  for_each: oci.events.list_rules
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.actions[].actionType
+      op: not_contains
+      value: OSS
+    - var: item.actions[].actionType
+      op: not_contains
+      value: FAAS
+- rule_id: oci.events.rule.cloud_guard_problem_notification_configured
+  for_each: oci.events.list_rules
+  severity: LOW
+  conditions:
+    var: item.name
+    op: contains
+    value: CloudGuardProblemNotification
+- rule_id: oci.events.rule.communication_channels_configured
+  for_each: oci.events.list_rules
+  severity: LOW
+  conditions:
+    var: item.actions[].actionType
+    op: contains
+    value: OSS
+- rule_id: oci.events.rule.communication_destinations_access_least_privilege_required
+  for_each: oci.events.list_rules
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.actions[].actionType
+      op: equals
+      value: OSS
+    - var: item.actions[].isEnabled
+      op: is_true
+      value: null
+    - var: item.actions[].description
+      op: contains
+      value: least-privilege
+- rule_id: oci.events.rule.communication_no_public_webhooks_without_auth_blocked
+  for_each: oci.events.list_rules
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.condition
+      op: contains
+      value: auth
+    - var: item.actions.actions[].actionType
+      op: not_contains
+      value: OSS
+- rule_id: oci.events.rule.config_delivery_destination_access_least_privilege_required
+  for_each: oci.events.list_rules
+  severity: HIGH
+  conditions:
+    var: item.actions[].actionType
+    op: equals
+    value: OSS
+- rule_id: oci.events.rule.config_delivery_kms_encryption_enabled
+  for_each: oci.events.list_rules
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.actions[].actionType
+      op: contains
+      value: OSS
+    - var: item.actions[].isEnabled
+      op: is_true
+      value: null
+    - var: item.actions[].description
+      op: contains
+      value: KMS
+- rule_id: oci.events.rule.data_pipeline_access_controls_least_privilege_required
+  for_each: oci.events.list_rules
+  severity: HIGH
+  conditions:
+    var: item.condition
+    op: contains
+    value: dataPipeline
+- rule_id: oci.events.rule.data_pipeline_private_networking_enforced
+  for_each: oci.events.list_rules
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.events.rule.event_rule_idp_group_mapping_notification_configured
+  for_each: oci.events.list_rules
+  severity: LOW
+  conditions:
+    var: item.ocid
+    op: exists
+    value: null
+- rule_id: oci.events.rule.event_source_authenticated
+  for_each: oci.events.list_rules
+  severity: LOW
+  conditions:
+    var: item.condition
+    op: contains
+    value: source.identityPrincipal.type != 'ANONYMOUS_PRINCIPAL'
+- rule_id: oci.events.rule.event_source_permissions_least_privilege_required
+  for_each: oci.events.list_rules
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.actions[].actionType
+      op: not_contains
+      value: OSS
+    - var: item.actions[].isEnabled
+      op: is_true
+      value: null
+- rule_id: oci.events.rule.event_subscription_cross_account_sharing_restricted
+  for_each: oci.events.list_rules
+  severity: LOW
+  conditions:
+    var: item.actions[].actionType
+    op: not_contains
+    value: OSS
+- rule_id: oci.events.rule.event_subscription_destination_encrypted
+  for_each: oci.events.list_rules
+  severity: MEDIUM
+  conditions:
+    var: item.actions[].actionType
+    op: equals
+    value: OSS
+- rule_id: oci.events.rule.event_subscription_destination_least_privilege_required
+  for_each: oci.events.list_rules
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.actions[].actionType
+      op: not_contains
+      value: OSS
+    - var: item.actions[].actionType
+      op: not_contains
+      value: FAAS
+    - var: item.actions[].actionType
+      op: not_contains
+      value: STREAMING
+- rule_id: oci.events.rule.global_endpoint_event_replication_enabled
+  for_each: oci.events.list_rules
+  severity: LOW
+  conditions:
+    var: item.is_enabled
+    op: is_true
+    value: null
+- rule_id: oci.events.rule.iam_group_change_notification_configured
+  for_each: oci.events.list_rules
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.name
+      op: contains
+      value: IAMGroupChange
+    - var: item.name
+      op: contains
+      value: iam-group-change
+    - var: item.name
+      op: contains
+      value: IAM Group Change
+- rule_id: oci.events.rule.iam_user_change_notification_event_rule_configured
+  for_each: oci.events.list_rules
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.events.rule.identity_provider_change_notification_configured
+  for_each: oci.events.list_rules
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.condition
+      op: contains
+      value: identityProvider
+    - var: item.actions[].actionType
+      op: contains
+      value: ONS
+- rule_id: oci.events.rule.route_table_change_notification_configured
+  for_each: oci.events.list_rules
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.events.rule.rule_iam_policy_change_notification_enabled
+  for_each: oci.events.list_rules
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.events.rule.rule_identity_signon_local_auth_notification_configured
+  for_each: oci.events.list_rules
+  severity: MEDIUM
+  conditions:
+    var: item.ocid
+    op: exists
+    value: null
+- rule_id: oci.events.rule.rule_network_gateway_change_notification_configured
+  for_each: oci.events.list_rules
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.actions[].actionType
+      op: contains
+      value: ONS
+    - var: item.condition
+      op: contains
+      value: NetworkGateway
+- rule_id: oci.events.rule.rule_nsg_change_notification_configured
+  for_each: oci.events.list_rules
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.events.rule.rule_vcn_change_notification_configured
+  for_each: oci.events.list_rules
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.events.rule.security_list_change_notification_configured
+  for_each: oci.events.list_rules
+  severity: LOW
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.condition
+      op: contains
+      value: securityList
+- rule_id: oci.events.rule.sink_cross_account_destinations_restricted_enabled
+  for_each: oci.events.list_rules
+  severity: LOW
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.actions[].actionType
+      op: not_contains
+      value: OSS
+    - var: item.actions[].actionType
+      op: not_contains
+      value: FAAS
+- rule_id: oci.events.rule.sink_destination_encrypted
+  for_each: oci.events.list_rules
+  severity: MEDIUM
+  conditions:
+    var: item.actions[].action_type
+    op: equals
+    value: OSS
+- rule_id: oci.events.rule.sink_destination_least_privilege_required
+  for_each: oci.events.list_rules
+  severity: HIGH
+  conditions:
+    var: item.actions[].action_type
+    op: not_contains
+    value: OSS
+- rule_id: oci.events.rule.streaming_security_firehose_destination_encrypted
+  for_each: oci.events.list_rules
+  severity: MEDIUM
+  conditions:
+    var: item.actions[].actionType
+    op: equals
+    value: OSS
+- rule_id: oci.events.rule.streaming_security_firehose_destination_least_privilege_required
+  for_each: oci.events.list_rules
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.actions[].actionType
+      op: equals
+      value: OSS
+    - var: item.actions[].isEnabled
+      op: is_true
+      value: null
+    - var: item.actions[].description
+      op: contains
+      value: least privilege
+- rule_id: oci.events.rule.streaming_security_firehose_logging_enabled
+  for_each: oci.events.list_rules
+  severity: MEDIUM
+  conditions:
+    var: item.actions[].actionType
+    op: contains
+    value: OSS
+- rule_id: oci.events.rule.trigger_event_sources_restricted
+  for_each: oci.events.list_rules
+  severity: LOW
+  conditions:
+    var: item.actions[].actionType
+    op: not_contains
+    value: OSS
+- rule_id: oci.events.rule.trigger_logs_enabled
+  for_each: oci.events.list_rules
+  severity: LOW
+  conditions:
+    var: item.actions[].actionType
+    op: contains
+    value: OSS
+- rule_id: oci.events.rule.trigger_targets_least_privilege_required
+  for_each: oci.events.list_rules
+  severity: HIGH
+  conditions:
+    var: item.actions[].action_type
+    op: not_contains
+    value: OSS
+- rule_id: oci.events.rule.workflow_approval_steps_required_for_destructive_actions
+  for_each: oci.events.list_rules
+  severity: LOW
+  conditions:
+    all:
+    - var: item.actions[].actionType
+      op: contains
+      value: FAAS
+    - var: item.actions[].isEnabled
+      op: is_true
+      value: null
+    - var: item.actions[].description
+      op: contains
+      value: approval
+- rule_id: oci.events.rule.workflow_integrations_least_privilege_required
+  for_each: oci.events.list_rules
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.actions[].actionType
+      op: not_contains
+      value: FAAS
+    - var: item.actions[].actionType
+      op: not_contains
+      value: OSS
+    - var: item.actions[].actionType
+      op: not_contains
+      value: ONS
+- rule_id: oci.events.rule.workflow_kms_encryption_enabled
+  for_each: oci.events.list_rules
+  severity: HIGH
+  conditions:
+    var: item.actions[].actionType
+    op: equals
+    value: OSS

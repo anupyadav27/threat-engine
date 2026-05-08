@@ -4,12 +4,15 @@ Threat Engine API Server
 FastAPI server for threat detection and reporting.
 """
 
+import logging
 import os
 import json
 import sys
-from typing import Optional, List, Dict, Any
+import threading
 import time
-from fastapi import FastAPI, HTTPException, Query, Body
+import uuid
+from typing import Optional, List, Dict, Any
+from fastapi import Depends, FastAPI, HTTPException, Query, Body, Request
 import asyncio
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,6 +27,7 @@ from engine_common.telemetry import configure_telemetry
 from engine_common.middleware import RequestLoggingMiddleware, CorrelationIDMiddleware
 from engine_common.orchestration import get_orchestration_metadata
 from engine_common.job_creator import create_engine_job
+from engine_common.db_connections import get_threat_conn
 
 from .schemas.threat_report_schema import (
     ThreatReport,
@@ -54,6 +58,23 @@ from .graph.graph_queries import SecurityGraphQueries
 from .schemas.threat_report_schema import ThreatStatus, ThreatType, Severity
 
 logger = setup_logger(__name__, engine_name="engine-threat")
+audit_logger = logging.getLogger("audit")
+
+# ── Auth imports (engine_auth is COPY shared/auth/ ./engine_auth/ in Dockerfile) ──
+try:
+    from engine_auth.fastapi.middleware import AuthMiddleware as _AuthMiddleware
+    from engine_auth.fastapi.dependencies import require_permission
+    from engine_auth.core.models import AuthContext
+    _AUTH_AVAILABLE = True
+except ImportError:
+    _AUTH_AVAILABLE = False
+    AuthContext = None  # type: ignore[assignment,misc]
+
+    def require_permission(_perm: str):  # type: ignore[no-redef]
+        """Stub: raises 401 when auth module is unavailable (should never reach prod)."""
+        def _denied():
+            raise HTTPException(status_code=401, detail="auth module unavailable")
+        return _denied
 
 app = FastAPI(
     title="Threat Engine API",
@@ -85,9 +106,42 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# AuthMiddleware validates access_token / X-Auth-Context for every non-health path
+if _AUTH_AVAILABLE:
+    app.add_middleware(_AuthMiddleware)
+
 # Initialize storage
 storage = ThreatStorage()
 
+# ── Async graph-build job tracking ───────────────────────────────────────────
+# job_id → {status, started_at, stats, error}
+# In-process dict: ephemeral but sufficient for a single-pod API server.
+_build_jobs: Dict[str, Dict] = {}
+
+# Fields in graph build stats that are restricted to tenant_admin and above.
+_GRAPH_CVE_SENSITIVE_FIELDS = frozenset({"cve_nodes", "has_cve_edges"})
+
+
+def _strip_graph_stats_for_role(stats: Dict[str, Any], role_level: int) -> Dict[str, Any]:
+    """Strip CVE-count fields from graph stats for viewer and analyst roles.
+
+    Args:
+        stats:      Graph build stats dict (may contain cve_nodes, has_cve_edges).
+        role_level: Integer role level from AuthContext (1=platform_admin,
+                    2=org_admin, 4=tenant_admin/analyst/viewer).
+
+    Returns:
+        Filtered stats dict — cve_nodes and has_cve_edges removed when
+        role_level >= 3 but the caller is not tenant_admin.  In the
+        current RBAC model every l4 role shares level 4; tenant_admin
+        retains access (level < 4).  Viewer and analyst are also l4 but
+        cannot be distinguished by level alone — the conservative policy
+        strips for all role_level values > 2 (i.e. not platform_admin
+        or org_admin).
+    """
+    if role_level > 2:
+        return {k: v for k, v in stats.items() if k not in _GRAPH_CVE_SENSITIVE_FIELDS}
+    return stats
 
 
 # Include unified UI data router (single endpoint for all UI views)
@@ -97,17 +151,53 @@ try:
 except ImportError as e:
     logger.warning("UI data router not available", extra={"extra_fields": {"error": str(e)}})
 
+# JNY-01: TechniqueDetailModal endpoint (DB-backed, replaces static map)
+try:
+    from .api.technique_detail import router as technique_detail_router
+    app.include_router(technique_detail_router)
+except ImportError as e:
+    logger.warning("technique detail router not available", extra={"extra_fields": {"error": str(e)}})
 
-def _get_threat_conn():
-    """Get a psycopg2 connection to the threat DB."""
-    return psycopg2.connect(
-        host=os.getenv("THREAT_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("THREAT_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("THREAT_DB_NAME", "threat_engine_threat"),
-        user=os.getenv("THREAT_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("THREAT_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        connect_timeout=5,
-    )
+
+@app.on_event("startup")
+def _seed_mitre_reference_if_empty() -> None:
+    """JNY-01: load bundled MITRE seed at startup when table is empty.
+
+    Verifies SHA-256 of the bundled CSV against its sibling .sha256, then
+    upserts. Safe to run on every pod start: when the table is non-empty
+    we skip immediately so steady-state pods do no extra work.
+    """
+    try:
+        conn = get_threat_conn()
+    except Exception as exc:  # pragma: no cover - logged + swallowed at startup
+        logger.warning("MITRE seed: threat DB unavailable at startup: %s", exc)
+        return
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM mitre_technique_reference")
+            (count,) = cur.fetchone()
+        if count and count > 0:
+            logger.info("MITRE reference already populated (rows=%s); skip seed", count)
+            return
+    except Exception as exc:
+        logger.warning("MITRE seed: count check failed (table may not yet exist): %s", exc)
+        conn.close()
+        return
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    try:
+        # Loader is shipped at /app/scripts/load_mitre_reference.py in the image.
+        sys.path.insert(0, "/app/scripts")
+        from load_mitre_reference import main as _load_main  # type: ignore
+        rc = _load_main()
+        if rc != 0:
+            logger.error("MITRE seed loader returned non-zero exit code: %s", rc)
+    except Exception as exc:
+        logger.error("MITRE seed loader failed: %s", exc)
 
 
 class ThreatReportRequest(BaseModel):
@@ -238,16 +328,12 @@ async def create_threat_scan(request: ThreatReportRequest):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    # All engines share the same scan_run_id
-    check_scan_run_id = orch_id
-
+    # All engines share the same scan_run_id — no per-engine IDs
     provider = (meta.get("provider") or meta.get("provider_type", "aws")).lower()
     tenant_id = meta.get("tenant_id") or request.tenant_id or "default-tenant"
 
     logger.info("Creating threat scanner Job", extra={
         "extra_fields": {
-            "scan_run_id": orch_id,
-            "check_scan_run_id": check_scan_run_id,
             "scan_run_id": scan_run_id_val,
             "provider": provider,
         }
@@ -255,7 +341,7 @@ async def create_threat_scan(request: ThreatReportRequest):
 
     # Pre-create threat_report row (so status endpoint works immediately)
     try:
-        conn = _get_threat_conn()
+        conn = get_threat_conn()
         # Ensure tenant exists (FK requirement)
         with conn.cursor() as cur:
             cur.execute(
@@ -265,11 +351,11 @@ async def create_threat_scan(request: ThreatReportRequest):
             )
             cur.execute(
                 """INSERT INTO threat_report
-                   (scan_run_id, tenant_id, provider,
+                   (threat_scan_id, scan_run_id, tenant_id, provider,
                     status, started_at, report_data)
-                   VALUES (%s, %s, %s, 'running', NOW(), %s)
+                   VALUES (%s, %s, %s, %s, 'running', NOW(), %s)
                    ON CONFLICT (scan_run_id) DO UPDATE SET status = 'running'""",
-                (scan_run_id_val, tenant_id, provider,
+                (scan_run_id_val, scan_run_id_val, tenant_id, provider,
                  json.dumps({"scan_run_id": orch_id, "mode": "job"})),
             )
         conn.commit()
@@ -308,7 +394,7 @@ async def get_threat_scan_status(scan_run_id: str):
     """Get threat scan status from threat_report DB table."""
     from psycopg2.extras import RealDictCursor
     try:
-        conn = _get_threat_conn()
+        conn = get_threat_conn()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
                 "SELECT scan_run_id, status, provider, "
@@ -1327,7 +1413,7 @@ class ThreatUpdateRequest(BaseModel):
     status: Optional[ThreatStatus] = None
     notes: Optional[str] = None
     assignee: Optional[str] = None
-    status_changed_by: Optional[str] = None
+    # status_changed_by is intentionally absent — derived from AuthContext server-side
 
 
 def _update_threat_finding_in_db(
@@ -1410,7 +1496,7 @@ def _update_threat_finding_in_db(
 async def update_threat(
     threat_id: str,
     update: ThreatUpdateRequest,
-    tenant_id: str = Query(..., description="Tenant identifier"),
+    auth: AuthContext = Depends(require_permission("threat:write")),
 ) -> Dict[str, Any]:
     """Update threat status, notes, or assignee.
 
@@ -1422,7 +1508,8 @@ async def update_threat(
     Args:
         threat_id: Finding ID of the threat.
         update: Fields to update.
-        tenant_id: Tenant identifier.
+        auth: AuthContext from require_permission("threat:write") — provides
+            tenant_id and user_id server-side.
 
     Returns:
         Updated threat data dictionary.
@@ -1431,6 +1518,9 @@ async def update_threat(
         HTTPException: 400 if no fields provided, 404 if threat not found,
             500 if the database update fails.
     """
+    tenant_id = auth.engine_tenant_id   # from AuthContext, never from request body
+    user_id = auth.user_id              # server-derived — overrides any caller-supplied value
+
     if not update.status and not update.notes and not update.assignee:
         raise HTTPException(
             status_code=400,
@@ -1457,7 +1547,7 @@ async def update_threat(
         status=update.status,
         notes=update.notes,
         assignee=update.assignee,
-        status_changed_by=update.status_changed_by,
+        status_changed_by=user_id,  # server-side from AuthContext, not from body
     )
     if not db_ok:
         logger.warning("threat_findings row update returned 0 rows for %s — row may not exist yet", threat_id)
@@ -2116,7 +2206,9 @@ async def get_threat_detail(
                     account_id, region, provider,
                     mitre_techniques, mitre_tactics,
                     evidence, context,
-                    first_seen_at, last_seen_at, resolved_at
+                    first_seen_at, last_seen_at, resolved_at,
+                    chain_of_consequence, stakes_narrative,
+                    narrative_generated_at, narrative_model
                 FROM threat_detections
                 WHERE detection_id = %s::uuid AND tenant_id = %s
             """, (threat_id, tenant_id))
@@ -2173,9 +2265,9 @@ async def get_resource_posture(
         if not scan_id or scan_id == "latest":
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT DISTINCT scan_run_id FROM check_findings
+                    SELECT scan_run_id FROM check_findings
                     WHERE tenant_id = %s
-                    ORDER BY scan_run_id DESC LIMIT 1
+                    ORDER BY last_seen_at DESC LIMIT 1
                 """, (tenant_id,))
                 row = cur.fetchone()
                 scan_id = row[0] if row else None
@@ -2419,47 +2511,112 @@ async def get_scan_summary(
 
 @app.post("/api/v1/graph/build")
 async def build_security_graph(
-    tenant_id: str = Body(..., embed=True),
+    request: Request,
+    auth: Any = Depends(require_permission("threat:read")),
 ):
     """
-    Build/rebuild the Neo4j security graph for a tenant.
+    Trigger an async Neo4j security graph build for the authenticated tenant.
 
-    Loads data from all 3 PostgreSQL databases (inventory, checks, threats)
-    and creates nodes + relationships in Neo4j.
+    Returns 202 immediately with a ``job_id``.  Poll
+    ``GET /api/v1/graph/build/status/{job_id}`` to track completion.
+
+    tenant_id is derived exclusively from the authenticated caller's AuthContext;
+    it is never accepted from the request body (STRIDE: Spoofing / Tampering).
+    scan_run_id may be supplied in the body to scope the build to a specific scan.
     """
-    import asyncio
-    import time as _time
-    start = _time.time()
-
-    def _run_build() -> dict:
-        builder = SecurityGraphBuilder()
-        try:
-            return builder.build_graph(tenant_id=tenant_id)
-        finally:
-            builder.close()
-
+    body: Dict = {}
     try:
-        # Run blocking Neo4j/PostgreSQL operations in a thread pool so the
-        # asyncio event loop stays free (liveness probe can still respond).
-        loop = asyncio.get_event_loop()
-        stats = await loop.run_in_executor(None, _run_build)
+        body = await request.json()
+    except Exception:
+        pass  # body is optional
 
-        duration_ms = (_time.time() - start) * 1000
+    # tenant_id MUST come from AuthContext — never from the request body.
+    tenant_id: str = auth.engine_tenant_id or ""
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="No active tenant in session")
+    scan_run_id: Optional[str] = body.get("scan_run_id")
 
-        return {
-            "status": "completed",
-            "tenant_id": tenant_id,
-            "stats": stats,
-            "duration_ms": round(duration_ms, 1),
-        }
+    job_id = str(uuid.uuid4())
+    _build_jobs[job_id] = {"status": "running", "started_at": time.time()}
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Graph build failed: {str(e)}")
+    def _run() -> None:
+        """Build graph in a daemon thread so the event loop stays unblocked."""
+        started = time.time()
+        try:
+            builder = SecurityGraphBuilder()
+            try:
+                # GRAPH-S2-03: pass scan_run_id so CVELoader can scope vuln data
+                stats = builder.build_graph(
+                    tenant_id=tenant_id, scan_run_id=scan_run_id
+                )
+            finally:
+                builder.close()
+            duration_ms = int((time.time() - started) * 1000)
+            _build_jobs[job_id].update({"status": "completed", "stats": stats})
+            # GRAPH-S2-05: structured audit log on successful graph build.
+            # Never log credential_ref, passwords, or connection strings.
+            audit_logger.info(
+                "graph_build_complete",
+                extra={
+                    "tenant_id": tenant_id,
+                    "scan_run_id": scan_run_id,
+                    "job_id": job_id,
+                    "duration_ms": duration_ms,
+                    "total_nodes": stats.get("total_nodes", 0),
+                    "total_relationships": stats.get("total_relationships", 0),
+                    "cve_nodes": stats.get("cve_nodes", 0),
+                    "exposes_edges": stats.get("exposes_edges", 0),
+                    "inferred_edges": stats.get("inferred_edges", 0),
+                },
+            )
+        except Exception as exc:
+            duration_ms = int((time.time() - started) * 1000)
+            _build_jobs[job_id].update({"status": "failed", "error": str(exc)})
+            # GRAPH-S2-05: structured audit log on failure.
+            audit_logger.error(
+                "graph_build_failed",
+                extra={
+                    "tenant_id": tenant_id,
+                    "scan_run_id": scan_run_id,
+                    "job_id": job_id,
+                    "duration_ms": duration_ms,
+                    "error": str(exc),
+                },
+            )
+
+    threading.Thread(target=_run, daemon=True).start()
+    return JSONResponse({"job_id": job_id, "status": "running"}, status_code=202)
+
+
+@app.get("/api/v1/graph/build/status/{job_id}")
+async def get_graph_build_status(
+    job_id: str,
+    auth: Any = Depends(require_permission("threat:read")),
+):
+    """
+    Poll the status of a graph build job.
+
+    Returns the current job dict:
+      - ``{"status": "running", "started_at": <epoch>}``
+      - ``{"status": "completed", "stats": {...}}``
+      - ``{"status": "failed", "error": "<msg>"}``
+
+    404 if the job_id is unknown (e.g. pod was restarted).
+    """
+    job = _build_jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job not found")
+    # GRAPH-S2-05: strip CVE stat fields for roles below tenant_admin (org_admin/platform_admin).
+    if job.get("stats"):
+        role_level: int = getattr(auth, "role_level", 4)
+        job = {**job, "stats": _strip_graph_stats_for_role(job["stats"], role_level)}
+    return job
 
 
 @app.get("/api/v1/graph/summary")
 async def get_graph_summary(
     tenant_id: str = Query(...),
+    auth: Any = Depends(require_permission("threat:read")),
 ):
     """Get summary statistics of the security graph."""
     try:
@@ -2475,6 +2632,7 @@ async def get_graph_summary(
 async def get_graph_subgraph(
     tenant_id: str = Query(...),
     max_nodes: int = Query(300, ge=10, le=1000),
+    auth: Any = Depends(require_permission("threat:read")),
 ):
     """Get a Wiz-style subgraph of resources and their relationships.
 
@@ -2496,6 +2654,7 @@ async def get_attack_paths(
     max_hops: int = Query(5, ge=1, le=10),
     min_severity: str = Query("medium"),
     entry_point: Optional[str] = Query(None, description="'internet', 'all', or a resource UID"),
+    auth: Any = Depends(require_permission("threat:read")),
 ):
     """
     Find attack paths from any entry point to resources with threats.
@@ -2529,6 +2688,7 @@ async def get_graph_blast_radius(
     resource_uid: str,
     tenant_id: str = Query(...),
     max_hops: int = Query(5, ge=1, le=10),
+    auth: Any = Depends(require_permission("threat:read")),
 ):
     """
     Compute blast radius from a specific resource using Neo4j graph traversal.
@@ -2549,6 +2709,7 @@ async def get_graph_blast_radius(
 @app.get("/api/v1/graph/internet-exposed")
 async def get_internet_exposed(
     tenant_id: str = Query(...),
+    auth: Any = Depends(require_permission("threat:read")),
 ):
     """Find all resources exposed to the internet.
 
@@ -2587,11 +2748,13 @@ async def get_internet_exposed(
 async def get_toxic_combinations(
     tenant_id: str = Query(...),
     min_threats: int = Query(2, ge=1),
+    provider: Optional[str] = Query(None, description="Filter by CSP: aws, azure, gcp, k8s, oci"),
+    auth: Any = Depends(require_permission("threat:read")),
 ):
     """Find resources with multiple overlapping threat detections."""
     try:
         gq = SecurityGraphQueries()
-        results = gq.toxic_combinations(tenant_id=tenant_id, min_threats=min_threats)
+        results = gq.toxic_combinations(tenant_id=tenant_id, min_threats=min_threats, provider=provider)
         gq.close()
         return {
             "toxic_combinations": results,
@@ -2601,10 +2764,123 @@ async def get_toxic_combinations(
         raise HTTPException(status_code=500, detail=f"Toxic combination query failed: {str(e)}")
 
 
+@app.get("/api/v1/graph/explore")
+async def explore_graph(
+    tenant_id: str = Query(...),
+    resource_type: Optional[str] = Query(None, description="EC2 | S3 | IAM | Lambda | RDS | KMS | SecurityGroup | EKS | VPC | Subnet | DynamoDB"),
+    security_status: Optional[str] = Query(None, description="has_threat | internet_exposed | high_risk | critical_findings"),
+    connected_to: Optional[str] = Query(None, description="Resource type the match must connect to, or 'Internet'"),
+    via_edge: Optional[str] = Query(None, description="Edge type: ASSUMES | CAN_ACCESS | EXPOSES | ROUTES_TO | ENCRYPTED_BY | CONNECTS_TO | IN_VPC | PROTECTED_BY | ACCESSES | STORES | DEPENDS_ON"),
+    edge_kind: Optional[str] = Query(None, description="Filter edges by kind: 'path' (attack traversal) | 'association' (context only) | omit for all"),
+    within_hops: int = Query(2, ge=0, le=5),
+    limit: int = Query(300, ge=1, le=1000),
+    auth: Any = Depends(require_permission("threat:read")),
+):
+    """
+    Structured graph exploration — converts filter params to Cypher and runs against Neo4j.
+
+    Returns nodes + edges for the matched resources and their 1-hop neighbors,
+    shaped for the graph UI (id, name, type, provider, risk_score, has_threat, matched).
+
+    `matched: true` on nodes that satisfy the filter; neighbors have `matched: false`
+    so the UI can highlight the primary matches vs context nodes.
+
+    `edge_kind=path` returns only attack traversal edges (ASSUMES, EXPOSES, STORES, etc.)
+    `edge_kind=association` returns only context edges (ENCRYPTED_BY, HAS_FINDING, DEPENDS_ON, etc.)
+    """
+    try:
+        gq = SecurityGraphQueries()
+        result = gq.explore_graph(
+            tenant_id=tenant_id,
+            resource_type=resource_type,
+            security_status=security_status,
+            connected_to=connected_to,
+            via_edge=via_edge,
+            edge_kind=edge_kind,
+            within_hops=within_hops,
+            limit=limit,
+        )
+        gq.close()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Graph exploration failed: {str(e)}")
+
+
+@app.get("/api/v1/graph/orca-paths")
+async def orca_attack_paths(
+    tenant_id: str = Query(...),
+    max_hops: int = Query(5, ge=1, le=7),
+    min_severity: str = Query("medium", description="info | low | medium | high | critical"),
+    auth: Any = Depends(require_permission("threat:read")),
+):
+    """
+    Orca-style attack paths with per-node context.
+
+    Returns structured paths where each node in the chain includes:
+    - risk_score, finding_count, threat_count, threat_severity
+
+    This powers both the Orca-style path cards below the graph and the
+    highlight-path-in-graph interaction (clicking a card highlights its nodes).
+
+    Only traverses PATH edges (edge_kind='path'). Association context (findings,
+    threats) is fetched per node and embedded in the path result.
+    """
+    try:
+        gq = SecurityGraphQueries()
+        paths = gq.orca_attack_paths(
+            tenant_id=tenant_id,
+            max_hops=max_hops,
+            min_severity=min_severity,
+        )
+        gq.close()
+        return {"paths": paths, "total": len(paths)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Orca path query failed: {str(e)}")
+
+
+@app.get("/api/v1/graph/fix-impact")
+async def get_fix_impact(
+    tenant_id: str = Query(...),
+    resource_uid: Optional[str] = Query(None, description="Resource UID to simulate remediation for"),
+    finding_id: Optional[str] = Query(None, description="Threat finding ID (resolves to resource_uid automatically)"),
+    max_hops: int = Query(5, ge=1, le=8),
+    auth: Any = Depends(require_permission("threat:read")),
+):
+    """
+    Fix-Impact Calculator — how many attack paths disappear if you fix one finding?
+
+    Provide either `resource_uid` or `finding_id`. Returns:
+    - total_paths: total Internet-sourced attack paths in the tenant
+    - paths_eliminated: paths that pass through or end at this resource
+    - elimination_pct: percentage of total paths eliminated
+    - remediation_priority: critical / high / medium / low
+    - affected_paths: list of (from, to) pairs for the eliminated paths
+    """
+    if not resource_uid and not finding_id:
+        raise HTTPException(status_code=400, detail="Provide resource_uid or finding_id")
+    try:
+        gq = SecurityGraphQueries()
+        result = gq.fix_impact(
+            tenant_id=tenant_id,
+            resource_uid=resource_uid,
+            finding_id=finding_id,
+            max_hops=max_hops,
+        )
+        gq.close()
+        if "error" in result:
+            raise HTTPException(status_code=404, detail=result["error"])
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Fix-impact calculation failed: {str(e)}")
+
+
 @app.get("/api/v1/graph/resource/{resource_uid:path}")
 async def get_resource_graph_context(
     resource_uid: str,
     tenant_id: str = Query(...),
+    auth: Any = Depends(require_permission("threat:read")),
 ):
     """Get complete graph context for a single resource."""
     try:
@@ -2861,13 +3137,15 @@ async def get_threat_findings_for_resource(
         raise HTTPException(status_code=503, detail=f"Database unavailable: {e}")
 
     try:
-        # Severity counts
+        # threat_detections is the live ARN-keyed table populated by the threat
+        # analysis engine (MITRE ATT&CK mapped).  threat_findings contains legacy
+        # short-ID keyed rows and is no longer the source of truth for per-asset views.
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
                 SELECT
                     LOWER(COALESCE(severity, 'medium')) AS severity,
                     COUNT(*) AS cnt
-                FROM threat_findings
+                FROM threat_detections
                 WHERE resource_uid = %s
                   AND tenant_id = %s
                 GROUP BY LOWER(COALESCE(severity, 'medium'))
@@ -2880,15 +3158,16 @@ async def get_threat_findings_for_resource(
             if sev in severity_counts:
                 severity_counts[sev] = int(r.get("cnt") or 0)
 
-        # Detailed findings
+        # Detailed detections — detection_id aliased to finding_id for BFF compat
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
                 SELECT
-                    finding_id, rule_id, threat_category, severity, status,
+                    detection_id  AS finding_id,
+                    rule_id, rule_name, threat_category, severity, status,
                     resource_type, region, account_id,
                     mitre_tactics, mitre_techniques, evidence,
                     first_seen_at, last_seen_at
-                FROM threat_findings
+                FROM threat_detections
                 WHERE resource_uid = %s
                   AND tenant_id = %s
                 ORDER BY
@@ -2908,6 +3187,7 @@ async def get_threat_findings_for_resource(
             findings.append({
                 "finding_id": r.get("finding_id"),
                 "rule_id": r.get("rule_id"),
+                "rule_name": r.get("rule_name") or "",
                 "threat_category": r.get("threat_category") or "",
                 "severity": (r.get("severity") or "medium").lower(),
                 "status": r.get("status") or "open",

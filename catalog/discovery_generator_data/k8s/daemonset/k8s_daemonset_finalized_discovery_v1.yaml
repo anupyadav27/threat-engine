@@ -1,0 +1,36 @@
+# ============================================================
+# K8s Finalized Discovery — daemonset
+# Generated: 2026-04-16T14:28:05Z
+# Source: k8s_field_rule_catalog.csv
+# Ops: 1 list  +  1 get  =  2 total
+# ============================================================
+
+version: '1.0'
+provider: k8s
+service: daemonset
+services:
+  client: apps_v1_api
+  module: kubernetes.client
+  api_class: AppsV1Api
+discovery:
+- discovery_id: k8s.daemonset.list
+  calls:
+  - action: list_daemon_set_for_all_namespaces
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: k8s.daemonset.get
+  for_each: k8s.daemonset.list
+  calls:
+  - action: read_namespaced_daemon_set
+    save_as: response
+    on_error: continue
+    params:
+      name: '{{ item.metadata.name }}'
+      namespace: '{{ item.metadata.namespace }}'
+  emit:
+    as: item
+    item:
+      daemon_set: '{{ response }}'

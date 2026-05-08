@@ -1,0 +1,16 @@
+version: '1.0'
+rule_id: aws.s3.bucketpolicy.bucket_deny_unencrypted_puts
+for_each: aws.s3.get_bucket_policy
+severity: HIGH
+conditions:
+  all:
+  - var: item.Policy
+    op: exists
+  - var: item.Policy.Statement[].Effect
+    op: contains
+    value: Deny
+  - var: item.Policy.Statement[].Action
+    op: contains
+    value: s3:PutObject
+  - var: item.Policy.Statement[].Condition.StringNotEquals.s3:x-amz-server-side-encryption
+    op: exists

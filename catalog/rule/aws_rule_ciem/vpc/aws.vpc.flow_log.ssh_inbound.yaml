@@ -1,0 +1,79 @@
+rule_id: aws.vpc.flow_log.ssh_inbound
+service: vpc
+provider: aws
+check_type: log
+severity: medium
+title: 'VPC: Ssh Inbound'
+description: Inbound SSH (port 22) traffic detected — remote shell access.
+rationale: SSH access to cloud instances enables lateral movement and interactive control; compromise may spread via SSH key reuse across multiple instances.
+threat_category: lateral_movement
+mitre_tactics:
+- lateral_movement
+mitre_techniques:
+- T1021.004
+risk_score: 55
+resource: vpc
+source: default
+is_active: true
+domain: network_security_and_connectivity
+action_category: network
+log_source_type: 
+posture_category: network_posture
+threat_tags:
+- T1021.004
+- T1021
+- lateral_movement
+- cloud_pivot
+- network_security
+- vpc
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: network_change
+  target_type: network_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 5.1
+  - 5.2
+  - 5.3
+  cis_azure_v2:
+  - 6.1
+  - 6.2
+  nist_800_53_r5:
+  - SC-7
+  - AC-4
+  - SI-3
+  pci_dss_v4:
+  - 1.2
+  - 1.3
+  - 7.2
+  iso_27001_2022:
+  - A.8.20
+  - A.8.22
+  - A.5.14
+remediation: |
+  1. Use EC2 Instance Connect / Azure Bastion instead of static SSH keys.
+  2. Restrict SSH access via security groups to known management IPs only.
+  3. Use AWS Systems Manager / Azure Bastion to eliminate direct SSH exposure.
+references:
+- https://attack.mitre.org/techniques/T1021/004/
+- https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-connect-methods.html
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: vpc_flow
+    - field: network.dst_port
+      op: equals
+      value: '22'
+    - field: network.flow_action
+      op: equals
+      value: ACCEPT
+version: '1.0'

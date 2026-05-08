@@ -22,75 +22,97 @@ def load_enabled_services_with_scope():
     return [(s["name"], s.get("scope", "regional")) for s in data["services"] if s.get("enabled")]
 
 
-def load_service_rules(service_name):
+def _get_check_db_conn():
+    """Get connection to threat_engine_check DB (rule_discoveries table)."""
+    import psycopg2
+    return psycopg2.connect(
+        host=os.getenv("CHECK_DB_HOST", os.getenv("DB_HOST", "localhost")),
+        port=int(os.getenv("CHECK_DB_PORT", os.getenv("DB_PORT", "5432"))),
+        database=os.getenv("CHECK_DB_NAME", "threat_engine_check"),
+        user=os.getenv("CHECK_DB_USER", os.getenv("DB_USER", "postgres")),
+        password=os.getenv("CHECK_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
+        connect_timeout=5,
+    )
+
+
+# In-memory cache: service → {rules, updated_at}
+_rules_cache: Dict[str, Dict] = {}
+
+
+def load_service_rules(service_name, provider="aws"):
     """
-    Load service rules YAML file.
-    Handles service name mapping from config names to folder names.
-    Each service has its own folder and YAML file.
-    The boto3 client mapping (SERVICE_TO_BOTO3_CLIENT) handles SDK client selection.
+    Load service rules from rule_discoveries DB table (single source of truth).
+
+    Flow:
+      1. Check in-memory cache
+      2. If not cached or stale → query rule_discoveries table
+      3. Return normalized Phase 2 format rules
+
+    The DB is the ONLY source. YAML files on disk are seed data only.
     """
-    base_path = os.path.join(os.path.dirname(__file__), "..", "services")
+    cache_key = f"{provider}.{service_name}"
 
-    # Original logic - load from service folder
-    # Try multiple name variations
-    possible_names = [
-        service_name,  # Exact match
-        service_name.replace('_', ''),  # Remove underscores (api_gateway -> apigateway)
-    ]
+    # Check cache — use if fresh (< 5 min)
+    import time
+    if cache_key in _rules_cache:
+        cached = _rules_cache[cache_key]
+        if time.time() - cached.get("_cached_at", 0) < 300:
+            return cached["rules"]
 
-    # Also try with common variations
-    if '_' in service_name:
-        # Try with different underscore positions
-        parts = service_name.split('_')
-        possible_names.append(''.join(parts))  # api_gateway -> apigateway
-        if len(parts) == 2:
-            possible_names.append(parts[0] + parts[1].capitalize())  # api_gateway -> apiGateway
+    # Load from DB
+    try:
+        rules = _load_rules_from_db(service_name, provider)
+        if rules:
+            _rules_cache[cache_key] = {"rules": rules, "_cached_at": time.time()}
+            logger.info(f"Loaded rules from DB for {provider}.{service_name}: "
+                       f"{len(rules.get('discovery',[]))} discoveries, "
+                       f"{len(rules.get('checks',[]))} checks")
+            return rules
+    except Exception as exc:
+        logger.warning(f"Failed to load rules from DB for {service_name}: {exc}")
 
-    # Try each possible name
-    rules_path = None
-    for name in possible_names:
-        test_path = os.path.join(base_path, name, "rules", f"{name}.yaml")
-        if os.path.exists(test_path):
-            rules_path = test_path
-            break
+    # If DB fails, raise — no silent fallback to YAML
+    raise RuntimeError(
+        f"Cannot load rules for {provider}.{service_name} from rule_discoveries table. "
+        f"Ensure the service is seeded in the DB."
+    )
 
-    # If still not found, try to find by scanning folders
-    if not rules_path:
-        service_norm = service_name.replace('_', '').lower()
-        if os.path.exists(base_path):
-            for folder_name in os.listdir(base_path):
-                folder_path = os.path.join(base_path, folder_name)
-                if os.path.isdir(folder_path):
-                    folder_norm = folder_name.replace('_', '').lower()
-                    if folder_norm == service_norm:
-                        test_path = os.path.join(folder_path, "rules", f"{folder_name}.yaml")
-                        if os.path.exists(test_path):
-                            rules_path = test_path
-                            break
 
-    if not rules_path:
-        raise FileNotFoundError(f"Service rules not found for '{service_name}'. Tried: {possible_names}")
+def _load_rules_from_db(service_name, provider="aws"):
+    """Query rule_discoveries for a service and return Phase 2 format rules."""
+    conn = _get_check_db_conn()
+    try:
+        from psycopg2.extras import RealDictCursor
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT service, discoveries_data, boto3_client_name,
+                       filter_rules, updated_at
+                FROM rule_discoveries
+                WHERE service = %s AND provider = %s AND is_active = true
+                LIMIT 1
+            """, (service_name, provider))
+            row = cur.fetchone()
 
-    with open(rules_path) as f:
-        rules = yaml.safe_load(f)
+        if not row:
+            return None
 
-    base_rules = normalize_to_phase2_format(rules)
+        dd = row["discoveries_data"]
+        if isinstance(dd, str):
+            dd = json.loads(dd)
+        if not isinstance(dd, dict):
+            return None
 
-    # Optionally merge user-defined rules (synced into the pod by sidecar)
-    # Expected layout: {USER_RULES_DIR}/{service}/{service}.yaml (e.g., /user-rules/s3/s3.yaml)
-    user_rules_dir = os.getenv("USER_RULES_DIR")
-    if user_rules_dir:
-        try:
-            user_path = os.path.join(user_rules_dir, service_name, f"{service_name}.yaml")
-            if os.path.exists(user_path):
-                with open(user_path) as uf:
-                    user_rules_raw = yaml.safe_load(uf)
-                user_rules = normalize_to_phase2_format(user_rules_raw)
-                base_rules = merge_service_rules(base_rules, user_rules)
-        except Exception as e:
-            logger.warning(f"Failed to load user rules for {service_name}: {e}")
+        # Normalize to Phase 2 format
+        rules = normalize_to_phase2_format(dd)
 
-    return base_rules
+        # Attach boto3_client_name for the scanner
+        rules["_boto3_client_name"] = row.get("boto3_client_name") or service_name
+        rules["_filter_rules"] = row.get("filter_rules") or {}
+        rules["_updated_at"] = str(row.get("updated_at", ""))
+
+        return rules
+    finally:
+        conn.close()
 
 
 def merge_service_rules(base_rules: Dict[str, Any], user_rules: Dict[str, Any]) -> Dict[str, Any]:

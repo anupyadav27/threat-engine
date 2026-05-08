@@ -1,0 +1,51 @@
+rule_id: aws.dns.query_log.reverse_lookup
+service: dns
+provider: aws
+check_type: log
+severity: low
+title: 'Route53: Reverse Lookup'
+description: DNS reverse lookup (PTR record) — network reconnaissance activity.
+rationale: Gathering cloud target information (account IDs, domain names, IP ranges) enables more targeted and stealthy follow-on attacks.
+threat_category: discovery
+mitre_tactics:
+- discovery
+mitre_techniques:
+- T1590
+risk_score: 25
+resource: route53_zone
+source: default
+is_active: true
+domain: threat_detection
+action_category: create
+log_source_type: 
+posture_category: threat_posture
+threat_tags:
+- T1590
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: |
+  1. Minimize public exposure of cloud account IDs and infrastructure details.
+  2. Monitor for reconnaissance patterns in public-facing API endpoints.
+  3. Use AWS Shield Advanced / Azure DDoS Protection for reconnaissance detection.
+references:
+- https://attack.mitre.org/techniques/T1590/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: dns
+    - field: operation
+      op: contains
+      value: in-addr.arpa
+version: '1.0'

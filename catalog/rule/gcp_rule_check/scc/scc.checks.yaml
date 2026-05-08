@@ -1,0 +1,96 @@
+version: '1.0'
+provider: gcp
+service: scc
+checks:
+- rule_id: gcp.scc.activity.bulk_mute_findings
+  for_each: gcp.scc.list_sources
+  severity: MEDIUM
+  conditions:
+    var: item.MuteConfigs[].Name
+    op: exists
+    value: null
+- rule_id: gcp.scc.activity.delete_notification_config
+  for_each: gcp.scc.list_notification_configs
+  severity: MEDIUM
+  conditions:
+    var: item.Name
+    op: exists
+    value: null
+- rule_id: gcp.scc.activity.update_source
+  for_each: gcp.scc.list_sources
+  severity: MEDIUM
+  conditions:
+    var: item.State
+    op: equals
+    value: ACTIVE
+- rule_id: gcp.scc.anomalous_access
+  for_each: gcp.scc.list_anomalies
+  severity: MEDIUM
+  conditions:
+    var: item.anomaly_type
+    op: not_equals
+    value: ANOMALOUS_ACCESS
+- rule_id: gcp.scc.brute_force
+  for_each: gcp.scc.list_security_sources
+  severity: MEDIUM
+  conditions:
+    var: item.SecurityHealthAnalyticsSettings.BruteForceDetectionEnabled
+    op: is_true
+    value: null
+- rule_id: gcp.scc.critical_finding
+  for_each: gcp.scc.list_findings
+  severity: HIGH
+  conditions:
+    var: item.Severity
+    op: not_equals
+    value: HIGH
+- rule_id: gcp.scc.cryptomining
+  for_each: gcp.scc.list_sources
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.SecurityHealthAnalyticsSettings.Modules[].State
+      op: equals
+      value: ENABLED
+    - var: item.SecurityHealthAnalyticsSettings.Modules[].DisplayName
+      op: contains
+      value: Cryptomining
+- rule_id: gcp.scc.data_exfiltration
+  for_each: gcp.scc.list_sources
+  severity: MEDIUM
+  conditions:
+    var: item.DataExfiltrationEnabled
+    op: is_false
+    value: null
+- rule_id: gcp.scc.high_finding
+  for_each: gcp.scc.list_findings
+  severity: MEDIUM
+  conditions:
+    var: item.Severity
+    op: not_equals
+    value: HIGH
+- rule_id: gcp.scc.malware
+  for_each: gcp.scc.list_organization_sources
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.SecurityHealthAnalyticsSettings.Modules[].EnablementState
+      op: contains
+      value: ENABLED
+    - var: item.SecurityHealthAnalyticsSettings.Modules[].ModuleName
+      op: contains
+      value: MALWARE_DETECTION
+- rule_id: gcp.scc.misconfiguration
+  for_each: gcp.scc.list_sources
+  severity: MEDIUM
+  conditions:
+    var: item.OrganizationSettings.EnableAssetDiscovery
+    op: is_true
+    value: null
+- rule_id: gcp.scc.policy_violation
+  for_each: gcp.scc.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.Enabled
+    op: is_true
+    value: null

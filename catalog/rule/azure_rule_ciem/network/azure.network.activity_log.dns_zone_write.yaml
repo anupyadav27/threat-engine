@@ -1,0 +1,72 @@
+rule_id: azure.network.activity_log.dns_zone_write
+service: network
+provider: azure
+check_type: log
+severity: medium
+title: 'Network: DNS Zone Write'
+description: Private DNS zone created or modified — DNS resolution for internal resources changed.
+rationale: DNS-based C2 uses a protocol commonly allowed through firewalls; early detection prevents ongoing command-and-control communication from persisting.
+threat_category: lateral_movement
+mitre_tactics:
+- lateral_movement
+mitre_techniques:
+- T1071.004
+risk_score: 58
+resource: azure_dns
+source: default
+is_active: true
+domain: network_security_and_connectivity
+action_category: create
+log_source_type: activity_log
+posture_category: network_posture
+threat_tags:
+- T1071.004
+- T1071
+- lateral_movement
+- cloud_pivot
+- network_security
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: network_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 5.1
+  - 5.2
+  - 5.3
+  cis_azure_v2:
+  - 6.1
+  - 6.2
+  nist_800_53_r5:
+  - SC-7
+  - AC-4
+  - SI-3
+  pci_dss_v4:
+  - 1.2
+  - 1.3
+  - 7.2
+  iso_27001_2022:
+  - A.8.20
+  - A.8.22
+  - A.5.14
+remediation: |
+  1. Enable DNS query logging and anomaly detection on all resolvers.
+  2. Block known malicious DNS servers via cloud DNS firewall policies.
+  3. Apply recursive DNS restrictions for cloud instances.
+references:
+- https://attack.mitre.org/techniques/T1071/004/
+check_config:
+  conditions:
+    all:
+    - field: operation
+      op: equals
+      value: Microsoft.Network/privateDnsZones/write
+  log_source_type: activity_log
+version: '1.0'

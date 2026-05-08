@@ -39,7 +39,7 @@ class DatabaseSettings(BaseSettings):
     # Shared Database (onboarding uses shared DB)
     shared_host: str = Field(default="host.docker.internal", env="SHARED_DB_HOST")
     shared_port: int = Field(default=5432, env="SHARED_DB_PORT")
-    shared_database: str = Field(default="threat_engine_shared", env="SHARED_DB_NAME")
+    shared_database: str = Field(default="threat_engine_onboarding", env="SHARED_DB_NAME")
     shared_username: str = Field(default="shared_user", env="SHARED_DB_USER")
     shared_password: str = Field(default="shared_password", env="SHARED_DB_PASSWORD")
     
@@ -64,7 +64,7 @@ class DatabaseSettings(BaseSettings):
             return env_settings, init_settings, file_secret_settings
     
     def get_shared_config(self) -> DatabaseConnectionConfig:
-        """Get database configuration. Prefers ONBOARDING_DB_* when set (onboarding DB with scan_orchestration)."""
+        """Get database configuration. Prefers ONBOARDING_DB_* when set (onboarding DB with scan_runs)."""
         import os
         # Prefer onboarding DB env when present (EKS uses ONBOARDING_DB_* for threat_engine_onboarding)
         if os.getenv("ONBOARDING_DB_HOST"):

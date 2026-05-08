@@ -1,0 +1,14 @@
+version: '1.0'
+rule_id: aws.iam.user.mfa_enabled_console_access
+for_each: aws.iam.get_account_authorization_details
+severity: MEDIUM
+conditions:
+  all:
+  - var: item.UserDetailList[].UserName
+    op: exists
+  - any:
+    - var: item.UserDetailList[].PasswordLastUsed
+      op: not_exists
+    - all:
+      - var: item.UserDetailList[].MFADevices
+        op: not_empty

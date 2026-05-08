@@ -1,0 +1,29 @@
+version: '1.0'
+provider: azure
+service: subscription
+checks:
+# ═══════════════════════════════════════════
+# Subscriptions — azure.subscription.subscriptions.list
+# Fields: id, tenant_id
+# ═══════════════════════════════════════════
+- rule_id: azure.subscription.tenant_id_present
+  for_each: azure.subscription.subscriptions.list
+  conditions:
+    var: item.tenant_id
+    op: not_empty
+
+# ═══════════════════════════════════════════
+# Subscription Policies — azure.subscription.subscriptionpolicy.list_policy_for_tenant
+# Fields: id, name, type, properties, system_data
+# ═══════════════════════════════════════════
+- rule_id: azure.subscription.policy.properties_configured
+  for_each: azure.subscription.subscriptionpolicy.list_policy_for_tenant
+  conditions:
+    var: item.properties
+    op: not_empty
+
+- rule_id: azure.subscription.policy.system_data_present
+  for_each: azure.subscription.subscriptionpolicy.list_policy_for_tenant
+  conditions:
+    var: item.system_data
+    op: not_empty

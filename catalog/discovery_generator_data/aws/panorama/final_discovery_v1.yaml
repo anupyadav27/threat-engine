@@ -1,0 +1,39 @@
+# ==========================================================
+# Discovery YAML — panorama (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 1 | ops: 0 independent, 1 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: panorama
+
+services:
+  client: panorama
+  module: "boto3.client('panorama')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  []
+
+checks: []
+
+discovery:
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.panorama.describe_package_import_job [dependent] ──
+  - discovery_id: aws.panorama.describe_package_import_job
+    for_each: aws.panorama.list_devices_jobs
+    calls:
+      - action: describe_package_import_job
+        params:
+          JobId: "{{ item.JobId }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.JobTags }}'
+      item:
+        Output: '{{ item.Output }}'
+        ResourceType: '{{ item.ResourceType }}'
+        Tags: '{{ item.Tags }}'
+

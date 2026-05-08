@@ -1,0 +1,31 @@
+# Auto-generated check rule stub for gcp.cloudaudit.chain.replay_behavior
+# Source: generate_check_rules_for_stubs.py
+# Category: chain_ciem
+# TODO: Review and update conditions to match actual resource fields
+version: '1.0'
+provider: gcp
+service: cloudaudit
+checks:
+- rule_id: gcp.cloudaudit.chain.replay_behavior
+  check_type: log_correlation
+  severity: HIGH
+  description: Detect replay behavior via cloud_audit event correlation
+  conditions:
+    all:
+    - op: equals
+      field: source_type
+      value: cloud_audit
+    - op: equals
+      field: outcome
+      value: SUCCESS
+  sequence:
+  - event: initial
+    conditions:
+    - op: equals
+      field: source_type
+      value: cloud_audit
+  - event: followup
+    conditions:
+    - op: equals
+      field: actor.principal
+      value: '{{initial.actor.principal}}'

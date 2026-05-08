@@ -1,0 +1,80 @@
+version: '1.0'
+provider: gcp
+service: ciem
+discovery:
+- discovery_id: gcp.ciem.correlation.data_exfiltration_chain
+  calls:
+  - action: client.correlations.data_exfiltration(**params)
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      id: '{{ item.id }}'
+      sourceIdentity: '{{ item.sourceIdentity }}'
+      targetResource: '{{ item.targetResource }}'
+      steps: '{{ item.steps }}'
+      riskScore: '{{ item.riskScore }}'
+      detectedAt: '{{ item.detectedAt }}'
+- discovery_id: gcp.ciem.list_correlated_events
+  calls:
+  - action: client.events.list_correlated(**params)
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      id: '{{ item.id }}'
+      eventType: '{{ item.eventType }}'
+      source: '{{ item.source }}'
+      target: '{{ item.target }}'
+      timestamp: '{{ item.timestamp }}'
+      riskScore: '{{ item.riskScore }}'
+      correlationId: '{{ item.correlationId }}'
+- discovery_id: gcp.ciem.list_correlated_identities
+  calls:
+  - action: client.identities.list_correlated(**params)
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      id: '{{ item.id }}'
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      correlatedIdentities: '{{ item.correlatedIdentities }}'
+      riskScore: '{{ item.riskScore }}'
+      permissions: '{{ item.permissions }}'
+- discovery_id: gcp.ciem.list_identities
+  calls:
+  - action: client.identities.list(**params)
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      id: '{{ item.id }}'
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      permissions: '{{ item.permissions }}'
+      riskScore: '{{ item.riskScore }}'
+      unusedPermissions: '{{ item.unusedPermissions }}'
+      serviceAccounts: '{{ item.serviceAccounts }}'
+- discovery_id: gcp.ciem.list_privilege_escalation_chains
+  calls:
+  - action: client.correlations.privilege_escalation(**params)
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      id: '{{ item.id }}'
+      sourceIdentity: '{{ item.sourceIdentity }}'
+      escalationPath: '{{ item.escalationPath }}'
+      riskScore: '{{ item.riskScore }}'
+      detectedAt: '{{ item.detectedAt }}'

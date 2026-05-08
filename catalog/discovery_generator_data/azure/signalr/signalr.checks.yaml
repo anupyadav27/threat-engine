@@ -1,0 +1,81 @@
+version: '1.0'
+provider: azure
+service: signalr
+checks:
+# ═══════════════════════════════════════════
+# SignalR Service — azure.signalr.signalr.list_by_subscription
+# Fields: id, name, type, location, tags, sku, kind, identity, provisioning_state,
+#         public_network_access, cors, disable_aad_auth, disable_local_auth,
+#         external_ip, features, host_name, live_trace_configuration, network_ac_ls,
+#         private_endpoint_connections, public_port, resource_log_configuration,
+#         server_port, serverless, shared_private_link_resources, tls, upstream, version
+# ═══════════════════════════════════════════
+- rule_id: azure.signalr.service.public_network_access_disabled
+  for_each: azure.signalr.signalr.list_by_subscription
+  conditions:
+    var: item.public_network_access
+    op: equals
+    value: Disabled
+
+- rule_id: azure.signalr.service.local_auth_disabled
+  for_each: azure.signalr.signalr.list_by_subscription
+  conditions:
+    var: item.disable_local_auth
+    op: equals
+    value: 'true'
+
+- rule_id: azure.signalr.service.aad_auth_enabled
+  for_each: azure.signalr.signalr.list_by_subscription
+  conditions:
+    var: item.disable_aad_auth
+    op: equals
+    value: 'false'
+
+- rule_id: azure.signalr.service.private_endpoints_configured
+  for_each: azure.signalr.signalr.list_by_subscription
+  conditions:
+    var: item.private_endpoint_connections
+    op: not_empty
+
+- rule_id: azure.signalr.service.tls_configured
+  for_each: azure.signalr.signalr.list_by_subscription
+  conditions:
+    var: item.tls
+    op: not_empty
+
+- rule_id: azure.signalr.service.network_acls_configured
+  for_each: azure.signalr.signalr.list_by_subscription
+  conditions:
+    var: item.network_ac_ls
+    op: not_empty
+
+- rule_id: azure.signalr.service.managed_identity_enabled
+  for_each: azure.signalr.signalr.list_by_subscription
+  conditions:
+    var: item.identity
+    op: not_empty
+
+- rule_id: azure.signalr.service.cors_configured
+  for_each: azure.signalr.signalr.list_by_subscription
+  conditions:
+    var: item.cors
+    op: not_empty
+
+- rule_id: azure.signalr.service.resource_log_configured
+  for_each: azure.signalr.signalr.list_by_subscription
+  conditions:
+    var: item.resource_log_configuration
+    op: not_empty
+
+- rule_id: azure.signalr.service.provisioning_succeeded
+  for_each: azure.signalr.signalr.list_by_subscription
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.signalr.service.tags_configured
+  for_each: azure.signalr.signalr.list_by_subscription
+  conditions:
+    var: item.tags
+    op: not_empty

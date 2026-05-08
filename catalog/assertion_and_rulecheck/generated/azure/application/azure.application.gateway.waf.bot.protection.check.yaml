@@ -1,0 +1,35 @@
+version: '1.0'
+rule_id: azure.application.gateway.waf.bot.protection.check
+for_each: azure.application_gateway.list_application_gateways
+severity: MEDIUM
+conditions:
+  all:
+  - var: item.properties.webApplicationFirewallConfiguration.enabled
+    op: is_true
+  - var: item.properties.webApplicationFirewallConfiguration.firewallMode
+    op: equals
+    value: Prevention
+  - var: item.properties.webApplicationFirewallConfiguration.ruleSetType
+    op: equals
+    value: OWASP
+  - var: item.properties.webApplicationFirewallConfiguration.ruleSetVersion
+    op: gte
+    value: '3.0'
+  - var: item.properties.webApplicationFirewallConfiguration.disabledRuleGroups[].ruleGroupName
+    op: not_contains
+    value: REQUEST-911-METHOD-ENFORCEMENT
+  - var: item.properties.webApplicationFirewallConfiguration.disabledRuleGroups[].ruleGroupName
+    op: not_contains
+    value: REQUEST-912-DOS-PROTECTION
+  - var: item.properties.webApplicationFirewallConfiguration.disabledRuleGroups[].ruleGroupName
+    op: not_contains
+    value: REQUEST-913-SCANNER-DETECTION
+  - var: item.properties.webApplicationFirewallConfiguration.disabledRuleGroups[].ruleGroupName
+    op: not_contains
+    value: REQUEST-920-PROTOCOL-ENFORCEMENT
+  - var: item.properties.webApplicationFirewallConfiguration.disabledRuleGroups[].ruleGroupName
+    op: not_contains
+    value: REQUEST-942-APPLICATION-ATTACK-SQLI
+  - var: item.properties.webApplicationFirewallConfiguration.disabledRuleGroups[].ruleGroupName
+    op: not_contains
+    value: REQUEST-943-APPLICATION-ATTACK-SESSION-FIXATION

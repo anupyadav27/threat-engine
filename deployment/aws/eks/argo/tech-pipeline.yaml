@@ -1,0 +1,176 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: tech-scan-pipeline
+  namespace: argo
+spec:
+  entrypoint: tech-scan
+  serviceAccountName: argo-workflow-sa
+  arguments:
+    parameters:
+      - name: scan-run-id
+      - name: account-id
+      - name: tenant-id
+
+  templates:
+    # ── Entry: sequential pipeline ────────────────────────────────────────────
+    - name: tech-scan
+      dag:
+        tasks:
+          - name: tech-discovery
+            template: run-tech-discovery
+            arguments:
+              parameters:
+                - name: scan-run-id
+                  value: "{{workflow.parameters.scan-run-id}}"
+                - name: account-id
+                  value: "{{workflow.parameters.account-id}}"
+
+          - name: tech-inventory
+            template: run-tech-inventory
+            dependencies: [tech-discovery]
+            arguments:
+              parameters:
+                - name: scan-run-id
+                  value: "{{workflow.parameters.scan-run-id}}"
+                - name: account-id
+                  value: "{{workflow.parameters.account-id}}"
+
+          - name: tech-check
+            template: run-tech-check
+            dependencies: [tech-inventory]
+            arguments:
+              parameters:
+                - name: scan-run-id
+                  value: "{{workflow.parameters.scan-run-id}}"
+                - name: account-id
+                  value: "{{workflow.parameters.account-id}}"
+
+          - name: tech-ciem
+            template: run-tech-ciem
+            dependencies: [tech-inventory]   # runs in parallel with tech-check
+            arguments:
+              parameters:
+                - name: scan-run-id
+                  value: "{{workflow.parameters.scan-run-id}}"
+                - name: account-id
+                  value: "{{workflow.parameters.account-id}}"
+
+    # ── Step templates ─────────────────────────────────────────────────────────
+    - name: run-tech-discovery
+      inputs:
+        parameters:
+          - name: scan-run-id
+          - name: account-id
+      container:
+        image: yadavanup84/engine-tech-discovery:v-tech-disc-v1
+        command: [python, run_scan.py]
+        args:
+          - --scan-run-id
+          - "{{inputs.parameters.scan-run-id}}"
+          - --account-id
+          - "{{inputs.parameters.account-id}}"
+        envFrom:
+          - configMapRef:
+              name: threat-engine-db-config
+        env:
+          - name: TECH_DB_NAME
+            value: threat_engine_tech
+        resources:
+          requests: {cpu: 250m, memory: 256Mi}
+          limits:   {cpu: 1000m, memory: 1Gi}
+        activeDeadlineSeconds: 600
+      tolerations:
+        - key: spot-scanner
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+
+    - name: run-tech-inventory
+      inputs:
+        parameters:
+          - name: scan-run-id
+          - name: account-id
+      container:
+        image: yadavanup84/engine-tech-inventory:v-tech-inv-v1
+        command: [python, run_normalize.py]
+        args:
+          - --scan-run-id
+          - "{{inputs.parameters.scan-run-id}}"
+          - --account-id
+          - "{{inputs.parameters.account-id}}"
+        envFrom:
+          - configMapRef:
+              name: threat-engine-db-config
+        env:
+          - name: TECH_DB_NAME
+            value: threat_engine_tech
+        resources:
+          requests: {cpu: 250m, memory: 256Mi}
+          limits:   {cpu: 1000m, memory: 1Gi}
+        activeDeadlineSeconds: 300
+      tolerations:
+        - key: spot-scanner
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+
+    - name: run-tech-check
+      inputs:
+        parameters:
+          - name: scan-run-id
+          - name: account-id
+      container:
+        image: yadavanup84/engine-tech-check:v-tech-check-v1
+        command: [python, run_check.py]
+        args:
+          - --scan-run-id
+          - "{{inputs.parameters.scan-run-id}}"
+          - --account-id
+          - "{{inputs.parameters.account-id}}"
+        envFrom:
+          - configMapRef:
+              name: threat-engine-db-config
+        env:
+          - name: TECH_DB_NAME
+            value: threat_engine_tech
+        resources:
+          requests: {cpu: 250m, memory: 256Mi}
+          limits:   {cpu: 1000m, memory: 1Gi}
+        activeDeadlineSeconds: 300
+      tolerations:
+        - key: spot-scanner
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+
+    - name: run-tech-ciem
+      inputs:
+        parameters:
+          - name: scan-run-id
+          - name: account-id
+      container:
+        image: yadavanup84/engine-tech-ciem:v-tech-ciem-v1
+        command: [python, run_ciem.py]
+        args:
+          - --scan-run-id
+          - "{{inputs.parameters.scan-run-id}}"
+          - --account-id
+          - "{{inputs.parameters.account-id}}"
+        envFrom:
+          - configMapRef:
+              name: threat-engine-db-config
+        env:
+          - name: TECH_DB_NAME
+            value: threat_engine_tech
+          - name: CIEM_LOOKBACK_HOURS
+            value: "24"
+        resources:
+          requests: {cpu: 250m, memory: 256Mi}
+          limits:   {cpu: 1000m, memory: 1Gi}
+        activeDeadlineSeconds: 300
+      tolerations:
+        - key: spot-scanner
+          operator: Equal
+          value: "true"
+          effect: NoSchedule

@@ -1,0 +1,180 @@
+version: '1.0'
+provider: aws
+service: docdb
+checks:
+- rule_id: aws.docdb.cluster.audit_logging_enabled
+  for_each: aws.docdb.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.EnabledCloudwatchLogsExports
+    op: not_empty
+    value: null
+- rule_id: aws.docdb.cluster.audit_logging_to_cloudwatch_enabled
+  for_each: aws.docdb.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.EnabledCloudwatchLogsExports
+    op: not_empty
+    value: null
+- rule_id: aws.docdb.cluster.backup_retention_period_configured
+  for_each: aws.docdb.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.BackupRetentionPeriod
+    op: gt
+    value: 0
+- rule_id: aws.docdb.cluster.deletion_protection_enabled
+  for_each: aws.docdb.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.DeletionProtection
+    op: is_true
+    value: null
+- rule_id: aws.docdb.cluster.docdb_cloudwatch_log_export_configured
+  for_each: aws.docdb.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.EnabledCloudwatchLogsExports
+    op: not_empty
+    value: null
+- rule_id: aws.docdb.cluster.docdb_engine_version_configured
+  for_each: aws.docdb.describe_db_clusters
+  severity: LOW
+  conditions:
+    var: item.EngineVersion
+    op: exists
+    value: null
+- rule_id: aws.docdb.cluster.docdb_minor_version_auto_upgrade_enabled
+  for_each: aws.docdb.describe_db_clusters
+  severity: LOW
+  conditions:
+    var: item.AutoMinorVersionUpgrade
+    op: is_true
+    value: null
+- rule_id: aws.docdb.cluster.docdb_multi_az_enabled
+  for_each: aws.docdb.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.MultiAZ
+    op: is_true
+    value: null
+- rule_id: aws.docdb.cluster.docdb_storage_encrypted
+  for_each: aws.docdb.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.StorageEncrypted
+    op: is_true
+    value: null
+- rule_id: aws.docdb.cluster.encryption_at_rest_cmek_configured
+  for_each: aws.docdb.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.DBClusters[].KmsKeyId
+    op: exists
+    value: null
+- rule_id: aws.docdb.cluster.encryption_at_rest_enabled
+  for_each: aws.docdb.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.KmsKeyId
+    op: exists
+    value: null
+- rule_id: aws.docdb.cluster.encryption_in_transit_enabled
+  for_each: aws.docdb.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.StorageEncrypted
+    op: is_true
+    value: null
+- rule_id: aws.docdb.cluster.iam_authentication_enabled
+  for_each: aws.docdb.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.IAMDatabaseAuthenticationEnabled
+    op: is_true
+    value: null
+- rule_id: aws.docdb.cluster.iam_or_managed_identity_auth_enabled_if_supported
+  for_each: aws.docdb.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.AssociatedRoles
+    op: not_empty
+    value: null
+- rule_id: aws.docdb.cluster.monitoring_and_alerting_configured
+  for_each: aws.docdb.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.EnabledCloudwatchLogsExports
+    op: not_empty
+    value: null
+- rule_id: aws.docdb.cluster.preferred_backup_window_configured
+  for_each: aws.docdb.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.PreferredBackupWindow
+    op: exists
+    value: null
+- rule_id: aws.docdb.cluster.private_networking_enforced
+  for_each: aws.docdb.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.DBSubnetGroup
+    op: exists
+    value: null
+- rule_id: aws.docdb.cluster.public_access_disabled
+  for_each: aws.docdb.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.PubliclyAccessible
+    op: is_false
+    value: null
+- rule_id: aws.docdb.cluster.require_tls_in_transit_configured
+  for_each: aws.docdb.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.DBClusters[].TransportEncryption
+    op: is_true
+    value: null
+- rule_id: aws.docdb.instance.deletion_protection_enabled
+  for_each: aws.docdb.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.DeletionProtection
+    op: is_true
+    value: null
+- rule_id: aws.docdb.instance.encryption_at_rest_enabled
+  for_each: aws.docdb.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.KmsKeyId
+    op: exists
+    value: null
+- rule_id: aws.docdb.instance.iam_or_managed_identity_auth_enabled_if_supported
+  for_each: aws.docdb.describe_db_clusters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.AssociatedRoles
+      op: not_empty
+      value: null
+- rule_id: aws.docdb.instance.public_access_disabled
+  for_each: aws.docdb.describe_db_instances
+  severity: HIGH
+  conditions:
+    var: item.PubliclyAccessible
+    op: is_false
+    value: null
+- rule_id: aws.docdb.instance.require_tls_in_transit_configured
+  for_each: aws.docdb.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.DBClusters[].StorageEncrypted
+    op: is_true
+    value: null
+- rule_id: aws.docdb.resource.vpc_security_configuration_configured
+  for_each: aws.docdb.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.VpcSecurityGroups
+    op: not_empty
+    value: null

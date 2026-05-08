@@ -1,0 +1,24 @@
+version: '1.0'
+provider: {{ category }}
+engine: {{ tech }}
+category: {{ section_slug }}
+cis_section: '{{ section }}'
+description: >
+  {{ tech }} CIS Section {{ section }} — {{ description }}
+
+discovery:
+{% for row in rows %}
+  - discovery_id: {{ row._discovery_id }}
+    description: {{ row.title | replace('"', "'") }}
+    calls:
+      - action: query_table
+        query: "{{ row._snowflake_query }}"
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ '{{' }} rows {{ '}}' }}"
+      item:
+        check: {{ row._check_slug }}
+        value: "{{ '{{' }} item.value {{ '}}' }}"
+        expected: "{{ row._expected_value }}"
+{% endfor %}

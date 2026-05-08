@@ -1,0 +1,452 @@
+version: '1.0'
+provider: virtualization
+engine: vmware_esxi
+category: section_8
+cis_section: '8'
+description: >
+  vmware_esxi CIS Section 8 — (L2) Ensure only one remote console connection is permitted to a VM at any time
+
+discovery:
+
+  - discovery_id: vmware_esxi.section_8.l2_ensure_only_one_remote_console_connection_is
+    description: (L2) Ensure only one remote console connection is permitted to a VM at any time
+    calls:
+      - action: run_command
+        command: "To verify that only one remote console session is permitted at a time, confirm that RemoteDisplay.maxConnections is set to 1. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that RemoteDisplay.maxConnections is set to 1. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027RemoteDisplay.maxConnections\u0027 | Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l2_ensure_only_one_remote_console_connection_is
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l1_ensure_unnecessary_floppy_devices_are
+    description: (L1) Ensure unnecessary floppy devices are disconnected
+    calls:
+      - action: run_command
+        command: "To verify floppy drives are not connected, confirm that the following parameter is either NOT present or is set to FALSE: floppyX.present Alternately, the following PowerCLI command may be used: # Check for Floppy Devices attached to VMs Get-VM | Get-FloppyDrive | Select Parent, Name, ConnectionState"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_ensure_unnecessary_floppy_devices_are
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l2_ensure_unnecessary_cd_dvd_devices_are
+    description: (L2) Ensure unnecessary CD/DVD devices are disconnected
+    calls:
+      - action: run_command
+        command: "To verify CD/DVD drives are not connected, confirm that the following parameter is either NOT present or is set to FALSE: ideX:Y.present Alternately, the following PowerCLI command may be used: # Check for CD/DVD Drives attached to VMs Get-VM | Get-CDDrive"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l2_ensure_unnecessary_cd_dvd_devices_are
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l1_ensure_unnecessary_parallel_ports_are
+    description: (L1) Ensure unnecessary parallel ports are disconnected
+    calls:
+      - action: run_command
+        command: "To verify parallel ports are not connected, confirm that the following parameter is either NOT present or is set to FALSE: parallelX.present Alternately, the following PowerCLI command may be used: # In this Example you will need to add the functions from this post: http://blogs.vmware.com/vipowershell/2012/05/working-with-vm-devices-in- powercli.html # Check for Parallel ports attached to VMs Get-VM | Get-ParallelPort"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_ensure_unnecessary_parallel_ports_are
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l1_ensure_unnecessary_serial_ports_are
+    description: (L1) Ensure unnecessary serial ports are disconnected
+    calls:
+      - action: run_command
+        command: "To verify serial ports are not connected, confirm that the following parameter is either NOT present or is set to FALSE: serialX.present The following PowerCLI command may be used: # In this Example you will need to add the functions from this post: http://blogs.vmware.com/vipowershell/2012/05/working-with-vm-devices-in- powercli.html # Check for Serial ports attached to VMs Get-VM | Get-SerialPort"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_ensure_unnecessary_serial_ports_are
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l1_ensure_unnecessary_usb_devices_are_disconnected
+    description: (L1) Ensure unnecessary USB devices are disconnected
+    calls:
+      - action: run_command
+        command: "To verify USB devices are not connected, confirm that the following parameter is either NOT present or is set to FALSE: usb.present Alternately, the following PowerCLI command may be used: # Check for USB Devices attached to VMs Get-VM | Get-USBDevice"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_ensure_unnecessary_usb_devices_are_disconnected
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l1_ensure_pci_and_pcie_device_passthrough_is
+    description: (L1) Ensure PCI and PCIe device passthrough is disabled
+    calls:
+      - action: run_command
+        command: "The following PowerCLI command can be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027pciPassthru*.present\u0027 | Select Entity, Name, Value ``"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_ensure_pci_and_pcie_device_passthrough_is
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l2_ensure_bios_bbs_is_disabled
+    description: (L2) Ensure BIOS BBS is disabled
+    calls:
+      - action: run_command
+        command: "To verify that BIOS BBS is disabled if not needed, utilize the vSphere interface as follows: 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that isolation.bios.bbs.disable is set to TRUE. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027isolation.bios.bbs.disable\u0027| Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l2_ensure_bios_bbs_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l2_ensure_guest_host_interaction_protocol_handler
+    description: (L2) Ensure Guest Host Interaction Protocol Handler is set to disabled
+    calls:
+      - action: run_command
+        command: "To verify that Guest Host Interaction Protocol Handle is disabled if not needed, verify that isolation.tools.ghi.protocolhandler.info.disable is set to TRUE. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that isolation.tools.ghi.protocolhandler.info.disable is set to TRUE. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027isolation.tools.ghi.protocolhandler.info.disable\u0027 | Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l2_ensure_guest_host_interaction_protocol_handler
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l2_ensure_unity_taskbar_is_disabled
+    description: (L2) Ensure Unity Taskbar is disabled
+    calls:
+      - action: run_command
+        command: "To verify that the Unity Taskbar feature is disabled if not needed, verify that isolation.tools.unity.taskbar.disable is set to TRUE. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that isolation.tools.unity.taskbar.disable is set to TRUE. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027isolation.tools.unity.taskbar.disable\u0027 | Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l2_ensure_unity_taskbar_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l2_ensure_unity_active_is_disabled
+    description: (L2) Ensure Unity Active is disabled
+    calls:
+      - action: run_command
+        command: "To verify that the Unity Active feature is disabled if not needed verify that isolation.tools.unityActive.disable is set to TRUE. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that isolation.tools.unityActive.disable is set to TRUE. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027isolation.tools.unityActive.disable\u0027 | Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l2_ensure_unity_active_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l2_ensure_unity_window_contents_is_disabled
+    description: (L2) Ensure Unity Window Contents is disabled
+    calls:
+      - action: run_command
+        command: "To verify that the Unity Window Contents feature is disabled if not needed, verify that isolation.tools.unity.windowContents.disable is set to TRUE. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that isolation.tools.unity.windowContents.disable is set to TRUE. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027isolation.tools.unity.windowContents.disable\u0027 | Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l2_ensure_unity_window_contents_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l2_ensure_unity_push_update_is_disabled
+    description: (L2) Ensure Unity Push Update is disabled
+    calls:
+      - action: run_command
+        command: "To verify that the Unity Push Update feature is disabled if not needed, verify that isolation.tools.unity.push.update.disable is set to TRUE. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that isolation.tools.unity.push.update.disable is set to TRUE. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027isolation.tools.unity.push.update.disable\u0027 | Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l2_ensure_unity_push_update_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l2_ensure_drag_and_drop_version_get_is_disabled
+    description: (L2) Ensure Drag and Drop Version Get is disabled
+    calls:
+      - action: run_command
+        command: "To verify that the Drag and Drop Version Get feature is disabled if not needed, verify that isolation.tools.vmxDnDVersionGet.disable is set to TRUE. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that isolation.tools.vmxDnDVersionGet.disable is set to TRUE. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027isolation.tools.vmxDnDVersionGet.disable\u0027| Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l2_ensure_drag_and_drop_version_get_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l2_ensure_drag_and_drop_version_set_is_disabled
+    description: (L2) Ensure Drag and Drop Version Set is disabled
+    calls:
+      - action: run_command
+        command: "To verify that the Drag and Drop Version Set feature is disabled if not needed, verify that isolation.tools.guestDnDVersionSet.disable is set to TRUE. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that isolation.tools.guestDnDVersionSet.disable is set to TRUE. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027isolation.tools.guestDnDVersionSet.disable\u0027| Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l2_ensure_drag_and_drop_version_set_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l2_ensure_shell_action_is_disabled
+    description: (L2) Ensure Shell Action is disabled
+    calls:
+      - action: run_command
+        command: "To verify that the Shell Action feature is disabled if not needed, verify that isolation.ghi.host.shellAction.disable is set to TRUE. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that isolation.ghi.host.shellAction.disable is set to TRUE. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027isolation.ghi.host.shellAction.disable\u0027 | Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l2_ensure_shell_action_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l2_ensure_request_disk_topology_is_disabled
+    description: (L2) Ensure Request Disk Topology is disabled
+    calls:
+      - action: run_command
+        command: "To verify that the Request Disk Topology feature is disabled if not needed, verify that isolation.tools.dispTopoRequest.disable is set to TRUE. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that isolation.tools.dispTopoRequest.disable is set to TRUE. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027isolation.tools.dispTopoRequest.disable\u0027| Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l2_ensure_request_disk_topology_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l2_ensure_trash_folder_state_is_disabled
+    description: (L2) Ensure Trash Folder State is disabled
+    calls:
+      - action: run_command
+        command: "To verify that the Trash Folder State feature is disabled if not needed, verify that isolation.tools.trashFolderState.disable is set to TRUE. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that isolation.tools.trashFolderState.disable is set to TRUE. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027isolation.tools.trashFolderState.disable\u0027| Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l2_ensure_trash_folder_state_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l2_ensure_guest_host_interaction_tray_icon_is
+    description: (L2) Ensure Guest Host Interaction Tray Icon is disabled
+    calls:
+      - action: run_command
+        command: "To verify that the Guest Host Interaction Tray Icon feature is disabled if not needed, verify that isolation.tools.ghi.trayicon.disable is set to TRUE. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that isolation.tools.ghi.trayicon.disable is set to TRUE. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027isolation.tools.ghi.trayicon.disable\u0027| Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l2_ensure_guest_host_interaction_tray_icon_is
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l2_ensure_unity_is_disabled
+    description: (L2) Ensure Unity is disabled
+    calls:
+      - action: run_command
+        command: "To verify that the Unity feature is disabled if not needed, verify that isolation.tools.unity.disable is set to TRUE. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that isolation.tools.unity.disable is set to TRUE. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027isolation.tools.unity.disable\u0027| Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l2_ensure_unity_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l2_ensure_unity_interlock_is_disabled
+    description: (L2) Ensure Unity Interlock is disabled
+    calls:
+      - action: run_command
+        command: "To verify that the Unity Interlock feature is disabled if not needed, verify that isolation.tools.unityInterlockOperation.disable is set to TRUE. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that isolation.tools.unityInterlockOperation.disable is set to TRUE. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027isolation.tools.unityInterlockOperation.disable\u0027| Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l2_ensure_unity_interlock_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l2_ensure_getcreds_is_disabled
+    description: (L2) Ensure GetCreds is disabled
+    calls:
+      - action: run_command
+        command: "To verify that the GetCreds feature is disabled if not needed, verify that isolation.tools.getCreds.disable is set to TRUE. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that isolation.tools.getCreds.disable is set to TRUE. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027isolation.tools.getCreds.disable\u0027| Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l2_ensure_getcreds_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l2_ensure_host_guest_file_system_server_is
+    description: (L2) Ensure Host Guest File System Server is disabled
+    calls:
+      - action: run_command
+        command: "To verify that the Host Guest File System Server is disabled if not needed, verify that isolation.tools.hgfsServerSet.disable is set to TRUE. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that isolation.tools.hgfsServerSet.disable is set to TRUE. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027isolation.tools.hgfsServerSet.disable\u0027| Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l2_ensure_host_guest_file_system_server_is
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l2_ensure_guest_host_interaction_launch_menu_is
+    description: (L2) Ensure Guest Host Interaction Launch Menu is disabled
+    calls:
+      - action: run_command
+        command: "To verify that the Guest Host Interaction Launch Menu feature is disabled if not needed, verify that isolation.tools.ghi.launchmenu.change is set to TRUE. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that isolation.tools.ghi.launchmenu.change is set to TRUE. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027isolation.tools.ghi.launchmenu.change\u0027 | Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l2_ensure_guest_host_interaction_launch_menu_is
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l2_ensure_memschedfakesamplestats_is_disabled
+    description: (L2) Ensure memSchedFakeSampleStats is disabled
+    calls:
+      - action: run_command
+        command: "To verify that the memSchedFakeSampleStats feature is disabled if not needed, verify that isolation.tools.memSchedFakeSampleStats.disable is set to TRUE. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that isolation.tools.memSchedFakeSampleStats.disable is set to TRUE. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027isolation.tools.memSchedFakeSampleStats.disable\u0027 | Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l2_ensure_memschedfakesamplestats_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l1_ensure_vm_console_copy_operations_are_disabled
+    description: (L1) Ensure VM Console Copy operations are disabled
+    calls:
+      - action: run_command
+        command: "To verify that VM console copy operations are disabled, verify that the isolation.tools.copy.disable option is missing or set to TRUE. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that isolation.tools.copy.disable is set to TRUE or missing. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027isolation.tools.copy.disable\u0027 | Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_ensure_vm_console_copy_operations_are_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l1_ensure_vm_console_drag_and_drop_operations_is
+    description: (L1) Ensure VM Console Drag and Drop operations is disabled
+    calls:
+      - action: run_command
+        command: "To verify that VM console drag and drop operations are disabled, verify that isolation.tools.dnd.disable is missing or set to TRUE. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that isolation.tools.dnd.disable is set to TRUE or missing. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027isolation.tools.dnd.disable\u0027 | Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_ensure_vm_console_drag_and_drop_operations_is
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l1_ensure_vm_console_gui_options_is_disabled
+    description: (L1) Ensure VM Console GUI Options is disabled
+    calls:
+      - action: run_command
+        command: "To verify that VM console and paste GUI options are disabled, verify that isolation.tools.setGUIOptions.enable option is missing or set to FALSE. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that isolation.tools.setGUIOptions.enable is set to FALSE or missing. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027isolation.tools.setGUIOptions.enable\u0027| Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_ensure_vm_console_gui_options_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l1_ensure_vm_console_paste_operations_are_disabled
+    description: (L1) Ensure VM Console Paste operations are disabled
+    calls:
+      - action: run_command
+        command: "To verify that VM console paste operations are disabled, verify that isolation.tools.paste.disable is missing or set to TRUE. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that isolation.tools.paste.disable is set to TRUE or missing. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027isolation.tools.paste.disable\u0027| Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_ensure_vm_console_paste_operations_are_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l2_ensure_nonpersistent_disks_are_limited
+    description: (L2) Ensure nonpersistent disks are limited
+    calls:
+      - action: run_command
+        command: "To verify nonpersistent mode use is limited, review VM disk types to confirm that nonpersistent mode is only used when the loss of all stored data is not a concern. For all disks where nonpersistent mode is not to be used, scsiX:Y.mode should either be absent or be set to a value other than independent nonpersistent. Alternately, the following PowerCLI command may be used to review the disk types: #List the VM\u0027s and their disk types Get-VM | Get-HardDisk | Select Parent, Name, Filename, DiskType, Persistence"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l2_ensure_nonpersistent_disks_are_limited
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l1_ensure_virtual_disk_shrinking_is_disabled
+    description: (L1) Ensure virtual disk shrinking is disabled
+    calls:
+      - action: run_command
+        command: "Verify that isolation.tools.diskShrink.disable is set to TRUE. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that isolation.tools.diskShrink.disable is set to TRUE. Additionally, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027isolation.tools.diskShrink.disable\u0027| Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_ensure_virtual_disk_shrinking_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l1_ensure_the_number_of_vm_log_files_is
+    description: (L1) Ensure the number of VM log files is configured properly
+    calls:
+      - action: run_command
+        command: "To verify that log files will be created more frequently, verify that log.keepOld is set to 10. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that log.keepOld is set to 10. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027log.keepOld\u0027| Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_ensure_the_number_of_vm_log_files_is
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l2_ensure_host_information_is_not_sent_to_guests
+    description: (L2) Ensure host information is not sent to guests
+    calls:
+      - action: run_command
+        command: "To verify host information is not sent to guests, verify that tools.guestlib.enableHostInfo is set to FALSE. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that tools.guestlib.enableHostInfo is set to FALSE. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027tools.guestlib.enableHostInfo\u0027| Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l2_ensure_host_information_is_not_sent_to_guests
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_8.l1_ensure_vm_log_file_size_is_limited
+    description: (L1) Ensure VM log file size is limited
+    calls:
+      - action: run_command
+        command: "To verify the maximum log file size is limited properly, verify that log.rotateSize is set to 1024000. 1. Select the VM then select Actions followed by Edit Settings. 2. Click on the VM Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Verify that log.rotateSize is set to 1024000. Alternately, the following PowerCLI command may be used: # List the VMs and their current settings Get-VM | Get-AdvancedSetting -Name \u0027log.rotateSize\u0027| Select Entity, Name, Value"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_ensure_vm_log_file_size_is_limited
+        value: "{{ result.stdout }}"
+        expected: ""
+

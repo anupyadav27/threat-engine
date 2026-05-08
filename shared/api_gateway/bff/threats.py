@@ -11,14 +11,18 @@ and Analytics pages into a single comprehensive view.
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, List
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
+from ._auth import resolve_tenant_id
 from ._shared import fetch_many, safe_get
+from ._cache import cache_key, cached_view, TTL_THREATS, auth_level_from_header
 from ._transforms import (
     normalize_threat, normalize_attack_chain, normalize_intel,
     build_mitre_matrix, build_mitre_matrix_from_raw,
     severity_chart, apply_global_filters, _safe_upper,
 )
+from ._page_context import threats_page_context, threats_filter_schema
+from ._common_schemas import ThreatsViewResponse
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
@@ -34,15 +38,25 @@ def _enrich_threats_provider(threats, account_provider_map, default_provider="")
             t["provider"] = default_provider
 
 
-@router.get("/threats")
+@router.get("/threats", response_model=ThreatsViewResponse, response_model_exclude_none=False)
 async def view_threats(
-    tenant_id: str = Query(...),
+    request: Request,
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
     scan_run_id: str = Query("latest"),
 ):
     """BFF view for /threats page — detection-level data."""
+
+    tenant_id = resolve_tenant_id(request)
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+    role_level = auth_level_from_header(auth_ctx_header)
+
+    ck = cache_key("threats", tenant_id, scan_run_id, provider or "", account or "", region or "", role_level=role_level)
+    cached = cached_view(ck)
+    if cached is not None:
+        return cached
 
     results = await fetch_many([
         ("threat", "/api/v1/threat/ui-data", {
@@ -54,7 +68,7 @@ async def view_threats(
         ("onboarding", "/api/v1/cloud-accounts", {
             "tenant_id": tenant_id,
         }),
-    ])
+    ], auth_headers=fwd_headers)
 
     threat_data, onboarding_data = results
 
@@ -83,6 +97,61 @@ async def view_threats(
     raw = safe_get(threat_data, "threats", []) or []
     threats = [normalize_threat(t) for t in raw]
     _enrich_threats_provider(threats, account_provider_map, default_provider)
+
+    # Atomic threat findings (individual rule evaluations)
+    raw_findings = safe_get(threat_data, "findings", []) or []
+    threat_findings = [
+        {
+            "finding_id":       f.get("finding_id", ""),
+            "rule_id":          f.get("rule_id", ""),
+            "ruleId":           f.get("rule_id", ""),
+            "title":            f.get("rule_id", ""),
+            "threat_category":  f.get("threat_category", ""),
+            "severity":         (f.get("severity") or "medium").lower(),
+            "status":           (f.get("status") or "FAIL").upper(),
+            # snake_case (backward compat for detail page fallbacks)
+            "resource_type":    f.get("resource_type", ""),
+            "resource_uid":     f.get("resource_uid", ""),
+            "account_id":       f.get("account_id", ""),
+            "account":          f.get("account_id", ""),
+            "region":           f.get("region", ""),
+            "mitre_tactics":    f.get("mitre_tactics", []),
+            "mitre_techniques": f.get("mitre_techniques", []),
+            "first_seen_at":    f.get("first_seen_at"),
+            "last_seen_at":     f.get("last_seen_at"),
+            # camelCase (frontend reads these)
+            "resourceType":     f.get("resource_type", ""),
+            "resourceUid":      f.get("resource_uid", ""),
+            "accountId":        f.get("account_id", ""),
+            "mitreTactics":     f.get("mitre_tactics", []),
+            "mitreTechniqueIds": f.get("mitre_techniques", []),
+            "detectedAt":       f.get("first_seen_at"),
+            "lastSeen":         f.get("last_seen_at"),
+            "provider":         _safe_upper(
+                account_provider_map.get(f.get("account_id", ""), default_provider)
+            ),
+        }
+        for f in raw_findings
+    ]
+    threat_findings = apply_global_filters(threat_findings, provider, account, region)
+
+    # Build finding lookup: finding_id → finding dict (for O(1) joins)
+    findings_by_id: Dict[str, dict] = {f["finding_id"]: f for f in threat_findings if f.get("finding_id")}
+
+    # Attach contributingFindings to each threat using finding_refs from evidence
+    for t in threats:
+        refs = t.get("finding_refs") or []
+        if refs:
+            # Real data path: use exact finding_id references
+            t["contributingFindings"] = [findings_by_id[r] for r in refs if r in findings_by_id]
+        else:
+            # Fallback: match by resource_uid + account (same resource, different rules)
+            t_uid = t.get("resource_uid", "")
+            t_acct = t.get("account") or t.get("account_id", "")
+            t["contributingFindings"] = [
+                f for f in threat_findings
+                if f.get("resource_uid") == t_uid and f.get("account_id") == t_acct
+            ] if t_uid else []
 
     filtered = apply_global_filters(threats, provider, account, region)
 
@@ -296,37 +365,131 @@ async def view_threats(
         if timestamps:
             latest_detection_ts = max(timestamps)
 
-    return {
+    mitre_count = sum(len(v) for v in mitre_matrix.values()) if isinstance(mitre_matrix, dict) else 0
+
+    page_ctx = threats_page_context({"total": total})
+    page_ctx["tabs"] = [
+        {"id": "overview",     "label": "Overview",       "count": total},
+        {"id": "mitre",        "label": "MITRE ATT&CK",   "count": mitre_count},
+        {"id": "attack_paths", "label": "Attack Paths",    "count": len(chains)},
+        {"id": "findings",     "label": "Findings",        "count": len(threat_findings)},
+        {"id": "timeline",     "label": "Timeline",        "count": len(trend_list)},
+    ]
+
+    # -- pulse_stats: severity breakdown object for command-room components -----
+    pulse_stats = {
+        "total":           total,
+        "critical_count":  critical,
+        "high_count":      high,
+        "medium_count":    medium,
+        "low_count":       low,
+        "composite_score": avg_risk,
+        "delta_count":     engine_summary_safe.get("delta_count", 0),
+        "delta_direction": engine_summary_safe.get("delta_direction", "stable"),
+    }
+
+    # -- trendPoints: alias for trendData with tactics field ------------------
+    trend_points = [
+        {**pt, "tactics": list(mitre_matrix.keys())} for pt in trend_list
+    ]
+
+    # -- availableScans: list of distinct scan runs the UI can select ----------
+    raw_scans = safe_get(threat_data, "available_scans", [])
+    if not raw_scans:
+        # Derive from scan_meta if only one scan available
+        if scan_meta.get("scan_run_id"):
+            raw_scans = [{"scan_run_id": scan_meta["scan_run_id"]}]
+    available_scans = raw_scans
+
+    # -- summary: comparison object for posture delta -------------------------
+    prev_summary = safe_get(threat_data, "prev_summary", {})
+    summary_obj = {
+        "critical_a": critical,
+        "critical_b": prev_summary.get("critical", 0),
+        "delta":      critical - prev_summary.get("critical", 0),
+        "prev": {
+            "severity": "critical" if prev_summary.get("critical", 0) > 0 else "high",
+            "total":    prev_summary.get("total", 0),
+        },
+    }
+
+    # -- visibleTech: MITRE techniques list for tech map UI ------------------
+    visible_tech = [
+        {"id": tid, "tactic": tac, "count": item.get("count", 0)}
+        for tac, items in mitre_matrix.items()
+        for item in items
+        for tid in [item.get("id", "")]
+        if tid
+    ][:50]
+
+    result = {
+        "pageContext": page_ctx,
+        "filterSchema": threats_filter_schema(),
+        "kpiGroups": [
+            {
+                "title": "Threat Severity",
+                "items": [
+                    {"label": "Critical", "value": critical},
+                    {"label": "High",     "value": high},
+                    {"label": "Medium",   "value": medium},
+                    {"label": "Low",      "value": low},
+                    {"label": "Total",    "value": total},
+                ],
+            },
+            {
+                "title": "Threat Intelligence",
+                "items": [
+                    {"label": "MITRE Techniques", "value": mitre_count},
+                    {"label": "Attack Paths",     "value": len(chains)},
+                    {"label": "Avg Risk Score",   "value": avg_risk, "suffix": "/100"},
+                    {"label": "Active",           "value": active_count},
+                    {"label": "Total Findings",   "value": total_findings},
+                ],
+            },
+        ],
+        "scanMeta": {
+            "scanRunId":     scan_meta.get("scan_run_id") or scan_run_id,
+            "latestDetection": latest_detection_ts,
+            "dataScope":     "all_scans" if scan_run_id == "latest" else "single_scan",
+        },
+        # data.* wrapper (UI accesses data.scenarios, data.pulse_stats, data.total, etc.)
+        "data": {
+            "scenarios":   filtered,
+            "pulse_stats": pulse_stats,
+            "total":       total,
+            "finding_id":  filtered[0].get("finding_id", "") if filtered else "",
+            "scan_run_id": scan_meta.get("scan_run_id") or scan_run_id,
+            "scenario_id": filtered[0].get("id", "") if filtered else "",
+        },
+        # Top-level aliases for backward compat
+        "threats":         filtered,
+        "scenarios":       filtered,
+        "filtered":        filtered,
+        "threatFindings":  threat_findings,
+        "total":           total,
+        "pulse_stats":     pulse_stats,
+        "trendData":       trend_list,
+        "trendPoints":     trend_points,
+        "availableScans":  available_scans,
+        "summary":         summary_obj,
+        "visibleTech":     visible_tech,
+        "mitreMatrix":     mitre_matrix,
+        "attackChains":    chains,
+        "threatIntel":     threat_intel,
+        "accountHeatmap":  account_heatmap,
+        "topServices":     top_services,
+        "byProvider":      by_provider,
+        "byCategory":      by_category,
         "kpi": {
-            "total": total, "critical": critical, "high": high,
-            "medium": medium, "low": low,
-            "active": active_count,
+            "total":      total,
+            "critical":   critical,
+            "high":       high,
+            "medium":     medium,
+            "low":        low,
+            "active":     active_count,
             "unassigned": unassigned_count,
             "avgRiskScore": avg_risk,
-            "totalFindings": total_findings,
-            "criticalAndHigh": critical + high,
-            "byVerdict": by_verdict,
         },
-        "scanMeta": {
-            "scanRunId": scan_meta.get("scan_run_id") or scan_run_id,
-            "latestDetection": latest_detection_ts,
-            "dataScope": "all_scans" if scan_run_id == "latest" else "single_scan",
-        },
-        "threats": filtered,
-        "total": total,
-        "mitreMatrix": mitre_matrix,
-        "attackChains": chains,
-        "threatIntel": threat_intel,
-        "severityChart": severity_chart(sev_counts),
-        "trendData": trend_list,
-        "byProvider": [
-            {"name": k, "count": v}
-            for k, v in sorted(by_provider.items(), key=lambda x: x[1], reverse=True)
-        ],
-        "topServices": top_services,
-        "byCategory": [
-            {"name": k, "count": v}
-            for k, v in sorted(by_category.items(), key=lambda x: x[1], reverse=True)
-        ],
-        "accountHeatmap": account_heatmap,
     }
+    cached_view(ck, result, ttl=TTL_THREATS)
+    return result

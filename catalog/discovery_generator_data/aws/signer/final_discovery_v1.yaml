@@ -1,0 +1,40 @@
+# ==========================================================
+# Discovery YAML — signer (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 1 | ops: 0 independent, 1 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: signer
+
+services:
+  client: signer
+  module: "boto3.client('signer')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  []
+
+checks: []
+
+discovery:
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.signer.get_signing_profile [dependent] ──
+  - discovery_id: aws.signer.get_signing_profile
+    for_each: aws.signer.list_signing_jobs
+    calls:
+      - action: get_signing_profile
+        params:
+          profileName: "{{ item.profileName }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Tags: '{{ item.Tags }}'
+        revocationEffectiveFrom: '{{ item.revocationEffectiveFrom }}'
+        revokedAt: '{{ item.revokedAt }}'
+        revokedBy: '{{ item.revokedBy }}'
+

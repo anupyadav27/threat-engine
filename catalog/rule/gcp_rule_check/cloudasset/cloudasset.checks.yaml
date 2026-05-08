@@ -1,0 +1,95 @@
+version: '1.0'
+provider: gcp
+service: cloudasset
+checks:
+- rule_id: gcp.cloudasset.asset.aggregation_authorization_not_expired_or_revoked
+  for_each: gcp.cloudasset.feeds.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.feedOutputConfig.endpoint
+      op: exists
+      value: null
+    - var: item.feedOutputConfig.keyStorageType
+      op: not_equals
+      value: REVOKED
+    - var: item.condition.expireTime
+      op: gt
+      value: '{{now}}'
+- rule_id: gcp.cloudasset.asset.aggregation_authorization_target_accounts_correct
+  for_each: gcp.cloudasset.feeds.list
+  severity: MEDIUM
+  conditions:
+    var: item.feedOutputConfig.endpoint
+    op: contains
+    value: target-account
+- rule_id: gcp.cloudasset.asset.aggregation_authorization_trusts_least_privilege
+  for_each: gcp.cloudasset.feeds.list
+  severity: HIGH
+  conditions:
+    var: item.feedOutputConfig.keyStorageType
+    op: equals
+    value: example-type
+- rule_id: gcp.cloudasset.asset.config_recorder_enabled
+  for_each: gcp.cloudasset.feeds.list
+  severity: MEDIUM
+  conditions:
+    var: item.feedOutputConfig
+    op: exists
+    value: null
+- rule_id: gcp.cloudasset.asset.config_recorder_global_resource_types_tracked
+  for_each: gcp.cloudasset.feeds.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.assetTypes
+      op: contains
+      value: cloudresourcemanager.googleapis.com/Organization
+    - var: item.assetTypes
+      op: contains
+      value: cloudresourcemanager.googleapis.com/Project
+    - var: item.assetTypes
+      op: contains
+      value: cloudresourcemanager.googleapis.com/Folder
+- rule_id: gcp.cloudasset.asset.delivery_channel_secure_destination_configured
+  for_each: gcp.cloudasset.feeds.list
+  severity: MEDIUM
+  conditions:
+    var: item.feedOutputConfig.keyStorageType
+    op: exists
+    value: null
+- rule_id: gcp.cloudasset.feed.aggregation_authorization_present_and_valid
+  for_each: gcp.cloudasset.feeds.list
+  severity: MEDIUM
+  conditions:
+    var: item.feedOutputConfig
+    op: exists
+    value: null
+- rule_id: gcp.cloudasset.feed.aggregator_auto_enroll_new_accounts
+  for_each: gcp.cloudasset.feeds.list
+  severity: MEDIUM
+  conditions:
+    var: item.feedOutputConfig.pubsubDestination.enableAggregatorAutoEnrollNewAccounts
+    op: is_true
+    value: null
+- rule_id: gcp.cloudasset.feed.aggregator_org_aggregator_enabled
+  for_each: gcp.cloudasset.feeds.list
+  severity: MEDIUM
+  conditions:
+    var: item.feedOutputConfig
+    op: exists
+    value: null
+- rule_id: gcp.cloudasset.feed.delivery_channel_destination_access_least_privilege
+  for_each: gcp.cloudasset.feeds.list
+  severity: HIGH
+  conditions:
+    var: item.feedOutputConfig.endpoint
+    op: exists
+    value: null
+- rule_id: gcp.cloudasset.feed.delivery_channel_kms_encryption_enabled
+  for_each: gcp.cloudasset.feeds.list
+  severity: HIGH
+  conditions:
+    var: item.feedOutputConfig.keyStorageType
+    op: exists
+    value: null

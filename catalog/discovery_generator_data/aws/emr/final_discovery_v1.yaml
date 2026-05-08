@@ -1,0 +1,83 @@
+# ==========================================================
+# Discovery YAML — emr (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 6 | ops: 4 independent, 0 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: emr
+
+services:
+  client: emr
+  module: "boto3.client('emr')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: cluster
+    identifier_op: aws.emr.describe_cluster
+    identifier_field: Cluster
+    item_var_path: item.Cluster
+    identifier_template: '{cluster}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.emr.describe_cluster  ──
+  - discovery_id: aws.emr.describe_cluster
+    calls:
+      - action: describe_cluster
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Cluster: '{{ item.Cluster }}'
+        Ec2InstanceAttributes: '{{ item.Ec2InstanceAttributes.EmrManagedMasterSecurityGroup }}'
+        Ec2InstanceAttributes.EmrManagedMasterSecurityGroup: '{{ item.Ec2InstanceAttributes.EmrManagedMasterSecurityGroup }}'
+        MasterPublicDnsName: '{{ item.MasterPublicDnsName }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.emr.get_block_public_access_configuration  ──
+  - discovery_id: aws.emr.get_block_public_access_configuration
+    calls:
+      - action: get_block_public_access_configuration
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        BlockPublicAccessConfiguration: '{{ item.BlockPublicAccessConfiguration }}'
+        BlockPublicAccessConfigurationMetadata: '{{ item.BlockPublicAccessConfigurationMetadata }}'
+        BlockPublicSecurityGroupRules: '{{ item.BlockPublicSecurityGroupRules }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.emr.list_clusters  ──
+  - discovery_id: aws.emr.list_clusters
+    calls:
+      - action: list_clusters
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Clusters }}'
+      item:
+        item: '{{ item }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.emr.list_security_configurations  ──
+  - discovery_id: aws.emr.list_security_configurations
+    calls:
+      - action: list_security_configurations
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        SecurityConfiguration.EncryptionConfiguration.EnableAtRestEncryption: '{{ item.SecurityConfiguration.EncryptionConfiguration.EnableAtRestEncryption }}'
+        SecurityConfiguration.EncryptionConfiguration.EnableInTransitEncryption: '{{ item.SecurityConfiguration.EncryptionConfiguration.EnableInTransitEncryption }}'
+

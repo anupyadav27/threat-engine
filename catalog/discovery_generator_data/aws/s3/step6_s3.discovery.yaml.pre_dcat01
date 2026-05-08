@@ -1,0 +1,207 @@
+# Auto-generated: minimum discoveries for check rules + inventory identifiers
+# Sources: s3
+# 14 ops (13 from checks, +1 for inventory)
+version: '1.0'
+provider: aws
+service: s3
+discovery:
+  - calls:
+    - action: list_buckets
+      on_error: continue
+      save_as: response
+    discovery_id: aws.s3.list_buckets
+    emit:
+      as: item
+      item:
+        BucketArn: '{{ item.BucketArn }}'
+        BucketRegion: '{{ item.BucketRegion }}'
+        CreationDate: '{{ item.CreationDate }}'
+        Name: '{{ item.Name }}'
+      items_for: '{{ response.Buckets }}'
+  - calls:
+    - action: get_bucket_versioning
+      on_error: continue
+      params:
+        Bucket: '{{ item.Name }}'
+      save_as: response
+    discovery_id: aws.s3.get_bucket_versioning
+    emit:
+      as: item
+      item:
+        MFADelete: '{{ response.MFADelete }}'
+        Status: '{{ response.Status }}'
+    for_each: aws.s3.list_buckets
+  - calls:
+    - action: get_public_access_block
+      on_error: continue
+      params:
+        Bucket: '{{ item.Name }}'
+      save_as: response
+    discovery_id: aws.s3.get_public_access_block
+    emit:
+      as: item
+      item:
+        BlockPublicAcls: '{{ response.PublicAccessBlockConfiguration.BlockPublicAcls
+          }}'
+        BlockPublicPolicy: '{{ response.PublicAccessBlockConfiguration.BlockPublicPolicy
+          }}'
+        IgnorePublicAcls: '{{ response.PublicAccessBlockConfiguration.IgnorePublicAcls
+          }}'
+        RestrictPublicBuckets: '{{ response.PublicAccessBlockConfiguration.RestrictPublicBuckets
+          }}'
+    for_each: aws.s3.list_buckets
+  - calls:
+    - action: list_bucket_metrics_configurations
+      on_error: continue
+      params:
+        Bucket: '{{ item.Name }}'
+      save_as: response
+    discovery_id: aws.s3.list_bucket_metrics_configurations
+    emit:
+      as: item
+      item:
+        Filter: '{{ item.Filter }}'
+        Id: '{{ item.Id }}'
+      items_for: '{{ response.MetricsConfigurationList }}'
+    for_each: aws.s3.list_buckets
+  - calls:
+    - action: get_bucket_acl
+      on_error: continue
+      params:
+        Bucket: '{{ item.Name }}'
+      save_as: response
+    discovery_id: aws.s3.get_bucket_acl
+    emit:
+      as: item
+      item:
+        Grantee: '{{ item.Grantee }}'
+        Permission: '{{ item.Permission }}'
+      items_for: '{{ response.Grants }}'
+    for_each: aws.s3.list_buckets
+  - calls:
+    - action: get_bucket_policy_status
+      on_error: continue
+      params:
+        Bucket: '{{ item.Name }}'
+      save_as: response
+    discovery_id: aws.s3.get_bucket_policy_status
+    emit:
+      as: item
+      item:
+        IsPublic: '{{ response.PolicyStatus.IsPublic }}'
+    for_each: aws.s3.list_buckets
+  - calls:
+    - action: list_directory_buckets
+      on_error: continue
+      save_as: response
+    discovery_id: aws.s3.list_directory_buckets
+    emit:
+      as: item
+      item:
+        BucketArn: '{{ item.BucketArn }}'
+        BucketRegion: '{{ item.BucketRegion }}'
+        CreationDate: '{{ item.CreationDate }}'
+        Name: '{{ item.Name }}'
+      items_for: '{{ response.Buckets }}'
+  - calls:
+    - action: list_bucket_intelligent_tiering_configurations
+      on_error: continue
+      params:
+        Bucket: '{{ item.Name }}'
+      save_as: response
+    discovery_id: aws.s3.list_bucket_intelligent_tiering_configurations
+    emit:
+      as: item
+      item:
+        Filter: '{{ item.Filter }}'
+        Id: '{{ item.Id }}'
+        Status: '{{ item.Status }}'
+        Tierings: '{{ item.Tierings }}'
+      items_for: '{{ response.IntelligentTieringConfigurationList }}'
+    for_each: aws.s3.list_buckets
+  - calls:
+    - action: get_bucket_logging
+      on_error: continue
+      params:
+        Bucket: '{{ item.Name }}'
+      save_as: response
+    discovery_id: aws.s3.get_bucket_logging
+    emit:
+      as: item
+      item:
+        TargetBucket: '{{ response.LoggingEnabled.TargetBucket }}'
+        TargetGrants: '{{ response.LoggingEnabled.TargetGrants }}'
+        TargetObjectKeyFormat: '{{ response.LoggingEnabled.TargetObjectKeyFormat }}'
+        TargetPrefix: '{{ response.LoggingEnabled.TargetPrefix }}'
+    for_each: aws.s3.list_buckets
+  - calls:
+    - action: get_bucket_policy
+      on_error: continue
+      params:
+        Bucket: '{{ item.Name }}'
+      save_as: response
+    discovery_id: aws.s3.get_bucket_policy
+    emit:
+      as: item
+      item:
+        Policy: '{{ response.Policy }}'
+    for_each: aws.s3.list_buckets
+  - calls:
+    - action: get_bucket_encryption
+      on_error: continue
+      params:
+        Bucket: '{{ item.Name }}'
+      save_as: response
+    discovery_id: aws.s3.get_bucket_encryption
+    emit:
+      as: item
+      item:
+        Rules: '{{ response.ServerSideEncryptionConfiguration.Rules }}'
+    for_each: aws.s3.list_buckets
+  - calls:
+    - action: get_object_lock_configuration
+      on_error: continue
+      params:
+        Bucket: '{{ item.Name }}'
+      save_as: response
+    discovery_id: aws.s3.get_object_lock_configuration
+    emit:
+      as: item
+      item:
+        ObjectLockEnabled: '{{ response.ObjectLockConfiguration.ObjectLockEnabled }}'
+        Rule: '{{ response.ObjectLockConfiguration.Rule }}'
+    for_each: aws.s3.list_buckets
+  - calls:
+    - action: get_bucket_lifecycle_configuration
+      on_error: continue
+      params:
+        Bucket: '{{ item.Name }}'
+      save_as: response
+    discovery_id: aws.s3.get_bucket_lifecycle_configuration
+    emit:
+      as: item
+      item:
+        AbortIncompleteMultipartUpload: '{{ item.AbortIncompleteMultipartUpload }}'
+        Expiration: '{{ item.Expiration }}'
+        Filter: '{{ item.Filter }}'
+        ID: '{{ item.ID }}'
+        NoncurrentVersionExpiration: '{{ item.NoncurrentVersionExpiration }}'
+        NoncurrentVersionTransitions: '{{ item.NoncurrentVersionTransitions }}'
+        Prefix: '{{ item.Prefix }}'
+        Status: '{{ item.Status }}'
+        Transitions: '{{ item.Transitions }}'
+      items_for: '{{ response.Rules }}'
+    for_each: aws.s3.list_buckets
+  - calls:
+    - action: get_bucket_replication
+      on_error: continue
+      params:
+        Bucket: '{{ item.Name }}'
+      save_as: response
+    discovery_id: aws.s3.get_bucket_replication
+    emit:
+      as: item
+      item:
+        Role: '{{ response.ReplicationConfiguration.Role }}'
+        Rules: '{{ response.ReplicationConfiguration.Rules }}'
+    for_each: aws.s3.list_buckets

@@ -69,12 +69,16 @@ class ServiceMetadataLoader:
 
     def _create_default_connection(self):
         """Create database connection using environment variables"""
-        # Use environment variables or hardcoded RDS Mumbai credentials
-        host = os.getenv('PYTHONSDK_DB_HOST', 'postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com')
+        host = os.getenv('PYTHONSDK_DB_HOST')
         port = int(os.getenv('PYTHONSDK_DB_PORT', '5432'))
         database = os.getenv('PYTHONSDK_DB_NAME', 'threat_engine_pythonsdk')
         user = os.getenv('PYTHONSDK_DB_USER', 'postgres')
-        password = os.getenv('PYTHONSDK_DB_PASSWORD', 'jtv2BkJF8qoFtAKP')
+        password = os.getenv('PYTHONSDK_DB_PASSWORD')
+
+        if not host:
+            raise RuntimeError("PYTHONSDK_DB_HOST env var is required but not set")
+        if not password:
+            raise RuntimeError("PYTHONSDK_DB_PASSWORD env var is required but not set")
 
         return psycopg2.connect(
             host=host,

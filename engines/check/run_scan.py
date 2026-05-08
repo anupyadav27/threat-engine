@@ -20,19 +20,30 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
 from engine_common.logger import setup_logger
 from engine_common.orchestration import get_orchestration_metadata
-from engine_common.retention import cleanup_old_scans
 
 from common.database.database_manager import DatabaseManager
 from common.database.rule_reader import RuleReader
 from common.models.evaluator_interface import CheckEvaluationError
 from common.orchestration.check_engine import CheckEngine
 from providers.aws.evaluator.check_evaluator import AWSCheckEvaluator
+from providers.gcp.evaluator.check_evaluator import GCPCheckEvaluator
+from providers.azure.evaluator.check_evaluator import AzureCheckEvaluator
+from providers.oci.evaluator.check_evaluator import OCICheckEvaluator
+from providers.ibm.evaluator.check_evaluator import IBMCheckEvaluator
+from providers.k8s.evaluator.check_evaluator import K8sCheckEvaluator
+from providers.alicloud.evaluator.check_evaluator import AliCloudCheckEvaluator
 
 logger = setup_logger(__name__, engine_name="check-scanner")
 
-# Provider evaluators (no credentials needed)
+# Provider evaluators (no credentials needed — DB-only identifier parsing)
 PROVIDER_EVALUATORS = {
-    "aws": AWSCheckEvaluator,
+    "aws":      AWSCheckEvaluator,
+    "gcp":      GCPCheckEvaluator,
+    "azure":    AzureCheckEvaluator,
+    "oci":      OCICheckEvaluator,
+    "ibm":      IBMCheckEvaluator,
+    "k8s":      K8sCheckEvaluator,
+    "alicloud": AliCloudCheckEvaluator,
 }
 
 
@@ -41,34 +52,30 @@ def _update_report_status(db_manager: DatabaseManager, scan_run_id: str, status:
     try:
         conn = db_manager._get_connection()
         with conn.cursor() as cur:
-            if error:
-                cur.execute(
-                    "UPDATE check_report SET status = %s, error_details = %s WHERE scan_run_id = %s",
-                    (status, error, scan_run_id),
-                )
-            else:
-                cur.execute(
-                    "UPDATE check_report SET status = %s WHERE scan_run_id = %s",
-                    (status, scan_run_id),
-                )
+            cur.execute(
+                "UPDATE check_report SET status = %s WHERE scan_run_id = %s",
+                (status, scan_run_id),
+            )
         conn.commit()
         db_manager._return_connection(conn)
+        if error:
+            logger.error(f"Check scan error: {error}")
     except Exception as e:
         logger.error(f"Failed to update report status: {e}")
 
 
-def _create_report_row(db_manager: DatabaseManager, scan_run_id: str, tenant_id: str,
-                       provider: str, discovery_scan_run_id: str, metadata: dict):
+def _create_report_row(db_manager: DatabaseManager, scan_run_id: str, customer_id: str,
+                       tenant_id: str, provider: str, discovery_scan_id: str, metadata: dict):
     """Pre-create check_report row with status='running'."""
     try:
         conn = db_manager._get_connection()
         with conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO check_report
-                   (scan_run_id, tenant_id, provider, discovery_scan_run_id, status, first_seen_at, metadata)
-                   VALUES (%s, %s, %s, %s, 'running', NOW(), %s)
+                   (scan_run_id, customer_id, tenant_id, provider, discovery_scan_id, status, first_seen_at, metadata)
+                   VALUES (%s, %s, %s, %s, %s, 'running', NOW(), %s)
                    ON CONFLICT (scan_run_id) DO UPDATE SET status = 'running'""",
-                (scan_run_id, tenant_id, provider, discovery_scan_run_id,
+                (scan_run_id, customer_id, tenant_id, provider, discovery_scan_id,
                  __import__('json').dumps(metadata)),
             )
         conn.commit()
@@ -104,19 +111,19 @@ def main():
             raise ValueError(f"No orchestration metadata for {scan_run_id}")
 
         # All engines share the same scan_run_id
-        discovery_scan_run_id = scan_run_id
+        discovery_scan_id = scan_run_id
 
-        tenant_id = metadata.get("tenant_id", "default-tenant")
-        customer_id = metadata.get("customer_id", "default")
+        tenant_id = metadata.get("tenant_id") or "default-tenant"
+        customer_id = metadata.get("customer_id") or tenant_id  # fall back to tenant_id
         provider = metadata.get("provider") or metadata.get("provider_type", "aws")
-        account_id = metadata.get("account_id") or metadata.get("account_id", "")
+        account_id = metadata.get("account_id") or ""
         hierarchy_type = metadata.get("hierarchy_type", "account")
         include_services = metadata.get("include_services")
 
-        logger.info(f"Resolved: tenant={tenant_id} provider={provider} discovery={discovery_scan_run_id}")
+        logger.info(f"Resolved: tenant={tenant_id} customer={customer_id} provider={provider} discovery={discovery_scan_id}")
 
         # 2. Pre-create report row
-        _create_report_row(db_manager, scan_run_id, tenant_id, provider, discovery_scan_run_id, {
+        _create_report_row(db_manager, scan_run_id, customer_id, tenant_id, provider, discovery_scan_id, {
             "scan_run_id": scan_run_id,
             "mode": "job",
         })
@@ -138,7 +145,7 @@ def main():
 
         start = datetime.now(timezone.utc)
         results = engine.run_check_scan(
-            discovery_scan_run_id=discovery_scan_run_id,
+            discovery_scan_id=discovery_scan_id,
             scan_run_id=scan_run_id,
             customer_id=customer_id,
             tenant_id=tenant_id,
@@ -154,11 +161,13 @@ def main():
         _update_report_status(db_manager, scan_run_id, "completed")
         logger.info(f"Check scan completed: {scan_run_id} — {results.get('total_checks', 0)} checks in {duration:.1f}s")
 
-        # 6. Retention cleanup (keep last 3 scans per tenant)
+        # Retention: archive old scans to S3, keep last 5 in DB
         try:
-            cleanup_old_scans("check", tenant_id, keep=3)
-        except Exception as e:
-            logger.warning(f"Retention cleanup failed: {e}")
+            from engine_common.retention import run_retention
+            run_retention("check", scan_run_id)
+        except Exception as _ret_err:
+            logger.warning("Retention cleanup skipped: %s", _ret_err)
+
 
     except Exception as e:
         logger.error(f"Check scan FAILED: {e}", exc_info=True)

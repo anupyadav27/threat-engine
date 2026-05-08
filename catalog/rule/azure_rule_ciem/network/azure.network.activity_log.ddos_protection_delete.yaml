@@ -1,0 +1,70 @@
+rule_id: azure.network.activity_log.ddos_protection_delete
+service: network
+provider: azure
+check_type: log
+severity: high
+title: 'Network: Ddos Protection Delete'
+description: DDoS protection plan deleted — volumetric attack protection removed from subscription.
+rationale: Network denial-of-service from or via cloud resources can indicate compromise of cloud assets being weaponized for DDoS campaigns against external targets.
+threat_category: impact
+mitre_tactics:
+- impact
+mitre_techniques:
+- T1498
+risk_score: 70
+resource: azure_network
+source: default
+is_active: true
+domain: network_security_and_connectivity
+action_category: delete
+log_source_type: activity_log
+posture_category: workload_posture
+threat_tags:
+- T1498
+- impact
+- availability
+- network_security
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: destructive
+  target_type: network_resource
+  blast_radius: resource_group
+  stealth_risk: low
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 2.6
+  - 3.1
+  cis_azure_v2:
+  - 7.5
+  - 5.1
+  nist_800_53_r5:
+  - CP-9
+  - CP-10
+  - SI-12
+  - IR-4
+  pci_dss_v4:
+  - 12.3
+  - 3.4
+  iso_27001_2022:
+  - A.5.29
+  - A.8.13
+remediation: |
+  1. Revoke credentials used to create DDoS-capable resources.
+  2. Enable AWS Shield Advanced / Azure DDoS Protection with alerting.
+  3. Alert on creation of high-bandwidth resources by non-standard principals.
+references:
+- https://attack.mitre.org/techniques/T1498/
+- https://learn.microsoft.com/en-us/azure/ddos-protection/ddos-protection-overview
+check_config:
+  conditions:
+    all:
+    - field: operation
+      op: equals
+      value: Microsoft.Network/ddosProtectionPlans/delete
+  log_source_type: activity_log
+version: '1.0'

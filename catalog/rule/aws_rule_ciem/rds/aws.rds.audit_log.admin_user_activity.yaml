@@ -1,0 +1,65 @@
+rule_id: aws.rds.audit_log.admin_user_activity
+service: rds
+provider: aws
+check_type: log
+severity: medium
+title: 'RDS: Admin User Activity'
+description: RDS admin user activity detected — privileged database user action recorded.
+rationale: Account discovery enumerates cloud identities to identify targets for credential attacks, privilege escalation, or social engineering.
+threat_category: discovery
+mitre_tactics:
+- discovery
+mitre_techniques:
+- T1087
+risk_score: 55
+resource: rds_instance
+source: default
+is_active: true
+domain: data_protection_and_privacy
+action_category: create
+log_source_type: 
+posture_category: threat_posture
+threat_tags:
+- T1087
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: database
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - database_security
+  categories:
+  - sensitive_data_access
+  priority: medium
+  impact:
+    pci: PCI DSS Requirement 7 — Restrict access to cardholder data by business need
+    gdpr: GDPR Article 25 — Data protection by design and by default
+    hipaa: §164.312(a)(1) — Access control for ePHI data systems
+  sensitive_data_context: |
+  Unauthorized discovery on rds resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks: {}
+remediation: |
+  1. Restrict IAM/directory listing permissions to least-privilege roles.
+  2. Enable alerts on bulk directory enumeration API calls.
+  3. Use Conditional Access to limit enumeration from suspicious locations.
+references:
+- https://attack.mitre.org/techniques/T1087/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: rds_audit
+    - field: actor_principal
+      op: equals
+      value: admin
+version: '1.0'

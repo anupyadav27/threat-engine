@@ -525,7 +525,7 @@ def create_orchestration_status(
     tenant_id: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
-    """Create orchestration status record (uses shared.scan_orchestration table)"""
+    """Create orchestration status record (uses scan_runs table)"""
     from sqlalchemy import text
     from datetime import datetime, timezone
 
@@ -533,10 +533,10 @@ def create_orchestration_status(
         raise ValueError("account_id is required for orchestration status")
 
     with get_db_session() as db:
-        # Insert into shared.scan_orchestration table
+        # Insert into scan_runs table
         # Note: This assumes the shared schema is accessible
         # For now, we'll use a simple approach - store in scan_results metadata
-        # In production, this should use the shared.scan_orchestration table
+        # In production, this should use the scan_runs table
 
         # For backward compatibility, we'll create a scan_result entry
         # with orchestration metadata
@@ -596,7 +596,7 @@ def update_orchestration_status(
 
 
 # ============================================================================
-# NEW ORCHESTRATION FUNCTIONS (scan_orchestration table)
+# NEW ORCHESTRATION FUNCTIONS (scan_runs table)
 # ============================================================================
 
 def create_orchestration_record(
@@ -614,7 +614,7 @@ def create_orchestration_record(
     engines_requested: Optional[List[str]] = None
 ) -> str:
     """
-    Create new orchestration record in scan_orchestration table (LOCAL to onboarding DB).
+    Create new orchestration record in scan_runs table (LOCAL to onboarding DB).
 
     Args:
         scan_run_id: UUID for this scan run (pipeline-wide identifier)
@@ -643,7 +643,7 @@ def create_orchestration_record(
         exclude_regions_json = json.dumps(exclude_regions) if exclude_regions else None
 
         result = db.execute(text("""
-            INSERT INTO scan_orchestration
+            INSERT INTO scan_runs
             (scan_run_id, tenant_id, customer_id, account_id, provider,
              overall_status, engines_requested, include_services, include_regions,
              exclude_services, exclude_regions, credential_type, credential_ref,
@@ -685,7 +685,7 @@ def mark_orchestration_complete(scan_run_id: str, status: str = 'completed') -> 
         from sqlalchemy import text
 
         db.execute(text("""
-            UPDATE scan_orchestration
+            UPDATE scan_runs
             SET overall_status = :status, completed_at = NOW()
             WHERE scan_run_id = :scan_run_id::uuid
         """), {
@@ -731,7 +731,7 @@ def get_orchestration_metadata(scan_run_id: str) -> Dict[str, Any]:
                 started_at,
                 completed_at,
                 created_at
-            FROM scan_orchestration
+            FROM scan_runs
             WHERE scan_run_id = :scan_run_id::uuid
         """), {"scan_run_id": scan_run_id})
 

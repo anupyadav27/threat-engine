@@ -1,0 +1,74 @@
+rule_id: ibm.cloudant.audit.route_delete
+service: database
+provider: ibm
+check_type: log
+severity: high
+title: Detect Activity Tracker instance deletion or route removal, and Cloudant database
+  audit log configuration changes that halt log forwarding.
+description: Detects deletion of audit routes or instances, a genuine event-based
+  security check.
+rationale: Monitoring this activity is essential for detecting adversary defense evasion
+  against IBM resources. Unauthorized or unexpected API calls may indicate account
+  compromise, privilege escalation, or an active attack chain.
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1562.008
+risk_score: 82
+resource: ibm_database_resource
+source: csv_generated
+is_active: true
+domain: logging_monitoring_and_alerting
+action_category: delete
+log_source_type: ibm_activity_tracker
+posture_category: threat_posture
+threat_tags:
+- T1562.008
+- T1562
+- defense_evasion
+- ciem_detection
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: high
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: '1. Immediately investigate the principal that performed this action
+  — treat as potentially compromised.
+
+  2. Restore any disabled/deleted security controls (logging, agents, scanning).
+
+  3. Review the full session context for lateral movement or data exfiltration following
+  this action.
+
+  4. Restrict the ability to disable security tools to break-glass roles with MFA
+  enforcement.
+
+  5. Add SCPs/Organization Policies to prevent non-authorized disablement of security
+  controls.'
+references:
+- https://attack.mitre.org/techniques/T1562.008/
+- https://cloud.ibm.com/docs/account?topic=account-iamoverview
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_activity_tracker
+    - field: service
+      op: equals
+      value: cloudantnosqldb
+    - field: operation
+      op: in
+      value:
+      - logdna.route.delete
+      - cloudantnosqldb.log-config.update
+  type: log
+  version: '1.0'

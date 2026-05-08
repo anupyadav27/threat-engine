@@ -1,0 +1,49 @@
+# ==========================================================
+# Discovery YAML — healthlake (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 1 | ops: 0 independent, 1 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: healthlake
+
+services:
+  client: healthlake
+  module: "boto3.client('healthlake')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  []
+
+checks: []
+
+discovery:
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.healthlake.describe_fhir_datastore [dependent] ──
+  - discovery_id: aws.healthlake.describe_fhir_datastore
+    for_each: aws.healthlake.list_fhir_datastores
+    calls:
+      - action: describe_fhir_datastore
+        params:
+          DatastoreId: "{{ item.DatastoreId }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        CreatedAt: '{{ item.CreatedAt }}'
+        DatastoreArn: '{{ item.DatastoreArn }}'
+        DatastoreEndpoint: '{{ item.DatastoreEndpoint }}'
+        DatastoreId: '{{ item.DatastoreId }}'
+        DatastoreName: '{{ item.DatastoreName }}'
+        DatastoreProperties: '{{ item.DatastoreProperties }}'
+        DatastoreStatus: '{{ item.DatastoreStatus }}'
+        DatastoreTypeVersion: '{{ item.DatastoreTypeVersion }}'
+        ErrorCause: '{{ item.ErrorCause }}'
+        IdentityProviderConfiguration: '{{ item.IdentityProviderConfiguration }}'
+        PreloadDataConfig: '{{ item.PreloadDataConfig }}'
+        SseConfiguration: '{{ item.SseConfiguration }}'
+        Tags: '{{ item.Tags }}'
+

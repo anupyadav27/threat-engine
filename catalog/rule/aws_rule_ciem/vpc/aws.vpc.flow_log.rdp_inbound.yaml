@@ -1,0 +1,79 @@
+rule_id: aws.vpc.flow_log.rdp_inbound
+service: vpc
+provider: aws
+check_type: log
+severity: high
+title: 'VPC: Rdp Inbound'
+description: Inbound RDP (port 3389) traffic detected — remote desktop access attempt.
+rationale: RDP access to cloud VMs enables interactive lateral movement; unauthorized RDP sessions may indicate credential theft or instance compromise.
+threat_category: lateral_movement
+mitre_tactics:
+- lateral_movement
+mitre_techniques:
+- T1021.001
+risk_score: 75
+resource: vpc
+source: default
+is_active: true
+domain: network_security_and_connectivity
+action_category: network
+log_source_type: 
+posture_category: network_posture
+threat_tags:
+- T1021.001
+- T1021
+- lateral_movement
+- cloud_pivot
+- network_security
+- vpc
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: network_change
+  target_type: network_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 5.1
+  - 5.2
+  - 5.3
+  cis_azure_v2:
+  - 6.1
+  - 6.2
+  nist_800_53_r5:
+  - SC-7
+  - AC-4
+  - SI-3
+  pci_dss_v4:
+  - 1.2
+  - 1.3
+  - 7.2
+  iso_27001_2022:
+  - A.8.20
+  - A.8.22
+  - A.5.14
+remediation: |
+  1. Disable public RDP access; use Azure Bastion / AWS Systems Manager Session Manager.
+  2. Apply NSG rules to restrict RDP to authorized management IPs only.
+  3. Enable JIT VM access in Defender for Cloud.
+references:
+- https://attack.mitre.org/techniques/T1021/001/
+- https://learn.microsoft.com/en-us/azure/bastion/bastion-overview
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: vpc_flow
+    - field: network.dst_port
+      op: equals
+      value: '3389'
+    - field: network.flow_action
+      op: equals
+      value: ACCEPT
+version: '1.0'

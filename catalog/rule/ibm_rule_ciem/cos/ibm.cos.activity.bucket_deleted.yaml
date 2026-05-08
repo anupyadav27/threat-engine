@@ -1,0 +1,58 @@
+rule_id: ibm.cos.activity.bucket_deleted
+service: cos
+provider: ibm
+check_type: log
+severity: high
+title: 'IBM COS: Object Storage Bucket Deleted'
+description: An IBM COS bucket was deleted. Bucket deletion is irreversible and results in permanent data loss for all stored objects.
+threat_category: impact
+mitre_tactics:
+- impact
+mitre_techniques:
+- T1485
+risk_score: 85
+resource: ibm_cos_bucket
+domain: impact
+action_category: delete
+log_source_type: 
+posture_category: workload_posture
+threat_tags:
+- T1485
+- impact
+- availability
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: destructive
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: low
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - data_access_governance
+  categories:
+  - sensitive_data_access
+  priority: high
+  impact:
+    pci: PCI DSS Requirement 3.1 — Minimize cardholder data storage
+    gdpr: GDPR Article 25 — Data protection by design; minimize data exposure
+    hipaa: §164.312(a)(1) — Access controls on data repositories containing ePHI
+  sensitive_data_context: |
+  Unauthorized impact on cos resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks: {}
+remediation: Review and investigate this activity in the IBM Cloud Console and take corrective action.
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_activity
+    - field: operation
+      op: equals
+      value: cloud-object-storage.bucket.delete

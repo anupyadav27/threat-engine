@@ -1,0 +1,74 @@
+rule_id: alicloud.actiontrail.activity_log.review_anomaly
+service: actiontrail
+provider: alicloud
+check_type: log
+severity: medium
+title: Identify anomalies in log review activity and detect unauthorized role assumption
+  chains in ActionTrail and RAM logs.
+description: Identifies anomalies in log review and unauthorized role assumption.
+rationale: Monitoring this activity is essential for detecting adversary defense evasion
+  against ALICLOUD resources. Unauthorized or unexpected API calls may indicate account
+  compromise, privilege escalation, or an active attack chain.
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1562
+risk_score: 60
+resource: alicloud_actiontrail_trail
+source: csv_generated
+is_active: true
+domain: logging_monitoring_and_alerting
+action_category: audit_activity
+log_source_type: alicloud_actiontrail
+posture_category: threat_posture
+threat_tags:
+- T1562
+- defense_evasion
+- ciem_detection
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: read
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: high
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  pci_dss_v4:
+  - 10.4.2.1
+remediation: '1. Immediately investigate the principal that performed this action
+  — treat as potentially compromised.
+
+  2. Restore any disabled/deleted security controls (logging, agents, scanning).
+
+  3. Review the full session context for lateral movement or data exfiltration following
+  this action.
+
+  4. Restrict the ability to disable security tools to break-glass roles with MFA
+  enforcement.
+
+  5. Add SCPs/Organization Policies to prevent non-authorized disablement of security
+  controls.'
+references:
+- https://attack.mitre.org/techniques/T1562/
+- https://www.alibabacloud.com/help/en/actiontrail/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: actiontrail
+    - field: operation
+      op: in
+      value:
+      - DescribeTrails
+      - GetTrailStatus
+  type: log
+  version: '1.0'

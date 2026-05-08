@@ -1,0 +1,85 @@
+rule_id: gcp.container.k8s.privileged_pod_create
+service: container
+provider: gcp
+check_type: log
+severity: critical
+title: 'GKE K8s: Privileged Pod Created'
+description: Pod created with privileged security context — container escape risk, allowing access to the underlying GKE node and its credentials.
+rationale: 'Adversaries escape container or virtualized environment isolation to gain access to the underlying host, circumventing container security boundaries to access other containerized resources or the node''s credentials. Requires privileged container, hostPath mounts, or kernel exploit. Detected via: hostPath mounts to /proc or /sys, privileged container launches, unshare/keyctl/mount syscalls from container processes, and process execution outside container namespaces.'
+threat_category: privilege_escalation
+mitre_tactics:
+- privilege_escalation
+- execution
+mitre_techniques:
+- T1611
+risk_score: 92
+resource: k8s_pod
+source: default
+is_active: true
+domain: container_and_kubernetes_security
+action_category: create
+posture_category: iam_posture
+threat_tags:
+- T1611
+- cloud_iam
+- privilege_escalation
+- kubernetes
+- container_security
+risk_indicators:
+  actor_type: service_account_or_workload
+  action_type: write
+  target_type: kubernetes_workload
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_gcp_v2:
+  - 1.1
+  - 1.4
+  - 1.7
+  - 2.4
+  nist_800_53_r5:
+  - AC-2
+  - AC-3
+  - AC-6
+  - IA-2
+  pci_dss_v4:
+  - 7.1
+  - 7.2
+  - 8.2
+  iso_27001_2022:
+  - A.5.18
+  - A.8.2
+  - A.8.3
+detection_events:
+- pods/create with securityContext.privileged=true
+- pods/create with hostPath mount to /
+- seccomp profile disabled or unconfined
+- Container process fork outside namespace
+remediation: |
+  1. Immediately audit the modified IAM policy and revoke unauthorized role grants.
+  2. Enable Cloud Asset Inventory change notifications for IAM policy updates.
+  3. Apply Org Policy constraints to restrict role assignment to approved principals.
+  4. Require two-person approval for Owner/Editor role grants via Cloud Identity workflows.
+  5. Configure VPC Service Controls to prevent cross-project privilege escalation.
+references:
+- https://attack.mitre.org/techniques/T1611/
+- https://cloud.google.com/kubernetes-engine/docs/how-to/pod-security-admission
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: k8s_audit
+    - field: resource
+      op: equals
+      value: pods
+    - field: verb
+      op: equals
+      value: create
+version: '1.0'

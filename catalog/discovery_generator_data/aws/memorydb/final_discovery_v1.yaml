@@ -1,0 +1,45 @@
+# ==========================================================
+# Discovery YAML — memorydb (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 1 | ops: 1 independent, 0 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: memorydb
+
+services:
+  client: memorydb
+  module: "boto3.client('memorydb')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: subnet_group
+    identifier_op: aws.memorydb.describe_subnet_groups
+    identifier_field: ARN
+    item_var_path: item.ARN
+    identifier_template: '{arn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.memorydb.describe_subnet_groups  ──
+  - discovery_id: aws.memorydb.describe_subnet_groups
+    calls:
+      - action: describe_subnet_groups
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.SubnetGroups }}'
+      item:
+        ARN: '{{ item.ARN }}'
+        Description: '{{ item.Description }}'
+        Name: '{{ item.Name }}'
+        SubnetGroups: '{{ item.SubnetGroups }}'
+        Subnets: '{{ item.Subnets }}'
+        SupportedNetworkTypes: '{{ item.SupportedNetworkTypes }}'
+        Tags: '{{ item.Tags }}'
+        VpcId: '{{ item.VpcId }}'
+

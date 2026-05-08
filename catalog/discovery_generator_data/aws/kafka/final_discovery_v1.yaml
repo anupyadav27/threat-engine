@@ -1,0 +1,60 @@
+# ==========================================================
+# Discovery YAML — kafka (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 3 | ops: 0 independent, 1 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: kafka
+
+services:
+  client: kafka
+  module: "boto3.client('kafka')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  []
+
+checks: []
+
+discovery:
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.kafka.describe_cluster [dependent] ──
+  - discovery_id: aws.kafka.describe_cluster
+    for_each: aws.kafka.list_clusters
+    calls:
+      - action: describe_cluster
+        params:
+          ClusterArn: "{{ item.ClusterArn }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        ActiveOperationArn: '{{ item.ActiveOperationArn }}'
+        BrokerNodeGroupInfo: '{{ item.BrokerNodeGroupInfo }}'
+        ClientAuthentication: '{{ item.ClientAuthentication }}'
+        ClusterArn: '{{ item.ClusterArn }}'
+        ClusterName: '{{ item.ClusterName }}'
+        CreationTime: '{{ item.CreationTime }}'
+        CurrentBrokerSoftwareInfo: '{{ item.CurrentBrokerSoftwareInfo }}'
+        CurrentVersion: '{{ item.CurrentVersion }}'
+        CustomerActionStatus: '{{ item.CustomerActionStatus }}'
+        EncryptionInfo: '{{ item.EncryptionInfo }}'
+        EncryptionInfo.EncryptionAtRest.DataVolumeKMSKeyId: '{{ item.EncryptionInfo.EncryptionAtRest.DataVolumeKMSKeyId }}'
+        EncryptionInfo.EncryptionInTransit.ClientBroker: '{{ item.EncryptionInfo.EncryptionInTransit.ClientBroker }}'
+        EncryptionInfo.EncryptionInTransit.InCluster: '{{ item.EncryptionInfo.EncryptionInTransit.InCluster }}'
+        EnhancedMonitoring: '{{ item.EnhancedMonitoring }}'
+        LoggingInfo: '{{ item.LoggingInfo }}'
+        NumberOfBrokerNodes: '{{ item.NumberOfBrokerNodes }}'
+        OpenMonitoring: '{{ item.OpenMonitoring }}'
+        Rebalancing: '{{ item.Rebalancing }}'
+        State: '{{ item.State }}'
+        StateInfo: '{{ item.StateInfo }}'
+        StorageMode: '{{ item.StorageMode }}'
+        Tags: '{{ item.Tags }}'
+        ZookeeperConnectString: '{{ item.ZookeeperConnectString }}'
+        ZookeeperConnectStringTls: '{{ item.ZookeeperConnectStringTls }}'
+

@@ -103,16 +103,16 @@ class DatabaseManager:
     def create_scan(
         self,
         scan_id: str,
-        customer_id: str,
-        tenant_id: str,
-        provider: str,
+        customer_id: str = "default",
+        tenant_id: str = "default-tenant",
+        provider: str = "aws",
         account_id: str = None,
         hierarchy_type: str = None,
         region: str = None,
         service: str = None,
         scan_type: str = "check",
         metadata: Dict = None,
-        discovery_scan_run_id: str = None,
+        discovery_scan_id: str = None,
     ) -> None:
         """Insert a check_report row (status = 'running')."""
         conn = self._get_connection()
@@ -123,7 +123,7 @@ class DatabaseManager:
                     INSERT INTO check_report
                         (scan_run_id, customer_id, tenant_id, provider,
                          account_id, hierarchy_type, region, service,
-                         scan_type, status, metadata, discovery_scan_run_id)
+                         scan_type, status, metadata, discovery_scan_id)
                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     ON CONFLICT (scan_run_id) DO NOTHING
                     """,
@@ -132,7 +132,7 @@ class DatabaseManager:
                         account_id, hierarchy_type, region, service,
                         scan_type, "running",
                         json.dumps(metadata or {}),
-                        discovery_scan_run_id,
+                        discovery_scan_id,
                     ),
                 )
             conn.commit()
@@ -172,6 +172,7 @@ class DatabaseManager:
         resource_type: str = None,
         resource_service: str = None,
         status: str = None,
+        severity: str = None,
         checked_fields: List[str] = None,
         actual_values: Dict = None,
         finding_data: Dict = None,
@@ -189,8 +190,8 @@ class DatabaseManager:
                          service, discovery_id, region,
                          resource_uid, resource_id, resource_type,
                          resource_service,
-                         status, checked_fields, actual_values, finding_data)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                         status, severity, checked_fields, actual_values, finding_data)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     """,
                     (
                         scan_id, customer_id, tenant_id, provider,
@@ -198,7 +199,7 @@ class DatabaseManager:
                         service, discovery_id, region,
                         resource_uid, resource_id, resource_type,
                         resource_service,
-                        status,
+                        status, severity,
                         json.dumps(checked_fields or []),
                         json.dumps(actual_values or {}),
                         json.dumps(finding_data or {}),

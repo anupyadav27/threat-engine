@@ -1,0 +1,45 @@
+# ==========================================================
+# Discovery YAML — custom (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 1 | ops: 1 independent, 0 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: custom
+
+services:
+  client: custom
+  module: "boto3.client('custom')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: event
+    identifier_op: aws.custom.list_event_buses
+    identifier_field: Arn
+    item_var_path: item.Arn
+    identifier_template: '{arn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.custom.list_event_buses  ──
+  - discovery_id: aws.custom.list_event_buses
+    calls:
+      - action: list_event_buses
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.EventBuses }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        CreationTime: '{{ item.CreationTime }}'
+        Description: '{{ item.Description }}'
+        KmsKeyIdentifier: '{{ item.KmsKeyIdentifier }}'
+        LastModifiedTime: '{{ item.LastModifiedTime }}'
+        LogConfig: '{{ item.LogConfig }}'
+        Name: '{{ item.Name }}'
+        Policy: '{{ item.Policy }}'
+

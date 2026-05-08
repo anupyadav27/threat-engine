@@ -1,0 +1,87 @@
+# ==========================================================
+# Discovery YAML — sns (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 24 | ops: 1 independent, 2 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: sns
+
+services:
+  client: sns
+  module: "boto3.client('sns')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: subscription
+    identifier_op: aws.sns.list_subscriptions
+    identifier_field: SubscriptionArn
+    item_var_path: item.SubscriptionArn
+    identifier_template: '{subscriptionarn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.sns.list_subscriptions  ──
+  - discovery_id: aws.sns.list_subscriptions
+    calls:
+      - action: list_subscriptions
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Subscriptions }}'
+      item:
+        Endpoint: '{{ item.Endpoint }}'
+        Owner: '{{ item.Owner }}'
+        Protocol: '{{ item.Protocol }}'
+        SubscriptionArn: '{{ item.SubscriptionArn }}'
+        TopicArn: '{{ item.TopicArn }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.sns.get_subscription_attributes [dependent] ──
+  - discovery_id: aws.sns.get_subscription_attributes
+    for_each: aws.sns.list_subscriptions
+    calls:
+      - action: get_subscription_attributes
+        params:
+          SubscriptionArn: "{{ item.SubscriptionArn }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Attributes: '{{ item.Attributes }}'
+        EffectiveDeliveryPolicy: '{{ item.EffectiveDeliveryPolicy }}'
+        Owner: '{{ item.Owner }}'
+        Policy: '{{ item.Policy }}'
+        SubscriptionArn: '{{ item.SubscriptionArn }}'
+        TopicArn: '{{ item.TopicArn }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.sns.get_topic_attributes [dependent] ──
+  - discovery_id: aws.sns.get_topic_attributes
+    for_each: aws.sns.list_subscriptions
+    calls:
+      - action: get_topic_attributes
+        params:
+          TopicArn: "{{ item.TopicArn }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Attributes: '{{ item.Attributes }}'
+        DeliveryPolicy: '{{ item.DeliveryPolicy }}'
+        EffectiveDeliveryPolicy: '{{ item.EffectiveDeliveryPolicy }}'
+        KmsMasterKeyId: '{{ item.KmsMasterKeyId }}'
+        Owner: '{{ item.Owner }}'
+        Policy: '{{ item.Policy }}'
+        SubscriptionsConfirmed: '{{ item.SubscriptionsConfirmed }}'
+        SubscriptionsPending: '{{ item.SubscriptionsPending }}'
+        TopicArn: '{{ item.TopicArn }}'
+

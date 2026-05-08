@@ -1,0 +1,39 @@
+version: '1.0'
+provider: aws
+service: vpcflowlogs
+checks:
+- rule_id: aws.vpcflowlogs.flowlog.alert_destinations_configured
+  for_each: aws.ec2.describe_flow_logs
+  severity: MEDIUM
+  conditions:
+    var: item.FlowLogs
+    op: not_empty
+    value: null
+- rule_id: aws.vpcflowlogs.flowlog.alerts_for_anomalies_configured
+  for_each: aws.ec2.describe_flow_logs
+  severity: MEDIUM
+  conditions:
+    var: item.DeliverLogsPermissionArn
+    op: exists
+    value: null
+- rule_id: aws.vpcflowlogs.flowlog.log_ids_ips_enabled_if_supported
+  for_each: aws.ec2.describe_flow_logs
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.FlowLogId
+      op: exists
+      value: null
+    - var: item.ResourceId
+      op: exists
+      value: null
+    - var: item.TrafficType
+      op: equals
+      value: ALL
+- rule_id: aws.vpcflowlogs.flowlog.log_s_enabled
+  for_each: aws.ec2.describe_flow_logs
+  severity: MEDIUM
+  conditions:
+    var: item.FlowLogStatus
+    op: equals
+    value: ACTIVE

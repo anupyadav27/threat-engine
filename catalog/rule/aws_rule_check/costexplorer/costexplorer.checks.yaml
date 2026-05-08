@@ -1,0 +1,96 @@
+version: '1.0'
+provider: aws
+service: costexplorer
+checks:
+- rule_id: aws.costexplorer.anomalydetector.alert_destinations_configured
+  for_each: aws.ce.get_anomaly_monitors
+  severity: MEDIUM
+  conditions:
+    var: item.Subscribers[].Address
+    op: not_empty
+    value: null
+- rule_id: aws.costexplorer.anomalydetector.costexplorer_detectors_enabled
+  for_each: aws.ce.get_anomaly_monitors
+  severity: MEDIUM
+  conditions:
+    var: item.AnomalyDetectorStatus
+    op: equals
+    value: ACTIVE
+- rule_id: aws.costexplorer.anomalydetector.costexplorer_severity_thresholds_configured
+  for_each: aws.ce.get_anomaly_monitors
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.MonitorSpecification.ThresholdExpression.Dimensions.Values
+      op: not_empty
+      value: null
+    - var: item.MonitorSpecification.ThresholdExpression.Threshold
+      op: gt
+      value: '0'
+- rule_id: aws.costexplorer.cost_allocation_tag.cost_tag_policy_enforced
+  for_each: aws.ce.list_cost_allocation_tags
+  severity: HIGH
+  conditions:
+    var: item.Status
+    op: equals
+    value: Active
+- rule_id: aws.costexplorer.cost_allocation_tag.costexplorer_required_cost_tags_present
+  for_each: aws.ce.list_cost_allocation_tags
+  severity: MEDIUM
+  conditions:
+    var: item.Status
+    op: equals
+    value: Active
+- rule_id: aws.costexplorer.cost_allocation_tag.untagged_resource_alerts_enabled
+  for_each: aws.ce.list_cost_allocation_tags
+  severity: MEDIUM
+  conditions:
+    var: item.Status
+    op: equals
+    value: Active
+- rule_id: aws.costexplorer.costcategory.billing_admins_mfa_required
+  for_each: aws.iam.list_users
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.Policies[].PolicyName
+      op: contains
+      value: BillingAdministrator
+    - var: item.MFAEnabled
+      op: is_true
+      value: null
+- rule_id: aws.costexplorer.costcategory.billing_console_rbac_least_privilege
+  for_each: aws.ce.list_cost_category_definitions
+  severity: HIGH
+  conditions:
+    var: item.Rules[].InheritedValue.DimensionValue
+    op: not_contains
+    value: BILLING_ENTITY
+- rule_id: aws.costexplorer.costcategory.costexplorer_cost_data_exports_private_and_encrypted
+  for_each: aws.ce.list_cost_category_definitions
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.CostCategoryRules[].Rule.Expression.Dimensions.Key
+      op: not_contains
+      value: CostCategory
+    - var: item.CostCategoryRules[].Rule.Expression.Dimensions.Values
+      op: not_contains
+      value: CostDataExports
+    - var: item.CostCategoryRules[].Rule.Expression.Dimensions.Values
+      op: not_contains
+      value: Private
+    - var: item.CostCategoryRules[].Rule.Expression.Dimensions.Values
+      op: not_contains
+      value: Encrypted
+- rule_id: aws.costexplorer.costcategory.costexplorer_cost_export_destinations_least_privilege
+  for_each: aws.ce.list_cost_category_definitions
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Rules[].RuleDetails[].Targets[].Values[]
+      op: not_contains
+      value: '*'
+    - var: item.Rules[].RuleDetails[].Targets[].Values[]
+      op: not_contains
+      value: arn:aws:*:*:*:*

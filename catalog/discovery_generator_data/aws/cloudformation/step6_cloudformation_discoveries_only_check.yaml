@@ -1,0 +1,93 @@
+# discoveries_only_check: 3 kept / 43 removed from 46 total
+# generated_from: step6_cloudformation.discovery.yaml
+# purpose: only discoveries needed by cloudformation.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: cloudformation
+services:
+  client: cloudformation
+  module: boto3.client
+discovery:
+- discovery_id: aws.cloudformation.describe_stack_resources
+  calls:
+  - action: describe_stack_resources
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.StackResources }}'
+    item:
+      Description: '{{ item.Description }}'
+      DriftInformation: '{{ item.DriftInformation }}'
+      LogicalResourceId: '{{ item.LogicalResourceId }}'
+      ModuleInfo: '{{ item.ModuleInfo }}'
+      PhysicalResourceId: '{{ item.PhysicalResourceId }}'
+      ResourceStatus: '{{ item.ResourceStatus }}'
+      ResourceStatusReason: '{{ item.ResourceStatusReason }}'
+      ResourceType: '{{ item.ResourceType }}'
+      StackId: '{{ item.StackId }}'
+      StackName: '{{ item.StackName }}'
+      StackResources: '{{ item.StackResources }}'
+      Timestamp: '{{ item.Timestamp }}'
+- discovery_id: aws.cloudformation.describe_stacks
+  calls:
+  - action: describe_stacks
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Stacks }}'
+    item:
+      Tags: '{{ item.Tags }}'
+      Capabilities: '{{ item.Capabilities }}'
+      ChangeSetId: '{{ item.ChangeSetId }}'
+      DeletionMode: '{{ item.DeletionMode }}'
+      Description: '{{ item.Description }}'
+      DetailedStatus: '{{ item.DetailedStatus }}'
+      DisableRollback: '{{ item.DisableRollback }}'
+      DriftInformation: '{{ item.DriftInformation }}'
+      EnableTerminationProtection: '{{ item.EnableTerminationProtection }}'
+      Enabled: '{{ item.Enabled }}'
+      NotificationARNs: '{{ item.NotificationARNs }}'
+      Outputs: '{{ item.Outputs }}'
+      Parameters: '{{ item.Parameters }}'
+      RetainExceptOnCreate: '{{ item.RetainExceptOnCreate }}'
+      RoleARN: '{{ item.RoleARN }}'
+      RollbackConfiguration: '{{ item.RollbackConfiguration }}'
+      StackId: '{{ item.StackId }}'
+      StackName: '{{ item.StackName }}'
+      StackStatus: '{{ item.StackStatus }}'
+      StackStatusReason: '{{ item.StackStatusReason }}'
+      Stacks: '{{ item.Stacks }}'
+      TimeoutInMinutes: '{{ item.TimeoutInMinutes }}'
+- discovery_id: aws.cloudformation.describe_stack_events
+  for_each: aws.cloudformation.describe_stack_resources
+  calls:
+  - action: describe_stack_events
+    params:
+      StackName: '{{ item.StackName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.StackEvents }}'
+    item:
+      ClientRequestToken: '{{ item.ClientRequestToken }}'
+      DetailedStatus: '{{ item.DetailedStatus }}'
+      EventId: '{{ item.EventId }}'
+      HookFailureMode: '{{ item.HookFailureMode }}'
+      HookInvocationId: '{{ item.HookInvocationId }}'
+      HookInvocationPoint: '{{ item.HookInvocationPoint }}'
+      HookStatus: '{{ item.HookStatus }}'
+      HookStatusReason: '{{ item.HookStatusReason }}'
+      HookType: '{{ item.HookType }}'
+      LogicalResourceId: '{{ item.LogicalResourceId }}'
+      OperationId: '{{ item.OperationId }}'
+      PhysicalResourceId: '{{ item.PhysicalResourceId }}'
+      ResourceProperties: '{{ item.ResourceProperties }}'
+      ResourceStatus: '{{ item.ResourceStatus }}'
+      ResourceStatusReason: '{{ item.ResourceStatusReason }}'
+      ResourceType: '{{ item.ResourceType }}'
+      StackId: '{{ item.StackId }}'
+      StackName: '{{ item.StackName }}'
+      Timestamp: '{{ item.Timestamp }}'

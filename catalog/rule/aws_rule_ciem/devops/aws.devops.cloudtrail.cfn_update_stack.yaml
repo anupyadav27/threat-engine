@@ -1,0 +1,77 @@
+rule_id: aws.devops.cloudtrail.cfn_update_stack
+service: devops
+provider: aws
+check_type: log
+severity: medium
+title: 'DevOps: Cfn Update Stack'
+description: CloudFormation stack updated — infrastructure configuration changed.
+rationale: Software deployment tool abuse enables attackers to deploy malicious software across multiple systems via CI/CD pipelines or deployment platforms.
+threat_category: defense_evasion
+mitre_tactics:
+- execution
+mitre_techniques:
+- T1072
+risk_score: 55
+resource: codepipeline
+source: default
+is_active: true
+domain: configuration_and_change_management
+action_category: modify
+log_source_type: 
+posture_category: security_posture
+threat_tags:
+- T1072
+- defense_evasion
+- log_tampering
+- cicd
+- devops_security
+risk_indicators:
+  actor_type: cicd_service_principal
+  action_type: write
+  target_type: cicd_pipeline
+  blast_radius: resource_group
+  stealth_risk: critical
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 3.1
+  - 3.2
+  - 3.3
+  - 3.4
+  cis_azure_v2:
+  - 5.1
+  - 5.2
+  - 5.3
+  nist_800_53_r5:
+  - AU-2
+  - AU-6
+  - AU-12
+  - SI-4
+  pci_dss_v4:
+  - 10.1
+  - 10.2
+  - 10.3
+  iso_27001_2022:
+  - A.8.15
+  - A.8.16
+  - A.5.28
+remediation: |
+  1. Restrict deployment tool access to authorized principals with MFA enforcement.
+  2. Require code signing and approval workflows for all deployments.
+  3. Enable audit logging for all software deployment operations.
+references:
+- https://attack.mitre.org/techniques/T1072/
+check_config:
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: cloudformation
+    - field: operation
+      op: equals
+      value: UpdateStack
+version: '1.0'

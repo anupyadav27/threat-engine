@@ -1,0 +1,62 @@
+rule_id: k8s.ciem.correlation.persistence_daemonset_chain
+rule_type: ciem
+title: 'K8s: Cluster-Wide Persistence Chain — DaemonSet + RBAC Grant'
+scope: ciem.correlation
+domain: container_and_kubernetes_security
+subcategory: container_security
+severity: critical
+service: ciem
+resource: correlation
+requirement: Persistence Daemonset Chain
+description: 'Correlated cluster-wide persistence: DaemonSet created (cluster-wide
+  execution) followed by ClusterRoleBinding — malicious workload granted ongoing cluster
+  admin access.'
+rationale: 'Adversaries add roles or permissions to service accounts or workload identities
+  to maintain persistent access to container orchestration systems. Creating Kubernetes
+  RoleBindings or ClusterRoleBindings for attacker-controlled identities enables cluster-wide
+  command execution. Detected via: high-privilege role assignments outside CI/CD automation,
+  bindings from unfamiliar IP addresses, and unexpected ServiceAccount token creation.'
+remediation: '1. Delete the unauthorized DaemonSet, CronJob, or ServiceAccount immediately.
+
+  2. Audit all resources in kube-system: `kubectl get all -n kube-system`
+
+  3. Enable admission control policies restricting resource creation to known CI/CD
+  identities.
+
+  4. Use RBAC least-privilege: restrict create verbs on DaemonSets/CronJobs to dedicated
+  service accounts.
+
+  5. Monitor for new ServiceAccount creation via Falco or audit log alerting.
+
+  '
+references:
+- https://attack.mitre.org/techniques/T1543/
+- https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/
+compliance:
+  cis_k8s_v1:
+  - 5.1.1
+  - 5.1.4
+  - 5.4.1
+  nist_800_53_r5:
+  - AC-2
+  - AC-6
+  - CM-7
+  pci_dss_v4:
+  - 7.1
+  - 8.2
+  - 6.4
+  iso_27001_2022:
+  - A.5.18
+  - A.8.19
+threat_category: persistence
+mitre_tactics:
+- persistence
+- privilege_escalation
+mitre_techniques:
+- T1543
+- T1098.006
+risk_score: 97
+action_category: create
+source: default
+metadata_source: auto_generated
+generated_by: k8s_ciem_generator

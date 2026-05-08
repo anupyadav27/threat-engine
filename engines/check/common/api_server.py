@@ -10,21 +10,22 @@ No cloud API credentials are needed.  The only provider-specific work is
 parsing resource identifiers from the emitted_fields JSON already in the DB.
 
 Request modes:
-  1. Pipeline  — supply orchestration_id; tenant/hierarchy/discovery_scan_run_id
-                 are fetched from scan_orchestration table.
-  2. Ad-hoc    — supply discovery_scan_run_id + tenant_id + account_id directly.
+  1. Pipeline  — supply scan_run_id; tenant/account metadata
+                 are fetched from scan_runs table.
+  2. Ad-hoc    — supply scan_run_id + tenant_id + account_id directly.
 """
 
 import os
 import sys
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 # engine_common is one level above engine_check/
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+from engine_common.db_connections import get_check_conn
 from engine_common.logger import setup_logger
 from engine_common.orchestration import get_orchestration_metadata
 from engine_common.job_creator import create_engine_job
@@ -37,8 +38,50 @@ from common.orchestration.check_engine import CheckEngine
 
 # CSP-specific evaluators (no credentials required — DB-only)
 from providers.aws.evaluator.check_evaluator import AWSCheckEvaluator
+from providers.gcp.evaluator.check_evaluator import GCPCheckEvaluator
+from providers.azure.evaluator.check_evaluator import AzureCheckEvaluator
+from providers.oci.evaluator.check_evaluator import OCICheckEvaluator
+from providers.ibm.evaluator.check_evaluator import IBMCheckEvaluator
+from providers.k8s.evaluator.check_evaluator import K8sCheckEvaluator
+from providers.alicloud.evaluator.check_evaluator import AliCloudCheckEvaluator
 
 logger = setup_logger(__name__, engine_name="engine-check-common")
+
+# ── Auth imports (engine_auth is COPY shared/auth/ ./engine_auth/ in Dockerfile) ──
+try:
+    from engine_auth.fastapi.middleware import AuthMiddleware
+    from engine_auth.fastapi.dependencies import require_permission
+    from engine_auth.core.models import AuthContext
+    _AUTH_AVAILABLE = True
+except ImportError:
+    _AUTH_AVAILABLE = False
+    AuthContext = None  # type: ignore[assignment,misc]
+
+
+def strip_sensitive_fields(data: List[Dict[str, Any]], auth: Any) -> List[Dict[str, Any]]:
+    """Remove credential and raw-evidence fields based on caller's auth level.
+
+    Args:
+        data: List of finding dicts.
+        auth: AuthContext instance (or None when auth is unavailable).
+
+    Returns:
+        New list with sensitive fields removed; original dicts are not mutated.
+    """
+    if not isinstance(data, list):
+        return data
+    stripped = []
+    for row in data:
+        r = dict(row) if not isinstance(row, dict) else row.copy()
+        if auth is not None and auth.level > 1:
+            r.pop("credential_ref", None)
+            r.pop("credential_type", None)
+        if auth is not None and auth.level >= 4:
+            r.pop("raw_data", None)
+            r.pop("evidence", None)
+        stripped.append(r)
+    return stripped
+
 
 app = FastAPI(
     title="Multi-CSP Check Engine API",
@@ -59,16 +102,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# AuthMiddleware validates access_token / X-Auth-Context for every non-health path
+if _AUTH_AVAILABLE:
+    app.add_middleware(AuthMiddleware)
+
 # ── Provider registry ─────────────────────────────────────────────────────────
 # Maps provider name → CheckEvaluator class.
 # Add new CSP evaluators here once implemented.
 # No credentials/auth needed — evaluators only parse DB data.
 
 PROVIDER_EVALUATORS: Dict[str, type] = {
-    "aws": AWSCheckEvaluator,
-    # "azure": AzureCheckEvaluator,  # TODO
-    # "gcp":   GCPCheckEvaluator,    # TODO
-    # "oci":   OCICheckEvaluator,    # TODO
+    "aws":      AWSCheckEvaluator,
+    "gcp":      GCPCheckEvaluator,
+    "azure":    AzureCheckEvaluator,
+    "oci":      OCICheckEvaluator,
+    "ibm":      IBMCheckEvaluator,
+    "k8s":      K8sCheckEvaluator,
+    "alicloud": AliCloudCheckEvaluator,
 }
 
 # ── Shared DB manager (health checks only) ───────────────────────────────────
@@ -107,11 +157,11 @@ metrics: Dict[str, Any] = {
 class CheckRequest(BaseModel):
     """Check scan request — no credentials required."""
 
-    # Pipeline mode: fetch metadata from scan_orchestration table
+    # Pipeline mode: fetch metadata from scan_runs table
     scan_run_id: Optional[str] = None
 
     # Ad-hoc mode: supply these directly
-    discovery_scan_run_id: Optional[str] = None
+    discovery_scan_id: Optional[str] = None
     tenant_id: Optional[str] = None
     customer_id: Optional[str] = None
     account_id: Optional[str] = None
@@ -149,7 +199,7 @@ def _get_evaluator(provider: str) -> CheckEvaluator:
 
 
 async def _fetch_orchestration(orch_id: str) -> Dict[str, Any]:
-    """Fetch scan metadata from scan_orchestration table."""
+    """Fetch scan metadata from scan_runs table."""
     try:
         metadata = get_orchestration_metadata(orch_id)
         if not metadata:
@@ -179,11 +229,11 @@ async def create_check(request: CheckRequest):
     """
     Start a compliance check scan by creating a K8s Job on a spot node.
 
-    **Pipeline mode** — provide `orchestration_id`:
-      Fetches metadata from scan_orchestration table.
+    **Pipeline mode** — provide `scan_run_id`:
+      Fetches metadata from scan_runs table.
 
-    **Ad-hoc mode** — provide `discovery_scan_run_id`:
-      Uses the supplied discovery_scan_run_id with optional overrides.
+    **Ad-hoc mode** — provide `discovery_scan_id`:
+      Uses the supplied discovery_scan_id with optional overrides.
     """
     orch_id = request.scan_run_id
     scan_run_id = orch_id
@@ -191,18 +241,18 @@ async def create_check(request: CheckRequest):
     if orch_id:
         meta = await _fetch_orchestration(orch_id)
 
-        discovery_scan_run_id = meta.get("discovery_scan_run_id")
-        if not discovery_scan_run_id:
+        resolved_scan_run_id = meta.get("scan_run_id")
+        if not resolved_scan_run_id:
             raise HTTPException(
                 status_code=400,
-                detail=f"Discovery scan not yet completed for orchestration_id={orch_id}",
+                detail=f"Discovery scan not yet completed for scan_run_id={orch_id}",
             )
 
         provider = meta.get("provider") or meta.get("provider_type", "aws")
-        logger.info("Pipeline mode: orch=%s disc=%s provider=%s", orch_id, discovery_scan_run_id, provider)
+        logger.info("Pipeline mode: scan_run_id=%s provider=%s", resolved_scan_run_id, provider)
 
-    elif request.discovery_scan_run_id:
-        logger.info("Ad-hoc mode: discovery_scan_run_id=%s", request.discovery_scan_run_id)
+    elif request.discovery_scan_id:
+        logger.info("Ad-hoc mode: discovery_scan_id=%s", request.discovery_scan_id)
         if not orch_id:
             raise HTTPException(
                 status_code=400,
@@ -227,17 +277,17 @@ async def create_check(request: CheckRequest):
     # Resolve metadata for report row
     tenant_id = request.tenant_id or "default-tenant"
     customer_id = request.customer_id or "default"
-    disc_scan_id = request.discovery_scan_run_id or ""
+    disc_scan_id = request.discovery_scan_id or ""
     account_id = request.account_id or ""
 
     # Pre-create check_report row in DB (so status endpoint works immediately)
     try:
         import json as _json
-        conn = _get_check_conn()
+        conn = get_check_conn()
         with conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO check_report
-                   (scan_run_id, customer_id, tenant_id, provider, discovery_scan_run_id,
+                   (scan_run_id, customer_id, tenant_id, provider, discovery_scan_id,
                     account_id, status, first_seen_at, metadata)
                    VALUES (%s, %s, %s, %s, %s, %s, 'running', NOW(), %s)
                    ON CONFLICT (scan_run_id) DO UPDATE SET status = 'running'""",
@@ -283,10 +333,10 @@ async def get_check_status(scan_run_id: str):
     """Get check scan status from check_report DB table."""
     from psycopg2.extras import RealDictCursor
     try:
-        conn = _get_check_conn()
+        conn = get_check_conn()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
-                "SELECT scan_run_id, status, provider, discovery_scan_run_id, first_seen_at, metadata "
+                "SELECT scan_run_id, status, provider, discovery_scan_id, first_seen_at, metadata "
                 "FROM check_report WHERE scan_run_id = %s",
                 (scan_run_id,),
             )
@@ -302,7 +352,7 @@ async def get_check_status(scan_run_id: str):
         "scan_run_id": row["scan_run_id"],
         "status": row["status"],
         "provider": row.get("provider"),
-        "discovery_scan_run_id": row.get("discovery_scan_run_id"),
+        "discovery_scan_id": row.get("discovery_scan_id"),
         "started_at": str(row.get("first_seen_at", "")),
     }
 
@@ -317,7 +367,7 @@ async def list_checks(
     """List check scans from DB."""
     from psycopg2.extras import RealDictCursor
     try:
-        conn = _get_check_conn()
+        conn = get_check_conn()
         conditions = ["tenant_id = %s"]
         params: list = [tenant_id]
         if status:
@@ -329,7 +379,7 @@ async def list_checks(
         where = " AND ".join(conditions)
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
-                f"SELECT scan_run_id, status, provider, discovery_scan_run_id, first_seen_at "
+                f"SELECT scan_run_id, status, provider, discovery_scan_id, first_seen_at "
                 f"FROM check_report WHERE {where} ORDER BY first_seen_at DESC LIMIT %s",
                 params + [limit],
             )
@@ -396,19 +446,6 @@ async def get_metrics():
 # ── All-findings endpoints (misconfigurations page) ──────────────────────
 
 
-def _get_check_conn():
-    """Get a psycopg2 connection to the check DB."""
-    import psycopg2
-    return psycopg2.connect(
-        host=os.getenv("CHECK_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("CHECK_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("CHECK_DB_NAME", "threat_engine_check"),
-        user=os.getenv("CHECK_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("CHECK_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        connect_timeout=5,
-    )
-
-
 @app.get("/api/v1/check/findings/summary")
 async def get_findings_summary(
     tenant_id: str = Query(...),
@@ -433,7 +470,7 @@ async def get_findings_summary(
     from psycopg2.extras import RealDictCursor
 
     try:
-        conn = _get_check_conn()
+        conn = get_check_conn()
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Database unavailable: {e}")
 
@@ -628,6 +665,7 @@ async def list_findings(
     page_size: int = Query(50, ge=1, le=500),
     sort_by: str = Query("severity"),
     sort_order: str = Query("asc"),
+    auth: Any = Depends(require_permission("check:read") if _AUTH_AVAILABLE else (lambda: None)),
 ):
     """
     List all check findings with filtering, pagination, and sorting.
@@ -639,7 +677,7 @@ async def list_findings(
     from psycopg2.extras import RealDictCursor
 
     try:
-        conn = _get_check_conn()
+        conn = get_check_conn()
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Database unavailable: {e}")
 
@@ -796,8 +834,9 @@ async def list_findings(
                 "first_seen_at": created.isoformat() if created else None,
             })
 
+        shaped = strip_sensitive_fields(findings, auth)
         return {
-            "findings": findings,
+            "findings": shaped,
             "total": total,
             "page": page,
             "page_size": page_size,
@@ -822,29 +861,28 @@ async def get_findings_for_resource(
     compliance posture (severity counts + detailed finding list).
     Matches on resource_uid to handle format differences.
     """
-    import psycopg2
     from psycopg2.extras import RealDictCursor
 
     try:
-        conn = psycopg2.connect(
-            host=os.getenv("CHECK_DB_HOST", os.getenv("DB_HOST", "localhost")),
-            port=int(os.getenv("CHECK_DB_PORT", os.getenv("DB_PORT", "5432"))),
-            dbname=os.getenv("CHECK_DB_NAME", "threat_engine_check"),
-            user=os.getenv("CHECK_DB_USER", os.getenv("DB_USER", "postgres")),
-            password=os.getenv("CHECK_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-            connect_timeout=5,
-        )
+        conn = get_check_conn()
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Database unavailable: {e}")
 
     try:
         # ── Resolve the canonical resource_uid stored in check_findings ─────
-        # Inventory may use short names (e.g. "my-role") while check_findings
-        # stores full ARNs ("arn:aws:iam::123:role/my-role"). Try exact match
-        # first, then fall back to suffix match (LIKE '%/<short_name>').
+        # Inventory uses full ARNs; check_findings may store either full ARNs or
+        # short resource IDs (e.g. "acl-xxx", "eipalloc-xxx").
+        # Resolution order:
+        #   1. Exact match on full UID (ARN→ARN case)
+        #   2. Extract short ID from ARN suffix (after last '/') and match on
+        #      resource_uid or resource_id column (ARN→short-ID case)
+        #   3. Suffix match LIKE '%/<uid>' for short-name→ARN case
         resolved_uid = resource_uid
+        # Short ID: last segment after '/' for ARN-formatted UIDs
+        short_id = resource_uid.rsplit("/", 1)[-1] if "/" in resource_uid else resource_uid
+
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            # Exact match
+            # Step 1: Exact match on full UID
             cur.execute("""
                 SELECT resource_uid AS uid, scan_run_id
                 FROM check_findings
@@ -855,8 +893,20 @@ async def get_findings_for_resource(
             """, (resource_uid, tenant_id))
             row = cur.fetchone()
 
-            if not row and '/' not in resource_uid and ':' not in resource_uid:
-                # Short-name → try suffix match
+            if not row and short_id != resource_uid:
+                # Step 2: ARN with '/suffix' — match short ID against resource_uid or resource_id
+                cur.execute("""
+                    SELECT resource_uid AS uid, scan_run_id
+                    FROM check_findings
+                    WHERE (resource_uid = %s OR resource_id = %s)
+                      AND tenant_id = %s
+                    ORDER BY first_seen_at DESC
+                    LIMIT 1
+                """, (short_id, short_id, tenant_id))
+                row = cur.fetchone()
+
+            if not row and '/' not in short_id and ':' not in short_id:
+                # Step 3: Short-name → try suffix match on resource_uid
                 cur.execute("""
                     SELECT resource_uid AS uid, scan_run_id
                     FROM check_findings
@@ -864,7 +914,7 @@ async def get_findings_for_resource(
                       AND tenant_id = %s
                     ORDER BY first_seen_at DESC
                     LIMIT 1
-                """, (f'%/{resource_uid}', tenant_id))
+                """, (f'%/{short_id}', tenant_id))
                 row = cur.fetchone()
 
             if row:
@@ -1026,7 +1076,7 @@ async def batch_severity(payload: BatchSeverityRequest):
     short_ids = [uid.rsplit("/", 1)[-1] for uid in resource_uids]
 
     try:
-        conn = _get_check_conn()
+        conn = get_check_conn()
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Database unavailable: {e}")
 

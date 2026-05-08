@@ -1,0 +1,79 @@
+version: '1.0'
+provider: azure
+service: ad
+checks:
+- rule_id: azure.ad.authentication.methods.policy.check
+  for_each: azure.ad.get_authentication_methods_policy
+  severity: MEDIUM
+  conditions:
+    var: item.AuthenticationMethodsRegistrationCampaign.IncludeTargets
+    op: exists
+    value: null
+- rule_id: azure.ad.conditionalaccess.token.protection.check
+  for_each: azure.ad.list_conditional_access_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.grantControls.builtInControls[]
+      op: contains
+      value: requireTokenProtection
+    - var: item.state
+      op: equals
+      value: enabled
+- rule_id: azure.ad.group.creation.restriction.check
+  for_each: azure.ad.list_groups
+  severity: MEDIUM
+  conditions:
+    var: item.IsAssignableToRole
+    op: is_false
+    value: null
+- rule_id: azure.ad.guest.user.access.restriction.check
+  for_each: azure.ad.list_guest_users
+  severity: MEDIUM
+  conditions:
+    var: item.UserType
+    op: not_equals
+    value: Guest
+- rule_id: azure.ad.password.reset.notification.check
+  for_each: azure.ad.list_password_reset_notification_settings
+  severity: MEDIUM
+  conditions:
+    var: item.NotificationEnabled
+    op: is_true
+    value: null
+- rule_id: azure.ad.role.least_privilege
+  for_each: azure.ad.list_role_definitions
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.permissions[].actions[]
+      op: not_contains
+      value: '*'
+    - var: item.properties.permissions[].notActions[]
+      op: exists
+      value: null
+- rule_id: azure.ad.security.lockout.duration.check
+  for_each: azure.ad.get_security_lockout_policy
+  severity: MEDIUM
+  conditions:
+    var: item.LockoutDurationInMinutes
+    op: gte
+    value: 15
+- rule_id: azure.ad.tenant.creator.role.review
+  for_each: azure.ad.list_role_assignments
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.RoleDefinitionName
+      op: not_equals
+      value: User Access Administrator
+    - var: item.RoleDefinitionName
+      op: not_equals
+      value: Global Administrator
+- rule_id: azure.ad.user.role.check.disabled
+  for_each: azure.ad.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.AccountEnabled
+    op: is_true
+    value: null

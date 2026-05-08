@@ -1,0 +1,151 @@
+version: '1.0'
+provider: azure
+service: entra
+checks:
+- rule_id: azure.entra.authentication.passwordless.policy.check
+  for_each: azure.entra.get_authentication_methods_policies
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.authenticationMethodsConfigurations[].state
+      op: equals
+      value: enabled
+    - var: item.authenticationMethodsConfigurations[].state
+      op: exists
+      value: null
+- rule_id: azure.entra.diagnostic.microsoft.graph.logs.destination.check
+  for_each: azure.entra.list_diagnostic_settings
+  severity: MEDIUM
+  conditions:
+    var: item.logs[].category
+    op: contains
+    value: MicrosoftGraphActivityLogs
+- rule_id: azure.entra.id.authentication.lockout.threshold.check
+  for_each: azure.entra.id.get_authentication_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.LockoutThreshold
+      op: exists
+      value: null
+    - var: item.LockoutThreshold
+      op: lt
+      value: 10
+- rule_id: azure.entra.id.custom.role.admin.privileges.check
+  for_each: azure.entra.list_custom_role_definitions
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.assignableScopes[]
+      op: contains
+      value: /
+    - var: item.permissions[].actions[]
+      op: not_contains
+      value: '*'
+    - var: item.permissions[].notActions[]
+      op: not_contains
+      value: '*'
+- rule_id: azure.entra.id.diagnostic.setting.activity.logs.configured
+  for_each: azure.entra.id.list_diagnostic_settings
+  severity: MEDIUM
+  conditions:
+    var: item.logs[].category
+    op: contains
+    value: AuditLogs
+- rule_id: azure.entra.id.guest.invite.restrictions.check
+  for_each: azure.entra.list_guest_invite_settings
+  severity: MEDIUM
+  conditions:
+    var: item.EnableGuestInviteRestrictions
+    op: is_true
+    value: null
+- rule_id: azure.entra.id.mfa.enabled.for.privileged.vm.access
+  for_each: azure.entra.list_users
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.isPrivileged
+      op: is_true
+      value: null
+    - var: item.mfaEnabled
+      op: is_true
+      value: null
+- rule_id: azure.entra.id.policy.restrict.non.admin.tenant.creation
+  for_each: azure.entra.id.list_tenant_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.allowNonAdminTenantCreation
+      op: is_false
+      value: null
+- rule_id: azure.entra.id.user.app.registration.disabled
+  for_each: azure.entra.id.list_app_registrations
+  severity: MEDIUM
+  conditions:
+    var: item.Enabled
+    op: is_true
+    value: null
+- rule_id: azure.entra.id.user.consent.disabled.check
+  for_each: azure.entra.id.list_user_settings
+  severity: MEDIUM
+  conditions:
+    var: item.UserConsentSettings.UserConsentEnabled
+    op: is_false
+    value: null
+- rule_id: azure.entra.id.user.consent.settings.verified.publishers
+  for_each: azure.entra.id.list_user_settings
+  severity: MEDIUM
+  conditions:
+    var: item.ConsentSettings.VerifiedPublisherConsentEnabled
+    op: is_true
+    value: null
+- rule_id: azure.entra.policy.require_mfa_for_management_api:az.active_directory_tenant.identity_access_security_password_policy_require_upper_lower_number_special
+  for_each: azure.entra.get_tenant_password_policy
+  severity: MEDIUM
+  conditions:
+    var: item.RequireUppercaseCharacters
+    op: is_true
+    value: null
+- rule_id: azure.entra.policy.trusted_named_locations_exists
+  for_each: azure.entra.named_locations.list
+  severity: MEDIUM
+  conditions:
+    var: item.value
+    op: not_empty
+    value: null
+- rule_id: azure.entra.policy.user_consent_for_verified_appsstorage_blob_public_access_level_is_disabledstorage_ensure_azure_services_are_trusted_to_access_is_enabled:az.active_directory_user.identity_access_security_user_inactive_90_days_disabled
+  for_each: azure.entra.users.list
+  severity: MEDIUM
+  conditions:
+    var: item.lastSignInDateTime
+    op: gte
+    value: -90d
+- rule_id: azure.entra.user.group_membership:az.active_directory_group.identity_access_security_group_membership_review_enabled_where_supported
+  for_each: azure.entra.list_groups
+  severity: MEDIUM
+  conditions:
+    var: item.identity_access_security_group_membership_review_enabled
+    op: is_true
+    value: null
+- rule_id: azure.entra.user.no_guest_accounts_with_permissions
+  for_each: azure.entra.list_users
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.userType
+      op: equals
+      value: Member
+    - var: item.assignedRoles
+      op: is_empty
+      value: null
+- rule_id: azure.entra.user.with_vm_access_has_mfa:az.active_directory_user.identity_access_security_user_mfa_required
+  for_each: azure.entra.list_users
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.assignedPlans[].service
+      op: contains
+      value: virtualMachines
+    - var: item.strongAuthenticationDetail.methods
+      op: not_empty
+      value: null

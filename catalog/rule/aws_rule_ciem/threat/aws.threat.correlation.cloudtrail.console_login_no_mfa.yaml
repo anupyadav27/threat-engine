@@ -1,0 +1,76 @@
+rule_id: aws.threat.correlation.cloudtrail.console_login_no_mfa
+service: threat
+provider: aws
+check_type: log
+severity: high
+title: 'Threat: Console Login No MFA'
+description: Console login without MFA — account accessed without second factor.
+rationale: 'Cloud account compromise enables access to all resources within the account''s permission scope. Attackers leverage valid credentials to avoid detection and pivot across cloud services.'
+threat_category: initial_access
+mitre_tactics:
+- initial_access
+mitre_techniques:
+- T1078.004
+risk_score: 72
+resource: multi_resource
+source: ciem_rule_generator
+is_active: true
+domain: threat_detection
+action_category: audit_activity
+log_source_type: cloudtrail
+posture_category: threat_posture
+threat_tags:
+- T1078.004
+- T1078
+- threat_detection
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: multi_resource
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.14
+  - 2.1
+  cis_azure_v2:
+  - 1.2
+  - 2.1
+  nist_800_53_r5:
+  - AC-17
+  - IA-2
+  - SI-3
+  pci_dss_v4:
+  - 8.3
+  - 11.5
+  iso_27001_2022:
+  - A.8.5
+  - A.9.4
+remediation: |
+  1. Immediately suspend the compromised account and revoke active sessions.
+  2. Reset credentials and enforce MFA enrollment.
+  3. Review all API calls and resource accesses made by the account.
+  4. Investigate sign-in logs for source IP and geolocation anomalies.
+  5. Enable Microsoft Entra ID Protection / AWS GuardDuty credential anomaly alerts.
+references:
+- https://attack.mitre.org/techniques/T1078/004/
+- https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+- https://learn.microsoft.com/en-us/azure/active-directory/identity-protection/overview-identity-protection
+check_config:
+  conditions:
+    all:
+    - field: operation
+      op: equals
+      value: ConsoleLogin
+    - field: raw_event.additionalEventData.MFAUsed
+      op: not_equals
+      value: 'Yes'
+  for_each: log_events
+  log_source_type: cloudtrail
+  type: log
+version: '1.0'

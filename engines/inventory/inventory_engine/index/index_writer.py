@@ -12,7 +12,7 @@ Tables WRITTEN:
   - inventory_report        : write_scan_summary(ScanSummary)
                               — INSERT ... ON CONFLICT (scan_run_id) DO UPDATE
   - inventory_findings      : write_asset_index(assets)
-                              — INSERT ... ON CONFLICT (finding_id) DO UPDATE (latest state only)
+                              — INSERT ... ON CONFLICT (asset_id) DO UPDATE (latest state only)
   - inventory_scan_data     : write_scan_snapshot(assets)
                               — INSERT per asset per scan (historical snapshots, 5 retained)
   - inventory_relationships : write_relationship_index(relationships)
@@ -130,53 +130,141 @@ class PostgresIndexWriter(IndexWriter):
                 return [_serialize_value(item) for item in obj]
             return obj
 
+        # Common tag key variants for each enrichment column
+        _ENV_KEYS    = ("Environment", "environment", "Env", "env", "deployment_env")
+        _COST_KEYS   = ("CostCenter", "cost_center", "Cost_Center", "CostCentre", "costcenter")
+        _CRIT_KEYS   = ("Criticality", "criticality", "Priority", "priority", "Impact", "impact")
+        _OWNER_KEYS  = ("Owner", "owner", "OwnedBy", "owned_by", "TeamOwner")
+        _BU_KEYS     = ("BusinessUnit", "business_unit", "BU", "bu", "Team", "team")
+
+        def _tag_val(tags: dict, keys: tuple):
+            for k in keys:
+                v = tags.get(k)
+                if v and isinstance(v, str) and v.strip():
+                    return v.strip()
+            return None
+
         for asset in assets:
             finding_id = generate_finding_id(asset)
 
             # Extract enrichment data from metadata
-            configuration = asset.metadata.get('configuration', {}) if asset.metadata else {}
-            labels = asset.metadata.get('labels', {}) if asset.metadata else {}
-            properties = {k: v for k, v in asset.metadata.items() if k not in ['configuration', 'labels', 'raw_refs']} if asset.metadata else {}
+            meta = asset.metadata or {}
+            configuration = meta.get('configuration', {})
+            labels = meta.get('labels', {})
+            emitted = meta.get('emitted_fields', {}) or {}
+            properties = {k: v for k, v in meta.items()
+                          if k not in ('configuration', 'labels', 'raw_refs')}
 
             # Serialize datetime objects
             configuration = _serialize_value(configuration)
             labels = _serialize_value(labels)
             properties = _serialize_value(properties)
 
-            # Remove stale row if resource_uid exists under a different finding_id
-            # (handles the dual unique constraint: PK on finding_id + UNIQUE on resource_uid,tenant_id)
+            tags = asset.tags or {}
+
+            # Populate tag-derived enrichment columns
+            environment_val   = _tag_val(tags, _ENV_KEYS)
+            cost_center_val   = _tag_val(tags, _COST_KEYS)
+            criticality_val   = _tag_val(tags, _CRIT_KEYS)
+            owner_val         = _tag_val(tags, _OWNER_KEYS)
+            business_unit_val = _tag_val(tags, _BU_KEYS)
+
+            # display_name: prefer explicit field, fall back to name
+            display_name_val = (
+                emitted.get("displayName") or emitted.get("display_name")
+                or tags.get("DisplayName") or asset.name
+            )
+            # description: from emitted fields or tags
+            description_val = (
+                emitted.get("description") or emitted.get("Description")
+                or tags.get("Description") or tags.get("description")
+            )
+
+            # Timestamps
+            now = datetime.now(timezone.utc)
+            first_seen_raw = meta.get("first_seen_at") or emitted.get("creationTimestamp")
+            if isinstance(first_seen_raw, str):
+                try:
+                    from dateutil import parser as _dp
+                    first_seen_at = _dp.parse(first_seen_raw)
+                except Exception:
+                    first_seen_at = now
+            elif isinstance(first_seen_raw, datetime):
+                first_seen_at = first_seen_raw
+            else:
+                first_seen_at = now
+
+            # Remove stale row if resource_uid exists under a different asset_id
             cursor.execute(
-                "DELETE FROM inventory_findings WHERE resource_uid = %s AND tenant_id = %s AND finding_id != %s",
+                "DELETE FROM inventory_findings WHERE resource_uid = %s AND tenant_id = %s AND asset_id != %s",
                 (asset.resource_uid, asset.tenant_id, finding_id),
             )
 
+            # Extract identifier-driven fields from metadata
+            _src = (getattr(asset, 'source_discovery_ids', None) or
+                    meta.get('source_discovery_ids') or
+                    meta.get('enriched_from') or [])
+            source_ids = json.dumps(_src)
+            identifier_key = getattr(asset, 'identifier_key', None) or meta.get('identifier_key', '')
+            scope_val = getattr(asset, 'scope', None) or meta.get('scope', '')
+            category_val = getattr(asset, 'category', None) or meta.get('category', '')
+            managed_by_val = getattr(asset, 'managed_by', None) or meta.get('managed_by', '')
+            is_container_val = getattr(asset, 'is_container', False) or meta.get('is_container', False)
+            container_parent_val = getattr(asset, 'container_parent', None) or meta.get('container_parent', '')
+
             cursor.execute("""
                 INSERT INTO inventory_findings (
-                    finding_id, tenant_id, resource_uid, provider, account_id,
-                    region, resource_type, resource_id, name, tags, labels,
-                    properties, configuration,
-                    scan_run_id, latest_scan_run_id, updated_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (finding_id) DO UPDATE SET
+                    asset_id, tenant_id, resource_uid, provider, account_id,
+                    region, resource_type, resource_id, name, display_name, description,
+                    tags, labels, properties, configuration,
+                    scan_run_id, latest_scan_run_id, first_seen_at, last_seen_at, updated_at,
+                    source_discovery_ids, identifier_key, scope, category,
+                    managed_by, is_container, container_parent,
+                    environment, cost_center, criticality, owner, business_unit
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                )
+                ON CONFLICT (asset_id) DO UPDATE SET
+                    tenant_id = EXCLUDED.tenant_id,
                     resource_uid = EXCLUDED.resource_uid,
                     resource_type = EXCLUDED.resource_type,
                     resource_id = EXCLUDED.resource_id,
                     name = EXCLUDED.name,
+                    display_name = EXCLUDED.display_name,
+                    description = EXCLUDED.description,
                     tags = EXCLUDED.tags,
                     labels = EXCLUDED.labels,
                     properties = EXCLUDED.properties,
                     configuration = EXCLUDED.configuration,
                     scan_run_id = EXCLUDED.scan_run_id,
                     latest_scan_run_id = EXCLUDED.latest_scan_run_id,
-                    updated_at = EXCLUDED.updated_at
+                    last_seen_at = EXCLUDED.last_seen_at,
+                    updated_at = EXCLUDED.updated_at,
+                    source_discovery_ids = EXCLUDED.source_discovery_ids,
+                    identifier_key = EXCLUDED.identifier_key,
+                    scope = EXCLUDED.scope,
+                    category = EXCLUDED.category,
+                    managed_by = EXCLUDED.managed_by,
+                    is_container = EXCLUDED.is_container,
+                    container_parent = EXCLUDED.container_parent,
+                    environment = COALESCE(EXCLUDED.environment, inventory_findings.environment),
+                    cost_center = COALESCE(EXCLUDED.cost_center, inventory_findings.cost_center),
+                    criticality = COALESCE(EXCLUDED.criticality, inventory_findings.criticality),
+                    owner = COALESCE(EXCLUDED.owner, inventory_findings.owner),
+                    business_unit = COALESCE(EXCLUDED.business_unit, inventory_findings.business_unit)
             """, (
                 finding_id, asset.tenant_id, asset.resource_uid,
                 asset.provider.value, asset.account_id, asset.region,
                 asset.resource_type, asset.resource_id, asset.name,
-                json.dumps(asset.tags), json.dumps(labels),
+                display_name_val, description_val,
+                json.dumps(tags), json.dumps(labels),
                 json.dumps(properties), json.dumps(configuration),
-                asset.scan_run_id, asset.scan_run_id,
-                datetime.now(timezone.utc)
+                asset.scan_run_id, asset.scan_run_id, first_seen_at, now, now,
+                source_ids, identifier_key, scope_val, category_val,
+                managed_by_val, is_container_val, container_parent_val,
+                environment_val, cost_center_val, criticality_val,
+                owner_val, business_unit_val,
             ))
 
         self.conn.commit()
@@ -243,7 +331,7 @@ class PostgresIndexWriter(IndexWriter):
 
             cursor.execute("""
                 INSERT INTO inventory_scan_data (
-                    scan_run_id, tenant_id, finding_id, resource_uid,
+                    inventory_scan_id, tenant_id, asset_id, resource_uid,
                     provider, account_id, region, resource_type, resource_id,
                     name, tags, labels, properties, configuration
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -280,13 +368,20 @@ class PostgresIndexWriter(IndexWriter):
             return 0
 
         total_deleted = 0
+        # scan_run_id column varies by table
+        table_scan_col = {
+            'inventory_scan_data': 'inventory_scan_id',
+            'inventory_relationships': 'scan_run_id',
+            'inventory_drift': 'inventory_scan_id',
+        }
         for table in ['inventory_scan_data', 'inventory_relationships', 'inventory_drift']:
+            col = table_scan_col[table]
             try:
                 cursor.execute(f"""
                     DELETE FROM {table}
                     WHERE tenant_id = %s
-                      AND scan_run_id IS NOT NULL
-                      AND scan_run_id != ALL(%s)
+                      AND {col} IS NOT NULL
+                      AND {col} != ALL(%s)
                 """, (tenant_id, keep_ids))
                 deleted = cursor.rowcount
                 if deleted > 0:
@@ -322,13 +417,28 @@ class PostgresIndexWriter(IndexWriter):
                 change_type = dr.change_type.value if hasattr(dr.change_type, 'value') else str(dr.change_type)
 
                 # Build previous/current state and changes_summary from diff
-                diff_data = dr.diff if hasattr(dr, 'diff') else {}
+                diff_data = dr.diff if (hasattr(dr, 'diff') and dr.diff) else {}
                 changes_summary = diff_data if isinstance(diff_data, (dict, list)) else {}
 
+                # Derive previous/current state from snapshot (add/remove) or diff (changed)
+                snapshot = diff_data.get("snapshot", {}) if isinstance(diff_data, dict) else {}
+                ct_lower = change_type.lower()
+                if "add" in ct_lower:
+                    previous_state: Dict[str, Any] = {}
+                    current_state: Dict[str, Any] = snapshot
+                elif "remov" in ct_lower:
+                    previous_state = snapshot
+                    current_state = {}
+                else:
+                    # asset_changed: summarise what changed from the changes list
+                    changes_list = diff_data.get("changes", []) if isinstance(diff_data, dict) else []
+                    previous_state = {c["path"]: c.get("before") for c in changes_list if isinstance(c, dict)}
+                    current_state = {c["path"]: c.get("after") for c in changes_list if isinstance(c, dict)}
+
                 # Determine severity from change type
-                if "remove" in change_type.lower():
+                if "remove" in ct_lower:
                     severity = "high"
-                elif "change" in change_type.lower() or "modified" in change_type.lower():
+                elif "change" in ct_lower or "modified" in ct_lower:
                     severity = "medium"
                 else:
                     severity = "low"
@@ -340,7 +450,7 @@ class PostgresIndexWriter(IndexWriter):
 
                 cursor.execute("""
                     INSERT INTO inventory_drift (
-                        drift_id, scan_run_id, previous_scan_id, tenant_id,
+                        drift_id, inventory_scan_id, previous_scan_id, tenant_id,
                         resource_uid, provider, resource_type, change_type,
                         previous_state, current_state, changes_summary,
                         severity, detected_at
@@ -348,7 +458,8 @@ class PostgresIndexWriter(IndexWriter):
                 """, (
                     drift_id, scan_run_id, previous_scan_id, tenant_id,
                     resource_uid, provider, resource_type, change_type,
-                    json.dumps({}), json.dumps({}), json.dumps(changes_summary),
+                    json.dumps(previous_state), json.dumps(current_state),
+                    json.dumps(changes_summary),
                     severity,
                     dr.detected_at if hasattr(dr, 'detected_at') else datetime.now(timezone.utc)
                 ))

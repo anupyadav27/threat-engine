@@ -1,0 +1,192 @@
+version: '1.0'
+provider: linux
+engine: rhel
+category: section_7
+cis_section: '7'
+description: >
+  rhel CIS Section 7 — permissions on /etc/passwd are configured
+
+discovery:
+
+  - discovery_id: rhel.section_7.permissions_on_etc_passwd_are_configured
+    description: Ensure permissions on /etc/passwd are configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify /etc/passwd is mode 644 or more restrictive, Uid is 0/root and Gid is 0/root: # stat -Lc \u0027Access: (%#a/%A) Uid: ( %u/ %U) Gid: ( %g/ %G)\u0027 /etc/passwd Access: (0644/-rw-r--r--) Uid: ( 0/ root) Gid: ( 0/ root)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: permissions_on_etc_passwd_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_7.permissions_on_etc_shadow_are_configured
+    description: Ensure permissions on /etc/shadow are configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify /etc/shadow is mode 000, Uid is 0/root and Gid is 0/root: # stat -Lc \u0027Access: (%#a/%A) Uid: ( %u/ %U) Gid: ( %g/ %G)\u0027 /etc/shadow Access: (0/----------) Uid: ( 0/ root) Gid: ( 0/ root)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: permissions_on_etc_shadow_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_7.permissions_on_etc_gshadow_are_configured
+    description: Ensure permissions on /etc/gshadow are configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify /etc/gshadow is mode 000, Uid is 0/root and Gid is 0/root: # stat -Lc \u0027Access: (%#a/%A) Uid: ( %u/ %U) Gid: ( %g/ %G)\u0027 /etc/gshadow Access: (0/----------) Uid: ( 0/ root) Gid: ( 0/ root)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: permissions_on_etc_gshadow_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_7.permissions_on_etc_security_opasswd_are_configured
+    description: Ensure permissions on /etc/security/opasswd are configured
+    calls:
+      - action: run_command
+        command: "Run the following commands to verify /etc/security/opasswd and /etc/security/opasswd.old are mode 600 or more restrictive, Uid is 0/root and Gid is 0/root if they exist: # [ -e \u0027/etc/security/opasswd\u0027 ] \u0026\u0026 stat -Lc \u0027%n Access: (%#a/%A) Uid: ( %u/ %U) Gid: ( %g/ %G)\u0027 /etc/security/opasswd /etc/security/opasswd Access: (0600/-rw-------) Uid: ( 0/ root) Gid: ( 0/ root) -OR- Nothing is returned # [ -e \u0027/etc/security/opasswd.old\u0027 ] \u0026\u0026 stat -Lc \u0027%n Access: (%#a/%A) Uid: ( %u/ %U) Gid: ( %g/ %G)\u0027 /etc/security/opasswd.old /etc/security/opasswd.old Access: (0600/-rw-------) Uid: ( 0/ root) Gid: ( 0/ root) -OR- Nothing is returned"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: permissions_on_etc_security_opasswd_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_7.world_writable_files_and_directories_are_secured
+    description: Ensure world writable files and directories are secured
+    calls:
+      - action: run_command
+        command: "Run the following script to verify: \u2022 No world writable files exist \u2022 No world writable directories without the sticky bit exist #!/usr/bin/env bash { l_output=\u0027\u0027 l_output2=\u0027\u0027 l_smask=\u002701000\u0027 a_file=(); a_dir=() # Initialize arrays a_path=(! -path \u0027/run/user/*\u0027 -a ! -path \u0027/proc/*\u0027 -a ! -path \u0027*/containerd/*\u0027 -a ! -path \u0027*/kubelet/pods/*\u0027 -a ! -path \u0027*/kubelet/plugins/*\u0027 -a ! -path \u0027/sys/*\u0027 -a ! -path \u0027/snap/*\u0027) while IFS= read -r l_mount; do while IFS= read -r -d $\u0027\\0\u0027 l_file; do if [ -e \u0027$l_file\u0027 ]; then [ -f \u0027$l_file\u0027 ] \u0026\u0026 a_file+=(\u0027$l_file\u0027) # Add WR files if [ -d \u0027$l_file\u0027 ]; then # Add directories w/o sticky bit l_mode=\u0027$(stat -Lc \u0027%#a\u0027 \u0027$l_file\u0027)\u0027 [ ! $(( $l_mode \u0026 $l_smask )) -gt 0 ] \u0026\u0026 a_dir+=(\u0027$l_file\u0027) fi fi done \u003c \u003c(find \u0027$l_mount\u0027 -xdev \\( \u0027${a_path[@]}\u0027 \\) \\( -type f -o -type d \\) -perm -0002 -print0 2\u003e /dev/null) done \u003c \u003c(findmnt -Dkerno fstype,target | awk \u0027($1 !~ /^\\s*(nfs|proc|smb|vfat|iso9660|efivarfs|selinuxfs)/ \u0026\u0026 $2 !~ /^(\\/run\\/user\\/|\\/tmp|\\/var\\/tmp)/){print $2}\u0027) if ! (( ${#a_file[@]} \u003e 0 )); then l_output=\u0027$l_output\\n - No world writable files exist on the local filesystem.\u0027 else l_output2=\u0027$l_output2\\n - There are \\\u0027$(printf \u0027%s\u0027 \u0027${#a_file[@]}\u0027)\\\u0027 World writable files on the system.\\n - The following is a list of World writable files:\\n$(printf \u0027%s\\n\u0027 \u0027${a_file[@]}\u0027)\\n - end of list\\n\u0027 fi if ! (( ${#a_dir[@]} \u003e 0 )); then l_output=\u0027$l_output\\n - Sticky bit is set on world writable directories on the local filesystem.\u0027 else l_output2=\u0027$l_output2\\n - There are \\\u0027$(printf \u0027%s\u0027 \u0027${#a_dir[@]}\u0027)\\\u0027 World writable directories without the sticky bit on the system.\\n - The following is a list of World writable directories without the sticky bit:\\n$(printf \u0027%s\\n\u0027 \u0027${a_dir[@]}\u0027)\\n - end of list\\n\u0027 fi unset a_path; unset a_arr; unset a_file; unset a_dir # Remove arrays # If l_output2 is empty, we pass if [ -z \u0027$l_output2\u0027 ]; then echo -e \u0027\\n- Audit Result:\\n ** PASS **\\n - * Correctly configured * :\\n$l_output\\n\u0027 else echo -e \u0027\\n- Audit Result:\\n ** FAIL **\\n - * Reasons for audit failure * :\\n$l_output2\u0027 [ -n \u0027$l_output\u0027 ] \u0026\u0026 echo -e \u0027- * Correctly configured * :\\n$l_output\\n\u0027 fi } Note: On systems with a large number of files and/or directories, this audit may be a long running process"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: world_writable_files_and_directories_are_secured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_7.no_files_or_directories_without_an_owner_and_a
+    description: Ensure no files or directories without an owner and a group exist
+    calls:
+      - action: run_command
+        command: "Run the following script to verify no unowned or ungrouped files or directories exist: #!/usr/bin/env bash { l_output=\u0027\u0027 l_output2=\u0027\u0027 a_nouser=(); a_nogroup=() # Initialize arrays a_path=(! -path \u0027/run/user/*\u0027 -a ! -path \u0027/proc/*\u0027 -a ! -path \u0027*/containerd/*\u0027 -a ! -path \u0027*/kubelet/pods/*\u0027 -a ! -path \u0027*/kubelet/plugins/*\u0027 -a ! -path \u0027/sys/fs/cgroup/memory/*\u0027 -a ! -path \u0027/var/*/private/*\u0027) while IFS= read -r l_mount; do while IFS= read -r -d $\u0027\\0\u0027 l_file; do if [ -e \u0027$l_file\u0027 ]; then while IFS=: read -r l_user l_group; do [ \u0027$l_user\u0027 = \u0027UNKNOWN\u0027 ] \u0026\u0026 a_nouser+=(\u0027$l_file\u0027) [ \u0027$l_group\u0027 = \u0027UNKNOWN\u0027 ] \u0026\u0026 a_nogroup+=(\u0027$l_file\u0027) done \u003c \u003c(stat -Lc \u0027%U:%G\u0027 \u0027$l_file\u0027) fi done \u003c \u003c(find \u0027$l_mount\u0027 -xdev \\( \u0027${a_path[@]}\u0027 \\) \\( -type f -o -type d \\) \\( -nouser -o -nogroup \\) -print0 2\u003e /dev/null) done \u003c \u003c(findmnt -Dkerno fstype,target | awk \u0027($1 !~ /^\\s*(nfs|proc|smb|vfat|iso9660|efivarfs|selinuxfs)/ \u0026\u0026 $2 !~ /^\\/run\\/user\\//){print $2}\u0027) if ! (( ${#a_nouser[@]} \u003e 0 )); then l_output=\u0027$l_output\\n - No files or directories without a owner exist on the local filesystem.\u0027 else l_output2=\u0027$l_output2\\n - There are \\\u0027$(printf \u0027%s\u0027 \u0027${#a_nouser[@]}\u0027)\\\u0027 unowned files or directories on the system.\\n - The following is a list of unowned files and/or directories:\\n$(printf \u0027%s\\n\u0027 \u0027${a_nouser[@]}\u0027)\\n - end of list\u0027 fi if ! (( ${#a_nogroup[@]} \u003e 0 )); then l_output=\u0027$l_output\\n - No files or directories without a group exist on the local filesystem.\u0027 else l_output2=\u0027$l_output2\\n - There are \\\u0027$(printf \u0027%s\u0027 \u0027${#a_nogroup[@]}\u0027)\\\u0027 ungrouped files or directories on the system.\\n - The following is a list of ungrouped files and/or directories:\\n$(printf \u0027%s\\n\u0027 \u0027${a_nogroup[@]}\u0027)\\n - end of list\u0027 fi unset a_path; unset a_arr ; unset a_nouser; unset a_nogroup # Remove arrays if [ -z \u0027$l_output2\u0027 ]; then # If l_output2 is empty, we pass echo -e \u0027\\n- Audit Result:\\n ** PASS **\\n - * Correctly configured * :\\n$l_output\\n\u0027 else echo -e \u0027\\n- Audit Result:\\n ** FAIL **\\n - * Reasons for audit failure * :\\n$l_output2\u0027 [ -n \u0027$l_output\u0027 ] \u0026\u0026 echo -e \u0027\\n- * Correctly configured * :\\n$l_output\\n\u0027 fi } Note: On systems with a large number of files and/or directories, this audit may be a long running process"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: no_files_or_directories_without_an_owner_and_a
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_7.accounts_in_etc_passwd_use_shadowed_passwords
+    description: Ensure accounts in /etc/passwd use shadowed passwords
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that no output is returned: # awk -F: \u0027($2 != \u0027x\u0027 ) { print \u0027User: \\\u0027\u0027 $1 \u0027\\\u0027 is not set to shadowed passwords \u0027}\u0027 /etc/passwd"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: accounts_in_etc_passwd_use_shadowed_passwords
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_7.etc_shadow_password_fields_are_not_empty
+    description: Ensure /etc/shadow password fields are not empty
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that no output is returned: # awk -F: \u0027($2 == \u0027\u0027 ) { print $1 \u0027 does not have a password \u0027}\u0027 /etc/shadow"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: etc_shadow_password_fields_are_not_empty
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_7.all_groups_in_etc_passwd_exist_in_etc_group
+    description: Ensure all groups in /etc/passwd exist in /etc/group
+    calls:
+      - action: run_command
+        command: "Run the following script to verify all GIDs in /etc/passwd exist in /etc/group: #!/usr/bin/env bash { a_passwd_group_gid=(\u0027$(awk -F: \u0027{print $4}\u0027 /etc/passwd | sort -u)\u0027) a_group_gid=(\u0027$(awk -F: \u0027{print $3}\u0027 /etc/group | sort -u)\u0027) a_passwd_group_diff=(\u0027$(printf \u0027%s\\n\u0027 \u0027${a_group_gid[@]}\u0027 \u0027${a_passwd_group_gid[@]}\u0027 | sort | uniq -u)\u0027) while IFS= read -r l_gid; do awk -F: \u0027($4 == \u0027\u0027$l_gid\u0027\u0027) {print \u0027 - User: \\\u0027\u0027 $1 \u0027\\\u0027 has GID: \\\u0027\u0027 $4 \u0027\\\u0027 which does not exist in /etc/group\u0027 }\u0027 /etc/passwd done \u003c \u003c(printf \u0027%s\\n\u0027 \u0027${a_passwd_group_gid[@]}\u0027 \u0027${a_passwd_group_diff[@]}\u0027 | sort | uniq -D | uniq) unset a_passwd_group_gid; unset a_group_gid; unset a_passwd_group_diff } Nothing should be returned"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: all_groups_in_etc_passwd_exist_in_etc_group
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_7.no_duplicate_uids_exist
+    description: Ensure no duplicate UIDs exist
+    calls:
+      - action: run_command
+        command: "Run the following script and verify no results are returned: #!/usr/bin/env bash { while read -r l_count l_uid; do if [ \u0027$l_count\u0027 -gt 1 ]; then echo -e \u0027Duplicate UID: \\\u0027$l_uid\\\u0027 Users: \\\u0027$(awk -F: \u0027($3 == n) { print $1 }\u0027 n=$l_uid /etc/passwd | xargs)\\\u0027\u0027 fi done \u003c \u003c(cut -f3 -d\u0027:\u0027 /etc/passwd | sort -n | uniq -c) }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: no_duplicate_uids_exist
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_7.no_duplicate_gids_exist
+    description: Ensure no duplicate GIDs exist
+    calls:
+      - action: run_command
+        command: "Run the following script and verify no results are returned: #!/usr/bin/env bash { while read -r l_count l_gid; do if [ \u0027$l_count\u0027 -gt 1 ]; then echo -e \u0027Duplicate GID: \\\u0027$l_gid\\\u0027 Groups: \\\u0027$(awk -F: \u0027($3 == n) { print $1 }\u0027 n=$l_gid /etc/group | xargs)\\\u0027\u0027 fi done \u003c \u003c(cut -f3 -d\u0027:\u0027 /etc/group | sort -n | uniq -c) }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: no_duplicate_gids_exist
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_7.no_duplicate_user_names_exist
+    description: Ensure no duplicate user names exist
+    calls:
+      - action: run_command
+        command: "Run the following script and verify no results are returned: #!/usr/bin/env bash { while read -r l_count l_user; do if [ \u0027$l_count\u0027 -gt 1 ]; then echo -e \u0027Duplicate User: \\\u0027$l_user\\\u0027 Users: \\\u0027$(awk -F: \u0027($1 == n) { print $1 }\u0027 n=$l_user /etc/passwd | xargs)\\\u0027\u0027 fi done \u003c \u003c(cut -f1 -d\u0027:\u0027 /etc/group | sort -n | uniq -c) }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: no_duplicate_user_names_exist
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_7.no_duplicate_group_names_exist
+    description: Ensure no duplicate group names exist
+    calls:
+      - action: run_command
+        command: "Run the following script and verify no results are returned: #!/usr/bin/env bash { while read -r l_count l_group; do if [ \u0027$l_count\u0027 -gt 1 ]; then echo -e \u0027Duplicate Group: \\\u0027$l_group\\\u0027 Groups: \\\u0027$(awk -F: \u0027($1 == n) { print $1 }\u0027 n=$l_group /etc/group | xargs)\\\u0027\u0027 fi done \u003c \u003c(cut -f1 -d\u0027:\u0027 /etc/group | sort -n | uniq -c) }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: no_duplicate_group_names_exist
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_7.local_interactive_user_home_directories_are
+    description: Ensure local interactive user home directories are configured
+    calls:
+      - action: run_command
+        command: "Run the following script to Ensure: \u2022 local interactive user home directories exist \u2022 Ensure local interactive users own their home directories \u2022 Ensure local interactive user home directories are mode 750 or more restrictive #!/usr/bin/env bash { l_output=\u0027\u0027 l_output2=\u0027\u0027 l_heout2=\u0027\u0027 l_hoout2=\u0027\u0027 l_haout2=\u0027\u0027 l_valid_shells=\u0027^($( awk -F\\/ \u0027$NF != \u0027nologin\u0027 {print}\u0027 /etc/shells | sed -rn \u0027/^\\//{s,/,\\\\\\\\/,g;p}\u0027 | paste -s -d \u0027|\u0027 - ))$\u0027 unset a_uarr \u0026\u0026 a_uarr=() # Clear and initialize array while read -r l_epu l_eph; do # Populate array with users and user home location a_uarr+=(\u0027$l_epu $l_eph\u0027) done \u003c\u003c\u003c \u0027$(awk -v pat=\u0027$l_valid_shells\u0027 -F: \u0027$(NF) ~ pat { print $1 \u0027 \u0027 $(NF-1) }\u0027 /etc/passwd)\u0027 l_asize=\u0027${#a_uarr[@]}\u0027 # Here if we want to look at number of users before proceeding [ \u0027$l_asize \u0027 -gt \u002710000\u0027 ] \u0026\u0026 echo -e \u0027\\n ** INFO **\\n - \\\u0027$l_asize\\\u0027 Local interactive users found on the system\\n - This may be a long running check\\n\u0027 while read -r l_user l_home; do if [ -d \u0027$l_home\u0027 ]; then l_mask=\u00270027\u0027 l_max=\u0027$( printf \u0027%o\u0027 $(( 0777 \u0026 ~$l_mask)) )\u0027 while read -r l_own l_mode; do [ \u0027$l_user\u0027 != \u0027$l_own\u0027 ] \u0026\u0026 l_hoout2=\u0027$l_hoout2\\n - User: \\\u0027$l_user\\\u0027 Home \\\u0027$l_home\\\u0027 is owned by: \\\u0027$l_own\\\u0027\u0027 if [ $(( $l_mode \u0026 $l_mask )) -gt 0 ]; then l_haout2=\u0027$l_haout2\\n - User: \\\u0027$l_user\\\u0027 Home \\\u0027$l_home\\\u0027 is mode: \\\u0027$l_mode\\\u0027 should be mode: \\\u0027$l_max\\\u0027 or more restrictive\u0027 fi done \u003c\u003c\u003c \u0027$(stat -Lc \u0027%U %#a\u0027 \u0027$l_home\u0027)\u0027 else l_heout2=\u0027$l_heout2\\n - User: \\\u0027$l_user\\\u0027 Home \\\u0027$l_home\\\u0027 Doesn\u0027t exist\u0027 fi done \u003c\u003c\u003c \u0027$(printf \u0027%s\\n\u0027 \u0027${a_uarr[@]}\u0027)\u0027 [ -z \u0027$l_heout2\u0027 ] \u0026\u0026 l_output=\u0027$l_output\\n - home directories exist\u0027 || l_output2=\u0027$l_output2$l_heout2\u0027 [ -z \u0027$l_hoout2\u0027 ] \u0026\u0026 l_output=\u0027$l_output\\n - own their home directory\u0027 || l_output2=\u0027$l_output2$l_hoout2\u0027 [ -z \u0027$l_haout2\u0027 ] \u0026\u0026 l_output=\u0027$l_output\\n - home directories are mode: \\\u0027$l_max\\\u0027 or more restrictive\u0027 || l_output2=\u0027$l_output2$l_haout2\u0027 [ -n \u0027$l_output\u0027 ] \u0026\u0026 l_output=\u0027 - All local interactive users:$l_output\u0027 if [ -z \u0027$l_output2\u0027 ]; then # If l_output2 is empty, we pass echo -e \u0027\\n- Audit Result:\\n ** PASS **\\n - * Correctly configured * :\\n$l_output\u0027 else echo -e \u0027\\n- Audit Result:\\n ** FAIL **\\n - * Reasons for audit failure * :\\n$l_output2\u0027 [ -n \u0027$l_output\u0027 ] \u0026\u0026 echo -e \u0027\\n- * Correctly configured * :\\n$l_output\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: local_interactive_user_home_directories_are
+        value: "{{ result.stdout }}"
+        expected: ""
+

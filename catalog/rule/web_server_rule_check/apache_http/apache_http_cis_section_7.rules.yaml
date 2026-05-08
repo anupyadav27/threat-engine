@@ -1,0 +1,420 @@
+tech_type: apache_http
+category: web_server
+cis_benchmark: CIS Apache HTTP Server 2.4 v2.2.0
+cis_section: '7'
+
+rules:
+
+  - rule_id: apache_http.cis.7.mod_ssl_and_or_mod_nss_is_installed
+    title: "Ensure mod_ssl and/or mod_nss Is Installed"
+    severity: high
+    automation_type: automated
+    cis_control: '7.1'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: apache_http.section_7.mod_ssl_and_or_mod_nss_is_installed
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Perform either of the following to implement the recommended state: 1. For
+      Apache installations built from the source, use the option --with-ssl= to
+      specify the openssl path, and the --enable-ssl configure option to add the SSL
+      modules to the build. The --with-included-apr configure option may be
+      necessary if there are conflicts with the platform version. If a new version
+      of Openssl is needed it may be downloaded from http://www.openssl.org/ See the
+      Apache documentation on building from source
+      http://httpd.apache.org/docs/2.4/install.htmlfor details. # ./configure
+      --with-included-apr --with-ssl=$OPENSSL_DIR --enable-ssl 2. For installations
+      using OS packages, it is typically just a matter of ensuring the mod_ssl
+      package is installed. The mod_nss package might also be installed. The
+      following yum commands are suitable for Red Hat Linux. # yum install mod_ssl
+      Default Value: SSL/TLS is not enabled by default. References: 1.
+      https://httpd.apache.org/docs/2.4/mod/mod_ssl.html 2.
+      https://www.centos.org/docs/5/html/5.4/technical-notes/mod_nss.html
+    compliance:
+      - cis_apache_http_2_4_v2_2_0_7_1
+
+  - rule_id: apache_http.cis.7.a_valid_trusted_certificate_is_installed
+    title: "Ensure a Valid Trusted Certificate Is Installed"
+    severity: high
+    automation_type: automated
+    cis_control: '7.2'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: apache_http.section_7.a_valid_trusted_certificate_is_installed
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Perform the following to implement the recommended state: 1. Decide on the
+      host name to be used for the certificate. It is important to remember that the
+      browser will compare the host name in the URL to the common name in the
+      certificate, so that it is important that all https: URL's match the correct
+      host name. Specifically, the host name www.example.com is not the same as
+      example.com nor the same as ssl.example.com. 2. Generate a private key using
+      openssl. Although certificate key lengths of 1024 have been common in the
+      past, a key length of 2048 is now recommended for strong authentication. The
+      key must be kept confidential and will be encrypted with a passphrase by
+      default. Follow the steps below and respond to the prompts for a passphrase.
+      See the Apache or OpenSSL documentation for details: o
+      https://httpd.apache.org/docs/2.4/ssl/ssl_faq.html#realcert o
+      https://www.openssl.org/docs/HOWTO/certificates.txt # cd /etc/ssl/certs #
+      umask 077 # openssl genrsa -aes128 2048 > example.com.key Generating RSA
+      private key, 2048 bit long modulus ...+++ ............+++ e is 65537 (0x10001)
+      Enter pass phrase: Verifying - Enter pass phrase: 3. Create a certificate
+      specific template configuration file. It is important that common name in the
+      certificate exactly make the web host name in the intended URL. If there are
+      multiple host names which may be used, as is very common, then the
+      subjectAltName (SAN) field should be filled with all of the alternate names.
+      Creating a template configuration file specific to the server certificate is
+      helpful, as it allows for multiple entries in the subjectAltName. Also, any
+      typos in the CSR can be potentially costly due to the lost time, so using a
+      file, rather than hand typing helps prevent errors. To create a template
+      configuration file, make a local copy of the openssl.cnf typically found in
+      /etc/ssl/ or /etc/pki/tls/ # cp /etc/ssl/openssl.cnf ex1.cnf 4. Find the
+      request section which follows the line “[ req ] '. Then add or modify the
+      configuration file to include the appropriate values for the host names. It is
+      recommended (but not required) that the first subjectAltName match the
+      commonName. [ req ] . . . distinguished_name = req_distinguished_name
+      req_extensions = req_ext [ req_ext ] subjectAltName = @alt_names [alt_names]
+      DNS.1 = www.example.com DNS.2 = example.com DNS.3 = app.example.com DNS.4 =
+      service.example.com 5. Continue editing the configuration file under the
+      request distinguished name section to change the existing default values in
+      the configuration file to match the desired certificates information. [
+      req_distinguished_name ] countryName_default = GB stateOrProvinceName_default
+      = Scotland localityName_default = Glasgow 0.organizationName_default = Example
+      Company Ltd organizationalUnitName_default = ICT commonName_default =
+      www.example.com 6. Now generate the CSR from the template file, verifying the
+      information. If the default values were placed in the template, then just
+      press enter to confirm the default value. # openssl req -new -config ex2.cnf
+      -out example.com.csr -key example.com.key Enter pass phrase for
+      example.com.key: You are about to be asked to enter information that will be
+      incorporated into your certificate request. What you are about to enter is
+      what is called a Distinguished Name or a DN. There are quite a few fields but
+      you can leave some blank For some fields there will be a default value, If you
+      enter '.', the field will be left blank. ----- Country Name (2 letter code)
+      [GB]: State or Province Name (full name) [Scotland]: Locality Name (eg, city)
+      [Glasgow]: Organization Name (eg, company) [Example Company Ltd]:
+      Organizational Unit Name (eg, section) [ICT]: Common Name (e.g. server FQDN or
+      YOUR name) [www.example.com]: 7. Review and verify the CSR information
+      including the SAN by displaying the information. # openssl req -in ex2.csr
+      -text | more Certificate Request: Data: Version: 1 (0x0) Subject: C = GB, ST =
+      Scotland, L = Glasgow, O = Example Company Ltd, OU = ICT, CN = www.example.com
+      Subject Public Key Info: Public Key Algorithm: rsaEncryption Public-Key: (2048
+      bit) Modulus: 00:cb:c2:7a:04:13:19:7a:c0:74:00:63:dd:e9:6e: . . . <snip> . . .
+      3a:9d:aa:50:09:4a:40:48:b4:e2:24:ef:fa:7b:42: a4:33 Exponent: 65537 (0x10001)
+      Attributes: Requested Extensions: X509v3 Subject Alternative Name:
+      DNS:www.example.com, DNS:example.com, DNS:app.example.com, DNS:ws.example.com
+      X509v3 Basic Constraints: CA:FALSE X509v3 Key Usage: Digital Signature, Non
+      Repudiation, Key Encipherment Signature Algorithm: sha256WithRSAEncryption
+      73:f0:e3:90:a7:ab:01:e4:7f:12:19:b7:6a:dd:be:4e:5c:f1: . . . 8. Now move the
+      private key to its intended directory. # mv www.example.com.key
+      /etc/ssl/private/ 9. Send the certificate signing request (CSR) to a
+      certificate signing authority to be signed, and follow their instructions for
+      submission and validation. The CSR and the final signed certificate are just
+      encoded text and need to be protected for integrity, but not confidentiality.
+      This certificate will be given out for every SSL connection made. 10. The
+      resulting signed certificate may be named www.example.com.crt and placed in
+      /etc/ssl/certs/ as readable by all (mode 0444). Please note that the
+      certificate authority does not need the private key (example.com.key) and this
+      file must be carefully protected. With a decrypted copy of the private key, it
+      would be possible to decrypt all conversations with the server. 11. Do not
+      forget the passphrase used to encrypt the private key. It will be required
+      every time the server is started in https mode. If it is necessary to avoid
+      requiring an administrator having to type the passphrase every time the httpd
+      service is started, the private key may be stored in clear text. Storing the
+      private key in clear text increases the convenience while increasing the risk
+      of disclosure of the key, but may be appropriate for the sake of being able to
+      restart, if the risks are well managed. Be sure that the key file is only
+      readable by root. To decrypt the private key and store it in clear text file
+      the following openssl command may be used. You can tell by the private key
+      headers whether it is encrypted or clear text. # cd /etc/ssl/private/ # umask
+      077 # openssl rsa -in www.example.com.key -out www.example.com.key.clear 12.
+      Locate the Apache configuration file for mod_ssl and add or modify the
+      SSLCertificateFile and SSLCertificateKeyFiledirectives to have the correct
+      path for the private key and signed certificate files. If a clear text key is
+      referenced then a passphrase will not be required. You may need to configure
+      the CA's certificate along with any intermediate CA certificates that signed
+      your certificate using the SSLCertificateChainFile directive. As an
+      alternative, starting with Apache version 2.4.8 the CA and intermediate
+      certificates may be concatenated to the server certificate configured with the
+      SSLCertificateFile directive instead. SSLCertificateFile
+      /etc/ssl/certs/example.com.crt SSLCertificateKeyFile
+      /etc/ssl/private/example.com.key # Default CA file, can be replaced with your
+      CA certificate. SSLCertificateChainFile /etc/ssl/certs/server-chain.crt 13.
+      Lastly, start or restart the httpd service and verify correct functioning with
+      your favorite browser. References: 1.
+      https://www.owasp.org/index.php/Testing_for_SSL-TLS_%28OWASP-CM- 001%29 2.
+      https://httpd.apache.org/docs/2.4/ssl/ssl_faq.html#realcert 3.
+      https://www.openssl.org/docs/HOWTO/certificates.txt 4.
+      https://security.googleblog.com/2014/09/gradually-sunsetting-sha-1.html
+    compliance:
+      - cis_apache_http_2_4_v2_2_0_7_2
+
+  - rule_id: apache_http.cis.7.server_s_private_key_is_protected
+    title: "Ensure the Server's Private Key Is Protected"
+    severity: high
+    automation_type: automated
+    cis_control: '7.3'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: apache_http.section_7.server_s_private_key_is_protected
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Perform the following to implement the recommended state: 1. All private keys
+      must be stored separately from the public certificates. Find all
+      SSLCertificateFile directives in the Apache configuration files. For any
+      SSLCertificateFile directives that do not have a corresponding separate
+      SSLCertificateKeyFile directive, move the key to a separate file from the
+      certificate, and add the SSLCertificateKeyFile directive for the key file. 2.
+      For each of the SSLCertificateKeyFile directives, change the ownership and
+      permissions on the server private key to be owned by root:root with permission
+      0400. References: 1. https://httpd.apache.org/docs/2.4/mod/mod_ssl.html 2.
+      https://httpd.apache.org/docs/2.4/mod/mod_ssl.html#sslpassphrasedialog
+    compliance:
+      - cis_apache_http_2_4_v2_2_0_7_3
+
+  - rule_id: apache_http.cis.7.tlsv1_0_and_tlsv1_1_protocols_are_disabled
+    title: "Ensure the TLSv1.0 and TLSv1.1 Protocols are Disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '7.4'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: apache_http.section_7.tlsv1_0_and_tlsv1_1_protocols_are_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Perform the following to implement the recommended state: 1. Check if the
+      TLSv1.3 protocol is supported by the Apache server by either checking that the
+      version of OpenSSL is 1.1.1 or later or place the TLSv1.3 value in the
+      SSLProtocol string of a configuration file and check the syntax with the
+      ‘httpd -t’ command before using the file in production. Two examples below are
+      shown of servers that do support the TLSv1.3 protocol. $ openssl version
+      OpenSSL 1.1.1a 20 Nov 2018 ### _(Add TLSv1.3 to the SSLProtocol directive)_ #
+      httpd -t Syntax OK 2. Search the Apache configuration files for the
+      SSLProtocol directive; add the directive, if not present, or change the value
+      to TLSv1.2 or +TLSv1.2 +TLSv1.3 if the TLSv1.3 protocol is supported. Default
+      Value: SSLProtocol all References: 1. https://www.godaddy.com/garage/browser-
+      support-tls-10-11/ 2. https://caniuse.com/#search=tls%201.2 3.
+      https://csrc.nist.gov/publications/detail/sp/800-52/rev-2/draft 4.
+      https://en.wikipedia.org/wiki/Authenticated_encryption 5.
+      https://tools.ietf.org/html/draft-ietf-tls-oldversions-deprecate-00
+    compliance:
+      - cis_apache_http_2_4_v2_2_0_7_4
+
+  - rule_id: apache_http.cis.7.weak_ssl_tls_ciphers_are_disabled
+    title: "Ensure Weak SSL/TLS Ciphers Are Disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '7.5'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: apache_http.section_7.weak_ssl_tls_ciphers_are_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Perform the following to implement the recommended state: Ensure the
+      SSLCipherSuite includes all of the following: !NULL:!SSLv2:!RC4:!aNULL values.
+      For example, add or modify the following line in the Apache server level
+      configuration and every virtual host that is TLS enabled: SSLHonorCipherOrder
+      On SSLCipherSuite ALL:!EXP:!NULL:!LOW:!SSLv2:!RC4:!aNULL It is not recommended
+      to add !SSLv3 to the directive even if the SSLv3 protocol is not in use. Doing
+      so disables ALL of the ciphers that may used with SSLv3, which includes the
+      same ciphers used with the TLS protocols. The !aNULL will disable both the ADH
+      and AECDH ciphers, so the !ADH is not required. IMPORTANT NOTE: The above
+      SSLCipherSuite value disables only the weak ciphers but allows medium strength
+      and other ciphers which should also be disabled. Refer to the remaining TLS
+      benchmark recommendations for stronger cipher suite values. The following
+      cipher suite value will meet all of the level 1 and level 2 benchmark
+      recommendations. As always, testing prior to production use is highly
+      recommended. SSLHonorCipherOrder On SSLCipherSuite
+      EECDH:EDH:!NULL:!SSLv2:!RC4:!aNULL:!3DES:!IDEA Default Value: The following
+      are the default values: SSLCipherSuite default depends on OpenSSL version.
+      SSLHonorCipherOrder default is Off References: 1.
+      https://httpd.apache.org/docs/2.4/mod/mod_ssl.html#sslciphersuite 2.
+      https://www.ssllabs.com/ 3.
+      https://csrc.nist.gov/publications/detail/sp/800-52/rev-2/final 4.
+      https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuid
+      elines/TG02102/BSI-TR-02102-1.pdf 5.
+      https://community.qualys.com/blogs/securitylabs/2013/03/19/rc4-in-tls-is-
+      broken- now-what 6. https://github.com/rbsec/sslscan
+    compliance:
+      - cis_apache_http_2_4_v2_2_0_7_5
+
+  - rule_id: apache_http.cis.7.insecure_ssl_renegotiation_is_not_enabled
+    title: "Ensure Insecure SSL Renegotiation Is Not Enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '7.6'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: apache_http.section_7.insecure_ssl_renegotiation_is_not_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "off"
+    remediation: >
+      Perform the following to implement the recommended state: Search the Apache
+      configuration files for the SSLInsecureRenegotiation directive. If the
+      directive is present modify the value to be off. If the directive is not
+      present then no action is required. SSLInsecureRenegotiation off Default
+      Value: SSLInsecureRenegotiation off References: 1.
+      https://httpd.apache.org/docs/2.4/mod/mod_ssl.html#sslinsecurerenegotiation 2.
+      https://cve.mitre.org/cgi-bin/cvename.cgi?name=CAN-2009-3555 3.
+      https://azure.microsoft.com/en-us/services/multi-factor-authentication/
+    compliance:
+      - cis_apache_http_2_4_v2_2_0_7_6
+
+  - rule_id: apache_http.cis.7.ssl_compression_is_not_enabled
+    title: "Ensure SSL Compression is not Enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '7.7'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: apache_http.section_7.ssl_compression_is_not_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "off"
+    remediation: >
+      Perform the following to implement the recommended state: 1. Search the Apache
+      configuration files for the SSLCompression directive. 2. If the directive is
+      present, set it to off. Default Value: In Apache versions >= 2.4.3, the
+      SSLCompression directive is available and SSL compression is implicitly
+      disabled. In Apache 2.4 - 2.4.2, the SSLCompression directive is not available
+      and SSL compression is implicitly disabled. References: 1.
+      https://httpd.apache.org/docs/2.4/mod/mod_ssl.html#sslcompression 2.
+      https://en.wikipedia.org/wiki/CRIME_(security_exploit)
+    compliance:
+      - cis_apache_http_2_4_v2_2_0_7_7
+
+  - rule_id: apache_http.cis.7.medium_strength_ssl_tls_ciphers_are_disabled
+    title: "Ensure Medium Strength SSL/TLS Ciphers Are Disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '7.8'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: apache_http.section_7.medium_strength_ssl_tls_ciphers_are_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Perform the following to implement the recommended state: Add or modify the
+      following lines in the Apache server level configuration and every virtual
+      host that is SSL/TLS enabled: SSLHonorCipherOrder On SSLCipherSuite
+      ALL:!EXP:!NULL:!LOW:!SSLv2:!RC4:!aNULL:!3DES:!IDEA IMPORTANT NOTE: The above
+      SSLCipherSuite value disables only the weak and medium ciphers but allows
+      other ciphers which should also be disabled. Refer to the remaining TLS
+      benchmark recommendations for more stronger cipher suite values. The following
+      cipher suite value will meet all of the level 1 and level 2 benchmark
+      recommendations. As always, testing prior to production use is highly
+      recommended. SSLHonorCipherOrder On SSLCipherSuite
+      EECDH:EDH:!NULL:!SSLv2:!RC4:!aNULL:!3DES:!IDEA Default Value: The following
+      are the default values: SSLCipherSuite default depends on OpenSSL version.
+      References: 1. https://httpd.apache.org/docs/2.4/mod/mod_ssl.html#sslprotocol
+      2. https://httpd.apache.org/docs/2.4/mod/mod_ssl.html#sslciphersuite 3.
+      https://sweet32.info/ 4. https://cve.mitre.org/cgi-
+      bin/cvename.cgi?name=CVE-2016-2183 5. https://github.com/rbsec/sslscan 6.
+      https://www.openssl.org/
+    compliance:
+      - cis_apache_http_2_4_v2_2_0_7_8
+
+  - rule_id: apache_http.cis.7.ocsp_stapling_is_enabled
+    title: "Ensure OCSP Stapling Is Enabled"
+    severity: medium
+    automation_type: automated
+    cis_control: '7.10'
+    cis_section: '7'
+    profile_applicability: "Level 2"
+    scope: apache_http.section_7.ocsp_stapling_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "on"
+    remediation: >
+      Perform the following to implement the recommended state: Add or modify the
+      SSLUseStapling directive to have a value of on in the Apache server level
+      configuration and every virtual host that is SSL enabled. Also ensure that
+      SSLStaplingCache is set to one of the three cache types similar to the
+      examples below. SSLUseStapling On SSLStaplingCache
+      'shmcb:logs/ssl_staple_cache(512000)' - or- SSLStaplingCache
+      'dbm:logs/ssl_staple_cache.db' - or - SSLStaplingCache
+      dc:UNIX:logs/ssl_staple_socket Default Value: SSLUseStapling Off
+      SSLStaplingCache <no default value> References: 1.
+      https://en.wikipedia.org/wiki/OCSP_stapling - OCSP Stapling 2.
+      https://httpd.apache.org/docs/2.4/mod/mod_ssl.html- Apache SSL Directives
+    compliance:
+      - cis_apache_http_2_4_v2_2_0_7_10
+
+  - rule_id: apache_http.cis.7.http_strict_transport_security_is_enabled
+    title: "Ensure HTTP Strict Transport Security Is Enabled"
+    severity: medium
+    automation_type: automated
+    cis_control: '7.11'
+    cis_section: '7'
+    profile_applicability: "Level 2"
+    scope: apache_http.section_7.http_strict_transport_security_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Perform the following to implement the recommended state: Add a Header
+      directive as shown below in the Apache server level configuration and every
+      virtual host that is SSL enabled. The includeSubDomains and preload flags may
+      be included in the header, but are not required. Header always set Strict-
+      Transport-Security 'max-age=600; includeSubDomains; preload' - or - Header
+      always set Strict-Transport-Security 'max-age=600' Default Value: The Strict
+      Transport Security header is not present by default. References: 1.
+      https://en.wikipedia.org/wiki/HTTP_Strict_Transport_Security 2.
+      https://www.owasp.org/index.php/HTTP_Strict_Transport_Security 3.
+      https://moxie.org/software/sslstrip/ 4. https://developer.mozilla.org/en-
+      US/docs/Web/Security/HTTP_strict_transport_security 5.
+      https://hstspreload.appspot.com/
+    compliance:
+      - cis_apache_http_2_4_v2_2_0_7_11
+
+  - rule_id: apache_http.cis.7.only_cipher_suites_that_provide_forward_secrecy
+    title: "Ensure Only Cipher Suites That Provide Forward Secrecy Are Enabled"
+    severity: medium
+    automation_type: automated
+    cis_control: '7.12'
+    cis_section: '7'
+    profile_applicability: "Level 2"
+    scope: apache_http.section_7.only_cipher_suites_that_provide_forward_secrecy
+    assertion:
+      field: enabled
+      operator: exists
+      expected: "on"
+    remediation: >
+      Perform one of the following to implement the recommended state: • Add or
+      modify the following line in the Apache server level configuration and every
+      virtual host that is SSL/TLS enabled: SSLCipherSuite
+      EECDH:EDH:!NULL:!SSLv2:!RC4:!aNULL:!3DES:!IDEA • The more recent versions of
+      openssl (such as 1.0.2 and newer) will support the usage of ECDHE as a synonym
+      for EECDH and DHE as a synonym for EDH in the cipher specification. The usage
+      of ECDHE and DHE are preferred so that the specification matches the expected
+      output. So, the cipher specification could be: SSLCipherSuite
+      ECDHE:DHE:!NULL:!SSLv2:!RC4:!aNULL:!3DES:!IDEA Default Value: The default
+      value for SSLCipherSuite depends on OpenSSL library version used. References:
+      1. https://en.wikipedia.org/wiki/Forward_secrecy 2.
+      https://scotthelme.co.uk/perfect-forward-secrecy/ 3.
+      https://www.owasp.org/index.php/TLS_Cipher_String_Cheat_Sheet
+    compliance:
+      - cis_apache_http_2_4_v2_2_0_7_12
+
+

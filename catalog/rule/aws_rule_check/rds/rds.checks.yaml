@@ -1,0 +1,487 @@
+version: '1.0'
+provider: aws
+service: rds
+checks:
+- rule_id: aws.rds.backup_retention_period.backup_retention_period_configured
+  for_each: aws.rds.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.BackupRetentionPeriod
+    op: gt
+    value: 0
+- rule_id: aws.rds.cluster.audit_logging_enabled
+  for_each: aws.rds.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.EnabledCloudwatchLogsExports
+    op: contains
+    value: audit
+- rule_id: aws.rds.cluster.copy_tags_to_snapshots_configured
+  for_each: aws.rds.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.CopyTagsToSnapshot
+    op: is_true
+    value: null
+- rule_id: aws.rds.cluster.deletion_protection_enabled
+  for_each: aws.rds.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.DeletionProtection
+    op: is_true
+    value: null
+- rule_id: aws.rds.cluster.encryption_at_rest_cmek_configured
+  for_each: aws.rds.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.StorageEncrypted
+    op: is_true
+    value: null
+- rule_id: aws.rds.cluster.encryption_at_rest_enabled
+  for_each: aws.rds.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.StorageEncrypted
+    op: is_true
+    value: null
+- rule_id: aws.rds.cluster.iam_or_managed_identity_auth_enabled_if_supported
+  for_each: aws.rds.describe_db_clusters
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.IAMDatabaseAuthenticationEnabled
+      op: is_true
+      value: null
+    - var: item.MasterUserSecret.KmsKeyId
+      op: exists
+      value: null
+- rule_id: aws.rds.cluster.integration_cloudwatch_logs_configured
+  for_each: aws.rds.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.EnabledCloudwatchLogsExports
+    op: not_empty
+    value: null
+- rule_id: aws.rds.cluster.multi_az_configured
+  for_each: aws.rds.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.MultiAZ
+    op: is_true
+    value: null
+- rule_id: aws.rds.cluster.private_networking_enforced
+  for_each: aws.rds.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.PubliclyAccessible
+    op: is_false
+    value: null
+- rule_id: aws.rds.cluster.public_access_disabled
+  for_each: aws.rds.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.PubliclyAccessible
+    op: is_false
+    value: null
+- rule_id: aws.rds.cluster.require_tls_in_transit_configured
+  for_each: aws.rds.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.CACertificateIdentifier
+    op: exists
+    value: null
+- rule_id: aws.rds.cluster.storage_encrypted
+  for_each: aws.rds.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.StorageEncrypted
+    op: is_true
+    value: null
+- rule_id: aws.rds.clustersnapshot.encryption_at_rest_enabled
+  for_each: aws.rds.describe_db_cluster_automated_backups
+  severity: HIGH
+  conditions:
+    var: item.IAMDatabaseAuthenticationEnabled
+    op: is_true
+    value: null
+- rule_id: aws.rds.clustersnapshot.not_publicly_shared_configured
+  for_each: aws.rds.describe_db_cluster_snapshot_attributes
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.DBClusterSnapshotAttributesResult.AttributeValues
+      op: not_contains
+      value: all
+- rule_id: aws.rds.clustersnapshot.snapshot_cross_account_sharing_restricted
+  for_each: aws.rds.describe_db_cluster_snapshot_attributes
+  severity: MEDIUM
+  conditions:
+    var: item.DBClusterSnapshotAttributesResult[].AttributeValues
+    op: not_contains
+    value: all
+- rule_id: aws.rds.clustersnapshot.snapshot_cross_region_copy_encrypted
+  for_each: aws.rds.describe_db_cluster_snapshot_attributes
+  severity: HIGH
+  conditions:
+    var: item.DBClusterSnapshotAttributesResult.AttributeValues[]
+    op: contains
+    value: encrypted
+- rule_id: aws.rds.dbuser.approved_list_of_superusers_only_configured
+  for_each: aws.rds.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.AssociatedRoles[].RoleArn
+      op: not_empty
+      value: null
+    - any:
+      - var: item.AssociatedRoles[].RoleArn
+        op: contains
+        value: rds-superuser
+      - var: item.AssociatedRoles[].RoleArn
+        op: contains
+        value: rdsadmin
+- rule_id: aws.rds.dbuser.iam_auth_preferred_configured
+  for_each: aws.rds.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.IAMDatabaseAuthenticationEnabled
+    op: is_true
+    value: null
+- rule_id: aws.rds.dbuser.no_unused_or_default_superusers_configured
+  for_each: aws.rds.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.AssociatedRoles[].RoleArn
+      op: not_empty
+      value: null
+    - any:
+      - var: item.AssociatedRoles[].RoleArn
+        op: contains
+        value: rds-superuser
+      - var: item.AssociatedRoles[].RoleArn
+        op: contains
+        value: default
+- rule_id: aws.rds.instance.auto_minor_version_upgrade_configured
+  for_each: aws.rds.describe_db_instances
+  severity: LOW
+  conditions:
+    var: item.AutoMinorVersionUpgrade
+    op: is_true
+    value: null
+- rule_id: aws.rds.instance.backup_enabled
+  for_each: aws.rds.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.BackupRetentionPeriod
+    op: gt
+    value: 0
+- rule_id: aws.rds.instance.backup_encrypted
+  for_each: aws.rds.describe_db_instances
+  severity: HIGH
+  conditions:
+    var: item.StorageEncrypted
+    op: is_true
+    value: null
+- rule_id: aws.rds.instance.copy_tags_to_snapshots_configured
+  for_each: aws.rds.describe_db_instances
+  severity: MEDIUM
+  conditions:
+    var: item.CopyTagsToSnapshot
+    op: is_true
+    value: null
+- rule_id: aws.rds.instance.deletion_protection_configured
+  for_each: aws.rds.describe_db_instances
+  severity: MEDIUM
+  conditions:
+    var: item.DeletionProtection
+    op: is_true
+    value: null
+- rule_id: aws.rds.instance.deletion_protection_enabled
+  for_each: aws.rds.describe_db_instances
+  severity: MEDIUM
+  conditions:
+    var: item.DeletionProtection
+    op: is_true
+    value: null
+- rule_id: aws.rds.instance.encryption_at_rest_enabled
+  for_each: aws.rds.describe_db_instances
+  severity: HIGH
+  conditions:
+    var: item.StorageEncrypted
+    op: is_true
+    value: null
+- rule_id: aws.rds.instance.enhanced_monitoring_enabled
+  for_each: aws.rds.describe_db_instances
+  severity: MEDIUM
+  conditions:
+    var: item.EnhancedMonitoringResourceArn
+    op: exists
+    value: null
+- rule_id: aws.rds.instance.iam_authentication_enabled
+  for_each: aws.rds.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.IAMDatabaseAuthenticationEnabled
+    op: is_true
+    value: null
+- rule_id: aws.rds.instance.iam_or_managed_identity_auth_enabled_if_supported
+  for_each: aws.rds.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.IAMDatabaseAuthenticationEnabled
+    op: is_true
+    value: null
+- rule_id: aws.rds.instance.inside_vpc_configured
+  for_each: aws.rds.describe_db_instances
+  severity: HIGH
+  conditions:
+    var: item.DBSubnetGroup.VpcId
+    op: exists
+    value: null
+- rule_id: aws.rds.instance.integration_cloudwatch_logs_configured
+  for_each: aws.rds.describe_db_instances
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.EnabledCloudwatchLogsExports
+      op: not_empty
+      value: null
+- rule_id: aws.rds.instance.multi_az_configured
+  for_each: aws.rds.describe_db_instances
+  severity: MEDIUM
+  conditions:
+    var: item.MultiAZ
+    op: is_true
+    value: null
+- rule_id: aws.rds.instance.no_public_access_configured
+  for_each: aws.rds.describe_db_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.PubliclyAccessible
+      op: is_false
+      value: null
+- rule_id: aws.rds.instance.performance_insights_enabled
+  for_each: aws.rds.describe_db_instances
+  severity: MEDIUM
+  conditions:
+    var: item.PerformanceInsightsEnabled
+    op: is_true
+    value: null
+- rule_id: aws.rds.instance.public_access_disabled
+  for_each: aws.rds.describe_db_instances
+  severity: HIGH
+  conditions:
+    var: item.PubliclyAccessible
+    op: is_false
+    value: null
+- rule_id: aws.rds.instance.require_tls_in_transit_configured
+  for_each: aws.rds.describe_db_instances
+  severity: HIGH
+  conditions:
+    var: item.CACertificateIdentifier
+    op: exists
+    value: null
+- rule_id: aws.rds.instance.security_configuration_review_configured
+  for_each: aws.rds.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.ActivityStreamStatus
+    op: exists
+    value: null
+- rule_id: aws.rds.instance.storage_encrypted
+  for_each: aws.rds.describe_db_instances
+  severity: HIGH
+  conditions:
+    var: item.StorageEncrypted
+    op: is_true
+    value: null
+- rule_id: aws.rds.instance.transport_encrypted
+  for_each: aws.rds.describe_db_instances
+  severity: HIGH
+  conditions:
+    var: item.StorageEncrypted
+    op: is_true
+    value: null
+- rule_id: aws.rds.optiongroup.insecure_extensions_not_enabled
+  for_each: aws.rds.describe_db_option_groups
+  severity: MEDIUM
+  conditions:
+    var: item.Options[].OptionName
+    op: not_contains
+    value: S3_INTEGRATION
+- rule_id: aws.rds.optiongroup.only_approved_extensions_enabled
+  for_each: aws.rds.describe_db_option_groups
+  severity: MEDIUM
+  conditions:
+    var: item.Options[].OptionName
+    op: in
+    value:
+    - approved-extension-1
+    - approved-extension-2
+- rule_id: aws.rds.parametergroup.audit_logging_enabled
+  for_each: aws.rds.describe_db_cluster_parameters
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.ParameterName
+      op: equals
+      value: server_audit_logging
+    - var: item.ParameterValue
+      op: is_true
+      value: null
+- rule_id: aws.rds.parametergroup.insecure_features_disabled_if_applicable_configured
+  for_each: aws.rds.describe_db_cluster_parameters
+  severity: MEDIUM
+  conditions:
+    var: item.ParameterValue
+    op: not_contains
+    value: '1'
+- rule_id: aws.rds.parametergroup.require_ssl_configured
+  for_each: aws.rds.describe_db_cluster_parameters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.ParameterName
+      op: equals
+      value: rds.force_ssl
+    - var: item.ParameterValue
+      op: equals
+      value: '1'
+- rule_id: aws.rds.reserved_instance.billing_admins_mfa_required
+  for_each: aws.rds.describe_db_clusters
+  severity: CRITICAL
+  conditions:
+    var: item.AssociatedRoles[].RoleArn
+    op: contains
+    value: arn:aws:iam::123456789012:role/AWSReservedSSO_BillingAdmins_1234567890abcdef
+- rule_id: aws.rds.reserved_instance.instance_approval_workflow_required
+  for_each: aws.rds.describe_db_instances
+  severity: MEDIUM
+  conditions:
+    var: item.ReservedInstanceApprovalWorkflowRequired
+    op: is_true
+    value: null
+- rule_id: aws.rds.reserved_instance.purchase_permissions_restricted
+  for_each: aws.rds.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.PurchasePermissions
+    op: exists
+    value: null
+- rule_id: aws.rds.resource.dynamodb_table_encryption_enabled
+  for_each: aws.rds.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.StorageEncrypted
+    op: is_true
+    value: null
+- rule_id: aws.rds.resource.snapshots_encrypted
+  for_each: aws.rds.describe_db_cluster_automated_backups
+  severity: HIGH
+  conditions:
+    var: item.StorageEncrypted
+    op: is_true
+    value: null
+- rule_id: aws.rds.securitygroup.security_egress_restricted
+  for_each: aws.rds.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.VpcSecurityGroups[].VpcSecurityGroupId
+      op: exists
+      value: null
+    - var: item.VpcSecurityGroups[].VpcSecurityGroupId
+      op: not_contains
+      value: sg-00000000000000000
+- rule_id: aws.rds.securitygroup.security_no_0_ingress_on_db_ports_configured
+  for_each: aws.rds.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.VpcSecurityGroups[].VpcSecurityGroupId
+      op: not_empty
+      value: null
+    - any:
+      - var: item.VpcSecurityGroups[].VpcSecurityGroupId
+        op: not_equals
+        value: sg-00000000000000000
+- rule_id: aws.rds.securitygroup.security_only_required_ports_open_restricted
+  for_each: aws.rds.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.VpcSecurityGroups[].VpcSecurityGroupId
+    op: exists
+    value: null
+- rule_id: aws.rds.snapshot.cross_account_sharing_restricted
+  for_each: aws.rds.describe_db_cluster_snapshot_attributes
+  severity: MEDIUM
+  conditions:
+    var: item.DBClusterSnapshotAttributesResult[].AttributeValues[]
+    op: not_contains
+    value: all
+- rule_id: aws.rds.snapshot.cross_region_copy_encrypted
+  for_each: aws.rds.describe_db_cluster_snapshot_attributes
+  severity: HIGH
+  conditions:
+    var: item.DBClusterSnapshotAttributesResult[].AttributeValues[]
+    op: contains
+    value: encrypted
+- rule_id: aws.rds.snapshot.encryption_at_rest_enabled
+  for_each: aws.rds.describe_db_cluster_snapshot_attributes
+  severity: MEDIUM
+  conditions:
+    var: item.DBClusterSnapshotAttributesResult[].AttributeValues
+    op: contains
+    value: all
+- rule_id: aws.rds.snapshot.not_public_configured
+  for_each: aws.rds.describe_db_cluster_snapshot_attributes
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.DBClusterSnapshotAttributesResult.AttributeValues
+      op: not_contains
+      value: all
+- rule_id: aws.rds.snapshot.not_publicly_shared_configured
+  for_each: aws.rds.describe_db_cluster_snapshot_attributes
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.DBClusterSnapshotAttributesResult.AttributeValues
+      op: not_contains
+      value: all
+- rule_id: aws.rds.snapshot.storage_encrypted
+  for_each: aws.rds.describe_db_cluster_snapshot_attributes
+  severity: HIGH
+  conditions:
+    var: item.DBClusterSnapshotAttributesResult.AttributeValues[]
+    op: contains
+    value: storage-encrypted
+- rule_id: aws.rds.snapshots.public_access_configured
+  for_each: aws.rds.describe_db_cluster_snapshot_attributes
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.DBClusterSnapshotAttributesResult.AttributeValues
+      op: not_contains
+      value: all
+- rule_id: aws.rds.snapshots_public_access.snapshots_public_access_configured
+  for_each: aws.rds.describe_db_cluster_snapshot_attributes
+  severity: HIGH
+  conditions:
+    var: item.DBClusterSnapshotAttributesResult[].AttributeValues
+    op: not_contains
+    value: all
+- rule_id: aws.rds.subnetgroup.private_subnets_only_configured
+  for_each: aws.rds.describe_db_subnet_groups
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.DBSubnetGroups[].Subnets[].SubnetAvailabilityZone.Name
+      op: not_contains
+      value: us-east-1a
+    - var: item.DBSubnetGroups[].Subnets[].SubnetAvailabilityZone.Name
+      op: not_contains
+      value: us-east-1b

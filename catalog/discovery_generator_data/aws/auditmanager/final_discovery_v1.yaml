@@ -1,0 +1,55 @@
+# ==========================================================
+# Discovery YAML — auditmanager (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 1 | ops: 0 independent, 1 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: auditmanager
+
+services:
+  client: auditmanager
+  module: "boto3.client('auditmanager')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  []
+
+checks: []
+
+discovery:
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.auditmanager.get_evidence_folders_by_assessment [dependent] ──
+  - discovery_id: aws.auditmanager.get_evidence_folders_by_assessment
+    for_each: aws.auditmanager.get_delegations
+    calls:
+      - action: get_evidence_folders_by_assessment
+        params:
+          assessmentId: "{{ item.assessmentId }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.evidenceFolders }}'
+      item:
+        Tags: '{{ item.Tags }}'
+        assessmentId: '{{ item.assessmentId }}'
+        assessmentReportSelectionCount: '{{ item.assessmentReportSelectionCount }}'
+        author: '{{ item.author }}'
+        controlId: '{{ item.controlId }}'
+        controlName: '{{ item.controlName }}'
+        controlSetId: '{{ item.controlSetId }}'
+        dataSource: '{{ item.dataSource }}'
+        date: '{{ item.date }}'
+        evidenceAwsServiceSourceCount: '{{ item.evidenceAwsServiceSourceCount }}'
+        evidenceByTypeComplianceCheckCount: '{{ item.evidenceByTypeComplianceCheckCount }}'
+        evidenceByTypeComplianceCheckIssuesCount: '{{ item.evidenceByTypeComplianceCheckIssuesCount }}'
+        evidenceByTypeConfigurationDataCount: '{{ item.evidenceByTypeConfigurationDataCount }}'
+        evidenceByTypeManualCount: '{{ item.evidenceByTypeManualCount }}'
+        evidenceByTypeUserActivityCount: '{{ item.evidenceByTypeUserActivityCount }}'
+        evidenceResourcesIncludedCount: '{{ item.evidenceResourcesIncludedCount }}'
+        id: '{{ item.id }}'
+        name: '{{ item.name }}'
+        totalEvidence: '{{ item.totalEvidence }}'
+

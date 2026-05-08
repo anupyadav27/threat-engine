@@ -1,0 +1,242 @@
+version: '1.0'
+provider: alicloud
+service: bss
+checks:
+- rule_id: alicloud.bss.categories.access_billing_admins_mfa_required
+  for_each: alicloud.bss.categories
+  severity: HIGH
+  conditions:
+    var: item.mfa_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.bss.categories.access_billing_console_rbac_least_privilege
+  for_each: alicloud.bss.categories
+  severity: HIGH
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.bss.categories.access_cost_data_exports_private_and_encrypted
+  for_each: alicloud.bss.categories
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.encrypted
+      op: is_true
+      value: null
+    - var: item.public_ip_address
+      op: not_exists
+      value: null
+- rule_id: alicloud.bss.categories.access_cost_export_destinations_least_privilege
+  for_each: alicloud.bss.categories
+  severity: HIGH
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.bss.cost.budget_modify_permissions_restricted
+  for_each: alicloud.bss.cost
+  severity: MEDIUM
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: ModifyBudget
+- rule_id: alicloud.bss.document.secrets
+  for_each: alicloud.bss.document
+  severity: MEDIUM
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.bss.documents.set_as_public
+  for_each: alicloud.bss.documents
+  severity: HIGH
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: public
+- rule_id: alicloud.bss.ecs.regular_backups_configured
+  for_each: alicloud.bss.ecs
+  severity: MEDIUM
+  conditions:
+    var: item.backup_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.bss.encryption_at_rest_enabled.configured
+  for_each: alicloud.bss.categories
+  severity: MEDIUM
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.bss.instances.reservation_billing_admins_mfa_required
+  for_each: alicloud.bss.ecs
+  severity: HIGH
+  conditions:
+    var: item.mfa_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.bss.instances.reservation_purchase_permissions_restricted
+  for_each: alicloud.bss.ecs
+  severity: MEDIUM
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: ReservationPurchase
+- rule_id: alicloud.bss.managed.compliant_patching
+  for_each: alicloud.bss.ecs
+  severity: MEDIUM
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.bss.plans.properly_configured
+  for_each: alicloud.bss.categories
+  severity: MEDIUM
+  conditions:
+    var: item.id
+    op: exists
+    value: null
+- rule_id: alicloud.bss.plans.retention_90_days_minimum
+  for_each: alicloud.bss.documents
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.backup_enabled
+      op: is_true
+      value: null
+    - var: item.retention_days
+      op: gte
+      value: '90'
+- rule_id: alicloud.bss.plans.savings_plan_billing_admins_mfa_required
+  for_each: alicloud.bss.categories
+  severity: HIGH
+  conditions:
+    var: item.mfa_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.bss.plans_configured_and_active.configured
+  for_each: alicloud.bss.categories
+  severity: MEDIUM
+  conditions:
+    var: item.status
+    op: equals
+    value: ACTIVE
+- rule_id: alicloud.bss.queues.not_publicly_accessible
+  for_each: alicloud.bss.queues
+  severity: HIGH
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: public
+- rule_id: alicloud.bss.queues.server_side_encryption_enabled
+  for_each: alicloud.bss.queues
+  severity: HIGH
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.bss.recovery_point.encryption_at_rest_enabled
+  for_each: alicloud.bss.categories
+  severity: HIGH
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.bss.recovery_point.retention_90_days_minimum
+  for_each: alicloud.bss.documents
+  severity: MEDIUM
+  conditions:
+    var: item.backup_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.bss.recovery_point_encryption_at_rest_enabled.configured
+  for_each: alicloud.bss.categories
+  severity: MEDIUM
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.bss.reportplans_configured_and_active.configured
+  for_each: alicloud.bss.documents
+  severity: MEDIUM
+  conditions:
+    var: item.id
+    op: exists
+    value: null
+- rule_id: alicloud.bss.snapshot.encryption
+  for_each: alicloud.bss.categories
+  severity: HIGH
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.bss.tls_via_cas_kms.encryption_mtls_required_for_internal_services_where_supported
+  for_each: alicloud.bss.categories
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.ssl_enabled
+      op: is_true
+      value: null
+    - var: item.min_tls_version
+      op: equals
+      value: '1.2'
+- rule_id: alicloud.bss.tls_via_cas_kms.encryption_tls_min_1_2_enforced
+  for_each: alicloud.bss.categories
+  severity: HIGH
+  conditions:
+    var: item.min_tls_version
+    op: in
+    value:
+    - '1.2'
+    - '1.3'
+- rule_id: alicloud.bss.topics.kms_encryption_at_rest_enabled
+  for_each: alicloud.bss.categories
+  severity: HIGH
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.bss.topics.not_publicly_accessible
+  for_each: alicloud.bss.categories
+  severity: HIGH
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: public
+- rule_id: alicloud.bss.vault.encryption_at_rest_enabled
+  for_each: alicloud.bss.categories
+  severity: HIGH
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.bss.vaults.encryption_at_rest_enabled
+  for_each: alicloud.bss.categories
+  severity: HIGH
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.bss.vaults_configured_and_access_controlled.configured
+  for_each: alicloud.bss.categories
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.encrypted
+      op: is_true
+      value: null
+    - var: item.backup_enabled
+      op: is_true
+      value: null
+    - var: item.permissions
+      op: not_contains
+      value: public
+- rule_id: alicloud.bss.volume.backup_configured
+  for_each: alicloud.bss.categories
+  severity: MEDIUM
+  conditions:
+    var: item.backup_enabled
+    op: is_true
+    value: null

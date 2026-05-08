@@ -1,0 +1,394 @@
+version: '1.0'
+provider: azure
+service: dataprotection
+services:
+  client: dataprotection
+  module: azure.mgmt.dataprotection
+discovery:
+- discovery_id: azure.dataprotection.backupvaults.get_in_resource_group
+  calls:
+  - action: backupvaults.get_in_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      properties: '{{ response.properties }}'
+      e_tag: '{{ response.e_tag }}'
+- discovery_id: azure.dataprotection.backupvaults.get_in_subscription
+  calls:
+  - action: backupvaults.get_in_subscription
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      properties: '{{ response.properties }}'
+      e_tag: '{{ response.e_tag }}'
+- discovery_id: azure.dataprotection.dataprotection.list
+  calls:
+  - action: dataprotection.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.dataprotection.resourceguards.get_resources_in_resource_group
+  calls:
+  - action: resourceguards.get_resources_in_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      properties: '{{ response.properties }}'
+      e_tag: '{{ response.e_tag }}'
+- discovery_id: azure.dataprotection.resourceguards.get_resources_in_subscription
+  calls:
+  - action: resourceguards.get_resources_in_subscription
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      properties: '{{ response.properties }}'
+      e_tag: '{{ response.e_tag }}'
+- discovery_id: azure.dataprotection.backupinstances.get_backup_instance_operation_result
+  for_each: azure.dataprotection.backupvaults.get_in_resource_group
+  calls:
+  - action: backupinstances.get_backup_instance_operation_result
+    save_as: response
+    on_error: continue
+    params:
+      vault_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.dataprotection.backupinstances.list
+  for_each: azure.dataprotection.backupvaults.get_in_resource_group
+  calls:
+  - action: backupinstances.list
+    save_as: response
+    on_error: continue
+    params:
+      vault_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.dataprotection.backuppolicies.list
+  for_each: azure.dataprotection.backupvaults.get_in_resource_group
+  calls:
+  - action: backuppolicies.list
+    save_as: response
+    on_error: continue
+    params:
+      vault_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.dataprotection.deletedbackupinstances.list
+  for_each: azure.dataprotection.backupvaults.get_in_resource_group
+  calls:
+  - action: deletedbackupinstances.list
+    save_as: response
+    on_error: continue
+    params:
+      vault_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.dataprotection.dppresourceguardproxy.list
+  for_each: azure.dataprotection.backupvaults.get_in_resource_group
+  calls:
+  - action: dppresourceguardproxy.list
+    save_as: response
+    on_error: continue
+    params:
+      vault_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.dataprotection.jobs.list
+  for_each: azure.dataprotection.backupvaults.get_in_resource_group
+  calls:
+  - action: jobs.list
+    save_as: response
+    on_error: continue
+    params:
+      vault_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.dataprotection.recoverypoints.list
+  for_each: azure.dataprotection.backupvaults.get_in_resource_group
+  calls:
+  - action: recoverypoints.list
+    save_as: response
+    on_error: continue
+    params:
+      vault_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.dataprotection.resourceguards.get_backup_security_pin_requests_objects
+  for_each: azure.dataprotection.resourceguards.get_default_backup_security_pin_requests_object
+  calls:
+  - action: resourceguards.get_backup_security_pin_requests_objects
+    save_as: response
+    on_error: continue
+    params:
+      resource_guards_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      type: '{{ response.type }}'
+      name: '{{ response.name }}'
+      id: '{{ response.id }}'
+      system_data: '{{ response.system_data }}'
+- discovery_id: azure.dataprotection.resourceguards.get_default_delete_protected_item_requests_object
+  for_each: azure.dataprotection.resourceguards.get_default_backup_security_pin_requests_object
+  calls:
+  - action: resourceguards.get_default_delete_protected_item_requests_object
+    save_as: response
+    on_error: continue
+    params:
+      resource_guards_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.dataprotection.resourceguards.get_default_delete_resource_guard_proxy_requests_object
+  for_each: azure.dataprotection.resourceguards.get_default_backup_security_pin_requests_object
+  calls:
+  - action: resourceguards.get_default_delete_resource_guard_proxy_requests_object
+    save_as: response
+    on_error: continue
+    params:
+      resource_guards_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.dataprotection.resourceguards.get_default_disable_soft_delete_requests_object
+  for_each: azure.dataprotection.resourceguards.get_default_backup_security_pin_requests_object
+  calls:
+  - action: resourceguards.get_default_disable_soft_delete_requests_object
+    save_as: response
+    on_error: continue
+    params:
+      resource_guards_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.dataprotection.resourceguards.get_default_update_protected_item_requests_object
+  for_each: azure.dataprotection.resourceguards.get_default_backup_security_pin_requests_object
+  calls:
+  - action: resourceguards.get_default_update_protected_item_requests_object
+    save_as: response
+    on_error: continue
+    params:
+      resource_guards_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.dataprotection.resourceguards.get_default_update_protection_policy_requests_object
+  for_each: azure.dataprotection.resourceguards.get_default_backup_security_pin_requests_object
+  calls:
+  - action: resourceguards.get_default_update_protection_policy_requests_object
+    save_as: response
+    on_error: continue
+    params:
+      resource_guards_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.dataprotection.resourceguards.get_delete_protected_item_requests_objects
+  for_each: azure.dataprotection.resourceguards.get_default_backup_security_pin_requests_object
+  calls:
+  - action: resourceguards.get_delete_protected_item_requests_objects
+    save_as: response
+    on_error: continue
+    params:
+      resource_guards_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      type: '{{ response.type }}'
+      name: '{{ response.name }}'
+      id: '{{ response.id }}'
+      system_data: '{{ response.system_data }}'
+- discovery_id: azure.dataprotection.resourceguards.get_delete_resource_guard_proxy_requests_objects
+  for_each: azure.dataprotection.resourceguards.get_default_backup_security_pin_requests_object
+  calls:
+  - action: resourceguards.get_delete_resource_guard_proxy_requests_objects
+    save_as: response
+    on_error: continue
+    params:
+      resource_guards_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      type: '{{ response.type }}'
+      name: '{{ response.name }}'
+      id: '{{ response.id }}'
+      system_data: '{{ response.system_data }}'
+- discovery_id: azure.dataprotection.resourceguards.get_disable_soft_delete_requests_objects
+  for_each: azure.dataprotection.resourceguards.get_default_backup_security_pin_requests_object
+  calls:
+  - action: resourceguards.get_disable_soft_delete_requests_objects
+    save_as: response
+    on_error: continue
+    params:
+      resource_guards_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      type: '{{ response.type }}'
+      name: '{{ response.name }}'
+      id: '{{ response.id }}'
+      system_data: '{{ response.system_data }}'
+- discovery_id: azure.dataprotection.resourceguards.get_update_protected_item_requests_objects
+  for_each: azure.dataprotection.resourceguards.get_default_backup_security_pin_requests_object
+  calls:
+  - action: resourceguards.get_update_protected_item_requests_objects
+    save_as: response
+    on_error: continue
+    params:
+      resource_guards_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      type: '{{ response.type }}'
+      name: '{{ response.name }}'
+      id: '{{ response.id }}'
+      system_data: '{{ response.system_data }}'
+- discovery_id: azure.dataprotection.resourceguards.get_update_protection_policy_requests_objects
+  for_each: azure.dataprotection.resourceguards.get_default_backup_security_pin_requests_object
+  calls:
+  - action: resourceguards.get_update_protection_policy_requests_objects
+    save_as: response
+    on_error: continue
+    params:
+      resource_guards_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      type: '{{ response.type }}'
+      name: '{{ response.name }}'
+      id: '{{ response.id }}'
+      system_data: '{{ response.system_data }}'
+- discovery_id: azure.dataprotection.list
+  calls:
+  - action: list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'

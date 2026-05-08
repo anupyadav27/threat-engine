@@ -1,0 +1,36 @@
+version: '1.0'
+provider: web_server
+engine: websphere
+category: section_2
+cis_section: '2'
+description: >
+  websphere CIS Section 2 — Basic Registry and Quick Start security Registry are Removed
+
+discovery:
+
+  - discovery_id: websphere.section_2.basic_registry_and_quick_start_security_registry
+    description: Ensure Basic Registry and Quick Start security Registry are Removed
+    calls:
+      - action: run_command
+        command: "Ensure there are no uses of basicRegistry or quickStartSecurity elements in the Liberty configuration. grep -w -i -R \u0027basicRegistry\u0027 ${server.config.dir} grep -w -i -R \u0027quickStartSecurity\u0027 ${server.config.dir}"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: basic_registry_and_quick_start_security_registry
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: websphere.section_2.the_ldap_connection_uses_tls
+    description: Ensure that the LDAP connection uses TLS
+    calls:
+      - action: run_command
+        command: "Ensure that the sslEnabled attribute of all ldapRegistry elements is to true. The sslRef of all ldapRegistry elements must match the id attribute of an ssl element. Both configurations are set on the Liberty configuration. grep -w -R -i \u0027sslEnabled\u0027 ${server.config.dir} The sslEnabled attribute may match to elements in addition to the ldapRegistry element."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: the_ldap_connection_uses_tls
+        value: "{{ result.stdout }}"
+        expected: ""
+

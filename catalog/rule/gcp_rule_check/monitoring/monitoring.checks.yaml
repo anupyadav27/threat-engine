@@ -1,0 +1,268 @@
+version: '1.0'
+provider: gcp
+service: monitoring
+checks:
+- rule_id: gcp.monitoring.alert_policy.alert_alarm_actions_configured
+  for_each: gcp.monitoring.projects.alertPolicies.list
+  severity: MEDIUM
+  conditions:
+    var: item.enabled
+    op: is_true
+    value: null
+- rule_id: gcp.monitoring.alert_policy.alert_critical_alarms_enabled
+  for_each: gcp.monitoring.projects.alertPolicies.list
+  severity: MEDIUM
+  conditions:
+    var: item.disabled
+    op: is_false
+    value: null
+- rule_id: gcp.monitoring.alert_policy.alert_destinations_authenticated
+  for_each: gcp.monitoring.projects.alertPolicies.list
+  severity: MEDIUM
+  conditions:
+    var: item.conditions[].conditionThreshold.denominatorAggregations[].alignmentPeriod
+    op: exists
+    value: null
+- rule_id: gcp.monitoring.alert_policy.anomaly_alerts_configured
+  for_each: gcp.monitoring.projects.alertPolicies.list
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.conditions[].conditionMonitoringQueryLanguage.query
+      op: contains
+      value: fetch gce_instance
+    - var: item.conditions[].conditionMonitoringQueryLanguage.query
+      op: contains
+      value: fetch cloudsql_database
+    - var: item.conditions[].conditionMonitoringQueryLanguage.query
+      op: contains
+      value: fetch gke_container
+    - var: item.conditions[].conditionMonitoringQueryLanguage.query
+      op: contains
+      value: fetch pubsub_topic
+- rule_id: gcp.monitoring.alert_policy.anomaly_detectors_enabled
+  for_each: gcp.monitoring.projects.alertPolicies.list
+  severity: MEDIUM
+  conditions:
+    var: item.conditions[].conditionMonitoringQueryLanguage.trigger.count
+    op: exists
+    value: null
+- rule_id: gcp.monitoring.alert_policy.anomaly_training_data_sources_approved
+  for_each: gcp.monitoring.projects.alertPolicies.list
+  severity: MEDIUM
+  conditions:
+    var: item.conditions[].conditionMonitoringQueryLanguage.query
+    op: not_contains
+    value: fetch gce_instance::compute.googleapis.com/instance/cpu/utilization
+- rule_id: gcp.monitoring.alert_policy.metric_filter_console_root_login_detected_filter_present
+  for_each: gcp.monitoring.projects.alertPolicies.list
+  severity: MEDIUM
+  conditions:
+    var: item.conditions[].conditionMonitoringQueryLanguage.query
+    op: contains
+    value: resource.type="gce_instance" AND log_id("cloudaudit.googleapis.com/activity") AND protoPayload.methodName="cloudssh.googleapis.com/ssh"
+      AND protoPayload.authenticationInfo.principalEmail="root"
+- rule_id: gcp.monitoring.alert_policy.metric_filter_kms_key_deletion_or_disable_detected_filter_present
+  for_each: gcp.monitoring.projects.alertPolicies.list
+  severity: HIGH
+  conditions:
+    var: item.conditions[].conditionMonitoringQueryLanguage.query
+    op: contains
+    value: metric.type="cloudkms.googleapis.com/key/version/destruction_state" OR metric.type="cloudkms.googleapis.com/key/version/state"
+- rule_id: gcp.monitoring.alert_policy.metric_filter_network_acl_or_sg_change_detected_filter_present
+  for_each: gcp.monitoring.projects.alertPolicies.list
+  severity: MEDIUM
+  conditions:
+    var: item.name
+    op: exists
+    value: null
+- rule_id: gcp.monitoring.alert_policy.monitoring_admin_activity_logging_enabled
+  for_each: gcp.monitoring.projects.alertPolicies.list
+  severity: HIGH
+  conditions:
+    var: item.name
+    op: exists
+    value: null
+- rule_id: gcp.monitoring.alert_policy.monitoring_alert_destinations_configured
+  for_each: gcp.monitoring.projects.alertPolicies.list
+  severity: MEDIUM
+  conditions:
+    var: item.notificationChannels
+    op: not_empty
+    value: null
+- rule_id: gcp.monitoring.alert_policy.monitoring_alerts_for_backup_failures_configured
+  for_each: gcp.monitoring.projects.alertPolicies.list
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.displayName
+      op: contains
+      value: backup
+    - var: item.displayName
+      op: contains
+      value: Backup
+    - var: item.displayName
+      op: contains
+      value: BACKUP
+- rule_id: gcp.monitoring.alert_policy.monitoring_alerts_for_replication_lag_configured
+  for_each: gcp.monitoring.projects.alertPolicies.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.conditions[].conditionMonitoringQueryLanguage.query
+      op: contains
+      value: replication_lag
+    - var: item.disabled
+      op: is_false
+      value: null
+- rule_id: gcp.monitoring.alert_policy.monitoring_alerts_for_rpo_rto_breach_configured
+  for_each: gcp.monitoring.projects.alertPolicies.list
+  severity: MEDIUM
+  conditions:
+    var: item
+    op: not_empty
+    value: null
+- rule_id: gcp.monitoring.alert_policy.monitoring_logs_retention_days_minimum
+  for_each: gcp.monitoring.projects.alertPolicies.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.userLabels.logs_retention_days
+      op: exists
+      value: null
+    - var: item.userLabels.logs_retention_days
+      op: gte
+      value: '30'
+- rule_id: gcp.monitoring.alert_policy.monitoring_query_access_logging_enabled
+  for_each: gcp.monitoring.projects.alertPolicies.list
+  severity: MEDIUM
+  conditions:
+    var: item.logCheckFailures
+    op: is_true
+    value: null
+- rule_id: gcp.monitoring.alert_policy.sampling_rule_access_rbac_least_privilege
+  for_each: gcp.monitoring.projects.alertPolicies.list
+  severity: HIGH
+  conditions:
+    var: item.disabled
+    op: is_true
+    value: null
+- rule_id: gcp.monitoring.alert_policy.sampling_rule_rules_present
+  for_each: gcp.monitoring.projects.uptimeCheckConfigs.list
+  severity: MEDIUM
+  conditions:
+    var: item.contentMatchers
+    op: not_empty
+    value: null
+- rule_id: gcp.monitoring.alert_policy.sampling_rule_storage_encrypted
+  for_each: gcp.monitoring.projects.alertPolicies.list
+  severity: MEDIUM
+  conditions:
+    var: item.userLabels.app
+    op: exists
+    value: null
+- rule_id: gcp.monitoring.dashboard.dashboard_public_embeds_disabled
+  for_each: gcp.monitoring.projects.uptimeCheckConfigs.list
+  severity: HIGH
+  conditions:
+    var: item.disabled
+    op: is_true
+    value: null
+- rule_id: gcp.monitoring.dashboard.dashboard_sharing_restricted_to_org
+  for_each: gcp.monitoring.projects.uptimeCheckConfigs.list
+  severity: MEDIUM
+  conditions:
+    var: item.selectedRegions
+    op: not_contains
+    value: global
+- rule_id: gcp.monitoring.dashboard.dashboard_sso_required
+  for_each: gcp.monitoring.projects.uptimeCheckConfigs.list
+  severity: MEDIUM
+  conditions:
+    var: item.checkerType
+    op: exists
+    value: null
+- rule_id: gcp.monitoring.notification_channel.communication_channels_configured
+  for_each: gcp.monitoring.projects.notificationChannels.list
+  severity: MEDIUM
+  conditions:
+    var: item
+    op: not_empty
+    value: null
+- rule_id: gcp.monitoring.notification_channel.communication_destinations_access_least_privilege
+  for_each: gcp.monitoring.projects.notificationChannels.list
+  severity: HIGH
+  conditions:
+    var: item.disabled
+    op: is_false
+    value: null
+- rule_id: gcp.monitoring.notification_channel.communication_no_public_webhooks_without_auth
+  for_each: gcp.monitoring.projects.notificationChannels.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.type
+      op: equals
+      value: webhook_token
+    - var: item.labels.auth_password
+      op: exists
+      value: null
+- rule_id: gcp.monitoring.notification_channel.escalation_change_audit_logging_enabled
+  for_each: gcp.monitoring.projects.notificationChannels.list
+  severity: HIGH
+  conditions:
+    var: item.name
+    op: exists
+    value: null
+- rule_id: gcp.monitoring.notification_channel.escalation_oncall_contacts_verified
+  for_each: gcp.monitoring.projects.notificationChannels.list
+  severity: HIGH
+  conditions:
+    var: item.verified
+    op: is_true
+    value: null
+- rule_id: gcp.monitoring.notification_channel.escalation_policy_exists_for_critical_severity
+  for_each: gcp.monitoring.projects.notificationChannels.list
+  severity: HIGH
+  conditions:
+    var: item.displayName
+    op: exists
+    value: null
+- rule_id: gcp.monitoring.notification_channel.notification_destinations_configured
+  for_each: gcp.monitoring.projects.notificationChannels.list
+  severity: HIGH
+  conditions:
+    var: item
+    op: not_empty
+    value: null
+- rule_id: gcp.monitoring.notification_channel.notification_endpoints_authenticated
+  for_each: gcp.monitoring.projects.notificationChannels.list
+  severity: HIGH
+  conditions:
+    var: item.type
+    op: not_in
+    value:
+    - email
+    - sms
+    - pagerduty
+    - slack
+    - webhook_tokenauth
+    - webhook_basicauth
+- rule_id: gcp.monitoring.notification_channel.notification_message_encryption_in_transit
+  for_each: gcp.monitoring.projects.notificationChannels.list
+  severity: HIGH
+  conditions:
+    var: item.type
+    op: not_equals
+    value: email
+- rule_id: gcp.monitoring.notification_channel.notification_no_public_webhooks
+  for_each: gcp.monitoring.projects.notificationChannels.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.type
+      op: equals
+      value: webhook_token
+    - var: item.labels.url
+      op: not_contains
+      value: https://hooks.slack.com

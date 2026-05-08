@@ -1,0 +1,55 @@
+# Auto-generated: check rules for IBM iam from test-rulecheck_python_code
+version: '1.0'
+provider: ibm
+service: iam
+checks:
+- rule_id: ibm.iam.activity.access_group_change
+  for_each: ibm.iam.list_access_groups
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.History[].action
+      op: not_contains
+      value: delete
+    - var: item.History[].action
+      op: not_contains
+      value: remove_members
+    - var: item.History[].action
+      op: not_contains
+      value: add_members
+- rule_id: ibm.iam.activity.account_settings_change
+  for_each: ibm.iam.list_account_settings
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.mfa
+      op: is_true
+    - var: item.allowed_ip_addresses
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: ibm.iam.activity.mfa_settings_change
+  for_each: ibm.iam.list_mfa_settings
+  severity: CRITICAL
+  conditions:
+    var: item.MFAEnabled
+    op: is_true
+- rule_id: ibm.iam.activity.service_id_locked
+  for_each: ibm.iam.list_service_ids
+  severity: HIGH
+  conditions:
+    var: item.locked
+    op: is_true
+- rule_id: ibm.iam.activity.trusted_profile_change
+  for_each: ibm.iam.list_trusted_profiles
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.history[].action
+      op: not_contains
+      value: create
+    - var: item.history[].action
+      op: not_contains
+      value: update
+    - var: item.history[].action
+      op: not_contains
+      value: delete

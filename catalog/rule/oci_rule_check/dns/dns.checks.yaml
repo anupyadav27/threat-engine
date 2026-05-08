@@ -1,0 +1,159 @@
+version: '1.0'
+provider: oci
+service: dns
+checks:
+- rule_id: oci.dns.record.dns_security_record_set_alias_targets_services
+  for_each: oci.dns.list_records
+  severity: LOW
+  conditions:
+    var: item.rtype
+    op: not_equals
+    value: ALIAS
+- rule_id: oci.dns.record.dns_security_record_set_caa_records_wildcard
+  for_each: oci.dns.list_records
+  severity: LOW
+  conditions:
+    all:
+    - var: item.rtype
+      op: equals
+      value: CAA
+    - var: item.rdata
+      op: contains
+      value: issuewild
+- rule_id: oci.dns.record.dns_security_record_set_dmarc_present_present
+  for_each: oci.dns.list_records
+  severity: LOW
+  conditions:
+    all:
+    - var: item.rtype
+      op: equals
+      value: TXT
+    - var: item.name
+      op: equals
+      value: _dmarc
+    - var: item.rdata
+      op: contains
+      value: v=DMARC1
+- rule_id: oci.dns.record.dnssec_disabled
+  for_each: oci.dns.list_records
+  severity: LOW
+  conditions:
+    var: item.rtype
+    op: not_equals
+    value: DNSKEY
+- rule_id: oci.dns.steering_policy.dns_security_traffic_policy_documents_encrypted_and_private
+  for_each: oci.dns.list_records
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.rtype
+      op: equals
+      value: STEERING_POLICY
+    - var: item.rdata
+      op: contains
+      value: encrypted
+    - var: item.rdata
+      op: not_contains
+      value: public
+- rule_id: oci.dns.steering_policy.dns_security_traffic_policy_health_checks_failover
+  for_each: oci.dns.list_records
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.rtype
+      op: equals
+      value: STEERING_POLICY
+    - var: item.rdata
+      op: contains
+      value: healthCheck
+    - var: item.rdata
+      op: contains
+      value: failover
+- rule_id: oci.dns.steering_policy.dns_security_traffic_policy_targets_approved_domains_only
+  for_each: oci.dns.list_records
+  severity: MEDIUM
+  conditions:
+    var: item.rtype
+    op: in
+    value:
+    - A
+    - AAAA
+    - CNAME
+- rule_id: oci.dns.zone.dns_security_record_set_no_overly_zones
+  for_each: oci.dns.list_records
+  severity: LOW
+  conditions:
+    var: item.rtype
+    op: not_equals
+    value: NS
+- rule_id: oci.dns.zone.dns_security_record_set_no_rfc1918_blocked
+  for_each: oci.dns.list_records
+  severity: LOW
+  conditions:
+    all:
+    - var: item.rtype
+      op: equals
+      value: TXT
+    - var: item.rdata
+      op: contains
+      value: v=spf1
+    - var: item.rdata
+      op: not_contains
+      value: include:spf.protection.outlook.com
+- rule_id: oci.dns.zone.dns_security_zone_cross_account_sharing_restricted
+  for_each: oci.dns.list_records
+  severity: LOW
+  conditions:
+    var: item.rtype
+    op: not_equals
+    value: NS
+- rule_id: oci.dns.zone.dns_security_zone_dnssec_enabled
+  for_each: oci.dns.list_zones
+  severity: LOW
+  conditions:
+    var: item.dnssec_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.dns.zone.dns_security_zone_query_logging_enabled
+  for_each: oci.dns.list_records
+  severity: MEDIUM
+  conditions:
+    var: item.rtype
+    op: exists
+    value: null
+- rule_id: oci.dns.zone.dns_security_zone_transfer_restricted_or_tsig_required
+  for_each: oci.dns.list_records
+  severity: LOW
+  conditions:
+    all:
+    - var: item.rtype
+      op: equals
+      value: TSIG
+    - var: item.rdata
+      op: exists
+      value: null
+- rule_id: oci.dns.zone.key_sign_in_dnssec
+  for_each: oci.dns.list_records
+  severity: HIGH
+  conditions:
+    var: item.rtype
+    op: equals
+    value: DNSKEY
+- rule_id: oci.dns.zone.public_hosted_zones_monitoring_logging_enabled
+  for_each: oci.dns.list_records
+  severity: CRITICAL
+  conditions:
+    var: item.rtype
+    op: exists
+    value: null
+- rule_id: oci.dns.zone.rsasha1_in_use_to_zone_sign_dnssec
+  for_each: oci.dns.list_records
+  severity: LOW
+  conditions:
+    all:
+    - var: item.rtype
+      op: equals
+      value: RRSIG
+    - var: item.rdata
+      op: not_contains
+      value: RSASHA1

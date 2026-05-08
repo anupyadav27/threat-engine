@@ -1,0 +1,56 @@
+rule_id: gcp.container.k8s.pod_exec
+rule_type: ciem
+title: 'GKE K8s: Pod Exec Command Executed'
+scope: container.k8s
+domain: container_and_kubernetes_security
+subcategory: container_security
+severity: high
+service: container
+resource: k8s
+requirement: Pod Exec
+description: kubectl exec used to execute commands inside a running pod — interactive
+  shell access to a container workload by an unexpected principal.
+rationale: Adversaries execute commands within GKE containers via the Kubernetes API
+  exec endpoint, achieving remote code execution without SSH or network access to
+  the pod. Pod exec by non-CI/CD service accounts, especially in production namespaces,
+  indicates unauthorized access. Detected via GKE K8s audit logs for pods/exec.
+remediation: '1. Audit the compute instance or function for malicious startup scripts
+  or code.
+
+  2. Verify the workload image against a trusted artifact registry with Binary Authorization.
+
+  3. Apply Org Policy `compute.requireShieldedVm` for all new VM instances.
+
+  4. Enable Security Command Center threats for anomalous compute execution events.
+
+  5. Review service account permissions attached to the created instance or function.
+
+  '
+references:
+- https://attack.mitre.org/techniques/T1609/
+- https://cloud.google.com/kubernetes-engine/docs/how-to/audit-logging
+compliance:
+  cis_gcp_v2:
+  - 4.1
+  - 4.2
+  - 4.3
+  nist_800_53_r5:
+  - CM-7
+  - SI-3
+  - SI-4
+  pci_dss_v4:
+  - 6.3
+  - 6.4
+  iso_27001_2022:
+  - A.8.19
+  - A.8.20
+threat_category: execution
+mitre_tactics:
+- execution
+mitre_techniques:
+- T1609
+risk_score: 80
+action_category: execute
+source: default
+metadata_source: auto_generated
+generated_by: gcp_ciem_generator

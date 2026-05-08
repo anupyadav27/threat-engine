@@ -1,0 +1,89 @@
+version: '1.0'
+provider: technology
+category: network
+tech_type: juniper
+display_name: Juniper Junos
+action_type: netconf_rpc
+cis_benchmark: CIS Juniper Junos 21
+cis_section: '1'
+
+# ─── Authentication & Access ───────────────────────────────────────────────────
+discovery:
+  - discovery_id: juniper.auth.local_accounts
+    description: Enumerate local user accounts and privilege levels
+    calls:
+      - action: netconf_rpc
+        target: auth.accounts
+        save_as: accounts
+    emit:
+      as: items
+      items: "{{ accounts }}"
+      item:
+        resource_uid: "{{ item.username or item.name or item.id }}"
+        resource_type: juniper.user_account
+        username: "{{ item.username or item.name }}"
+        is_admin: "{{ item.is_admin or item.privileged }}"
+        last_login: "{{ item.last_login }}"
+
+  - discovery_id: juniper.auth.password_policy
+    description: Retrieve password policy configuration
+    calls:
+      - action: netconf_rpc
+        target: auth.password_policy
+        save_as: policy
+    emit:
+      as: item
+      item:
+        resource_uid: "juniper.password_policy"
+        resource_type: juniper.policy
+        min_length: "{{ policy.min_length }}"
+        require_complexity: "{{ policy.complexity_enabled }}"
+        max_age_days: "{{ policy.max_age_days }}"
+
+# ─── Logging & Auditing ────────────────────────────────────────────────────────
+  - discovery_id: juniper.logging.audit_config
+    description: Retrieve audit/logging configuration
+    calls:
+      - action: netconf_rpc
+        target: logging.audit_config
+        save_as: audit_cfg
+    emit:
+      as: item
+      item:
+        resource_uid: "juniper.audit_config"
+        resource_type: juniper.config
+        audit_enabled: "{{ audit_cfg.enabled }}"
+        log_destination: "{{ audit_cfg.destination }}"
+        log_level: "{{ audit_cfg.level }}"
+
+# ─── Encryption & Transport ────────────────────────────────────────────────────
+  - discovery_id: juniper.encryption.transport
+    description: Check transport encryption (TLS/SSL) configuration
+    calls:
+      - action: netconf_rpc
+        target: encryption.transport
+        save_as: tls_cfg
+    emit:
+      as: item
+      item:
+        resource_uid: "juniper.transport_encryption"
+        resource_type: juniper.config
+        tls_enabled: "{{ tls_cfg.enabled }}"
+        tls_version: "{{ tls_cfg.min_version }}"
+        cert_path: "{{ tls_cfg.cert_path }}"
+
+# ─── Access Controls ──────────────────────────────────────────────────────────
+  - discovery_id: juniper.acl.admin_privileges
+    description: Identify accounts with administrative or superuser privileges
+    calls:
+      - action: netconf_rpc
+        target: acl.admin_accounts
+        save_as: admins
+    emit:
+      as: items
+      items: "{{ admins }}"
+      item:
+        resource_uid: "{{ item.username or item.name }}"
+        resource_type: juniper.privileged_account
+        username: "{{ item.username or item.name }}"
+        privilege_level: "{{ item.role or item.level }}"

@@ -23,11 +23,18 @@ spec:
         engine: risk
         layer: "4"
     spec:
+      serviceAccountName: engine-sa
       containers:
         - name: engine-risk
-          image: yadavanup84/engine-risk:v-std-cols
+          image: yadavanup84/engine-risk:v-risk-enterprise2
+          imagePullPolicy: Always
           ports:
             - containerPort: 8009
+          envFrom:
+          - configMapRef:
+              name: threat-engine-db-config
+          - secretRef:
+              name: threat-engine-db-passwords
           env:
             # Risk DB (primary)
             - name: RISK_DB_HOST
@@ -61,7 +68,7 @@ spec:
                   name: threat-engine-db-config
                   key: DB_PORT
             - name: DISCOVERY_DB_NAME
-              value: "discoveries"
+              value: "threat_engine_discoveries"
             - name: DISCOVERY_DB_USER
               value: "postgres"
             - name: DISCOVERY_DB_PASSWORD
@@ -81,7 +88,7 @@ spec:
                   name: threat-engine-db-config
                   key: DB_PORT
             - name: ONBOARDING_DB_NAME
-              value: "onboarding"
+              value: "threat_engine_onboarding"
             - name: ONBOARDING_DB_USER
               value: "postgres"
             - name: ONBOARDING_DB_PASSWORD
@@ -101,7 +108,7 @@ spec:
                   name: threat-engine-db-config
                   key: DB_PORT
             - name: THREAT_DB_NAME
-              value: "threat"
+              value: "threat_engine_threat"
             - name: THREAT_DB_USER
               value: "postgres"
             - name: THREAT_DB_PASSWORD
@@ -121,7 +128,7 @@ spec:
                   name: threat-engine-db-config
                   key: DB_PORT
             - name: COMPLIANCE_DB_NAME
-              value: "compliance"
+              value: "threat_engine_compliance"
             - name: COMPLIANCE_DB_USER
               value: "postgres"
             - name: COMPLIANCE_DB_PASSWORD
@@ -129,6 +136,45 @@ spec:
                 secretKeyRef:
                   name: threat-engine-db-passwords
                   key: COMPLIANCE_DB_PASSWORD
+            # Shared DB_HOST/DB_PORT for all engine DBs on same RDS
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_PORT
+            - name: DB_USER
+              value: "postgres"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: DISCOVERIES_DB_PASSWORD
+            # Per-engine DB names (all on same RDS host)
+            - name: IAM_DB_NAME
+              value: "threat_engine_iam"
+            - name: DATASEC_DB_NAME
+              value: "threat_engine_datasec"
+            - name: NETWORK_DB_NAME
+              value: "threat_engine_network"
+            - name: CHECK_DB_NAME
+              value: "threat_engine_check"
+            - name: CONTAINER_DB_NAME
+              value: "threat_engine_container_security"
+            - name: ENCRYPTION_DB_NAME
+              value: "threat_engine_encryption"
+            - name: DATABASE_DB_NAME
+              value: "threat_engine_database_security"
+            - name: AI_SECURITY_DB_NAME
+              value: "threat_engine_ai_security"
+            - name: CIEM_DB_NAME
+              value: "threat_engine_ciem"
+            - name: INVENTORY_DB_NAME
+              value: "threat_engine_inventory"
             # External DB (EPSS/CVE cache) — optional, failure is non-fatal
             - name: EXTERNAL_DB_HOST
               valueFrom:
@@ -149,6 +195,36 @@ spec:
                 secretKeyRef:
                   name: threat-engine-db-passwords
                   key: DISCOVERIES_DB_PASSWORD
+            # Neo4j Aura — blast radius graph traversal (ENG-13)
+            # NEO4J_URI and NEO4J_PASSWORD already in threat-engine-db-passwords via secretRef
+            # NEO4J_USERNAME aliases NEO4J_USER (neo4j Python driver uses USERNAME not USER)
+            - name: NEO4J_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: NEO4J_USER
+            # ── Runtime config ──────────────────────────────────────────────
+            - name: PYTHONPATH
+              value: "/app"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: ENGINE_NAME
+              value: "risk"
+            # ── Scanner Job config ──────────────────────────────────────────
+            - name: RISK_SCANNER_IMAGE
+              value: "yadavanup84/engine-risk:v-risk-enterprise2"
+            - name: SCANNER_CPU_REQUEST
+              value: "500m"
+            - name: SCANNER_MEM_REQUEST
+              value: "2Gi"
+            - name: SCANNER_CPU_LIMIT
+              value: "1"
+            - name: SCANNER_MEM_LIMIT
+              value: "4Gi"
+            - name: SCANNER_NAMESPACE
+              value: "threat-engine-engines"
+            - name: SCANNER_SERVICE_ACCOUNT
+              value: "engine-sa"
           resources:
             requests:
               cpu: "100m"

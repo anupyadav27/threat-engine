@@ -1,0 +1,73 @@
+rule_id: alicloud.objectstorage.actiontrail.delete_bucket_policy
+service: objectstorage
+provider: alicloud
+check_type: log
+severity: medium
+title: 'AliCloud OSS: Bucket Policy Deleted'
+description: An OSS bucket policy was deleted. Removing bucket policies may re-enable
+  broad access if ACLs are not restrictive.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1070
+risk_score: 60
+resource: alicloud_oss_bucket
+source: alicloud_ciem_generator
+is_active: true
+domain: data_protection_and_privacy
+action_category: delete
+log_source_type: alicloud_actiontrail
+posture_category: data_security_posture
+threat_tags:
+- T1070
+- defense_evasion
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '5.1'
+  - '5.2'
+  nist_800_53_r5:
+  - SC-28
+  - AC-3
+  - AU-9
+  pci_dss_v4:
+  - '3.4'
+  - '3.5'
+  - '6.3'
+  iso_27001_2022:
+  - A.8.10
+  - A.8.24
+remediation: '1. Verify the policy deletion was authorized.
+
+  2. Check current bucket ACL to confirm access is still restricted.
+
+  3. Restore the bucket policy if it contained deny statements.'
+references:
+- https://attack.mitre.org/techniques/T1070/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: oss
+    - field: operation
+      op: equals
+      value: DeleteBucketPolicy
+version: '1.0'

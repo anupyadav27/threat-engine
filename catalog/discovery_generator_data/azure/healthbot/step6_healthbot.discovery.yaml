@@ -1,0 +1,74 @@
+# Discovery YAML — healthbot (Azure)
+# Generated: 2026-04-15T10:39:30Z
+# Source: step1b_operation_registry.json (qualified ops + dependency chains)
+# Actions use {category}.{method} format for SDK method resolution
+version: '1.0'
+provider: azure
+service: healthbot
+services:
+  client: healthbot
+  module: azure.mgmt.healthbot
+discovery:
+  # ── bots.list [root] ──
+  - discovery_id: azure.healthbot.bots.list
+    calls:
+      - action: bots.list
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        display: '{{ item.display }}'
+        is_data_action: '{{ item.is_data_action }}'
+        origin: '{{ item.origin }}'
+  # ── bots.list_by_resource_group [root] ──
+  - discovery_id: azure.healthbot.bots.list_by_resource_group
+    calls:
+      - action: bots.list_by_resource_group
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        location: '{{ item.location }}'
+        sku: '{{ item.sku }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+        system_data: '{{ item.system_data }}'
+  # ════════════════════════════════════════
+  # Dependent operations (for_each + params)
+  # ════════════════════════════════════════
+  # ── bots.list_secrets [dependent] ──
+  - discovery_id: azure.healthbot.bots.list_secrets
+    for_each: azure.healthbot.bots.list
+    calls:
+      - action: bots.list_secrets
+        save_as: response
+        on_error: continue
+        params:
+          bot_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        identity: '{{ item.identity }}'
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        location: '{{ item.location }}'
+        sku: '{{ item.sku }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        zones: '{{ item.zones }}'
+        kind: '{{ item.kind }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'

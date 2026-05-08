@@ -1,0 +1,180 @@
+version: '1.0'
+provider: database
+engine: mysql
+category: section_2
+cis_section: '2'
+description: >
+  mysql CIS Section 2 — Point-in-Time Recovery
+
+discovery:
+
+  - discovery_id: mysql.section_2.point_in_time_recovery
+    description: Point-in-Time Recovery
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT VARIABLE_NAME, VARIABLE_VALUE, 'BINLOG - Log Expiration' as Note FROM performance_schema.global_variables where variable_name = 'binlog_expire_logs_seconds';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: point_in_time_recovery
+        setting_name: point_in_time_recovery
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: mysql.section_2.binary_and_relay_logs_are_encrypted
+    description: Ensure Binary and Relay Logs are Encrypted
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT VARIABLE_NAME, VARIABLE_VALUE, 'BINLOG - At Rest Encryption' as Note FROM performance_schema.global_variables where variable_name = 'binlog_encryption';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: binary_and_relay_logs_are_encrypted
+        setting_name: binary_and_relay_logs_are_encrypted
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: mysql.section_2.password_lifetime_is_less_than_or_equal_to_365
+    description: Ensure 'password_lifetime' is Less Than or Equal to '365'
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT VARIABLE_NAME, VARIABLE_VALUE FROM performance_schema.global_variables where VARIABLE_NAME like 'default_password_lifetime';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_lifetime_is_less_than_or_equal_to_365
+        setting_name: password_lifetime_is_less_than_or_equal_to_365
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: mysql.section_2.password_resets_require_strong_passwords
+    description: Ensure Password Resets Require Strong Passwords
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT VARIABLE_NAME, VARIABLE_VALUE FROM performance_schema.global_variables where VARIABLE_NAME in ('password_history', 'password_reuse_interval');"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_resets_require_strong_passwords
+        setting_name: password_resets_require_strong_passwords
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: mysql.section_2.require_current_password_for_password_reset
+    description: Require Current Password for Password Reset
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT VARIABLE_NAME, VARIABLE_VALUE FROM performance_schema.global_variables where VARIABLE_NAME in ('password_require_current');"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: require_current_password_for_password_reset
+        setting_name: require_current_password_for_password_reset
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: mysql.section_2.aes_encryption_mode_for_aes_encrypt_aes_decrypt
+    description: Ensure AES Encryption Mode for AES_ENCRYPT/AES_DECRYPT is Configured Correctly
+    calls:
+
+
+      - action: query_setting
+        query: "select @@block_encryption_mode;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: aes_encryption_mode_for_aes_encrypt_aes_decrypt
+        setting_name: aes_encryption_mode_for_aes_encrypt_aes_decrypt
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: mysql.section_2.mysql_is_bound_to_an_ip_address
+    description: Ensure MySQL is Bound to an IP Address
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT VARIABLE_NAME, VARIABLE_VALUE FROM performance_schema.global_variables WHERE VARIABLE_NAME = 'bind_address';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: mysql_is_bound_to_an_ip_address
+        setting_name: mysql_is_bound_to_an_ip_address
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: mysql.section_2.limit_accepted_transport_layer_security_tls
+    description: Limit Accepted Transport Layer Security (TLS) Versions
+    calls:
+
+
+      - action: query_setting
+        query: "select @@tls_version;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: limit_accepted_transport_layer_security_tls
+        setting_name: limit_accepted_transport_layer_security_tls
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: mysql.section_2.require_client_side_certificates_x_509
+    description: Require Client-Side Certificates (X.509)
+    calls:
+
+
+      - action: query_setting
+        query: "select user, host, ssl_type from mysql.user where user not in ('mysql.infoschema', 'mysql.session', 'mysql.sys');"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: require_client_side_certificates_x_509
+        setting_name: require_client_side_certificates_x_509
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: mysql.section_2.only_approved_ciphers_are_used
+    description: Ensure Only Approved Ciphers are Used
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT VARIABLE_NAME, VARIABLE_VALUE FROM performance_schema.global_variables WHERE VARIABLE_NAME IN ('ssl_cipher', 'tls_ciphersuites');"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: only_approved_ciphers_are_used
+        setting_name: only_approved_ciphers_are_used
+        value: "{{ result.value }}"
+        expected: ""
+
+

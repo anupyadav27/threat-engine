@@ -1,0 +1,60 @@
+version: '1.0'
+provider: k8s
+service: persistentvolume
+checks:
+- rule_id: k8s.persistentvolume.backup.policy_defined
+  for_each: k8s.persistentvolume.list
+  severity: MEDIUM
+  conditions:
+    var: item.metadata.annotations['backup.kubernetes.io/backup-policy']
+    op: exists
+    value: null
+- rule_id: k8s.persistentvolume.persistentvolume.csi_encryption_verified_enforced
+  for_each: k8s.persistentvolume.list_persistentvolumes
+  severity: HIGH
+  conditions:
+    var: item.spec.csi.storageAttributes.storage.kubernetes.io/csiProvisionerIdentity
+    op: exists
+    value: null
+- rule_id: k8s.persistentvolume.persistentvolume.host_path_restricted_enforced
+  for_each: k8s.persistentvolume.list
+  severity: LOW
+  conditions:
+    var: item.spec.hostPath
+    op: not_exists
+    value: null
+- rule_id: k8s.persistentvolume.persistentvolume.pv_access_modes_restricted_enabled
+  for_each: k8s.persistentvolume.persistentvolume.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.spec.accessModes[]
+      op: in
+      value:
+      - ReadWriteOnce
+      - ReadOnlyMany
+    - var: item.spec.accessModes[]
+      op: not_in
+      value:
+      - ReadWriteMany
+- rule_id: k8s.persistentvolume.persistentvolume.rbac_enforced_enabled
+  for_each: k8s.rbac.list_role_bindings
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.subjects[].kind
+      op: equals
+      value: ServiceAccount
+    - var: item.subjects[].kind
+      op: equals
+      value: User
+    - var: item.subjects[].kind
+      op: equals
+      value: Group
+- rule_id: k8s.persistentvolume.persistentvolume.storage_class_encryption_enabled_enforced
+  for_each: k8s.persistentvolume.list_persistentvolumes
+  severity: HIGH
+  conditions:
+    var: item.spec.storageClassName
+    op: exists
+    value: null

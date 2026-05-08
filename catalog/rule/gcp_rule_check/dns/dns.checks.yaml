@@ -1,0 +1,132 @@
+version: '1.0'
+provider: gcp
+service: dns
+checks:
+- rule_id: gcp.dns.managed_zone.zone_cross_account_sharing_restricted
+  for_each: gcp.dns.managedZones.list
+  severity: HIGH
+  conditions:
+    var: item.routingPolicy
+    op: exists
+    value: null
+- rule_id: gcp.dns.managed_zone.zone_dnssec_enabled_where_supported
+  for_each: gcp.dns.managedZones.list
+  severity: HIGH
+  conditions:
+    var: item.dnssecConfig.state
+    op: equals
+    value: 'on'
+- rule_id: gcp.dns.managed_zone.zone_query_logging_enabled
+  for_each: gcp.dns.managedZones.list
+  severity: HIGH
+  conditions:
+    var: item.loggingConfig
+    op: exists
+    value: null
+- rule_id: gcp.dns.managed_zone.zone_zone_transfer_restricted_or_tsig_required
+  for_each: gcp.dns.managedZones.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.dnssecConfig.state
+      op: equals
+      value: 'on'
+    - var: item.privateVisibilityConfig.networks
+      op: not_empty
+      value: null
+- rule_id: gcp.dns.policy.traffic_policy_health_checks_required_for_failover
+  for_each: gcp.dns.policies.list
+  severity: HIGH
+  conditions:
+    var: item.routingPolicy
+    op: exists
+    value: null
+- rule_id: gcp.dns.policy.traffic_policy_policy_documents_encrypted_and_private
+  for_each: gcp.dns.policies.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.routingPolicy
+      op: exists
+      value: null
+    - var: item.routingPolicy
+      op: not_equals
+      value: public
+- rule_id: gcp.dns.policy.traffic_policy_targets_approved_domains_only
+  for_each: gcp.dns.policies.list
+  severity: HIGH
+  conditions:
+    var: item.routingPolicy.geo[].location
+    op: in
+    value:
+    - us-central1
+    - us-east1
+    - europe-west1
+- rule_id: gcp.dns.resource_record_set.record_set_alias_targets_in_approved_services
+  for_each: gcp.dns.resourceRecordSets.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.type
+      op: equals
+      value: CNAME
+    - var: item.rrdatas[]
+      op: in
+      value:
+      - approved-service-1.example.com.
+      - approved-service-2.example.com.
+- rule_id: gcp.dns.resource_record_set.record_set_caa_records_present_for_root_and_wildcard
+  for_each: gcp.dns.resourceRecordSets.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.type
+      op: equals
+      value: CAA
+    - var: item.name
+      op: in
+      value:
+      - example-name.
+      - '*.example-name.'
+- rule_id: gcp.dns.resource_record_set.record_set_dmarc_record_present_when_mx_present
+  for_each: gcp.dns.resourceRecordSets.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.type
+      op: equals
+      value: MX
+    - var: item.name
+      op: not_contains
+      value: _dmarc.
+- rule_id: gcp.dns.resource_record_set.record_set_no_overly_broad_wildcard_records_in_sensitive_zones
+  for_each: gcp.dns.resourceRecordSets.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.type
+      op: not_equals
+      value: CNAME
+    - var: item.rrdatas
+      op: not_contains
+      value: '*'
+- rule_id: gcp.dns.resource_record_set.record_set_no_rfc1918_in_public_zones
+  for_each: gcp.dns.resourceRecordSets.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.type
+      op: in
+      value:
+      - A
+      - AAAA
+      - CNAME
+    - var: item.rrdatas
+      op: not_contains
+      value: '10.'
+    - var: item.rrdatas
+      op: not_contains
+      value: 172.16.
+    - var: item.rrdatas
+      op: not_contains
+      value: 192.168.

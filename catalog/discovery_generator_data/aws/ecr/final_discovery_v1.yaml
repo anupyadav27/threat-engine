@@ -1,0 +1,118 @@
+# ==========================================================
+# Discovery YAML — ecr (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 16 | ops: 3 independent, 2 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: ecr
+
+services:
+  client: ecr
+  module: "boto3.client('ecr')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: repository
+    identifier_op: aws.ecr.describe_repositories
+    identifier_field: repositoryArn
+    item_var_path: item.repositoryArn
+    identifier_template: '{repositoryarn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.ecr.describe_registry  ──
+  - discovery_id: aws.ecr.describe_registry
+    calls:
+      - action: describe_registry
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        replicationConfiguration: '{{ item.replicationConfiguration }}'
+        replicationConfiguration.rules: '{{ item.replicationConfiguration.rules }}'
+        rules: '{{ item.rules }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.ecr.describe_repositories  ──
+  - discovery_id: aws.ecr.describe_repositories
+    calls:
+      - action: describe_repositories
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.repositories }}'
+      item:
+        createdAt: '{{ item.createdAt }}'
+        encryptionConfiguration: '{{ item.encryptionConfiguration }}'
+        encryptionConfiguration.encryptionType: '{{ item.encryptionConfiguration.encryptionType }}'
+        imageScanningConfiguration: '{{ item.imageScanningConfiguration }}'
+        imageScanningConfiguration.scanOnPush: '{{ item.imageScanningConfiguration.scanOnPush }}'
+        imageTagMutability: '{{ item.imageTagMutability }}'
+        imageTagMutabilityExclusionFilters: '{{ item.imageTagMutabilityExclusionFilters }}'
+        registryId: '{{ item.registryId }}'
+        repositories: '{{ item.repositories }}'
+        repositoryArn: '{{ item.repositoryArn }}'
+        repositoryName: '{{ item.repositoryName }}'
+        repositoryUri: '{{ item.repositoryUri }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.ecr.get_registry_scanning_configuration  ──
+  - discovery_id: aws.ecr.get_registry_scanning_configuration
+    calls:
+      - action: get_registry_scanning_configuration
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        rules: '{{ item.rules }}'
+        scanType: '{{ item.scanType }}'
+        scanningConfiguration: '{{ item.scanningConfiguration }}'
+        scanningConfiguration.rules: '{{ item.scanningConfiguration.rules }}'
+        scanningConfiguration.scanType: '{{ item.scanningConfiguration.scanType }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.ecr.get_lifecycle_policy [dependent] ──
+  - discovery_id: aws.ecr.get_lifecycle_policy
+    for_each: aws.ecr.describe_repositories
+    calls:
+      - action: get_lifecycle_policy
+        params:
+          repositoryName: "{{ item.repositoryName }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        lastEvaluatedAt: '{{ item.lastEvaluatedAt }}'
+        lifecyclePolicyText: '{{ item.lifecyclePolicyText }}'
+        registryId: '{{ item.registryId }}'
+        repositoryName: '{{ item.repositoryName }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.ecr.get_repository_policy [dependent] ──
+  - discovery_id: aws.ecr.get_repository_policy
+    for_each: aws.ecr.describe_repositories
+    calls:
+      - action: get_repository_policy
+        params:
+          repositoryName: "{{ item.repositoryName }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        policyText: '{{ item.policyText }}'
+        registryId: '{{ item.registryId }}'
+        repositoryName: '{{ item.repositoryName }}'
+

@@ -1,0 +1,277 @@
+version: '1.0'
+provider: azure
+service: api
+checks:
+- rule_id: azure.api.api_endpoint.authn_required
+  for_each: azure.apimanagement.apigateway.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    var: item.AuthenticationEnabled
+    op: is_true
+    value: null
+- rule_id: azure.api.api_endpoint.authz_policies_enforced
+  for_each: azure.apimanagement.apigateway.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    var: item.AuthorizationPolicies
+    op: exists
+    value: null
+- rule_id: azure.api.api_endpoint.private_networking_enforced
+  for_each: azure.apimanagement.apimanagementservice.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.restrictions[].restrictionType
+      op: contains
+      value: Private
+    - var: item.properties.restrictions[].restrictionType
+      op: not_contains
+      value: Public
+- rule_id: azure.api.api_endpoint.waf_attached
+  for_each: azure.apimanagement.apigateway.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    var: item.WebApplicationFirewallConfiguration.Enabled
+    op: is_true
+    value: null
+- rule_id: azure.api.api_version.logging_enabled
+  for_each: azure.apimanagement.api.list_by_service
+  severity: MEDIUM
+  conditions:
+    var: item.properties.diagnosticSettings[].properties.logs[].enabled
+    op: contains
+    value: true
+- rule_id: azure.api.api_version.require_usage_plan_for_api_keys
+  for_each: azure.apimanagement.api.list_by_service
+  severity: MEDIUM
+  conditions:
+    var: item.ApiVersionSetId
+    op: exists
+    value: null
+- rule_id: azure.api.api_version.throttling_enabled
+  for_each: azure.apimanagement.api.list_by_service
+  severity: MEDIUM
+  conditions:
+    var: item.properties.apiVersionConstraint.minApiVersion
+    op: exists
+    value: null
+- rule_id: azure.api.authorization_policy.cache_ttl_reasonable
+  for_each: azure.apimanagement.authorizationprovider.list_by_service
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.CacheTTL
+      op: exists
+      value: null
+    - var: item.CacheTTL
+      op: lte
+      value: 3600
+- rule_id: azure.api.authorization_policy.tls_min_1_2_enforced
+  for_each: azure.apimanagement.authorizationprovider.list_by_service
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.Protocols.TLS.minProtocolVersion
+    op: equals
+    value: TLSv1_2
+- rule_id: azure.api.authorization_policy.token_audience_restricted
+  for_each: azure.apimanagement.apipolicy.list_by_api
+  severity: MEDIUM
+  conditions:
+    var: item.properties.tokenAudiences[]
+    op: not_contains
+    value: '*'
+- rule_id: azure.api.management_authorization_enabled:az.api_management_rate_limit_policy.api_security_rate_limiting_api_stage_throttle_overrides_not_unbounded
+  for_each: azure.apimanagement.apimanagementservice.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.customProperties
+      op: exists
+      value: null
+    - var: item.properties.customProperties.microsoft.microsoft-gateway-apim:rate-limit-by-key.policy
+      op: exists
+      value: null
+    - var: item.properties.customProperties.microsoft.microsoft-gateway-apim:rate-limit-by-key.policy
+      op: not_contains
+      value: unbounded
+- rule_id: azure.api.management_monitoring.monitoring_api_access_log_fields_identity_present
+  for_each: azure.apimanagement.apimanagementservice.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.diagnosticSettings[].logs[].category
+    op: contains
+    value: AuditEvent
+- rule_id: azure.api.management_monitoring.monitoring_api_access_log_sink_configured
+  for_each: azure.apimanagement.apimanagementservice.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    var: item.properties.diagnosticSettings[].logs[].category
+    op: contains
+    value: AuditEvent
+- rule_id: azure.api.management_monitoring.monitoring_api_access_logging_enabled
+  for_each: azure.apimanagement.apimanagementservice.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.diagnosticSettings
+      op: exists
+      value: null
+    - var: item.properties.diagnosticSettings[].logs[].category
+      op: contains
+      value: AuditEvent
+    - var: item.properties.diagnosticSettings[].logs[].enabled
+      op: is_true
+      value: null
+- rule_id: azure.api.management_monitoring.monitoring_api_execution_logging_level_minimum_error
+  for_each: azure.apimanagement.apimanagementservice.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.diagnosticSettings
+      op: exists
+      value: null
+    - var: item.properties.diagnosticSettings.logs[].category
+      op: contains
+      value: AuditEvent
+    - var: item.properties.diagnosticSettings.logs[?(@.category == 'AuditEvent')].enabled
+      op: is_true
+      value: null
+- rule_id: azure.api.management_monitoring.monitoring_api_logs_retention_days_minimum
+  for_each: azure.apimanagement.api.list_by_service
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.diagnostic_logs_enabled
+      op: is_true
+      value: null
+    - var: item.logs_retention_days
+      op: gte
+      value: '90'
+- rule_id: azure.api.management_rate_limit_policy.rate_limiting_api_quota_limit_configured
+  for_each: azure.apimanagement.apimanagementservice.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.policies.rateLimit.quota.limit
+    op: exists
+    value: null
+- rule_id: azure.api.management_rate_limit_policy.rate_limiting_api_stage_burst_limit_configured
+  for_each: azure.apimanagement.api.list_by_service
+  severity: MEDIUM
+  conditions:
+    var: item.properties.policies.rateLimit.policies[].burstLimit
+    op: exists
+    value: null
+- rule_id: azure.api.management_rate_limit_policy.rate_limiting_api_stage_rate_limit_configured
+  for_each: azure.apimanagement.api.list_by_service
+  severity: MEDIUM
+  conditions:
+    var: item.properties.accessPolicies[].rateLimits[].rateLimitThreshold
+    op: exists
+    value: null
+- rule_id: azure.api.management_rate_limit_policy.rate_limiting_api_stage_throttle_overrides_not_unbounded
+  for_each: azure.apimanagement.apimanagementservice.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.customProperties.rateLimitPolicies[].rateLimits[].period
+      op: exists
+      value: null
+    - var: item.properties.customProperties.rateLimitPolicies[].rateLimits[].rate
+      op: exists
+      value: null
+- rule_id: azure.api.management_rate_limit_policy.rate_limiting_api_usage_plan_required_for_api_keys
+  for_each: azure.apimanagement.api.list_by_service
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.apiManagementApiProperties.apiKeyRequired
+      op: is_true
+      value: null
+    - var: item.properties.apiManagementApiProperties.rateLimitingPolicy
+      op: exists
+      value: null
+- rule_id: azure.api.management_restapi_waf_acl_attached:az.api_management_monitoring.api_security_monitoring_api_access_logging_enabled
+  for_each: azure.apimanagement.apimanagementservice.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.customProperties
+      op: exists
+      value: null
+    - var: item.properties.customProperties.microsoftAzureApiManagementGatewayLogs
+      op: exists
+      value: null
+    - var: item.properties.customProperties.microsoftAzureApiManagementGatewayLogs
+      op: not_empty
+      value: null
+- rule_id: azure.api.management_validation_policy.validation_api_content_type_whitelist_enforced
+  for_each: azure.apimanagement.apimanagementservice.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.Policy.Validation.ContentTypeValidation
+    op: is_true
+    value: null
+- rule_id: azure.api.management_validation_policy.validation_api_parameters_validation_enabled
+  for_each: azure.apimanagement.api.list_by_service
+  severity: MEDIUM
+  conditions:
+    var: item.ValidationPolicy.ValidateApiParameters
+    op: is_true
+    value: null
+- rule_id: azure.api.management_validation_policy.validation_api_request_body_size_limit_configured
+  for_each: azure.apimanagement.apipolicy.list_by_api
+  severity: MEDIUM
+  conditions:
+    var: item.properties.validationRules.bodyValidation.maxSize
+    op: exists
+    value: null
+- rule_id: azure.api.management_validation_policy.validation_api_request_schema_validation_enabled
+  for_each: azure.apimanagement.api.list_by_service
+  severity: MEDIUM
+  conditions:
+    var: item.ValidationPolicy.RequestSchemaValidationEnabled
+    op: is_true
+    value: null
+- rule_id: azure.api.management_validation_policy.validation_api_required_security_headers_enforced
+  for_each: azure.apimanagement.api.list_by_service
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.ValidationPolicies[].ValidationRules[].ValidationCategory
+      op: contains
+      value: SecurityHeaders
+    - var: item.Properties.ValidationPolicies[].ValidationRules[].Action
+      op: equals
+      value: Enforce
+- rule_id: azure.api.management_validation_policy.validation_api_response_schema_validation_enabled
+  for_each: azure.apimanagement.apimanagementservice.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.ValidationPolicy.SchemaValidation
+    op: is_true
+    value: null
+- rule_id: azure.api.subscription_key.expiration_required
+  for_each: azure.apimanagement.subscription.list
+  severity: MEDIUM
+  conditions:
+    var: item.ExpirationDate
+    op: exists
+    value: null
+- rule_id: azure.api.subscription_key.rotation_policy_defined
+  for_each: azure.apimanagement.subscription.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.rotationPolicy
+    op: exists
+    value: null
+- rule_id: azure.api.subscription_key.scopes_least_privilege
+  for_each: azure.apimanagement.subscription.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.scopes[].scope
+      op: not_contains
+      value: '*'
+    - var: item.properties.scopes[].scope
+      op: not_contains
+      value: /

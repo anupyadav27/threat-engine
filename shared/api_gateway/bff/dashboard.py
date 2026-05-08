@@ -24,9 +24,11 @@ Returns UI-ready JSON for every widget:
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, List
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
-from ._shared import fetch_many, safe_get
+from ._auth import resolve_tenant_id
+from ._shared import fetch_many, safe_get, BFFMeta
+from .schemas.dashboard import DashboardResponse
 from ._transforms import (
     normalize_threat, severity_chart, apply_global_filters, _safe_upper,
 )
@@ -103,15 +105,20 @@ def _extract_resource_from_threat(t: dict) -> dict:
     }
 
 
-@router.get("/dashboard")
+@router.get("/dashboard", response_model=DashboardResponse, response_model_exclude_none=False)
 async def view_dashboard(
-    tenant_id: str = Query(...),
+    request: Request,
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
     scan_run_id: str = Query("latest"),
 ):
     """Single endpoint returning everything the dashboard page needs."""
+
+    tenant_id = resolve_tenant_id(request)
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+    meta = BFFMeta("dashboard")
 
     # ── 7 parallel calls instead of 14 ───────────────────────────────────
     iam_params: Dict[str, str] = {"tenant_id": tenant_id, "csp": provider.lower() if provider else "aws", "scan_id": "latest"}
@@ -124,12 +131,19 @@ async def view_dashboard(
         ("datasec",    "/api/v1/data-security/ui-data", {"tenant_id": tenant_id, "scan_id": "latest"}),
         ("risk",       "/api/v1/risk/ui-data",          {"tenant_id": tenant_id}),
         ("onboarding", "/api/v1/cloud-accounts",          {"tenant_id": tenant_id}),
-    ])
+    ], auth_headers=fwd_headers)
 
     (
         threat_data, compliance_data, inventory_data,
         iam_data, datasec_data, risk_data, onboarding_data,
     ) = results
+    meta.record_engine("threat",     "/api/v1/threat/ui-data",        threat_data)
+    meta.record_engine("compliance", "/api/v1/compliance/ui-data",    compliance_data)
+    meta.record_engine("inventory",  "/api/v1/inventory/ui-data",     inventory_data)
+    meta.record_engine("iam",        "/api/v1/iam-security/ui-data",  iam_data)
+    meta.record_engine("datasec",    "/api/v1/data-security/ui-data", datasec_data)
+    meta.record_engine("risk",       "/api/v1/risk/ui-data",          risk_data)
+    meta.record_engine("onboarding", "/api/v1/cloud-accounts",        onboarding_data)
 
     # Safely unwrap all responses
     threat_data = threat_data if isinstance(threat_data, dict) else {}
@@ -258,6 +272,9 @@ async def view_dashboard(
         "criticalHighFindingsChange": None,
         "complianceScore": round(compliance_score) if compliance_score else 0,
         "complianceScoreChange": compliance_data.get("score_change", None) or compliance_data.get("scoreChange", None),
+        "financialRiskExposure": risk_d.get("risk_score") or risk_d.get("riskScore", 0),
+        "financialRiskExposureChange": risk_d.get("risk_score_change") or risk_d.get("riskScoreChange", None),
+        # Legacy alias for backwards compatibility
         "attackSurfaceScore": risk_d.get("risk_score") or risk_d.get("riskScore", 0),
         "attackSurfaceScoreChange": risk_d.get("risk_score_change") or risk_d.get("riskScoreChange", None),
         "mttr": mttr_days,
@@ -300,9 +317,9 @@ async def view_dashboard(
                 threat_activity_trend.append({"date": t.get("date", ""), "threats": threats_val})
 
     # Derive trend from threat detection timestamps if engine returned no trend
-    if not threat_activity_trend and raw_threats:
+    if not threat_activity_trend and all_threats:
         date_counts: Dict[str, int] = {}
-        for t in raw_threats:
+        for t in all_threats:
             ts = t.get("detected_at") or t.get("first_seen_at") or t.get("detected") or ""
             if isinstance(ts, str) and len(ts) >= 10:
                 d = ts[:10]
@@ -646,42 +663,138 @@ async def view_dashboard(
             "event": None,
         })
 
+    # ── Risk matrix — likelihood × impact scatter data ───────────────────
+    # Derive from threat_detections grouped by category/type.
+    # Each entry: {name, likelihood, impact, count, severity}
+    risk_matrix: List[dict] = []
+    risk_d_raw = risk_data if isinstance(risk_data, dict) else {}
+    raw_risk_matrix = risk_d_raw.get("risk_matrix") or risk_d_raw.get("riskMatrix") or []
+    if isinstance(raw_risk_matrix, list) and raw_risk_matrix:
+        risk_matrix = raw_risk_matrix
+    elif by_sev and (crit_count + high_count) > 0:
+        # Build from threat categories in summary
+        by_category_ts = ts.get("by_category", {}) or ts.get("threats_by_category", {})
+        if isinstance(by_category_ts, dict) and by_category_ts:
+            _LIKELIHOOD_MAP = {
+                "IAMCredentialExposure": 5, "PublicAccess": 5,
+                "ExcessivePermissions": 4, "NetworkExposure": 4,
+                "DataExposure": 4, "VulnerabilityExploit": 3,
+                "LateralMovement": 3, "PrivilegeEscalation": 2,
+                "Evasion": 2,
+            }
+            _IMPACT_MAP = {
+                "IAMCredentialExposure": 5, "DataExposure": 5,
+                "PublicAccess": 4, "ExcessivePermissions": 4,
+                "NetworkExposure": 4, "VulnerabilityExploit": 4,
+                "LateralMovement": 3, "PrivilegeEscalation": 5,
+                "Evasion": 3,
+            }
+            for cat_key, count in by_category_ts.items():
+                if not isinstance(count, int) or count == 0:
+                    continue
+                likelihood = _LIKELIHOOD_MAP.get(cat_key, 3)
+                impact = _IMPACT_MAP.get(cat_key, 3)
+                sev_val = (
+                    "critical" if likelihood >= 4 and impact >= 4
+                    else "high" if likelihood + impact >= 7
+                    else "medium" if likelihood + impact >= 5
+                    else "low"
+                )
+                risk_matrix.append({
+                    "name": cat_key.replace("_", " ").title(),
+                    "likelihood": likelihood,
+                    "impact": impact,
+                    "count": count,
+                    "severity": sev_val,
+                })
+
     # ── Build final response ──────────────────────────────────────────────
     response = {
+        "pageContext": {
+            "title": "Security Dashboard",
+            "brief": f"Executive overview — {kpi.get('totalFindings', 0)} findings, {kpi.get('totalAssets', 0)} assets monitored",
+            "details": [
+                "Aggregated security posture across all engines and cloud accounts",
+                "KPIs refresh with each scan — compliance, threats, misconfigurations, IAM, data security",
+                "Click any widget to drill into the corresponding engine page",
+                "Use the scope bar to filter by tenant, provider, account, or region",
+            ],
+            "tabs": [],
+        },
         "kpi": kpi,
-        "severityChart": sev_chart,
-        "recentThreats": recent_threats,
-        "threatActivityTrend": threat_activity_trend,
-        "frameworks": frameworks,
-        "complianceScore": kpi["complianceScore"],
-        "cloudHealthData": cloud_health,
-        "cloudProviders": cloud_providers,
+        "riskMatrix": risk_matrix,
+        # ── Charts grouped by category (dashboard only) ──
+        "chartCategories": [
+            {
+                "id": "security_posture",
+                "title": "Security Posture",
+                "charts": [
+                    {"id": "severity_donut", "type": "donut", "title": "Findings by Severity", "data": sev_chart},
+                    {"id": "compliance_frameworks", "type": "horizontal_bar", "title": "Compliance by Framework", "data": frameworks},
+                    {"id": "security_score_trend", "type": "line", "title": "Security Score Trend (90d)", "data": security_score_trend},
+                ],
+            },
+            {
+                "id": "threats",
+                "title": "Threats",
+                "charts": [
+                    {"id": "mitre_top_techniques", "type": "bar", "title": "Top MITRE Techniques", "data": mitre_techniques},
+                    {"id": "threat_activity_trend", "type": "area", "title": "Threat Activity (30d)", "data": threat_activity_trend},
+                    {"id": "findings_by_category", "type": "stacked_bar", "title": "Findings by Category", "data": findings_by_category},
+                ],
+            },
+            {
+                "id": "assets",
+                "title": "Assets & Infrastructure",
+                "charts": [
+                    {"id": "cloud_providers", "type": "cards", "title": "Cloud Providers", "data": cloud_providers},
+                    {"id": "attack_surface", "type": "treemap", "title": "Attack Surface", "data": attack_surface},
+                    {"id": "cloud_health", "type": "grid", "title": "Cloud Health", "data": cloud_health},
+                ],
+            },
+            {
+                "id": "operations",
+                "title": "Operations & Remediation",
+                "charts": [
+                    {"id": "remediation_sla", "type": "table", "title": "Remediation SLA", "data": remediation_sla},
+                    {"id": "recent_scans", "type": "table", "title": "Recent Scans", "data": recent_scans},
+                    {"id": "risky_resources", "type": "table", "title": "Top Risky Resources", "data": risky_resources},
+                ],
+            },
+        ],
         "criticalActions": critical_actions,
         "toxicCombinations": toxic_combos,
         "criticalAlerts": critical_alerts,
-        "attackSurfaceData": attack_surface,
+        "recentThreats": recent_threats,
+        "scanMeta": {
+            "scanRunId": scan_run_id,
+            "dataScope": "all_scans" if scan_run_id == "latest" else "single_scan",
+            "hasData": bool(total_threats or inv_total_assets),
+        },
+        # Flat aliases consumed directly by UI components
+        "cloudHealthData": cloud_health,
+        "frameworks": frameworks,
+        "securityScoreTrendData": security_score_trend,
         "mitreTopTechniques": mitre_techniques,
         "remediationSLA": remediation_sla,
         "riskyResources": risky_resources,
-        "recentScans": recent_scans,
         "findingsByCategoryData": findings_by_category,
-        "securityScoreTrendData": security_score_trend,
-        # Raw summaries
-        "inventorySummary": inv_summary,
-        "iamSummary": {
-            "totalFindings": safe_get(iam_data, "summary.total_findings", 0) or safe_get(iam_data, "total_findings", 0),
-            "critical": safe_get(iam_data, "summary.critical", 0) or safe_get(iam_data, "summary.by_severity.critical", 0),
-            "riskScore": safe_get(iam_data, "summary.risk_score", 0) or safe_get(iam_data, "risk_score", 0),
-        } if iam_data else None,
-        "datasecSummary": datasec_data.get("summary") if datasec_data else datasec_data,
-        "riskSummary": risk_data,
+        "_meta": meta.to_dict(),
     }
 
     # Apply global filters
     if provider or account or region:
         response["recentThreats"] = apply_global_filters(response["recentThreats"], provider, account, region)
-        response["riskyResources"] = [r for r in response["riskyResources"]
-                                       if (not provider or r.get("provider", "").upper() == provider.upper())
-                                       and (not region or r.get("region") == region)]
+        # risky_resources lives in chartCategories AND flat alias — filter both
+        filtered_risky = [
+            r for r in risky_resources
+            if (not provider or r.get("provider", "").upper() == provider.upper())
+            and (not region or r.get("region") == region)
+        ]
+        response["riskyResources"] = filtered_risky
+        for cat in response.get("chartCategories", []):
+            for chart in cat.get("charts", []):
+                if chart.get("id") == "risky_resources":
+                    chart["data"] = filtered_risky
 
     return response

@@ -1,0 +1,1787 @@
+version: '1.0'
+provider: oci
+service: identity
+checks:
+- rule_id: oci.identity.api_key.key_rotated_in_90_days
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.api_keys[].time_created
+      op: exists
+      value: null
+    - var: item.api_keys[].time_created
+      op: lte
+      value: '90'
+- rule_id: oci.identity.api_key.tenant_api_access_keys_root_or_restricted
+  for_each: oci.identity.list_users
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - any:
+      - var: item.capabilities.can_use_api_keys
+        op: is_false
+        value: null
+      - var: item.capabilities.can_use_console_password
+        op: is_false
+        value: null
+      - var: item.capabilities.can_use_smtp_credentials
+        op: is_false
+        value: null
+      - var: item.capabilities.can_use_auth_tokens
+        op: is_false
+        value: null
+      - var: item.capabilities.can_use_customer_secret_keys
+        op: is_false
+        value: null
+      - var: item.capabilities.can_use_o_auth2_client_credentials
+        op: is_false
+        value: null
+- rule_id: oci.identity.compartment.account_part_of_organizations
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.compartment.ou_auto_tag_policies_enabled
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.statements
+      op: contains
+      value: allow service tag to manage tag-namespaces
+    - var: item.statements
+      op: contains
+      value: allow service tag to manage tag-defaults
+- rule_id: oci.identity.compartment.resource_no_root_compartment
+  for_each: oci.identity.list_users
+  severity: CRITICAL
+  conditions:
+    var: item.compartment_id
+    op: not_equals
+    value: ocid1.tenancy.oc1..aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- rule_id: oci.identity.group.group_attached_policies_not_admin_star_restricted
+  for_each: oci.identity.list_policies
+  severity: CRITICAL
+  conditions:
+    var: item.statements
+    op: not_contains
+    value: Allow group
+- rule_id: oci.identity.group.group_membership_review_enabled
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.statements
+      op: contains
+      value: Allow group
+    - var: item.statements
+      op: contains
+      value: to manage users
+- rule_id: oci.identity.group.group_no_inline_policies_restricted
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: not_contains
+    value: allow group
+- rule_id: oci.identity.group.rbac_group_attached_policies_not_admin_star_restricted
+  for_each: oci.identity.list_policies
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.statements
+      op: not_contains
+      value: Allow group
+    - var: item.statements
+      op: not_contains
+      value: to manage all-resources in tenancy
+- rule_id: oci.identity.group.rbac_group_external_sharing_restricted_where_supported_restricted
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: not_contains
+    value: ALLOW GROUP
+- rule_id: oci.identity.group.rbac_group_no_inline_policies_restricted
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: not_contains
+    value: allow group
+- rule_id: oci.identity.identity_provider.tenant_sso_federation_configured_where_supported_restricted
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: contains
+    value: Allow service federation to manage all-resources in tenancy
+- rule_id: oci.identity.password.policy_reuse_24
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    var: item.password_policy.is_password_reuse_prevented
+    op: is_true
+    value: null
+- rule_id: oci.identity.policy.conditional_access_policy_require_mfa_for_management_api
+  for_each: oci.identity.list_policies
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.statements
+      op: contains
+      value: Allow
+    - var: item.statements
+      op: contains
+      value: management
+    - var: item.statements
+      op: contains
+      value: MFA
+- rule_id: oci.identity.policy.conditional_access_policy_require_mfa_for_management_app
+  for_each: oci.identity.list_policies
+  severity: HIGH
+  conditions:
+    var: item.statements
+    op: contains
+    value: MANAGE
+- rule_id: oci.identity.policy.instance_profile_role_attached_restricted
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: not_contains
+    value: Allow dynamic-group
+- rule_id: oci.identity.policy.instance_profile_role_policies_least_privilege_required
+  for_each: oci.identity.list_policies
+  severity: HIGH
+  conditions:
+    var: item.statements
+    op: not_contains
+    value: Allow dynamic-group
+- rule_id: oci.identity.policy.org_block_leave_by_policy
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: contains
+    value: ALLOW any-user to leave-tenancy
+- rule_id: oci.identity.policy.org_restrict_region_usage_by_policy_where_required
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: contains
+    value: Allow any-user to manage all-resources in tenancy where request.region='us-ashburn-1'
+- rule_id: oci.identity.policy.org_scps_enabled
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: contains
+    value: Allow service-control-policy
+- rule_id: oci.identity.policy.ou_required_scps_attached
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: contains
+    value: allow servicecontrolpolicies to manage service-control-policies in tenancy
+- rule_id: oci.identity.policy.password_policy_lockout_threshold_defined_restricted
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    var: item.password_policy.lockout_duration_in_seconds
+    op: exists
+    value: null
+- rule_id: oci.identity.policy.password_policy_max_age_90_days_restricted
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    var: item.password_policy.maximum_password_age_in_days
+    op: lte
+    value: '90'
+- rule_id: oci.identity.policy.password_policy_min_length_14_restricted
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.password_policy.minimum_password_length
+      op: gte
+      value: '14'
+- rule_id: oci.identity.policy.password_policy_prevent_reuse_last_24_restricted
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    var: item.passwordPolicy.isPasswordHistoryEnabled
+    op: is_true
+    value: null
+- rule_id: oci.identity.policy.password_policy_require_upper_lower_number_special_restricted
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.password_policy.is_lowercase_characters_required
+      op: is_true
+      value: null
+    - var: item.password_policy.is_numeric_characters_required
+      op: is_true
+      value: null
+    - var: item.password_policy.is_special_characters_required
+      op: is_true
+      value: null
+    - var: item.password_policy.is_uppercase_characters_required
+      op: is_true
+      value: null
+- rule_id: oci.identity.policy.policy_admin_rbac_least_privilege_required
+  for_each: oci.identity.list_policies
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.statements
+      op: not_contains
+      value: Allow group Administrators to manage all-resources in tenancy
+    - var: item.statements
+      op: not_contains
+      value: Allow group Administrators to manage all-resources in compartment
+- rule_id: oci.identity.policy.policy_editors_rbac_least_privilege_required
+  for_each: oci.identity.list_policies
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.statements
+      op: not_contains
+      value: allow group Administrators to manage all-resources
+    - var: item.statements
+      op: not_contains
+      value: allow any-user to manage all-resources
+    - var: item.statements
+      op: not_contains
+      value: allow group PolicyEditors to manage all-resources
+- rule_id: oci.identity.policy.policy_guest_invite_only_for_admin_roles
+  for_each: oci.identity.list_policies
+  severity: CRITICAL
+  conditions:
+    var: item.statements
+    op: not_contains
+    value: Allow group Administrators to manage users
+- rule_id: oci.identity.policy.policy_no_wildcard_admin_actions
+  for_each: oci.identity.list_policies
+  severity: CRITICAL
+  conditions:
+    var: item.statements
+    op: not_contains
+    value: Allow * to manage all-resources
+- rule_id: oci.identity.policy.policy_versioning_and_change_audit_enabled
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: exists
+    value: null
+- rule_id: oci.identity.policy.rbac_policy_conditions_used_where_applicable_restricted
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: not_contains
+    value: ALLOW
+- rule_id: oci.identity.policy.rbac_policy_no_action_star_on_resource_restricted
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.statements
+      op: not_contains
+      value: Allow
+    - var: item.statements
+      op: not_contains
+      value: manage
+- rule_id: oci.identity.policy.rbac_policy_no_allows_without_constraints_restricted
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.statements
+      op: not_contains
+      value: allow
+    - var: item.statements
+      op: not_contains
+      value: Allow
+- rule_id: oci.identity.policy.rbac_policy_resource_constraints_present_restricted
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: contains
+    value: allow
+- rule_id: oci.identity.policy.rbac_role_attached_policies_not_admin_star_restricted
+  for_each: oci.identity.list_policies
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.statements
+      op: not_contains
+      value: Allow any-user to manage all-resources in tenancy
+    - var: item.statements
+      op: not_contains
+      value: Allow group Administrators to manage all-resources in tenancy
+- rule_id: oci.identity.policy.rbac_role_no_inline_policies_restricted
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: not_contains
+    value: endorse
+- rule_id: oci.identity.policy.rbac_role_session_duration_reasonable_where_applicable_restricted
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: not_contains
+    value: sessionDuration
+- rule_id: oci.identity.policy.rights_execution_roles_least_privilege_required
+  for_each: oci.identity.list_policies
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.statements
+      op: not_contains
+      value: Allow any-user to manage all-resources
+    - var: item.statements
+      op: not_contains
+      value: Allow group Administrators to manage all-resources
+- rule_id: oci.identity.policy.role_attached_policies_not_admin_star_restricted
+  for_each: oci.identity.list_policies
+  severity: CRITICAL
+  conditions:
+    var: item.statements
+    op: not_contains
+    value: Allow * to manage all-resources in tenancy
+- rule_id: oci.identity.policy.role_max_session_duration_reasonable_restricted
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: not_contains
+    value: sessionDurationSeconds
+- rule_id: oci.identity.policy.role_no_inline_policies_restricted
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: not_contains
+    value: Allow dynamic-group
+- rule_id: oci.identity.policy.role_trust_principals_allowlist_only_restricted
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: not_contains
+    value: allow any-user to assume-role
+- rule_id: oci.identity.policy.role_trust_requires_external_id_or_restricted
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.statements
+      op: contains
+      value: Allow
+    - any:
+      - var: item.statements
+        op: contains
+        value: sts:AssumeRole
+      - var: item.statements
+        op: contains
+        value: AssumeRole
+    - all:
+      - var: item.statements
+        op: contains
+        value: ExternalId
+      - var: item.statements
+        op: not_contains
+        value: 0.0.0.0/0
+- rule_id: oci.identity.policy.tenant_password_policy_compliant_restricted
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.passwordPolicy.isLowercaseCharactersRequired
+      op: is_true
+      value: null
+    - var: item.passwordPolicy.isUppercaseCharactersRequired
+      op: is_true
+      value: null
+    - var: item.passwordPolicy.isNumericCharactersRequired
+      op: is_true
+      value: null
+    - var: item.passwordPolicy.isSpecialCharactersRequired
+      op: is_true
+      value: null
+    - var: item.passwordPolicy.minimumPasswordLength
+      op: gte
+      value: 14
+    - var: item.passwordPolicy.isUsernameContainmentAllowed
+      op: is_false
+      value: null
+- rule_id: oci.identity.tag_namespace.access_cost_data_exports_private_and_encrypted
+  for_each: oci.identity.list_tagging_work_request_logs
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.identity.tag_namespace.allocation_cost_tag_policy_enforced
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.statements
+      op: contains
+      value: allow service tag to manage tag-namespaces
+    - var: item.statements
+      op: contains
+      value: allow service tag to manage tag-defaults
+    - var: item.statements
+      op: contains
+      value: allow service tag to manage tags
+- rule_id: oci.identity.tag_namespace.allocation_required_cost_tags_present
+  for_each: oci.identity.list_tagging_work_request_logs
+  severity: MEDIUM
+  conditions:
+    var: item.defined_tags.CostCenter
+    op: exists
+    value: null
+- rule_id: oci.identity.tag_namespace.allocation_untagged_resource_alerts_enabled
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: contains
+    value: all {resource.type = 'tagnamespace', resource.compartment.id = tagnamespace.compartment.id} request.permission='TAG_NAMESPACE_ALLOCATE_UNTAGGED_RESOURCE_ALERT'
+- rule_id: oci.identity.tag_namespace.anomaly_detectors_enabled
+  for_each: oci.identity.list_tagging_work_request_logs
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.identity.tag_namespace.savings_plan_approval_workflow_required
+  for_each: oci.identity.list_tagging_work_request_logs
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.identity.tag_namespace.tags_policies_enabled_and_attached
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.statements
+      op: contains
+      value: allow service tag to manage tag-namespaces
+    - var: item.statements
+      op: contains
+      value: allow service tag to manage tag-defaults
+- rule_id: oci.identity.user.access_billing_admins_mfa_required
+  for_each: oci.identity.list_users
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.is_mfa_activated
+      op: is_true
+      value: null
+- rule_id: oci.identity.user.access_billing_console_rbac_least_privilege_required
+  for_each: oci.identity.list_policies
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.statements
+      op: not_contains
+      value: Allow group
+    - var: item.statements
+      op: not_contains
+      value: manage billing-family
+- rule_id: oci.identity.user.access_cost_export_destinations_least_privilege_required
+  for_each: oci.identity.list_policies
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.statements
+      op: contains
+      value: Allow group CostMgmtGroup to manage usage-reports in tenancy
+    - var: item.statements
+      op: not_contains
+      value: Allow any-user to manage usage-reports in tenancy
+- rule_id: oci.identity.user.account_access_approval_enabled
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    var: item.password_policy.is_account_recovery_enabled
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.admin_policy_blocked
+  for_each: oci.identity.list_policies
+  severity: CRITICAL
+  conditions:
+    var: item.statements
+    op: not_contains
+    value: Allow group Administrators to manage all-resources in tenancy
+- rule_id: oci.identity.user.anomaly_alert_destinations_enabled
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.anomaly_severity_thresholds_configured
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.api_restrictions_configured
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.capabilities.can_use_api_keys
+    op: is_false
+    value: null
+- rule_id: oci.identity.user.app_services_is_on
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.audit_logs_enabled
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.auth_token_rotation
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.avoid_root_usage
+  for_each: oci.identity.list_users
+  severity: CRITICAL
+  conditions:
+    var: item.name
+    op: not_equals
+    value: root
+- rule_id: oci.identity.user.aws_attached_policy_no_administrative_privileges
+  for_each: oci.identity.list_users
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.is_mfa_activated
+      op: is_true
+      value: null
+- rule_id: oci.identity.user.budget_alert_destinations_enabled
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.budget_alert_thresholds_enabled
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.budget_budgets_defined_for_accounts_or_projects_required
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.budget_modify_permissions_restricted
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.statements
+      op: not_contains
+      value: Allow group BudgetAdmins to manage budgets in tenancy
+    - var: item.statements
+      op: not_contains
+      value: Allow any-user to manage budgets in tenancy
+- rule_id: oci.identity.user.checks_configured
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.cloud_asset_inventory_enabled
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.console_mfa_enabled
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.custom_role_has_permissions_to_administer_resource_locks
+  for_each: oci.identity.list_policies
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.statements
+      op: not_contains
+      value: manage resource-locks
+    - var: item.statements
+      op: not_contains
+      value: manage lock
+- rule_id: oci.identity.user.customer_attached_policy_no_administrative_privileges
+  for_each: oci.identity.list_users
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.is_mfa_activated
+      op: is_true
+      value: null
+- rule_id: oci.identity.user.customer_unattached_policy_no_administrative_privileges
+  for_each: oci.identity.list_users
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.is_mfa_activated
+      op: is_true
+      value: null
+- rule_id: oci.identity.user.database_passwords_check_rotation
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.directory_log_forwarding_enabled
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.domain_password_policy_expiry_days_maximum
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    var: item.password_policy.maximum_password_age_in_days
+    op: lt
+    value: '90'
+- rule_id: oci.identity.user.domain_password_policy_minimum_length_enforced
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    var: item.password_policy.minimum_password_length
+    op: gte
+    value: '8'
+- rule_id: oci.identity.user.dynamic_group_instance_principal
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: not_contains
+    value: instance_principal
+- rule_id: oci.identity.user.ensure_asc_enforcement_enabled
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    var: item.password_policy.is_account_switch_enabled
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.global_admin_in_less_than_five_users
+  for_each: oci.identity.list_users
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.is_mfa_activated
+      op: is_true
+      value: null
+- rule_id: oci.identity.user.group_has_users
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.group_policy_oke_admin_required_permissions
+  for_each: oci.identity.list_policies
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.statements
+      op: contains
+      value: Allow group OKE-Admins to manage all-resources in compartment
+    - var: item.statements
+      op: contains
+      value: Allow group OKE-Admins to read all-resources in tenancy
+- rule_id: oci.identity.user.group_policy_verification
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: contains
+    value: Allow group
+- rule_id: oci.identity.user.group_service_level_admin_policy_enforced
+  for_each: oci.identity.list_policies
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.statements
+      op: contains
+      value: Allow group ServiceLevelAdmins to manage all-resources in tenancy
+    - var: item.statements
+      op: not_contains
+      value: Allow group ServiceLevelAdmins to manage users in tenancy
+    - var: item.statements
+      op: not_contains
+      value: Allow group ServiceLevelAdmins to manage groups in tenancy
+    - var: item.statements
+      op: not_contains
+      value: Allow group ServiceLevelAdmins to manage policies in tenancy
+- rule_id: oci.identity.user.guard_centrally_managed
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.guard_eks_audit_log_enabled
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.guard_enabled
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.guard_ensure_protection_for_compute_is_on
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.guard_ensure_protection_for_containers_is_on
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.guard_ensure_protection_for_databases_is_on
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.guard_ensure_protection_for_dns_is_on
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.guard_ensure_protection_for_vault_is_on
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.guard_guardduty_enabled
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.guard_is_enabled
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.guard_no_high_severity_findings
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.guard_recorder_all_regions_enabled
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.statements
+      op: contains
+      value: ALLOW
+    - var: item.statements
+      op: contains
+      value: guard
+    - var: item.statements
+      op: contains
+      value: RECORDER
+    - var: item.statements
+      op: contains
+      value: all-regions
+- rule_id: oci.identity.user.guard_root_compartment_enabled
+  for_each: oci.identity.list_policies
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.statements
+      op: contains
+      value: Allow group Administrators to manage all-resources in tenancy
+    - var: item.statements
+      op: not_contains
+      value: Allow group Administrators to manage all-resources in root
+- rule_id: oci.identity.user.guard_security_center_enabled
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.guard_vulnerability_assessment_enabled
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.guest_accounts_with_permissions_blocked
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.email
+      op: contains
+      value: oraclecloud.com
+    - var: item.is_mfa_activated
+      op: is_false
+      value: null
+- rule_id: oci.identity.user.inline_policy_no_administrative_privileges
+  for_each: oci.identity.list_users
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.capabilities.can_use_console_password
+      op: is_false
+      value: null
+    - var: item.capabilities.can_use_api_keys
+      op: is_false
+      value: null
+    - var: item.capabilities.can_use_auth_tokens
+      op: is_false
+      value: null
+    - var: item.capabilities.can_use_smtp_credentials
+      op: is_false
+      value: null
+    - var: item.capabilities.can_use_customer_secret_keys
+      op: is_false
+      value: null
+    - var: item.capabilities.can_use_o_auth2_client_credentials
+      op: is_false
+      value: null
+- rule_id: oci.identity.user.instance_profile_no_with_admin_star_restricted
+  for_each: oci.identity.list_users
+  severity: CRITICAL
+  conditions:
+    var: item.name
+    op: not_equals
+    value: admin
+- rule_id: oci.identity.user.key
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.key_90_days
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.is_mfa_activated
+      op: is_true
+      value: null
+- rule_id: oci.identity.user.local_user_credentials_inactive_45_days_disabled
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.is_mfa_activated
+      op: is_true
+      value: null
+    - var: item.time_created
+      op: lt
+      value: '45'
+- rule_id: oci.identity.user.maintain_current_contact_details
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.email
+    op: exists
+    value: null
+- rule_id: oci.identity.user.maintain_different_contact_details_to_security_operations
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.email
+      op: exists
+      value: null
+    - var: item.email
+      op: not_contains
+      value: security
+    - var: item.email
+      op: not_contains
+      value: secops
+    - var: item.email
+      op: not_contains
+      value: soc
+- rule_id: oci.identity.user.non_privileged_user_has_mfa
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.non_privileged_user_has_mfa_entra
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.oidc_allowed_client_ids_audiences_restricted_restricted
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.oidc_allowed_client_ids
+    op: is_empty
+    value: null
+- rule_id: oci.identity.user.oidc_issuer_https_and_matches_discovery_restricted
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.email
+      op: contains
+      value: '@'
+    - var: item.is_mfa_activated
+      op: is_true
+      value: null
+- rule_id: oci.identity.user.oidc_thumbprints_or_jwks_pinning_configured_restricted
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.oidc_thumbprints_or_jwks_pinning_configured
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.oidc_token_lifetime_reasonable_restricted
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    var: item.password_policy.maximum_password_age
+    op: lte
+    value: 90
+- rule_id: oci.identity.user.oracle_attached_policy_no_administrative_privileges
+  for_each: oci.identity.list_users
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.is_mfa_activated
+      op: is_true
+      value: null
+- rule_id: oci.identity.user.org_all_accounts_enrolled_in
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.organization_essential_contacts_configured
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.email
+    op: exists
+    value: null
+- rule_id: oci.identity.user.ou_no_overly_permissive_exceptions
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.statements
+      op: not_contains
+      value: Allow any-user
+    - var: item.statements
+      op: not_contains
+      value: Allow group
+- rule_id: oci.identity.user.password_policy_compliance
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.password_policy.is_lowercase_characters_required
+      op: is_true
+      value: null
+    - var: item.password_policy.is_uppercase_characters_required
+      op: is_true
+      value: null
+    - var: item.password_policy.is_numeric_characters_required
+      op: is_true
+      value: null
+    - var: item.password_policy.is_special_characters_required
+      op: is_true
+      value: null
+    - var: item.password_policy.minimum_password_length
+      op: gte
+      value: 14
+- rule_id: oci.identity.user.password_policy_expires_passwords_within_90_less
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    var: item.password_policy.max_password_age_in_days
+    op: lte
+    value: 90
+- rule_id: oci.identity.user.password_policy_lowercase
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    var: item.password_policy.lowercase_characters.minimum_number_of_characters
+    op: gte
+    value: 1
+- rule_id: oci.identity.user.password_policy_minimum_length_14
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    var: item.password_policy.minimum_password_length
+    op: gte
+    value: 14
+- rule_id: oci.identity.user.password_policy_number
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    var: item.password_policy.minimum_password_length
+    op: gte
+    value: 14
+- rule_id: oci.identity.user.password_policy_prevent_reuse
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    var: item.passwordPolicy.isPasswordReusePrevented
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.password_policy_reuse_24
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    var: item.password_policy.is_password_reuse_prevented
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.password_policy_symbol
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    var: item.password_policy.is_special_characters_required
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.password_policy_uppercase
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    var: item.password_policy.is_uppercase_characters_required
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.policy
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: not_contains
+    value: Allow any-user to manage users
+- rule_id: oci.identity.user.policy_admin_group_only_all_resources_management
+  for_each: oci.identity.list_policies
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.statements
+      op: contains
+      value: allow group Administrators to manage all-resources
+- rule_id: oci.identity.user.policy_admin_mfa_required
+  for_each: oci.identity.list_users
+  severity: CRITICAL
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.policy_allows_privilege_escalation
+  for_each: oci.identity.list_policies
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.statements
+      op: not_contains
+      value: Allow group
+    - var: item.statements
+      op: not_contains
+      value: to manage groups
+    - var: item.statements
+      op: not_contains
+      value: to manage policies
+    - var: item.statements
+      op: not_contains
+      value: to manage users
+    - var: item.statements
+      op: not_contains
+      value: to manage compartments
+- rule_id: oci.identity.user.policy_attached_only_to_group_or_roles
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: not_contains
+    value: Allow any-user
+- rule_id: oci.identity.user.policy_compliance
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: not_contains
+    value: Allow * to manage users
+- rule_id: oci.identity.user.policy_default_users_cannot_create_security_groups
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.statements
+      op: contains
+      value: Allow group Default to manage all-resources
+    - var: item.statements
+      op: not_contains
+      value: Allow group Default to manage security-groups
+- rule_id: oci.identity.user.policy_ensure_default_user_cannot_create_apps
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.statements
+      op: contains
+      value: Allow group Default to manage all-resources
+    - var: item.statements
+      op: not_contains
+      value: Allow group Default to manage apps
+- rule_id: oci.identity.user.policy_ensure_default_user_cannot_create_tenants
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.statements
+      op: contains
+      value: Allow group Administrators to manage all-resources in tenancy
+    - var: item.statements
+      op: not_contains
+      value: Allow group Default to manage all-resources in tenancy
+- rule_id: oci.identity.user.policy_guest_invite_only_for_admin_roles
+  for_each: oci.identity.list_policies
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.statements
+      op: contains
+      value: Allow group Administrators to manage users in tenancy
+    - var: item.statements
+      op: not_contains
+      value: Allow any-user to manage users in tenancy
+- rule_id: oci.identity.user.policy_guest_users_access_restrictions
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.statements
+      op: contains
+      value: Allow group Administrators to manage all-resources in tenancy
+    - var: item.statements
+      op: not_contains
+      value: Allow any-user to manage all-resources in tenancy
+- rule_id: oci.identity.user.policy_minimum_length_14
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.name
+    op: length_gte
+    value: '14'
+- rule_id: oci.identity.user.policy_no_administrative_privileges
+  for_each: oci.identity.list_policies
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.statements
+      op: not_contains
+      value: Allow group Administrators to manage all-resources in tenancy
+    - var: item.statements
+      op: not_contains
+      value: Allow any-user to manage all-resources in tenancy
+- rule_id: oci.identity.user.policy_no_full_access_to_cloudtrail
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.statements
+      op: not_contains
+      value: Allow * manage cloud-trail-family
+    - var: item.statements
+      op: not_contains
+      value: Allow * manage cloud-trail
+- rule_id: oci.identity.user.policy_overly_permissive
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.statements
+      op: not_contains
+      value: Allow any-user
+    - var: item.statements
+      op: not_contains
+      value: Allow group
+- rule_id: oci.identity.user.policy_require_mfa_for_management_api
+  for_each: oci.identity.list_policies
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.statements
+      op: contains
+      value: Allow
+    - var: item.statements
+      op: contains
+      value: MANAGE
+    - var: item.statements
+      op: contains
+      value: MFA
+- rule_id: oci.identity.user.policy_restricts_user_consent_for_apps
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: contains
+    value: ALLOW any-user to manage authz-consent-on-behalf in tenancy
+- rule_id: oci.identity.user.policy_storage_admin_delete_permission_restricted
+  for_each: oci.identity.list_policies
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.statements
+      op: not_contains
+      value: Allow group Storage_Admins to manage buckets in tenancy
+    - var: item.statements
+      op: not_contains
+      value: Allow group Storage_Admins to manage objects in tenancy
+- rule_id: oci.identity.user.policy_strong
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: contains
+    value: minimum-password-length
+- rule_id: oci.identity.user.policy_user_consent_for_verified_apps
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.policy_user_consent_for_verified_apps_enabled
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    var: item.policy.isUserConsentForVerifiedAppsEnabled
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.policy_users_groups_admin_group_modification_restricted
+  for_each: oci.identity.list_policies
+  severity: CRITICAL
+  conditions:
+    var: item.statements
+    op: not_contains
+    value: Allow group Administrators to manage users
+- rule_id: oci.identity.user.privileged_user_has_mfa
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.is_mfa_activated
+      op: is_true
+      value: null
+- rule_id: oci.identity.user.rights_workflow_storage_encrypted
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.role_least_privilege_required
+  for_each: oci.identity.list_policies
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.statements
+      op: not_contains
+      value: allow
+    - var: item.statements
+      op: not_contains
+      value: '*'
+- rule_id: oci.identity.user.root_access_key_blocked
+  for_each: oci.identity.list_users
+  severity: CRITICAL
+  conditions:
+    var: item.name
+    op: not_equals
+    value: root
+- rule_id: oci.identity.user.root_compartment_default_tags_configured
+  for_each: oci.identity.list_users
+  severity: CRITICAL
+  conditions:
+    var: item.defined_tags
+    op: not_empty
+    value: null
+- rule_id: oci.identity.user.root_hardware_mfa_enabled
+  for_each: oci.identity.list_users
+  severity: CRITICAL
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.root_mfa_enabled
+  for_each: oci.identity.list_users
+  severity: CRITICAL
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.rotate_access_key_90_days
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.is_mfa_activated
+      op: is_true
+      value: null
+- rule_id: oci.identity.user.sa_no_administrative_privileges
+  for_each: oci.identity.list_users
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.name
+      op: not_contains
+      value: sa-
+    - var: item.name
+      op: not_contains
+      value: service-account-
+- rule_id: oci.identity.user.sa_no_user_managed_keys
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.sa_user_managed_key_rotate_90_days
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.is_mfa_activated
+      op: is_true
+      value: null
+- rule_id: oci.identity.user.saml_assertion_lifetime_reasonable_restricted
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    var: item.password_policy.saml_assertion_lifetime_in_seconds
+    op: lte
+    value: 3600
+- rule_id: oci.identity.user.saml_audience_restriction_configured_restricted
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.saml_audience_restriction
+    op: not_contains
+    value: '*'
+- rule_id: oci.identity.user.saml_certificates_not_expired_restricted
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.saml_certificates[].expires_on
+    op: gt
+    value: '2025-10-10T00:00:00Z'
+- rule_id: oci.identity.user.saml_idp_metadata_signed_restricted
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    var: item.password_policy.is_saml_idp_metadata_signed
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.savings_plan_billing_admins_mfa_required
+  for_each: oci.identity.list_users
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.is_mfa_activated
+      op: is_true
+      value: null
+- rule_id: oci.identity.user.savings_plan_purchase_permissions_restricted
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: not_contains
+    value: Allow group SavingsPlanAdmins to manage savings-plan-purchase in tenancy
+- rule_id: oci.identity.user.security_contact_information_is_registered
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.email
+    op: exists
+    value: null
+- rule_id: oci.identity.user.security_defaults_enabled
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    var: item.password_policy.is_lowercase_characters_required
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.service_roles_at_project_level
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    var: item.statements
+    op: not_contains
+    value: allow any-user to manage all-resources in project
+- rule_id: oci.identity.user.service_roles_at_project_level_blocked
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.statements
+      op: not_contains
+      value: allow any-user to manage all-resources in compartment
+    - var: item.statements
+      op: not_contains
+      value: allow any-user to manage all-resources in tenancy
+- rule_id: oci.identity.user.storage_is_on
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.supported_mfa_radius_enabled
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.tenancy_admin_users_api_keys_absent
+  for_each: oci.identity.list_users
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.name
+      op: not_equals
+      value: Administrator
+    - var: item.name
+      op: not_equals
+      value: admin
+    - var: item.name
+      op: not_equals
+      value: tenancy_admin
+- rule_id: oci.identity.user.tenant_break_glass_accounts_mfa_enforced
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.is_mfa_activated
+      op: is_true
+      value: null
+- rule_id: oci.identity.user.tenant_console_mfa_required_org_wide
+  for_each: oci.identity.get_authentication_policy
+  severity: HIGH
+  conditions:
+    var: item.password_policy.is_mfa_required_for_console_access
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.tenant_inactive_user_disable_threshold_configured_restricted
+  for_each: oci.identity.get_authentication_policy
+  severity: MEDIUM
+  conditions:
+    var: item.password_policy.inactive_user_disable_threshold_days
+    op: exists
+    value: null
+- rule_id: oci.identity.user.trusted_named_locations_configured
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.user_access_keys_rotated_90_days_restricted
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.is_mfa_activated
+      op: is_true
+      value: null
+    - var: item.time_created
+      op: gte
+      value: '90'
+- rule_id: oci.identity.user.user_accesskey_unused
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.is_mfa_activated
+      op: is_true
+      value: null
+- rule_id: oci.identity.user.user_api_key_rotation_within_90_days
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.is_mfa_activated
+      op: is_true
+      value: null
+- rule_id: oci.identity.user.user_console_access_unused
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.user_console_password_present_only_if_required
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.user_customer_secret_key_rotation_check_90_days
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.is_mfa_activated
+      op: is_true
+      value: null
+- rule_id: oci.identity.user.user_email_verification
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.email
+    op: exists
+    value: null
+- rule_id: oci.identity.user.user_group_membership
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.user_hardware_mfa_enabled
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.user_has_mfa
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.user_in_group
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.user_inactive_90_days_disabled
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.time_created
+      op: lt
+      value: '90'
+- rule_id: oci.identity.user.user_managed_key_unused
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.user_managed_keys
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.user_mfa_enabled
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.user_mfa_enabled_console_access
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.user_mfa_required
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.user_no_inline_policies
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.capabilities.can_use_console_password
+      op: exists
+      value: null
+    - var: item.capabilities.can_use_api_keys
+      op: exists
+      value: null
+    - var: item.capabilities.can_use_auth_tokens
+      op: exists
+      value: null
+    - var: item.capabilities.can_use_smtp_credentials
+      op: exists
+      value: null
+    - var: item.capabilities.can_use_customer_secret_keys
+      op: exists
+      value: null
+    - var: item.capabilities.can_use_o_auth2_client_credentials
+      op: exists
+      value: null
+- rule_id: oci.identity.user.user_no_inline_policies_attached_restricted
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.capabilities[].name
+    op: not_contains
+    value: CAN_USE_API_KEYS
+- rule_id: oci.identity.user.user_roles_minimal
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.ocid
+      op: exists
+      value: null
+    - var: item.is_mfa_activated
+      op: is_true
+      value: null
+- rule_id: oci.identity.user.user_single_active_api_key
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.user_sso_required
+  for_each: oci.identity.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.user_unused_credentials
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.user_with_vm_access_has_mfa
+  for_each: oci.identity.list_users
+  severity: HIGH
+  conditions:
+    var: item.is_mfa_activated
+    op: is_true
+    value: null
+- rule_id: oci.identity.user.users_cannot_create_groups
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.statements
+      op: not_contains
+      value: Allow any-user to manage groups in tenancy
+    - var: item.statements
+      op: not_contains
+      value: Allow group
+- rule_id: oci.identity.user.users_cannot_create_microsoft_365_groups
+  for_each: oci.identity.list_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.statements
+      op: not_contains
+      value: Allow users to manage Microsoft 365 groups
+    - var: item.statements
+      op: not_contains
+      value: Allow users to manage Office 365 groups

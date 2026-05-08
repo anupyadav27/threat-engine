@@ -1,0 +1,33 @@
+version: '1.0'
+provider: gcp
+service: bigtable
+checks:
+- rule_id: gcp.bigtable.table.global_table_cross_region_replication_encrypted
+  for_each: gcp.bigtable.list_tables
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.encryptionConfig.kmsKeyName
+      op: exists
+      value: null
+    - var: item.clusterStates[].encryptionInfo[].encryptionType
+      op: not_contains
+      value: GOOGLE_DEFAULT_ENCRYPTION
+- rule_id: gcp.bigtable.table.global_table_encryption_at_rest_all_regions
+  for_each: gcp.bigtable.tables.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.encryptionConfig
+      op: exists
+      value: null
+    - var: item.encryptionConfig.kmsKeyName
+      op: not_empty
+      value: null
+- rule_id: gcp.bigtable.table.global_table_pitr_enabled_where_supported
+  for_each: gcp.bigtable.list_tables
+  severity: HIGH
+  conditions:
+    var: item.config.changeStreamConfig.retentionPeriod
+    op: exists
+    value: null

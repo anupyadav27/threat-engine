@@ -1,0 +1,75 @@
+rule_id: aws.compute.cloudtrail.eks_create_nodegroup
+service: compute
+provider: aws
+check_type: log
+severity: medium
+title: 'Compute: EKS Create Nodegroup'
+description: EKS node group created — new compute capacity added to cluster.
+rationale: 'Adversaries deploy containers into environments using Docker APIs or Kubernetes control planes to facilitate execution or evade defenses by running malicious images outside standard deployment processes. Deployed containers can host C2 infrastructure, cryptomining workloads, or data exfiltration tools. Detected via: container create + start by non-admin principals, images not on an allowlist or using ''latest'' tag, privileged mode or host namespace mount at runtime, and unauthenticated Docker API access.'
+threat_category: execution
+mitre_tactics:
+- execution
+mitre_techniques:
+- T1610
+risk_score: 45
+resource: ec2_instance
+source: default
+is_active: true
+domain: container_and_kubernetes_security
+action_category: create
+posture_category: workload_posture
+threat_tags:
+- T1610
+- remote_execution
+- cloud_exec
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: compute_instance
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 3.1
+  - 5.1
+  cis_azure_v2:
+  - 5.1
+  - 6.1
+  nist_800_53_r5:
+  - CM-7
+  - SI-3
+  - AU-12
+  pci_dss_v4:
+  - 6.3
+  - 10.2
+  iso_27001_2022:
+  - A.8.19
+  - A.8.8
+detection_events:
+- pods/create (Kubernetes audit)
+- 'containers:create via Docker API'
+- 'aks:CreatePod by non-CI/CD principal'
+- Admission controller deny events (missing context = bypass attempt)
+remediation: |
+  1. Restrict container deployment permissions via Kubernetes RBAC / Azure Policy.
+  2. Enable admission controllers (OPA Gatekeeper / Azure Policy for AKS).
+  3. Alert on privileged container deployments.
+  4. Enforce container image signing and verification policies.
+references:
+- https://attack.mitre.org/techniques/T1610/
+- https://kubernetes.io/docs/concepts/security/pod-security-standards/
+check_config:
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: eks
+    - field: operation
+      op: equals
+      value: CreateNodegroup
+version: '1.0'

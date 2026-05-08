@@ -1,0 +1,107 @@
+# ============================================================
+# Discovery YAML — dns (final_discovery v1)
+# Generated: 2026-04-16T09:26:47Z
+# Source: gcp_master_field_catalog.csv
+# Check rules: 23 | ops in scope: 3 (2 independent, 1 dependent)
+# ============================================================
+version: '1.0'
+provider: gcp
+service: dns
+
+services:
+  client: dns
+  module: "googleapiclient.discovery.build('dns', 'v1')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: changes
+    identifier_op: gcp.dns.managedZones.list
+    identifier_field: managedZones[].name
+    item_var_path: item.managedZones[].name
+    identifier_template: 'v1/projects/{project}/managedZones/{managedZone}/changes/{changeId}'
+  - resource_type: policies
+    identifier_op: gcp.dns.policies.list
+    identifier_field: policies[].name
+    item_var_path: item.policies[].name
+    identifier_template: 'v1/projects/{project}/policies/{policy}'
+  - resource_type: unknown
+    identifier_op: gcp.dns.resourceRecordSets.list
+    identifier_field: rrsets[].name
+    item_var_path: item.rrsets[].name
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── gcp.dns.managedZones.list ──
+  - discovery_id: gcp.dns.managedZones.list
+    calls:
+      - action: managedZones.list
+        params:
+          project: '{{ project_id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        cloudLoggingConfig: '{{ item.cloudLoggingConfig }}'
+        creationTime: '{{ item.creationTime }}'
+        description: '{{ item.description }}'
+        dnsName: '{{ item.dnsName }}'
+        dnssecConfig: '{{ item.dnssecConfig }}'
+        forwardingConfig: '{{ item.forwardingConfig }}'
+        id: '{{ item.id }}'
+        labels: '{{ item.labels }}'
+        loggingConfig: '{{ item.loggingConfig }}'
+        name: '{{ item.name }}'
+        nameServerSet: '{{ item.nameServerSet }}'
+        nameServers: '{{ item.nameServers }}'
+        peeringConfig: '{{ item.peeringConfig }}'
+        privateVisibilityConfig: '{{ item.privateVisibilityConfig }}'
+        reverseLookupConfig: '{{ item.reverseLookupConfig }}'
+        serviceDirectoryConfig: '{{ item.serviceDirectoryConfig }}'
+        visibility: '{{ item.visibility }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── gcp.dns.policies.list ──
+  - discovery_id: gcp.dns.policies.list
+    calls:
+      - action: policies.list
+        params:
+          project: '{{ project_id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        alternativeNameServerConfig: '{{ item.alternativeNameServerConfig }}'
+        description: '{{ item.description }}'
+        dns64Config: '{{ item.dns64Config }}'
+        enableInboundForwarding: '{{ item.enableInboundForwarding }}'
+        enableLogging: '{{ item.enableLogging }}'
+        id: '{{ item.id }}'
+        name: '{{ item.name }}'
+        networks: '{{ item.networks }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── gcp.dns.resourceRecordSets.list [dependent] ──
+  - discovery_id: gcp.dns.resourceRecordSets.list
+    for_each: gcp.dns.managedZones.list
+    calls:
+      - action: resourceRecordSets.list
+        params:
+          managedZone: '{{ item.name }}'
+          project: '{{ project_id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        name: '{{ item.name }}'
+        rrdatas: '{{ item.rrdatas }}'
+        rrsets: '{{ response.rrsets }}'
+        type: '{{ item.type }}'
+

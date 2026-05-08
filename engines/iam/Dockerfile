@@ -12,6 +12,7 @@ COPY engines/iam/iam_engine/ ./iam_engine/
 COPY engines/iam/run_scan.py ./run_scan.py
 
 COPY shared/common/ ./engine_common/
+COPY shared/auth/ ./engine_auth/
 
 ENV PYTHONPATH=/app
 ENV PORT=8003

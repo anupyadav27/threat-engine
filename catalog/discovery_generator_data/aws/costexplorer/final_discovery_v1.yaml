@@ -1,0 +1,146 @@
+# ==========================================================
+# Discovery YAML — costexplorer (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 10 | ops: 4 independent, 1 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: costexplorer
+
+services:
+  client: costexplorer
+  module: "boto3.client('costexplorer')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: get_anomaly_monitor
+    identifier_op: aws.ce.get_anomaly_monitors
+    identifier_field: MonitorArn
+    item_var_path: item.MonitorArn
+    identifier_template: '{monitorarn}'
+  - resource_type: get_anomaly_subscription
+    identifier_op: aws.ce.get_anomaly_subscriptions
+    identifier_field: SubscriptionArn
+    item_var_path: item.SubscriptionArn
+    identifier_template: '{subscriptionarn}'
+  - resource_type: cost_allocation_tag
+    identifier_op: aws.ce.list_cost_allocation_tags
+    identifier_field: LastUpdatedDate
+    item_var_path: item.LastUpdatedDate
+    identifier_template: '{lastupdateddate}'
+  - resource_type: cost_category_definition
+    identifier_op: aws.ce.list_cost_category_definitions
+    identifier_field: CostCategoryArn
+    item_var_path: item.CostCategoryArn
+    identifier_template: '{costcategoryarn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.ce.get_anomaly_monitors  ──
+  - discovery_id: aws.ce.get_anomaly_monitors
+    calls:
+      - action: get_anomaly_monitors
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.AnomalyMonitors }}'
+      item:
+        AnomalyMonitors: '{{ item.AnomalyMonitors }}'
+        CreationDate: '{{ item.CreationDate }}'
+        DimensionalValueCount: '{{ item.DimensionalValueCount }}'
+        LastEvaluatedDate: '{{ item.LastEvaluatedDate }}'
+        LastUpdatedDate: '{{ item.LastUpdatedDate }}'
+        MonitorArn: '{{ item.MonitorArn }}'
+        MonitorDimension: '{{ item.MonitorDimension }}'
+        MonitorName: '{{ item.MonitorName }}'
+        MonitorSpecification: '{{ item.MonitorSpecification }}'
+        MonitorType: '{{ item.MonitorType }}'
+        NextPageToken: '{{ item.NextPageToken }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.ce.get_anomaly_subscriptions  ──
+  - discovery_id: aws.ce.get_anomaly_subscriptions
+    calls:
+      - action: get_anomaly_subscriptions
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.AnomalySubscriptions }}'
+      item:
+        AccountId: '{{ item.AccountId }}'
+        AnomalySubscriptions: '{{ item.AnomalySubscriptions }}'
+        Frequency: '{{ item.Frequency }}'
+        MonitorArnList: '{{ item.MonitorArnList }}'
+        Subscribers: '{{ item.Subscribers }}'
+        SubscriptionArn: '{{ item.SubscriptionArn }}'
+        SubscriptionName: '{{ item.SubscriptionName }}'
+        Threshold: '{{ item.Threshold }}'
+        ThresholdExpression: '{{ item.ThresholdExpression }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.ce.list_cost_allocation_tags  ──
+  - discovery_id: aws.ce.list_cost_allocation_tags
+    calls:
+      - action: list_cost_allocation_tags
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.CostAllocationTags }}'
+      item:
+        LastUpdatedDate: '{{ item.LastUpdatedDate }}'
+        LastUsedDate: '{{ item.LastUsedDate }}'
+        Status: '{{ item.Status }}'
+        TagKey: '{{ item.TagKey }}'
+        Tags: '{{ item.Tags }}'
+        Type: '{{ item.Type }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.ce.list_cost_category_definitions  ──
+  - discovery_id: aws.ce.list_cost_category_definitions
+    calls:
+      - action: list_cost_category_definitions
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.CostCategoryReferences }}'
+      item:
+        CostCategoryArn: '{{ item.CostCategoryArn }}'
+        DefaultValue: '{{ item.DefaultValue }}'
+        EffectiveEnd: '{{ item.EffectiveEnd }}'
+        EffectiveStart: '{{ item.EffectiveStart }}'
+        Name: '{{ item.Name }}'
+        NumberOfRules: '{{ item.NumberOfRules }}'
+        ProcessingStatus: '{{ item.ProcessingStatus }}'
+        Values: '{{ item.Values }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.ce.describe_cost_category_definition [dependent] ──
+  - discovery_id: aws.ce.describe_cost_category_definition
+    for_each: aws.ce.list_cost_category_definitions
+    calls:
+      - action: describe_cost_category_definition
+        params:
+          CostCategoryArn: '{{ item.CostCategoryArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        CostCategoryArn: '{{ item.CostCategoryArn }}'
+        DefaultValue: '{{ item.DefaultValue }}'
+        EffectiveEnd: '{{ item.EffectiveEnd }}'
+        EffectiveStart: '{{ item.EffectiveStart }}'
+        Name: '{{ item.Name }}'
+        ProcessingStatus: '{{ item.ProcessingStatus }}'
+        RuleVersion: '{{ item.RuleVersion }}'
+        Rules: '{{ item.Rules }}'
+        SplitChargeRules: '{{ item.SplitChargeRules }}'
+

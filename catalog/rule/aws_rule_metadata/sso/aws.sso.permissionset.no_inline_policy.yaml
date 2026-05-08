@@ -1,0 +1,38 @@
+rule_id: aws.sso.permissionset.no_inline_policy
+service: sso
+resource: permissionset
+requirement: SSO Permission Set No Inline Policy
+title: 'SSO permissionset: No Inline Policy'
+scope: sso.permissionset.policy
+domain: identity_and_access_management
+subcategory: access_control
+posture_category: access_control
+rationale: Inline policies attached directly to SSO permission sets are harder to
+  audit, reuse, and govern than managed policies. They can grant broad permissions
+  without centralized visibility, increasing risk of privilege escalation.
+severity: medium
+assertion_id: iam.access_control.sso_permissionset_no_inline_policy
+source: default
+description: Checks that AWS IAM Identity Center permission sets do not have inline
+  policies attached. Inline policies are embedded directly in the permission set and
+  not subject to the same IAM policy governance as managed policies. Using inline
+  policies makes it difficult to audit permissions centrally, can lead to policy sprawl,
+  and may inadvertently grant excessive privileges.
+references:
+- https://docs.aws.amazon.com/singlesignon/latest/userguide/howtocreatepermissionset.html
+- https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+remediation: "Remove inline policies from SSO permission sets and replace with managed\
+  \ policies:\n\n1. Open the AWS IAM Identity Center console\n2. Navigate to Permission\
+  \ Sets\n3. For each permission set with an inline policy:\n   a. Click the permission\
+  \ set name\n   b. Open the Inline policy tab\n   c. Review and copy the inline policy\
+  \ JSON\n   d. Create an equivalent customer managed IAM policy\n   e. Attach the\
+  \ managed policy to the permission set\n   f. Delete the inline policy\n4. Re-provision\
+  \ affected accounts\n\nAWS CLI:\n  # List inline policy\n  aws sso-admin get-inline-policy-for-permission-set\
+  \ \\\n    --instance-arn <arn> --permission-set-arn <arn>\n\n  # Delete inline policy\n\
+  \  aws sso-admin delete-inline-policy-from-permission-set \\\n    --instance-arn\
+  \ <arn> --permission-set-arn <arn>\n\nBest Practices:\n• Use AWS managed policies\
+  \ or customer managed policies exclusively\n• Apply least-privilege principles when\
+  \ defining permission sets\n• Review all permission sets during access reviews"
+metadata_source: default
+generated_by: fix_disc_only_services
+compliance: []

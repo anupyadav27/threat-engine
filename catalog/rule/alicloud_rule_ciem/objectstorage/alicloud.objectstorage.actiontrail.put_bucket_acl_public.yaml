@@ -1,0 +1,83 @@
+rule_id: alicloud.objectstorage.actiontrail.put_bucket_acl_public
+service: objectstorage
+provider: alicloud
+check_type: log
+severity: critical
+title: 'AliCloud OSS: Bucket Made Publicly Readable'
+description: An OSS bucket ACL was set to public-read or public-read-write, exposing
+  all objects to unauthenticated internet access.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: data_exfiltration
+mitre_tactics:
+- exfiltration
+- collection
+mitre_techniques:
+- T1530
+risk_score: 95
+resource: alicloud_oss_bucket
+source: alicloud_ciem_generator
+is_active: true
+domain: data_protection_and_privacy
+action_category: modify
+log_source_type: alicloud_actiontrail
+posture_category: data_security_posture
+threat_tags:
+- T1530
+- exfiltration
+- collection
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '5.1'
+  - '5.2'
+  nist_800_53_r5:
+  - SC-28
+  - AC-3
+  - AU-9
+  pci_dss_v4:
+  - '3.4'
+  - '3.5'
+  - '6.3'
+  iso_27001_2022:
+  - A.8.10
+  - A.8.24
+remediation: '1. Set bucket ACL back to private immediately.
+
+  2. Enable OSS Block Public Access at account level.
+
+  3. Audit objects in the bucket for sensitive data exposure.
+
+  4. Alert on any public ACL change.'
+references:
+- https://attack.mitre.org/techniques/T1530/
+- https://www.alibabacloud.com/help/en/oss/user-guide/access-control-overview
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: oss
+    - field: operation
+      op: equals
+      value: PutBucketAcl
+    - field: request_params.x-oss-acl
+      op: in
+      value:
+      - public-read
+      - public-read-write
+version: '1.0'

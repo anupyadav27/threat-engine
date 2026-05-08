@@ -1,0 +1,76 @@
+rule_id: aws.netsec.cloudtrail.route53_create_hosted_zone
+service: netsec
+provider: aws
+check_type: log
+severity: medium
+title: 'Network Security: Route53 Create Hosted Zone'
+description: Route53 hosted zone created — DNS zone provisioned.
+rationale: Compromising DNS infrastructure enables domain hijacking, allowing phishing or traffic redirection attacks against legitimate services.
+threat_category: persistence
+mitre_tactics:
+- persistence
+mitre_techniques:
+- T1584.002
+risk_score: 45
+resource: security_group
+source: default
+is_active: true
+domain: network_security_and_connectivity
+action_category: network
+log_source_type: 
+posture_category: iam_posture
+threat_tags:
+- T1584.002
+- T1584
+- persistence
+- backdoor
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: network_change
+  target_type: network_resource
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.1
+  - 1.4
+  - 1.16
+  cis_azure_v2:
+  - 1.1
+  - 2.1
+  - 2.9
+  nist_800_53_r5:
+  - AC-2
+  - AC-6
+  - IA-2
+  - SC-7
+  pci_dss_v4:
+  - 7.1
+  - 8.2
+  - 10.2
+  iso_27001_2022:
+  - A.8.2
+  - A.9.2
+  - A.5.18
+remediation: |
+  1. Apply MFA to all DNS management accounts.
+  2. Enable DNSSEC on all critical domains.
+  3. Alert on all DNS zone or record modifications.
+references:
+- https://attack.mitre.org/techniques/T1584/002/
+check_config:
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: route53
+    - field: operation
+      op: equals
+      value: CreateHostedZone
+version: '1.0'

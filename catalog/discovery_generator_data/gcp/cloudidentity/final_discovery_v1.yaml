@@ -1,0 +1,73 @@
+# ============================================================
+# Discovery YAML — cloudidentity (final_discovery v1)
+# Generated: 2026-04-16T09:26:47Z
+# Source: gcp_master_field_catalog.csv
+# Check rules: 16 | ops in scope: 2 (2 independent, 0 dependent)
+# ============================================================
+version: '1.0'
+provider: gcp
+service: cloudidentity
+
+services:
+  client: cloudidentity
+  module: "googleapiclient.discovery.build('cloudidentity', 'v1')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: unknown
+    identifier_op: gcp.cloudidentity.groups.list
+    identifier_field: groups[].name
+    item_var_path: item.groups[].name
+  - resource_type: unknown
+    identifier_op: gcp.cloudidentity.groups.memberships.list
+    identifier_field: memberships[].name
+    item_var_path: item.memberships[].name
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── gcp.cloudidentity.groups.list ──
+  - discovery_id: gcp.cloudidentity.groups.list
+    calls:
+      - action: groups.list
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        additionalGroupKeys: '{{ item.additionalGroupKeys }}'
+        createTime: '{{ item.createTime }}'
+        description: '{{ item.description }}'
+        displayName: '{{ item.displayName }}'
+        dynamicGroupMetadata: '{{ item.dynamicGroupMetadata }}'
+        groupKey: '{{ item.groupKey }}'
+        labels: '{{ item.labels }}'
+        name: '{{ item.name }}'
+        parent: '{{ item.parent }}'
+        updateTime: '{{ item.updateTime }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── gcp.cloudidentity.groups.memberships.list ──
+  - discovery_id: gcp.cloudidentity.groups.memberships.list
+    calls:
+      - action: groups.memberships.list
+        params:
+          parent: '{{ project_id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        createTime: '{{ item.createTime }}'
+        deliverySetting: '{{ item.deliverySetting }}'
+        groupKey: '{{ item.groupKey }}'
+        name: '{{ item.name }}'
+        preferredMemberKey: '{{ item.preferredMemberKey }}'
+        roles: '{{ item.roles }}'
+        type: '{{ item.type }}'
+        updateTime: '{{ item.updateTime }}'
+

@@ -1,0 +1,71 @@
+rule_id: ibm.vpc.activity_log.create_image
+service: network
+provider: ibm
+check_type: log
+severity: medium
+title: Detect custom image creation in VPC and execution of Schematics workspace actions
+  that may deploy unverified diagnostic code.
+description: Detects custom image creation and related Schematics workspace actions.
+rationale: Monitoring this activity is essential for detecting adversary persistence
+  against IBM resources. Unauthorized or unexpected API calls may indicate account
+  compromise, privilege escalation, or an active attack chain.
+threat_category: persistence
+mitre_tactics:
+- persistence
+mitre_techniques:
+- T1525
+risk_score: 73
+resource: ibm_network_resource
+source: csv_generated
+is_active: true
+domain: logging_monitoring_and_alerting
+action_category: create
+log_source_type: ibm_activity_tracker
+posture_category: threat_posture
+threat_tags:
+- T1525
+- persistence
+- ciem_detection
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  nist_800_171:
+  - 3.7.4
+remediation: '1. Remove the unauthorized resource (user, key, image, account) immediately.
+
+  2. Audit all resources created by the same principal.
+
+  3. Restrict resource creation to approved provisioning pipelines.
+
+  4. Add detection for resource creation outside of business hours or from unusual
+  IPs.
+
+  5. Review SCPs and permission boundaries to limit persistence mechanisms.'
+references:
+- https://attack.mitre.org/techniques/T1525/
+- https://cloud.ibm.com/docs/account?topic=account-iamoverview
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_activity_tracker
+    - field: service
+      op: equals
+      value: is.vpc
+    - field: operation
+      op: in
+      value:
+      - is.image.create
+      - schematics.workspace.apply
+  type: log
+  version: '1.0'

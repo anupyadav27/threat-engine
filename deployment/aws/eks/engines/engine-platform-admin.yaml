@@ -1,0 +1,181 @@
+# =============================================================================
+# Platform Admin Engine — Operator dashboard, engine health, org management
+# Port: 8041 | Reads billing DB (billing_readonly + billing_app)
+# Requires ClusterRole for K8s pod/deployment reads and Argo workflow reads
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# ClusterRole — read pods, deployments, and Argo workflows
+# ---------------------------------------------------------------------------
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: engine-platform-admin-reader
+  labels:
+    app: engine-platform-admin
+    layer: platform
+rules:
+  # Kubernetes core resources — read pod and deployment status
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list"]
+  # Argo Workflows — read workflow status for pipeline history
+  - apiGroups: ["argoproj.io"]
+    resources: ["workflows"]
+    verbs: ["get", "list"]
+---
+# ---------------------------------------------------------------------------
+# ClusterRoleBinding — bind ClusterRole to engine-sa
+# ---------------------------------------------------------------------------
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: engine-platform-admin-reader-binding
+  labels:
+    app: engine-platform-admin
+    layer: platform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: engine-platform-admin-reader
+subjects:
+  - kind: ServiceAccount
+    name: engine-sa
+    namespace: threat-engine-engines
+---
+# ---------------------------------------------------------------------------
+# Deployment
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: engine-platform-admin
+  namespace: threat-engine-engines
+  labels:
+    app: engine-platform-admin
+    engine: platform-admin
+    layer: platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: engine-platform-admin
+  template:
+    metadata:
+      labels:
+        app: engine-platform-admin
+        engine: platform-admin
+        layer: platform
+    spec:
+      serviceAccountName: engine-sa
+      containers:
+        - name: engine-platform-admin
+          image: yadavanup84/engine-platform-admin:v-padmin-billing1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8041
+          env:
+            # ── Billing DB (readonly) ─────────────────────────────────────
+            - name: BILLING_DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_HOST
+            - name: BILLING_DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_PORT
+            - name: BILLING_DB_NAME
+              value: "threat_engine_billing"
+            - name: BILLING_DB_USER
+              value: "billing_readonly"
+            - name: BILLING_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: billing-db-passwords
+                  key: BILLING_READONLY_PASSWORD
+            # ── Billing DB (app / writes) ─────────────────────────────────
+            - name: BILLING_APP_DB_USER
+              value: "billing_app"
+            - name: BILLING_APP_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: billing-db-passwords
+                  key: BILLING_APP_PASSWORD
+            # ── Argo Workflows ────────────────────────────────────────────
+            - name: ARGO_SERVER_URL
+              value: "http://argo-server.argo.svc.cluster.local:2746"
+            - name: ARGO_NAMESPACE
+              value: "threat-engine-engines"
+            # ── Kubernetes ───────────────────────────────────────────────
+            - name: K8S_NAMESPACE
+              value: "threat-engine-engines"
+            # ── Runtime config ────────────────────────────────────────────
+            - name: APP_ENV
+              value: "production"
+            - name: ENGINE_NAME
+              value: "platform-admin"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: PYTHONPATH
+              value: "/app"
+            # ── Inventory DB (for billing snapshot job) ───────────────────
+            - name: INVENTORY_DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: threat-engine-db-config
+                  key: DB_HOST
+            - name: INVENTORY_DB_NAME
+              value: "threat_engine_inventory"
+            - name: INVENTORY_DB_USER
+              value: "postgres"
+            - name: INVENTORY_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: INVENTORY_DB_PASSWORD
+            # ── Service discovery ─────────────────────────────────────────
+            - name: BILLING_ENGINE_URL
+              value: "http://engine-billing:8040"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health/live
+              port: 8041
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health/ready
+              port: 8041
+            initialDelaySeconds: 15
+            periodSeconds: 10
+---
+# ---------------------------------------------------------------------------
+# Service — ClusterIP on port 8041
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: engine-platform-admin
+  namespace: threat-engine-engines
+  labels:
+    app: engine-platform-admin
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8041
+      targetPort: 8041
+      protocol: TCP
+  selector:
+    app: engine-platform-admin

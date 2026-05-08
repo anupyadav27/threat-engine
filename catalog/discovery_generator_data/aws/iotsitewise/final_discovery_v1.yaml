@@ -1,0 +1,144 @@
+# ==========================================================
+# Discovery YAML — iotsitewise (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 5 | ops: 3 independent, 2 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: iotsitewise
+
+services:
+  client: iotsitewise
+  module: "boto3.client('iotsitewise')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: dashboard
+    identifier_op: aws.iotsitewise.describe_dashboard
+    identifier_field: dashboardArn
+    item_var_path: item.dashboardArn
+    identifier_template: '{dashboardarn}'
+  - resource_type: portal
+    identifier_op: aws.iotsitewise.describe_portal
+    identifier_field: portalArn
+    item_var_path: item.portalArn
+    identifier_template: '{portalarn}'
+  - resource_type: project
+    identifier_op: aws.iotsitewise.describe_project
+    identifier_field: projectName
+    item_var_path: item.projectName
+    identifier_template: '{projectname}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.iotsitewise.describe_dashboard  ──
+  - discovery_id: aws.iotsitewise.describe_dashboard
+    calls:
+      - action: describe_dashboard
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Tags: '{{ item.Tags }}'
+        dashboardArn: '{{ item.dashboardArn }}'
+        dashboardCreationDate: '{{ item.dashboardCreationDate }}'
+        dashboardDefinition: '{{ item.dashboardDefinition }}'
+        dashboardDescription: '{{ item.dashboardDescription }}'
+        dashboardId: '{{ item.dashboardId }}'
+        dashboardLastUpdateDate: '{{ item.dashboardLastUpdateDate }}'
+        dashboardName: '{{ item.dashboardName }}'
+        projectId: '{{ item.projectId }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.iotsitewise.describe_portal  ──
+  - discovery_id: aws.iotsitewise.describe_portal
+    calls:
+      - action: describe_portal
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Tags: '{{ item.Tags }}'
+        alarms: '{{ item.alarms }}'
+        error: '{{ item.error }}'
+        notificationSenderEmail: '{{ item.notificationSenderEmail }}'
+        portalArn: '{{ item.portalArn }}'
+        portalAuthMode: '{{ item.portalAuthMode }}'
+        portalClientId: '{{ item.portalClientId }}'
+        portalContactEmail: '{{ item.portalContactEmail }}'
+        portalCreationDate: '{{ item.portalCreationDate }}'
+        portalDescription: '{{ item.portalDescription }}'
+        portalLogoImageLocation: '{{ item.portalLogoImageLocation }}'
+        portalName: '{{ item.portalName }}'
+        portalTypeConfiguration: '{{ item.portalTypeConfiguration }}'
+        state: '{{ item.state }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.iotsitewise.describe_project  ──
+  - discovery_id: aws.iotsitewise.describe_project
+    calls:
+      - action: describe_project
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Tags: '{{ item.Tags }}'
+        projectCreationDate: '{{ item.projectCreationDate }}'
+        projectDescription: '{{ item.projectDescription }}'
+        projectName: '{{ item.projectName }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.iotsitewise.describe_asset_model [dependent] ──
+  - discovery_id: aws.iotsitewise.describe_asset_model
+    for_each: aws.iotsitewise.list_assets
+    calls:
+      - action: describe_asset_model
+        params:
+          assetModelId: "{{ item.assetModelId }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.assetModelProperties }}'
+      item:
+        Tags: '{{ item.Tags }}'
+        assetModelCreationDate: '{{ item.assetModelCreationDate }}'
+        assetModelDescription: '{{ item.assetModelDescription }}'
+        assetModelVersion: '{{ item.assetModelVersion }}'
+        dataType: '{{ item.dataType }}'
+        dataTypeSpec: '{{ item.dataTypeSpec }}'
+        externalId: '{{ item.externalId }}'
+        id: '{{ item.id }}'
+        name: '{{ item.name }}'
+        path: '{{ item.path }}'
+        type: '{{ item.type }}'
+        unit: '{{ item.unit }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.iotsitewise.describe_gateway [dependent] ──
+  - discovery_id: aws.iotsitewise.describe_gateway
+    for_each: aws.iotsitewise.list_gateways
+    calls:
+      - action: describe_gateway
+        params:
+          gatewayId: "{{ item.gatewayId }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.gatewayCapabilitySummaries }}'
+      item:
+        Tags: '{{ item.Tags }}'
+        capabilityNamespace: '{{ item.capabilityNamespace }}'
+        capabilitySyncStatus: '{{ item.capabilitySyncStatus }}'
+        gatewayArn: '{{ item.gatewayArn }}'
+

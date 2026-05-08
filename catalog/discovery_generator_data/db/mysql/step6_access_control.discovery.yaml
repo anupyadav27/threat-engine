@@ -1,0 +1,56 @@
+version: '1.0'
+provider: db
+engine: mysql
+category: access_control
+cis_section: '4'
+description: MySQL CIS Section 4 — Access Controls
+
+discovery:
+  - discovery_id: db.mysql.acl.users_with_wildcard_host
+    calls:
+      - action: query_table
+        query: "SELECT user, host FROM mysql.user WHERE host = '%';"
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        user: "{{ item.user }}"
+        host: "{{ item.host }}"
+
+  - discovery_id: db.mysql.acl.super_privilege_users
+    calls:
+      - action: query_table
+        query: "SELECT user, host FROM mysql.user WHERE Super_priv = 'Y';"
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        user: "{{ item.user }}"
+        host: "{{ item.host }}"
+
+  - discovery_id: db.mysql.acl.file_privilege_users
+    calls:
+      - action: query_table
+        query: "SELECT user, host FROM mysql.user WHERE File_priv = 'Y';"
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        user: "{{ item.user }}"
+        host: "{{ item.host }}"
+
+  - discovery_id: db.mysql.acl.ssl_type
+    calls:
+      - action: query_table
+        query: "SELECT user, host, ssl_type FROM mysql.user WHERE ssl_type NOT IN ('SSL', 'X509');"
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        user: "{{ item.user }}"
+        host: "{{ item.host }}"
+        ssl_type: "{{ item.ssl_type }}"

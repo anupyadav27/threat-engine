@@ -1,0 +1,17 @@
+version: '1.0'
+rule_id: aws.vpc.networkacl.network_dns_hostnames_and_support_configured
+for_each: aws.vpc.describe_route_tables
+severity: HIGH
+conditions:
+  all:
+  - var: item.RouteTables
+    op: not_empty
+  - var: item.RouteTables[].Routes[].DestinationCidrBlock
+    op: contains
+    value: 0.0.0.0/0
+  - var: item.RouteTables[].Routes[?(@.DestinationCidrBlock == '0.0.0.0/0')].GatewayId
+    op: not_contains
+    value: igw-
+fixture_validated: false
+fixture_note: 'PASS fixture returned FAIL — wrong field or operator (pass_fixture keys: [''Associations'', ''PropagatingVgws'',
+  ''RouteTableId'', ''RouteTables'', ''Routes'', ''Tags'', ''VpcId''])'

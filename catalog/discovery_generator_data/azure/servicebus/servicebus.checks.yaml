@@ -1,0 +1,69 @@
+version: '1.0'
+provider: azure
+service: servicebus
+checks:
+# ═══════════════════════════════════════════
+# Service Bus Namespaces — azure.servicebus.namespaces.list_by_resource_group
+# Fields: id, name, type, location, tags, sku, identity, provisioning_state, status,
+#         encryption, public_network_access, minimum_tls_version, disable_local_auth,
+#         private_endpoint_connections, zone_redundant, alternate_name, created_at,
+#         metric_id, premium_messaging_partitions, service_bus_endpoint, updated_at
+# ═══════════════════════════════════════════
+- rule_id: azure.servicebus.namespace.public_network_access_disabled
+  for_each: azure.servicebus.namespaces.list_by_resource_group
+  conditions:
+    var: item.public_network_access
+    op: equals
+    value: Disabled
+
+- rule_id: azure.servicebus.namespace.encryption_configured
+  for_each: azure.servicebus.namespaces.list_by_resource_group
+  conditions:
+    var: item.encryption
+    op: not_empty
+
+- rule_id: azure.servicebus.namespace.minimum_tls_version_12
+  for_each: azure.servicebus.namespaces.list_by_resource_group
+  conditions:
+    var: item.minimum_tls_version
+    op: equals
+    value: '1.2'
+
+- rule_id: azure.servicebus.namespace.local_auth_disabled
+  for_each: azure.servicebus.namespaces.list_by_resource_group
+  conditions:
+    var: item.disable_local_auth
+    op: equals
+    value: 'true'
+
+- rule_id: azure.servicebus.namespace.managed_identity_enabled
+  for_each: azure.servicebus.namespaces.list_by_resource_group
+  conditions:
+    var: item.identity
+    op: not_empty
+
+- rule_id: azure.servicebus.namespace.private_endpoints_configured
+  for_each: azure.servicebus.namespaces.list_by_resource_group
+  conditions:
+    var: item.private_endpoint_connections
+    op: not_empty
+
+- rule_id: azure.servicebus.namespace.zone_redundant
+  for_each: azure.servicebus.namespaces.list_by_resource_group
+  conditions:
+    var: item.zone_redundant
+    op: equals
+    value: 'true'
+
+- rule_id: azure.servicebus.namespace.provisioning_succeeded
+  for_each: azure.servicebus.namespaces.list_by_resource_group
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.servicebus.namespace.tags_configured
+  for_each: azure.servicebus.namespaces.list_by_resource_group
+  conditions:
+    var: item.tags
+    op: not_empty

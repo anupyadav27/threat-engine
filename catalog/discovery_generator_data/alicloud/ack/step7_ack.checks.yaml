@@ -1,0 +1,835 @@
+checks:
+- rule_id: alicloud.ack.addon.addon_no_privileged_permissions
+  for_each: alicloud.ack.DescribeAddons
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.admission_webhook.admission_host_namespace_usage_denied
+  for_each: alicloud.ack.admission_webhook
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.admission_webhook.admission_image_registry_allowlist_enforced
+  for_each: alicloud.ack.admission_webhook
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.admission_webhook.admission_image_signature_verification_enabled
+  for_each: alicloud.ack.admission_webhook
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ack.admission_webhook.admission_pod_security_admission_restricted_default
+  for_each: alicloud.ack.admission_webhook
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.admission_webhook.admission_privilege_escalation_denied
+  for_each: alicloud.ack.admission_webhook
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.backup.encryption_enabled
+  for_each: alicloud.general.backup_enabled
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.backup_enabled
+      op: equals
+- rule_id: alicloud.ack.certificates.expiration_check
+  for_each: alicloud.ack.certificates
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ack.certificates.not_expired_and_valid
+  for_each: alicloud.ack.certificates
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ack.cluster.approved_container_registries_enforced
+  for_each: alicloud.ack.DescribeClusterAddonsUpgradeStatus
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.cluster.audit_logging_remote_enforced
+  for_each: alicloud.ack.DescribeClusterAddonsUpgradeStatus
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.cluster.basic_auth_disabled_enforced
+  for_each: alicloud.ack.DescribeClusterAddonsUpgradeStatus
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ack.cluster.cloud_monitoring_enabled
+  for_each: alicloud.ack.DescribeClusterAddonsUpgradeStatus
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.cluster.control_plane_private_access_ip_allowlist_enforced
+  for_each: alicloud.ack.DescribeClusterAddonsUpgradeStatus
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ack.cluster.dashboard_access_restricted
+  for_each: alicloud.ack.DescribeClusterAddonsUpgradeStatus
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ack.cluster.endpoint_private_access_enforced
+  for_each: alicloud.ack.DescribeClusterAddonsUpgradeStatus
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ack.cluster.kms_cmk_encryption_for_secrets_enabled
+  for_each: alicloud.ack.DescribeClusterAddonsUpgradeStatus
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.kms_key_id
+      op: exists
+- rule_id: alicloud.ack.cluster.kms_cmk_encryption_in_secrets_enabled
+  for_each: alicloud.ack.DescribeClusterAddonsUpgradeStatus
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.kms_key_id
+      op: exists
+- rule_id: alicloud.ack.cluster.logging_service_enabled
+  for_each: alicloud.ack.DescribeClusterAddonsUpgradeStatus
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.cluster.network_plugin_terway_compliance_enforced
+  for_each: alicloud.ack.DescribeClusterAddonsUpgradeStatus
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ack.cluster.network_policy_enforced
+  for_each: alicloud.ack.DescribeClusterAddonsUpgradeStatus
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ack.cluster.nodes_private_ip_required
+  for_each: alicloud.ack.DescribeClusterAddonsUpgradeStatus
+  conditions:
+    var: item.public_ip_address
+    op: not_exists
+- rule_id: alicloud.ack.cluster.not_publicly_accessible
+  for_each: alicloud.ack.DescribeClusterAddonsUpgradeStatus
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+- rule_id: alicloud.ack.cluster.pod_security_policy_compliance_enforced
+  for_each: alicloud.ack.DescribeClusterAddonsUpgradeStatus
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.cluster.private_access_enforced
+  for_each: alicloud.ack.DescribeClusterAddonsUpgradeStatus
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ack.cluster.private_nodes_only
+  for_each: alicloud.ack.DescribeClusterAddonsUpgradeStatus
+  conditions:
+    var: item.vpc_id
+    op: exists
+- rule_id: alicloud.ack.cluster.public_access_blocked
+  for_each: alicloud.ack.DescribeClusterAddonsUpgradeStatus
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+- rule_id: alicloud.ack.cluster.rbac_authorization_enforced
+  for_each: alicloud.ack.DescribeClusterAddonsUpgradeStatus
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.cluster.rbac_permissions_least_privilege
+  for_each: alicloud.ack.DescribeClusterAddonsUpgradeStatus
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.cluster.secret_encryption_kms_enforced
+  for_each: alicloud.ack.DescribeClusterAddonsUpgradeStatus
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.cluster.uses_latest_supported_version
+  for_each: alicloud.ack.DescribeClusterAddonsUpgradeStatus
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ack.cluster.weekly_health_checks_enabled
+  for_each: alicloud.ack.DescribeClusterAddonsUpgradeStatus
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ack.configuration_management.parameter_access_rbac_least_privilege
+  for_each: alicloud.ack.configuration_management
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.configuration_management.parameter_kms_key_configured
+  for_each: alicloud.ack.configuration_management
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.kms_key_id
+      op: exists
+- rule_id: alicloud.ack.configuration_management.parameter_secure_string_type_for_sensitive
+  for_each: alicloud.ack.configuration_management
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.control_plane.admission_psa_enforce_mode
+  for_each: alicloud.ack.control_plane
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.control_plane.anonymous_auth_disabled
+  for_each: alicloud.ack.control_plane
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ack.control_plane.apiserver_anonymous_auth_disabled
+  for_each: alicloud.ack.control_plane
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ack.control_plane.apiserver_audit_logging_enabled
+  for_each: alicloud.ack.control_plane
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.control_plane.apiserver_authorization_mode_rbac
+  for_each: alicloud.ack.control_plane
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.control_plane.apiserver_etcd_connection_encrypted
+  for_each: alicloud.ack.control_plane
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.control_plane.apiserver_insecure_port_disabled
+  for_each: alicloud.ack.control_plane
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ack.control_plane.apiserver_tls_min_1_2_enforced
+  for_each: alicloud.ack.control_plane
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.ssl_enabled
+      op: equals
+    - var: item.min_tls_version
+      op: gte
+- rule_id: alicloud.ack.control_plane.root_ca_file_configured
+  for_each: alicloud.ack.control_plane
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ack.control_plane.secure_port_enabled
+  for_each: alicloud.ack.control_plane
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.control_plane.secure_port_tls_enabled
+  for_each: alicloud.ack.control_plane
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.control_plane.token_signing_enabled
+  for_each: alicloud.ack.control_plane
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.control_plane.use_service_account_credentials_enabled
+  for_each: alicloud.ack.control_plane
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.disk.data_disk_cmek_encryption_enforced
+  for_each: alicloud.ack.disk
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.kms_key_id
+      op: exists
+- rule_id: alicloud.ack.ebs.data_disk_cmek_encryption_check
+  for_each: alicloud.ack.ebs
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.kms_key_id
+      op: exists
+- rule_id: alicloud.ack.enabled.for_ec2
+  for_each: alicloud.ack.enabled
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ack.endpoints.not_publicly_accessible
+  for_each: alicloud.ack.endpoints
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+- rule_id: alicloud.ack.endpoints.private_access_only
+  for_each: alicloud.ack.endpoints
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ack.etcd.at_rest_enabled
+  for_each: alicloud.ack.etcd
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.etcd.auth_enabled
+  for_each: alicloud.ack.etcd
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.etcd.cert_auth_enabled
+  for_each: alicloud.ack.etcd
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.etcd.client_tls_enabled
+  for_each: alicloud.ack.etcd
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.etcd.encryption_at_rest_enabled
+  for_each: alicloud.ack.etcd
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.etcd.peer_tls_enabled
+  for_each: alicloud.ack.etcd
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.instance.access_policy_network_restriction_enforced
+  for_each: alicloud.apigateway.DescribeInstances
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ack.kube.apiserver_client_ca_file_check
+  for_each: alicloud.ack.DescribeClusterUserKubeconfig
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ack.kube_apiserver.client_ca_file_properly_configured
+  for_each: alicloud.ack.kube_apiserver
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ack.kubernetes.pod_create_access_least_privilege
+  for_each: alicloud.ack.kubernetes
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.load_balancer.https_tls_encryption_in_transit_enforced
+  for_each: alicloud.ack.load_balancer
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.log.service_integration_check
+  for_each: alicloud.ack.DescribeClusterLogs
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.log_service.integration_enabled
+  for_each: alicloud.ack.log_service
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.managed_services.cluster_service_kube_system_services_not_public
+  for_each: alicloud.ack.managed_services
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+- rule_id: alicloud.ack.namespace.namespace_default_service_account_automount_disabled
+  for_each: alicloud.artifacts.ListNamespace
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.namespace.namespace_network_policies_present
+  for_each: alicloud.artifacts.ListNamespace
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ack.network_policy.networkpolicy_default_deny_egress_per_namespace
+  for_each: alicloud.ack.network_policy
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ack.network_policy.networkpolicy_default_deny_ingress_per_namespace
+  for_each: alicloud.ack.network_policy
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ack.network_policy.policy_enabled
+  for_each: alicloud.ack.network_policy
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ack.network_policy_enforced_with_least_privilege.configured
+  for_each: alicloud.ack.network_policy_enforced_with_least_privilege
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.node.auth_disabled
+  for_each: alicloud.ack.DescribeClusterNodes
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ack.node.kubelet_anonymous_auth_disabled
+  for_each: alicloud.ack.DescribeClusterNodes
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ack.node.kubelet_authz_webhook_or_rbac_enabled
+  for_each: alicloud.ack.DescribeClusterNodes
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.node.kubelet_read_only_port_disabled
+  for_each: alicloud.ack.DescribeClusterNodes
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ack.node.kubelet_tls_min_1_2_enforced
+  for_each: alicloud.ack.DescribeClusterNodes
+  conditions:
+    all:
+    - var: item.ssl_enabled
+      op: equals
+    - var: item.min_tls_version
+      op: gte
+- rule_id: alicloud.ack.node.only_port_disabled
+  for_each: alicloud.ack.DescribeClusterNodes
+  conditions:
+    var: item.security_group_rules
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: alicloud.ack.node.security_patches_current
+  for_each: alicloud.ack.DescribeClusterNodes
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ack.node_pool.disk_encryption_enabled
+  for_each: alicloud.ack.node_pool
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.node_pool.nodes_no_public_ip
+  for_each: alicloud.ack.node_pool
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+- rule_id: alicloud.ack.plan.configured
+  for_each: alicloud.ack.control_plane
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ack.plan.min_retention
+  for_each: alicloud.ack.control_plane
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.plans.exist
+  for_each: alicloud.ack.reportplans
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.pod.seccomp_profile_runtime_default_enforced
+  for_each: alicloud.ack.pod
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.pod.security_context_configured
+  for_each: alicloud.ack.pod
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ack.pod.service_account_token_mounting_disabled
+  for_each: alicloud.ack.pod
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.pod_security_policy.net_raw_capability_dropped
+  for_each: alicloud.ack.pod_security_policy
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.psp.net_raw_capability_disabled
+  for_each: alicloud.ack.psp
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.psp.root_user_access_prevented
+  for_each: alicloud.ack.psp
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.ram.role_acr_read_only_access_check
+  for_each: alicloud.ack.ram_role
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.ram_role.acr_read_only_access_enforced
+  for_each: alicloud.ack.ram_role
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.rbac.authorization_mode_rbac_enabled
+  for_each: alicloud.ack.rbac
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.rbac.least_privilege_secrets_access_enforced
+  for_each: alicloud.ack.rbac
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.rbac.no_cluster_admin_bindings_to_users
+  for_each: alicloud.ack.rbac
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.rbac.no_wildcard_rules_in_clusterroles
+  for_each: alicloud.ack.rbac
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.rbac_k8s.cluster_admin_to_authenticated
+  for_each: alicloud.ack.rbac_k8s
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.rbac_k8s.sa_not_cluster_admin
+  for_each: alicloud.ack.rbac_k8s
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.recovery.point_encrypted
+  for_each: alicloud.ack.recovery
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.recovery.point_encryption
+  for_each: alicloud.ack.recovery
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.backup_enabled
+      op: equals
+- rule_id: alicloud.ack.recovery.point_retention
+  for_each: alicloud.ack.recovery
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.registry.image_scan_on_push_enabled
+  for_each: alicloud.ack.registry
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ack.registry.repository_encryption_enabled
+  for_each: alicloud.ack.registry
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.registry_lifecycle_policy.lifecycle_policy_policy_storage_encrypted
+  for_each: alicloud.ack.registry_lifecycle_policy
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.reportplans.exist
+  for_each: alicloud.ack.reportplans
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.repository.vulnerability_scanning_continuous
+  for_each: alicloud.artifacts.ListRepository
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ack.scheduler.authentication_kubeconfig_configured
+  for_each: alicloud.emr.DescribeClusterResourcePoolSchedulerType
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ack.scheduler.authorization_kubeconfig_configured
+  for_each: alicloud.emr.DescribeClusterResourcePoolSchedulerType
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ack.scheduler.secure_port_tls_enabled
+  for_each: alicloud.emr.DescribeClusterResourcePoolSchedulerType
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.serverless.fargate_profile_execution_role_least_privilege
+  for_each: alicloud.ack.serverless
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.serverless.fargate_profile_logging_enabled
+  for_each: alicloud.ack.serverless
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.serverless.fargate_profile_private_subnets_only
+  for_each: alicloud.ack.serverless
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ack.service.task_definition_logging_enabled
+  for_each: alicloud.ack.log_service
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.service_account.cluster_audit_logging_enabled
+  for_each: alicloud.ack.service_account
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.service_account.cluster_default_service_account_automount_disabled
+  for_each: alicloud.ack.service_account
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.service_account.cluster_private_control_plane_endpoint_enabled
+  for_each: alicloud.ack.service_account
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ack.service_account.cluster_secrets_encryption_kms_enabled
+  for_each: alicloud.ack.service_account
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.service_account.default_no_token_no_roles_enforced
+  for_each: alicloud.ack.service_account
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.service_account.external_ips_not_used
+  for_each: alicloud.ack.service_account
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ack.service_account.keys_not_used_or_rotated_90_days_or_less
+  for_each: alicloud.ack.service_account
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ack.service_account.no_user_managed_long_lived_keys
+  for_each: alicloud.ack.service_account
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.ack.service_account.scopes_or_roles_least_privilege
+  for_each: alicloud.ack.service_account
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.service_account.token_auto_mount_disabled
+  for_each: alicloud.ack.service_account
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.service_account.type_loadbalancer_internal_only_where_required
+  for_each: alicloud.ack.service_account
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ack.vault.encryption_enabled
+  for_each: alicloud.ack.vault
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.vaults.encrypted
+  for_each: alicloud.ack.vaults
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.backup_enabled
+      op: equals
+- rule_id: alicloud.ack.vaults.exist
+  for_each: alicloud.ack.vaults
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.workload.balancer_https_tls_encryption_in_transit
+  for_each: alicloud.ack.workload
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.ack.workload.env_no_plaintext_secrets
+  for_each: alicloud.ack.workload
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.workload.host_network_pid_ipc_disabled
+  for_each: alicloud.ack.workload
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.ack.workload.no_hostpath_mounts
+  for_each: alicloud.ack.workload
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.workload.no_privileged_containers
+  for_each: alicloud.ack.workload
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.ack.workload.run_as_non_root
+  for_each: alicloud.ack.workload
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'

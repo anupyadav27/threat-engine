@@ -1,0 +1,80 @@
+rule_id: k8s.job.audit.create_kube_system
+service: job
+provider: k8s
+check_type: log
+severity: high
+title: 'Job: Created in kube-system Namespace'
+description: Kubernetes Job created in kube-system namespace — ad-hoc batch workload executed in sensitive system namespace; may be used for reconnaissance or cleanup.
+rationale: 'Adversaries deploy containers into environments using Docker APIs or Kubernetes control planes to facilitate execution or evade defenses by running malicious images outside standard deployment processes. Deployed containers can host C2 infrastructure, cryptomining workloads, or data exfiltration tools. Detected via: container create + start by non-admin principals, images not on an allowlist or using ''latest'' tag, privileged mode or host namespace mount at runtime, and unauthenticated Docker API access.'
+threat_category: execution
+mitre_tactics:
+- execution
+mitre_techniques:
+- T1610
+risk_score: 78
+resource: k8s_job
+source: default
+is_active: true
+domain: compute_and_workload_security
+action_category: execute
+posture_category: workload_posture
+threat_tags:
+- T1610
+- remote_execution
+- cloud_exec
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: execution
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_k8s_v1:
+  - 5.2.1
+  - 5.2.2
+  - 5.2.3
+  nist_800_53_r5:
+  - CM-7
+  - SI-3
+  - SI-4
+  pci_dss_v4:
+  - 6.3
+  - 6.4
+  iso_27001_2022:
+  - A.8.19
+  - A.8.20
+detection_events:
+- pods/create (Kubernetes audit)
+- 'containers:create via Docker API'
+- 'aks:CreatePod by non-CI/CD principal'
+- Admission controller deny events (missing context = bypass attempt)
+remediation: |
+  1. Audit the created pod or container for malicious images or startup commands.
+  2. Enforce Binary Authorization or Cosign image signing via admission webhooks.
+  3. Apply Pod Security Standards (Restricted profile) to prevent privileged execution.
+  4. Restrict pod creation to specific service accounts in production namespaces.
+  5. Enable runtime threat detection (Falco, Tetragon) for anomalous container behavior.
+references:
+- https://attack.mitre.org/techniques/T1610/
+- https://kubernetes.io/docs/concepts/security/pod-security-admission/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: k8s_audit
+    - field: resource
+      op: equals
+      value: jobs
+    - field: verb
+      op: equals
+      value: create
+    - field: namespace
+      op: equals
+      value: kube-system
+version: '1.0'

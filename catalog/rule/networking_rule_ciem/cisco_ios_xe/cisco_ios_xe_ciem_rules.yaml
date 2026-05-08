@@ -1,0 +1,417 @@
+# CISCO_IOS_XE — CIEM Detection Rules
+# Real-time authentication & access event analysis
+# Log source: syslog, SNMP trap
+
+tech_type: cisco_ios_xe
+category: networking
+log_source: syslog, SNMP trap
+
+rules:
+
+  - rule_id: tciem.cisco_ios_xe.enable_aaa_new_model
+    title: "Enable 'aaa new-model'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.1.1'
+    cis_section: '1'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Globally enable authentication, authorization and accounting (AAA) using the
+      new- model command. hostname(config)#aaa new-model Default Value: AAA is not
+      enabled. References: 1. http://www.cisco.com/en/US/docs/ios-
+      xml/ios/security/a1/sec-cr-a2.html#GUID- E05C2E00-C01E-4053-9D12-EC37C7E8EEC5
+      Additional Information: this is a cosmetic change: adjusting regex to match
+      'aaa new-model' and nothing from line which follows next.
+
+  - rule_id: tciem.cisco_ios_xe.enable_aaa_authentication_login
+    title: "Enable 'aaa authentication login'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.1.2'
+    cis_section: '1'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Configure AAA authentication method(s) for login authentication.
+      hostname(config)#aaa authentication login {default | aaa_list_name} [passwd-
+      expiry] [method1] [method2] Default Value: AAA authentication at login is
+      disabled. References: 1. http://www.cisco.com/en/US/docs/ios-
+      xml/ios/security/a1/sec-cr-a1.html#GUID- 3DB1CC8A-4A98-400B-A906-C42F265C7EA2
+      Additional Information: Only “the default method list is automatically applied
+      to all interfaces except those that have a named method list explicitly
+      defined. A defined method list overrides the default method list.” (1)
+
+  - rule_id: tciem.cisco_ios_xe.enable_aaa_authentication_enable_default
+    title: "Enable 'aaa authentication enable default'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '1.1.3'
+    cis_section: '1'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Configure AAA authentication method(s) for enable authentication.
+      hostname(config)#aaa authentication enable default {method1} enable Default
+      Value: By default, fallback to the local database is disabled. References: 1.
+      http://www.cisco.com/en/US/docs/ios-xml/ios/security/a1/sec-cr-a1.html#GUID-
+      4171D649-2973-4707-95F3-9D96971893D0
+
+  - rule_id: tciem.cisco_ios_xe.set_login_authentication_for_line_vty
+    title: "Set 'login authentication for 'line vty'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.1.4'
+    cis_section: '1'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Configure management lines to require login using the default or a named AAA
+      authentication list. This configuration must be set individually for all line
+      types. hostname(config)#line vty {line-number} [<em>ending-line-number]
+      hostname(config-line)#login authentication {default | aaa_list_name} Default
+      Value: Login authentication is not enabled. Uses the default set with aaa
+      authentication login. References: 1. http://www.cisco.com/en/US/docs/ios-
+      xml/ios/security/d1/sec-cr-k1.html#GUID- 297BDF33-4841-441C-83F3-4DA51C3C7284
+
+  - rule_id: tciem.cisco_ios_xe.set_login_authentication_for_ip_http
+    title: "Set 'login authentication for 'ip http'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.1.5'
+    cis_section: '1'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Configure management lines to require login using the default or a named AAA
+      authentication list. This configuration must be set individually for all line
+      types. hostname#(config)ip http secure-server hostname#(config)ip http
+      authentication {default | _aaa\_list\_name_} Default Value: Login
+      authentication is not enabled. Uses the default set with aaa authentication
+      login. References: 1. http://www.cisco.com/en/US/docs/ios-
+      xml/ios/security/d1/sec-cr-k1.html#GUID- 297BDF33-4841-441C-83F3-4DA51C3C7284
+      Additional Information: This control is usefull if http or https server is
+      enabled, which involves global config contains a line starting with 'ip http
+      server' or 'ip http secure-server'. Then, look for ('no ip http server' and
+      'no ip http secure-server') or 'ip http authentication ' config lines
+
+  - rule_id: tciem.cisco_ios_xe.set_aaa_accounting_to_log_all_privileged_use
+    title: "Set 'aaa accounting' to log all privileged use commands using 'commands 15'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '1.1.6'
+    cis_section: '1'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Configure AAA accounting for commands. hostname(config)#aaa accounting
+      commands 15 {default | list-name | guarantee- first} {start-stop | stop-only |
+      none} {radius | group group-name} Default Value: AAA accounting is disabled.
+      Additional Information: Valid privilege level entries are integers from 0
+      through 15.
+
+  - rule_id: tciem.cisco_ios_xe.set_aaa_accounting_connection
+    title: "Set 'aaa accounting connection'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.1.7'
+    cis_section: '1'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Configure AAA accounting for connections. hostname(config)#aaa accounting
+      connection {default | list-name | guarantee- first} {start-stop | stop-only |
+      none} {radius | group group-name} Default Value: AAA accounting is not
+      enabled. References: 1. http://www.cisco.com/en/US/docs/ios-
+      xml/ios/security/a1/sec-cr-a1.html#GUID- 0520BCEF-89FB-4505-A5DF-D7F1389F1BBA
+
+  - rule_id: tciem.cisco_ios_xe.set_access_class_for_line_vty
+    title: "Set 'access-class' for 'line vty'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.2.5'
+    cis_section: '1'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Configure remote management access control restrictions for all VTY lines.
+      hostname(config)#line vty <line-number> <ending-line-number> hostname(config-
+      line)# access-class <vty_acl_number> in References: 1.
+      http://www.cisco.com/en/US/docs/ios-xml/ios/security/a1/sec-cr-a2.html#GUID-
+      FB9BC58A-F00A-442A-8028-1E9E260E54D3
+
+  - rule_id: tciem.cisco_ios_xe.set_http_secure_server_limit
+    title: "Set 'http Secure-server' limit"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.2.9'
+    cis_section: '1'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      hostname(config)#ip http max-connections 2 References: 1. NIST SP 800-53 ::
+      AC-10 2.
+      https://www.tenable.com/audits/items/DISA_STIG_Cisco_IOS_XE_Switch_NDM
+      _v2r1.audit:392b7a414732407810fa9d87c5a0d581 Additional Information: limiting
+      http max connections is useful only if http server or http secure-server, at
+      least one, is enable. if HTTP server is disabled (Artifact #2 'HTTP server is
+      disabled') and HTTPS server is disabled (Artifact #3 'HTTPS server is
+      disabled'), then this control is passed, otherwise it needs to limit
+      connections to a maximum of 2 (Artifact #1 'Max http secure-server limit').
+      Adjusting the regex from '^\s ip\s+http\s+max-connections\s+0-2?$' to '^\s
+      ip\s+http\s+max-connections\s+[0-2]\s*$'
+
+  - rule_id: tciem.cisco_ios_xe.set_the_banner_text_for_banner_exec
+    title: "Set the 'banner-text' for 'banner exec'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.3.1'
+    cis_section: '1'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Configure the EXEC banner presented to a user when accessing the devices
+      enable prompt. hostname(config)#banner exec c Enter TEXT message. End with the
+      character 'c'. <banner-text> c Default Value: No banner is set by default
+      References: 1. http://www.cisco.com/en/US/docs/ios-
+      xml/ios/fundamentals/command/A_through_B.html#GUID-0DEF5B57-A7D9-
+      4912-861F-E837C82A3881 Additional Information: The default is no banner.
+
+  - rule_id: tciem.cisco_ios_xe.set_the_banner_text_for_banner_login
+    title: "Set the 'banner-text' for 'banner login'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.3.2'
+    cis_section: '1'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Configure the device so a login banner presented to a user attempting to
+      access the device. hostname(config)#banner login c Enter TEXT message. End
+      with the character 'c'. <banner-text> c Default Value: No banner is set by
+      default References: 1. http://www.cisco.com/en/US/docs/ios-
+      xml/ios/fundamentals/command/A_through_B.html#GUID-FF0B6890-85B8-
+      4B6A-90DD-1B7140C5D22F
+
+  - rule_id: tciem.cisco_ios_xe.set_the_banner_text_for_banner_motd
+    title: "Set the 'banner-text' for 'banner motd'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.3.3'
+    cis_section: '1'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Configure the message of the day (MOTD) banner presented when a user first
+      connects to the device. hostname(config)#banner motd c Enter TEXT message. End
+      with the character 'c'. <banner-text> c Default Value: No banner is set by
+      default References: 1. http://www.cisco.com/en/US/docs/ios-
+      xml/ios/fundamentals/command/A_through_B.html#GUID-7416C789-9561- 44FC-
+      BB2A-D8D8AFFB77DD
+
+  - rule_id: tciem.cisco_ios_xe.set_the_banner_text_for_webauth_banner
+    title: "Set the 'banner-text' for 'webauth banner'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.3.4'
+    cis_section: '1'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Configure the webauth banner presented when a user connects to the device.
+      hostname(config)#ip admission auth-proxy-banner http {banner-text | filepath}
+      Default Value: No banner is set by default References: 1.
+      https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9500/software/releas
+      e/16-
+      9/configuration_guide/sec/b_169_sec_9500_cg/configuring_web_based_authenti
+      cation.html Additional Information: Set the 'banner-text' for 'webauth banner'
+      is useful only if http server or http secure- server, at least one, is
+      enabled. if HTTP server is disabled (Artifact #1 'HTTP server is disabled')
+      and HTTPS server is disabled (Artifact #2 'HTTPS server is disabled'), then
+      this control is passed, otherwise 'ip admission auth-proxy-banner http' must
+      exist (Artifact #3 'check for ip admission auth-proxy-banner http').
+
+  - rule_id: tciem.cisco_ios_xe.unset_private_for_snmp_server_community
+    title: "Unset 'private' for 'snmp-server community'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.5.2'
+    cis_section: '1'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Disable the default SNMP community string private hostname(config)#no snmp-
+      server community {private} References: 1. http://www.cisco.com/en/US/docs/ios-
+      xml/ios/snmp/command/nm-snmp-cr-
+      s2.html#GUID-2F3F13E4-EE81-4590-871D-6AE1043473DE
+
+  - rule_id: tciem.cisco_ios_xe.unset_public_for_snmp_server_community
+    title: "Unset 'public' for 'snmp-server community'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.5.3'
+    cis_section: '1'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Disable the default SNMP community string 'public' hostname(config)#no snmp-
+      server community {public} References: 1. http://www.cisco.com/en/US/docs/ios-
+      xml/ios/snmp/command/nm-snmp-cr-
+      s2.html#GUID-2F3F13E4-EE81-4590-871D-6AE1043473DE
+
+  - rule_id: tciem.cisco_ios_xe.set_seconds_for_ip_ssh_timeout_for_60_seconds_or
+    title: "Set 'seconds' for 'ip ssh timeout' for 60 seconds or less"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.1.1.1.4'
+    cis_section: '2'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Configure the SSH timeout hostname(config)#ip ssh time-out [<em>60</em>]
+      Default Value: SSH in not enabled by default. References: 1.
+      http://www.cisco.com/en/US/docs/ios-xml/ios/security/d1/sec-cr-i3.html#GUID-
+      5BAC7A2B-0A25-400F-AEE9-C22AE08513C6 Additional Information: This cannot
+      exceed 120 seconds. Adjusting Artifact's title and regex from 'timeout' to
+      'time-out'
+
+  - rule_id: tciem.cisco_ios_xe.set_maximum_value_for_ip_ssh_authentication
+    title: "Set maximum value for 'ip ssh authentication-retries'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.1.1.1.5'
+    cis_section: '2'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Configure the SSH timeout: 3 or less hostname(config)#ip ssh authentication-
+      retries [<em>3</em>] Default Value: SSH is not enabled by default. When set,
+      the default value is 3. When set using the default value it will not display
+      under a show running-configuration. References: 1.
+      http://www.cisco.com/en/US/docs/ios-xml/ios/security/d1/sec-cr-i3.html#GUID-
+      5BAC7A2B-0A25-400F-AEE9-C22AE08513C6
+
+  - rule_id: tciem.cisco_ios_xe.set_login_success_failure_logging
+    title: "Set 'login success/failure logging'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.2.8'
+    cis_section: '2'
+    log_source: "syslog, SNMP trap"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      hostname(config)#login on-failure log hostname(config)#login on-success log
+      hostname(config)#end References: 1. https://www.cisco.com/c/en/us/td/docs/ios-
+      xml/ios/config-mgmt/configuration/xe- 16-6/config-mgmt-xe-16-6-book/cm-config-
+      logger.pdf
+

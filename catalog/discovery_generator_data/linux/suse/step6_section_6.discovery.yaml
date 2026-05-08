@@ -1,0 +1,504 @@
+version: '1.0'
+provider: linux
+engine: suse
+category: section_6
+cis_section: '6'
+description: >
+  suse CIS Section 6 — AIDE is installed
+
+discovery:
+
+  - discovery_id: suse.section_6.aide_is_installed
+    description: Ensure AIDE is installed
+    calls:
+      - action: run_command
+        command: "Run the following command and verify aide is installed: # rpm -q aide aide-\u003cversion\u003e"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: aide_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.filesystem_integrity_is_regularly_checked
+    description: Ensure filesystem integrity is regularly checked
+    calls:
+      - action: run_command
+        command: "Run the following commands to verify a cron job scheduled to run the aide check. # grep -Ers \u0027^([^#]+\\s+)?(\\/usr\\/s?bin\\/|^\\s*)aide(\\.wrapper)?\\s(--?\\S+\\s)*(- -(check|update)|\\$AIDEARGS)\\b\u0027 /etc/cron.* /etc/crontab /var/spool/cron/ Ensure a cron job in compliance with site policy is returned. - OR - Run the following commands to verify that aidecheck.service and aidecheck.timer are enabled and aidcheck.timer is running # systemctl is-enabled aidecheck.service # systemctl is-enabled aidecheck.timer # systemctl status aidecheck.timer"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: filesystem_integrity_is_regularly_checked
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.journald_service_is_enabled_and_active
+    description: Ensure journald service is enabled and active
+    calls:
+      - action: run_command
+        command: "Run the following command to verify systemd-journald is enabled: # systemctl is-enabled systemd-journald.service static Note: By default the systemd-journald service does not have an [Install] section and thus cannot be enabled / disabled. It is meant to be referenced as Requires or Wants by other unit files. As such, if the status of systemd-journald is not static, investigate why Run the following command to verify systemd-journald is active: # systemctl is-active systemd-journald.service active"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: journald_service_is_enabled_and_active
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.only_one_logging_system_is_in_use
+    description: Ensure only one logging system is in use
+    calls:
+      - action: run_command
+        command: "Run the following script to ensure only one logging system is in use: #!/usr/bin/env bash { l_output=\u0027\u0027 l_output2=\u0027\u0027 # Check the status of rsyslog and journald if systemctl is-active --quiet rsyslog; then l_output=\u0027$l_output\\n - rsyslog is in use\\n- follow the recommendations in Configure rsyslog subsection only\u0027 elif systemctl is-active --quiet systemd-journald; then l_output=\u0027$l_output\\n - journald is in use\\n- follow the recommendations in Configure journald subsection only\u0027 else echo -e \u201cunable to determine system logging\u201d l_output2=\u0027$l_output2\\n - unable to determine system logging\\n- Configure only ONE system logging: rsyslog OR journald\u0027 fi if [ -z \u0027$l_output2\u0027 ]; then # Provide audit results echo -e \u0027\\n- Audit Result:\\n ** PASS **\\n$l_output\\n\u0027 else echo -e \u0027\\n- Audit Result:\\n ** FAIL **\\n - Reason(s) for audit failure:\\n$l_output2\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: only_one_logging_system_is_in_use
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.systemd_journal_remote_is_installed
+    description: Ensure systemd-journal-remote is installed
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: systemd_journal_remote_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.systemd_journal_upload_is_enabled_and_active
+    description: Ensure systemd-journal-upload is enabled and active
+    calls:
+      - action: run_command
+        command: "Run the following command to verify systemd-journal-upload is enabled. # systemctl is-enabled systemd-journal-upload.service enabled Run the following command to verify systemd-journal-upload is active: # systemctl is-active systemd-journal-upload.service active"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: systemd_journal_upload_is_enabled_and_active
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.systemd_journal_remote_service_is_not_in_use
+    description: Ensure systemd-journal-remote service is not in use
+    calls:
+      - action: run_command
+        command: "Run the following command to verify systemd-journal-remote.socket and systemd- journal-remote.service are not enabled: # systemctl is-enabled systemd-journal-remote.socket systemd-journal- remote.service | grep -P -- \u0027^enabled\u0027 Nothing should be returned Run the following command to verify systemd-journal-remote.socket and systemd- journal-remote.service are not active: # systemctl is-active systemd-journal-remote.socket systemd-journal- remote.service | grep -P -- \u0027^active\u0027 Nothing should be returned"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: systemd_journal_remote_service_is_not_in_use
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.journald_forwardtosyslog_is_disabled
+    description: Ensure journald ForwardToSyslog is disabled
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: journald_forwardtosyslog_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.journald_compress_is_configured
+    description: Ensure journald Compress is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify Compress is set to yes: # systemd-analyze cat-config systemd/journald.conf systemd/journald.conf.d/* | grep -E \u0027^Compress=yes\u0027 Compress=yes"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: journald_compress_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.journald_storage_is_configured
+    description: Ensure journald Storage is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify Storage is set to persistent: # systemd-analyze cat-config systemd/journald.conf systemd/journald.conf.d/* | grep -E \u0027^Storage=persistent\u0027 Storage=persistent"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: journald_storage_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.rsyslog_is_not_configured_to_receive_logs_from_a
+    description: Ensure rsyslog is not configured to receive logs from a remote client
+    calls:
+      - action: run_command
+        command: "Review the /etc/rsyslog.conf and /etc/rsyslog.d/*.conf files and verify that the system is not configured to accept incoming logs. advanced format # grep -Psi -- \u0027^\\h*module\\(load=\\\u0027?imtcp\\\u0027?\\)\u0027 /etc/rsyslog.conf /etc/rsyslog.d/*.conf # grep -Psi -- \u0027^\\h*input\\(type=\\\u0027?imtcp\\\u0027?\\b\u0027 /etc/rsyslog.conf /etc/rsyslog.d/*.conf Nothing should be returned obsolete legacy format # grep -Psi -- \u0027^\\h*\\$ModLoad\\h+imtcp\\b\u0027 /etc/rsyslog.conf /etc/rsyslog.d/*.conf # grep -Psi -- \u0027^\\h*\\$InputTCPServerRun\\b\u0027 /etc/rsyslog.conf /etc/rsyslog.d/*.conf Nothing should be returned"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: rsyslog_is_not_configured_to_receive_logs_from_a
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.rsyslog_is_installed
+    description: Ensure rsyslog is installed
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: rsyslog_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.rsyslog_service_is_enabled_and_active
+    description: Ensure rsyslog service is enabled and active
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: rsyslog_service_is_enabled_and_active
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.journald_is_configured_to_send_logs_to_rsyslog
+    description: Ensure journald is configured to send logs to rsyslog
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: journald_is_configured_to_send_logs_to_rsyslog
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.rsyslog_log_file_creation_mode_is_configured
+    description: Ensure rsyslog log file creation mode is configured
+    calls:
+      - action: run_command
+        command: "Run the following command Run the following command to verify $FileCreateMode: # grep -Ps \u0027^\\h*\\$FileCreateMode\\h+0[0,2,4,6][0,2,4]0\\b\u0027 /etc/rsyslog.conf /etc/rsyslog.d/*.conf Verify the output is includes 0640 or more restrictive: $FileCreateMode 0640 Should a site policy dictate less restrictive permissions, ensure to follow said policy. Note: More restrictive permissions such as 0600 is implicitly sufficient."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: rsyslog_log_file_creation_mode_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.file_deletion_events_by_users_are_collected
+    description: Ensure file deletion events by users are collected
+    calls:
+      - action: run_command
+        command: "On disk configuration Run the following command to check the on disk rules: # { UID_MIN=$(awk \u0027/^\\s*UID_MIN/{print $2}\u0027 /etc/login.defs) [ -n \u0027${UID_MIN}\u0027 ] \u0026\u0026 awk \u0027/^ *-a *always,exit/ \\ \u0026\u0026/ -F *arch=b(32|64)/ \\ \u0026\u0026(/ -F *auid!=unset/||/ -F *auid!=-1/||/ -F *auid!=4294967295/) \\ \u0026\u0026/ -F *auid\u003e=${UID_MIN}/ \\ \u0026\u0026/ -S/ \\ \u0026\u0026(/unlink/||/rename/||/unlinkat/||/renameat/) \\ \u0026\u0026(/ key= *[!-~]* *$/||/ -k *[!-~]* *$/)\u0027 /etc/audit/rules.d/*.rules \\ || printf \u0027ERROR: Variable \u0027UID_MIN\u0027 is unset.\\n\u0027 } Verify the output matches: -a always,exit -F arch=b64 -S unlink,unlinkat,rename,renameat -F auid\u003e=1000 - F auid!=unset -k delete -a always,exit -F arch=b32 -S unlink,unlinkat,rename,renameat -F auid\u003e=1000 - F auid!=unset -k delete Running configuration Run the following command to check loaded rules: # { UID_MIN=$(awk \u0027/^\\s*UID_MIN/{print $2}\u0027 /etc/login.defs) [ -n \u0027${UID_MIN}\u0027 ] \u0026\u0026 auditctl -l | awk \u0027/^ *-a *always,exit/ \\ \u0026\u0026/ -F *arch=b(32|64)/ \\ \u0026\u0026(/ -F *auid!=unset/||/ -F *auid!=-1/||/ -F *auid!=4294967295/) \\ \u0026\u0026/ -F *auid\u003e=${UID_MIN}/ \\ \u0026\u0026/ -S/ \\ \u0026\u0026(/unlink/||/rename/||/unlinkat/||/renameat/) \\ \u0026\u0026(/ key= *[!-~]* *$/||/ -k *[!-~]* *$/)\u0027 \\ || printf \u0027ERROR: Variable \u0027UID_MIN\u0027 is unset.\\n\u0027 } Verify the output matches: -a always,exit -F arch=b64 -S rename,unlink,unlinkat,renameat -F auid\u003e=1000 - F auid!=-1 -F key=delete -a always,exit -F arch=b32 -S unlink,rename,unlinkat,renameat -F auid\u003e=1000 - F auid!=-1 -F key=delete"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: file_deletion_events_by_users_are_collected
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.permissions_on_etc_passwd_are_configured
+    description: Ensure permissions on /etc/passwd are configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify Uid and Gid are both 0/root and Access is 644 or more restrictive: # stat /etc/passwd Access: (0644/-rw-r--r--) Uid: ( 0/ root) Gid: ( 0/ root)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: permissions_on_etc_passwd_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.permissions_on_etc_shadow_are_configured
+    description: Ensure permissions on /etc/shadow are configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify Uid is 0/root, Gid is 0/root or \u003cgid\u003e /shadow, and Access is 0640 or more restrictive: # stat /etc/shadow Access: (0640/-rw-r-----) Uid: ( 0/ root) Gid: ( 15/ shadow)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: permissions_on_etc_shadow_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.no_unowned_files_or_directories_exist
+    description: Ensure no unowned files or directories exist
+    calls:
+      - action: run_command
+        command: "Run the following command and verify no files are returned: # df --local -P | awk {\u0027if (NR!=1) print $6\u0027} | xargs -I \u0027{}\u0027 find \u0027{}\u0027 -xdev -nouser The command above only searches local filesystems, there may still be compromised items on network mounted partitions. Additionally the --local option to df is not universal to all versions, it can be omitted to search all filesystems on a system including network mounted filesystems or the following command can be run manually for each partition: # find \u003cpartition\u003e -xdev -nouser"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: no_unowned_files_or_directories_exist
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.no_ungrouped_files_or_directories_exist
+    description: Ensure no ungrouped files or directories exist
+    calls:
+      - action: run_command
+        command: "Run the following command and verify no files are returned: # df --local -P | awk \u0027{if (NR!=1) print $6}\u0027 | xargs -I \u0027{}\u0027 find \u0027{}\u0027 -xdev -nogroup The command above only searches local filesystems, there may still be compromised items on network mounted partitions. Additionally the --local option to df is not universal to all versions, it can be omitted to search all filesystems on a system including network mounted filesystems or the following command can be run manually for each partition: # find \u003cpartition\u003e -xdev -nogroup"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: no_ungrouped_files_or_directories_exist
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.accounts_in_etc_passwd_use_shadowed_passwords
+    description: Ensure accounts in /etc/passwd use shadowed passwords
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that no output is returned: # awk -F: \u0027($2 != \u0027x\u0027 ) { print $1 \u0027 is not set to shadowed passwords \u0027}\u0027 /etc/passwd"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: accounts_in_etc_passwd_use_shadowed_passwords
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.etc_shadow_password_fields_are_not_empty
+    description: Ensure /etc/shadow password fields are not empty
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that no output is returned: # awk -F: \u0027($2 == \u0027\u0027 ) { print $1 \u0027 does not have a password \u0027}\u0027 /etc/shadow"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: etc_shadow_password_fields_are_not_empty
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.root_path_integrity
+    description: Ensure root PATH Integrity
+    calls:
+      - action: run_command
+        command: "Run the following script and verify no results are returned: #!/bin/bash if echo \u0027$PATH\u0027 | grep -q \u0027::\u0027 ; then echo \u0027Empty Directory in PATH (::)\u0027 fi if echo \u0027$PATH\u0027 | grep -q \u0027:$\u0027 ; then echo \u0027Trailing : in PATH\u0027 fi for x in $(echo \u0027$PATH\u0027 | tr \u0027:\u0027 \u0027 \u0027) ; do if [ -d \u0027$x\u0027 ] ; then ls -ldH \u0027$x\u0027 | awk \u0027 $9 == \u0027.\u0027 {print \u0027PATH contains current working directory (.)\u0027} $3 != \u0027root\u0027 {print $9, \u0027is not owned by root\u0027} substr($1,6,1) != \u0027-\u0027 {print $9, \u0027is group writable\u0027} substr($1,9,1) != \u0027-\u0027 {print $9, \u0027is world writable\u0027}\u0027 else echo \u0027$x is not a directory\u0027 fi done"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: root_path_integrity
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.all_users_home_directories_exist
+    description: Ensure all users' home directories exist
+    calls:
+      - action: run_command
+        command: "Run the following script and verify no results are returned: #!/bin/bash grep -E -v \u0027^(halt|sync|shutdown)\u0027 /etc/passwd | awk -F: \u0027($7 != \u0027\u0027\u0027$(which nologin)\u0027\u0027\u0027 \u0026\u0026 $7 != \u0027/bin/false\u0027) { print $1 \u0027 \u0027 $6 }\u0027 | while read -r user dir; do if [ ! -d \u0027$dir\u0027 ]; then echo \u0027The home directory ($dir) of user $user does not exist.\u0027 fi done Note: The audit script checks all users with interactive shells except halt, sync, shutdown, and nfsnobody."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: all_users_home_directories_exist
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.users_home_directories_permissions_are_750_or
+    description: Ensure users' home directories permissions are 750 or more restrictive
+    calls:
+      - action: run_command
+        command: "Run the following script and verify no results are returned: #!/bin/bash grep -E -v \u0027^(halt|sync|shutdown)\u0027 /etc/passwd | awk -F: \u0027($7 != \u0027\u0027\u0027$(which nologin)\u0027\u0027\u0027 \u0026\u0026 $7 != \u0027/bin/false\u0027) { print $1 \u0027 \u0027 $6 }\u0027 | while read user dir; do if [ ! -d \u0027$dir\u0027 ]; then echo \u0027The home directory ($dir) of user $user does not exist.\u0027 else dirperm=$(ls -ld $dir | cut -f1 -d\u0027 \u0027) if [ $(echo $dirperm | cut -c6) != \u0027-\u0027 ]; then echo \u0027Group Write permission set on the home directory ($dir) of user $user\u0027 fi if [ $(echo $dirperm | cut -c8) != \u0027-\u0027 ]; then echo \u0027Other Read permission set on the home directory ($dir) of user $user\u0027 fi if [ $(echo $dirperm | cut -c9) != \u0027-\u0027 ]; then echo \u0027Other Write permission set on the home directory ($dir) of user $user\u0027 fi if [ $(echo $dirperm | cut -c10) != \u0027-\u0027 ]; then echo \u0027Other Execute permission set on the home directory ($dir) of user $user\u0027 fi fi done"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: users_home_directories_permissions_are_750_or
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.users_own_their_home_directories
+    description: Ensure users own their home directories
+    calls:
+      - action: run_command
+        command: "Run the following script and verify no results are returned: #!/usr/bin/env bash UHOC() { for i in $( awk -F: \u0027($1!~/(halt|sync|shutdown|nfsnobody)/ \u0026\u0026 $7!~/^(\\/usr)?\\/sbin\\/nologin(\\/)?$/ \u0026\u0026 $7!~/(\\/usr)?\\/bin\\/false(\\/)?$/) {print $1\u0027:\u0027$6}\u0027 /etc/passwd); do user=$(echo \u0027$i\u0027 | cut -d: -f1) dir=$(echo \u0027$i\u0027 | cut -d: -f2) if [ ! -d \u0027$dir\u0027 ]; then [ -z \u0027$output2\u0027 ] \u0026\u0026 output2=\u0027The following users\u0027 home directories don\u0027t exist: \\\u0027$user\\\u0027\u0027 || output2=\u0027$output2, \\\u0027$user\\\u0027\u0027 else owner=\u0027$(stat -L -c \u0027%U\u0027 \u0027$dir\u0027)\u0027 if [ \u0027$owner\u0027 != \u0027$user\u0027 ] \u0026\u0026 [ \u0027$owner\u0027 != \u0027root\u0027 ]; then [ -z \u0027$output\u0027 ] \u0026\u0026 output=\u0027The following users\u0027 don\u0027t own their home directory: \\\u0027$user\\\u0027 home directory is owned by \\\u0027$owner\\\u0027\u0027 || output=\u0027$output, \\\u0027$user\\\u0027 home directory is owned by \\\u0027$owner\\\u0027\u0027 fi fi done } UHOC"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: users_own_their_home_directories
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.users_dot_files_are_not_group_or_world_writable
+    description: Ensure users' dot files are not group or world writable
+    calls:
+      - action: run_command
+        command: "Run the following script and verify no results are returned: #!/bin/bash grep -E -v \u0027^(halt|sync|shutdown)\u0027 /etc/passwd | awk -F: \u0027($7 != \u0027\u0027\u0027$(which nologin)\u0027\u0027\u0027 \u0026\u0026 $7 != \u0027/bin/false\u0027) { print $1 \u0027 \u0027 $6 }\u0027 | while read user dir; do if [ ! -d \u0027$dir\u0027 ]; then echo \u0027The home directory ($dir) of user $user does not exist.\u0027 else for file in $dir/.[A-Za-z0-9]*; do if [ ! -h \u0027$file\u0027 -a -f \u0027$file\u0027 ]; then fileperm=$(ls -ld $file | cut -f1 -d\u0027 \u0027) if [ $(echo $fileperm | cut -c6) != \u0027-\u0027 ]; then echo \u0027Group Write permission set on file $file\u0027 fi if [ $(echo $fileperm | cut -c9) != \u0027-\u0027 ]; then echo \u0027Other Write permission set on file $file\u0027 fi fi done fi done"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: users_dot_files_are_not_group_or_world_writable
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.no_users_have_forward_files
+    description: Ensure no users have .forward files
+    calls:
+      - action: run_command
+        command: "Run the following script and verify no results are returned: #!/bin/bash awk -F: \u0027($1 !~ /^(root|halt|sync|shutdown)$/ \u0026\u0026 $7 != \u0027\u0027\u0027$(which nologin)\u0027\u0027\u0027 \u0026\u0026 $7 != \u0027/bin/false\u0027 \u0026\u0026 $7 != \u0027/usr/bin/false\u0027) { print $1 \u0027 \u0027 $6 }\u0027 /etc/passwd | while read user dir; do if [ ! -d \u0027$dir\u0027 ] ; then echo \u0027The home directory ($dir) of user $user does not exist.\u0027 else if [ ! -h \u0027$dir/.forward\u0027 -a -f \u0027$dir/.forward\u0027 ] ; then echo \u0027.forward file $dir/.forward exists\u0027 fi fi done"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: no_users_have_forward_files
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.no_users_have_netrc_files
+    description: Ensure no users have .netrc files
+    calls:
+      - action: run_command
+        command: "Run the following script and verify no results are returned: #!/bin/bash awk -F: \u0027($1 !~ /^(root|halt|sync|shutdown)$/ \u0026\u0026 $7 != \u0027\u0027\u0027$(which nologin)\u0027\u0027\u0027 \u0026\u0026 $7 != \u0027/bin/false\u0027 \u0026\u0026 $7 != \u0027/usr/bin/false\u0027) { print $1 \u0027 \u0027 $6 }\u0027 /etc/passwd | while read user dir; do if [ ! -d \u0027$dir\u0027 ]; then echo \u0027The home directory ($dir) of user $user does not exist.\u0027 else if [ ! -h \u0027$dir/.netrc\u0027 -a -f \u0027$dir/.netrc\u0027 ]; then echo \u0027.netrc file $dir/.netrc exists\u0027 fi fi done"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: no_users_have_netrc_files
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.no_users_have_rhosts_files
+    description: Ensure no users have .rhosts files
+    calls:
+      - action: run_command
+        command: "Run the following script and verify no results are returned: #!/bin/bash awk -F: \u0027($1 !~ /^(root|halt|sync|shutdown)$/ \u0026\u0026 $7 != \u0027\u0027\u0027$(which nologin)\u0027\u0027\u0027 \u0026\u0026 $7 != \u0027/bin/false\u0027 \u0026\u0026 $7 != \u0027/usr/bin/false\u0027) { print $1 \u0027 \u0027 $6 }\u0027 /etc/passwd | while read user dir; do if [ ! -d \u0027$dir\u0027 ]; then echo \u0027The home directory ($dir) of user $user does not exist.\u0027 else for file in $dir/.rhosts; do if [ ! -h \u0027$file\u0027 -a -e \u0027$file\u0027 ]; then echo \u0027.rhosts file in $dir\u0027 fi done fi done"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: no_users_have_rhosts_files
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.all_groups_in_etc_passwd_exist_in_etc_group
+    description: Ensure all groups in /etc/passwd exist in /etc/group
+    calls:
+      - action: run_command
+        command: "Run the following script and verify no results are returned: #!/bin/bash for i in $(cut -s -d: -f4 /etc/passwd | sort -u ); do grep -q -P \u0027^.*?:[^:]*:$i:\u0027 /etc/group if [ $? -ne 0 ]; then echo \u0027Group $i is referenced by /etc/passwd but does not exist in /etc/group\u0027 fi done"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: all_groups_in_etc_passwd_exist_in_etc_group
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.no_duplicate_uids_exist
+    description: Ensure no duplicate UIDs exist
+    calls:
+      - action: run_command
+        command: "Run the following script and verify no results are returned: #!/bin/bash cut -f3 -d\u0027:\u0027 /etc/passwd | sort -n | uniq -c | while read x ; do [ -z \u0027$x\u0027 ] \u0026\u0026 break set - $x if [ $1 -gt 1 ]; then users=$(awk -F: \u0027($3 == n) { print $1 }\u0027 n=$2 /etc/passwd | xargs) echo \u0027Duplicate UID ($2): $users\u0027 fi done"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: no_duplicate_uids_exist
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.no_duplicate_gids_exist
+    description: Ensure no duplicate GIDs exist
+    calls:
+      - action: run_command
+        command: "Run the following script and verify no results are returned: #!/bin/bash cut -d: -f3 /etc/group | sort | uniq -d | while read x ; do echo \u0027Duplicate GID ($x) in /etc/group\u0027 done"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: no_duplicate_gids_exist
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.no_duplicate_user_names_exist
+    description: Ensure no duplicate user names exist
+    calls:
+      - action: run_command
+        command: "Run the following script and verify no results are returned: #!/bin/bash cut -d: -f1 /etc/passwd | sort | uniq -d | while read x do echo \u0027Duplicate login name ${x} in /etc/passwd\u0027 done"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: no_duplicate_user_names_exist
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.no_duplicate_group_names_exist
+    description: Ensure no duplicate group names exist
+    calls:
+      - action: run_command
+        command: "Run the following script and verify no results are returned: #!/bin/bash cut -d: -f1 /etc/group | sort | uniq -d | while read x do echo \u0027Duplicate group name ${x} in /etc/group\u0027 done"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: no_duplicate_group_names_exist
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.permissions_on_etc_passwd_old_are_configured
+    description: Ensure permissions on /etc/passwd.old are configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify UID and GID are both 0/root and Access is 644 or more restrictive: # stat /etc/passwd.old Access: (0644/-rw-------) Uid: ( 0/ root) Gid: ( 0/ root)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: permissions_on_etc_passwd_old_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.permissions_on_etc_shadow_old_are_configured
+    description: Ensure permissions on /etc/shadow.old are configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify verify UID is 0/root, GID is 0/root or \u003cgid\u003e/shadow, and Access is 640 or more restrictive: # stat /etc/shadow.old Access: (0640/-rw-r-----) Uid: ( 0/ root) Gid: ( 15/ shadow)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: permissions_on_etc_shadow_old_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_6.permissions_on_etc_group_old_are_configured
+    description: Ensure permissions on /etc/group.old are configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify UID and GID are both 0/root and Access is 644 or more restrictive: # stat /etc/group.old Access: (0644/-rw-------) Uid: ( 0/ root) Gid: ( 0/ root)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: permissions_on_etc_group_old_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+

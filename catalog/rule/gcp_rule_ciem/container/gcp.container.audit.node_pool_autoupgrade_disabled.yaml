@@ -1,0 +1,64 @@
+rule_id: gcp.container.audit.node_pool_autoupgrade_disabled
+service: container
+provider: gcp
+check_type: log
+severity: medium
+title: 'GKE: Node Pool Auto-Upgrade Disabled'
+description: Auto-upgrade was disabled for a GKE node pool. Unpatched nodes accumulate CVEs over time.
+rationale: Adversaries abuse container operations to achieve initial access in GCP environments. Detected via Cloud Admin Activity or Data Access audit logs.
+threat_category: initial_access
+mitre_tactics:
+- initial_access
+mitre_techniques:
+- T1190
+risk_score: 60
+resource: gcp_container_node_pool
+source: default
+is_active: true
+domain: container_and_kubernetes_security
+action_category: create
+log_source_type: 
+posture_category: threat_posture
+threat_tags:
+- T1190
+- kubernetes
+- container_security
+risk_indicators:
+  actor_type: service_account_or_workload
+  action_type: write
+  target_type: kubernetes_workload
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: |
+  1. Immediately restore the deleted or modified logging/security configuration.
+  2. Apply Org Policy to prevent log sink deletion: `logging.restrictSinkCreation`.
+  3. Use Cloud Storage Bucket Lock on log export buckets to prevent deletion.
+  4. Configure out-of-band alerting via Pub/Sub → Cloud Functions for audit log changes.
+  5. Enable Security Command Center Premium for threat detection on defense evasion events.
+references:
+- https://attack.mitre.org/techniques/T1190/
+- https://cloud.google.com/logging/docs/audit
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: container.googleapis.com
+    - field: operation
+      op: in
+      value:
+      - google.container.v1.ClusterManager.CreateNodePool
+      - google.container.v1.ClusterManager.UpdateNodePool
+    - field: request.nodePool.management.autoUpgrade
+      op: equals
+      value: false
+version: '1.0'

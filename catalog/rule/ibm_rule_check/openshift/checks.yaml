@@ -1,0 +1,67 @@
+version: '1.0'
+provider: ibm
+service: openshift
+checks:
+- rule_id: ibm.openshift.admission.securitycontextconstraint_check
+  for_each: ibm.openshift.list-securitycontextconstraints
+  severity: MEDIUM
+  conditions:
+    var: item.allowPrivilegedContainer
+    op: is_false
+    value: ''
+- rule_id: ibm.openshift.cdi.access_check
+  for_each: ibm.openshift.list-cdis
+  severity: MEDIUM
+  conditions:
+    var: item.status
+    op: equals
+    value: Deployed
+- rule_id: ibm.openshift.hyperconverged.ksm_configuration_check
+  for_each: ibm.openshift.list-hyperconvergeds
+  severity: MEDIUM
+  conditions:
+    var: item.ksm_configuration
+    op: is_not_null
+    value: ''
+- rule_id: ibm.openshift.image.provenance_registry_sources_configured
+  for_each: ibm.openshift.list-images
+  severity: MEDIUM
+  conditions:
+    var: item.registry_sources
+    op: is_not_null
+    value: ''
+- rule_id: ibm.openshift.networkpolicy.check
+  for_each: ibm.openshift.list-networkpolicies
+  severity: MEDIUM
+  conditions:
+    var: item.name
+    op: is_not_empty
+    value: ''
+- rule_id: ibm.openshift.vlan.configuration_check
+  for_each: ibm.openshift.list-machineconfigs
+  severity: MEDIUM
+  conditions:
+    var: item.name
+    op: is_not_empty
+    value: ''
+- rule_id: ibm.openshift.vm.feature_gate_non_root_enabled
+  for_each: ibm.openshift.list-featuregates
+  severity: MEDIUM
+  conditions:
+    var: item.feature_set
+    op: is_not_empty
+    value: ''
+- rule_id: ibm.openshift.vm.mac_spoof_filtering_enabled
+  for_each: ibm.openshift.list-virtual-machines
+  severity: MEDIUM
+  conditions:
+    var: item.running
+    op: is_true
+    value: ''
+- rule_id: ibm.openshift.vnc.access_restriction_check
+  for_each: ibm.openshift.list-virtual-machines
+  severity: MEDIUM
+  conditions:
+    var: item.running
+    op: is_true
+    value: ''

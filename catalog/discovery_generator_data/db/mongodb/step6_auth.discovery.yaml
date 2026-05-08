@@ -1,0 +1,47 @@
+version: '1.0'
+provider: db
+engine: mongodb
+category: authentication
+cis_section: '3'
+description: MongoDB CIS Section 3 — Authentication
+
+discovery:
+  - discovery_id: db.mongodb.auth.authentication_enabled
+    calls:
+      - action: command
+        command: getCmdLineOpts
+        save_as: result
+    emit:
+      as: item
+      item:
+        setting_name: security.authorization
+        value: "{{ result.parsed.security.authorization }}"
+        expected: enabled
+
+  - discovery_id: db.mongodb.auth.users_without_password
+    calls:
+      - action: query_collection
+        db: admin
+        collection: system.users
+        filter: { "credentials": { "$exists": false } }
+        projection: { "user": 1, "db": 1 }
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        user: "{{ item.user }}"
+        database: "{{ item.db }}"
+
+  - discovery_id: db.mongodb.auth.scram_sha256_enabled
+    calls:
+      - action: command
+        command: getParameter
+        args: { scramSHA256IterationCount: 1 }
+        save_as: result
+    emit:
+      as: item
+      item:
+        setting_name: scramSHA256IterationCount
+        value: "{{ result.scramSHA256IterationCount }}"
+        expected_min: 15000

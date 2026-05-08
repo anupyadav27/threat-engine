@@ -72,24 +72,35 @@ VERDICT_THRESHOLDS: List[Tuple[int, str]] = [
 # ── Attack path category classification (loaded from DB, inline fallback) ────
 # Used when DB lookup fails or for relation types not yet seeded.
 _ATTACK_PATH_CATEGORIES: Dict[str, Optional[str]] = {
+    # ── Exposure ─────────────────────────────────────────────────────────────
     "internet_connected": "exposure", "exposed_through": "exposure",
     "serves_traffic_for": "exposure",
+    # ── Lateral movement ─────────────────────────────────────────────────────
     "connected_to": "lateral_movement", "routes_to": "lateral_movement",
     "allows_traffic_from": "lateral_movement", "attached_to": "lateral_movement",
     "runs_on": "lateral_movement",
+    # ── Privilege escalation ─────────────────────────────────────────────────
     "assumes": "privilege_escalation", "has_policy": "privilege_escalation",
     "grants_access_to": "privilege_escalation", "provides_identity_for": "privilege_escalation",
+    "can_assume": "privilege_escalation",     # alias for assumes
+    "can_access": "privilege_escalation",     # general access grant
+    # ── Data access ──────────────────────────────────────────────────────────
     "stores_data_in": "data_access", "backs_up_to": "data_access",
     "replicates_to": "data_access", "cached_by": "data_access",
+    "stores": "data_access",                  # canonical STORES edge
+    # ── Execution ────────────────────────────────────────────────────────────
     "triggers": "execution", "invokes": "execution", "uses": "execution",
+    # ── Data flow ────────────────────────────────────────────────────────────
     "publishes_to": "data_flow", "subscribes_to": "data_flow",
     "resolves_to": "data_flow",
-    # Not attack paths → None
+    # ── Association edges (NOT attack paths) — stored for context only ───────
     "contained_by": None, "controlled_by": None, "encrypted_by": None,
     "logging_enabled_to": None, "monitored_by": None, "member_of": None,
     "scales_with": None, "manages": None, "deployed_by": None,
     "depends_on": None, "authenticated_by": None, "protected_by": None,
     "scanned_by": None, "complies_with": None,
+    "protects": None,        # association: SG protects EC2 (context, not path)
+    "owns": None,            # association: account/org ownership
     "1st_layer": None, "2nd_layer": None, "3rd_layer": None,
     "4th_layer": None, "on_prem_datacenter": None,
 }
@@ -736,10 +747,10 @@ class ThreatAnalyzer:
         return f"postgresql://{user}:{pwd}@{host}:{port}/{db}"
 
     def _shared_conn_str(self) -> str:
-        """Connection to shared DB for scan_orchestration lookups."""
+        """Connection to onboarding DB for scan_runs lookups."""
         host = os.getenv("SHARED_DB_HOST", os.getenv("THREAT_DB_HOST", "localhost"))
         port = os.getenv("SHARED_DB_PORT", "5432")
-        db = os.getenv("SHARED_DB_NAME", "threat_engine_shared")
+        db = os.getenv("SHARED_DB_NAME", "threat_engine_onboarding")
         user = os.getenv("SHARED_DB_USER", os.getenv("THREAT_DB_USER", "threat_user"))
         pwd = os.getenv("SHARED_DB_PASSWORD", os.getenv("THREAT_DB_PASSWORD", "threat_password"))
         return f"postgresql://{user}:{pwd}@{host}:{port}/{db}"
@@ -776,7 +787,7 @@ class ThreatAnalyzer:
     def _resolve_inventory_scan_id(self, scan_run_id: str) -> Optional[str]:
         """Return scan_run_id directly — all engines share the same ID.
 
-        The scan_orchestration table no longer has per-engine scan ID columns.
+        The scan_runs table no longer has per-engine scan ID columns.
         """
         return scan_run_id
 
@@ -1016,7 +1027,7 @@ class ThreatAnalyzer:
     # ── Attack path + asset category loaders ─────────────────────────────
 
     def _load_attack_path_categories(self) -> Dict[str, Optional[str]]:
-        """Load attack_path_category mapping from resource_relationship_rules.
+        """Load attack_path_category mapping from resource_security_relationship_rules.
 
         Returns dict: relation_type → category (or None for non-attack edges).
         Falls back to inline _ATTACK_PATH_CATEGORIES if DB read fails.
@@ -1030,7 +1041,7 @@ class ThreatAnalyzer:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
                     cur.execute("""
                         SELECT DISTINCT relation_type, attack_path_category
-                        FROM resource_relationship_rules
+                        FROM resource_security_relationship_rules
                         WHERE is_active = TRUE
                     """)
                     categories: Dict[str, Optional[str]] = {}

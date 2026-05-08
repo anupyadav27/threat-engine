@@ -1,0 +1,73 @@
+rule_id: azure.iam.entra_audit.user_disable
+service: iam
+provider: azure
+check_type: log
+severity: high
+title: 'IAM: User Disable'
+description: User account enabled/disabled — service disruption or attacker-controlled lockout.
+rationale: Account access removal (deleting users, removing MFA) blocks legitimate users from accessing resources and can be used to seize control of cloud accounts.
+threat_category: impact
+mitre_tactics:
+- impact
+mitre_techniques:
+- T1531
+risk_score: 65
+resource: entra_user
+source: default
+is_active: true
+domain: impact
+action_category: delete
+log_source_type: entra_audit
+posture_category: workload_posture
+threat_tags:
+- T1531
+- impact
+- availability
+- cloud_iam
+- identity
+risk_indicators:
+  actor_type: iam_user_or_role
+  action_type: destructive
+  target_type: iam_identity
+  blast_radius: account
+  stealth_risk: low
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 2.6
+  - 3.1
+  cis_azure_v2:
+  - 7.5
+  - 5.1
+  nist_800_53_r5:
+  - CP-9
+  - CP-10
+  - SI-12
+  - IR-4
+  pci_dss_v4:
+  - 12.3
+  - 3.4
+  iso_27001_2022:
+  - A.5.29
+  - A.8.13
+remediation: |
+  1. Restore removed accounts or access immediately from a break-glass account.
+  2. Review and audit all actions taken by the responsible actor.
+  3. Implement role-based approvals for account deletion and access revocation.
+  4. Maintain break-glass emergency access accounts with separate credential paths.
+references:
+- https://attack.mitre.org/techniques/T1531/
+- https://learn.microsoft.com/en-us/azure/active-directory/roles/security-emergency-access
+check_config:
+  conditions:
+    all:
+    - field: operation
+      op: equals
+      value: microsoft.directory/users/accountEnabled/update
+  log_source_type: entra_audit
+version: '1.0'

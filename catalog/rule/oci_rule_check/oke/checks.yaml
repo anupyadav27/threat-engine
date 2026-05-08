@@ -1,0 +1,26 @@
+version: '1.0'
+provider: oci
+service: oke
+checks:
+- rule_id: oci.oke.cluster.rbac_enabled
+  for_each: oci.oke.list_clusters
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.options.add_ons.is_kubernetes_dashboard_enabled
+      op: is_not_null
+      value: ''
+    - var: item.kubernetes_version
+      op: is_not_empty
+      value: ''
+- rule_id: oci.oke.endpoints.not_publicly_accessible_enforced
+  for_each: oci.oke.list_clusters
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.endpoint_config.is_public_ip_enabled
+      op: is_false
+      value: ''
+    - var: item.endpoints.public_endpoint
+      op: is_empty
+      value: ''

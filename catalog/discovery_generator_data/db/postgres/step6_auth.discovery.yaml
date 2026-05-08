@@ -1,0 +1,54 @@
+version: '1.0'
+provider: db
+engine: postgres
+category: authentication
+cis_section: '1'
+description: PostgreSQL CIS Section 1 — Operating System Level Configuration (auth-related)
+
+discovery:
+  - discovery_id: db.postgres.auth.password_encryption
+    calls:
+      - action: query_setting
+        query: "SHOW password_encryption;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        setting_name: password_encryption
+        value: "{{ result.password_encryption }}"
+        expected: scram-sha-256
+
+  - discovery_id: db.postgres.auth.pg_hba_method
+    calls:
+      - action: query_table
+        query: >
+          SELECT type, database, user_name, address, auth_method
+          FROM pg_hba_file_rules
+          ORDER BY line_number;
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        type: "{{ item.type }}"
+        database: "{{ item.database }}"
+        user_name: "{{ item.user_name }}"
+        address: "{{ item.address }}"
+        auth_method: "{{ item.auth_method }}"
+
+  - discovery_id: db.postgres.auth.superuser_count
+    calls:
+      - action: query_table
+        query: >
+          SELECT usename, usesuper, usecreatedb, usecreaterole
+          FROM pg_user
+          WHERE usesuper = true;
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        username: "{{ item.usename }}"
+        is_superuser: "{{ item.usesuper }}"
+        can_create_db: "{{ item.usecreatedb }}"
+        can_create_role: "{{ item.usecreaterole }}"

@@ -1,0 +1,75 @@
+rule_id: gcp.cloudrun.activity.replace_service
+service: cloudrun
+provider: gcp
+check_type: log
+severity: high
+title: 'Cloud Run: Service Updated'
+description: Existing Cloud Run service image or configuration replaced — production workload may have been backdoored with malicious container image.
+rationale: Adversaries deploy or modify GCP Cloud Functions or Cloud Run services to establish serverless compute resources for malicious purposes — C2 callbacks, data exfiltration, or persistence. Function deployment by unexpected principals or with unusual environment variables containing credentials. Detected via cloudfunctions.googleapis.com events.
+threat_category: execution
+mitre_tactics:
+- execution
+- persistence
+mitre_techniques:
+- T1648
+risk_score: 72
+resource: cloudrun_service
+source: default
+is_active: true
+domain: compute_and_workload_security
+action_category: execute
+log_source_type: 
+posture_category: workload_posture
+threat_tags:
+- T1648
+- remote_execution
+- cloud_exec
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: execution
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_gcp_v2:
+  - 4.1
+  - 4.2
+  - 4.3
+  nist_800_53_r5:
+  - CM-7
+  - SI-3
+  - SI-4
+  pci_dss_v4:
+  - 6.3
+  - 6.4
+  iso_27001_2022:
+  - A.8.19
+  - A.8.20
+remediation: |
+  1. Audit the compute instance or function for malicious startup scripts or code.
+  2. Verify the workload image against a trusted artifact registry with Binary Authorization.
+  3. Apply Org Policy `compute.requireShieldedVm` for all new VM instances.
+  4. Enable Security Command Center threats for anomalous compute execution events.
+  5. Review service account permissions attached to the created instance or function.
+references:
+- https://attack.mitre.org/techniques/T1648/
+- https://cloud.google.com/functions/docs/concepts/overview
+- https://cloud.google.com/run/docs/audit-logging
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: run.googleapis.com
+    - field: operation
+      op: contains
+      value: ReplaceService
+version: '1.0'

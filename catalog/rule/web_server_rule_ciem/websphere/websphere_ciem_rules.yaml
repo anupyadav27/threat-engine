@@ -1,0 +1,454 @@
+# WEBSPHERE — CIEM Detection Rules
+# Real-time authentication & access event analysis
+# Log source: SystemOut.log, audit.log
+
+tech_type: websphere
+category: web_server
+log_source: SystemOut.log, audit.log
+
+rules:
+
+  - rule_id: tciem.websphere.the_onconflict_attribute_is_set_to_ignore_to
+    title: "Ensure that the 'onConflict attribute' is set to 'IGNORE' to restrict config file overwrites"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.9'
+    cis_section: '1'
+    log_source: "SystemOut.log, audit.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Set the onConflict attribute to the IGNORE value in all include elements in
+      the Liberty configuration. <include ... onConflict='IGNORE' /> Reduce file
+      permission on all included files to essential users only. Default Value: In
+      WebSphere Liberty, the onConflict attribute in the include element is MERGE by
+      default. References: 1.
+      https://openliberty.io/docs/latest/reference/config/include.html
+
+  - rule_id: tciem.websphere.unused_features_are_removed
+    title: "Ensure Unused Features are Removed"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '10.1'
+    cis_section: '10'
+    log_source: "SystemOut.log, audit.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Removed any unneeded features listed under the featureManager element in the
+      Liberty configuration Default Value: The default server template enables the
+      jsp-2.3 feature. Other templates in the ${wlp.install.dir}/templates directory
+      add different features depending on the template theme. Example of the
+      defaultServer template features in the server.xml file after running
+      ${wlp.install.dir}/bin server create myServer <featureManager>
+      <feature>jsp-2.3</feature> </featureManager> References: 1.
+      https://openliberty.io/docs/latest/reference/feature/feature-overview.html
+
+  - rule_id: tciem.websphere.enablewelcomepage_is_set_to_false
+    title: "Ensure 'enableWelcomePage' is set to 'false'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '10.3'
+    cis_section: '10'
+    log_source: "SystemOut.log, audit.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to prevent Websphere Liberty from serving a welcome page
+      from context root folder. Add the enableWelcomePage attribute to the
+      httpDispatcher element to ${server.config.dir}/configDropins/overrides/*.xml
+      and set it to false. <httpDispatcher enableWelcomePage='false' /> Default
+      Value: The WebSphere Liberty welcome page is enabled by default, the
+      enableWelcomePage attribute is set to true. References: 1.
+      https://openliberty.io/docs/latest/reference/config/httpDispatcher.html
+
+  - rule_id: tciem.websphere.security_role_is_defined_for_role_based
+    title: "Ensure 'security-role' is defined for role based authorization checks for Web and EJB applications"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '10.5'
+    cis_section: '10'
+    log_source: "SystemOut.log, audit.log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Create the necessary role mappings for applications in the
+      ${server.config.dir}/configDropins/overrides/<any file name>.xml Example:
+      <application-bnd> <security-role name='admin'> <group name='Manager' /> <group
+      name='TeamLead' /> </security-role> <security-role name='user'> <group
+      name='Employee' /> </security-role> </application-bnd> Follow steps in the
+      Liberty Authorization Doc References: 1.
+      https://openliberty.io/docs/latest/authorization.html
+
+  - rule_id: tciem.websphere.displayauthenticationrealm_is_set_to_false
+    title: "Ensure 'displayAuthenticationRealm' is set to 'false'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.1'
+    cis_section: '2'
+    log_source: "SystemOut.log, audit.log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Set the displayAuthenticationRealm attribute in the webAppSecurity element to
+      false in ${server.config.dir}/configDropins/overrides/<any file name>.xml.
+      <webAppSecurity ... displayAuthenticationRealm='false' /> Default Value: The
+      default value of the displayAuthenticationRealm attribute in the
+      webAppSecurity element is set to false. References: 1.
+      https://www.ibm.com/docs/en/was-liberty/base?topic=applications-configuring-
+      web-security-related-properties-in-liberty
+
+  - rule_id: tciem.websphere.httponlycookies_httponly_attribute_is_set_to_true
+    title: "Ensure 'httpOnlyCookies' HttpOnly attribute is set to 'True' for the authentication cookies"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.1.2.6'
+    cis_section: '4'
+    log_source: "SystemOut.log, audit.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Set the httpOnlyCookies attribute to true in the webAppSecurity in the
+      ${server.config.dir}/configDropins/overrides/*.xml <webAppSecurity
+      httpOnlyCookies='true' /> References: 1.
+      https://openliberty.io/docs/latest/reference/config/webAppSecurity.html
+
+  - rule_id: tciem.websphere.hsts_http_strict_transport_security_is_enabled
+    title: "Ensure HSTS (HTTP Strict Transport Security) is enabled"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.3'
+    cis_section: '4'
+    log_source: "SystemOut.log, audit.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Set the addstricttransportsecurityheader attribute in the webContainer element
+      in the ${server.config.dir}/configDropins/overrides/*.xml as follows:
+      <webContainer addstricttransportsecurityheader='max-
+      age=31536000;includeSubDomains' /> References: 1.
+      https://www.ibm.com/docs/en/was-liberty/base?topic=slia-securing-liberty-by-
+      using-http-strict-transport-security-hsts
+
+  - rule_id: tciem.websphere.transport_guarantee_is_set_to_confidential_for
+    title: "Ensure 'transport-guarantee' is set to 'CONFIDENTIAL' for all web applications"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.6'
+    cis_section: '4'
+    log_source: "SystemOut.log, audit.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Add the transport-guarantee attribute to user-data-constraint element under
+      the security-constraint in ${wlp.user.dir}/shared/apps/WEB-INF/web.xml and set
+      the value to CONFIDENTIAL. <security-constraint> ... <user-data-constraint>
+      <transport-guarantee>CONFIDENTIAL</transport-guarantee> </user-data-
+      constraint> Note: The security-constraints can also be set in the code using
+      annotations like @ServletSecurity.TransportGuarantee Default Value: WebSphere
+      Liberty does not set a transport guarantee for applications by default.
+      References: 1. https://openliberty.io/docs/latest/application-configuration-
+      hardening.html
+
+  - rule_id: tciem.websphere.httpport_attribute_set_to_1
+    title: "Ensure `httpPort` attribute set to `-1`"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.2.12'
+    cis_section: '4'
+    log_source: "SystemOut.log, audit.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Set the httpPort attribute to -1 in the httpEndpoint element in
+      ${server.config.dir}/configDropins/overrides/*.xml. <httpEndpoint ...
+      httpPort='-1'/> References: 1.
+      https://openliberty.io/docs/latest/reference/feature/transportSecurity-1.0.html
+
+  - rule_id: tciem.websphere.accesstokenencoding_is_set_to_a_strong_hash
+    title: "Ensure 'accessTokenEncoding' is set to a strong hash algorithm in OAuth 2.0"
+    severity: high
+    mitre_technique: T1530
+    mitre_tactic: collection
+    cis_control: '4.3.10'
+    cis_section: '4'
+    log_source: "SystemOut.log, audit.log"
+    detection:
+      event_type: data_access
+      threshold: 1
+      filters:
+        data_classification: sensitive
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Add the accessTokenEncoding attribute to the oauthProvider element to
+      ${server.config.dir}/configDropins/overrides/*.xml and set it to a valid
+      encoding type, for example PBKDF2WithHmacSHA512, to enable stored access token
+      encoding. Do not use the plain value as it does not encode. <oauthProvider
+      accessTokenEncoding='PBKDF2WithHmacSHA512' /> Default Value: The
+      accessTokenEncoding is set to plain for backward compatibility by default.
+      References: 1. https://www.ibm.com/docs/en/was-
+      liberty/core?topic=configuration-oauthprovider
+
+  - rule_id: tciem.websphere.allowpublicclients_is_set_to_false_in_oauth_2_0
+    title: "Ensure 'allowPublicClients' is set to 'false' in OAuth 2.0"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.3.11'
+    cis_section: '4'
+    log_source: "SystemOut.log, audit.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Add the allowPublicClients attribute to the oauthProvider element to
+      ${server.config.dir}/configDropins/overrides/*.xml and set it to false to
+      block public clients. <oauthProvider allowPublicClients='false' /> Default
+      Value: The allowPublicClients attribute is set to false by default.
+      References: 1. https://www.ibm.com/docs/en/was-
+      liberty/core?topic=configuration-oauthprovider
+
+  - rule_id: tciem.websphere.invalidateonunauthorizedsessionrequestexception
+    title: "Ensure 'invalidateOnUnauthorizedSessionRequestException' is set to 'false'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.4.14'
+    cis_section: '4'
+    log_source: "SystemOut.log, audit.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Set the invalidateOnUnauthorizedSessionRequestException attribute to true in
+      the httpSession element in the
+      ${server.config.dir}/configDropins/overrides/<any file name>.xml <httpSession
+      invalidateOnUnauthorizedSessionRequestException='true' /> Default Value:
+      invalidateOnUnauthorizedSessionRequestException is false by default.
+      References: 1.
+      https://openliberty.io/docs/latest/reference/config/httpSession.html
+
+  - rule_id: tciem.websphere.whitelisting_of_virtual_hosts_to_validate_access
+    title: "Ensure whitelisting of virtual hosts to validate access based on originating endpoint"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.4.24'
+    cis_section: '4'
+    log_source: "SystemOut.log, audit.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      1. Configure a httpEndpoint element in the [Liberty
+      configuration]${server.config.dir}/configDropins/overrides/*.xml. For example,
+      <httpEndpoint id='localHostOnly' host='localhost' httpPort='9081'
+      httpsPort='9444'/> 2. Configure the default_host virtualHost element with
+      allowFromEndPointRef pointing to the httpEndpoint value configured above.
+      <virtualHost id='default_host' allowFromEndpointRef='localHostOnly'>
+      <hostAlias>*:9081</hostAlias> <hostAlias>*:9444</hostAlias> </virtualHost>
+      Default Value: WebSphere Liberty provides a default virtual host
+      (default_host) that matches requests from any incoming host and port
+      combination. References: 1. https://www.ibm.com/docs/en/was-
+      liberty/base?topic=liberty-using-virtual-hosts 5 Enterprise Java Beans (EJB)
+      Applications 5.1 The CSIv2 (Common Secure Interoperability version 2)
+      serverPolicy CSIv2 is a protocol used by the EJB (Enterprise Java Beans)
+      clients to communicate using RMI/IIOP with the EJB applications. This protocol
+      supports different authentication mechanisms. The following recommendations
+      discuss all the 3 mechanisms for the CSIv2 policy on the server side. One can
+      configure one or more of these to protect the EJB applications as per the
+      CSIv2 specification.
+
+  - rule_id: tciem.websphere.sslenabled_is_set_to_true_within_the_csiv2
+    title: "Ensure 'sslEnabled' is set to 'true' within the CSIv2 Transport Layer"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.1.1'
+    cis_section: '5'
+    log_source: "SystemOut.log, audit.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Set the sslEnabled attribute in ORB > serverPolicy.csiv2 > layers >
+      transportLayer to true in the
+      ${server.config.dir}/configDropins/overrides/<any file name>.xml <orb
+      id='defaultOrb'> <serverPolicy.csiv2> <layers> <transportLayer
+      sslEnabled='true'/> </layers> </serverPolicy.csiv2> </orb> Default Value: The
+      default value of the sslEnabled attribute on csiv2 in the orb element is true.
+      References: 1. https://www.ibm.com/docs/en/was-liberty/core?topic=liberty-
+      configuring-inbound- csiv2-transport-layer
+
+  - rule_id: tciem.websphere.establishtrustinclient_is_set_to_required_within
+    title: "Ensure 'establishTrustInClient' is set to 'required' within the CSIv2 Authentication Layer"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.1.2'
+    cis_section: '5'
+    log_source: "SystemOut.log, audit.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Set the establishTrustInClient attribute in ORB > serverPolicy.csiv2 > layers
+      > authenticationLayer to Required in the
+      ${server.config.dir}/configDropins/overrides/<any file name>.xml <orb
+      id='defaultOrb'> <serverPolicy.csiv2> <layers> <authenticationLayer
+      mechanisms='LTPA,GSSUP' establishTrustInClient='Required'/> </layers>
+      </serverPolicy.csiv2> </orb> Default Value: The default value of the
+      establishTrustInClient attribute on csiv2 in the orb element is Required.
+      References: 1. https://www.ibm.com/docs/en/was-liberty/core?topic=liberty-
+      configuring-inbound- csiv2-authentication-layer
+
+  - rule_id: tciem.websphere.identityassertionenabled_is_set_to_true_within
+    title: "Ensure 'identityAssertionEnabled' is set to 'true' within the CSIv2 Attribute Layer"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.1.3'
+    cis_section: '5'
+    log_source: "SystemOut.log, audit.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Set the identityAssertionEnabled attribute to true and identityAssertionTypes
+      to ITTX509CertChain, ITTDistinguishedName in ORB > serverPolicy.csiv2 > layers
+      > authenticationLayer in the ${server.config.dir}/configDropins/overrides/<any
+      file name>.xml <orb id='defaultOrb'> <serverPolicy.csiv2> <layers>
+      <attributeLayer identityAssertionEnabled='true'
+      identityAssertionTypes='ITTX509CertChain, ITTDistinguishedName'/> </layers>
+      </serverPolicy.csiv2> </orb> References: 1. https://www.ibm.com/docs/en/was-
+      liberty/core?topic=liberty-configuring-inbound- csiv2-attribute-layer
+
+  - rule_id: tciem.websphere.all_appropriate_ejb_methods_are_protected
+    title: "Ensure that all appropriate EJB methods are protected"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.4.1'
+    cis_section: '5'
+    log_source: "SystemOut.log, audit.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Set <method-permission> elements in the ejb-jar.xml deployment descriptor file
+      of each application or use annotations. Example using method-permission:
+      <method-permission> <role-name>teller</role-name> <method> <ejb-
+      name>myEJB1</ejb-name> <method-name>getBalance</method-name> </method>
+      </method-permission> Example using annotations: @RolesAllowed('teller') public
+      class myEJB1 { public void getBalance () {...} ... }
+
+  - rule_id: tciem.websphere.authentication_is_set_to_true_to_protect_the
+    title: "Ensure 'authentication' is set to 'true' to protect the metrics end point"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '8.1'
+    cis_section: '8'
+    log_source: "SystemOut.log, audit.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Ensure that the authentication attribute of the mpMetrics element is set to
+      true in the ${server.config.dir}/configDropins/overrides/<any file name>.xml.
+      <mpMetrics authentication='true'/> Default Value: The default value is true.
+      References: 1.
+      https://openliberty.io/docs/latest/reference/config/mpMetrics.html
+
+  - rule_id: tciem.websphere.zossecurity_1_0_feature_is_enabled_for_saf
+    title: "Ensure 'zosSecurity-1.0' feature is 'enabled' for SAF authorization"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '9.1'
+    cis_section: '9'
+    log_source: "SystemOut.log, audit.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Configure the zosSecurity-1.0 feature and set the safAuthorization element in
+      ${server.config.dir}/configDropins/overrides/<any file name>.xml.
+      <feature>zosSecurity-1.0</feature> <safAuthorization id='saf' /> References:
+      1. https://www.ibm.com/docs/en/was-liberty/zos?topic=liberty-configuring-
+      authorization-applications-in
+

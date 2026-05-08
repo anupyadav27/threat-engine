@@ -1,0 +1,114 @@
+version: '1.0'
+provider: virtualization
+engine: vmware_esxi
+category: section_5
+cis_section: '5'
+description: >
+  vmware_esxi CIS Section 5 — (L1) Host should reject forged transmits on standard virtual switches and port groups
+
+discovery:
+
+  - discovery_id: vmware_esxi.section_5.l1_host_should_reject_forged_transmits_on
+    description: (L1) Host should reject forged transmits on standard virtual switches and port groups
+    calls:
+      - action: run_command
+        command: "To verify the policy is set to reject forged transmissions, perform the following: 1. From the vSphere Web Client, select the host. 2. Click Configure then expand Networking. 3. Select Virtual switches then click Edit. 4. Click on Security. 5. Verify that Forged transmits is set to Reject in the dropdown. Alternately, the following PowerCLI command may be used: # List all vSwitches and their Security Settings Get-VirtualSwitch -Standard | Select VMHost, Name, ` @{N=\u0027MacChanges\u0027;E={if ($_.ExtensionData.Spec.Policy.Security.MacChanges) { \u0027Accept\u0027 } Else { \u0027Reject\u0027} }}, ` @{N=\u0027PromiscuousMode\u0027;E={if ($_.ExtensionData.Spec.Policy.Security.PromiscuousMode) { \u0027Accept\u0027 } Else { \u0027Reject\u0027} }}, ` @{N=\u0027ForgedTransmits\u0027;E={if ($_.ExtensionData.Spec.Policy.Security.ForgedTransmits) { \u0027Accept\u0027 } Else { \u0027Reject\u0027} }}"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_host_should_reject_forged_transmits_on
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_5.l1_host_should_reject_mac_address_changes_on
+    description: (L1) Host should reject MAC address changes on standard virtual switches and port groups
+    calls:
+      - action: run_command
+        command: "To verify the policy is set to reject, perform the following: 1. From the vSphere Web Client, select the host. 2. Click Configure then expand Networking. 3. Select Virtual switches then click Edit. 4. Click on Security. 5. Verify that MAC address changes is set to Reject in the dropdown. Alternately, the following PowerCLI command may be used: # List all vSwitches and their Security Settings Get-VirtualSwitch -Standard | Select VMHost, Name, ` @{N=\u0027MacChanges\u0027;E={if ($_.ExtensionData.Spec.Policy.Security.MacChanges) { \u0027Accept\u0027 } Else { \u0027Reject\u0027} }}, ` @{N=\u0027PromiscuousMode\u0027;E={if ($_.ExtensionData.Spec.Policy.Security.PromiscuousMode) { \u0027Accept\u0027 } Else { \u0027Reject\u0027} }}, ` @{N=\u0027ForgedTransmits\u0027;E={if ($_.ExtensionData.Spec.Policy.Security.ForgedTransmits) { \u0027Accept\u0027 } Else { \u0027Reject\u0027} }}"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_host_should_reject_mac_address_changes_on
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_5.l1_host_should_reject_promiscuous_mode_requests
+    description: (L1) Host should reject promiscuous mode requests on standard virtual switches and port groups
+    calls:
+      - action: run_command
+        command: "To verify the policy is set to reject, perform the following: 1. From the vSphere Web Client, select the host. 2. Click Configure then expand Networking. 3. Select Virtual switches then click Edit. 4. Click on Security. 5. Verify that Promiscuous mode is set to Reject in the dropdown. Alternately, the following PowerCLI command may be used: # List all vSwitches and their Security Settings Get-VirtualSwitch -Standard | Select VMHost, Name, ` @{N=\u0027MacChanges\u0027;E={if ($_.ExtensionData.Spec.Policy.Security.MacChanges) { \u0027Accept\u0027 } Else { \u0027Reject\u0027} }}, ` @{N=\u0027PromiscuousMode\u0027;E={if ($_.ExtensionData.Spec.Policy.Security.PromiscuousMode) { \u0027Accept\u0027 } Else { \u0027Reject\u0027} }}, ` @{N=\u0027ForgedTransmits\u0027;E={if ($_.ExtensionData.Spec.Policy.Security.ForgedTransmits) { \u0027Accept\u0027 } Else { \u0027Reject\u0027} }}"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_host_should_reject_promiscuous_mode_requests
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_5.l1_host_must_restrict_the_use_of_virtual_guest
+    description: (L1) Host must restrict the use of Virtual Guest Tagging (VGT) on standard virtual switches
+    calls:
+      - action: run_command
+        command: "To verify port groups are not set to 4095 unless VGT is required, perform the following: 1. From the vSphere Web Client, select the host. 2. Click Configure then expand Networking. 3. Select Virtual switches. 4. Expand the Standard vSwitch. 5. View the topology diagram of the switch, which shows the various port groups associated with that switch. 6. For each port group on the vSwitch, verify and record the VLAN IDs used. Additionally, the following PowerCLI command may be used: # List all vSwitches, their Portgroups and VLAN IDs Get-VirtualPortGroup -Standard | Select virtualSwitch, Name, VlanID"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_host_must_restrict_the_use_of_virtual_guest
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_5.l1_ensure_the_dcui_timeout_is_set_to_600_seconds
+    description: (L1) Ensure the DCUI timeout is set to 600 seconds or less
+    calls:
+      - action: run_command
+        command: "To verify the DCUI timeout setting, perform the following steps: 1. From the vSphere Web Client, select the host. 2. Click Configure, then under System select Advanced System Settings. 3. Select Edit then enter UserVars.DcuiTimeOut in the filter. 4. Verify that the value for this parameter is 600 seconds or less. Alternately, the following PowerCLI command may be used: Get-VMHost | Get-AdvancedSetting -Name UserVars.DcuiTimeOut"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_ensure_the_dcui_timeout_is_set_to_600_seconds
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_5.l1_ensure_the_esxi_shell_is_disabled
+    description: (L1) Ensure the ESXi shell is disabled
+    calls:
+      - action: run_command
+        command: "To verify the ESXi shell is disabled, perform the following: 1. From the vSphere Web Client, select the host. 2. Select Configure then expand System and select Services. 3. Click on ESXi Shell then click Edit Startup Policy. 4. Verify the Startup Policy is set to Start and Stop Manually. Alternately, the following PowerCLI command may be used: # Check if the ESXi shell is running and set to start Get-VMHost | Get-VMHostService | Where { $_.key -eq \u0027TSM\u0027 } | Select VMHost, Key, Label, Policy, Running, Required Note: A host warning is displayed in the web client whenever the ESXi shell is enabled on a host."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_ensure_the_esxi_shell_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_5.l1_ensure_idle_esxi_shell_and_ssh_sessions_time
+    description: (L1) Ensure idle ESXi shell and SSH sessions time out after 300 seconds or less
+    calls:
+      - action: run_command
+        command: "To verify the timeout is set correctly, perform the following from the vSphere web client: 1. From the vSphere Web Client, select the host. 2. Click Configure then expand System. 3. Select Advanced System Settings then click Edit. 4. Enter ESXiShellInteractiveTimeOut in the filter. 5. Verify that the value for this parameter is set to 300 or less. Note: A value of 0 disables the ESXiShellInteractiveTimeOut. Alternately, the following PowerCLI command may be used: # List UserVars.ESXiShellInteractiveTimeOut for each host Get-VMHost | Select Name, @{N=\u0027UserVars.ESXiShellInteractiveTimeOut\u0027;E={$_ | Get-AdvancedSetting UserVars.ESXiShellInteractiveTimeOut | Select - ExpandProperty Values}}"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_ensure_idle_esxi_shell_and_ssh_sessions_time
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_5.l1_ensure_the_shell_services_timeout_is_set_to_1
+    description: (L1) Ensure the shell services timeout is set to 1 hour or less
+    calls:
+      - action: run_command
+        command: "To verify the timeout is set to one hour or less, perform the following from the vSphere web client: 1. From the vSphere Web Client, select the host. 2. Click Configure then expand System. 3. Select Advanced System Settings then click Edit. 4. Enter ESXiShellTimeOut in the filter. 5. Verify that the value for this parameter is set to 3600 (1 hour) or less. Alternately, the following PowerCLI command may be used: # List UserVars.ESXiShellTimeOut in minutes for each host Get-VMHost | Select Name, @{N=\u0027UserVars.ESXiShellTimeOut\u0027;E={$_ | Get- AdvancedSettings UserVars.ESXiShellTimeOut | Select -ExpandProperty Values}}"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_ensure_the_shell_services_timeout_is_set_to_1
+        value: "{{ result.stdout }}"
+        expected: ""
+

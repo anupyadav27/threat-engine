@@ -1,0 +1,369 @@
+version: '1.0'
+provider: azure
+service: batch
+services:
+  client: batch
+  module: azure.mgmt.batch
+discovery:
+- discovery_id: azure.batch.batchaccount.list
+  calls:
+  - action: batchaccount.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      etag: '{{ item.etag }}'
+      format: '{{ item.format }}'
+      last_activation_time: '{{ item.last_activation_time }}'
+      state: '{{ item.state }}'
+      storage_url: '{{ item.storage_url }}'
+      storage_url_expiry: '{{ item.storage_url_expiry }}'
+- discovery_id: azure.batch.batchaccount.list_by_resource_group
+  calls:
+  - action: batchaccount.list_by_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      public_network_access: '{{ item.public_network_access }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      encryption: '{{ item.encryption }}'
+      tags: '{{ item.tags }}'
+      account_endpoint: '{{ item.account_endpoint }}'
+      active_job_and_job_schedule_quota: '{{ item.active_job_and_job_schedule_quota
+        }}'
+      allowed_authentication_modes: '{{ item.allowed_authentication_modes }}'
+      auto_storage: '{{ item.auto_storage }}'
+      dedicated_core_quota: '{{ item.dedicated_core_quota }}'
+      dedicated_core_quota_per_vm_family: '{{ item.dedicated_core_quota_per_vm_family
+        }}'
+      dedicated_core_quota_per_vm_family_enforced: '{{ item.dedicated_core_quota_per_vm_family_enforced
+        }}'
+      key_vault_reference: '{{ item.key_vault_reference }}'
+      low_priority_core_quota: '{{ item.low_priority_core_quota }}'
+      network_profile: '{{ item.network_profile }}'
+      node_management_endpoint: '{{ item.node_management_endpoint }}'
+      pool_allocation_mode: '{{ item.pool_allocation_mode }}'
+      pool_quota: '{{ item.pool_quota }}'
+      private_endpoint_connections: '{{ item.private_endpoint_connections }}'
+- discovery_id: azure.batch.application.list
+  for_each: azure.batch.batchaccount.list
+  calls:
+  - action: application.list
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      etag: '{{ item.etag }}'
+      format: '{{ item.format }}'
+      last_activation_time: '{{ item.last_activation_time }}'
+      state: '{{ item.state }}'
+      storage_url: '{{ item.storage_url }}'
+      storage_url_expiry: '{{ item.storage_url_expiry }}'
+- discovery_id: azure.batch.applicationpackage.list
+  for_each: azure.batch.batchaccount.list
+  calls:
+  - action: applicationpackage.list
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      etag: '{{ item.etag }}'
+      format: '{{ item.format }}'
+      last_activation_time: '{{ item.last_activation_time }}'
+      state: '{{ item.state }}'
+      storage_url: '{{ item.storage_url }}'
+      storage_url_expiry: '{{ item.storage_url_expiry }}'
+- discovery_id: azure.batch.batchaccount.get_detector
+  for_each: azure.batch.batchaccount.list
+  calls:
+  - action: batchaccount.get_detector
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+      detector_id: '{{ item.id }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.batch.batchaccount.get_keys
+  for_each: azure.batch.batchaccount.list
+  calls:
+  - action: batchaccount.get_keys
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.batch.batchaccount.list_detectors
+  for_each: azure.batch.batchaccount.list
+  calls:
+  - action: batchaccount.list_detectors
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      etag: '{{ item.etag }}'
+- discovery_id: azure.batch.batchaccount.list_outbound_network_dependencies_endpoints
+  for_each: azure.batch.batchaccount.list
+  calls:
+  - action: batchaccount.list_outbound_network_dependencies_endpoints
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      category: '{{ item.category }}'
+      endpoints: '{{ item.endpoints }}'
+- discovery_id: azure.batch.certificate.list_by_batch_account
+  for_each: azure.batch.batchaccount.list
+  calls:
+  - action: certificate.list_by_batch_account
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      etag: '{{ item.etag }}'
+      group_id: '{{ item.group_id }}'
+      required_members: '{{ item.required_members }}'
+      required_zone_names: '{{ item.required_zone_names }}'
+- discovery_id: azure.batch.location.get_quotas
+  for_each: azure.batch.location.list_supported_virtual_machine_skus
+  calls:
+  - action: location.get_quotas
+    save_as: response
+    on_error: continue
+    params:
+      location_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.batch.networksecurityperimeter.get_configuration
+  for_each: azure.batch.batchaccount.list
+  calls:
+  - action: networksecurityperimeter.get_configuration
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.batch.networksecurityperimeter.list_configurations
+  for_each: azure.batch.batchaccount.list
+  calls:
+  - action: networksecurityperimeter.list_configurations
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.batch.pool.list_by_batch_account
+  for_each: azure.batch.batchaccount.list
+  calls:
+  - action: pool.list_by_batch_account
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      etag: '{{ item.etag }}'
+      group_id: '{{ item.group_id }}'
+      required_members: '{{ item.required_members }}'
+      required_zone_names: '{{ item.required_zone_names }}'
+- discovery_id: azure.batch.privateendpointconnection.list_by_batch_account
+  for_each: azure.batch.batchaccount.list
+  calls:
+  - action: privateendpointconnection.list_by_batch_account
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      etag: '{{ item.etag }}'
+      group_id: '{{ item.group_id }}'
+      required_members: '{{ item.required_members }}'
+      required_zone_names: '{{ item.required_zone_names }}'
+- discovery_id: azure.batch.privatelinkresource.list_by_batch_account
+  for_each: azure.batch.batchaccount.list
+  calls:
+  - action: privatelinkresource.list_by_batch_account
+    save_as: response
+    on_error: continue
+    params:
+      account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      etag: '{{ item.etag }}'
+      group_id: '{{ item.group_id }}'
+      required_members: '{{ item.required_members }}'
+      required_zone_names: '{{ item.required_zone_names }}'
+- discovery_id: azure.batch.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'
+      identity: '{{ item.identity }}'
+      account_endpoint: '{{ item.account_endpoint }}'
+      node_management_endpoint: '{{ item.node_management_endpoint }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      pool_allocation_mode: '{{ item.pool_allocation_mode }}'
+      key_vault_reference: '{{ item.key_vault_reference }}'
+      public_network_access: '{{ item.public_network_access }}'
+      network_profile: '{{ item.network_profile }}'
+      private_endpoint_connections: '{{ item.private_endpoint_connections }}'
+      auto_storage: '{{ item.auto_storage }}'
+      encryption: '{{ item.encryption }}'
+      dedicated_core_quota: '{{ item.dedicated_core_quota }}'
+      low_priority_core_quota: '{{ item.low_priority_core_quota }}'
+      dedicated_core_quota_per_vm_family: '{{ item.dedicated_core_quota_per_vm_family
+        }}'
+      dedicated_core_quota_per_vm_family_enforced: '{{ item.dedicated_core_quota_per_vm_family_enforced
+        }}'
+- discovery_id: azure.batch.operations_list
+  calls:
+  - action: Operations_List
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'

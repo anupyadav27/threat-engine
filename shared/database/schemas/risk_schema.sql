@@ -63,9 +63,9 @@ CREATE TABLE IF NOT EXISTS risk_input_transformed (
     cve_id                  VARCHAR(30),
     exposure_factor         DECIMAL(4,2)  DEFAULT 1.0,
     -- Metadata
-    account_id              VARCHAR(20),
+    account_id              VARCHAR(256),
     region                  VARCHAR(50),
-    csp                     VARCHAR(20)   DEFAULT 'aws',
+    csp                     VARCHAR(50)   DEFAULT 'aws',
     scanned_at              TIMESTAMP     DEFAULT NOW()
 );
 
@@ -75,53 +75,72 @@ CREATE INDEX IF NOT EXISTS idx_risk_transformed_engine
     ON risk_input_transformed (risk_scan_id, source_engine);
 
 -- -----------------------------------------------------------------------------
--- 3. risk_scenarios — Stage 2 output (FAIR model per finding)
+-- 3. risk_scenarios — Stage 2 output (FAIR model per finding) — ENG-13
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS risk_scenarios (
     scenario_id             UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+    -- ENG-13: deterministic finding_id = sha256(scenario_type|resource_uid|account_id|region)[:16]
+    -- Used as the idempotency key for ON CONFLICT upserts.
+    finding_id              VARCHAR(16)   UNIQUE,
     risk_scan_id            UUID          NOT NULL,
+    scan_run_id             UUID,                                -- pipeline scan_run_id
     tenant_id               VARCHAR(100)  NOT NULL,
-    orchestration_id        UUID          NOT NULL,
     -- Source
     source_finding_id       VARCHAR(255),
     source_engine           VARCHAR(30),
     asset_id                VARCHAR(255),
     asset_type              VARCHAR(100),
     asset_arn               VARCHAR(500),
-    -- Scenario type
-    scenario_type           VARCHAR(40),          -- data_breach | ransomware | account_takeover | compliance_fine | service_disruption
+    -- Scenario type — canonical 4: data_exfiltration | lateral_movement | privilege_escalation | denial_of_service
+    scenario_type           VARCHAR(40),
     -- Data at risk
     data_records_at_risk    BIGINT        DEFAULT 0,
     data_sensitivity        VARCHAR(20),
-    data_types              TEXT[]        DEFAULT '{}',
-    -- FAIR model outputs
-    loss_event_frequency    DECIMAL(6,5)  DEFAULT 0,
+    data_types              JSONB         DEFAULT '[]',
+    -- FAIR model outputs (ENG-13)
+    loss_event_frequency    DECIMAL(8,5)  DEFAULT 0,
     primary_loss_min        DECIMAL(14,2) DEFAULT 0,
     primary_loss_max        DECIMAL(14,2) DEFAULT 0,
     primary_loss_likely     DECIMAL(14,2) DEFAULT 0,
     regulatory_fine_min     DECIMAL(14,2) DEFAULT 0,
     regulatory_fine_max     DECIMAL(14,2) DEFAULT 0,
-    applicable_regulations  TEXT[]        DEFAULT '{}',
+    applicable_regulations  JSONB         DEFAULT '[]',
     total_exposure_min      DECIMAL(14,2) DEFAULT 0,
     total_exposure_max      DECIMAL(14,2) DEFAULT 0,
     total_exposure_likely   DECIMAL(14,2) DEFAULT 0,
+    -- ENG-13: canonical FAIR score fields
+    fair_lef                DECIMAL(8,5)  DEFAULT 0,            -- Loss Event Frequency
+    fair_lm                 DECIMAL(14,2) DEFAULT 0,            -- Loss Magnitude
+    fair_risk_score         DECIMAL(14,2) DEFAULT 0,            -- LEF × LM
     -- Risk tier
-    risk_tier               VARCHAR(20)   NOT NULL DEFAULT 'low',  -- critical(>$10M) | high(>$1M) | medium(>$100K) | low
+    risk_tier               VARCHAR(20)   NOT NULL DEFAULT 'low',
     -- Calculation audit trail
     calculation_model       JSONB,
     -- Metadata
-    account_id              VARCHAR(20),
+    account_id              VARCHAR(256),
     region                  VARCHAR(50),
-    csp                     VARCHAR(20)   DEFAULT 'aws',
-    created_at              TIMESTAMP     DEFAULT NOW()
+    csp                     VARCHAR(50)   DEFAULT 'aws',
+    created_at              TIMESTAMP     DEFAULT NOW(),
+    -- ENG-13: Neo4j blast radius + regulatory audit + MITRE mapping
+    blast_radius_score      INTEGER       DEFAULT 0
+                            CHECK (blast_radius_score >= 0 AND blast_radius_score <= 100),
+    blast_radius_sample     JSONB         DEFAULT '[]',         -- up to 10 reachable resource UIDs
+    regulatory_multiplier   FLOAT         DEFAULT 1.0,          -- highest applicable reg multiplier (>=1.0)
+    regulatory_flags        JSONB         DEFAULT '[]',         -- regs applicable to this resource's region
+    mitre_techniques        JSONB         DEFAULT '[]',         -- MITRE ATT&CK technique IDs
+    attack_path             JSONB         DEFAULT '[]'          -- resource_uid chain (source → targets)
 );
 
 CREATE INDEX IF NOT EXISTS idx_risk_scenarios_scan
     ON risk_scenarios (risk_scan_id);
+CREATE INDEX IF NOT EXISTS idx_risk_scenarios_tenant_scan
+    ON risk_scenarios (tenant_id, risk_scan_id);
 CREATE INDEX IF NOT EXISTS idx_risk_scenarios_tier
     ON risk_scenarios (risk_scan_id, risk_tier);
 CREATE INDEX IF NOT EXISTS idx_risk_scenarios_engine
     ON risk_scenarios (risk_scan_id, source_engine);
+CREATE INDEX IF NOT EXISTS idx_risk_scenarios_finding_id
+    ON risk_scenarios (finding_id);
 
 -- -----------------------------------------------------------------------------
 -- 4. risk_report — Scan-level summary (Stage 3 output)

@@ -1,0 +1,55 @@
+rule_id: aws.guardduty.finding.unusual_api
+service: guardduty
+provider: aws
+check_type: log
+severity: medium
+title: 'GuardDuty: Unusual API'
+description: GuardDuty detected unusual API activity — anomalous API call pattern.
+rationale: Cloud account enumeration identifies IAM users, service principals, and roles that can be targeted for credential attacks or privilege escalation.
+threat_category: discovery
+mitre_tactics:
+- discovery
+mitre_techniques:
+- T1087.004
+risk_score: 55
+resource: guardduty_finding
+source: default
+is_active: true
+domain: threat_detection
+action_category: create
+log_source_type: 
+posture_category: threat_posture
+threat_tags:
+- T1087.004
+- T1087
+- threat_detection
+- guardduty
+risk_indicators:
+  actor_type: external_threat_actor
+  action_type: write
+  target_type: cloud_workload
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: |
+  1. Apply IAM permission restrictions on ListUsers/ListRoles/ListServicePrincipals.
+  2. Alert on unexpected enumeration API call patterns.
+  3. Use AWS Organizations SCPs / Azure Policy to limit who can enumerate identities.
+references:
+- https://attack.mitre.org/techniques/T1087/004/
+- https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_examples_iam_limited-identities.html
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: guardduty
+    - field: operation
+      op: contains
+      value: Anomalous
+version: '1.0'

@@ -54,16 +54,12 @@ build_push "$DOCKERHUB_USER/threat-engine-compliance-engine:latest" \
 
 # Onboarding API (context = repo root)
 build_push "$DOCKERHUB_USER/threat-engine-onboarding-api:latest" \
-  engine_onboarding/Dockerfile .
-
-# Scheduler (context = engine_onboarding so COPY . ./onboarding/ works)
-build_push "$DOCKERHUB_USER/threat-engine-scheduler:latest" \
-  engine_onboarding/scheduler/Dockerfile "$REPO_ROOT/engine_onboarding"
+  engines/onboarding/Dockerfile .
 
 # Inventory & Threat
 build_push "$DOCKERHUB_USER/inventory-engine:latest" \
   engine_inventory/Dockerfile .
 build_push "$DOCKERHUB_USER/threat-engine:latest" \
-  engine_threat/Dockerfile .
+  engines/threat/Dockerfile .
 
 echo "Done. Deploy with: kubectl apply -f deployment/aws/eks/ -n threat-engine-engines"

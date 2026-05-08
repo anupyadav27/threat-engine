@@ -1,0 +1,129 @@
+# ==========================================================
+# Discovery YAML — efs (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 16 | ops: 3 independent, 1 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: efs
+
+services:
+  client: efs
+  module: "boto3.client('efs')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: point
+    identifier_op: aws.efs.describe_access_points
+    identifier_field: AccessPointArn
+    item_var_path: item.AccessPointArn
+    identifier_template: '{accesspointarn}'
+  - resource_type: system
+    identifier_op: aws.efs.describe_file_systems
+    identifier_field: FileSystemArn
+    item_var_path: item.FileSystemArn
+    identifier_template: '{filesystemarn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.efs.describe_access_points  ──
+  - discovery_id: aws.efs.describe_access_points
+    calls:
+      - action: describe_access_points
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.AccessPoints }}'
+      item:
+        AccessPointArn: '{{ item.AccessPointArn }}'
+        AccessPointId: '{{ item.AccessPointId }}'
+        AccessPoints: '{{ item.AccessPoints }}'
+        ClientToken: '{{ item.ClientToken }}'
+        FileSystemId: '{{ item.FileSystemId }}'
+        LifeCycleState: '{{ item.LifeCycleState }}'
+        Name: '{{ item.Name }}'
+        OwnerId: '{{ item.OwnerId }}'
+        Policy: '{{ item.Policy }}'
+        PosixUser: '{{ item.PosixUser }}'
+        RootDirectory: '{{ item.RootDirectory }}'
+        Tags: '{{ item.Tags }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.efs.describe_file_systems  ──
+  - discovery_id: aws.efs.describe_file_systems
+    calls:
+      - action: describe_file_systems
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.FileSystems }}'
+      item:
+        AvailabilityZoneId: '{{ item.AvailabilityZoneId }}'
+        AvailabilityZoneName: '{{ item.AvailabilityZoneName }}'
+        CreationTime: '{{ item.CreationTime }}'
+        CreationToken: '{{ item.CreationToken }}'
+        Encrypted: '{{ item.Encrypted }}'
+        FileSystemArn: '{{ item.FileSystemArn }}'
+        FileSystemId: '{{ item.FileSystemId }}'
+        FileSystemProtection: '{{ item.FileSystemProtection }}'
+        FileSystems: '{{ item.FileSystems }}'
+        KmsKeyId: '{{ item.KmsKeyId }}'
+        LifeCycleState: '{{ item.LifeCycleState }}'
+        Name: '{{ item.Name }}'
+        NumberOfMountTargets: '{{ item.NumberOfMountTargets }}'
+        OwnerId: '{{ item.OwnerId }}'
+        PerformanceMode: '{{ item.PerformanceMode }}'
+        ProvisionedThroughputInMibps: '{{ item.ProvisionedThroughputInMibps }}'
+        SizeInBytes: '{{ item.SizeInBytes }}'
+        Tags: '{{ item.Tags }}'
+        ThroughputMode: '{{ item.ThroughputMode }}'
+        item: '{{ item }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.efs.describe_mount_targets  ──
+  - discovery_id: aws.efs.describe_mount_targets
+    calls:
+      - action: describe_mount_targets
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.MountTargets }}'
+      item:
+        AvailabilityZoneId: '{{ item.AvailabilityZoneId }}'
+        AvailabilityZoneName: '{{ item.AvailabilityZoneName }}'
+        FileSystemId: '{{ item.FileSystemId }}'
+        IpAddress: '{{ item.IpAddress }}'
+        Ipv6Address: '{{ item.Ipv6Address }}'
+        LifeCycleState: '{{ item.LifeCycleState }}'
+        MountTargetId: '{{ item.MountTargetId }}'
+        MountTargets: '{{ item.MountTargets }}'
+        NetworkInterfaceId: '{{ item.NetworkInterfaceId }}'
+        OwnerId: '{{ item.OwnerId }}'
+        SubnetId: '{{ item.SubnetId }}'
+        VpcId: '{{ item.VpcId }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.efs.describe_backup_policy [dependent] ──
+  - discovery_id: aws.efs.describe_backup_policy
+    for_each: aws.efs.describe_access_points
+    calls:
+      - action: describe_backup_policy
+        params:
+          FileSystemId: "{{ item.FileSystemId }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        BackupPolicy: '{{ item.BackupPolicy }}'
+        Statement: '{{ item.Statement }}'
+        Status: '{{ item.Status }}'
+        Version: '{{ item.Version }}'
+

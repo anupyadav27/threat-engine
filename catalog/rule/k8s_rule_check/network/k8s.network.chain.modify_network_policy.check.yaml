@@ -1,0 +1,31 @@
+# Auto-generated check rule stub for k8s.network.chain.modify_network_policy
+# Source: generate_check_rules_for_stubs.py
+# Category: chain_ciem
+# TODO: Review and update conditions to match actual resource fields
+version: '1.0'
+provider: k8s
+service: network
+checks:
+- rule_id: k8s.network.chain.modify_network_policy
+  check_type: log_correlation
+  severity: HIGH
+  description: Detect modify network policy via k8s_audit event correlation
+  conditions:
+    all:
+    - op: equals
+      field: source_type
+      value: k8s_audit
+    - op: equals
+      field: outcome
+      value: SUCCESS
+  sequence:
+  - event: initial
+    conditions:
+    - op: equals
+      field: source_type
+      value: k8s_audit
+  - event: followup
+    conditions:
+    - op: equals
+      field: actor.principal
+      value: '{{initial.actor.principal}}'

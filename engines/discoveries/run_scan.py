@@ -26,6 +26,14 @@ import traceback
 # Ensure /app is on the path (same as Dockerfile PYTHONPATH)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
+# DCAT-02 fix-B: turn on adaptive retries for all boto3 clients in this scan.
+# Without this, chained detail calls (describe_key, describe_certificate, etc.)
+# are throttled by AWS without retry → 50% of KMS keys and 97% of ACM certs
+# silently miss their detail data. Adaptive mode + 10 attempts gives the
+# scanner room to back off and recover. Set BEFORE any boto3 import.
+os.environ.setdefault("AWS_RETRY_MODE", "adaptive")
+os.environ.setdefault("AWS_MAX_ATTEMPTS", "10")
+
 from common.database.database_manager import DatabaseManager
 from common.orchestration.discovery_engine import DiscoveryEngine
 from common.models.provider_interface import DiscoveryScanner, AuthenticationError, DiscoveryError
@@ -36,12 +44,11 @@ from providers.azure.scanner.service_scanner import AzureDiscoveryScanner
 from providers.gcp.scanner.service_scanner import GCPDiscoveryScanner
 from providers.oci.scanner.service_scanner import OCIDiscoveryScanner
 from providers.ibm.scanner.service_scanner import IBMDiscoveryScanner
+from providers.alicloud.scanner.service_scanner import AliCloudDiscoveryScanner
 from providers.kubernetes.scanner.service_scanner import K8sDiscoveryScanner
 
 # Orchestration helpers
-from consolidated_services.database.orchestration_client import (
-    get_scan_context as get_orchestration_metadata,
-)
+from engine_common.orchestration import get_orchestration_metadata
 
 # Credential retrieval
 from engine_onboarding.storage.secrets_manager_storage import SecretsManagerStorage
@@ -58,6 +65,7 @@ PROVIDER_SCANNERS = {
     "gcp": GCPDiscoveryScanner,
     "oci": OCIDiscoveryScanner,
     "ibm": IBMDiscoveryScanner,
+    "alicloud": AliCloudDiscoveryScanner,
     "k8s": K8sDiscoveryScanner,
 }
 
@@ -75,6 +83,22 @@ def _resolve_credentials(account_id: str, credential_ref: str, credential_type: 
             "role_arn": credential_ref,
         }
 
+    # CLI / DefaultAzureCredential: no Secrets Manager fetch needed
+    # account_id == subscription_id for Azure
+    if cred_type == "cli":
+        return {
+            "credential_type": "cli",
+            "subscription_id": account_id,
+        }
+
+    # K8s in-cluster: no Secrets Manager fetch needed — uses pod service account
+    if cred_type in ("in_cluster", "k8s_in_cluster"):
+        return {
+            "credential_type": "in_cluster",
+            "account_id": account_id,
+            "cluster_name": account_id,
+        }
+
     # Key-based: fetch from Secrets Manager
     storage = SecretsManagerStorage()
     secret_data = storage.retrieve(account_id=account_id)
@@ -82,13 +106,46 @@ def _resolve_credentials(account_id: str, credential_ref: str, credential_type: 
     if not isinstance(secret_data, dict) or not secret_data:
         raise ValueError(f"Empty/invalid credentials for account {account_id}")
 
-    # Normalize credential_type
+    # Normalize credential_type per provider
     raw_type = (secret_data.get("credential_type") or "").lower()
+
     if provider == "aws":
         if raw_type in ("aws_access_key", "access_key", "access_key_id"):
             secret_data["credential_type"] = "access_key"
         elif "role" in raw_type:
             secret_data["credential_type"] = "iam_role"
+
+    elif provider == "gcp":
+        # GCP service account key stored under "credentials" or "service_account_json"
+        if raw_type in ("service_account", "service_account_key", "gcp_service_account"):
+            secret_data["credential_type"] = "service_account"
+        # Ensure the SA JSON is accessible under the key the GCP scanner expects
+        if not secret_data.get("credentials") and not secret_data.get("service_account_json"):
+            # Secret may have been stored with SA JSON at top level (type: service_account)
+            if secret_data.get("type") == "service_account":
+                secret_data["credentials"] = {k: v for k, v in secret_data.items()
+                                               if k not in ("credential_type", "account_id",
+                                                            "created_at", "expires_at")}
+
+    elif provider == "azure":
+        if raw_type in ("service_principal", "client_secret", "azure_service_principal"):
+            secret_data["credential_type"] = "service_principal"
+
+    elif provider == "oci":
+        if raw_type in ("api_key", "oci_api_key"):
+            secret_data["credential_type"] = "api_key"
+
+    elif provider == "ibm":
+        if raw_type in ("api_key", "ibm_api_key"):
+            secret_data["credential_type"] = "api_key"
+
+    elif provider in ("k8s", "kubernetes"):
+        if raw_type in ("in_cluster", "kubeconfig"):
+            secret_data["credential_type"] = raw_type or "in_cluster"
+
+    elif provider == "alicloud":
+        if raw_type in ("access_key", "alicloud_access_key"):
+            secret_data["credential_type"] = "access_key"
 
     return secret_data
 
@@ -117,6 +174,21 @@ def main():
     )
 
     db_manager = DatabaseManager()
+
+    # DCAT-01: ensure discovery_emit_failures table exists at scan startup
+    # so failure-flush at scan-end can always insert without table-missing errors.
+    try:
+        from common.jinja_renderer import ensure_failure_table as _ensure_table
+        from engine_common.db_connections import get_discoveries_conn
+        _conn = get_discoveries_conn()
+        try:
+            _ensure_table(_conn)
+            logger.info("[DCAT-EMIT] discovery_emit_failures table ensured")
+        finally:
+            try: _conn.close()
+            except Exception: pass
+    except Exception as _ddl_err:
+        logger.warning("[DCAT-EMIT] could not ensure failure table: %s", _ddl_err)
 
     # SIGTERM handler — mark scan as failed on timeout/preemption
     def _handle_sigterm(signum, frame):
@@ -156,7 +228,6 @@ def main():
         # 4. Build scan metadata (same shape as api_server.py passes to DiscoveryEngine)
         scan_metadata = {
             "scan_run_id": scan_run_id,
-            "scan_run_id": scan_run_id,
             "provider": provider,
             "tenant_id": metadata.get("tenant_id", "default-tenant"),
             "customer_id": metadata.get("customer_id", "default"),
@@ -176,6 +247,50 @@ def main():
         # 6. Orchestration table uses scan_run_id directly (no per-engine scan IDs)
 
         logger.info("Discovery scan COMPLETED scan_id=%s", scan_run_id)
+
+        # DCAT-01/02: flush Jinja-render failures to discovery_emit_failures.
+        # Each provider scanner maintains its own _emit_failure_sink.
+        # We try to flush both AWS and K8s sinks (only the active provider
+        # will have rows; the other will be a no-op).
+        for _mod_path in (
+            "providers.aws.scanner.service_scanner",
+            "providers.kubernetes.scanner.service_scanner",
+            "providers.azure.scanner.service_scanner",
+            "providers.gcp.scanner.service_scanner",
+            "providers.oci.scanner.service_scanner",
+            "providers.alicloud.scanner.service_scanner",
+            "providers.ibm.scanner.service_scanner",
+        ):
+            try:
+                _mod = __import__(_mod_path, fromlist=["_emit_failure_sink"])
+                _sink = getattr(_mod, "_emit_failure_sink", None)
+                if not _sink:
+                    continue
+                from common.jinja_renderer import flush_failures
+                from engine_common.db_connections import get_discoveries_conn
+                _conn = get_discoveries_conn()
+                try:
+                    flush_failures(
+                        _conn,
+                        rows=list(_sink),
+                        scan_run_id=str(scan_run_id),
+                        tenant_id=str(metadata.get("tenant_id") or ""),
+                        provider=str(metadata.get("provider") or ""),
+                    )
+                    _sink.clear()
+                    logger.info("[DCAT-EMIT] flushed failures from %s", _mod_path)
+                finally:
+                    try: _conn.close()
+                    except Exception: pass
+            except Exception as _flush_err:
+                logger.warning("[DCAT-EMIT] flush %s failed: %s", _mod_path, _flush_err)
+
+        # Retention: archive old scans to S3, keep last 5 in DB
+        try:
+            from engine_common.retention import run_retention
+            run_retention("discoveries", scan_run_id)
+        except Exception as _ret_err:
+            logger.warning("Retention cleanup skipped: %s", _ret_err)
 
     except (AuthenticationError, DiscoveryError, ValueError) as exc:
         logger.error("Discovery scan FAILED: %s", exc)

@@ -1,0 +1,84 @@
+version: '1.0'
+provider: oci
+service: ons
+checks:
+- rule_id: oci.ons.topic.communication_channels_configured
+  for_each: oci.ons.list_subscriptions
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.ons.topic.communication_destinations_access_least_privilege_required
+  for_each: oci.ons.list_subscriptions
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.ons.topic.communication_no_public_webhooks_without_auth_blocked
+  for_each: oci.ons.list_subscriptions
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - any:
+      - var: item.protocol
+        op: not_equals
+        value: HTTPS
+      - var: item.endpoint
+        op: not_contains
+        value: https://
+      - var: item.endpoint
+        op: contains
+        value: oauth
+      - var: item.endpoint
+        op: contains
+        value: auth
+      - var: item.endpoint
+        op: contains
+        value: token
+- rule_id: oci.ons.topic.critical_severity_escalation_policy_configured
+  for_each: oci.ons.list_subscriptions
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.ons.topic.escalation_oncall_contacts_verified_validated
+  for_each: oci.ons.list_subscriptions
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.ons.topic.topic_subscription_configured
+  for_each: oci.ons.list_subscriptions
+  severity: LOW
+  conditions:
+    var: item.ocid
+    op: exists
+    value: null
+- rule_id: oci.ons.topic.topics_kms_encryption_enabled
+  for_each: oci.ons.list_subscriptions
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.ons.topic.topics_public_access_blocked
+  for_each: oci.ons.list_subscriptions
+  severity: CRITICAL
+  conditions:
+    var: item.protocol
+    op: not_equals
+    value: EMAIL
+- rule_id: oci.ons.topic.topics_vault_encryption_enabled
+  for_each: oci.ons.list_topics
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null

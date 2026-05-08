@@ -1,0 +1,109 @@
+# ==========================================================
+# Discovery YAML — timestream-query (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 18 | ops: 3 independent, 1 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: timestream-query
+
+services:
+  client: timestream-query
+  module: "boto3.client('timestream-query')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: account_setting
+    identifier_op: aws.timestream-query.describe_account_settings
+    identifier_field: ComputeMode
+    item_var_path: item.ComputeMode
+    identifier_template: '{computemode}'
+  - resource_type: endpoint
+    identifier_op: aws.timestream-query.describe_endpoints
+    identifier_field: Address
+    item_var_path: item.Address
+    identifier_template: '{address}'
+  - resource_type: tags_for_resource
+    identifier_op: aws.timestream-query.list_tags_for_resource
+    identifier_field: Key
+    item_var_path: item.Key
+    identifier_template: '{key}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.timestream-query.describe_account_settings  ──
+  - discovery_id: aws.timestream-query.describe_account_settings
+    calls:
+      - action: describe_account_settings
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        ComputeMode: '{{ item.ComputeMode }}'
+        MaxQueryTCU: '{{ item.MaxQueryTCU }}'
+        ProvisionedCapacity: '{{ item.ProvisionedCapacity }}'
+        QueryCompute: '{{ item.QueryCompute }}'
+        QueryPricingModel: '{{ item.QueryPricingModel }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.timestream-query.describe_endpoints  ──
+  - discovery_id: aws.timestream-query.describe_endpoints
+    calls:
+      - action: describe_endpoints
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Address: '{{ item.Address }}'
+        CachePeriodInMinutes: '{{ item.CachePeriodInMinutes }}'
+        Endpoints: '{{ item.Endpoints }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.timestream-query.list_tags_for_resource  ──
+  - discovery_id: aws.timestream-query.list_tags_for_resource
+    calls:
+      - action: list_tags_for_resource
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Key: '{{ item.Key }}'
+        Value: '{{ item.Value }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.timestream-query.describe_scheduled_query [dependent] ──
+  - discovery_id: aws.timestream-query.describe_scheduled_query
+    for_each: aws.timestream-query.list_scheduled_queries
+    calls:
+      - action: describe_scheduled_query
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        CreationTime: '{{ item.CreationTime }}'
+        ErrorReportConfiguration: '{{ item.ErrorReportConfiguration }}'
+        KmsKeyId: '{{ item.KmsKeyId }}'
+        LastRunSummary: '{{ item.LastRunSummary }}'
+        Name: '{{ item.Name }}'
+        NextInvocationTime: '{{ item.NextInvocationTime }}'
+        NotificationConfiguration: '{{ item.NotificationConfiguration }}'
+        PreviousInvocationTime: '{{ item.PreviousInvocationTime }}'
+        QueryString: '{{ item.QueryString }}'
+        RecentlyFailedRuns: '{{ item.RecentlyFailedRuns }}'
+        ScheduleConfiguration: '{{ item.ScheduleConfiguration }}'
+        ScheduledQueryExecutionRoleArn: '{{ item.ScheduledQueryExecutionRoleArn }}'
+        State: '{{ item.State }}'
+        TargetConfiguration: '{{ item.TargetConfiguration }}'
+

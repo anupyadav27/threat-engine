@@ -1,0 +1,57 @@
+rule_id: k8s.rbac.audit.cluster_role_binding_create
+rule_type: ciem
+title: 'RBAC: ClusterRoleBinding Created'
+scope: rbac.audit
+domain: container_and_kubernetes_security
+subcategory: container_security
+severity: high
+service: rbac
+resource: audit
+requirement: Cluster Role Binding Create
+description: New ClusterRoleBinding created — grants cluster-wide permissions to a
+  subject outside normal deployment pipelines.
+rationale: 'Adversaries add roles or permissions to service accounts or workload identities
+  to maintain persistent access to container orchestration systems. Creating Kubernetes
+  RoleBindings or ClusterRoleBindings for attacker-controlled identities enables cluster-wide
+  command execution. Detected via: high-privilege role assignments outside CI/CD automation,
+  bindings from unfamiliar IP addresses, and unexpected ServiceAccount token creation.'
+remediation: '1. Immediately delete the unauthorized ClusterRoleBinding or RoleBinding.
+
+  2. Audit all cluster-admin bindings: `kubectl get clusterrolebindings -o wide |
+  grep cluster-admin`
+
+  3. Enable OPA Gatekeeper or Kyverno policy to prevent cluster-admin binding creation
+  by non-admins.
+
+  4. Use just-in-time (JIT) access for privileged Kubernetes operations.
+
+  5. Configure Falco rules to alert on ClusterRoleBinding creation outside CI/CD service
+  accounts.
+
+  '
+references:
+- https://attack.mitre.org/techniques/T1098/006/
+- https://kubernetes.io/docs/reference/access-authn-authz/rbac/
+- https://www.cisa.gov/sites/default/files/2022-03/kubernetes-hardening-guidance-1.2-508c.pdf
+compliance:
+- canada_pbmm_moderate_CCCS_AC_6_1
+- canada_pbmm_moderate_CCCS_AC_6_10
+- canada_pbmm_moderate_CCCS_AC_6_2
+- canada_pbmm_moderate_CCCS_AC_6_9
+- canada_pbmm_moderate_CCCS_AU_6_1
+- canada_pbmm_moderate_CCCS_SI_4_14
+- canada_pbmm_moderate_CCCS_SI_4_4
+- canada_pbmm_moderate_CCCS_SI_4_7
+- cis_aws_12.4
+- cis_ibm_5.2.10
+- nist_800_171_r2_3_12_3
+threat_category: privilege_escalation
+mitre_tactics:
+- privilege_escalation
+mitre_techniques:
+- T1098.006
+risk_score: 82
+action_category: create
+source: default
+metadata_source: auto_generated
+generated_by: k8s_ciem_generator

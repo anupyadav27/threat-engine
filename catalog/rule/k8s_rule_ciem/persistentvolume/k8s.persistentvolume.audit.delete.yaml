@@ -1,0 +1,77 @@
+rule_id: k8s.persistentvolume.audit.delete
+service: persistentvolume
+provider: k8s
+check_type: log
+severity: high
+title: 'PersistentVolume: PersistentVolume Deleted'
+description: PersistentVolume deleted — with reclaim policy Delete, the backing storage (EBS, PD, Azure Disk) is also destroyed; permanent data loss.
+rationale: 'Adversaries destroy data and files on cloud storage or databases at scale to interrupt availability, render services inoperable, or destroy evidence. Cloud data destruction is often irreversible without backups. Detected via: bulk S3 object deletion via elevated IAM credentials, EC2/EBS/snapshot mass deletion events, storage account deletion with soft-delete disabled, and database cluster deletion without final snapshot.'
+threat_category: impact
+mitre_tactics:
+- impact
+mitre_techniques:
+- T1485
+risk_score: 82
+resource: k8s_persistent_volume
+source: default
+is_active: true
+domain: impact
+action_category: delete
+posture_category: workload_posture
+threat_tags:
+- T1485
+- impact
+- availability
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: destructive
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: low
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_k8s_v1:
+  - 3.2.1
+  - 5.7.4
+  nist_800_53_r5:
+  - CP-9
+  - CP-10
+  - SI-7
+  pci_dss_v4:
+  - 12.3
+  - 10.2
+  iso_27001_2022:
+  - A.8.13
+  - A.8.14
+detection_events:
+- 's3:DeleteObject (bulk)'
+- 's3:DeleteBucket'
+- 'ec2:TerminateInstances (mass)'
+- Microsoft.Storage/storageAccounts/delete
+- 'rds:DeleteDBCluster without SkipFinalSnapshot=false'
+remediation: |
+  1. Restore deleted resources from cluster backup or etcd snapshot.
+  2. Apply RBAC to restrict delete verbs on nodes, namespaces, and PersistentVolumes.
+  3. Enable Velero or equivalent backup solution for cluster state and PersistentVolumes.
+  4. Configure resource deletion protection policies via admission controllers.
+  5. Alert on node and namespace deletion via audit log monitoring or Falco.
+references:
+- https://attack.mitre.org/techniques/T1485/
+- https://kubernetes.io/docs/concepts/storage/persistent-volumes/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: k8s_audit
+    - field: resource
+      op: equals
+      value: persistentvolumes
+    - field: verb
+      op: equals
+      value: delete
+version: '1.0'

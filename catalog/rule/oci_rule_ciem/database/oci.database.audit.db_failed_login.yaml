@@ -1,0 +1,63 @@
+rule_id: oci.database.audit.db_failed_login
+service: database
+provider: oci
+check_type: log
+severity: medium
+title: 'OCI DB Audit: Failed Database Login'
+description: Multiple failed login attempts were recorded in OCI Database audit logs, indicating potential brute force activity.
+threat_category: credential_access
+mitre_tactics:
+- credential_access
+mitre_techniques:
+- T1110
+risk_score: 68
+resource: oci_database_db_system
+domain: identity_and_access_management
+action_category: read
+log_source_type: 
+posture_category: iam_posture
+threat_tags:
+- T1110
+- credential_access
+- secret_exposure
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: read
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: true
+  modules:
+  - database_security
+  categories:
+  - secrets_exposure
+  - credential_theft
+  priority: medium
+  impact:
+    pci: PCI DSS Requirement 7 — Restrict access to cardholder data by business need
+    gdpr: GDPR Article 25 — Data protection by design and by default
+    hipaa: §164.312(a)(1) — Access control for ePHI data systems
+  sensitive_data_context: |
+  Unauthorized credential access on database resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks: {}
+remediation: Review and investigate this activity in the OCI Console and take corrective action.
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_db_audit
+    - field: db_action
+      op: equals
+      value: LOGON
+    - field: return_code
+      op: not_equals
+      value: 0

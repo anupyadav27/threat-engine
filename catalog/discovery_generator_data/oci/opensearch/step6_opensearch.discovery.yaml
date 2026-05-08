@@ -1,0 +1,48 @@
+# ============================================================
+# Discovery YAML — opensearch (OCI)
+# Generated: 2026-04-16T10:18:53Z
+# Actions use OCI Python SDK method names (snake_case)
+# ============================================================
+version: '1.0'
+provider: oci
+service: opensearch
+services:
+  client: opensearch
+  module: oci.opensearch
+discovery:
+  # ── list_opensearch_cluster_pipelines [independent] ──
+  - discovery_id: oci.opensearch.list_opensearch_cluster_pipelines
+    calls:
+      - action: list_opensearch_cluster_pipelines
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.data }}'
+      item:
+        ocid: '{{ item.ocid }}'
+        compartment_id: '{{ item.compartment_id }}'
+        name: '{{ item.name }}'
+        status: '{{ item.status }}'
+        time_created: '{{ item.time_created }}'
+        freeform_tags: '{{ item.freeform_tags }}'
+        defined_tags: '{{ item.defined_tags }}'
+  # ── get_opensearch_cluster_pipeline [dependent → list_opensearch_cluster_pipelines] ──
+  - discovery_id: oci.opensearch.get_opensearch_cluster_pipeline
+    for_each: oci.opensearch.list_opensearch_cluster_pipelines
+    calls:
+      - action: get_opensearch_cluster_pipeline
+        params:
+          opensearch_cluster_pipeline_id: '{{ item.ocid }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        ocid: '{{ response.data.ocid }}'
+        compartment_id: '{{ response.data.compartment_id }}'
+        name: '{{ response.data.name }}'
+        status: '{{ response.data.status }}'
+        time_created: '{{ response.data.time_created }}'
+        freeform_tags: '{{ response.data.freeform_tags }}'
+        defined_tags: '{{ response.data.defined_tags }}'

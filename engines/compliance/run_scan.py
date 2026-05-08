@@ -23,33 +23,25 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
 from engine_common.logger import setup_logger
 from engine_common.orchestration import get_orchestration_metadata
-from engine_common.retention import cleanup_old_scans
+from engine_common.db_connections import get_compliance_conn
 
 logger = setup_logger(__name__, engine_name="compliance-scanner")
-
-
-def _get_compliance_conn():
-    """Get psycopg2 connection to the compliance database."""
-    import psycopg2
-    return psycopg2.connect(
-        host=os.getenv("COMPLIANCE_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("COMPLIANCE_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("COMPLIANCE_DB_NAME", "threat_engine_compliance"),
-        user=os.getenv("COMPLIANCE_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("COMPLIANCE_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-    )
 
 
 def _update_report_status(scan_run_id: str, status: str, error: str = None):
     """Update compliance_report status in DB."""
     try:
-        conn = _get_compliance_conn()
+        conn = get_compliance_conn()
         with conn.cursor() as cur:
             if error:
                 cur.execute(
                     "UPDATE compliance_report SET status = %s, report_data = %s::jsonb WHERE scan_run_id = %s",
                     (status, __import__('json').dumps({"error": error}), scan_run_id),
+                )
+            elif status == "completed":
+                cur.execute(
+                    "UPDATE compliance_report SET status = %s, completed_at = NOW() WHERE scan_run_id = %s",
+                    (status, scan_run_id),
                 )
             else:
                 cur.execute(
@@ -66,8 +58,13 @@ def _create_report_row(scan_run_id: str, tenant_id: str, provider: str,
                        check_scan_id: str, metadata: dict):
     """Pre-create compliance_report row with status='running'."""
     try:
-        conn = _get_compliance_conn()
+        conn = get_compliance_conn()
         with conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO tenants (tenant_id, tenant_name)
+                   VALUES (%s, %s) ON CONFLICT (tenant_id) DO NOTHING""",
+                (tenant_id, tenant_id),
+            )
             cur.execute(
                 """INSERT INTO compliance_report
                    (scan_run_id, tenant_id, provider, check_scan_id,
@@ -115,9 +112,10 @@ def main():
         check_scan_id = scan_run_id
 
         tenant_id = metadata.get("tenant_id", "default-tenant")
+        account_id = metadata.get("account_id", "")
         provider = (metadata.get("provider") or metadata.get("provider_type", "aws")).lower()
 
-        logger.info(f"Resolved: tenant={tenant_id} provider={provider} check_scan_id={check_scan_id}")
+        logger.info(f"Resolved: tenant={tenant_id} account={account_id} provider={provider} check_scan_id={check_scan_id}")
 
         # 2. Pre-create report row
         _create_report_row(scan_run_id, tenant_id, provider, check_scan_id, {
@@ -150,7 +148,54 @@ def main():
             loader.close()
 
         if not scan_results or not scan_results.get("results"):
-            raise ValueError(f"No check findings found for check_scan_id={check_scan_id}")
+            logger.warning(f"No check findings for check_scan_id={check_scan_id} — writing empty compliance report")
+            scan_results = {"results": [], "metadata": {}}
+
+        # Merge CIEM findings into scan_results (log-based compliance evidence)
+        try:
+            from engine_common.ciem_reader import CIEMReader
+            ciem_c = CIEMReader(tenant_id=tenant_id, account_id=account_id or "", days=30)
+            ciem_compliance_findings = ciem_c.get_ciem_findings(engine_filter="compliance")
+            if ciem_compliance_findings:
+                results_list = scan_results.get("results", [])
+                existing_ids = {r.get("finding_id") or r.get("rule_id") for r in results_list}
+                added = 0
+                for cf in ciem_compliance_findings:
+                    fid = cf.get("finding_id", "")
+                    if fid in existing_ids:
+                        continue
+                    results_list.append({
+                        "finding_id": fid,
+                        "rule_id": cf.get("rule_id", ""),
+                        "severity": cf.get("severity", "medium"),
+                        "status": "FAIL",
+                        "title": cf.get("title", ""),
+                        "resource_uid": cf.get("resource_uid", ""),
+                        "resource_type": cf.get("resource_type", ""),
+                        "account_id": cf.get("account_id", account_id or ""),
+                        "region": cf.get("region", ""),
+                        "provider": provider or "aws",
+                        "source": "ciem",
+                        "finding_data": {
+                            "source": "ciem",
+                            "title": cf.get("title", ""),
+                            "description": cf.get("description", ""),
+                            "remediation": cf.get("remediation", ""),
+                            "compliance_frameworks": cf.get("compliance_frameworks", []),
+                            "mitre_tactics": cf.get("mitre_tactics", []),
+                            "mitre_techniques": cf.get("mitre_techniques", []),
+                            "risk_score": cf.get("risk_score"),
+                            "domain": cf.get("domain", ""),
+                            "actor_principal": cf.get("actor_principal", ""),
+                            "operation": cf.get("operation", ""),
+                        },
+                    })
+                    existing_ids.add(fid)
+                    added += 1
+                scan_results["results"] = results_list
+                logger.info(f"CIEM: merged {added} compliance findings into scan_results")
+        except Exception as ciem_pre_err:
+            logger.warning(f"CIEM compliance pre-merge failed (non-fatal): {ciem_pre_err}")
 
         # Generate enterprise report
         from compliance_engine.schemas.enterprise_report_schema import (
@@ -178,38 +223,44 @@ def main():
             from compliance_engine.exporter.db_exporter import DatabaseExporter
             db_exporter = DatabaseExporter()
             db_exporter.create_schema()
-            db_report_id = db_exporter.export_report(enterprise_report)
+            db_report_id = db_exporter.export_report(
+                enterprise_report, account_id=account_id, provider=provider
+            )
             logger.info(f"Compliance report exported to database: {db_report_id}")
         except Exception as e:
             logger.warning(f"Database export failed (non-fatal): {e}")
 
-        # Save to compliance_report / compliance_findings via the writer
+        # Compute per-control assessment and update compliance_report scores
         try:
-            from compliance_engine.storage.compliance_db_writer import save_compliance_report_to_db
-            # Build a dict that save_compliance_report_to_db expects
-            report_dict = {
-                "report_id": scan_run_id,
-                "scan_id": check_scan_id,
-                "csp": provider,
-                "tenant_id": tenant_id,
-                "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
-                "source": "check_db",
-            }
-            if hasattr(enterprise_report, "posture_summary"):
-                ps = enterprise_report.posture_summary
-                report_dict["posture_summary"] = {
-                    "total_controls": ps.total_controls,
-                    "controls_passed": ps.controls_passed,
-                    "controls_failed": ps.controls_failed,
-                    "total_findings": ps.total_findings,
-                    "findings_by_severity": ps.findings_by_severity,
-                }
-            if hasattr(enterprise_report, "frameworks"):
-                report_dict["framework_ids"] = [f.framework_id for f in enterprise_report.frameworks]
-            save_compliance_report_to_db(report_dict)
-            logger.info("Compliance report saved to compliance DB tables")
+            from compliance_engine.assessor.control_assessor import compute_assessment
+            assessment = compute_assessment(scan_run_id, tenant_id)
+            summary = assessment.get("summary", {})
+            total_controls = assessment.get("total_controls", 0)
+            controls_passed = summary.get("PASS", 0)
+            controls_failed = summary.get("FAIL", 0) + summary.get("PARTIAL", 0)
+            conn = get_compliance_conn()
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE compliance_report SET total_controls=%s, controls_passed=%s, controls_failed=%s WHERE scan_run_id=%s",
+                    (total_controls, controls_passed, controls_failed, scan_run_id),
+                )
+            conn.commit()
+            conn.close()
+            logger.info(
+                f"Control assessment complete: total={total_controls} passed={controls_passed} failed={controls_failed}"
+            )
         except Exception as e:
-            logger.warning(f"Compliance DB writer failed (non-fatal): {e}")
+            logger.warning(f"Control assessment failed (non-fatal): {e}")
+
+        # 4c. CIEM audit evidence (logging completeness from log_events)
+        try:
+            from engine_common.ciem_reader import CIEMReader
+            ciem = CIEMReader(tenant_id=tenant_id, account_id=account_id or "", days=30)
+            audit_completeness = ciem.get_audit_completeness()
+            if audit_completeness:
+                logger.info(f"CIEM: audit logging evidence for {list(audit_completeness.keys())}")
+        except Exception as ciem_exc:
+            logger.warning(f"CIEM audit evidence failed (non-fatal): {ciem_exc}")
 
         duration = (datetime.now(timezone.utc) - start).total_seconds()
 
@@ -217,11 +268,13 @@ def main():
         _update_report_status(scan_run_id, "completed")
         logger.info(f"Compliance scan completed: {scan_run_id} in {duration:.1f}s")
 
-        # 6. Retention cleanup (keep last 3 scans per tenant)
+        # Retention: archive old scans to S3, keep last 5 in DB
         try:
-            cleanup_old_scans("compliance", tenant_id, keep=3)
-        except Exception as e:
-            logger.warning(f"Retention cleanup failed: {e}")
+            from engine_common.retention import run_retention
+            run_retention("compliance", scan_run_id)
+        except Exception as _ret_err:
+            logger.warning("Retention cleanup skipped: %s", _ret_err)
+
 
     except Exception as e:
         logger.error(f"Compliance scan FAILED: {e}", exc_info=True)

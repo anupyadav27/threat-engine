@@ -1,0 +1,70 @@
+rule_id: aws.lambda.cloudtrail.function_url_public
+service: lambda
+provider: aws
+check_type: log
+severity: high
+title: 'Lambda: Function URL Public'
+description: Lambda function URL configured for public access — serverless function exposed to internet.
+rationale: Public-facing application exploitation can provide initial foothold in cloud environments; early detection limits attacker dwell time significantly.
+threat_category: initial_access
+mitre_tactics:
+- initial_access
+mitre_techniques:
+- T1190
+risk_score: 78
+resource: lambda_function
+source: ciem_rule_generator
+is_active: true
+domain: compute_and_workload_security
+action_category: execute
+log_source_type: cloudtrail
+posture_category: threat_posture
+threat_tags:
+- T1190
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: execution
+  target_type: serverless_function
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.14
+  - 2.1
+  cis_azure_v2:
+  - 1.2
+  - 2.1
+  nist_800_53_r5:
+  - AC-17
+  - IA-2
+  - SI-3
+  pci_dss_v4:
+  - 8.3
+  - 11.5
+  iso_27001_2022:
+  - A.8.5
+  - A.9.4
+remediation: |
+  1. Apply WAF rules to detect and block exploitation attempts.
+  2. Enable vulnerability scanning for all public-facing services.
+  3. Apply security patches promptly for all known CVEs.
+references:
+- https://attack.mitre.org/techniques/T1190/
+check_config:
+  conditions:
+    all:
+    - field: operation
+      op: equals
+      value: CreateFunctionUrlConfig
+    - field: resource_uid
+      op: contains
+      value: NONE
+  for_each: log_events
+  log_source_type: cloudtrail
+  type: log
+version: '1.0'

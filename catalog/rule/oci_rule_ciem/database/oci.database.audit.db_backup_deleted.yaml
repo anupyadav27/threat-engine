@@ -1,0 +1,62 @@
+rule_id: oci.database.audit.db_backup_deleted
+service: database
+provider: oci
+check_type: log
+severity: high
+title: 'OCI Database: DB Backup Deleted'
+description: A database backup was deleted. Removing backups leaves the database without recovery options in the event of ransomware or accidental deletion.
+threat_category: impact
+mitre_tactics:
+- impact
+mitre_techniques:
+- T1485
+risk_score: 85
+resource: oci_database_backup
+domain: impact
+action_category: delete
+log_source_type: 
+posture_category: workload_posture
+threat_tags:
+- T1485
+- impact
+- availability
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: destructive
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: low
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - database_security
+  - backup_and_recovery
+  categories:
+  - sensitive_data_access
+  priority: high
+  impact:
+    pci: PCI DSS Requirement 7 — Restrict access to cardholder data by business need
+    gdpr: GDPR Article 25 — Data protection by design and by default
+    hipaa: §164.312(a)(1) — Access control for ePHI data systems
+  sensitive_data_context: |
+  Unauthorized impact on database resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks: {}
+remediation: Review and investigate this activity in the OCI Console and take corrective action.
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.database
+    - field: operation
+      op: equals
+      value: DeleteBackup

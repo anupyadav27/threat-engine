@@ -1,0 +1,322 @@
+version: '1.0'
+provider: azure
+service: synapse
+checks:
+- rule_id: azure.synapse.cluster.audit_logging
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.auditingSettings
+      op: exists
+      value: null
+    - var: item.properties.auditingSettings.state
+      op: equals
+      value: Enabled
+- rule_id: azure.synapse.cluster.automated_snapshot
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.workspaceRepositoryConfiguration.type
+    op: exists
+    value: null
+- rule_id: azure.synapse.cluster.automatic_upgrades
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.workspaceRepositoryConfiguration.type
+    op: exists
+    value: null
+- rule_id: azure.synapse.cluster.encrypted
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryption
+    op: exists
+    value: null
+- rule_id: azure.synapse.cluster.maintenance_settings
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.managedVirtualNetworkSettings
+    op: exists
+    value: null
+- rule_id: azure.synapse.cluster.public_access
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.publicNetworkAccess
+    op: equals
+    value: Disabled
+- rule_id: azure.synapse.integration_runtime.data_catalog_dev_endpoint_encrypted
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryption
+    op: exists
+    value: null
+- rule_id: azure.synapse.integration_runtime.data_catalog_dev_endpoint_no_public_access
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.managedVirtualNetworkSettings
+      op: exists
+      value: null
+    - var: item.properties.managedVirtualNetworkSettings.allowedAadTenantIdsForLinking
+      op: not_contains
+      value: '*'
+- rule_id: azure.synapse.integration_runtime.data_catalog_dev_endpoint_role_least_privilege
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.managedVirtualNetworkSettings.dataCatalogDevEndpointRole
+    op: exists
+    value: null
+- rule_id: azure.synapse.sql_pool.data_analytics_parameter_group_logging_enabled_where_supported
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.workspaceRepositoryConfiguration.type
+    op: exists
+    value: null
+- rule_id: azure.synapse.sql_pool.data_analytics_parameter_group_tls_required
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.managedVirtualNetworkSettings.minimalTlsVersion
+    op: in
+    value:
+    - '1.2'
+    - '1.3'
+- rule_id: azure.synapse.sql_pool.data_warehouse_cluster_admin_access_least_privilege
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.managedVirtualNetworkSettings.sqlPoolClusterAdminAccess
+    op: is_false
+    value: null
+- rule_id: azure.synapse.sql_pool.data_warehouse_cluster_audit_logging_enabled
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.auditingSettings.isAzureMonitorTargetEnabled
+    op: is_true
+    value: null
+- rule_id: azure.synapse.sql_pool.data_warehouse_cluster_encryption_at_rest_cmek
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryption.cmkKey
+    op: exists
+    value: null
+- rule_id: azure.synapse.sql_pool.data_warehouse_cluster_private_networking_enforced
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.managedVirtualNetworkSettings
+      op: exists
+      value: null
+    - var: item.properties.managedVirtualNetworkSettings.privateEndpointConnections
+      op: exists
+      value: null
+- rule_id: azure.synapse.sql_pool.data_warehouse_cluster_tls_min_1_2_enforced
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.minimalTlsVersion
+    op: in
+    value:
+    - '1.2'
+    - '1.3'
+- rule_id: azure.synapse.sql_pool.data_warehouse_endpoint_access_allowed_cidrs_minimized
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.managedVirtualNetworkSettings.dataWarehouseEndpointAccess
+      op: exists
+      value: null
+    - var: item.properties.managedVirtualNetworkSettings.dataWarehouseEndpointAccess
+      op: equals
+      value: Deny
+- rule_id: azure.synapse.sql_pool.data_warehouse_endpoint_access_private_only
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.managedVirtualNetworkSettings.privateEndpointConnections[].properties.privateLinkServiceConnectionState.status
+    op: equals
+    value: Approved
+- rule_id: azure.synapse.sql_pool.data_warehouse_endpoint_access_tls_required
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.managedVirtualNetworkSettings.dataWarehouseEndpointAccess
+    op: equals
+    value: Required
+- rule_id: azure.synapse.sql_pool.data_warehouse_endpoint_authz_no_anonymous_access
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.managedVirtualNetworkSettings.allowedAadTenantIdsForLinking
+    op: not_contains
+    value: '*'
+- rule_id: azure.synapse.sql_pool.data_warehouse_endpoint_authz_rbac_least_privilege
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.managedVirtualNetworkSettings.allowedAadTenantIdsForLinking
+    op: not_empty
+    value: null
+- rule_id: azure.synapse.sql_pool.data_warehouse_hsm_client_cert_key_length_minimum
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.managedVirtualNetworkSettings
+      op: exists
+      value: null
+    - var: item.properties.managedVirtualNetworkSettings.encryption
+      op: exists
+      value: null
+    - var: item.properties.managedVirtualNetworkSettings.encryption.doubleEncryptionEnabled
+      op: is_true
+      value: null
+- rule_id: azure.synapse.sql_pool.data_warehouse_hsm_client_cert_not_expired
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.managedVirtualNetworkSettings.encryption.hsmClientCertificateExpiryDate
+    op: gt
+    value: '2025-04-01T00:00:00Z'
+- rule_id: azure.synapse.sql_pool.data_warehouse_hsm_client_cert_trusted_issuer
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.managedVirtualNetworkSettings.allowedAadTenantIdsForLinking
+    op: exists
+    value: null
+- rule_id: azure.synapse.sql_pool.data_warehouse_hsm_configuration_present
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.managedVirtualNetworkSettings.encryption.enableDoubleEncryption
+    op: is_true
+    value: null
+- rule_id: azure.synapse.sql_pool.data_warehouse_hsm_keys_in_hsm_only
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryption
+    op: exists
+    value: null
+- rule_id: azure.synapse.sql_pool.data_warehouse_hsm_only_approved_hsm_endpoints
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.managedVirtualNetworkSettings.allowedAadTenantIdsForLinking
+    op: exists
+    value: null
+- rule_id: azure.synapse.sql_pool.data_warehouse_parameter_group_logging_enabled_where_supported
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.workspaceRepositoryConfiguration.type
+    op: exists
+    value: null
+- rule_id: azure.synapse.sql_pool.data_warehouse_parameter_group_require_ssl
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.managedVirtualNetworkSettings.requireSsl
+      op: exists
+      value: null
+    - var: item.properties.managedVirtualNetworkSettings.requireSsl
+      op: is_true
+      value: null
+- rule_id: azure.synapse.sql_pool.data_warehouse_snapshot_cross_region_copy_encrypted
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryption
+    op: exists
+    value: null
+- rule_id: azure.synapse.sql_pool.data_warehouse_snapshot_encrypted_at_rest_cmek
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryption
+    op: exists
+    value: null
+- rule_id: azure.synapse.sql_pool.data_warehouse_snapshot_not_publicly_shared
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.managedVirtualNetworkSettings.allowAllConnections
+    op: is_false
+    value: null
+- rule_id: azure.synapse.workspace.data_analytics_catalog_cross_account_sharing_restricted
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.managedVirtualNetworkSettings.allowedAadTenantIdsForLinking
+    op: not_empty
+    value: null
+- rule_id: azure.synapse.workspace.data_analytics_catalog_metadata_encryption_enabled
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryption.cmkKey
+    op: exists
+    value: null
+- rule_id: azure.synapse.workspace.data_analytics_catalog_rbac_least_privilege
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.workspaceRepositoryConfiguration.type
+    op: exists
+    value: null
+- rule_id: azure.synapse.workspace.data_analytics_subnet_group_private_subnets_only
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.managedVirtualNetworkSettings.subnetworks[].isPublic
+    op: not_contains
+    value: true
+- rule_id: azure.synapse.workspace.data_analytics_workgroup_allowed_data_sources_allowlist
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.managedVirtualNetworkSettings.allowedAadTenantIdsForLinking
+    op: not_empty
+    value: null
+- rule_id: azure.synapse.workspace.data_analytics_workgroup_network_access_private
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.managedVirtualNetwork
+    op: exists
+    value: null
+- rule_id: azure.synapse.workspace.data_analytics_workgroup_query_result_encryption_enabled
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryption
+    op: exists
+    value: null
+- rule_id: azure.synapse.workspace.data_warehouse_subnet_group_private_subnets_only
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.managedVirtualNetworkSettings.subnetWorkspaceProperties[].isPublic
+    op: is_false
+    value: null
+- rule_id: azure.synapse.workspace.encryption_enabled
+  for_each: azure.synapse.workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryption
+    op: exists
+    value: null

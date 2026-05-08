@@ -1,0 +1,65 @@
+version: '1.0'
+provider: aws
+service: sqs
+checks:
+- rule_id: aws.sqs.queue.auth_required
+  for_each: aws.sqs.get_queue_attributes
+  severity: MEDIUM
+  conditions:
+    var: item.Attributes
+    op: exists
+    value: null
+- rule_id: aws.sqs.queue.cross_account_send_receive_restricted
+  for_each: aws.sqs.get_queue_attributes
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Policy
+      op: exists
+      value: null
+    - var: item.Policy
+      op: not_contains
+      value: Principal":"*"
+    - var: item.Policy
+      op: not_contains
+      value: Principal":{"AWS":"*"
+- rule_id: aws.sqs.queue.encryption_at_rest_enabled
+  for_each: aws.sqs.get_queue_attributes
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.SqsManagedSseEnabled
+      op: is_true
+      value: null
+    - var: item.KmsMasterKeyId
+      op: exists
+      value: null
+- rule_id: aws.sqs.queue.private_network_only_if_supported
+  for_each: aws.sqs.get_queue_attributes
+  severity: HIGH
+  conditions:
+    var: item.Policy
+    op: not_contains
+    value: Principal":"*
+- rule_id: aws.sqs.queues_not_publicly_accessible.queues_not_publicly_accessible_configured
+  for_each: aws.sqs.get_queue_attributes
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Policy
+      op: exists
+      value: null
+    - var: item.Policy
+      op: not_contains
+      value: '"Principal": "*"'
+- rule_id: aws.sqs.resource.queues_server_side_encryption_enabled
+  for_each: aws.sqs.get_queue_attributes
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.SqsManagedSseEnabled
+      op: is_true
+      value: null
+    - var: item.KmsMasterKeyId
+      op: exists
+      value: null

@@ -1,0 +1,413 @@
+version: '1.0'
+provider: linux
+engine: rhel
+category: section_6
+cis_section: '6'
+description: >
+  rhel CIS Section 6 — AIDE is installed
+
+discovery:
+
+  - discovery_id: rhel.section_6.aide_is_installed
+    description: Ensure AIDE is installed
+    calls:
+      - action: run_command
+        command: "Run the following command and verify aide is installed: # rpm -q aide aide-\u003cversion\u003e"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: aide_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.filesystem_integrity_is_regularly_checked
+    description: Ensure filesystem integrity is regularly checked
+    calls:
+      - action: run_command
+        command: "Run the following commands to verify a cron job scheduled to run the aide check. # grep -Ers \u0027^([^#]+\\s+)?(\\/usr\\/s?bin\\/|^\\s*)aide(\\.wrapper)?\\s(--?\\S+\\s)*(- -(check|update)|\\$AIDEARGS)\\b\u0027 /etc/cron.* /etc/crontab /var/spool/cron/ Ensure a cron job in compliance with site policy is returned. - OR - Run the following commands to verify that aidecheck.service and aidecheck.timer are enabled and aidcheck.timer is running # systemctl is-enabled aidecheck.service # systemctl is-enabled aidecheck.timer # systemctl status aidecheck.timer"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: filesystem_integrity_is_regularly_checked
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.journald_service_is_enabled_and_active
+    description: Ensure journald service is enabled and active
+    calls:
+      - action: run_command
+        command: "Run the following command to verify systemd-journald is enabled: # systemctl is-enabled systemd-journald.service static Note: By default the systemd-journald service does not have an [Install] section and thus cannot be enabled / disabled. It is meant to be referenced as Requires or Wants by other unit files. As such, if the status of systemd-journald is not static, investigate why Run the following command to verify systemd-journald is active: # systemctl is-active systemd-journald.service active"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: journald_service_is_enabled_and_active
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.only_one_logging_system_is_in_use
+    description: Ensure only one logging system is in use
+    calls:
+      - action: run_command
+        command: "Run the following script to ensure only one logging system is in use: #!/usr/bin/env bash { l_output=\u0027\u0027 l_output2=\u0027\u0027 # Check the status of rsyslog and journald if systemctl is-active --quiet rsyslog; then l_output=\u0027$l_output\\n - rsyslog is in use\\n- follow the recommendations in Configure rsyslog subsection only\u0027 elif systemctl is-active --quiet systemd-journald; then l_output=\u0027$l_output\\n - journald is in use\\n- follow the recommendations in Configure journald subsection only\u0027 else echo -e \u201cunable to determine system logging\u201d l_output2=\u0027$l_output2\\n - unable to determine system logging\\n- Configure only ONE system logging: rsyslog OR journald\u0027 fi if [ -z \u0027$l_output2\u0027 ]; then # Provide audit results echo -e \u0027\\n- Audit Result:\\n ** PASS **\\n$l_output\\n\u0027 else echo -e \u0027\\n- Audit Result:\\n ** FAIL **\\n - Reason(s) for audit failure:\\n$l_output2\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: only_one_logging_system_is_in_use
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.systemd_journal_remote_is_installed
+    description: Ensure systemd-journal-remote is installed
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: systemd_journal_remote_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.systemd_journal_upload_is_enabled_and_active
+    description: Ensure systemd-journal-upload is enabled and active
+    calls:
+      - action: run_command
+        command: "Run the following command to verify systemd-journal-upload is enabled. # systemctl is-enabled systemd-journal-upload.service enabled Run the following command to verify systemd-journal-upload is active: # systemctl is-active systemd-journal-upload.service active"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: systemd_journal_upload_is_enabled_and_active
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.systemd_journal_remote_service_is_not_in_use
+    description: Ensure systemd-journal-remote service is not in use
+    calls:
+      - action: run_command
+        command: "Run the following command to verify systemd-journal-remote.socket and systemd- journal-remote.service are not enabled: # systemctl is-enabled systemd-journal-remote.socket systemd-journal- remote.service | grep -P -- \u0027^enabled\u0027 Nothing should be returned Run the following command to verify systemd-journal-remote.socket and systemd- journal-remote.service are not active: # systemctl is-active systemd-journal-remote.socket systemd-journal- remote.service | grep -P -- \u0027^active\u0027 Nothing should be returned"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: systemd_journal_remote_service_is_not_in_use
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.journald_forwardtosyslog_is_disabled
+    description: Ensure journald ForwardToSyslog is disabled
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: journald_forwardtosyslog_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.journald_compress_is_configured
+    description: Ensure journald Compress is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify Compress is set to yes: # systemd-analyze cat-config systemd/journald.conf systemd/journald.conf.d/* | grep -E \u0027^Compress=yes\u0027 Compress=yes"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: journald_compress_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.journald_storage_is_configured
+    description: Ensure journald Storage is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify Storage is set to persistent: # systemd-analyze cat-config systemd/journald.conf systemd/journald.conf.d/* | grep -E \u0027^Storage=persistent\u0027 Storage=persistent"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: journald_storage_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.rsyslog_is_installed
+    description: Ensure rsyslog is installed
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: rsyslog_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.rsyslog_service_is_enabled_and_active
+    description: Ensure rsyslog service is enabled and active
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: rsyslog_service_is_enabled_and_active
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.journald_is_configured_to_send_logs_to_rsyslog
+    description: Ensure journald is configured to send logs to rsyslog
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: journald_is_configured_to_send_logs_to_rsyslog
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.rsyslog_log_file_creation_mode_is_configured
+    description: Ensure rsyslog log file creation mode is configured
+    calls:
+      - action: run_command
+        command: "Run the following command Run the following command to verify $FileCreateMode: # grep -Ps \u0027^\\h*\\$FileCreateMode\\h+0[0,2,4,6][0,2,4]0\\b\u0027 /etc/rsyslog.conf /etc/rsyslog.d/*.conf Verify the output is includes 0640 or more restrictive: $FileCreateMode 0640 Should a site policy dictate less restrictive permissions, ensure to follow said policy. Note: More restrictive permissions such as 0600 is implicitly sufficient."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: rsyslog_log_file_creation_mode_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.rsyslog_is_not_configured_to_receive_logs_from_a
+    description: Ensure rsyslog is not configured to receive logs from a remote client
+    calls:
+      - action: run_command
+        command: "Review the /etc/rsyslog.conf and /etc/rsyslog.d/*.conf files and verify that the system is not configured to accept incoming logs. advanced format # grep -Psi -- \u0027^\\h*module\\(load=\\\u0027?imtcp\\\u0027?\\)\u0027 /etc/rsyslog.conf /etc/rsyslog.d/*.conf # grep -Psi -- \u0027^\\h*input\\(type=\\\u0027?imtcp\\\u0027?\\b\u0027 /etc/rsyslog.conf /etc/rsyslog.d/*.conf Nothing should be returned obsolete legacy format # grep -Psi -- \u0027^\\h*\\$ModLoad\\h+imtcp\\b\u0027 /etc/rsyslog.conf /etc/rsyslog.d/*.conf # grep -Psi -- \u0027^\\h*\\$InputTCPServerRun\\b\u0027 /etc/rsyslog.conf /etc/rsyslog.d/*.conf Nothing should be returned"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: rsyslog_is_not_configured_to_receive_logs_from_a
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.file_deletion_events_by_users_are_collected
+    description: Ensure file deletion events by users are collected
+    calls:
+      - action: run_command
+        command: "On disk configuration Run the following command to check the on disk rules: # { UID_MIN=$(awk \u0027/^\\s*UID_MIN/{print $2}\u0027 /etc/login.defs) [ -n \u0027${UID_MIN}\u0027 ] \u0026\u0026 awk \u0027/^ *-a *always,exit/ \\ \u0026\u0026/ -F *arch=b(32|64)/ \\ \u0026\u0026(/ -F *auid!=unset/||/ -F *auid!=-1/||/ -F *auid!=4294967295/) \\ \u0026\u0026/ -F *auid\u003e=${UID_MIN}/ \\ \u0026\u0026/ -S/ \\ \u0026\u0026(/unlink/||/rename/||/unlinkat/||/renameat/) \\ \u0026\u0026(/ key= *[!-~]* *$/||/ -k *[!-~]* *$/)\u0027 /etc/audit/rules.d/*.rules \\ || printf \u0027ERROR: Variable \u0027UID_MIN\u0027 is unset.\\n\u0027 } Verify the output matches: -a always,exit -F arch=b64 -S unlink,unlinkat,rename,renameat -F auid\u003e=1000 - F auid!=unset -k delete -a always,exit -F arch=b32 -S unlink,unlinkat,rename,renameat -F auid\u003e=1000 - F auid!=unset -k delete Running configuration Run the following command to check loaded rules: # { UID_MIN=$(awk \u0027/^\\s*UID_MIN/{print $2}\u0027 /etc/login.defs) [ -n \u0027${UID_MIN}\u0027 ] \u0026\u0026 auditctl -l | awk \u0027/^ *-a *always,exit/ \\ \u0026\u0026/ -F *arch=b(32|64)/ \\ \u0026\u0026(/ -F *auid!=unset/||/ -F *auid!=-1/||/ -F *auid!=4294967295/) \\ \u0026\u0026/ -F *auid\u003e=${UID_MIN}/ \\ \u0026\u0026/ -S/ \\ \u0026\u0026(/unlink/||/rename/||/unlinkat/||/renameat/) \\ \u0026\u0026(/ key= *[!-~]* *$/||/ -k *[!-~]* *$/)\u0027 \\ || printf \u0027ERROR: Variable \u0027UID_MIN\u0027 is unset.\\n\u0027 } Verify the output matches: -a always,exit -F arch=b64 -S rename,unlink,unlinkat,renameat -F auid\u003e=1000 - F auid!=-1 -F key=delete -a always,exit -F arch=b32 -S unlink,rename,unlinkat,renameat -F auid\u003e=1000 - F auid!=-1 -F key=delete"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: file_deletion_events_by_users_are_collected
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.permissions_on_etc_passwd_are_configured
+    description: Ensure permissions on /etc/passwd are configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify /etc/passwd is mode 644 or more restrictive, Uid is 0/root and Gid is 0/root: # stat -Lc \u0027Access: (%#a/%A) Uid: ( %u/ %U) Gid: ( %g/ %G)\u0027 /etc/passwd Access: (0644/-rw-r--r--) Uid: ( 0/ root) Gid: ( 0/ root)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: permissions_on_etc_passwd_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.permissions_on_etc_opasswd_are_configured
+    description: Ensure permissions on /etc/opasswd are configured
+    calls:
+      - action: run_command
+        command: "Run the following commands to verify /etc/security/opasswd and /etc/security/opasswd.old are mode 600 or more restrictive, Uid is 0/root and Gid is 0/root if they exist: # [ -e \u0027/etc/security/opasswd\u0027 ] \u0026\u0026 stat -Lc \u0027%n Access: (%#a/%A) Uid: ( %u/ %U) Gid: ( %g/ %G)\u0027 /etc/security/opasswd /etc/security/opasswd Access: (0600/-rw-------) Uid: ( 0/ root) Gid: ( 0/ root) -OR- Nothing is returned # [ -e \u0027/etc/security/opasswd.old\u0027 ] \u0026\u0026 stat -Lc \u0027%n Access: (%#a/%A) Uid: ( %u/ %U) Gid: ( %g/ %G)\u0027 /etc/security/opasswd.old /etc/security/opasswd.old Access: (0600/-rw-------) Uid: ( 0/ root) Gid: ( 0/ root) -OR- Nothing is returned"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: permissions_on_etc_opasswd_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.permissions_on_etc_shadow_are_configured
+    description: Ensure permissions on /etc/shadow are configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify /etc/shadow is mode 000, Uid is 0/root and Gid is 0/root: # stat -Lc \u0027Access: (%#a/%A) Uid: ( %u/ %U) Gid: ( %g/ %G)\u0027 /etc/shadow Access: (0/----------) Uid: ( 0/ root) Gid: ( 0/ root)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: permissions_on_etc_shadow_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.permissions_on_etc_gshadow_are_configured
+    description: Ensure permissions on /etc/gshadow are configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify /etc/gshadow is mode 000, Uid is 0/root and Gid is 0/root: # stat -Lc \u0027Access: (%#a/%A) Uid: ( %u/ %U) Gid: ( %g/ %G)\u0027 /etc/gshadow Access: (0/----------) Uid: ( 0/ root) Gid: ( 0/ root)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: permissions_on_etc_gshadow_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.world_writable_files_and_directories_are_secured
+    description: Ensure world writable files and directories are secured
+    calls:
+      - action: run_command
+        command: "Run the following script to verify: \u2022 No world writable files exist \u2022 No world writable directories without the sticky bit exist #!/usr/bin/env bash { l_output=\u0027\u0027 l_output2=\u0027\u0027 l_smask=\u002701000\u0027 a_path=(); a_arr=(); a_file=(); a_dir=() # Initialize arrays a_path=(! -path \u0027/run/user/*\u0027 -a ! -path \u0027/proc/*\u0027 -a ! -path \u0027*/containerd/*\u0027 -a ! -path \u0027*/kubelet/pods/*\u0027 -a ! -path \u0027/sys/kernel/security/apparmor/*\u0027 -a ! -path \u0027/snap/*\u0027 -a ! -path \u0027/sys/fs/cgroup/memory/*\u0027 -a ! -path \u0027/sys/fs/selinux/*\u0027) while read -r l_bfs; do a_path+=( -a ! -path \u0027\u0027$l_bfs\u0027/*\u0027) done \u003c \u003c(findmnt -Dkerno fstype,target | awk \u0027$1 ~ /^\\s*(nfs|proc|smb)/ {print $2}\u0027) # Populate array with files that will possibly fail one of the audits while IFS= read -r -d $\u0027\\0\u0027 l_file; do [ -e \u0027$l_file\u0027 ] \u0026\u0026 a_arr+=(\u0027$(stat -Lc \u0027%n^%#a\u0027 \u0027$l_file\u0027)\u0027) done \u003c \u003c(find / \\( \u0027${a_path[@]}\u0027 \\) \\( -type f -o -type d \\) -perm -0002 -print0 2\u003e/dev/null) while IFS=\u0027^\u0027 read -r l_fname l_mode; do # Test files in the array [ -f \u0027$l_fname\u0027 ] \u0026\u0026 a_file+=(\u0027$l_fname\u0027) # Add WR files if [ -d \u0027$l_fname\u0027 ]; then # Add directories w/o sticky bit [ ! $(( $l_mode \u0026 $l_smask )) -gt 0 ] \u0026\u0026 a_dir+=(\u0027$l_fname\u0027) fi done \u003c \u003c(printf \u0027%s\\n\u0027 \u0027${a_arr[@]}\u0027) if ! (( ${#a_file[@]} \u003e 0 )); then l_output=\u0027$l_output\\n - No world writable files exist on the local filesystem.\u0027 else l_output2=\u0027$l_output2\\n - There are \\\u0027$(printf \u0027%s\u0027 \u0027${#a_file[@]}\u0027)\\\u0027 World writable files on the system.\\n - The following is a list of World writable files:\\n$(printf \u0027%s\\n\u0027 \u0027${a_file[@]}\u0027)\\n - end of list\\n\u0027 fi if ! (( ${#a_dir[@]} \u003e 0 )); then l_output=\u0027$l_output\\n - Sticky bit is set on world writable directories on the local filesystem.\u0027 else l_output2=\u0027$l_output2\\n - There are \\\u0027$(printf \u0027%s\u0027 \u0027${#a_dir[@]}\u0027)\\\u0027 World writable directories without the sticky bit on the system.\\n - The following is a list of World writable directories without the sticky bit:\\n$(printf \u0027%s\\n\u0027 \u0027${a_dir[@]}\u0027)\\n - end of list\\n\u0027 fi unset a_path; unset a_arr; unset a_file; unset a_dir # Remove arrays # If l_output2 is empty, we pass if [ -z \u0027$l_output2\u0027 ]; then echo -e \u0027\\n- Audit Result:\\n ** PASS **\\n - * Correctly configured * :\\n$l_output\\n\u0027 else echo -e \u0027\\n- Audit Result:\\n ** FAIL **\\n - * Reasons for audit failure * :\\n$l_output2\u0027 [ -n \u0027$l_output\u0027 ] \u0026\u0026 echo -e \u0027- * Correctly configured * :\\n$l_output\\n\u0027 fi } Note: On systems with a large number of files and/or directories, this audit may be a long running process"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: world_writable_files_and_directories_are_secured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.no_unowned_or_ungrouped_files_or_directories_exist
+    description: Ensure no unowned or ungrouped files or directories exist
+    calls:
+      - action: run_command
+        command: "Run the following script to verify no unowned or ungrouped files or directories exist: #!/usr/bin/env bash { l_output=\u0027\u0027 l_output2=\u0027\u0027 a_path=(); a_arr=(); a_nouser=(); a_nogroup=() # Initialize arrays a_path=(! -path \u0027/run/user/*\u0027 -a ! -path \u0027/proc/*\u0027 -a ! -path \u0027*/containerd/*\u0027 -a ! -path \u0027*/kubelet/pods/*\u0027 -a ! -path \u0027/sys/fs/cgroup/memory/*\u0027) while read -r l_bfs; do a_path+=( -a ! -path \u0027\u0027$l_bfs\u0027/*\u0027) done \u003c \u003c(findmnt -Dkerno fstype,target | awk \u0027$1 ~ /^\\s*(nfs|proc|smb)/ {print $2}\u0027) while IFS= read -r -d $\u0027\\0\u0027 l_file; do [ -e \u0027$l_file\u0027 ] \u0026\u0026 a_arr+=(\u0027$(stat -Lc \u0027%n^%U^%G\u0027 \u0027$l_file\u0027)\u0027) \u0026\u0026 echo \u0027Adding: $l_file\u0027 done \u003c \u003c(find / \\( \u0027${a_path[@]}\u0027 \\) \\( -type f -o -type d \\) \\( -nouser -o -nogroup \\) - print0 2\u003e /dev/null) while IFS=\u0027^\u0027 read -r l_fname l_user l_group; do # Test files in the array [ \u0027$l_user\u0027 = \u0027UNKNOWN\u0027 ] \u0026\u0026 a_nouser+=(\u0027$l_fname\u0027) [ \u0027$l_group\u0027 = \u0027UNKNOWN\u0027 ] \u0026\u0026 a_nogroup+=(\u0027$l_fname\u0027) done \u003c\u003c\u003c \u0027$(printf \u0027%s\\n\u0027 \u0027${a_arr[@]}\u0027)\u0027 if ! (( ${#a_nouser[@]} \u003e 0 )); then l_output=\u0027$l_output\\n - No unowned files or directories exist on the local filesystem.\u0027 else l_output2=\u0027$l_output2\\n - There are \\\u0027$(printf \u0027%s\u0027 \u0027${#a_nouser[@]}\u0027)\\\u0027 unowned files or directories on the system.\\n - The following is a list of unowned files and/or directories:\\n$(printf \u0027%s\\n\u0027 \u0027${a_nouser[@]}\u0027)\\n - end of list\u0027 fi if ! (( ${#a_nogroup[@]} \u003e 0 )); then l_output=\u0027$l_output\\n - No ungrouped files or directories exist on the local filesystem.\u0027 else l_output2=\u0027$l_output2\\n - There are \\\u0027$(printf \u0027%s\u0027 \u0027${#a_nogroup[@]}\u0027)\\\u0027 ungrouped files or directories on the system.\\n - The following is a list of ungrouped files and/or directories:\\n$(printf \u0027%s\\n\u0027 \u0027${a_nogroup[@]}\u0027)\\n - end of list\u0027 fi unset a_path; unset a_arr ; unset a_nouser; unset a_nogroup # Remove arrays if [ -z \u0027$l_output2\u0027 ]; then # If l_output2 is empty, we pass echo -e \u0027\\n- Audit Result:\\n ** PASS **\\n - * Correctly configured * :\\n$l_output\\n\u0027 else echo -e \u0027\\n- Audit Result:\\n ** FAIL **\\n - * Reasons for audit failure * :\\n$l_output2\u0027 [ -n \u0027$l_output\u0027 ] \u0026\u0026 echo -e \u0027\\n- * Correctly configured * :\\n$l_output\\n\u0027 fi } Note: On systems with a large number of files and/or directories, this audit may be a long running process"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: no_unowned_or_ungrouped_files_or_directories_exist
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.accounts_in_etc_passwd_use_shadowed_passwords
+    description: Ensure accounts in /etc/passwd use shadowed passwords
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that no output is returned: # awk -F: \u0027($2 != \u0027x\u0027 ) { print $1 \u0027 is not set to shadowed passwords \u0027}\u0027 /etc/passwd"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: accounts_in_etc_passwd_use_shadowed_passwords
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.etc_shadow_password_fields_are_not_empty
+    description: Ensure /etc/shadow password fields are not empty
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that no output is returned: # awk -F: \u0027($2 == \u0027\u0027 ) { print $1 \u0027 does not have a password \u0027}\u0027 /etc/shadow"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: etc_shadow_password_fields_are_not_empty
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.all_groups_in_etc_passwd_exist_in_etc_group
+    description: Ensure all groups in /etc/passwd exist in /etc/group
+    calls:
+      - action: run_command
+        command: "Run the following script and verify no results are returned: #!/bin/bash for i in $(cut -s -d: -f4 /etc/passwd | sort -u ); do grep -q -P \u0027^.*?:[^:]*:$i:\u0027 /etc/group if [ $? -ne 0 ]; then echo \u0027Group $i is referenced by /etc/passwd but does not exist in /etc/group\u0027 fi done"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: all_groups_in_etc_passwd_exist_in_etc_group
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.no_duplicate_uids_exist
+    description: Ensure no duplicate UIDs exist
+    calls:
+      - action: run_command
+        command: "Run the following script and verify no results are returned: #!/usr/bin/env bash { while read -r l_count l_uid; do if [ \u0027$l_count\u0027 -gt 1 ]; then echo -e \u0027Duplicate UID: \\\u0027$l_uid\\\u0027 Users: \\\u0027$(awk -F: \u0027($3 == n) { print $1 }\u0027 n=$l_uid /etc/passwd | xargs)\\\u0027\u0027 fi done \u003c \u003c(cut -f3 -d\u0027:\u0027 /etc/passwd | sort -n | uniq -c) }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: no_duplicate_uids_exist
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.no_duplicate_gids_exist
+    description: Ensure no duplicate GIDs exist
+    calls:
+      - action: run_command
+        command: "Run the following script and verify no results are returned: #!/usr/bin/env bash { while read -r l_count l_gid; do if [ \u0027$l_count\u0027 -gt 1 ]; then echo -e \u0027Duplicate GID: \\\u0027$l_gid\\\u0027 Groups: \\\u0027$(awk -F: \u0027($3 == n) { print $1 }\u0027 n=$l_gid /etc/group | xargs)\\\u0027\u0027 fi done \u003c \u003c(cut -f3 -d\u0027:\u0027 /etc/group | sort -n | uniq -c) }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: no_duplicate_gids_exist
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.no_duplicate_user_names_exist
+    description: Ensure no duplicate user names exist
+    calls:
+      - action: run_command
+        command: "Run the following script and verify no results are returned: #!/usr/bin/env bash { while read -r l_count l_user; do if [ \u0027$l_count\u0027 -gt 1 ]; then echo -e \u0027Duplicate User: \\\u0027$l_user\\\u0027 Users: \\\u0027$(awk -F: \u0027($1 == n) { print $1 }\u0027 n=$l_user /etc/passwd | xargs)\\\u0027\u0027 fi done \u003c \u003c(cut -f1 -d\u0027:\u0027 /etc/passwd | sort -n | uniq -c) }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: no_duplicate_user_names_exist
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.no_duplicate_group_names_exist
+    description: Ensure no duplicate group names exist
+    calls:
+      - action: run_command
+        command: "Run the following script and verify no results are returned: #!/usr/bin/env bash { while read -r l_count l_group; do if [ \u0027$l_count\u0027 -gt 1 ]; then echo -e \u0027Duplicate Group: \\\u0027$l_group\\\u0027 Groups: \\\u0027$(awk -F: \u0027($1 == n) { print $1 }\u0027 n=$l_group /etc/group | xargs)\\\u0027\u0027 fi done \u003c \u003c(cut -f1 -d\u0027:\u0027 /etc/group | sort -n | uniq -c) }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: no_duplicate_group_names_exist
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.root_path_integrity
+    description: Ensure root path integrity
+    calls:
+      - action: run_command
+        command: "Run the following script to verify root\u0027s path does not include: \u2022 Locations that are not directories \u2022 An empty directory (::) \u2022 A trailing (:) \u2022 Current working directory (.) \u2022 Non root owned directories \u2022 Directories that less restrictive than mode 0755 #!/usr/bin/env bash { l_output2=\u0027\u0027 l_pmask=\u00270022\u0027 l_maxperm=\u0027$( printf \u0027%o\u0027 $(( 0777 \u0026 ~$l_pmask )) )\u0027 l_root_path=\u0027$(sudo -Hiu root env | grep \u0027^PATH\u0027 | cut -d= -f2)\u0027 unset a_path_loc \u0026\u0026 IFS=\u0027:\u0027 read -ra a_path_loc \u003c\u003c\u003c \u0027$l_root_path\u0027 grep -q \u0027::\u0027 \u003c\u003c\u003c \u0027$l_root_path\u0027 \u0026\u0026 l_output2=\u0027$l_output2\\n - root\u0027s path contains a empty directory (::)\u0027 grep -Pq \u0027:\\h*$\u0027 \u003c\u003c\u003c \u0027$l_root_path\u0027 \u0026\u0026 l_output2=\u0027$l_output2\\n - root\u0027s path contains a trailing (:)\u0027 grep -Pq \u0027(\\h+|:)\\.(:|\\h*$)\u0027 \u003c\u003c\u003c \u0027$l_root_path\u0027 \u0026\u0026 l_output2=\u0027$l_output2\\n - root\u0027s path contains current working directory (.)\u0027 while read -r l_path; do if [ -d \u0027$l_path\u0027 ]; then while read -r l_fmode l_fown; do [ \u0027$l_fown\u0027 != \u0027root\u0027 ] \u0026\u0026 l_output2=\u0027$l_output2\\n - Directory: \\\u0027$l_path\\\u0027 is owned by: \\\u0027$l_fown\\\u0027 should be owned by \\\u0027root\\\u0027\u0027 [ $(( $l_fmode \u0026 $l_pmask )) -gt 0 ] \u0026\u0026 l_output2=\u0027$l_output2\\n - Directory: \\\u0027$l_path\\\u0027 is mode: \\\u0027$l_fmode\\\u0027 and should be mode: \\\u0027$l_maxperm\\\u0027 or more restrictive\u0027 done \u003c\u003c\u003c \u0027$(stat -Lc \u0027%#a %U\u0027 \u0027$l_path\u0027)\u0027 else l_output2=\u0027$l_output2\\n - \\\u0027$l_path\\\u0027 is not a directory\u0027 fi done \u003c\u003c\u003c \u0027$(printf \u0027%s\\n\u0027 \u0027${a_path_loc[@]}\u0027)\u0027 if [ -z \u0027$l_output2\u0027 ]; then echo -e \u0027\\n- Audit Result:\\n *** PASS ***\\n - Root\u0027s path is correctly configured\\n\u0027 else echo -e \u0027\\n- Audit Result:\\n ** FAIL **\\n - * Reasons for audit failure * :\\n$l_output2\\n\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: root_path_integrity
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: rhel.section_6.local_interactive_user_home_directories_are
+    description: Ensure local interactive user home directories are configured
+    calls:
+      - action: run_command
+        command: "Run the following script to: \u2022 Ensure local interactive user home directories exist \u2022 Ensure local interactive users own their home directories \u2022 Ensure local interactive user home directories are mode 750 or more restrictive #!/usr/bin/env bash { l_output=\u0027\u0027 l_output2=\u0027\u0027 l_heout2=\u0027\u0027 l_hoout2=\u0027\u0027 l_haout2=\u0027\u0027 l_valid_shells=\u0027^($( awk -F\\/ \u0027$NF != \u0027nologin\u0027 {print}\u0027 /etc/shells | sed -rn \u0027/^\\//{s,/,\\\\\\\\/,g;p}\u0027 | paste -s -d \u0027|\u0027 - ))$\u0027 unset a_uarr \u0026\u0026 a_uarr=() # Clear and initialize array while read -r l_epu l_eph; do # Populate array with users and user home location a_uarr+=(\u0027$l_epu $l_eph\u0027) done \u003c\u003c\u003c \u0027$(awk -v pat=\u0027$l_valid_shells\u0027 -F: \u0027$(NF) ~ pat { print $1 \u0027 \u0027 $(NF-1) }\u0027 /etc/passwd)\u0027 l_asize=\u0027${#a_uarr[@]}\u0027 # Here if we want to look at number of users before proceeding [ \u0027$l_asize \u0027 -gt \u002710000\u0027 ] \u0026\u0026 echo -e \u0027\\n ** INFO **\\n - \\\u0027$l_asize\\\u0027 Local interactive users found on the system\\n - This may be a long running check\\n\u0027 while read -r l_user l_home; do if [ -d \u0027$l_home\u0027 ]; then l_mask=\u00270027\u0027 l_max=\u0027$( printf \u0027%o\u0027 $(( 0777 \u0026 ~$l_mask)) )\u0027 while read -r l_own l_mode; do [ \u0027$l_user\u0027 != \u0027$l_own\u0027 ] \u0026\u0026 l_hoout2=\u0027$l_hoout2\\n - User: \\\u0027$l_user\\\u0027 Home \\\u0027$l_home\\\u0027 is owned by: \\\u0027$l_own\\\u0027\u0027 if [ $(( $l_mode \u0026 $l_mask )) -gt 0 ]; then l_haout2=\u0027$l_haout2\\n - User: \\\u0027$l_user\\\u0027 Home \\\u0027$l_home\\\u0027 is mode: \\\u0027$l_mode\\\u0027 should be mode: \\\u0027$l_max\\\u0027 or more restrictive\u0027 fi done \u003c\u003c\u003c \u0027$(stat -Lc \u0027%U %#a\u0027 \u0027$l_home\u0027)\u0027 else l_heout2=\u0027$l_heout2\\n - User: \\\u0027$l_user\\\u0027 Home \\\u0027$l_home\\\u0027 Doesn\u0027t exist\u0027 fi done \u003c\u003c\u003c \u0027$(printf \u0027%s\\n\u0027 \u0027${a_uarr[@]}\u0027)\u0027 [ -z \u0027$l_heout2\u0027 ] \u0026\u0026 l_output=\u0027$l_output\\n - home directories exist\u0027 || l_output2=\u0027$l_output2$l_heout2\u0027 [ -z \u0027$l_hoout2\u0027 ] \u0026\u0026 l_output=\u0027$l_output\\n - own their home directory\u0027 || l_output2=\u0027$l_output2$l_hoout2\u0027 [ -z \u0027$l_haout2\u0027 ] \u0026\u0026 l_output=\u0027$l_output\\n - home directories are mode: \\\u0027$l_max\\\u0027 or more restrictive\u0027 || l_output2=\u0027$l_output2$l_haout2\u0027 [ -n \u0027$l_output\u0027 ] \u0026\u0026 l_output=\u0027 - All local interactive users:$l_output\u0027 if [ -z \u0027$l_output2\u0027 ]; then # If l_output2 is empty, we pass echo -e \u0027\\n- Audit Result:\\n ** PASS **\\n - * Correctly configured * :\\n$l_output\u0027 else echo -e \u0027\\n- Audit Result:\\n ** FAIL **\\n - * Reasons for audit failure * :\\n$l_output2\u0027 [ -n \u0027$l_output\u0027 ] \u0026\u0026 echo -e \u0027\\n- * Correctly configured * :\\n$l_output\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: local_interactive_user_home_directories_are
+        value: "{{ result.stdout }}"
+        expected: ""
+

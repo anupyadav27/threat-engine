@@ -25,6 +25,7 @@ class AuthContext:
     org_ids: Optional[list[str]] = None         # None = unrestricted (platform_admin)
     tenant_ids: Optional[list[str]] = None      # None = unrestricted
     account_ids: Optional[list[str]] = None     # None = unrestricted
+    engine_tenant_id: Optional[str] = None      # active engine slug (set at login)
 
     # ── Permission checks ────────────────────────────────────────────
 
@@ -85,6 +86,7 @@ class AuthContext:
             "org_ids": self.org_ids,
             "tenant_ids": self.tenant_ids,
             "account_ids": self.account_ids,
+            "engine_tenant_id": self.engine_tenant_id,
         }
 
     def to_header_json(self) -> str:
@@ -104,6 +106,7 @@ class AuthContext:
             org_ids=data.get("org_ids"),
             tenant_ids=data.get("tenant_ids"),
             account_ids=data.get("account_ids"),
+            engine_tenant_id=data.get("engine_tenant_id"),
         )
 
     @classmethod
@@ -128,4 +131,5 @@ class AuthContext:
             org_ids=scope_cache.get("org_ids") if scope_cache else None,
             tenant_ids=scope_cache.get("tenant_ids") if scope_cache else None,
             account_ids=scope_cache.get("account_ids") if scope_cache else None,
+            engine_tenant_id=scope_cache.get("engine_tenant_id") if scope_cache else None,
         )

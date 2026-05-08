@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
 from engine_common.logger import setup_logger, LogContext, log_duration, audit_log
 from engine_common.orchestration import get_orchestration_metadata
-from engine_common.retention import cleanup_old_scans
+from engine_common.db_connections import get_threat_conn
 
 from threat_engine.schemas.threat_report_schema import (
     ThreatReport,
@@ -47,19 +47,6 @@ logger = setup_logger(__name__, engine_name="threat-scanner")
 
 # ── DB helpers ───────────────────────────────────────────────────────────────
 
-def _get_threat_conn():
-    """Get a psycopg2 connection to the threat DB."""
-    import psycopg2
-    return psycopg2.connect(
-        host=os.getenv("THREAT_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("THREAT_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("THREAT_DB_NAME", "threat_engine_threat"),
-        user=os.getenv("THREAT_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("THREAT_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        connect_timeout=5,
-    )
-
-
 def _ensure_tenant(conn, tenant_id: str):
     """Upsert tenant row (FK requirement)."""
     with conn.cursor() as cur:
@@ -76,16 +63,16 @@ def _create_report_row(scan_run_id: str, tenant_id: str, provider: str,
                         metadata: dict):
     """Pre-create threat_report row with status='running'."""
     try:
-        conn = _get_threat_conn()
+        conn = get_threat_conn()
         _ensure_tenant(conn, tenant_id)
         with conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO threat_report
-                   (scan_run_id, tenant_id, provider,
+                   (threat_scan_id, scan_run_id, tenant_id, provider,
                     status, started_at, report_data)
-                   VALUES (%s, %s, %s, 'running', NOW(), %s)
+                   VALUES (%s, %s, %s, %s, 'running', NOW(), %s)
                    ON CONFLICT (scan_run_id) DO UPDATE SET status = 'running'""",
-                (scan_run_id, tenant_id, provider,
+                (scan_run_id, scan_run_id, tenant_id, provider,
                  json.dumps(metadata)),
             )
         conn.commit()
@@ -97,7 +84,7 @@ def _create_report_row(scan_run_id: str, tenant_id: str, provider: str,
 def _update_report_status(scan_run_id: str, status: str, error: str = None):
     """Update threat_report status in DB."""
     try:
-        conn = _get_threat_conn()
+        conn = get_threat_conn()
         with conn.cursor() as cur:
             if error:
                 cur.execute(
@@ -157,9 +144,18 @@ def main():
         account_id = metadata.get("account_id", "")
         discovery_scan_run_id = scan_run_id
 
-        # Determine cloud enum
+        # Determine cloud enum — all 7 CSPs supported
         provider_lower = provider.lower()
-        cloud_map = {"aws": Cloud.AWS, "azure": Cloud.AZURE, "gcp": Cloud.GCP}
+        cloud_map = {
+            "aws": Cloud.AWS,
+            "azure": Cloud.AZURE,
+            "gcp": Cloud.GCP,
+            "k8s": Cloud.K8S,
+            "kubernetes": Cloud.K8S,
+            "alicloud": Cloud.ALICLOUD,
+            "oci": Cloud.OCI,
+            "ibm": Cloud.IBM,
+        }
         cloud = cloud_map.get(provider_lower, Cloud.AWS)
 
         logger.info(f"Resolved: tenant={tenant_id} provider={provider} check={check_scan_run_id}")
@@ -257,6 +253,62 @@ def main():
             misconfig_findings=findings,
         )
 
+        # 7a. Enrich with CIEM log-based threat events
+        try:
+            from engine_common.ciem_reader import CIEMReader
+            ciem = CIEMReader(tenant_id=tenant_id, account_id=account_id, days=7)
+            ciem_threats = ciem.get_threat_events(min_severity="low")
+            ciem_findings_data = ciem.get_ciem_findings(engine_filter="threat")
+            if ciem_threats:
+                logger.info(f"CIEM: {len(ciem_threats)} threat events from logs")
+            if ciem_findings_data:
+                logger.info(f"CIEM: {len(ciem_findings_data)} threat findings from CIEM")
+                # Merge CIEM findings into the already-generated report
+                report_findings = report.get("findings", [])
+                existing_ids = {f.get("finding_id") for f in report_findings}
+                ciem_added = 0
+                for cf in ciem_findings_data:
+                    fid = cf.get("finding_id", "")
+                    if fid and fid in existing_ids:
+                        continue
+                    report_findings.append({
+                        "finding_id": fid,
+                        "rule_id": cf.get("rule_id", ""),
+                        "severity": cf.get("severity", "medium"),
+                        "status": "FAIL",
+                        "title": cf.get("title", ""),
+                        "source": "ciem_log_detection",
+                        "operation": cf.get("operation", ""),
+                        "actor_principal": cf.get("actor_principal", ""),
+                        "resource_uid": cf.get("resource_uid", ""),
+                        "resource_type": cf.get("resource_type", ""),
+                        "account_id": cf.get("account_id", account_id or ""),
+                        "region": cf.get("region", ""),
+                        "event_time": str(cf.get("event_time", "")),
+                        "action_category": cf.get("action_category", ""),
+                        "finding_data": {
+                            "source": "ciem",
+                            "title": cf.get("title", ""),
+                            "description": cf.get("description", ""),
+                            "remediation": cf.get("remediation", ""),
+                            "compliance_frameworks": cf.get("compliance_frameworks", []),
+                            "mitre_tactics": cf.get("mitre_tactics", []),
+                            "mitre_techniques": cf.get("mitre_techniques", []),
+                            "risk_score": cf.get("risk_score"),
+                            "domain": cf.get("domain", ""),
+                        },
+                    })
+                    existing_ids.add(fid)
+                    ciem_added += 1
+                report["findings"] = report_findings
+                # Update summary counts
+                summary = report.get("summary", {})
+                summary["total_findings"] = len(report_findings)
+                report["summary"] = summary
+                logger.info(f"Merged: {ciem_added} CIEM findings → {len(report_findings)} total")
+        except Exception as ciem_exc:
+            logger.warning(f"CIEM enrichment failed (non-fatal): {ciem_exc}")
+
         # Save report to DB (writes threat_report + threat_findings + threat_detections)
         storage = ThreatStorage()
         storage.save_report(report)
@@ -276,15 +328,12 @@ def main():
             logger.warning(f"Threat analysis failed (report still saved): {e}", exc_info=True)
 
         # 9. Build security graph (Neo4j)
-        try:
-            from threat_engine.graph.graph_builder import SecurityGraphBuilder
-            graph_start = time.time()
-            logger.info("Building security graph in Neo4j...")
-            builder = SecurityGraphBuilder()
-            graph_stats = builder.build_graph(tenant_id=tenant_id)
-            logger.info(f"Graph build complete in {time.time() - graph_start:.1f}s: {graph_stats}")
-        except Exception as e:
-            logger.warning(f"Graph build failed (scan still successful): {e}", exc_info=True)
+        # GRAPH-S1-04: Graph build is now a dedicated Argo step that runs AFTER
+        # the domain-engine fan-out (network, vuln, IAM, datasec) so that CVE
+        # nodes and EXPOSES edges are available when the graph is constructed.
+        # The API endpoint POST /api/v1/graph/build is called by Argo directly;
+        # do NOT trigger it here from the threat scan job.
+        # (kept as a no-op comment block so the step numbering stays consistent)
 
         # 10. Update status to completed
         duration = time.time() - start
@@ -295,11 +344,13 @@ def main():
             f"{analysis_count} analyses in {duration:.1f}s"
         )
 
-        # 11. Retention cleanup (keep last 3 scans per tenant)
+        # Retention: archive old scans to S3, keep last 5 in DB
         try:
-            cleanup_old_scans("threat", tenant_id, keep=3)
-        except Exception as e:
-            logger.warning(f"Retention cleanup failed: {e}")
+            from engine_common.retention import run_retention
+            run_retention("threat", scan_run_id)
+        except Exception as _ret_err:
+            logger.warning("Retention cleanup skipped: %s", _ret_err)
+
 
     except Exception as e:
         logger.error(f"Threat scan FAILED: {e}", exc_info=True)

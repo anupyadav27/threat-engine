@@ -1,0 +1,88 @@
+rule_id: gcp.compute.activity.snapshot_insert
+service: compute
+provider: gcp
+check_type: log
+severity: high
+title: 'Compute: Persistent Disk Snapshot Created'
+description: Disk snapshot created — may be cross-project shared to exfiltrate disk contents containing sensitive data, credentials, or application secrets.
+rationale: 'Adversaries create snapshots or data backups within cloud accounts to evade defenses and stage data for exfiltration. Snapshots can be shared with attacker-controlled accounts, mounted to attacker instances to bypass access restrictions on the original volume. Detected via: snapshot creation by unexpected or newly provisioned IAM users, rapid snapshot-create → cross-account share sequences, and snapshots from sensitive volumes without change-control approval.'
+threat_category: collection
+mitre_tactics:
+- collection
+- exfiltration
+mitre_techniques:
+- T1578.001
+risk_score: 72
+resource: compute_snapshot
+source: default
+is_active: true
+domain: compute_and_workload_security
+action_category: read
+posture_category: data_security_posture
+threat_tags:
+- T1578.001
+- T1578
+- data_collection
+- sensitive_data
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: read
+  target_type: compute_instance
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - backup_and_recovery
+  categories:
+  - sensitive_data_access
+  - unauthorized_access
+  priority: high
+  impact:
+    pci: PCI DSS Requirement 12.3 — Implement security awareness program and protect systems
+    gdpr: GDPR Article 32 — Appropriate technical and organizational measures for data security
+    hipaa: §164.306(a) — Ensure confidentiality, integrity, and availability of ePHI
+compliance_frameworks:
+  cis_gcp_v2:
+  - 5.1
+  - 5.2
+  nist_800_53_r5:
+  - AC-4
+  - SC-28
+  - SI-4
+  pci_dss_v4:
+  - 3.1
+  - 7.1
+  iso_27001_2022:
+  - A.8.12
+  - A.5.12
+detection_events:
+- 'ec2:CreateSnapshot'
+- 'ec2:ModifySnapshotAttribute (cross-account share)'
+- Microsoft.Compute/snapshots/write
+- Microsoft.Compute/disks/beginGetAccess/action
+remediation: |
+  1. Audit and revert the snapshot or data access operation.
+  2. Review IAM permissions on the affected disk/volume and revoke unauthorized access.
+  3. Enable disk snapshot sharing restrictions via Org Policy.
+  4. Configure Security Command Center alerts for snapshot cross-project share events.
+  5. Encrypt all persistent disks with CMEK to prevent use without key access.
+references:
+- https://attack.mitre.org/techniques/T1578/001/
+- https://cloud.google.com/compute/docs/disks/snapshots
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: compute.googleapis.com
+    - field: operation
+      op: contains
+      value: snapshots.insert
+version: '1.0'

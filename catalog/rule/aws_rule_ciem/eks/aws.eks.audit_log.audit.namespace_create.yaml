@@ -1,0 +1,84 @@
+rule_id: aws.eks.audit_log.audit.namespace_create
+service: eks
+provider: aws
+check_type: log
+severity: low
+title: 'EKS: Namespace Create'
+description: Kubernetes namespace created — new isolated environment provisioned.
+rationale: 'Adversaries deploy containers into environments using Docker APIs or Kubernetes control planes to facilitate execution or evade defenses by running malicious images outside standard deployment processes. Deployed containers can host C2 infrastructure, cryptomining workloads, or data exfiltration tools. Detected via: container create + start by non-admin principals, images not on an allowlist or using ''latest'' tag, privileged mode or host namespace mount at runtime, and unauthenticated Docker API access.'
+threat_category: persistence
+mitre_tactics:
+- persistence
+mitre_techniques:
+- T1610
+risk_score: 25
+resource: eks_cluster
+source: default
+is_active: true
+domain: identity_and_access_management
+action_category: create
+posture_category: iam_posture
+threat_tags:
+- T1610
+- persistence
+- backdoor
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.1
+  - 1.4
+  - 1.16
+  cis_azure_v2:
+  - 1.1
+  - 2.1
+  - 2.9
+  nist_800_53_r5:
+  - AC-2
+  - AC-6
+  - IA-2
+  - SC-7
+  pci_dss_v4:
+  - 7.1
+  - 8.2
+  - 10.2
+  iso_27001_2022:
+  - A.8.2
+  - A.9.2
+  - A.5.18
+detection_events:
+- pods/create (Kubernetes audit)
+- 'containers:create via Docker API'
+- 'aks:CreatePod by non-CI/CD principal'
+- Admission controller deny events (missing context = bypass attempt)
+remediation: |
+  1. Restrict container deployment permissions via Kubernetes RBAC / Azure Policy.
+  2. Enable admission controllers (OPA Gatekeeper / Azure Policy for AKS).
+  3. Alert on privileged container deployments.
+  4. Enforce container image signing and verification policies.
+references:
+- https://attack.mitre.org/techniques/T1610/
+- https://kubernetes.io/docs/concepts/security/pod-security-standards/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: eks_audit
+    - field: operation
+      op: equals
+      value: create
+    - field: resource.type
+      op: equals
+      value: namespaces
+version: '1.0'

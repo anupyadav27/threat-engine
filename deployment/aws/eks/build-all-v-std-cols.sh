@@ -47,7 +47,7 @@ build "yadavanup84/threat-engine-pipeline-worker"   "shared/pipeline_worker/Dock
 
 # Batch 5: Frontend + check-aws
 build "yadavanup84/engine-check"                    "engines/check/engine_check_aws/Dockerfile"  # v-std-cols-aws variant
-build "yadavanup84/cspm-frontend"                   "ui_samples/Dockerfile"
+build "yadavanup84/cspm-frontend"                   "frontend/Dockerfile"
 
 echo ""
 echo "=========================================="

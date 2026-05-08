@@ -1,0 +1,87 @@
+rule_id: k8s.configmap.audit.bulk_list
+service: configmap
+provider: k8s
+check_type: log
+severity: medium
+title: 'ConfigMap: Bulk ConfigMap Enumeration'
+description: ConfigMaps listed in bulk — may contain application credentials, connection strings, or configuration secrets stored outside proper Secrets management.
+rationale: 'Adversaries search local file systems, remote file shares, and cloud storage for files containing insecurely stored credentials — including config files, source code, .env files, and shell history. Cloud-specific targets include ~/.aws/credentials, terraform.tfstate (containing plaintext secrets), and container environment variable dumps. Detected via: file read access to .env/.xml/.ps1/config files, grep commands targeting credential patterns, and container process access to mounted secret paths.'
+threat_category: collection
+mitre_tactics:
+- collection
+- credential_access
+mitre_techniques:
+- T1552.001
+risk_score: 60
+resource: k8s_configmap
+source: default
+is_active: true
+domain: data_protection_and_privacy
+action_category: read
+posture_category: data_security_posture
+threat_tags:
+- T1552.001
+- T1552
+- data_collection
+- sensitive_data
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: read
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - data_access_governance
+  categories:
+  - sensitive_data_access
+  - unauthorized_access
+  priority: medium
+  impact:
+    pci: PCI DSS Requirement 12.3 — Implement security awareness program and protect systems
+    gdpr: GDPR Article 32 — Appropriate technical and organizational measures for data security
+    hipaa: §164.306(a) — Ensure confidentiality, integrity, and availability of ePHI
+compliance_frameworks:
+  cis_k8s_v1:
+  - 5.4.1
+  - 5.4.2
+  nist_800_53_r5:
+  - AC-4
+  - SC-28
+  pci_dss_v4:
+  - 3.1
+  - 7.1
+  iso_27001_2022:
+  - A.8.12
+  - A.5.12
+detection_events:
+- 's3:GetObject on .env / credentials files'
+- EC2 metadata API call from unexpected source
+- Container exec with grep/find credential patterns
+remediation: |
+  1. Revoke the unauthorized RBAC access used for secret/configmap enumeration.
+  2. Rotate all secrets and credentials in the affected namespace.
+  3. Apply namespace isolation and RBAC least-privilege for secrets access.
+  4. Enable K8s audit alerting on secrets/list and configmaps/list from unexpected subjects.
+  5. Use external secret stores to prevent lateral secret access within the cluster.
+references:
+- https://attack.mitre.org/techniques/T1552/001/
+- https://kubernetes.io/docs/concepts/configuration/secret/
+- https://kubernetes.io/docs/concepts/security/secrets-good-practices/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: k8s_audit
+    - field: resource
+      op: equals
+      value: configmaps
+    - field: verb
+      op: equals
+      value: list
+version: '1.0'

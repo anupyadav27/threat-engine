@@ -1,0 +1,81 @@
+# ==========================================================
+# Discovery YAML — macie2 (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 11 | ops: 4 independent, 0 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: macie2
+
+services:
+  client: macie2
+  module: "boto3.client('macie2')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  []
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.macie2.list_classification_jobs  ──
+  - discovery_id: aws.macie2.list_classification_jobs
+    calls:
+      - action: 
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        jobStatus: '{{ item.jobStatus }}'
+        s3JobDefinition: '{{ item.s3JobDefinition.bucketDefinitions.accountId }}'
+        s3JobDefinition.bucketDefinitions.accountId: '{{ item.s3JobDefinition.bucketDefinitions.accountId }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.macie2.list_members  ──
+  - discovery_id: aws.macie2.list_members
+    calls:
+      - action: 
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        tags: '{{ item.tags }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.macie2.describe_buckets  ──
+  - discovery_id: aws.macie2.describe_buckets
+    calls:
+      - action: 
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        allowsUnencryptedObjectUploads: '{{ item.allowsUnencryptedObjectUploads }}'
+        s3Destination: '{{ item.s3Destination.bucketName }}'
+        s3Destination.bucketName: '{{ item.s3Destination.bucketName }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.macie2.list_findings  ──
+  - discovery_id: aws.macie2.list_findings
+    calls:
+      - action: 
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        resourcesAffected: '{{ item.resourcesAffected.s3Bucket.publicAccess }}'
+        resourcesAffected.s3Bucket.allowsUnencryptedObjectUploads: '{{ item.resourcesAffected.s3Bucket.allowsUnencryptedObjectUploads }}'
+        resourcesAffected.s3Bucket.publicAccess: '{{ item.resourcesAffected.s3Bucket.publicAccess }}'
+        resourcesAffected.s3Bucket.publicAccess.permissionConfiguration.bucketLevelPermissions.accessControlList.allowsPublicReadAccess: '{{ item.resourcesAffected.s3Bucket.publicAccess.permissionConfiguration.bucketLevelPermissions.accessControlList.allowsPublicReadAccess }}'
+        resourcesAffected.s3Bucket.serverSideEncryption.encryptionType: '{{ item.resourcesAffected.s3Bucket.serverSideEncryption.encryptionType }}'
+

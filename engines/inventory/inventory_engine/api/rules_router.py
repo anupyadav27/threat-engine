@@ -1,7 +1,7 @@
 """
 Rules Admin Router — DB-driven relationship rule management.
 
-Provides CRUD endpoints for `resource_relationship_rules` table, making the
+Provides CRUD endpoints for `resource_security_relationship_rules` table, making the
 database the single source of truth for multi-CSP relationship extraction.
 No code changes or redeployment needed to add/modify rules for new CSPs.
 
@@ -132,7 +132,7 @@ async def list_rules(
         SELECT rule_id, csp, service, from_resource_type, relation_type, to_resource_type,
                source_field, source_field_item, target_uid_pattern, is_active, rule_source,
                rule_metadata, created_at::text, updated_at::text
-        FROM resource_relationship_rules
+        FROM resource_security_relationship_rules
         {where}
         ORDER BY csp, from_resource_type, relation_type
         LIMIT %s OFFSET %s
@@ -156,7 +156,7 @@ async def rule_stats():
     """Return rule counts grouped by CSP and rule_source."""
     sql = """
         SELECT csp, rule_source, is_active, COUNT(*) AS count
-        FROM resource_relationship_rules
+        FROM resource_security_relationship_rules
         GROUP BY csp, rule_source, is_active
         ORDER BY csp, rule_source
     """
@@ -181,7 +181,7 @@ async def create_rule(rule: RuleCreate):
     """Create a new relationship rule. Upserts on the unique constraint
     (csp, from_resource_type, relation_type, to_resource_type, source_field)."""
     sql = """
-        INSERT INTO resource_relationship_rules
+        INSERT INTO resource_security_relationship_rules
             (csp, service, from_resource_type, relation_type, to_resource_type,
              source_field, source_field_item, target_uid_pattern,
              is_active, rule_source, rule_metadata)
@@ -249,7 +249,7 @@ async def update_rule(rule_id: int, update: RuleUpdate):
         raise HTTPException(status_code=400, detail="No fields to update")
 
     params.append(rule_id)
-    sql = f"UPDATE resource_relationship_rules SET {', '.join(set_parts)} WHERE rule_id = %s RETURNING rule_id, updated_at::text"
+    sql = f"UPDATE resource_security_relationship_rules SET {', '.join(set_parts)} WHERE rule_id = %s RETURNING rule_id, updated_at::text"
 
     try:
         conn = _get_conn()
@@ -274,7 +274,7 @@ async def deactivate_rule(rule_id: int):
     """Soft-delete: sets is_active=FALSE. The rule stays in DB for audit purposes.
     Use PUT to re-activate."""
     sql = """
-        UPDATE resource_relationship_rules
+        UPDATE resource_security_relationship_rules
         SET is_active = FALSE, updated_at = NOW()
         WHERE rule_id = %s
         RETURNING rule_id, updated_at::text

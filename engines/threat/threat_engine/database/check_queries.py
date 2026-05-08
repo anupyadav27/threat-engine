@@ -8,23 +8,12 @@ Optimized queries using existing indexes for performance.
 import os
 import sys
 import json
-import psycopg2
 from psycopg2.extras import RealDictCursor
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 from pathlib import Path
 
-
-def _get_check_conn():
-    """Return a fresh psycopg2 connection to the check DB via env vars."""
-    return psycopg2.connect(
-        host=os.getenv("CHECK_DB_HOST", "localhost"),
-        port=int(os.getenv("CHECK_DB_PORT", "5432")),
-        dbname=os.getenv("CHECK_DB_NAME", "threat_engine_check"),
-        user=os.getenv("CHECK_DB_USER", "postgres"),
-        password=os.getenv("CHECK_DB_PASSWORD", ""),
-        connect_timeout=10,
-    )
+from engine_common.db_connections import get_check_conn
 
 
 class CheckDatabaseQueries:
@@ -47,7 +36,7 @@ class CheckDatabaseQueries:
 
     def _execute_query(self, query: str, params: List = None):
         """Execute a query using direct psycopg2 connection."""
-        conn = _get_check_conn()
+        conn = get_check_conn()
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(query, params or [])
@@ -62,7 +51,7 @@ class CheckDatabaseQueries:
 
     def _execute_query_one(self, query: str, params: List = None):
         """Execute a query and return single result"""
-        conn = _get_check_conn()
+        conn = get_check_conn()
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(query, params or [])
@@ -816,20 +805,20 @@ class CheckDatabaseQueries:
             params.append(service)
 
         if start_time:
-            where_clauses.append("created_at >= %s")
+            where_clauses.append("first_seen_at >= %s")
             params.append(start_time)
         if end_time:
-            where_clauses.append("created_at <= %s")
+            where_clauses.append("first_seen_at <= %s")
             params.append(end_time)
 
         where_sql = " AND ".join(where_clauses)
 
         query = f"""
-        SELECT scan_run_id, MAX(created_at) as created_at
+        SELECT scan_run_id, MAX(first_seen_at) as first_seen_at
         FROM check_findings
         WHERE {where_sql}
         GROUP BY scan_run_id
-        ORDER BY MAX(created_at) DESC
+        ORDER BY MAX(first_seen_at) DESC
         LIMIT 1;
         """
 
@@ -855,20 +844,20 @@ class CheckDatabaseQueries:
             params.append(service)
 
         if start_time:
-            where_clauses.append("created_at >= %s")
+            where_clauses.append("first_seen_at >= %s")
             params.append(start_time)
         if end_time:
-            where_clauses.append("created_at <= %s")
+            where_clauses.append("first_seen_at <= %s")
             params.append(end_time)
 
         where_sql = " AND ".join(where_clauses)
 
         query = f"""
-        SELECT scan_run_id, MAX(created_at) as created_at
+        SELECT scan_run_id, MAX(first_seen_at) as first_seen_at
         FROM check_findings
         WHERE {where_sql}
         GROUP BY scan_run_id
-        ORDER BY MAX(created_at) DESC
+        ORDER BY MAX(first_seen_at) DESC
         LIMIT 1;
         """
 

@@ -1,0 +1,60 @@
+rule_id: aws.vpc.flow_log.icmp_flood
+service: vpc
+provider: aws
+check_type: log
+severity: medium
+title: 'VPC: Icmp Flood'
+description: ICMP flood detected in VPC flow logs — possible denial of service.
+rationale: Network denial-of-service from or via cloud resources can indicate compromise of cloud assets being weaponized for DDoS campaigns against external targets.
+threat_category: web_attack
+mitre_tactics:
+- impact
+mitre_techniques:
+- T1498
+risk_score: 55
+resource: vpc
+source: ciem_rule_generator
+is_active: true
+domain: network_security_and_connectivity
+action_category: create
+log_source_type: vpc_flow
+posture_category: threat_posture
+threat_tags:
+- T1498
+- network_security
+- vpc
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: network_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: |
+  1. Revoke credentials used to create DDoS-capable resources.
+  2. Enable AWS Shield Advanced / Azure DDoS Protection with alerting.
+  3. Alert on creation of high-bandwidth resources by non-standard principals.
+references:
+- https://attack.mitre.org/techniques/T1498/
+- https://learn.microsoft.com/en-us/azure/ddos-protection/ddos-protection-overview
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: vpc_flow
+    - field: protocol
+      op: equals
+      value: '1'
+    - field: packets
+      op: greater_than
+      value: 1000
+  for_each: log_events
+  log_source_type: vpc_flow
+  type: log
+version: '1.0'

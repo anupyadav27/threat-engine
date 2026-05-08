@@ -1,0 +1,40 @@
+version: '1.0'
+provider: azure
+service: mariadb
+checks:
+# ═══════════════════════════════════════════
+# MariaDB Servers — azure.mariadb.servers.servers_list
+# Fields: id, name, type, location, tags, sku, identity, properties, provisioning_state, kind, zones
+# Note: Security config (ssl_enforcement, geo_redundant_backup, public_network_access,
+#       minimal_tls_version) is inside the properties blob
+# ═══════════════════════════════════════════
+- rule_id: azure.mariadb.server.sku_configured
+  for_each: azure.mariadb.servers.servers_list
+  conditions:
+    var: item.sku
+    op: not_empty
+
+- rule_id: azure.mariadb.server.properties_configured
+  for_each: azure.mariadb.servers.servers_list
+  conditions:
+    var: item.properties
+    op: not_empty
+
+- rule_id: azure.mariadb.server.managed_identity_enabled
+  for_each: azure.mariadb.servers.servers_list
+  conditions:
+    var: item.identity
+    op: not_empty
+
+- rule_id: azure.mariadb.server.provisioning_succeeded
+  for_each: azure.mariadb.servers.servers_list
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.mariadb.server.tags_configured
+  for_each: azure.mariadb.servers.servers_list
+  conditions:
+    var: item.tags
+    op: not_empty

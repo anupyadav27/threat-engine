@@ -1,0 +1,31 @@
+version: '1.0'
+provider: alicloud
+service: gtm
+checks:
+- rule_id: alicloud.gtm.traffic_manager_policy.traffic_policy_health_checks_required_for_failover
+  for_each: alicloud.gtm.traffic_manager_policy
+  severity: MEDIUM
+  conditions:
+    var: item.health_checks
+    op: exists
+    value: null
+- rule_id: alicloud.gtm.traffic_manager_policy.traffic_policy_policy_documents_encrypted_and_private
+  for_each: alicloud.gtm.traffic_manager_policy
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.encrypted
+      op: is_true
+      value: null
+    - var: item.internet_facing
+      op: is_false
+      value: null
+- rule_id: alicloud.gtm.traffic_manager_policy.traffic_policy_targets_approved_domains_only
+  for_each: alicloud.gtm.traffic_manager_policy
+  severity: MEDIUM
+  conditions:
+    var: item.targets[].domain
+    op: in
+    value:
+    - example.com
+    - example.org

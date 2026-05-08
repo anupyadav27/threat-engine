@@ -1,0 +1,43 @@
+version: '1.0'
+provider: azure
+service: keyvault
+checks:
+# ═══════════════════════════════════════════
+# Key Vaults — azure.keyvault.vaults.list_by_subscription
+# Fields: id (via ARM), location, properties, tags
+# Note: All security config (access_policies, network_acls, soft_delete,
+#       purge_protection, rbac_auth) is inside the properties blob.
+# ═══════════════════════════════════════════
+- rule_id: azure.keyvault.vault.properties_configured
+  for_each: azure.keyvault.vaults.list_by_subscription
+  conditions:
+    var: item.properties
+    op: not_empty
+
+- rule_id: azure.keyvault.vault.tags_configured
+  for_each: azure.keyvault.vaults.list_by_subscription
+  conditions:
+    var: item.tags
+    op: not_empty
+
+# ═══════════════════════════════════════════
+# Managed HSMs — azure.keyvault.managedhsms.list_by_subscription
+# Fields: id (via ARM), location, identity, properties, tags
+# ═══════════════════════════════════════════
+- rule_id: azure.keyvault.hsm.managed_identity_enabled
+  for_each: azure.keyvault.managedhsms.list_by_subscription
+  conditions:
+    var: item.identity
+    op: not_empty
+
+- rule_id: azure.keyvault.hsm.properties_configured
+  for_each: azure.keyvault.managedhsms.list_by_subscription
+  conditions:
+    var: item.properties
+    op: not_empty
+
+- rule_id: azure.keyvault.hsm.tags_configured
+  for_each: azure.keyvault.managedhsms.list_by_subscription
+  conditions:
+    var: item.tags
+    op: not_empty

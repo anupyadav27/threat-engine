@@ -1,0 +1,90 @@
+version: '1.0'
+provider: azure
+service: kusto
+checks:
+# ═══════════════════════════════════════════
+# Data Explorer Clusters — azure.kusto.clusters.list_by_resource_group
+# Fields: id, name, type, location, tags, zones, sku, identity, provisioning_state,
+#         public_network_access, enable_disk_encryption, enable_double_encryption,
+#         enable_purge, enable_streaming_ingest, key_vault_properties,
+#         private_endpoint_connections, restrict_outbound_network_access,
+#         trusted_external_tenants, virtual_network_configuration,
+#         accepted_audiences, allowed_fqdn_list, allowed_ip_range_list, engine_type,
+#         language_extensions, optimized_autoscale, state, uri, data_ingestion_uri
+# ═══════════════════════════════════════════
+- rule_id: azure.kusto.cluster.public_network_access_disabled
+  for_each: azure.kusto.clusters.list_by_resource_group
+  conditions:
+    var: item.public_network_access
+    op: equals
+    value: Disabled
+
+- rule_id: azure.kusto.cluster.disk_encryption_enabled
+  for_each: azure.kusto.clusters.list_by_resource_group
+  conditions:
+    var: item.enable_disk_encryption
+    op: equals
+    value: 'true'
+
+- rule_id: azure.kusto.cluster.double_encryption_enabled
+  for_each: azure.kusto.clusters.list_by_resource_group
+  conditions:
+    var: item.enable_double_encryption
+    op: equals
+    value: 'true'
+
+- rule_id: azure.kusto.cluster.cmk_encryption_configured
+  for_each: azure.kusto.clusters.list_by_resource_group
+  conditions:
+    var: item.key_vault_properties
+    op: not_empty
+
+- rule_id: azure.kusto.cluster.private_endpoints_configured
+  for_each: azure.kusto.clusters.list_by_resource_group
+  conditions:
+    var: item.private_endpoint_connections
+    op: not_empty
+
+- rule_id: azure.kusto.cluster.restrict_outbound_network
+  for_each: azure.kusto.clusters.list_by_resource_group
+  conditions:
+    var: item.restrict_outbound_network_access
+    op: equals
+    value: Enabled
+
+- rule_id: azure.kusto.cluster.vnet_configured
+  for_each: azure.kusto.clusters.list_by_resource_group
+  conditions:
+    var: item.virtual_network_configuration
+    op: not_empty
+
+- rule_id: azure.kusto.cluster.managed_identity_enabled
+  for_each: azure.kusto.clusters.list_by_resource_group
+  conditions:
+    var: item.identity
+    op: not_empty
+
+- rule_id: azure.kusto.cluster.trusted_tenants_configured
+  for_each: azure.kusto.clusters.list_by_resource_group
+  conditions:
+    var: item.trusted_external_tenants
+    op: not_empty
+
+- rule_id: azure.kusto.cluster.availability_zones_configured
+  for_each: azure.kusto.clusters.list_by_resource_group
+  conditions:
+    var: item.zones
+    op: not_empty
+
+- rule_id: azure.kusto.cluster.provisioning_succeeded
+  for_each: azure.kusto.clusters.list_by_resource_group
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.kusto.cluster.tags_configured
+  for_each: azure.kusto.clusters.list_by_resource_group
+  conditions:
+    var: item.tags
+    op: not_empty

@@ -1,0 +1,1311 @@
+# MICROSOFT_365 — CIEM Detection Rules
+# Real-time authentication & access event analysis
+# Log source: Microsoft 365 Unified Audit Log
+
+tech_type: microsoft_365
+category: cloud_saas
+log_source: Microsoft 365 Unified Audit Log
+
+rules:
+
+  - rule_id: tciem.microsoft_365.l1_ensure_administrative_accounts_are_cloud_only
+    title: "(L1) Ensure Administrative accounts are cloud-only"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '1.1.1'
+    cis_section: '1'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Remediation will require first identifying the privileged accounts that are
+      synced from on- premises and then creating a new cloud-only account for that
+      user. Once a replacement account is established, the hybrid account should
+      have its role reduced to that of a non- privileged user or removed depending
+      on the need. Default Value: N/A References: 1. https://learn.microsoft.com/en-
+      us/microsoft-365/admin/add-users/add- users?view=o365-worldwide 2.
+      https://learn.microsoft.com/en-us/microsoft-365/enterprise/protect-your-
+      global- administrator-accounts?view=o365-worldwide 3.
+      https://learn.microsoft.com/en-us/entra/identity/role-based-access-
+      control/best- practices#9-use-cloud-native-accounts-for-microsoft-entra-roles
+      4. https://learn.microsoft.com/en-us/entra/fundamentals/whatis 5.
+      https://learn.microsoft.com/en-us/entra/identity/role-based-access-
+      control/permissions-reference
+
+  - rule_id: tciem.microsoft_365.l1_ensure_administrative_accounts_use_licenses
+    title: "(L1) Ensure administrative accounts use licenses with a reduced application footprint"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '1.1.4'
+    cis_section: '1'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to Microsoft 365 admin center
+      https://admin.microsoft.com. 2. Click to expand Users select Active users 3.
+      Click Add a user. 4. Fill out the appropriate fields for Name, user, etc. 5.
+      When prompted to assign licenses select as needed Microsoft Entra ID P1 or
+      Microsoft Entra ID P2, then click Next. 6. Under the Option settings screen
+      you may choose from several types of privileged roles. Choose Admin center
+      access followed by the appropriate role then click Next. 7. Select Finish
+      adding. Note: Utilizing PIM to best practices will satisfy this control. CIS
+      and Microsoft recommend an organization keep zero permanently active
+      assignments for roles other than emergency access accounts. Default Value: N/A
+      References: 1. https://learn.microsoft.com/en-
+      us/microsoft-365/enterprise/protect-your-global- administrator-
+      accounts?view=o365-worldwide 2. https://learn.microsoft.com/en-
+      us/entra/fundamentals/whatis#what-are-the- microsoft-entra-id-licenses 3.
+      https://learn.microsoft.com/en-us/entra/identity/role-based-access-
+      control/permissions-reference 4. https://learn.microsoft.com/en-
+      us/microsoft-365/business-premium/m365bp- protect-admin-
+      accounts?view=o365-worldwide 5. https://learn.microsoft.com/en-
+      us/microsoft-365/enterprise/subscriptions-licenses- accounts-and-tenants-for-
+      microsoft-cloud-offerings?view=o365- worldwide#licenses 6.
+      https://learn.microsoft.com/en-us/entra/id-governance/privileged-identity-
+      management/pim-deployment-plan#principle-of-least-privilege
+
+  - rule_id: tciem.microsoft_365.l2_ensure_that_only_organizationally_managed
+    title: "(L2) Ensure that only organizationally managed/approved public groups exist"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.2.1'
+    cis_section: '1'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to Microsoft 365 admin center
+      https://admin.microsoft.com. 2. Click to expand Teams & groups select Active
+      teams & groups.. 3. On the Active teams and groups page , select the group's
+      name that is public. 4. On the popup groups name page , Select Settings. 5.
+      Under Privacy, select Private. Default Value: Public when created from the
+      Administration portal; private otherwise. References: 1.
+      https://learn.microsoft.com/en-us/entra/identity/users/groups-self-service-
+      management 2. https://learn.microsoft.com/en-us/microsoft-365/admin/create-
+      groups/compare- groups?view=o365-worldwide
+
+  - rule_id: tciem.microsoft_365.l1_ensure_sign_in_to_shared_mailboxes_is_blocked
+    title: "(L1) Ensure sign-in to shared mailboxes is blocked"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.2.2'
+    cis_section: '1'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to Microsoft 365 admin center
+      https://admin.microsoft.com/ 2. Click to expand Teams & groups and select
+      Shared mailboxes. 3. Take note of all shared mailboxes. 4. Click to expand
+      Users and select Active users. 5. Select a shared mailbox account to open it's
+      properties pane and then select Block sign-in. 6. Check the box for Block this
+      user from signing in. 7. Repeat for any additional shared mailboxes. To
+      remediate using PowerShell: 1. Connect to Microsoft Graph using Connect-
+      MgGraph -Scopes 'User.ReadWrite.All' 2. Connect to Exchange Online using
+      Connect-ExchangeOnline. 3. To disable sign-in for a single account: $MBX =
+      Get-EXOMailbox -Identity TestUser@example.com Update-MgUser -UserId
+      $MBX.ExternalDirectoryObjectId -AccountEnabled:$false 3. The following will
+      block sign-in to all Shared Mailboxes. $MBX = Get-EXOMailbox
+      -RecipientTypeDetails SharedMailbox $MBX | ForEach-Object { Update-MgUser
+      -UserId $_.ExternalDirectoryObjectId - AccountEnabled:$false } Default Value:
+      AccountEnabled: True References: 1. https://learn.microsoft.com/en-
+      us/microsoft-365/admin/email/about-shared- mailboxes?view=o365-worldwide 2.
+      https://learn.microsoft.com/en-us/microsoft-365/admin/email/create-a-shared-
+      mailbox?view=o365-worldwide#block-sign-in-for-the-shared-mailbox-account 3.
+      https://learn.microsoft.com/en-us/microsoft-365/enterprise/block-user-
+      accounts- with-microsoft-365-powershell?view=o365-worldwide#block-individual-
+      user- accounts
+
+  - rule_id: tciem.microsoft_365.l2_ensure_idle_session_timeout_is_set_to_3_hours
+    title: "(L2) Ensure 'Idle session timeout' is set to '3 hours (or less)' for unmanaged devices"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.3.2'
+    cis_section: '1'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Step 1 - Configure Idle session timeout: 1. Navigate to the Microsoft 365
+      admin center https://admin.microsoft.com/. 2. Click to expand Settings Select
+      Org settings. 3. Click Security & Privacy tab. 4. Select Idle session timeout.
+      5. Check the box Turn on to set the period of inactivity for users to be
+      signed off of Microsoft 365 web apps 6. Set a maximum value of 3 hours. 7.
+      Click save. Step 2 - Ensure the Conditional Access policy is in place: 1.
+      Navigate to Microsoft Entra admin center https://entra.microsoft.com/ 2.
+      Expand Protect > Conditional Access. 3. Click New policy and give the policy a
+      name. o Select Users > All users. o Select Cloud apps or actions > Select apps
+      and select Office 365 o Select Conditions > Client apps > Yes check only
+      Browser unchecking all other boxes. o Select Sessions and check Use app
+      enforced restrictions. 4. Set Enable policy to On and click Create. Note: To
+      ensure that idle timeouts affect only unmanaged devices, both steps 1 and 2
+      must be completed. Otherwise managed devices will also be impacted by the
+      timeout policy. Default Value: Not configured. (Idle sessions will not
+      timeout.) References: 1. https://learn.microsoft.com/en-
+      us/microsoft-365/admin/manage/idle-session- timeout-web-
+      apps?view=o365-worldwide Additional Information: According to Microsoft idle
+      session timeout isn't supported when third party cookies are disabled in the
+      browser. Users won't see any sign-out prompts.
+
+  - rule_id: tciem.microsoft_365.l1_ensure_user_owned_apps_and_services_is
+    title: "(L1) Ensure 'User owned apps and services' is restricted"
+    severity: high
+    mitre_technique: T1530
+    mitre_tactic: collection
+    cis_control: '1.3.4'
+    cis_section: '1'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: data_access
+      threshold: 1
+      filters:
+        data_classification: sensitive
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to Microsoft 365 admin center
+      https://admin.microsoft.com. 2. Click to expand Settings > Org settings. 3. In
+      Services select User owned apps and services. 4. Uncheck Let users access the
+      Office Store and Let users start trials on behalf of your organization. 5.
+      Click Save. To remediate using PowerShell 1. Connect to the Microsoft Graph
+      service using Connect-MgGraph -Scopes 'OrgSettings-
+      AppsAndServices.ReadWrite.All'. 2. Run the following Microsoft Graph
+      PowerShell commands: $uri =
+      'https://graph.microsoft.com/beta/admin/appsAndServices' $body = @{ 'Settings'
+      = @{ 'isAppAndServicesTrialEnabled' = $false 'isOfficeStoreEnabled' = $false }
+      } | ConvertTo-Json Invoke-MgGraphRequest -Method PATCH -Uri $uri -Body $body
+      Default Value: Let users access the Office Store is Checked Let users start
+      trials on behalf of your organization is Checked References: 1.
+      https://learn.microsoft.com/en-us/microsoft-365/admin/manage/manage-addins-
+      in-the-admin-center?view=o365-worldwide#manage-add-in-downloads-by- turning-
+      onoff-the-office-store-across-all-apps-except-outlook
+
+  - rule_id: tciem.microsoft_365.l2_ensure_the_customer_lockbox_feature_is_enabled
+    title: "(L2) Ensure the customer lockbox feature is enabled"
+    severity: medium
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '1.3.6'
+    cis_section: '1'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to Microsoft 365 admin center
+      https://admin.microsoft.com. 2. Click to expand Settings then select Org
+      settings. 3. Select Security & privacy tab. 4. Click Customer lockbox. 5.
+      Check the box Require approval for all data access requests. 6. Click Save. To
+      remediate using PowerShell: 1. Connect to Exchange Online using Connect-
+      ExchangeOnline. 2. Run the following PowerShell command: Set-
+      OrganizationConfig -CustomerLockBoxEnabled $true Default Value: Require
+      approval for all data access requests - Unchecked CustomerLockboxEnabled -
+      False References: 1. https://learn.microsoft.com/en-
+      us/azure/security/fundamentals/customer-lockbox- overview
+
+  - rule_id: tciem.microsoft_365.l2_ensure_safe_links_for_office_applications_is
+    title: "(L2) Ensure Safe Links for Office Applications is Enabled"
+    severity: medium
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '2.1.1'
+    cis_section: '2'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to Microsoft 365 Defender
+      https://security.microsoft.com 2. Under Email & collaboration select Policies
+      & rules 3. Select Threat policies then Safe Links 4. Click on +Create 5. Name
+      the policy then click Next 6. In Domains select all valid domains for the
+      organization and Next 7. Ensure the following URL & click protection settings
+      are defined: Email o Checked On: Safe Links checks a list of known, malicious
+      links when users click links in email. URLs are rewritten by default o Checked
+      Apply Safe Links to email messages sent within the organization o Checked
+      Apply real-time URL scanning for suspicious links and links that point to
+      files o Checked Wait for URL scanning to complete before delivering the
+      message o Unchecked Do not rewrite URLs, do checks via Safe Links API only.
+      Teams o Checked On: Safe Links checks a list of known, malicious links when
+      users click links in Microsoft Teams. URLs are not rewritten Office 365 Apps o
+      Checked On: Safe Links checks a list of known, malicious links when users
+      click links in Microsoft Office apps. URLs are not rewritten Click protection
+      settings o Checked Track user clicks o Unchecked Let users click through the
+      original URL o There is no recommendation for organization branding. 8. Click
+      Next twice and finally Submit To remediate using PowerShell: 1. Connect using
+      Connect-ExchangeOnline. 2. Run the following PowerShell script to create a
+      policy at highest priority that will apply to all valid domains on the tenant:
+      # Create the Policy $params = @{ Name = 'CIS SafeLinks Policy'
+      EnableSafeLinksForEmail = $true EnableSafeLinksForTeams = $true
+      EnableSafeLinksForOffice = $true TrackClicks = $true AllowClickThrough =
+      $false ScanUrls = $true EnableForInternalSenders = $true
+      DeliverMessageAfterScan = $true DisableUrlRewrite = $false } New-
+      SafeLinksPolicy @params # Create the rule for all users in all valid domains
+      and associate with Policy New-SafeLinksRule -Name 'CIS SafeLinks'
+      -SafeLinksPolicy 'CIS SafeLinks Policy' -RecipientDomainIs (Get-
+      AcceptedDomain).Name -Priority 0 References: 1.
+      https://learn.microsoft.com/en-us/defender-office-365/safe-links-policies-
+      configure?view=o365-worldwide 2. https://learn.microsoft.com/en-
+      us/powershell/module/exchange/set- safelinkspolicy?view=exchange-ps 3.
+      https://learn.microsoft.com/en-us/defender-office-365/preset-security-
+      policies?view=o365-worldwide
+
+  - rule_id: tciem.microsoft_365.l1_ensure_priority_account_protection_is_enabled
+    title: "(L1) Ensure Priority account protection is enabled and configured"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.4.1'
+    cis_section: '2'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Remediate with a 3-step process Step 1: Enable Priority account protection in
+      Microsoft 365 Defender: 1. Navigate to Microsoft 365 Defender
+      https://security.microsoft.com/ 2. Click to expand System select Settings. 3.
+      Select E-mail & Collaboration > Priority account protection 4. Ensure Priority
+      account protection is set to On Step 2: Tag priority accounts: 5. Select User
+      tags 6. Select the PRIORITY ACCOUNT tag and click Edit 7. Select Add members
+      to add users, or groups. Groups are recommended. 8. Repeat the previous 2
+      steps for any additional tags needed, such as Finance or HR. 9. Next and
+      Submit. Step 3: Configure E-mail alerts for Priority Accounts: 10. Expand
+      E-mail & Collaboration on the left column. 11. Select Policies & rules > Alert
+      policy 12. Select New Alert Policy 13. Enter a valid policy Name &
+      Description. Set Severity to High and Category to Threat management. 14. Set
+      Activity is to Detected malware in an e-mail message 15. Mail direction is
+      Inbound 16. Select Add Condition and User: recipient tags are 17. In the
+      Selection option field add chosen priority tags such as Priority account. 18.
+      Select Every time an activity matches the rule. 19. Next and verify valid
+      recipient(s) are selected. 20. Next and select Yes, turn it on right away.
+      Click Submit to save the alert. 21. Repeat steps 12 - 18 to create a 2nd alert
+      for the Activity field Activity is: Phishing email detected at time of
+      delivery Note: Any additional activity types may be added as needed. Above are
+      the minimum recommended. Default Value: By default, priority accounts are
+      undefined. References: 1. https://learn.microsoft.com/en-
+      us/microsoft-365/admin/setup/priority-accounts 2.
+      https://learn.microsoft.com/en-us/defender-office-365/priority-accounts-
+      security- recommendations
+
+  - rule_id: tciem.microsoft_365.l1_ensure_microsoft_365_audit_log_search_is
+    title: "(L1) Ensure Microsoft 365 audit log search is Enabled"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '3.1.1'
+    cis_section: '3'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to Microsoft Purview
+      https://purview.microsoft.com/ 2. Select Solutions and then Audit to open the
+      audit search. 3. Click blue bar Start recording user and admin activity. 4.
+      Click Yes on the dialog box to confirm. To remediate using PowerShell: 1.
+      Connect to Exchange Online using Connect-ExchangeOnline. 2. Run the following
+      PowerShell command: Set-AdminAuditLogConfig -UnifiedAuditLogIngestionEnabled
+      $true Default Value: 180 days References: 1. https://learn.microsoft.com/en-
+      us/purview/audit-log-enable-disable?view=o365- worldwide&tabs=microsoft-
+      purview-portal 2. https://learn.microsoft.com/en-
+      us/powershell/module/exchange/set- adminauditlogconfig?view=exchange-ps
+
+  - rule_id: tciem.microsoft_365.l2_ensure_devices_without_a_compliance_policy_are
+    title: "(L2) Ensure devices without a compliance policy are marked 'not compliant'"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.1'
+    cis_section: '4'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to Microsoft Intune admin center
+      https://intune.microsoft.com/ 2. Select Devices and then under Manage devices
+      click Compliance 3. Click Compliance settings. 4. Set Mark devices with no
+      compliance policy assigned as to Not compliant. To remediate using PowerShell:
+      1. Connect to Microsoft Graph using Connect-MgGraph -Scopes
+      'DeviceManagementConfiguration.ReadWrite.All' 2. Run the following commands:
+      $Uri = 'https://graph.microsoft.com/v1.0/deviceManagement' $Body = @{ settings
+      = @{ secureByDefault = $true } } | ConvertTo-Json Invoke-MgGraphRequest -Uri
+      $Uri -Method PATCH -Body $Body Default Value: UI: 'Compliant' Graph:
+      secureByDefault = $false References: 1. https://learn.microsoft.com/en-
+      us/mem/intune/protect/device-compliance-get- started
+
+  - rule_id: tciem.microsoft_365.l1_ensure_per_user_mfa_is_disabled
+    title: "(L1) Ensure 'Per-user MFA' is disabled"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.1.2.1'
+    cis_section: '5'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to Microsoft Entra admin center
+      https://entra.microsoft.com/. 2. Click to expand Identity > Users select All
+      users. 3. Click on Per-user MFA on the top row. 4. Click the empty box next to
+      Display Name to select all accounts. 5. On the far right under quick steps
+      click Disable. Default Value: Disabled References: 1.
+      https://learn.microsoft.com/en-us/entra/identity/authentication/howto-mfa-
+      userstates#convert-users-from-per-user-mfa-to-conditional-access 2.
+      https://learn.microsoft.com/en-us/microsoft-365/admin/security-and-
+      compliance/set-up-multi-factor-authentication?view=o365-worldwide#use-
+      conditional-access-policies 3. https://learn.microsoft.com/en-
+      us/entra/identity/authentication/howto-mfa- userstates#convert-per-user-mfa-
+      enabled-and-enforced-users-to-disabled
+
+  - rule_id: tciem.microsoft_365.l1_ensure_restrict_non_admin_users_from_creating
+    title: "(L1) Ensure 'Restrict non-admin users from creating tenants' is set to 'Yes'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '5.1.2.3'
+    cis_section: '5'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to Microsoft Entra admin center
+      https://entra.microsoft.com/ 2. Click to expand Identity> Users > User
+      settings. 3. Set Restrict non-admin users from creating tenants to Yes then
+      Save. To remediate using PowerShell: 1. Connect to Microsoft Graph using
+      Connect-MgGraph -Scopes 'Policy.ReadWrite.Authorization' 2. Run the following
+      commands: # Create hashtable and update the auth policy $params = @{
+      AllowedToCreateTenants = $false } Update-MgPolicyAuthorizationPolicy
+      -DefaultUserRolePermissions $params Default Value: No - Non-administrators can
+      create tenants. AllowedToCreateTenants is True References: 1.
+      https://learn.microsoft.com/en-us/entra/fundamentals/users-default-
+      permissions#restrict-member-users-default-permissions
+
+  - rule_id: tciem.microsoft_365.l2_ensure_user_consent_to_apps_accessing_company
+    title: "(L2) Ensure user consent to apps accessing company data on their behalf is not allowed"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.1.5.1'
+    cis_section: '5'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to Microsoft Entra admin center
+      https://entra.microsoft.com/. 2. Click to expand Identity > Applications
+      select Enterprise applications. 3. Under Security select Consent and
+      permissions > User consent settings. 4. Under User consent for applications
+      select Do not allow user consent. 5. Click the Save option at the top of the
+      window. Default Value: UI - Allow user consent for apps References: 1.
+      https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/configure-
+      user- consent?pivots=portal
+
+  - rule_id: tciem.microsoft_365.l1_ensure_the_admin_consent_workflow_is_enabled
+    title: "(L1) Ensure the admin consent workflow is enabled"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.1.5.2'
+    cis_section: '5'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to Microsoft Entra admin center
+      https://entra.microsoft.com/. 2. Click to expand Identity > Applications
+      select Enterprise applications. 3. Under Security select Consent and
+      permissions. 4. Under Manage select Admin consent settings. 5. Set Users can
+      request admin consent to apps they are unable to consent to to Yes under Admin
+      consent requests. 6. Under the Reviewers choose the Roles and Groups that will
+      review user generated app consent requests. 7. Set Selected users will receive
+      email notifications for requests to Yes 8. Select Save at the top of the
+      window. Default Value: • Users can request admin consent to apps they are
+      unable to consent to: No • Selected users to review admin consent requests:
+      None • Selected users will receive email notifications for requests: Yes •
+      Selected users will receive request expiration reminders: Yes • Consent
+      request expires after (days): 30 References: 1.
+      https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/configure-
+      admin- consent-workflow
+
+  - rule_id: tciem.microsoft_365.l1_ensure_that_guest_user_access_is_restricted
+    title: "(L1) Ensure that guest user access is restricted"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.1.6.2'
+    cis_section: '5'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to Microsoft Entra admin center
+      https://entra.microsoft.com/. 2. Click to expand Identity > External
+      Identities select External collaboration settings. 3. Under Guest user access
+      set Guest user access restrictions to one of the following: o State: Guest
+      users have limited access to properties and memberships of directory objects o
+      State: Guest user access is restricted to properties and memberships of their
+      own directory objects (most restrictive) To remediate using PowerShell: 1.
+      Connect to Microsoft Graph using Connect-MgGraph -Scopes
+      'Policy.ReadWrite.Authorization' 2. Run the following command to set the guest
+      user access restrictions to default: # Guest users have limited access to
+      properties and memberships of directory objects Update-
+      MgPolicyAuthorizationPolicy -GuestUserRoleId '10dae51f-b6af-4016-8d66-
+      8c2a99b929b3' 3. Or, run the following command to set it to the 'most
+      restrictive': # Guest user access is restricted to properties and memberships
+      of their own directory objects (most restrictive) Update-
+      MgPolicyAuthorizationPolicy -GuestUserRoleId '2af84b1e-32c8-42b7-82bc-
+      daa82404023b' Note: Either setting allows for a passing state. Default Value:
+      • UI: Guest users have limited access to properties and memberships of
+      directory objects • PowerShell: 10dae51f-b6af-4016-8d66-8c2a99b929b3
+      References: 1. https://learn.microsoft.com/en-us/entra/identity/users/users-
+      restrict-guest- permissions 2. https://www.lockheedmartin.com/en-
+      us/capabilities/cyber/cyber-kill-chain.html
+
+  - rule_id: tciem.microsoft_365.l1_ensure_multifactor_authentication_is_enabled
+    title: "(L1) Ensure multifactor authentication is enabled for all users in administrative roles"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.2.2.1'
+    cis_section: '5'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to the Microsoft Entra admin center
+      https://entra.microsoft.com. 2. Click expand Protection > Conditional Access
+      select Policies. 3. Click New policy. o Under Users include Select users and
+      groups and check Directory roles. o At a minimum, include the directory roles
+      listed below in this section of the document. o Under Target resources include
+      All resources (formerly 'All cloud apps') and do not create any exclusions. o
+      Under Grant select Grant Access and check either Require multifactor
+      authentication or Require authentication strength. o Click Select at the
+      bottom of the pane. 4. Under Enable policy set it to Report-only until the
+      organization is ready to enable it. 5. Click Create. At minimum these
+      directory roles should be included for MFA: • Application administrator •
+      Authentication administrator • Billing administrator • Cloud application
+      administrator • Conditional Access administrator • Exchange administrator •
+      Global administrator • Global reader • Helpdesk administrator • Password
+      administrator • Privileged authentication administrator • Privileged role
+      administrator • Security administrator • SharePoint administrator • User
+      administrator Note: Report-only is an acceptable first stage when introducing
+      any CA policy. The control, however, is not complete until the policy is on.
+      References: 1. https://learn.microsoft.com/en-us/entra/identity/conditional-
+      access/howto- conditional-access-policy-admin-mfa
+
+  - rule_id: tciem.microsoft_365.l1_enable_conditional_access_policies_to_block
+    title: "(L1) Enable Conditional Access policies to block legacy authentication"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.2.2.3'
+    cis_section: '5'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to the Microsoft Entra admin center
+      https://entra.microsoft.com. 2. Click expand Protection > Conditional Access
+      select Policies. 3. Create a new policy by selecting New policy. o Under Users
+      include All users. o Under Target resources include All resources (formerly
+      'All cloud apps'). o Under Conditions select Client apps and check the boxes
+      for Exchange ActiveSync clients and Other clients. o Under Grant select Block
+      Access. o Click Select. 4. Set the policy On and click Create. Note: Break-
+      glass accounts should be excluded from all Conditional Access policies.
+      Default Value: Basic authentication is disabled by default as of January 2023.
+      References: 1. https://learn.microsoft.com/en-us/exchange/clients-and-mobile-
+      in-exchange- online/disable-basic-authentication-in-exchange-online 2.
+      https://learn.microsoft.com/en-us/exchange/mail-flow-best-practices/how-to-
+      set- up-a-multifunction-device-or-application-to-send-email-using-
+      microsoft-365-or- office-365 3. https://learn.microsoft.com/en-
+      us/exchange/clients-and-mobile-in-exchange- online/deprecation-of-basic-
+      authentication-exchange-online
+
+  - rule_id: tciem.microsoft_365.l1_ensure_sign_in_frequency_is_enabled_and
+    title: "(L1) Ensure Sign-in frequency is enabled and browser sessions are not persistent for Administrative users"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.2.2.4'
+    cis_section: '5'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to Microsoft Entra admin center
+      https://entra.microsoft.com/. 2. Click to expand Protection > Conditional
+      Access Select Policies. 3. Click New policy. o Under Users include Select
+      users and groups and check Directory roles. o At a minimum, include the
+      directory roles listed below in this section of the document. o Under Target
+      resources include All resources (formerly 'All cloud apps'). o Under Grant
+      select Grant Access and check Require multifactor authentication. o Under
+      Session select Sign-in frequency select Periodic reauthentication and set it
+      to 4 hours (or less). o Check Persistent browser session then select Never
+      persistent in the drop-down menu. 4. Under Enable policy set it to Report-only
+      until the organization is ready to enable it. At minimum these directory roles
+      should be included in the policy: • Application administrator • Authentication
+      administrator • Billing administrator • Cloud application administrator •
+      Conditional Access administrator • Exchange administrator • Global
+      administrator • Global reader • Helpdesk administrator • Password
+      administrator • Privileged authentication administrator • Privileged role
+      administrator • Security administrator • SharePoint administrator • User
+      administrator Note: Break-glass accounts should be excluded from all
+      Conditional Access policies. Default Value: The default configuration for user
+      sign-in frequency is a rolling window of 90 days. References: 1.
+      https://learn.microsoft.com/en-us/entra/identity/conditional-access/howto-
+      conditional-access-session-lifetime
+
+  - rule_id: tciem.microsoft_365.l2_ensure_phishing_resistant_mfa_strength_is
+    title: "(L2) Ensure 'Phishing-resistant MFA strength' is required for Administrators"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.2.2.5'
+    cis_section: '5'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to the Microsoft Entra admin center
+      https://entra.microsoft.com. 2. Click expand Protection > Conditional Access
+      select Policies. 3. Click New policy. o Under Users include Select users and
+      groups and check Directory roles. o At a minimum, include the directory roles
+      listed below in this section of the document. o Under Target resources include
+      All resources (formerly 'All cloud apps') and do not create any exclusions. o
+      Under Grant select Grant Access and check Require authentication strength and
+      set Phishing-resistant MFA in the dropdown box. o Click Select. 4. Under
+      Enable policy set it to Report-only until the organization is ready to enable
+      it. 5. Click Create. At minimum these directory roles should be included for
+      the policy: • Application administrator • Authentication administrator •
+      Billing administrator • Cloud application administrator • Conditional Access
+      administrator • Exchange administrator • Global administrator • Global reader
+      • Helpdesk administrator • Password administrator • Privileged authentication
+      administrator • Privileged role administrator • Security administrator •
+      SharePoint administrator • User administrator Warning: Ensure administrators
+      are pre-registered with strong authentication before enforcing the policy.
+      After which the policy must be set to On. References: 1.
+      https://learn.microsoft.com/en-us/entra/identity/authentication/concept-
+      authentication-passwordless#fido2-security-keys 2.
+      https://learn.microsoft.com/en-us/entra/identity/authentication/how-to-enable-
+      passkey-fido2 3. https://learn.microsoft.com/en-
+      us/entra/identity/authentication/concept- authentication-strengths 4.
+      https://learn.microsoft.com/en-us/entra/id-protection/howto-identity-
+      protection- configure-mfa-policy
+
+  - rule_id: tciem.microsoft_365.l1_enable_identity_protection_user_risk_policies
+    title: "(L1) Enable Identity Protection user risk policies"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.2.2.6'
+    cis_section: '5'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to the Microsoft Entra admin center
+      https://entra.microsoft.com. 2. Click expand Protection > Conditional Access
+      select Policies. 3. Create a new policy by selecting New policy. 4. Set the
+      following conditions within the policy: o Under Users choose All users o Under
+      Target resources choose All resources (formerly 'All cloud apps') o Under
+      Conditions choose User risk then Yes and select the user risk level High. o
+      Under Grant select Grant access then check Require multifactor authentication
+      or Require authentication strength. Finally check Require password change. o
+      Under Session set Sign-in frequency to Every time. o Click Select. 5. Under
+      Enable policy set it to Report-only until the organization is ready to enable
+      it. 6. Click Create or Save. Note: Break-glass accounts should be excluded
+      from all Conditional Access policies. References: 1.
+      https://learn.microsoft.com/en-us/entra/id-protection/howto-identity-
+      protection- risk-feedback 2. https://learn.microsoft.com/en-us/entra/id-
+      protection/concept-identity-protection- risks
+
+  - rule_id: tciem.microsoft_365.l1_enable_identity_protection_sign_in_risk
+    title: "(L1) Enable Identity Protection sign-in risk policies"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.2.2.7'
+    cis_section: '5'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To configure a Sign-In risk policy, use the following steps: 1. Navigate to
+      the Microsoft Entra admin center https://entra.microsoft.com. 2. Click expand
+      Protection > Conditional Access select Policies. 3. Create a new policy by
+      selecting New policy. 4. Set the following conditions within the policy. o
+      Under Users choose All users. o Under Target resources choose All resources
+      (formerly 'All cloud apps'). o Under Conditions choose Sign-in risk then Yes
+      and check the risk level boxes High and Medium. o Under Grant click Grant
+      access then select Require multifactor authentication. o Under Session select
+      Sign-in Frequency and set to Every time. o Click Select. 5. Under Enable
+      policy set it to Report-only until the organization is ready to enable it. 6.
+      Click Create. Note: Break-glass accounts should be excluded from all
+      Conditional Access policies. References: 1. https://learn.microsoft.com/en-
+      us/entra/id-protection/howto-identity-protection- risk-feedback 2.
+      https://learn.microsoft.com/en-us/entra/id-protection/concept-identity-
+      protection- risks
+
+  - rule_id: tciem.microsoft_365.l2_ensure_sign_in_risk_is_blocked_for_medium_and
+    title: "(L2) Ensure 'sign-in risk' is blocked for medium and high risk"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.2.2.8'
+    cis_section: '5'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to the Microsoft Entra admin center
+      https://entra.microsoft.com. 2. Click expand Protection > Conditional Access
+      select Policies. 3. Create a new policy by selecting New policy. 4. Set the
+      following conditions within the policy. o Under Users include All users. o
+      Under Target resources include All resources (formerly 'All cloud apps') and
+      do not set any exclusions. o Under Conditions choose Sign-in risk values of
+      High and Medium and click Done. o Under Grant choose Block access and click
+      Select. 5. Under Enable policy set it to Report-only until the organization is
+      ready to enable it. 6. Click Create. Note: Break-glass accounts should be
+      excluded from all Conditional Access policies. References: 1.
+      https://learn.microsoft.com/en-us/entra/id-protection/concept-identity-
+      protection- risks#risk-detections-mapped-to-riskeventtype
+
+  - rule_id: tciem.microsoft_365.l1_ensure_a_managed_device_is_required_for
+    title: "(L1) Ensure a managed device is required for authentication"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.2.2.9'
+    cis_section: '5'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to the Microsoft Entra admin center
+      https://entra.microsoft.com. 2. Click expand Protection > Conditional Access
+      select Policies. 3. Create a new policy by selecting New policy. o Under Users
+      include All users. o Under Target resources include All resources (formerly
+      'All cloud apps'). o Under Grant select Grant access. o Select only the
+      checkboxes Require device to be marked as compliant and Require Microsoft
+      Entra hybrid joined device. o Choose Require one of the selected controls and
+      click Select at the bottom. 4. Under Enable policy set it to Report-only until
+      the organization is ready to enable it. 5. Click Create. Note: Guest user
+      accounts, if collaborating with the organization, should be considered when
+      testing this policy. References: 1. https://learn.microsoft.com/en-
+      us/entra/identity/conditional-access/concept- conditional-access-
+      grant#require-device-to-be-marked-as-compliant 2.
+      https://learn.microsoft.com/en-us/entra/identity/devices/concept-hybrid-join
+      3. https://learn.microsoft.com/en-us/mem/intune/fundamentals/deployment-guide-
+      enrollment
+
+  - rule_id: tciem.microsoft_365.l1_ensure_a_managed_device_is_required_to
+    title: "(L1) Ensure a managed device is required to register security information"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.2.2.10'
+    cis_section: '5'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to the Microsoft Entra admin center
+      https://entra.microsoft.com. 2. Click expand Protection > Conditional Access
+      select Policies. 3. Create a new policy by selecting New policy. o Under Users
+      include All users. o Under Target resources select User actions and check
+      Register security information. o Under Grant select Grant access. o Check only
+      Require multifactor authentication and Require Microsoft Entra hybrid joined
+      device. o Choose Require one of the selected controls and click Select at the
+      bottom. 4. Under Enable policy set it to Report-only until the organization is
+      ready to enable it. 5. Click Create. Note: Break-glass accounts should be
+      excluded from all Conditional Access policies. References: 1.
+      https://learn.microsoft.com/en-us/entra/identity/conditional-access/concept-
+      conditional-access-grant#require-device-to-be-marked-as-compliant 2.
+      https://learn.microsoft.com/en-us/entra/identity/devices/concept-hybrid-join
+      3. https://learn.microsoft.com/en-us/mem/intune/fundamentals/deployment-guide-
+      enrollment 4. https://learn.microsoft.com/en-us/entra/identity/conditional-
+      access/concept- conditional-access-cloud-apps#user-actions
+
+  - rule_id: tciem.microsoft_365.l1_ensure_sign_in_frequency_for_intune_enrollment
+    title: "(L1) Ensure sign-in frequency for Intune Enrollment is set to 'Every time'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.2.2.11'
+    cis_section: '5'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to the Microsoft Entra admin center
+      https://entra.microsoft.com. 2. Click expand Protection > Conditional Access
+      select Policies. 3. Create a new policy by selecting New policy. o Under Users
+      include All users. o Under Target resources select Resources (formerly cloud
+      apps), choose Select resources and add Microsoft Intune Enrollment to the
+      list. o Under Grant select Grant access. o Check either Require multifactor
+      authentication or Require authentication strength. o Under Session check Sign-
+      in frequency and select Every time. 4. Under Enable policy set it to Report-
+      only until the organization is ready to enable it. 5. Click Create. Note: If
+      the Microsoft Intune Enrollment cloud app isn't available then it must be
+      created. To add the app for new tenants, a Microsoft Entra administrator must
+      create a service principal object, with app ID
+      d4ebce55-015a-49b5-a083-c84d1797ae8c, in PowerShell or Microsoft Graph. Note:
+      Break-glass accounts should be excluded from all Conditional Access policies.
+      Default Value: Sign-in frequency defaults to 90 days. References: 1.
+      https://learn.microsoft.com/en-us/entra/identity/conditional-access/concept-
+      session-lifetime#require-reauthentication-every-time 2.
+      https://www.blackhat.com/eu-24/briefings/schedule/#unveiling-the-power-of-
+      intune-leveraging-intune-for-breaking-into-your-cloud-and-on-premise-42176 3.
+      https://www.glueckkanja.com/blog/security/2025/01/compliant-device-bypass-en/
+
+  - rule_id: tciem.microsoft_365.l1_ensure_the_device_code_sign_in_flow_is_blocked
+    title: "(L1) Ensure the device code sign-in flow is blocked"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.2.2.12'
+    cis_section: '5'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to the Microsoft Entra admin center
+      https://entra.microsoft.com. 2. Click expand Protection > Conditional Access
+      select Policies. 3. Create a new policy by selecting New policy. o Under Users
+      include All users. o Under Target resources > Resources (formerly cloud apps)
+      include All resources (formerly 'All cloud apps'). o Under Conditions >
+      Authentication flows set Configure is set to Yes, select Device code flow and
+      click Save. o Under Grant select Block access and click Select. 4. Under
+      Enable policy set it to Report-only until the organization is ready to enable
+      it. 5. Click Create. Note: Break-glass accounts should be excluded from all
+      Conditional Access policies. References: 1. https://learn.microsoft.com/en-
+      us/entra/identity-platform/v2-oauth2-device-code 2.
+      https://learn.microsoft.com/en-us/entra/identity/conditional-access/concept-
+      authentication-flows 3. https://www.microsoft.com/en-
+      us/security/blog/2025/02/13/storm-2372-conducts- device-code-phishing-
+      campaign/ 4. https://securing365.com/secure-your-device-code-auth-flows-now/
+      5. https://learn.microsoft.com/en-us/entra/identity/conditional-access/policy-
+      block- authentication-flows#device-code-flow-policies
+
+  - rule_id: tciem.microsoft_365.l2_ensure_privileged_identity_management_is_used
+    title: "(L2) Ensure 'Privileged Identity Management' is used to manage roles"
+    severity: medium
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '5.3.1'
+    cis_section: '5'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to Microsoft Entra admin center
+      https://entra.microsoft.com/. 2. Click to expand Identity Governance select
+      Privileged Identity Management. 3. Under Manage select Microsoft Entra Roles.
+      4. Under Manage select Roles. 5. Inspect at a minimum the following sensitive
+      roles. For each of the members that have an ASSIGNMENT TYPE of Permanent,
+      click on the ... and choose Make eligible: • Application Administrator •
+      Authentication Administrator • Azure Information Protection Administrator •
+      Billing Administrator • Cloud Application Administrator • Cloud Device
+      Administrator • Compliance Administrator • Customer LockBox Access Approver •
+      Exchange Administrator • Fabric Administrator • Global Administrator •
+      HelpDesk Administrator • Intune Administrator • Kaizala Administrator •
+      License Administrator • Microsoft Entra Joined Device Local Administrator •
+      Password Administrator • Privileged Authentication Administrator • Privileged
+      Role Administrator • Security Administrator • SharePoint Administrator • Skype
+      for Business Administrator • Teams Administrator • User Administrator
+      References: 1. https://learn.microsoft.com/en-us/entra/id-
+      governance/privileged-identity- management/pim-configure
+
+  - rule_id: tciem.microsoft_365.l1_ensure_access_reviews_for_guest_users_are
+    title: "(L1) Ensure 'Access reviews' for Guest Users are configured"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.3.2'
+    cis_section: '5'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to Microsoft Entra admin center
+      https://entra.microsoft.com/ 2. Click to expand Identity Governance and select
+      Access reviews 3. Click New access review. 4. Select what to review choose
+      Teams + Groups. 5. Review Scope set to All Microsoft 365 groups with guest
+      users, do not exclude groups. 6. Scope set to Guest users only then click
+      Next: Reviews. 7. Select reviewers an appropriate user that is NOT the guest
+      user themselves. 8. Duration (in days) at most 3. 9. Review recurrence is
+      Monthly or more frequent. 10. End is set to Never, then click Next: Settings.
+      11. Check Auto apply results to resource. 12. Set If reviewers don't respond
+      to Remove access. 13. Check the following: Justification required, E-mail
+      notifications, Reminders. 14. Click Next: Review + Create and finally click
+      Create. Default Value: By default access reviews are not configured.
+      References: 1. https://learn.microsoft.com/en-us/entra/id-governance/access-
+      reviews-overview 2. https://learn.microsoft.com/en-us/entra/id-
+      governance/create-access-review
+
+  - rule_id: tciem.microsoft_365.l1_ensure_access_reviews_for_privileged_roles_are
+    title: "(L1) Ensure 'Access reviews' for privileged roles are configured"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '5.3.3'
+    cis_section: '5'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to Microsoft Entra admin center
+      https://entra.microsoft.com/ 2. Click to expand Identity Governance and select
+      Privileged Identity Management 3. Select Microsoft Entra Roles under Manage 4.
+      Select Access reviews and click New access review. o Provide a name and
+      description. o Set Frequency to Monthly or more frequently. o Set Duration (in
+      days) to at most 4. o Set End to Never. o Set Users scope to All users and
+      groups. o In Role select these roles: Global Administrator,Exchange
+      Administrator,SharePoint Administrator,Teams Administrator,Security
+      Administrator o Set Assignment type to All active and eligible assignments. o
+      Set Reviewers member(s) responsible for this type of review, other than self.
+      5. Upon completion settings: o Set Auto apply results to resource to Enable. o
+      Set If reviewers don't respond to No change. 6. Advanced settings: o Set Show
+      recommendations to Enable o Set Require reason on approval to Enable o Set
+      Mail notifications to Enable o Set Reminders to Enable 7. Click Start to save
+      the review. Warning: Care should be taken when configuring the If reviewers
+      don't respond setting for Global Administrator reviews, if misconfigured
+      break-glass accounts could automatically have roles revoked. Additionally,
+      reviewers should be educated on the purpose of break-glass accounts to prevent
+      accidental manual removal of roles. Default Value: By default access reviews
+      are not configured. References: 1. https://learn.microsoft.com/en-us/entra/id-
+      governance/privileged-identity- management/pim-create-roles-and-resource-
+      roles-review 2. https://learn.microsoft.com/en-us/entra/id-governance/access-
+      reviews-overview
+
+  - rule_id: tciem.microsoft_365.l1_ensure_auditdisabled_organizationally_is_set
+    title: "(L1) Ensure 'AuditDisabled' organizationally is set to 'False'"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '6.1.1'
+    cis_section: '6'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using PowerShell: 1. Connect to Exchange Online using Connect-
+      ExchangeOnline. 2. Run the following PowerShell command: Set-
+      OrganizationConfig -AuditDisabled $false Default Value: False References: 1.
+      https://learn.microsoft.com/en-us/purview/audit-mailboxes?view=o365-worldwide
+      2. https://learn.microsoft.com/en-us/powershell/module/exchange/set-
+      organizationconfig?view=exchange-ps#-auditdisabled
+
+  - rule_id: tciem.microsoft_365.l1_ensure_mailbox_audit_actions_are_configured
+    title: "(L1) Ensure mailbox audit actions are configured"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '6.1.2'
+    cis_section: '6'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      For each UserMailbox ensure AuditEnabled is True and the following audit
+      actions are included in addition to default actions of each sign-in type. •
+      Admin actions: Copy, FolderBind and Move. • Delegate actions: FolderBind and
+      Move. • Owner actions: Create, MailboxLogin and Move. Note: The defaults can
+      be found in the Default Value section and the combined total can be found in
+      the scripts of the Audit/Remediation sections. To remediate using PowerShell:
+      1. Connect to Exchange Online using Connect-ExchangeOnline. 2. Run the
+      following PowerShell script to remediate every 'UserMailbox' in the
+      organization: $AuditAdmin = @( 'ApplyRecord', 'Copy', 'Create', 'FolderBind',
+      'HardDelete', 'MailItemsAccessed', 'Move', 'MoveToDeletedItems', 'SendAs',
+      'SendOnBehalf', 'Send', 'SoftDelete', 'Update', 'UpdateCalendarDelegation',
+      'UpdateFolderPermissions', 'UpdateInboxRules' ) $AuditDelegate = @(
+      'ApplyRecord', 'Create', 'FolderBind', 'HardDelete', 'Move',
+      'MailItemsAccessed', 'MoveToDeletedItems', 'SendAs', 'SendOnBehalf',
+      'SoftDelete', 'Update', 'UpdateFolderPermissions', 'UpdateInboxRules' )
+      $AuditOwner = @( 'ApplyRecord', 'Create', 'HardDelete', 'MailboxLogin',
+      'Move', 'MailItemsAccessed', 'MoveToDeletedItems', 'Send', 'SoftDelete',
+      'Update', 'UpdateCalendarDelegation', 'UpdateFolderPermissions',
+      'UpdateInboxRules' ) $MBX = Get-EXOMailbox -ResultSize Unlimited | Where-
+      Object { $_.RecipientTypeDetails -eq 'UserMailbox' } $MBX | Set-Mailbox
+      -AuditEnabled $true ` -AuditLogAgeLimit 180 -AuditAdmin $AuditAdmin
+      -AuditDelegate $AuditDelegate ` -AuditOwner $AuditOwner 3. The script will
+      apply the prescribed Audit Actions for each sign-in type (Owner, Delegate,
+      Admin) and the AuditLogAgeLimit to each UserMailbox in the organization. Note:
+      Mailboxes with Audit (Premium) licenses, which is included with E5, can retain
+      audit logs beyond 180 days. Default Value: AuditEnabled: True for all
+      mailboxes except below: • Resource Mailboxes • Public Folder Mailboxes •
+      DiscoverySearch Mailbox AuditAdmin: ApplyRecord, Create, HardDelete,
+      MailItemsAccessed, MoveToDeletedItems, Send, SendAs, SendOnBehalf, SoftDelete,
+      Update, UpdateCalendarDelegation, UpdateFolderPermissions, UpdateInboxRules
+      AuditDelegate: ApplyRecord, Create, HardDelete, MailItemsAccessed,
+      MoveToDeletedItems, SendAs, SendOnBehalf, SoftDelete, Update,
+      UpdateFolderPermissions, UpdateInboxRules AuditOwner: ApplyRecord, HardDelete,
+      MailItemsAccessed, MoveToDeletedItems, Send, SoftDelete, Update,
+      UpdateCalendarDelegation, UpdateFolderPermissions, UpdateInboxRules
+      References: 1. https://learn.microsoft.com/en-us/purview/audit-
+      mailboxes?view=o365-worldwide
+
+  - rule_id: tciem.microsoft_365.l1_ensure_auditbypassenabled_is_not_enabled_on
+    title: "(L1) Ensure 'AuditBypassEnabled' is not enabled on mailboxes"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '6.1.3'
+    cis_section: '6'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using PowerShell: 1. Connect to Exchange Online using Connect-
+      ExchangeOnline. 2. The following example PowerShell script will disable
+      AuditBypass for all mailboxes which currently have it enabled: # Get mailboxes
+      with AuditBypassEnabled set to $true $MBXAudit = Get-
+      MailboxAuditBypassAssociation -ResultSize unlimited | Where- Object {
+      $_.AuditBypassEnabled -eq $true } foreach ($mailbox in $MBXAudit) {
+      $mailboxName = $mailbox.Name Set-MailboxAuditBypassAssociation -Identity
+      $mailboxName - AuditBypassEnabled $false Write-Host 'Audit Bypass disabled for
+      mailbox Identity: $mailboxName' - ForegroundColor Green } Default Value:
+      AuditBypassEnabled False References: 1. https://learn.microsoft.com/en-
+      us/powershell/module/exchange/get-
+      mailboxauditbypassassociation?view=exchange-ps
+
+  - rule_id: tciem.microsoft_365.l2_ensure_users_installing_outlook_add_ins_is_not
+    title: "(L2) Ensure users installing Outlook add-ins is not allowed"
+    severity: medium
+    mitre_technique: T1530
+    mitre_tactic: collection
+    cis_control: '6.3.1'
+    cis_section: '6'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: data_access
+      threshold: 1
+      filters:
+        data_classification: sensitive
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to Exchange admin center
+      https://admin.exchange.microsoft.com. 2. Click to expand Roles select User
+      roles. 3. Select Default Role Assignment Policy. 4. In the properties pane on
+      the right click on Manage permissions. 5. Under Other roles uncheck My Custom
+      Apps, My Marketplace Apps and My ReadWriteMailboxApps. 6. Click Save changes.
+      To remediate using PowerShell: 1. Connect to Exchange Online using Connect-
+      ExchangeOnline. 2. Run the following command: $policy = 'Role Assignment
+      Policy - Prevent Add-ins' $roles = 'MyTextMessaging', 'MyDistributionGroups',
+      ` 'MyMailSubscriptions', 'MyBaseOptions', 'MyVoiceMail', `
+      'MyProfileInformation', 'MyContactInformation', 'MyRetentionPolicies', `
+      'MyDistributionGroupMembership' New-RoleAssignmentPolicy -Name $policy -Roles
+      $roles Set-RoleAssignmentPolicy -id $policy -IsDefault # Assign new policy to
+      all mailboxes Get-EXOMailbox -ResultSize Unlimited | Set-Mailbox
+      -RoleAssignmentPolicy $policy If you have other Role Assignment Policies
+      modify the last line to filter out your custom policies Default Value: UI - My
+      Custom Apps, My Marketplace Apps, and My ReadWriteMailboxApps are checked
+      PowerShell - My Custom Apps My Marketplace Apps and My ReadWriteMailboxApps
+      are assigned References: 1. https://learn.microsoft.com/en-
+      us/exchange/clients-and-mobile-in-exchange- online/add-ins-for-
+      outlook/specify-who-can-install-and-manage-add- ins?source=recommendations 2.
+      https://learn.microsoft.com/en-us/exchange/permissions-exo/role-assignment-
+      policies
+
+  - rule_id: tciem.microsoft_365.l1_ensure_sharepoint_and_onedrive_integration
+    title: "(L1) Ensure SharePoint and OneDrive integration with Azure AD B2B is enabled"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '7.2.2'
+    cis_section: '7'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using PowerShell: 1. Connect to SharePoint Online using Connect-
+      SPOService 2. Run the following command: Set-SPOTenant
+      -EnableAzureADB2BIntegration $true Default Value: False References: 1.
+      https://learn.microsoft.com/en-us/sharepoint/sharepoint-azureb2b-
+      integration#enabling-the-integration 2. https://learn.microsoft.com/en-
+      us/entra/external-id/what-is-b2b 3. https://learn.microsoft.com/en-
+      us/powershell/module/sharepoint-online/set- spotenant?view=sharepoint-ps
+
+  - rule_id: tciem.microsoft_365.l1_ensure_guest_access_to_a_site_or_onedrive_will
+    title: "(L1) Ensure guest access to a site or OneDrive will expire automatically"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '7.2.9'
+    cis_section: '7'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to SharePoint admin center
+      https://admin.microsoft.com/sharepoint 2. Click to expand Policies > Sharing.
+      3. Scroll to and expand More external sharing settings. 4. Set Guest access to
+      a site or OneDrive will expire automatically after this many days to 30 To
+      remediate using PowerShell: 1. Connect to SharePoint Online service using
+      Connect-SPOService. 2. Run the following cmdlet: Set-SPOTenant
+      -ExternalUserExpireInDays 30 -ExternalUserExpirationRequired $True Default
+      Value: ExternalUserExpirationRequired $false ExternalUserExpireInDays 60 days
+      References: 1. https://learn.microsoft.com/en-us/sharepoint/turn-external-
+      sharing-on-or- off#change-the-organization-level-external-sharing-setting 2.
+      https://learn.microsoft.com/en-us/microsoft-365/community/sharepoint-
+      security-a- team-effort
+
+  - rule_id: tciem.microsoft_365.l1_ensure_reauthentication_with_verification_code
+    title: "(L1) Ensure reauthentication with verification code is restricted"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '7.2.10'
+    cis_section: '7'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to SharePoint admin center
+      https://admin.microsoft.com/sharepoint 2. Click to expand Policies > Sharing.
+      3. Scroll to and expand More external sharing settings. 4. Set People who use
+      a verification code must reauthenticate after this many days to 15 or less. To
+      remediate using PowerShell: 1. Connect to SharePoint Online service using
+      Connect-SPOService. 2. Run the following cmdlet: Set-SPOTenant
+      -EmailAttestationRequired $true -EmailAttestationReAuthDays 15 Default Value:
+      EmailAttestationRequired : False EmailAttestationReAuthDays : 30 References:
+      1. https://learn.microsoft.com/en-us/sharepoint/what-s-new-in-sharing-in-
+      targeted- release 2. https://learn.microsoft.com/en-us/sharepoint/turn-
+      external-sharing-on-or- off#change-the-organization-level-external-sharing-
+      setting 3. https://learn.microsoft.com/en-us/entra/external-id/one-time-
+      passcode
+
+  - rule_id: tciem.microsoft_365.l2_ensure_anonymous_users_can_t_join_a_meeting
+    title: "(L2) Ensure anonymous users can't join a meeting"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '8.5.1'
+    cis_section: '8'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to Microsoft Teams admin center
+      https://admin.teams.microsoft.com. 2. Click to expand Meetings select Meeting
+      policies. 3. Click Global (Org-wide default) 4. Under meeting join & lobby set
+      Anonymous users can join a meeting unverified to Off. To remediate using
+      PowerShell: 1. Connect to Teams PowerShell using Connect-MicrosoftTeams 2. Run
+      the following command to set the recommended state: Set-CsTeamsMeetingPolicy
+      -Identity Global -AllowAnonymousUsersToJoinMeeting $false Default Value: On
+      (True) References: 1. https://learn.microsoft.com/en-us/defender-
+      office-365/step-by-step- guides/reducing-attack-surface-in-microsoft-
+      teams?view=o365- worldwide#configure-meeting-settings 2.
+      https://learn.microsoft.com/en-us/microsoftteams/settings-policies-
+      reference?WT.mc_id=TeamsAdminCenterCSH#meeting-join--lobby 3.
+      https://learn.microsoft.com/en-us/MicrosoftTeams/configure-meetings-sensitive-
+      protection 4. https://learn.microsoft.com/en-us/microsoftteams/anonymous-
+      users-in-meetings 5. https://learn.microsoft.com/en-us/microsoftteams/plan-
+      meetings-external- participants
+
+  - rule_id: tciem.microsoft_365.l1_ensure_anonymous_users_and_dial_in_callers_can
+    title: "(L1) Ensure anonymous users and dial-in callers can't start a meeting"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '8.5.2'
+    cis_section: '8'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to Microsoft Teams admin center
+      https://admin.teams.microsoft.com. 2. Click to expand Meetings select Meeting
+      policies. 3. Click Global (Org-wide default). 4. Under meeting join & lobby
+      set Anonymous users and dial-in callers can start a meeting to Off. To
+      remediate using PowerShell: 1. Connect to Teams PowerShell using Connect-
+      MicrosoftTeams. 2. Run the following command to set the recommended state:
+      Set-CsTeamsMeetingPolicy -Identity Global -AllowAnonymousUsersToStartMeeting
+      $false Default Value: Off (False) References: 1.
+      https://learn.microsoft.com/en-us/microsoftteams/anonymous-users-in-meetings
+      2. https://learn.microsoft.com/en-us/microsoftteams/who-can-bypass-meeting-
+      lobby#overview-of-lobby-settings-and-policies
+
+  - rule_id: tciem.microsoft_365.l2_ensure_meeting_chat_does_not_allow_anonymous
+    title: "(L2) Ensure meeting chat does not allow anonymous users"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '8.5.5'
+    cis_section: '8'
+    log_source: "Microsoft 365 Unified Audit Log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate using the UI: 1. Navigate to Microsoft Teams admin center
+      https://admin.teams.microsoft.com. 2. Click to expand Meetings select Meeting
+      policies. 3. Click Global (Org-wide default). 4. Under meeting engagement set
+      Meeting chat to On for everyone but anonymous users. To remediate using
+      PowerShell: 1. Connect to Teams PowerShell using Connect-MicrosoftTeams. 2.
+      Run the following command to set the recommended state: Set-
+      CsTeamsMeetingPolicy -Identity Global -MeetingChatEnabledType
+      'EnabledExceptAnonymous' Default Value: On for everyone (Enabled) References:
+      1. https://learn.microsoft.com/en-us/powershell/module/skype/set-
+      csteamsmeetingpolicy?view=skype-ps#-meetingchatenabledtype
+

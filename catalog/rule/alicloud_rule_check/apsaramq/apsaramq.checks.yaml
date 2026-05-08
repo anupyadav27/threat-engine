@@ -1,0 +1,106 @@
+version: '1.0'
+provider: alicloud
+service: apsaramq
+checks:
+- rule_id: alicloud.apsaramq.broker.active_deployment_mode
+  for_each: alicloud.apsaramq.broker
+  severity: MEDIUM
+  conditions:
+    var: item.deployment_mode
+    op: equals
+    value: Active
+- rule_id: alicloud.apsaramq.broker.cluster_deployment_mode
+  for_each: alicloud.apsaramq.broker
+  severity: MEDIUM
+  conditions:
+    var: item.cluster_deployment_mode
+    op: exists
+    value: null
+- rule_id: alicloud.apsaramq.broker.logging_enabled
+  for_each: alicloud.apsaramq.broker
+  severity: MEDIUM
+  conditions:
+    var: item.logging_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.apsaramq.cluster.encryption_at_rest_uses_cmk
+  for_each: alicloud.apsaramq.broker
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.encrypted
+      op: is_true
+      value: null
+    - var: item.kms_key_id
+      op: exists
+      value: null
+- rule_id: alicloud.apsaramq.cluster.in_transit_encryption_enabled
+  for_each: alicloud.apsaramq.broker
+  severity: HIGH
+  conditions:
+    var: item.ssl_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.apsaramq.connector.in_transit_encryption_enabled
+  for_each: alicloud.apsaramq.connector
+  severity: HIGH
+  conditions:
+    var: item.ssl_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.apsaramq.fleet.default_internet_access_disabled
+  for_each: alicloud.apsaramq.fleet
+  severity: MEDIUM
+  conditions:
+    var: item.internet_facing
+    op: is_false
+    value: null
+- rule_id: alicloud.apsaramq.kafka_topic.stream_consumer_auth_required
+  for_each: alicloud.apsaramq.kafka_topic
+  severity: MEDIUM
+  conditions:
+    var: item.stream_consumer_auth_required
+    op: is_true
+    value: null
+- rule_id: alicloud.apsaramq.kafka_topic.stream_encryption_at_rest_enabled
+  for_each: alicloud.apsaramq.kafka_topic
+  severity: HIGH
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.apsaramq.kafka_topic.stream_private_network_only_where_supported
+  for_each: alicloud.apsaramq.kafka_topic
+  severity: MEDIUM
+  conditions:
+    var: item.internet_facing
+    op: is_false
+    value: null
+- rule_id: alicloud.apsaramq.queue.auth_required
+  for_each: alicloud.apsaramq.broker
+  severity: MEDIUM
+  conditions:
+    var: item.permissions
+    op: exists
+    value: null
+- rule_id: alicloud.apsaramq.queue.cross_account_send_receive_restricted
+  for_each: alicloud.apsaramq.broker
+  severity: MEDIUM
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.apsaramq.queue.encryption_at_rest_enabled
+  for_each: alicloud.apsaramq.broker
+  severity: HIGH
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.apsaramq.queue.private_network_only_where_supported
+  for_each: alicloud.apsaramq.broker
+  severity: MEDIUM
+  conditions:
+    var: item.internet_facing
+    op: is_false
+    value: null

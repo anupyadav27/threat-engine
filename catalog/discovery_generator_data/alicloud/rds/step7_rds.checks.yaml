@@ -1,0 +1,101 @@
+checks:
+- rule_id: alicloud.apsaradb.instance.at_rest_enabled
+  for_each: alicloud.apsaradb.DescribeDBInstanceAttribute
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.backup_enabled
+      op: equals
+- rule_id: alicloud.apsaradb.instance.in_transit_required
+  for_each: alicloud.apsaradb.DescribeDBInstanceAttribute
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.ssl_enabled
+      op: equals
+- rule_id: alicloud.apsaradb.instance.public_access_disabled
+  for_each: alicloud.apsaradb.DescribeDBInstanceAttribute
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.apsaradb.mongodb_cluster.cluster_audit_logging_enabled
+  for_each: alicloud.apsaradb.mongodb_cluster
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.apsaradb.mongodb_cluster.cluster_encryption_at_rest_cmek
+  for_each: alicloud.apsaradb.mongodb_cluster
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.kms_key_id
+      op: exists
+- rule_id: alicloud.apsaradb.mongodb_cluster.cluster_private_networking_enforced
+  for_each: alicloud.apsaradb.mongodb_cluster
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.apsaradb.rds_instance.instance_encryption_at_rest_enabled
+  for_each: alicloud.apsaradb.rds_instance
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.backup_enabled
+      op: equals
+- rule_id: alicloud.apsaradb.rds_instance.instance_iam_or_managed_identity_auth_enabled_where_supported
+  for_each: alicloud.apsaradb.rds_instance
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.apsaradb.rds_instance.instance_public_access_disabled
+  for_each: alicloud.apsaradb.rds_instance
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.apsaradb.rds_instance.instance_require_tls_in_transit
+  for_each: alicloud.apsaradb.rds_instance
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.ssl_enabled
+      op: equals
+- rule_id: alicloud.apsaradb.redis.redis_cluster_backup_enabled
+  for_each: alicloud.apsaradb.redis
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.apsaradb.redis_mongodb_instance.instance_encryption_at_rest_enabled
+  for_each: alicloud.apsaradb.redis_mongodb_instance
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.apsaradb.redis_mongodb_instance.instance_iam_or_managed_identity_auth_enabled_where_supported
+  for_each: alicloud.apsaradb.redis_mongodb_instance
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.apsaradb.redis_mongodb_instance.instance_public_access_disabled
+  for_each: alicloud.apsaradb.redis_mongodb_instance
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.apsaradb.redis_mongodb_instance.instance_require_tls_in_transit
+  for_each: alicloud.apsaradb.redis_mongodb_instance
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'

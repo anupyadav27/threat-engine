@@ -1,0 +1,999 @@
+version: '1.0'
+provider: azure
+service: monitor
+checks:
+- rule_id: azure.monitor.action_group.incident_escalation_change_audit_logging_enabled
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enabled
+      op: is_true
+      value: null
+    - var: item.criteria.allOf[].field
+      op: contains
+      value: operationName
+    - var: item.criteria.allOf[].equals
+      op: contains
+      value: Microsoft.Insights/ActivityLogAlerts/Activated/Action
+- rule_id: azure.monitor.action_group.incident_escalation_oncall_contacts_verified
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.actions[].emailReceivers[].emailAddress
+      op: not_contains
+      value: unverified
+    - var: item.actions[].smsReceivers[].countryCode
+      op: exists
+      value: null
+    - var: item.enabled
+      op: is_true
+      value: null
+- rule_id: azure.monitor.action_group.incident_escalation_policy_exists_for_critical_severity
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.actions
+      op: not_empty
+      value: null
+    - var: item.enabled
+      op: is_true
+      value: null
+- rule_id: azure.monitor.action_group.incident_notification_destinations_configured
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    var: item.actions
+    op: not_empty
+    value: null
+- rule_id: azure.monitor.action_group.incident_notification_endpoints_authenticated
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.actions[].type
+      op: not_contains
+      value: email
+    - var: item.actions[].type
+      op: not_contains
+      value: sms
+- rule_id: azure.monitor.action_group.incident_notification_message_encryption_in_transit
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.actions[].secure_properties
+      op: exists
+      value: null
+    - var: item.actions[].secure_properties
+      op: not_contains
+      value: http://
+- rule_id: azure.monitor.action_group.incident_notification_no_public_webhooks
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.actions[].actionType
+      op: not_contains
+      value: Webhook
+- rule_id: azure.monitor.activity.log.alert.create.or.update.public.ip.address
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enabled
+      op: is_true
+      value: null
+    - var: item.criteria.operationName
+      op: equals
+      value: Microsoft.Network/publicIPAddresses/write
+    - var: item.criteria.status
+      op: equals
+      value: Started
+- rule_id: azure.monitor.activity.log.alert.delete.nsg.exists
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.criteria.allOf[].operationName
+      op: contains
+      value: Microsoft.Network/networkSecurityGroups/delete
+    - var: item.enabled
+      op: is_true
+      value: null
+- rule_id: azure.monitor.activity.log.alert.delete.policy.assignment.exists
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enabled
+      op: is_true
+      value: null
+    - var: item.criteria.allOf[].operationName
+      op: contains
+      value: Microsoft.Authorization/policyAssignments/delete
+- rule_id: azure.monitor.activity.log.alert.exists.delete.security.solution
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enabled
+      op: is_true
+      value: null
+    - var: item.criteria.allOf[].operationName
+      op: contains
+      value: Microsoft.Security/securitySolutions/delete
+- rule_id: azure.monitor.activity.log.alert.nsg.operation.condition.check
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enabled
+      op: is_true
+      value: null
+    - var: item.criteria.operationName
+      op: equals
+      value: Microsoft.Network/networkSecurityGroups/delete
+    - var: item.criteria.status
+      op: equals
+      value: Started
+- rule_id: azure.monitor.activity.log.alert.policy.assignment.check
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enabled
+      op: is_true
+      value: null
+    - var: item.actions
+      op: not_empty
+      value: null
+- rule_id: azure.monitor.activity.log.alert.public.ip.delete.check
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enabled
+      op: is_true
+      value: null
+    - var: item.criteria.allOf[].operationName
+      op: contains
+      value: Microsoft.Network/publicIPAddresses/delete
+- rule_id: azure.monitor.activity.log.alert.security.solution.update.check
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enabled
+      op: is_true
+      value: null
+    - var: item.criteria.allOf[].equals
+      op: contains
+      value: Microsoft.Security/securitySolutions/write
+- rule_id: azure.monitor.activity.log.alert.service.health.exists
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.criteria.allOf[].equals
+      op: contains
+      value: ServiceHealth
+    - var: item.enabled
+      op: is_true
+      value: null
+- rule_id: azure.monitor.activity.log.alert.sql.server.firewall.rule.deletion.check
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enabled
+      op: is_true
+      value: null
+    - var: item.criteria.allOf[].operationName
+      op: contains
+      value: Microsoft.Sql/servers/firewallRules/delete
+- rule_id: azure.monitor.activity.log.alert.sql.server.firewall.rule.exists
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enabled
+      op: is_true
+      value: null
+    - var: item.criteria.allOf[].equals
+      op: contains
+      value: Microsoft.Sql/servers/firewallRules/write
+- rule_id: azure.monitor.admin.account.usage.check
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    var: item.enabled
+    op: is_true
+    value: null
+- rule_id: azure.monitor.alert.alarm_actions
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    var: item.actions
+    op: not_empty
+    value: null
+- rule_id: azure.monitor.alert.alarm_configured
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    var: item.enabled
+    op: is_true
+    value: null
+- rule_id: azure.monitor.alert.capacity_alerts_configured
+  for_each: azure.monitor.autoscalesettings.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.notifications[].email.customEmails
+    op: not_empty
+    value: null
+- rule_id: azure.monitor.alert.create_update_nsg
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.criteria.allOf[].field
+      op: contains
+      value: operationName
+    - var: item.criteria.allOf[].equals
+      op: contains
+      value: Microsoft.Network/networkSecurityGroups/write
+    - var: item.enabled
+      op: is_true
+      value: null
+- rule_id: azure.monitor.alert.create_update_public_ip
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enabled
+      op: is_true
+      value: null
+    - var: item.criteria.allOf[].operationName
+      op: equals
+      value: Microsoft.Network/publicIPAddresses/write
+- rule_id: azure.monitor.alert.create_update_security_solution
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enabled
+      op: is_true
+      value: null
+    - var: item.criteria.allOf[].equals
+      op: contains
+      value: Microsoft.Security/securitySolutions
+    - var: item.criteria.allOf[].field
+      op: contains
+      value: operationName
+- rule_id: azure.monitor.alert.create_update_sqlserver_fr
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.criteria.allOf[].operationName
+      op: contains
+      value: Microsoft.Sql/servers/firewallRules/write
+    - var: item.enabled
+      op: is_true
+      value: null
+- rule_id: azure.monitor.alert.critical_alarms_enabled
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    var: item.enabled
+    op: is_true
+    value: null
+- rule_id: azure.monitor.alert.delete_nsg
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enabled
+      op: is_true
+      value: null
+    - var: item.criteria.allOf[].operationName
+      op: contains
+      value: Microsoft.Network/networkSecurityGroups/delete
+- rule_id: azure.monitor.alert.delete_public_ip
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enabled
+      op: is_true
+      value: null
+    - var: item.criteria.allOf[].operationName
+      op: contains
+      value: Microsoft.Network/publicIPAddresses/delete
+- rule_id: azure.monitor.alert.delete_security_solution
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    var: item.criteria.allOf[].operationName
+    op: contains
+    value: Microsoft.Security/securitySolutions/delete
+- rule_id: azure.monitor.alert.delete_sqlserver_fr
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.criteria.allOf[].operationName
+      op: contains
+      value: Microsoft.Sql/servers/failoverGroups/delete
+    - var: item.enabled
+      op: is_true
+      value: null
+- rule_id: azure.monitor.alert.destinations_authenticated
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.actions[].webhook_properties
+      op: exists
+      value: null
+    - var: item.actions[].webhook_properties
+      op: not_contains
+      value: useCommonAlertSchema=true
+- rule_id: azure.monitor.alert.vnet_changes_configured
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.criteria.allOf[].field
+      op: contains
+      value: resourceType
+    - var: item.criteria.allOf[].equals
+      op: contains
+      value: Microsoft.Network/virtualNetworks
+    - var: item.enabled
+      op: is_true
+      value: null
+- rule_id: azure.monitor.alert_rule.dr_monitoring_alert_destinations_configured
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    var: item.actions
+    op: not_empty
+    value: null
+- rule_id: azure.monitor.alert_rule.dr_monitoring_alerts_for_backup_failures_configured
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enabled
+      op: is_true
+      value: null
+    - var: item.criteria.allOf[].category
+      op: contains
+      value: Backup
+    - var: item.criteria.allOf[].operationName
+      op: contains
+      value: Backup
+    - var: item.criteria.allOf[].status
+      op: contains
+      value: Failed
+- rule_id: azure.monitor.alert_rule.dr_monitoring_alerts_for_replication_lag_configured
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    var: item.criteria
+    op: exists
+    value: null
+- rule_id: azure.monitor.alert_rule.dr_monitoring_alerts_for_rpo_rto_breach_configured
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    var: item.enabled
+    op: is_true
+    value: null
+- rule_id: azure.monitor.anomaly_detector.anomaly_alerts
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    var: item.enabled
+    op: is_true
+    value: null
+- rule_id: azure.monitor.anomaly_detector.anomaly_detectors_enabled
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    var: item.enabled
+    op: is_true
+    value: null
+- rule_id: azure.monitor.anomaly_detector.anomaly_training_data_sources_approved
+  for_each: azure.monitor.datacollectionrules.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.actions
+    op: exists
+    value: null
+- rule_id: azure.monitor.application.insights.configuration.check
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    var: item.enabled
+    op: is_true
+    value: null
+- rule_id: azure.monitor.application.insights_enabled
+  for_each: azure.monitor.datacollectionrules.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.kind
+    op: equals
+    value: applicationInsights
+- rule_id: azure.monitor.dashboard.public_embeds_disabled
+  for_each: azure.dashboard.grafana.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.options
+    op: not_exists
+    value: null
+- rule_id: azure.monitor.dashboard.sharing_restricted_to_org
+  for_each: azure.dashboard.grafana.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.sharing
+    op: not_contains
+    value: external
+- rule_id: azure.monitor.dashboard.sso_required
+  for_each: azure.dashboard.grafana.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.sso
+    op: exists
+    value: null
+- rule_id: azure.monitor.activitylogs.list
+  for_each: azure.monitor.activitylogs.list
+  severity: MEDIUM
+  conditions:
+    var: item.categories
+    op: exists
+    value: null
+- rule_id: azure.monitor.activitylogs.list
+  for_each: azure.monitor.activitylogs.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.logs[].category
+      op: contains
+      value: Administrative
+    - var: item.properties.logs[].category
+      op: contains
+      value: Security
+    - var: item.properties.logs[].category
+      op: contains
+      value: Alert
+    - var: item.properties.logs[].category
+      op: contains
+      value: Policy
+- rule_id: azure.monitor.diagnostic.settings.compliance.check
+  for_each: azure.monitor.activitylogs.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.logs[].enabled
+    op: is_true
+    value: null
+- rule_id: azure.monitor.diagnostic.settings_exists
+  for_each: azure.monitor.activitylogs.list
+  severity: MEDIUM
+  conditions:
+    var: item.value
+    op: not_empty
+    value: null
+- rule_id: azure.monitor.group.kms_encryption_enabled
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    var: item.identity
+    op: exists
+    value: null
+- rule_id: azure.monitor.log.analysis_enabled
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    var: item.enabled
+    op: is_true
+    value: null
+- rule_id: azure.monitor.log.enabled
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    var: item.enabled
+    op: is_true
+    value: null
+- rule_id: azure.monitor.log.file_integrity_enabled
+  for_each: azure.monitor.datacollectionrules.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.dataSources
+      op: exists
+      value: null
+    - var: item.dataSources.windowsEventLogs
+      op: exists
+      value: null
+    - var: item.dataSources.windowsEventLogs[].streams
+      op: contains
+      value: Microsoft-SecurityBaseline
+- rule_id: azure.monitor.log.file_validation_enabled
+  for_each: azure.monitor.datacollectionrules.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.streamDeclarations.logs
+    op: exists
+    value: null
+- rule_id: azure.monitor.log.kms_encryption_enabled
+  for_each: azure.monitor.datacollectionrules.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.identity.type
+    op: exists
+    value: null
+- rule_id: azure.monitor.log.logging_enabled
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    var: item.enabled
+    op: is_true
+    value: null
+- rule_id: azure.monitor.log.metric_filter_alarm_configured
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enabled
+      op: is_true
+      value: null
+    - var: item.criteria.allOf[].field
+      op: contains
+      value: operationName
+    - var: item.criteria.allOf[].equals
+      op: contains
+      value: Microsoft.Insights/LogAlerts/metrics
+- rule_id: azure.monitor.log.multi_region_enabled
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    var: item.location
+    op: not_equals
+    value: global
+- rule_id: azure.monitor.log.retention_configured
+  for_each: azure.monitor.datacollectionrules.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.dataSources.logFiles[].settings.text.recordStartTimestampFormat
+    op: exists
+    value: null
+- rule_id: azure.monitor.log_analytics_workspace.logging_destination_endpoint_private_networking
+  for_each: azure.monitor.datacollectionrules.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.dataFlows[].destinations[].logAnalytics[].workspaceResourceId
+      op: exists
+      value: null
+    - var: item.properties.dataFlows[].destinations[].logAnalytics[].workspaceResourceId
+      op: contains
+      value: privateLinkScope
+- rule_id: azure.monitor.log_analytics_workspace.logging_destination_iam_policy_least_privilege
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.actions[].roleDefinitionId
+      op: not_contains
+      value: '*'
+    - var: item.actions[].roleDefinitionId
+      op: not_contains
+      value: Owner
+    - var: item.actions[].roleDefinitionId
+      op: not_contains
+      value: Contributor
+- rule_id: azure.monitor.log_analytics_workspace.logging_destination_tls_min_1_2_enforced
+  for_each: azure.monitor.datacollectionrules.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.logAnalyticsDestination.minimumTlsVersion
+    op: in
+    value:
+    - '1.2'
+    - '1.3'
+- rule_id: azure.monitor.logging_log_stream.logging_stream_encryption_at_rest_enabled
+  for_each: azure.monitor.datacollectionrules.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.identity
+    op: exists
+    value: null
+- rule_id: azure.monitor.logging_log_stream.logging_stream_ingestion_auth_required
+  for_each: azure.monitor.datacollectionrules.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.streamDeclarations
+    op: not_empty
+    value: null
+- rule_id: azure.monitor.logging_log_stream.logging_stream_retention_days_minimum
+  for_each: azure.monitor.datacollectionrules.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.dataFlows[].destinations[].logAnalytics[].retentionDays
+      op: gte
+      value: '365'
+- rule_id: azure.monitor.logging_query_definition.access_rbac_least_privilege
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.actions[].roleDefinitionId
+      op: not_contains
+      value: '*'
+    - var: item.actions[].roleDefinitionId
+      op: not_contains
+      value: '*/providers/Microsoft.Authorization/roleDefinitions/*'
+- rule_id: azure.monitor.logging_query_definition.storage_encrypted
+  for_each: azure.monitor.datacollectionrules.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.check_workspace_alerts_storage_configured
+    op: is_true
+    value: null
+- rule_id: azure.monitor.logging_sink.cross_account_destinations_restricted
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    var: item.actions[].serviceUri
+    op: not_contains
+    value: .blob.core.windows.net
+- rule_id: azure.monitor.logging_sink.destination_encrypted
+  for_each: azure.monitor.datacollectionrules.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.dataFlows.destinations[].storageBlobDirect.storageAccountResourceId
+    op: exists
+    value: null
+- rule_id: azure.monitor.logging_sink.destination_least_privilege
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.actions[].actionGroupId
+      op: exists
+      value: null
+    - var: item.actions[].webhookProperties
+      op: not_exists
+      value: null
+- rule_id: azure.monitor.logging_store.access_rbac_least_privilege
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.actions[].roleDefinitionId
+      op: exists
+      value: null
+    - var: item.actions[].roleDefinitionId
+      op: not_contains
+      value: '*'
+- rule_id: azure.monitor.logging_store.encryption_at_rest_cmek
+  for_each: azure.monitor.datacollectionrules.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.identity.type
+    op: equals
+    value: UserAssigned
+- rule_id: azure.monitor.logging_store.immutability_or_object_lock_where_supported
+  for_each: azure.monitor.datacollectionrules.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.dataFlows[].destinations.azureMonitorMetrics.immutableId
+    op: exists
+    value: null
+- rule_id: azure.monitor.logging_store.retention_days_minimum
+  for_each: azure.loganalytics.workspaces.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.retention_in_days
+      op: gte
+      value: '90'
+- rule_id: azure.monitor.metric.filter.root.usage
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    var: item.enabled
+    op: is_true
+    value: null
+- rule_id: azure.monitor.metric_alert.logging_metric_filter_console_root_login_detected_filter_present
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.criteria.allOf[].field
+      op: contains
+      value: operationName
+    - var: item.criteria.allOf[].equals
+      op: contains
+      value: Microsoft.Compute/virtualMachines/login/action
+    - var: item.enabled
+      op: is_true
+      value: null
+- rule_id: azure.monitor.metric_alert.logging_metric_filter_kms_key_deletion_or_disable_detected_filter_present
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.criteria.allOf[].field
+      op: contains
+      value: operationName
+    - var: item.criteria.allOf[].equals
+      op: contains
+      value: Microsoft.KeyVault/vaults/keys/delete
+    - var: item.criteria.allOf[].equals
+      op: contains
+      value: Microsoft.KeyVault/vaults/keys/disable
+    - var: item.enabled
+      op: is_true
+      value: null
+- rule_id: azure.monitor.metric_alert.logging_metric_filter_network_acl_or_sg_change_detected_filter_present
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.criteria.allOf[].field
+      op: contains
+      value: operationName
+    - var: item.criteria.allOf[].equals
+      op: contains
+      value: Microsoft.Network/networkSecurityGroups/write
+    - var: item.criteria.allOf[].equals
+      op: contains
+      value: Microsoft.Network/networkSecurityGroups/delete
+    - var: item.criteria.allOf[].equals
+      op: contains
+      value: Microsoft.Network/networkSecurityGroups/securityRules/write
+    - var: item.criteria.allOf[].equals
+      op: contains
+      value: Microsoft.Network/networkSecurityGroups/securityRules/delete
+    - var: item.criteria.allOf[].equals
+      op: contains
+      value: Microsoft.Network/virtualNetworks/subnets/write
+    - var: item.criteria.allOf[].equals
+      op: contains
+      value: Microsoft.Network/virtualNetworks/subnets/delete
+    - var: item.enabled
+      op: is_true
+      value: null
+- rule_id: azure.monitor.metrics.data_analytics_monitoring_admin_activity_logging_enabled
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enabled
+      op: is_true
+      value: null
+    - var: item.criteria.allOf[].category
+      op: contains
+      value: Administrative
+- rule_id: azure.monitor.metrics.data_analytics_monitoring_logs_retention_days_minimum
+  for_each: azure.monitor.datacollectionrules.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.dataSources.logFiles[].settings.text.recordStartTimestampFormat
+      op: exists
+      value: null
+    - var: item.properties.dataSources.logFiles[].settings.text.recordStartTimestampFormat
+      op: equals
+      value: ISO 8601
+- rule_id: azure.monitor.metrics.data_analytics_monitoring_query_access_logging_enabled
+  for_each: azure.monitor.datacollectionrules.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.dataSources.logFiles[].settings.text.recordStartTimestampFormat
+    op: exists
+    value: null
+- rule_id: azure.monitor.network.acls_alarm_configured
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enabled
+      op: is_true
+      value: null
+    - var: item.criteria.allOf[].field
+      op: contains
+      value: operationName
+    - var: item.criteria.allOf[].equals
+      op: contains
+      value: Microsoft.Network/networkSecurityGroups/securityRules/write
+- rule_id: azure.monitor.network.gateways_alarm_configured
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enabled
+      op: is_true
+      value: null
+    - var: item.criteria.allOf[].field
+      op: contains
+      value: resourceType
+    - var: item.criteria.allOf[].equals
+      op: contains
+      value: Microsoft.Network/virtualNetworkGateways
+- rule_id: azure.monitor.network.route_tables_alarm_configured
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.criteria.allOf[].field
+      op: contains
+      value: Microsoft.Network/routeTables/write
+    - var: item.enabled
+      op: is_true
+      value: null
+- rule_id: azure.monitor.paas_app.logging_enabled
+  for_each: azure.monitor.datacollectionrules.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.enabled
+    op: is_true
+    value: null
+- rule_id: azure.monitor.policy.assignment
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    var: item.enabled
+    op: is_true
+    value: null
+- rule_id: azure.monitor.policy.specific_days_enabled
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    var: item.enabled
+    op: is_true
+    value: null
+- rule_id: azure.monitor.resource.logging.enabled.check
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    var: item.enabled
+    op: is_true
+    value: null
+- rule_id: azure.monitor.sampling_rule.access_rbac_least_privilege
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    var: item.actions
+    op: not_empty
+    value: null
+- rule_id: azure.monitor.sampling_rule.rules_present
+  for_each: azure.monitor.datacollectionrules.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item
+    op: not_empty
+    value: null
+- rule_id: azure.monitor.sampling_rule.storage_encrypted
+  for_each: azure.monitor.datacollectionrules.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.immutableId
+    op: exists
+    value: null
+- rule_id: azure.monitor.storage.account_with_activity_logs_cmk_encrypted
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    var: item.properties.storageAccountId
+    op: exists
+    value: null
+- rule_id: azure.monitor.storage.account_with_activity_logs_is_private
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.criteria.allOf[].field
+      op: contains
+      value: operationName
+    - var: item.criteria.allOf[].equals
+      op: contains
+      value: Microsoft.Storage/storageAccounts/write
+    - var: item.actions[].actionGroupId
+      op: exists
+      value: null
+- rule_id: azure.monitor.storage.read_events_enabled
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    var: item.enabled
+    op: is_true
+    value: null
+- rule_id: azure.monitor.storage.write_events_enabled
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    var: item.enabled
+    op: is_true
+    value: null
+- rule_id: azure.monitor.trace.access_rbac_least_privilege
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    var: item.actions
+    op: not_empty
+    value: null
+- rule_id: azure.monitor.trace.retention_days_minimum
+  for_each: azure.monitor.datacollectionrules.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.dataFlows[].destinations.azureMonitorMetrics.retentionPolicy.days
+    op: gte
+    value: '30'
+- rule_id: azure.monitor.trace.store_encrypted
+  for_each: azure.monitor.datacollectionrules.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryption.enabled
+    op: is_true
+    value: null
+- rule_id: azure.monitor.vm.cpu_alerts
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enabled
+      op: is_true
+      value: null
+    - var: item.criteria.allOf[].equals
+      op: contains
+      value: Microsoft.Compute/virtualMachines
+    - var: item.criteria.allOf[].field
+      op: contains
+      value: resourceType
+    - var: item.criteria.allOf[].equals
+      op: contains
+      value: Administrative
+    - var: item.criteria.allOf[].field
+      op: contains
+      value: category
+- rule_id: azure.monitor.vm.memory_alerts
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enabled
+      op: is_true
+      value: null
+    - var: item.criteria.allOf[].category
+      op: contains
+      value: Administrative
+    - var: item.criteria.allOf[].operationName
+      op: contains
+      value: Microsoft.Compute/virtualMachines/write
+    - var: item.criteria.allOf[].level
+      op: contains
+      value: Critical
+    - var: item.actions
+      op: not_empty
+      value: null
+- rule_id: azure.monitor.vulnerability_automation.vuln_automation_change_audit_logging_enabled
+  for_each: azure.monitor.activitylogalerts.list_by_resource_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.enabled
+      op: is_true
+      value: null
+    - var: item.criteria.allOf[].field
+      op: contains
+      value: operationName
+    - var: item.criteria.allOf[].equals
+      op: contains
+      value: Microsoft.Security/pricings/write

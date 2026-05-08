@@ -1,0 +1,37 @@
+version: '1.0'
+provider: k8s
+service: cronjob
+services:
+  client: cronjob
+  module: kubernetes.client
+discovery:
+- discovery_id: k8s.cronjob.list_cron_job_for_all_namespaces
+  calls:
+  - action: list_cron_job_for_all_namespaces
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+    item:
+      apiVersion: '{{ item.apiVersion }}'
+      kind: '{{ item.kind }}'
+      metadata.uid: '{{ item.metadata.uid }}'
+      metadata.name: '{{ item.metadata.name }}'
+      metadata.namespace: '{{ item.metadata.namespace }}'
+      metadata.labels: '{{ item.metadata.labels }}'
+      metadata.annotations: '{{ item.metadata.annotations }}'
+      metadata.creationTimestamp: '{{ item.metadata.creationTimestamp }}'
+      metadata.resourceVersion: '{{ item.metadata.resourceVersion }}'
+      metadata.ownerReferences: '{{ item.metadata.ownerReferences }}'
+      spec.schedule: '{{ item.spec.schedule }}'
+      spec.timeZone: '{{ item.spec.timeZone }}'
+      spec.startingDeadlineSeconds: '{{ item.spec.startingDeadlineSeconds }}'
+      spec.concurrencyPolicy: '{{ item.spec.concurrencyPolicy }}'
+      spec.suspend: '{{ item.spec.suspend }}'
+      spec.successfulJobsHistoryLimit: '{{ item.spec.successfulJobsHistoryLimit }}'
+      spec.failedJobsHistoryLimit: '{{ item.spec.failedJobsHistoryLimit }}'
+      spec.jobTemplate: '{{ item.spec.jobTemplate }}'
+      status.active: '{{ item.status.active }}'
+      status.lastScheduleTime: '{{ item.status.lastScheduleTime }}'
+      status.lastSuccessfulTime: '{{ item.status.lastSuccessfulTime }}'

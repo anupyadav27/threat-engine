@@ -1,0 +1,57 @@
+version: '1.0'
+provider: k8s
+service: federation
+checks:
+- rule_id: k8s.federation.api.server_tls_configuration_check
+  for_each: k8s.federation.list_namespace
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.metadata.annotations.federation\.kubernetes\.io/tls
+      op: exists
+      value: null
+    - var: item.metadata.labels.federation\.kubernetes\.io/insecure
+      op: not_exists
+      value: null
+- rule_id: k8s.federation.server.audit_log_path_check
+  for_each: k8s.federation.list_namespace
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.federation\.kubernetes\.io/tls
+    op: exists
+    value: null
+- rule_id: k8s.federation.server.basic_auth_disabled
+  for_each: k8s.federation.list_namespace
+  severity: HIGH
+  conditions:
+    var: item.annotations.auth-basic
+    op: not_exists
+    value: null
+- rule_id: k8s.federation.server.etcd_tls_certificates_configured
+  for_each: k8s.federation.list_namespace
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.federation\.kubernetes\.io/tls
+    op: exists
+    value: null
+- rule_id: k8s.federation.server.insecure_allow_any_token_disabled
+  for_each: k8s.federation.list_namespace
+  severity: LOW
+  conditions:
+    var: item.annotations.insecure-allow-any-token
+    op: not_exists
+    value: null
+- rule_id: k8s.federation.server.insecure_bind_address_check
+  for_each: k8s.federation.list_namespace
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations.federation\.kubernetes\.io/tls
+    op: exists
+    value: null
+- rule_id: k8s.federation.server.profiling_disabled
+  for_each: k8s.federation.list_namespace
+  severity: LOW
+  conditions:
+    var: item.annotations.profiling
+    op: is_false
+    value: null

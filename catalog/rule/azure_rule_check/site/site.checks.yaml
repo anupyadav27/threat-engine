@@ -1,0 +1,181 @@
+version: '1.0'
+provider: azure
+service: site
+checks:
+- rule_id: azure.site.recovery.configured
+  for_each: azure.recoveryservices.vaults.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    var: item.properties.monitoringSettings.azureMonitorAlertSettings.alertsForAllFailoverIssues
+    op: is_true
+    value: null
+- rule_id: azure.site.recovery_notification_settings.dr_communication_channels_configured
+  for_each: azure.recoveryservices.vaults.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.alertSettings
+      op: exists
+      value: null
+    - var: item.properties.alertSettings[].enabled
+      op: is_true
+      value: null
+- rule_id: azure.site.recovery_notification_settings.dr_communication_destinations_access_least_privilege
+  for_each: azure.recoveryservicessiterecovery.replicationalertsettings.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.Notifications[].SendToSubscriptionAdministrator
+      op: is_false
+      value: null
+    - var: item.Properties.Notifications[].SendToSubscriptionCoAdministrators
+      op: is_false
+      value: null
+- rule_id: azure.site.recovery_notification_settings.dr_communication_no_public_webhooks_without_auth
+  for_each: azure.recoveryservices.vaults.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.monitoringSettings.azureMonitorAlertSettings.alertsForAllFailoverIssues
+      op: equals
+      value: Enabled
+    - var: item.properties.monitoringSettings.azureMonitorAlertSettings.alertsForAllReplicationIssues
+      op: equals
+      value: Enabled
+    - var: item.properties.monitoringSettings.azureMonitorAlertSettings.alertsForAllJobFailures
+      op: equals
+      value: Enabled
+- rule_id: azure.site.recovery_recovery_plan.dr_documentation_access_rbac_least_privilege
+  for_each: azure.recoveryservicessiterecovery.replicationrecoveryplans.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.sourceSiteRecoveryFabricId
+      op: exists
+      value: null
+    - var: item.properties.allowedOperations[]
+      op: not_contains
+      value: Write
+- rule_id: azure.site.recovery_recovery_plan.dr_documentation_storage_encrypted_and_private
+  for_each: azure.recoveryservicessiterecovery.replicationrecoveryplans.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.PrimaryFabricId
+      op: exists
+      value: null
+    - var: item.Properties.SecondaryFabricId
+      op: exists
+      value: null
+- rule_id: azure.site.recovery_recovery_plan.dr_restore_cross_account_restore_blocked_by_policy
+  for_each: azure.recoveryservicessiterecovery.replicationrecoveryplans.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.CrossAccountRestoreSettings.CrossAccountRestoreEnabled
+      op: is_false
+      value: null
+    - var: item.Properties.CrossAccountRestoreSettings.CrossAccountRestorePolicy
+      op: not_equals
+      value: Allow
+- rule_id: azure.site.recovery_recovery_plan.dr_restore_from_encrypted_backups_only
+  for_each: azure.recoveryservicessiterecovery.replicationrecoveryplans.list
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.Encryption
+    op: exists
+    value: null
+- rule_id: azure.site.recovery_recovery_plan.dr_restore_logs_and_artifacts_encrypted
+  for_each: azure.recoveryservicessiterecovery.replicationrecoveryplans.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.Encryption
+      op: exists
+      value: null
+    - var: item.Properties.Encryption
+      op: is_true
+      value: null
+- rule_id: azure.site.recovery_recovery_plan.dr_restore_roles_least_privilege
+  for_each: azure.recoveryservicessiterecovery.replicationrecoveryplans.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.FailoverDeploymentModel
+      op: equals
+      value: ResourceManager
+    - var: item.Properties.ProviderSpecificDetails[].InstanceType
+      op: not_contains
+      value: HyperVReplicaAzure
+    - var: item.Properties.AllowedOperations[]
+      op: not_contains
+      value: PlannedFailover
+    - var: item.Properties.SourceSiteOperations[]
+      op: not_contains
+      value: Reprotect
+- rule_id: azure.site.recovery_replication_policy.dr_replication_auth_roles_least_privilege
+  for_each: azure.recoveryservicessiterecovery.replicationpolicies.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.ReplicationProviderSettings.roleAssignments[].roleDefinitionId
+      op: in
+      value:
+      - /providers/Microsoft.Authorization/roleDefinitions/acdd72a7-3385-48ef-bd42-f606fba81ae7
+      - /providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c
+    - var: item.Properties.ReplicationProviderSettings.roleAssignments[].principalId
+      op: not_contains
+      value: '*'
+- rule_id: azure.site.recovery_replication_policy.dr_replication_cross_region_replication_encrypted
+  for_each: azure.recoveryservicessiterecovery.replicationpolicies.list
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.ProviderSpecificDetails.A2ACrossClusterMigrationProperties.Encryption
+    op: is_true
+    value: null
+- rule_id: azure.site.recovery_replication_policy.dr_replication_encryption_in_transit_tls_required
+  for_each: azure.recoveryservicessiterecovery.replicationpolicies.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryption
+    op: equals
+    value: Enabled
+- rule_id: azure.site.recovery_replication_policy.dr_replication_lag_monitoring_alerts_enabled
+  for_each: azure.recoveryservicessiterecovery.replicationpolicies.list
+  severity: MEDIUM
+  conditions:
+    var: item.AlertSettings.Enabled
+    op: is_true
+    value: null
+- rule_id: azure.site.recovery_test_failover.dr_testing_execution_roles_least_privilege
+  for_each: azure.recoveryservices.vaults.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.MonitoringSettings.AzureMonitorAlertSettings.AlertsForAllJobFailures
+      op: equals
+      value: Enabled
+    - var: item.Identity.Type
+      op: equals
+      value: SystemAssigned
+- rule_id: azure.site.recovery_test_failover.dr_testing_logs_enabled
+  for_each: azure.recoveryservices.vaults.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.MonitoringSettings.AzureSiteRecoveryTestFailoverLogsEnabled
+    op: is_true
+    value: null
+- rule_id: azure.site.recovery_test_failover.dr_testing_results_storage_encrypted_and_private
+  for_each: azure.recoveryservices.vaults.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.Encryption
+      op: exists
+      value: null
+    - var: item.Properties.Encryption.InfrastructureEncryption
+      op: equals
+      value: Enabled
+    - var: item.Properties.PrivateEndpointConnections
+      op: not_empty
+      value: null

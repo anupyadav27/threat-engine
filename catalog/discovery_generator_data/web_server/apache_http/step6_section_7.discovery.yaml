@@ -1,0 +1,153 @@
+version: '1.0'
+provider: web_server
+engine: apache_http
+category: section_7
+cis_section: '7'
+description: >
+  apache_http CIS Section 7 — mod_ssl and/or mod_nss Is Installed
+
+discovery:
+
+  - discovery_id: apache_http.section_7.mod_ssl_and_or_mod_nss_is_installed
+    description: Ensure mod_ssl and/or mod_nss Is Installed
+    calls:
+      - action: run_command
+        command: "Perform the following steps to determine if the recommended state is implemented: Ensure the mod_ssl and/or mod_nssis loaded in the Apache configuration: # httpd -M | egrep \u0027ssl_module|nss_module\u0027 Results should show either or both of the modules."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: mod_ssl_and_or_mod_nss_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_7.a_valid_trusted_certificate_is_installed
+    description: Ensure a Valid Trusted Certificate Is Installed
+    calls:
+      - action: run_command
+        command: "Perform one or more of the following steps to determine if the recommended state is implemented: 1. The Qualys SSL Labs has a website that may be used for testing external servers. https://www.ssllabs.com/ssltest/ Enter the external host name of the server and wait for an extensive tests of TLS protocols and ciphers, in addition to testing the server certificate and the entire certificate authority chain. The SSL Labs test will report any weak digital signatures of the intermediate certificate authorities. For example, the report may include a warning of: Intermediate certificate has an insecure signature. Upgrade to SHA2 as soon as possible to avoid browser warnings. In addition, the weak SHA1 or MD5 signature algorithm will be highlighted with red text where the additional intermediate CA certificates are enumerated. For example, the certificate below from an SSL Labs report used SHA1 for the digital signature: o Subject The Go Daddy Group, Inc. o Fingerprint SHA256: 18f8a7. . . o Pin SHA256: VjLZe. . . o Valid until Sat, 29 Jun . . . o Key RSA 2048 bits (e 3) o Issuer http://www... o Signature algorithm SHA1withRSA INSECURE If a weak signature is found, then follow your certificate authority\u2019s process for having the server certificate re-issued / re-signed, in order to ensure that it is signed with a strong digital signature. 2. If the server is not an external server, or is not running on the standard port 443, a vulnerability scanner such as Nessus may be used to validate both the server certificate and the intermediate certificate chain. Custom certificate authorities may also be tested by loading the root certificate into the vulnerability scanner. 3. The testing can also be done by connecting to a running web server with your favorite browser and checking for a warning with regard to the certificate trust. However, some browsers may not warn of weak digital signatures, or other certificate issues. 4. OpenSSL can also be used to validate a certificate as a valid trusted certificate, using a trusted bundle of CA certificate. It is important that the CA bundle of certificates be an already validated and trusted file in order for the test to be valid. $ openssl verify -CAfile /etc/ssl/certs/ca-bundle.crt -purpose sslserver /etc/ssl/certs/example.com.crt /etc/ssl/certs/example.com.crt: OK A specific error message and code will be reported in addition to the OK if the certificate is not valid, For example: error 10 at 0 depth lookup:certificate has expired OK Of course, it is important here as well to be sure of the integrity of the trusted certificate authorities used by the web client. Visit the OWASP testing SSL web page for additional suggestions: https://www.owasp.org/index.php/Testing_for_SSL-TLS_%28OWASP-CM- 001%29"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: a_valid_trusted_certificate_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_7.server_s_private_key_is_protected
+    description: Ensure the Server's Private Key Is Protected
+    calls:
+      - action: run_command
+        command: "Perform the following steps to determine if the recommended state is implemented: 1. For each certificate file referenced in the Apache configuration files with the SSLCertificateFile directive, examine the file for a private key, clearly identified by the string PRIVATE KEY\u2014-- 2. For each file referenced in the Apache configuration files with the SSLCertificateKeyFile directive, verify the ownership is root:root and the permission 0400."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: server_s_private_key_is_protected
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_7.tlsv1_0_and_tlsv1_1_protocols_are_disabled
+    description: Ensure the TLSv1.0 and TLSv1.1 Protocols are Disabled
+    calls:
+      - action: run_command
+        command: "Perform the following steps to determine if the recommended state is implemented: Search the Apache configuration files for the SSLProtocol directive and ensure it matches one of the values below. SSLProtocol TLSv1.2 TLSv1.3 SSLProtocol TLSv1.2"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: tlsv1_0_and_tlsv1_1_protocols_are_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_7.weak_ssl_tls_ciphers_are_disabled
+    description: Ensure Weak SSL/TLS Ciphers Are Disabled
+    calls:
+      - action: run_command
+        command: "Perform the following steps to determine if the recommended state is implemented: The SSL protocols and ciphers supported can be easily tested by connecting to a running web server with an up-to-date version of the sslscan tool. The tool is available on Kali Linux https://www.kali.org/, or via github https://github.com/rbsec/sslscan The tool will color highlight the following weak ciphers. \u2022 Red Background NULL cipher (no encryption) \u2022 Red Broken cipher (\u003c= 40 bit), broken protocol (SSLv2 or SSLv3) \u2022 Yellow Weak cipher (\u003c= 56 bit or RC4) \u2022 Purple Anonymous cipher (ADH or AECDH) Alternatively, the Qualys SSL Labs has a website that may be used for testing external servers. https://www.ssllabs.com/ Alternatively, verify the SSLCipherSuite directive is present and has the following values to disable weak ciphers in the Apache server level configuration and every virtual host that is SSL/TLS enabled. SSLHonorCipherOrder On SSLCipherSuite ALL:!EXP:!NULL:!LOW:!SSLv2:!RC4:!aNULL"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: weak_ssl_tls_ciphers_are_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_7.insecure_ssl_renegotiation_is_not_enabled
+    description: Ensure Insecure SSL Renegotiation Is Not Enabled
+    calls:
+      - action: run_command
+        command: "Perform the following steps to determine if the recommended state is implemented: Search the Apache configuration files for the SSLInsecureRenegotiation directive and verify that the directive is either not present or has a value of off."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: insecure_ssl_renegotiation_is_not_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_7.ssl_compression_is_not_enabled
+    description: Ensure SSL Compression is not Enabled
+    calls:
+      - action: run_command
+        command: "Perform the following steps to determine if the recommended state is implemented: 1. Search the Apache configuration files for the SSLCompression directive. 2. Verify that the directive either does not exist or exists and is set to off."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ssl_compression_is_not_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_7.medium_strength_ssl_tls_ciphers_are_disabled
+    description: Ensure Medium Strength SSL/TLS Ciphers Are Disabled
+    calls:
+      - action: run_command
+        command: "Perform the following steps to determine if the recommended state is implemented: \u2022 The SSL protocols and ciphers supported can be easily tested by connecting to a running web server with an up-to-date version of the sslscan tool. The tool is available on Kali Linux https://www.kali.org/, or via github https://github.com/rbsec/sslscan Use the command below to detect 3DES and IDEA ciphers. No output means the ciphers are not allowed. $ sslscan --no-colour www.lugor.org | egrep \u0027IDEA|DES\u0027 Accepted TLSv1.2 112 bits ECDHE-RSA-DES-CBC3-SHA Curve P-256 DHE 256 Accepted TLSv1.2 112 bits EDH-RSA-DES-CBC3-SHA DHE 2048 bits Accepted TLSv1.2 112 bits DES-CBC3-SHA Accepted TLSv1.1 112 bits ECDHE-RSA-DES-CBC3-SHA Curve P-256 DHE 256 Accepted TLSv1.1 112 bits EDH-RSA-DES-CBC3-SHA DHE 2048 bits Accepted TLSv1.1 112 bits DES-CBC3-SHA \u2022 Alternatively, the Qualys SSL Labs has a webiste that may be used for testing external servers. https://www.ssllabs.com/ \u2022 Alternatively, verify the SSLCipherSuite directive includes the !3DES and the !IDEA to disable the ciphers in the Apache server level configuration and every virtual host that is SSL/TLS enabled."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: medium_strength_ssl_tls_ciphers_are_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_7.ocsp_stapling_is_enabled
+    description: Ensure OCSP Stapling Is Enabled
+    calls:
+      - action: run_command
+        command: "Perform the following steps to determine if the recommended state is implemented. At the Apache server level configuration and for every virtual host that is SSL enabled: \u2022 Verify the SSLStaplingCache directive is present and not commented out. There are three supported cache types, any of them are considered compliant. \u2022 Verify the SSLUseStapling directive is enabled with a value of on"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ocsp_stapling_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_7.http_strict_transport_security_is_enabled
+    description: Ensure HTTP Strict Transport Security Is Enabled
+    calls:
+      - action: run_command
+        command: "Perform either of the following steps to determine if the recommended state is implemented: At the Apache server level configuration and for every virtual host that is SSL enabled, verify there is a Header directive present that sets the Strict-Transport-Security header with a max-age value of at least 480 seconds or more (8 minutes or more). For example: Header always set Strict-Transport-Security \u0027max-age=600\u0027 As an alternative, the configuration may be validated by connecting to the HTTPS server and verifying the presence of the header. Such as the openssl s_client command shown below: openssl s_client -connect www.example.com:443 GET / HTTP1.1. Host:www.example.com HTTP/1.1 200 OK Date: Mon, 08 Dec 2014 18:28:29 GMT Server: Apache X-Frame-Options: NONE Strict-Transport-Security: max-age=600 Last-Modified: Mon, 19 Jun 2006 14:47:16 GMT ETag: \u0027152-41694d7a92500\u0027 Accept-Ranges: bytes Content-Length: 438 Connection: close Content-Type: text/html"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: http_strict_transport_security_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_7.only_cipher_suites_that_provide_forward_secrecy
+    description: Ensure Only Cipher Suites That Provide Forward Secrecy Are Enabled
+    calls:
+      - action: run_command
+        command: "Perform one of the following to determine if the recommended state is implemented: \u2022 The SSL protocols and ciphers supported can be easily tested by connecting to a running web server with an up-to-date version of the sslscan tool. The tool is available on Kali Linux https://www.kali.org/, or via github https://github.com/rbsec/sslscan. Usage of Kali Linux for sslscan is highly recommended rather than other Linux distributions as it is important that the scan make use of an SSL library that still enables the old protocols. Current Linux versions often wisely eliminate support for older protocols such as SSLv3, and therefore may be unable to properly detect the availability of older protocols on a remote system. A statically compiled sslscan with its own openssl library that supports the older protocols may be used as well. Check the output of sslscan, and confirm that all accepted ciphers begin with either ECDHE- or DHE-. Any ciphers not starting with one of the ephemeral Diffie- Helman algorithms, is not implementing the recommended state. The sslscan command below includes regular expressions which will extract any ciphers which are not included in the recommendation. No output means that only the FS ciphers are allowed. $ sslscan --no-colour --no-failed www.example.com | egrep \u0027(^Accepted)|(^Preferred)\u0027 | egrep -v \u0027( ECDHE-)|( DHE-)\u0027 \u2022 Alternatively, Qualys SSL Labs has a website that is very thorough and is commonly used for testing external servers. The report will show the cipher suites allowed along with many other details. https://www.ssllabs.com/ssltest/ The recommended cipher suites will start with TLS_ECDHE_ or TLS_DHE_ and have the initials FS at the end for forward secrecy. \u2022 Alternatively find the specified values for the SSLCipherSuite directive in the Apache server level configuration and every virtual host that is SSL/TLS enabled. Then use the openssl command on the local system to verify the specified SSLCipherSuite directive only allows cipher suites that begin with the ECDHE- or DHE- algorithms. For example: $ openssl ciphers -v \u0027EECDH:EDH:!NULL:!SSLv2:!RC4:!3DES:!IDEA:!aNULL:!SHA1\u0027 ECDHE-RSA-AES256-GCM-SHA384 TLSv1.2 Kx=ECDH Au=RSA Enc=AESGCM(256) Mac=AEAD ECDHE-ECDSA-AES256-GCM-SHA384 TLSv1.2 Kx=ECDH Au=ECDSA Enc=AESGCM(256) Mac=AEAD ECDHE-RSA-AES256-SHA384 TLSv1.2 Kx=ECDH Au=RSA Enc=AES(256) Mac=SHA384 ECDHE-ECDSA-AES256-SHA384 TLSv1.2 Kx=ECDH Au=ECDSA Enc=AES(256) Mac=SHA384 ECDHE-RSA-AES128-GCM-SHA256 TLSv1.2 Kx=ECDH Au=RSA Enc=AESGCM(128) Mac=AEAD ECDHE-ECDSA-AES128-GCM-SHA256 TLSv1.2 Kx=ECDH Au=ECDSA Enc=AESGCM(128) Mac=AEAD ECDHE-RSA-AES128-SHA256 TLSv1.2 Kx=ECDH Au=RSA Enc=AES(128) Mac=SHA256 ECDHE-ECDSA-AES128-SHA256 TLSv1.2 Kx=ECDH Au=ECDSA Enc=AES(128) Mac=SHA256 DHE-DSS-AES256-GCM-SHA384 TLSv1.2 Kx=DH Au=DSS Enc=AESGCM(256) Mac=AEAD DHE-RSA-AES256-GCM-SHA384 TLSv1.2 Kx=DH Au=RSA Enc=AESGCM(256) Mac=AEAD DHE-RSA-AES256-SHA256 TLSv1.2 Kx=DH Au=RSA Enc=AES(256) Mac=SHA256 DHE-DSS-AES256-SHA256 TLSv1.2 Kx=DH Au=DSS Enc=AES(256) Mac=SHA256 DHE-DSS-AES128-GCM-SHA256 TLSv1.2 Kx=DH Au=DSS Enc=AESGCM(128) Mac=AEAD DHE-RSA-AES128-GCM-SHA256 TLSv1.2 Kx=DH Au=RSA Enc=AESGCM(128) Mac=AEAD DHE-RSA-AES128-SHA256 TLSv1.2 Kx=DH Au=RSA Enc=AES(128) Mac=SHA256 DHE-DSS-AES128-SHA256 TLSv1.2 Kx=DH Au=DSS Enc=AES(128) Mac=SHA256"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: only_cipher_suites_that_provide_forward_secrecy
+        value: "{{ result.stdout }}"
+        expected: ""
+

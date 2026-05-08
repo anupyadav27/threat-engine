@@ -1,0 +1,75 @@
+rule_id: alicloud.resourcemanager.audit.folder_change
+service: iam
+provider: alicloud
+check_type: log
+severity: medium
+title: Track RAM (Resource Access Management) policy changes and resource directory
+  folder modifications to log system changes.
+description: singleton
+rationale: Monitoring this activity is essential for detecting adversary persistence
+  against ALICLOUD resources. Unauthorized or unexpected API calls may indicate account
+  compromise, privilege escalation, or an active attack chain.
+threat_category: persistence
+mitre_tactics:
+- persistence
+mitre_techniques:
+- T1136
+- T1136.003
+risk_score: 68
+resource: cloud_iam_principal
+source: csv_generated
+is_active: true
+domain: logging_monitoring_and_alerting
+action_category: modify
+log_source_type: alicloud_actiontrail
+posture_category: threat_posture
+threat_tags:
+- T1136
+- T1136.003
+- persistence
+- ciem_detection
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  nist_800_171:
+  - 3.4.3
+remediation: '1. Remove the unauthorized resource (user, key, image, account) immediately.
+
+  2. Audit all resources created by the same principal.
+
+  3. Restrict resource creation to approved provisioning pipelines.
+
+  4. Add detection for resource creation outside of business hours or from unusual
+  IPs.
+
+  5. Review SCPs and permission boundaries to limit persistence mechanisms.'
+references:
+- https://attack.mitre.org/techniques/T1136/
+- https://attack.mitre.org/techniques/T1136.003/
+- https://www.alibabacloud.com/help/en/ram/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: resourcemanager
+    - field: operation
+      op: in
+      value:
+      - MoveResourceGroup
+      - CreateFolder
+      - UpdateFolder
+  type: log
+  version: '1.0'

@@ -1,0 +1,112 @@
+version: '1.0'
+provider: database
+engine: oracle_db
+category: section_4
+cis_section: '4'
+description: >
+  oracle_db CIS Section 4 — No Custom 'ORACLE_MAINTAINED' Users Exist
+
+discovery:
+
+  - discovery_id: oracle_db.section_4.no_custom_oracle_maintained_users_exist
+    description: Ensure No Custom 'ORACLE_MAINTAINED' Users Exist
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT CON_ID_TO_CON_NAME(C.CON_ID) AS CONTAINERNAME,USERNAME, FROM CDB_USERS C WHERE ORACLE_MAINTAINED = 'Y' AND USERNAME NOT IN ( 'ANONYMOUS', 'APEX_LISTENER', 'APEX_PUBLIC_USER','APEX_REST_PUBLIC_USER', 'APEX_230200', 'APEX_240100', 'APEX_PUBLIC_ROUTER', 'APPQOSSYS','AUDSYS', 'CTXSYS', 'DBSFWUSER', 'DBSNMP', 'DGPDB_INT', 'DIP', 'DVF', 'DVSYS', 'FLOWS_FILES', 'GGSHAREDCAP', 'GGSYS', 'GSMADMIN_INTERNAL', 'GSMCATUSER', 'GSMROOTUSER', 'GSMUSER', 'LBACSYS', 'MDDATA', 'MDSYS', 'OJVMSYS', 'OLAPSYS', 'OUTLN', 'REMOTE_SCHEDULER_AGENT', 'SYS', 'SYSBACKUP', 'SYSDG', 'SYSKM', 'SYSRAC', 'SYSTEM', 'SYS$UMF', 'VECSYS', 'WMSYS', 'XDB', 'XS$NULL' ) ORDER BY 1;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: no_custom_oracle_maintained_users_exist
+        setting_name: no_custom_oracle_maintained_users_exist
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: oracle_db.section_4.old_password_versions_are_not_used
+    description: Ensure Old Password Versions Are Not Used
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT DECODE(C.CON_ID, 0, 'ENTIRE-' || SYS_CONTEXT('USERENV','DB_NAME'), 1, 'ROOTONLY-' || SYS_CONTEXT('USERENV','DB_NAME'), CON_ID_TO_CON_NAME(C.CON_ID)) AS CONTAINERNAME, C.USERNAME, C.PASSWORD_VERSIONS FROM CDB_USERS C WHERE C.PASSWORD_VERSIONS NOT IN ('12C') ORDER BY C.CON_ID;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: old_password_versions_are_not_used
+        setting_name: old_password_versions_are_not_used
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: oracle_db.section_4.database_link_passwords_are_using_the_latest
+    description: Ensure That Database Link Passwords Are Using The Latest Encryption
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT DECODE(v.con_id, 0, 'Entire-' || SYS_CONTEXT('USERENV', 'DB_NAME'), 1, 'RootOnly-' || SYS_CONTEXT('USERENV', 'DB_NAME'), CON_ID_TO_CON_NAME(v.con_id)) AS container_name, name AS db_link, host, userid FROM CONTAINERS('SYS'.'LINK$') v WHERE passwordx IS NOT NULL;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: database_link_passwords_are_using_the_latest
+        setting_name: database_link_passwords_are_using_the_latest
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: oracle_db.section_4.all_sample_data_and_users_have_been_removed
+    description: Ensure All Sample Data And Users Have Been Removed
+    calls:
+
+
+      - action: query_table
+        query: "SELECT USERNAME FROM DBA_USERS WHERE USERNAME IN ('BI','HR','IX','OE','PM','SCOTT','SH');"
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        check: all_sample_data_and_users_have_been_removed
+        value: "{{ item.value }}"
+        expected: ""
+
+
+  - discovery_id: oracle_db.section_4.no_users_are_assigned_the_default_profile
+    description: Ensure No Users Are Assigned the 'DEFAULT' Profile
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT USERNAME FROM DBA_USERS WHERE PROFILE='DEFAULT' AND ACCOUNT_STATUS='OPEN' AND ORACLE_MAINTAINED = 'N';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: no_users_are_assigned_the_default_profile
+        setting_name: no_users_are_assigned_the_default_profile
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: oracle_db.section_4.sys_user_mig_has_been_dropped
+    description: Ensure 'SYS.USER$MIG' Has Been Dropped
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT OWNER, TABLE_NAME FROM DBA_TABLES WHERE TABLE_NAME='USER$MIG' AND OWNER='SYS';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sys_user_mig_has_been_dropped
+        setting_name: sys_user_mig_has_been_dropped
+        value: "{{ result.value }}"
+        expected: ""
+
+

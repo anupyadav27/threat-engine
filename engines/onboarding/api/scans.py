@@ -36,7 +36,7 @@ async def get_recent_scans(
                 cur.execute(
                     """
                     SELECT
-                        orchestration_id,
+                        scan_run_id,
                         tenant_id,
                         provider,
                         account_id,
@@ -49,7 +49,7 @@ async def get_recent_scans(
                             AS duration_seconds,
                         engines_requested,
                         engines_completed
-                    FROM scan_orchestration
+                    FROM scan_runs
                     WHERE tenant_id = %s
                     ORDER BY started_at DESC
                     LIMIT %s
@@ -91,7 +91,7 @@ async def get_scan_pipeline_status(
     """
     Return per-engine pipeline status for a scan run.
 
-    Derives stage status from scan_orchestration.engines_requested /
+    Derives stage status from scan_runs.engines_requested /
     engines_completed columns. The first non-completed engine is marked
     'running' when overall_status == 'running'; everything after is 'pending'.
     """
@@ -109,14 +109,14 @@ async def get_scan_pipeline_status(
                 cur.execute(
                     """
                     SELECT
-                        orchestration_id,
+                        scan_run_id,
                         overall_status,
                         started_at,
                         completed_at,
                         engines_requested,
                         engines_completed
-                    FROM scan_orchestration
-                    WHERE orchestration_id = %s
+                    FROM scan_runs
+                    WHERE scan_run_id = %s
                       AND tenant_id = %s
                     LIMIT 1
                     """,

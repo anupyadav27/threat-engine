@@ -1,0 +1,78 @@
+rule_id: alicloud.datasec.actiontrail.dataworks_export
+service: datasec
+provider: alicloud
+check_type: log
+severity: high
+title: 'AliCloud DataWorks: Data Export Job Created'
+description: A DataWorks data export or synchronization task was created. Adversaries
+  create export tasks to bulk-exfiltrate data warehouse or lake contents to external
+  systems.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: data_exfiltration
+mitre_tactics:
+- exfiltration
+- collection
+mitre_techniques:
+- T1537
+- T1530
+risk_score: 80
+resource: alicloud_dataworks_task
+source: alicloud_ciem_generator
+is_active: true
+domain: data_protection_and_privacy
+action_category: create
+log_source_type: alicloud_actiontrail
+posture_category: data_security_posture
+threat_tags:
+- T1537
+- T1530
+- exfiltration
+- collection
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '5.1'
+  - '5.2'
+  nist_800_53_r5:
+  - SC-28
+  - AC-3
+  - AU-9
+  pci_dss_v4:
+  - '3.4'
+  - '3.5'
+  - '6.3'
+  iso_27001_2022:
+  - A.8.10
+  - A.8.24
+remediation: '1. Review the export task destination and scope.
+
+  2. Alert on export tasks pointing to external endpoints.
+
+  3. Restrict DataWorks synchronization permissions to approved data pipeline roles.'
+references:
+- https://attack.mitre.org/techniques/T1537/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: dataworks
+    - field: operation
+      op: equals
+      value: CreateDIJob
+version: '1.0'

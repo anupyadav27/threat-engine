@@ -1,0 +1,14 @@
+version: '1.0'
+rule_id: aws.iam.resource.access_analyzer_external_all_regions_configured
+for_each: aws.iam.get_account_authorization_details
+severity: MEDIUM
+conditions:
+  all:
+  - var: item.RoleDetailList[].Arn
+    op: contains
+    value: access-analyzer
+  - var: item.RoleDetailList[].AssumeRolePolicyDocument.Statement[].Condition.StringEquals.sts:ExternalId
+    op: exists
+  - var: item.RoleDetailList[].AssumeRolePolicyDocument.Statement[].Resource
+    op: contains
+    value: '*'

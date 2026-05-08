@@ -1,0 +1,382 @@
+version: '1.0'
+provider: azure
+service: aad
+checks:
+- rule_id: azure.aad.app_registration.access_oidc_allowed_client_ids_audiences_restricted
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.type
+      op: equals
+      value: Microsoft.Authorization/roleDefinitions
+    - var: item.permissions[].actions
+      op: not_contains
+      value: '*'
+    - var: item.permissions[].notActions
+      op: not_contains
+      value: '*'
+- rule_id: azure.aad.app_registration.access_oidc_issuer_https_and_matches_discovery
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.oidc_issuer
+      op: exists
+      value: null
+    - var: item.oidc_issuer
+      op: contains
+      value: https://
+    - var: item.oidc_issuer
+      op: equals
+      value: item.discovery_endpoint
+- rule_id: azure.aad.app_registration.access_oidc_thumbprints_or_jwks_pinning
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.condition
+      op: exists
+      value: null
+    - var: item.condition_version
+      op: exists
+      value: null
+- rule_id: azure.aad.app_registration.access_oidc_token_lifetime_reasonable
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    var: item.access_token_lifetime
+    op: lte
+    value: 3600
+- rule_id: azure.aad.directory_tenant.access_password_policy_lockout_threshold_defined
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    var: item.password_policies.lockout_threshold
+    op: exists
+    value: null
+- rule_id: azure.aad.directory_tenant.access_password_policy_max_age_90_days_or_less
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.password_policy.maximum_password_age_days
+      op: exists
+      value: null
+    - var: item.password_policy.maximum_password_age_days
+      op: lte
+      value: '90'
+- rule_id: azure.aad.directory_tenant.access_password_policy_min_length_14
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    var: item.password_policy.minimum_length
+    op: gte
+    value: '14'
+- rule_id: azure.aad.directory_tenant.access_password_policy_prevent_reuse_last_24
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    var: item.passwordPolicies.preventReuseLast24
+    op: is_true
+    value: null
+- rule_id: azure.aad.directory_tenant.access_password_policy_require_upper_lower_number_special
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    var: item.password_policies.require_upper_lower_number_special
+    op: is_true
+    value: null
+- rule_id: azure.aad.directory_tenant.access_tenant_api_access_keys_root_or_owner_disallowed
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.permissions[].actions
+      op: not_contains
+      value: Microsoft.Authorization/*/write
+    - var: item.permissions[].actions
+      op: not_contains
+      value: Microsoft.Authorization/roleAssignments/write
+    - var: item.permissions[].actions
+      op: not_contains
+      value: Microsoft.Authorization/roleDefinitions/write
+- rule_id: azure.aad.directory_tenant.access_tenant_break_glass_accounts_mfa_enforced
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    var: item.principals[].mfa_enforced
+    op: is_true
+    value: null
+- rule_id: azure.aad.directory_tenant.access_tenant_console_mfa_required_org_wide
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    var: item.deny_assignment_name
+    op: exists
+    value: null
+- rule_id: azure.aad.directory_tenant.access_tenant_inuser_disable_threshold
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.deny_assignment_name
+      op: exists
+      value: null
+    - var: item.deny_assignment_name
+      op: not_contains
+      value: DisableUserAccess
+- rule_id: azure.aad.directory_tenant.access_tenant_password_policy_compliant
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.passwordPolicies.enforceStrongPassword
+      op: is_true
+      value: null
+    - var: item.passwordPolicies.maximumPasswordAgeDays
+      op: lte
+      value: '90'
+    - var: item.passwordPolicies.minimumPasswordLength
+      op: gte
+      value: '8'
+    - var: item.passwordPolicies.passwordReusePreventionCount
+      op: gte
+      value: '5'
+- rule_id: azure.aad.directory_tenant.access_tenant_sso_federation_where_supported
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    var: item.deny_assignment_name
+    op: exists
+    value: null
+- rule_id: azure.aad.enterprise_application.access_saml_assertion_lifetime_reasonable
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.type
+      op: equals
+      value: saml
+    - var: item.permissions
+      op: exists
+      value: null
+- rule_id: azure.aad.enterprise_application.access_saml_audience_restriction
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    var: item.audience
+    op: exists
+    value: null
+- rule_id: azure.aad.enterprise_application.access_saml_certificates_not_expired
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    var: item.saml_certificates[].expiry_date
+    op: gt
+    value: '{{now}}'
+- rule_id: azure.aad.enterprise_application.access_saml_idp_metadata_signed
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    var: item.saml_metadata_url
+    op: exists
+    value: null
+- rule_id: azure.aad.group.access_group_attached_policies_not_admin_star
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.type
+      op: equals
+      value: Microsoft.Authorization/roleAssignments
+    - var: item.permissions[].Actions
+      op: not_contains
+      value: '*'
+- rule_id: azure.aad.group.access_group_membership_review_enabled_where_supported
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    var: item.access_group_membership_review_enabled
+    op: is_true
+    value: null
+- rule_id: azure.aad.group.access_group_no_inline_policies
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    var: item.permissions
+    op: is_empty
+    value: null
+- rule_id: azure.aad.group.access_rbac_group_attached_policies_not_admin_star
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.permissions[].Actions
+      op: not_contains
+      value: '*'
+    - var: item.permissions[].NotActions
+      op: contains
+      value: '*'
+- rule_id: azure.aad.group.access_rbac_group_external_sharing_restricted_where_supported
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    var: item.principals
+    op: not_contains
+    value: Guest
+- rule_id: azure.aad.group.access_rbac_group_no_inline_policies
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    var: item.type
+    op: equals
+    value: Microsoft.Authorization/roleAssignments
+- rule_id: azure.aad.identity_service_principal.access_service_account_keys_not_used_or_rotated_90_days_or_less
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.type
+      op: equals
+      value: ServicePrincipal
+    - var: item.key_credentials[].end_date
+      op: not_exists
+      value: null
+- rule_id: azure.aad.identity_service_principal.access_service_account_no_user_long_lived_keys
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.type
+      op: equals
+      value: ServicePrincipal
+    - var: item.keyCredentials[].endDateTime
+      op: not_exists
+      value: null
+- rule_id: azure.aad.identity_service_principal.access_service_account_scopes_or_roles_least_privilege
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.permissions
+      op: not_empty
+      value: null
+    - var: item.permissions[].actions
+      op: not_contains
+      value: '*'
+- rule_id: azure.aad.identity_service_principal.access_service_account_workload_identity_federation_used_where_supported
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.condition
+      op: exists
+      value: null
+    - var: item.condition_version
+      op: exists
+      value: null
+- rule_id: azure.aad.identity_user_assigned_identity.access_instance_profile_no_instance_profile_with_admin_star
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.permissions[].actions
+      op: not_contains
+      value: Microsoft.Compute/virtualMachines/*
+    - var: item.permissions[].actions
+      op: not_contains
+      value: '*'
+- rule_id: azure.aad.identity_user_assigned_identity.access_instance_profile_role_attached
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    var: item.principals
+    op: not_contains
+    value: Microsoft.ManagedIdentity/userAssignedIdentities
+- rule_id: azure.aad.identity_user_assigned_identity.access_instance_profile_role_policies_least_privilege
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.permissions[].actions
+      op: not_contains
+      value: '*'
+    - var: item.permissions[].data_actions
+      op: not_contains
+      value: '*'
+- rule_id: azure.aad.lustre.filesystem_customer_managed_key_enabled
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    var: item.type
+    op: equals
+    value: Microsoft.Authorization/denyAssignments
+- rule_id: azure.aad.privacy_consent.access_rbac_least_privilege
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    var: item.permissions
+    op: not_empty
+    value: null
+- rule_id: azure.aad.serverless_event_source.permissions_least_privilege
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.permissions
+      op: exists
+      value: null
+    - var: item.permissions
+      op: not_contains
+      value: '*'
+- rule_id: azure.aad.user.access_user_access_keys_rotated_90_days_or_less_when_present
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.updated_on
+      op: exists
+      value: null
+    - var: item.updated_on
+      op: lt
+      value: '90'
+- rule_id: azure.aad.user.access_user_console_password_present_only_if_required
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    var: item.principals[].password_profile.force_change_password_next_sign_in
+    op: is_true
+    value: null
+- rule_id: azure.aad.user.access_user_in90_days_disabled
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.updated_on
+      op: exists
+      value: null
+    - var: item.updated_on
+      op: lt
+      value: '90'
+- rule_id: azure.aad.user.access_user_mfa_required
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    var: item.permissions
+    op: contains
+    value: MFA
+- rule_id: azure.aad.user.access_user_no_inline_policies_attached
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    var: item.type
+    op: not_equals
+    value: User
+- rule_id: azure.aad.user.authentication.reconfirmation.period.check
+  for_each: azure.aad.list
+  severity: MEDIUM
+  conditions:
+    var: item.authentication_reconfirmation_period_days
+    op: lte
+    value: 90

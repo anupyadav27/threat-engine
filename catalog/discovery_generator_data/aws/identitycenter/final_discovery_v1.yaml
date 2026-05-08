@@ -1,0 +1,228 @@
+# ==========================================================
+# Discovery YAML — identitycenter (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 8 | ops: 4 independent, 6 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: identitycenter
+
+services:
+  client: identitycenter
+  module: "boto3.client('identitycenter')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: group
+    identifier_op: aws.identitystore.list_groups
+    identifier_field: GroupId
+    item_var_path: item.GroupId
+    identifier_template: '{groupid}'
+  - resource_type: user
+    identifier_op: aws.identitystore.list_users
+    identifier_field: IdentityStoreId
+    item_var_path: item.IdentityStoreId
+    identifier_template: '{identitystoreid}'
+  - resource_type: get_inline_policy_for_permission_set
+    identifier_op: aws.sso-admin.get_inline_policy_for_permission_set
+    identifier_field: Statement
+    item_var_path: item.Statement
+    identifier_template: '{statement}'
+  - resource_type: permission_sets_provisioned_to_account
+    identifier_op: aws.sso-admin.list_permission_sets_provisioned_to_account
+    identifier_field: PermissionSetArn
+    item_var_path: item.PermissionSetArn
+    identifier_template: '{permissionsetarn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.identitystore.list_groups  ──
+  - discovery_id: aws.identitystore.list_groups
+    calls:
+      - action: list_groups
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Groups }}'
+      item:
+        CreatedAt: '{{ item.CreatedAt }}'
+        CreatedBy: '{{ item.CreatedBy }}'
+        Description: '{{ item.Description }}'
+        ExternalIds: '{{ item.ExternalIds }}'
+        IdentityStoreId: '{{ item.IdentityStoreId }}'
+        UpdatedAt: '{{ item.UpdatedAt }}'
+        UpdatedBy: '{{ item.UpdatedBy }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.identitystore.list_users  ──
+  - discovery_id: aws.identitystore.list_users
+    calls:
+      - action: list_users
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Users }}'
+      item:
+        Addresses: '{{ item.Addresses }}'
+        Birthdate: '{{ item.Birthdate }}'
+        CreatedAt: '{{ item.CreatedAt }}'
+        CreatedBy: '{{ item.CreatedBy }}'
+        DisplayName: '{{ item.DisplayName }}'
+        Emails: '{{ item.Emails }}'
+        ExternalIds: '{{ item.ExternalIds }}'
+        IdentityStoreId: '{{ item.IdentityStoreId }}'
+        Locale: '{{ item.Locale }}'
+        Name: '{{ item.Name }}'
+        NickName: '{{ item.NickName }}'
+        PhoneNumbers: '{{ item.PhoneNumbers }}'
+        Photos: '{{ item.Photos }}'
+        PreferredLanguage: '{{ item.PreferredLanguage }}'
+        ProfileUrl: '{{ item.ProfileUrl }}'
+        Timezone: '{{ item.Timezone }}'
+        Title: '{{ item.Title }}'
+        UpdatedAt: '{{ item.UpdatedAt }}'
+        UpdatedBy: '{{ item.UpdatedBy }}'
+        UserType: '{{ item.UserType }}'
+        Website: '{{ item.Website }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.sso-admin.get_inline_policy_for_permission_set  ──
+  - discovery_id: aws.sso-admin.get_inline_policy_for_permission_set
+    calls:
+      - action: get_inline_policy_for_permission_set
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Version: '{{ item.Version }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.sso-admin.list_permission_sets_provisioned_to_account  ──
+  - discovery_id: aws.sso-admin.list_permission_sets_provisioned_to_account
+    calls:
+      - action: list_permission_sets_provisioned_to_account
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.PermissionSets }}'
+      item:
+        PermissionSetArn: '{{ item.PermissionSetArn }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.sso-admin.describe_instance_access_control_attribute_configuration [dependent] ──
+  - discovery_id: aws.sso-admin.describe_instance_access_control_attribute_configuration
+    for_each: aws.sso-admin.list_instances
+    calls:
+      - action: describe_instance_access_control_attribute_configuration
+        params:
+          InstanceArn: '{{ item.InstanceArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        AccessControlAttributes: '{{ item.AccessControlAttributes }}'
+        InstanceAccessControlAttributeConfiguration: '{{ item.InstanceAccessControlAttributeConfiguration }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.sso-admin.describe_permission_set [dependent] ──
+  - discovery_id: aws.sso-admin.describe_permission_set
+    for_each: aws.sso-admin.list_instances
+    calls:
+      - action: describe_permission_set
+        params:
+          InstanceArn: '{{ item.InstanceArn }}'
+          PermissionSetArn: '{{ item.PermissionSetArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        CreatedDate: '{{ item.CreatedDate }}'
+        Description: '{{ item.Description }}'
+        Name: '{{ item.Name }}'
+        PermissionSetArn: '{{ item.PermissionSetArn }}'
+        RelayState: '{{ item.RelayState }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.sso-admin.get_permissions_boundary_for_permission_set [dependent] ──
+  - discovery_id: aws.sso-admin.get_permissions_boundary_for_permission_set
+    for_each: aws.sso-admin.list_instances
+    calls:
+      - action: get_permissions_boundary_for_permission_set
+        params:
+          InstanceArn: '{{ item.InstanceArn }}'
+          PermissionSetArn: '{{ item.PermissionSetArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        CustomerManagedPolicyReference: '{{ item.CustomerManagedPolicyReference }}'
+        ManagedPolicyArn: '{{ item.ManagedPolicyArn }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.sso-admin.list_customer_managed_policy_references_in_permission_set [dependent] ──
+  - discovery_id: aws.sso-admin.list_customer_managed_policy_references_in_permission_set
+    for_each: aws.sso-admin.list_instances
+    calls:
+      - action: list_customer_managed_policy_references_in_permission_set
+        params:
+          InstanceArn: '{{ item.InstanceArn }}'
+          PermissionSetArn: '{{ item.PermissionSetArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.CustomerManagedPolicyReferences }}'
+      item:
+        Name: '{{ item.Name }}'
+        Path: '{{ item.Path }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.sso-admin.list_managed_policies_in_permission_set [dependent] ──
+  - discovery_id: aws.sso-admin.list_managed_policies_in_permission_set
+    for_each: aws.sso-admin.list_instances
+    calls:
+      - action: list_managed_policies_in_permission_set
+        params:
+          InstanceArn: '{{ item.InstanceArn }}'
+          PermissionSetArn: '{{ item.PermissionSetArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.AttachedManagedPolicies }}'
+      item:
+        Arn: '{{ item.Arn }}'
+        Name: '{{ item.Name }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.sso-admin.list_trusted_token_issuers [dependent] ──
+  - discovery_id: aws.sso-admin.list_trusted_token_issuers
+    for_each: aws.sso-admin.list_instances
+    calls:
+      - action: list_trusted_token_issuers
+        params:
+          InstanceArn: '{{ item.InstanceArn }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.TrustedTokenIssuers }}'
+      item:
+        Name: '{{ item.Name }}'
+        TrustedTokenIssuerArn: '{{ item.TrustedTokenIssuerArn }}'
+        TrustedTokenIssuerType: '{{ item.TrustedTokenIssuerType }}'
+

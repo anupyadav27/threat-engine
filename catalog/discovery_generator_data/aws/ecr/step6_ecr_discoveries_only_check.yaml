@@ -1,0 +1,81 @@
+# discoveries_only_check: 5 kept / 16 removed from 21 total
+# generated_from: step6_ecr.discovery.yaml
+# purpose: only discoveries needed by ecr.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: ecr
+services:
+  client: ecr
+  module: boto3.client
+discovery:
+- discovery_id: aws.ecr.describe_registry
+  calls:
+  - action: describe_registry
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      replicationConfiguration: '{{ response.replicationConfiguration }}'
+      rules: '{{ response.rules }}'
+- discovery_id: aws.ecr.describe_repositories
+  calls:
+  - action: describe_repositories
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.repositories }}'
+    item:
+      createdAt: '{{ item.createdAt }}'
+      encryptionConfiguration: '{{ item.encryptionConfiguration }}'
+      imageScanningConfiguration: '{{ item.imageScanningConfiguration }}'
+      imageTagMutability: '{{ item.imageTagMutability }}'
+      imageTagMutabilityExclusionFilters: '{{ item.imageTagMutabilityExclusionFilters
+        }}'
+      registryId: '{{ item.registryId }}'
+      repositories: '{{ item.repositories }}'
+      repositoryArn: '{{ item.repositoryArn }}'
+      repositoryName: '{{ item.repositoryName }}'
+      repositoryUri: '{{ item.repositoryUri }}'
+- discovery_id: aws.ecr.get_registry_scanning_configuration
+  calls:
+  - action: get_registry_scanning_configuration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      rules: '{{ response.scanningConfiguration.rules }}'
+      scanType: '{{ response.scanningConfiguration.scanType }}'
+      scanningConfiguration: '{{ response.scanningConfiguration.scanningConfiguration
+        }}'
+- discovery_id: aws.ecr.get_lifecycle_policy
+  for_each: aws.ecr.describe_repositories
+  calls:
+  - action: get_lifecycle_policy
+    params:
+      repositoryName: '{{ item.repositoryName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      lastEvaluatedAt: '{{ response.lastEvaluatedAt }}'
+      lifecyclePolicyText: '{{ response.lifecyclePolicyText }}'
+      registryId: '{{ response.registryId }}'
+      repositoryName: '{{ response.repositoryName }}'
+- discovery_id: aws.ecr.get_repository_policy
+  for_each: aws.ecr.describe_repositories
+  calls:
+  - action: get_repository_policy
+    params:
+      repositoryName: '{{ item.repositoryName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      policyText: '{{ response.policyText }}'
+      registryId: '{{ response.registryId }}'
+      repositoryName: '{{ response.repositoryName }}'

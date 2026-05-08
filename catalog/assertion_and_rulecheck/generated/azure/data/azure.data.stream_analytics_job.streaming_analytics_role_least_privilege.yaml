@@ -1,0 +1,23 @@
+version: '1.0'
+rule_id: azure.data.stream_analytics_job.streaming_analytics_role_least_privilege
+for_each: azure.data.stream_analytics_job.list_streaming_jobs
+severity: MEDIUM
+conditions:
+  all:
+  - var: item.Identity.Type
+    op: equals
+    value: SystemAssigned
+  - var: item.Identity.PrincipalId
+    op: exists
+  - var: item.Properties.OutputErrorPolicy
+    op: equals
+    value: Stop
+  - var: item.Properties.EventsOutOfOrderPolicy
+    op: equals
+    value: Adjust
+  - var: item.Properties.EventsOutOfOrderMaxDelayInSeconds
+    op: gte
+    value: 0
+  - var: item.Properties.EventsLateArrivalMaxDelayInSeconds
+    op: gte
+    value: 5

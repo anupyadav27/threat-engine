@@ -1,0 +1,23 @@
+version: '1.0'
+provider: oci
+service: loadbalancer
+discovery:
+- discovery_id: oci.load_balancer.get_routing_policy
+  calls:
+  - action: get_routing_policy
+    params:
+      routing_policy_id: '{{ item.ocid }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      ocid: '{{ response.data.ocid }}'
+      compartment_id: '{{ response.data.compartment_id }}'
+      name: '{{ response.data.name }}'
+      status: '{{ response.data.status }}'
+      time_created: '{{ response.data.time_created }}'
+      freeform_tags: '{{ response.data.freeform_tags }}'
+      defined_tags: '{{ response.data.defined_tags }}'
+  _used_by_rules:
+  - oci.loadbalancer.policy.failover_configured

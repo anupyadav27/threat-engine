@@ -1,0 +1,140 @@
+version: '1.0'
+provider: azure
+service: vm
+checks:
+- rule_id: azure.vm.disk.data.access.auth.mode.check
+  for_each: azure.compute.disks.list
+  severity: MEDIUM
+  conditions:
+    var: item.EncryptionSettingsCollection.Enabled
+    op: is_true
+    value: null
+- rule_id: azure.vm.disk.encrypted:az.compute_disk.compute_security_disk_snapshots_encrypted
+  for_each: azure.compute.disks.list
+  severity: MEDIUM
+  conditions:
+    var: item.Encrypted
+    op: is_true
+    value: null
+- rule_id: azure.vm.disk.network.access.policy.check
+  for_each: azure.compute.disks.list
+  severity: MEDIUM
+  conditions:
+    var: item.NetworkAccessPolicy
+    op: equals
+    value: DenyAll
+- rule_id: azure.vm.elastic.ip.unassigned
+  for_each: azure.compute.virtualmachines.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.ipConfigurations[].properties.publicIPAddress
+    op: not_exists
+    value: null
+- rule_id: azure.vm.encryption.at.host.enabled
+  for_each: azure.compute.virtualmachines.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.securityProfile.encryptionAtHost
+    op: is_true
+    value: null
+- rule_id: azure.vm.extensions.approved.check
+  for_each: azure.compute.virtualmachines.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.resources[].type
+      op: contains
+      value: Microsoft.Compute/virtualMachines/extensions
+    - var: item.resources[].properties.type
+      op: in
+      value:
+      - MicrosoftMonitoringAgent
+      - AzurePolicyforLinux
+      - AzurePolicyforWindows
+      - DependencyAgentLinux
+      - DependencyAgentWindows
+      - OmsAgentForLinux
+      - OmsAgentForWindows
+- rule_id: azure.vm.instance.detailed_monitoring_enabled
+  for_each: azure.compute.virtualmachines.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.diagnosticsProfile.bootDiagnostics.enabled
+    op: is_true
+    value: null
+- rule_id: azure.vm.instance.managed.by.ssm
+  for_each: azure.compute.virtualmachines.list
+  severity: MEDIUM
+  conditions:
+    var: item.os_profile.linux_configuration.provision_vm_agent
+    op: is_true
+    value: null
+- rule_id: azure.vm.managed.by.automation
+  for_each: azure.compute.virtualmachines.list
+  severity: MEDIUM
+  conditions:
+    var: item.managed_by
+    op: exists
+    value: null
+- rule_id: azure.vm.managed.by.ssm
+  for_each: azure.compute.virtualmachines.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.osProfile.linuxConfiguration.provisionVMAgent
+      op: is_true
+      value: null
+    - var: item.osProfile.linuxConfiguration.patchSettings.patchMode
+      op: equals
+      value: AutomaticByPlatform
+- rule_id: azure.vm.managed.disks.compliance.check
+  for_each: azure.compute.virtualmachines.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.storageProfile.osDisk.managedDisk
+      op: exists
+      value: null
+    - var: item.storageProfile.dataDisks[].managedDisk
+      op: exists
+      value: null
+- rule_id: azure.vm.mfa.enabled.check
+  for_each: azure.compute.virtualmachines.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.identity.type
+      op: equals
+      value: SystemAssigned
+    - var: item.osProfile.linuxConfiguration.ssh.publicKeys[].path
+      op: not_contains
+      value: /home/azureuser/.ssh/authorized_keys
+- rule_id: azure.vm.security.extensions.check
+  for_each: azure.compute.virtualmachines.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.resources[].type
+      op: contains
+      value: Microsoft.Compute/virtualMachines/extensions
+    - var: item.resources[].properties.provisioningState
+      op: equals
+      value: Succeeded
+- rule_id: azure.vm.ssm.managed
+  for_each: azure.compute.virtualmachines.list
+  severity: MEDIUM
+  conditions:
+    var: item.os_profile.windows_configuration.provision_vm_agent
+    op: is_true
+    value: null
+- rule_id: azure.vm.trusted.launch.secure.boot.vtpm.check
+  for_each: azure.compute.virtualmachines.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.securityProfile.uefiSettings.secureBootEnabled
+      op: is_true
+      value: null
+    - var: item.properties.securityProfile.uefiSettings.vTpmEnabled
+      op: is_true
+      value: null

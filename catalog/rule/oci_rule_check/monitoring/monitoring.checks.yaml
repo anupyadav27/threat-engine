@@ -1,0 +1,1005 @@
+version: '1.0'
+provider: oci
+service: monitoring
+checks:
+- rule_id: oci.monitoring.alarm.alarm_configured
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.alert_alarm_actions_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.is_enabled
+    op: is_true
+    value: null
+- rule_id: oci.monitoring.alarm.alert_create_policy_assignment
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.alert_create_update_nsg
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.alert_create_update_public_ip_address_rule
+  for_each: oci.monitoring.list_alarms
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.metric_compartment_id_in_subtree
+      op: is_true
+      value: null
+    - var: item.metric_compartment_id
+      op: equals
+      value: item.compartment_id
+    - var: item.namespace
+      op: equals
+      value: oci_vcn
+    - var: item.query
+      op: contains
+      value: publicIpAddress
+    - var: item.message_format
+      op: equals
+      value: ONS_OPTIMIZED
+    - var: item.destinations
+      op: not_empty
+      value: null
+- rule_id: oci.monitoring.alarm.alert_create_update_security_solution
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.alert_create_update_sqlserver_fr
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.name
+    op: contains
+    value: sqlserver
+- rule_id: oci.monitoring.alarm.alert_critical_alarms_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.alert_delete_nsg
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    all:
+    - var: item.metric_compartment_id
+      op: exists
+      value: null
+    - var: item.metric_compartment_id
+      op: equals
+      value: item.compartment_id
+    - var: item.namespace
+      op: equals
+      value: oci_vcn
+    - var: item.query
+      op: contains
+      value: NetworkSecurityGroupDeleted
+- rule_id: oci.monitoring.alarm.alert_delete_policy_assignment
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.alert_delete_public_ip_address_rule
+  for_each: oci.monitoring.list_alarms
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.name
+      op: contains
+      value: delete_public_ip_address
+- rule_id: oci.monitoring.alarm.alert_delete_security_solution
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.name
+    op: contains
+    value: delete
+- rule_id: oci.monitoring.alarm.alert_delete_sqlserver_fr
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.name
+    op: contains
+    value: delete
+- rule_id: oci.monitoring.alarm.alert_destinations_authenticated_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.destinations[].topicId
+    op: exists
+    value: null
+- rule_id: oci.monitoring.alarm.api_security_monitoring_access_log_fields_restricted
+  for_each: oci.monitoring.list_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.freeform_tags.Environment
+    op: exists
+    value: null
+- rule_id: oci.monitoring.alarm.api_security_monitoring_access_log_sink_configured_restricted
+  for_each: oci.monitoring.list_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.name
+    op: contains
+    value: api-security-monitoring-access-log-sink-configured-restricted
+- rule_id: oci.monitoring.alarm.api_security_monitoring_access_logging_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.api_security_monitoring_execution_logging_level_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.api_security_monitoring_logs_retention_days_minimum_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.name
+      op: contains
+      value: api-security-monitoring-logs-retention-days-minimum
+- rule_id: oci.monitoring.alarm.changes_to_network_acls_alarm_configured
+  for_each: oci.monitoring.list_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.changes_to_network_gateways_alarm_configured
+  for_each: oci.monitoring.list_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.changes_to_network_route_tables_alarm_configured
+  for_each: oci.monitoring.list_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.changes_to_vcns_alarm_configured
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.changes_to_vpcs_alarm_configured
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.config_delivery_destination_access_least_privilege_required
+  for_each: oci.monitoring.list_alarms
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.destinations[].type
+      op: not_contains
+      value: STREAMING
+    - var: item.destinations[].type
+      op: not_contains
+      value: NOTIFICATIONS
+- rule_id: oci.monitoring.alarm.config_delivery_kms_encryption_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: HIGH
+  conditions:
+    var: item.config_delivery_kms_encryption_enabled
+    op: is_true
+    value: null
+- rule_id: oci.monitoring.alarm.cpu_utilization_alarm_configured
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.critical_severity_escalation_policy_configured
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    all:
+    - var: item.severity
+      op: equals
+      value: CRITICAL
+    - var: item.messageFormat
+      op: equals
+      value: RAW
+    - var: item.isNotificationsPerMetricDimensionEnabled
+      op: is_true
+      value: null
+    - var: item.metricCompartmentId
+      op: exists
+      value: null
+    - var: item.destinations
+      op: not_empty
+      value: null
+- rule_id: oci.monitoring.alarm.dashboard_public_embeds_disabled
+  for_each: oci.monitoring.list_alarms
+  severity: CRITICAL
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.dashboard_sharing_restricted_to_org_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.freeform_tags.DashboardSharingRestrictedToOrg
+    op: equals
+    value: 'true'
+- rule_id: oci.monitoring.alarm.dashboard_sso_required
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.destination_endpoint_private_networking_enforced
+  for_each: oci.monitoring.list_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.destinations[].topicId
+    op: exists
+    value: null
+- rule_id: oci.monitoring.alarm.destination_iam_policy_least_privilege_required
+  for_each: oci.monitoring.list_alarms
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.destinations[].policy
+      op: exists
+      value: null
+    - var: item.destinations[].policy
+      op: not_contains
+      value: '*'
+- rule_id: oci.monitoring.alarm.destination_tls_min_1_2_enforced
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.destinations[].protocol
+    op: in
+    value:
+    - TLSv1.2
+    - TLSv1.3
+- rule_id: oci.monitoring.alarm.diagnostic_setting_with_appropriate_categories
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.diagnostic_settings[].category
+      op: contains
+      value: ALERT
+    - var: item.diagnostic_settings[].category
+      op: contains
+      value: INCIDENT
+- rule_id: oci.monitoring.alarm.diagnostic_settings_configured
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.dns_security_health_check_alerts_configured
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.name
+    op: contains
+    value: DNS Security Health Check
+- rule_id: oci.monitoring.alarm.dns_security_health_check_https_or_tls_used
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.name
+    op: contains
+    value: DNS Security Health Check
+- rule_id: oci.monitoring.alarm.dns_security_health_check_no_plaintext_url
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.name
+      op: contains
+      value: DNS Security Health Check
+    - var: item.name
+      op: not_contains
+      value: Plaintext URL
+- rule_id: oci.monitoring.alarm.escalation_change_audit_logging_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.escalation_oncall_contacts_verified_validated
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.escalation_oncall_contacts_verified_validated
+      op: is_true
+      value: null
+- rule_id: oci.monitoring.alarm.group_changes
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.group_kms_encryption_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: HIGH
+  conditions:
+    var: item.freeform_tags.group_kms_encryption_enabled
+    op: exists
+    value: null
+- rule_id: oci.monitoring.alarm.group_retention_policy_specific_days_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.group_retention_policy_specific_days_enabled
+    op: is_true
+    value: null
+- rule_id: oci.monitoring.alarm.group_vault_encryption_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.log_group_kms_encryption_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.metricCompartmentId
+      op: exists
+      value: null
+    - var: item.isEnabled
+      op: is_true
+      value: null
+- rule_id: oci.monitoring.alarm.log_group_no_secrets_in_logs
+  for_each: oci.monitoring.list_alarms
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.log_group_public_access_blocked
+  for_each: oci.monitoring.list_alarms
+  severity: CRITICAL
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.log_group_retention
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.log_group_retention_policy_specific_days_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.log_group_retention_policy_specific_days_enabled
+    op: is_true
+    value: null
+- rule_id: oci.monitoring.alarm.log_group_vault_encryption_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: HIGH
+  conditions:
+    var: item.log_group_vault_encryption_enabled
+    op: is_true
+    value: null
+- rule_id: oci.monitoring.alarm.log_metric_filter_and_alarm_for_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.log_metric_filter_authentication_failures
+  for_each: oci.monitoring.list_alarms
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.query
+      op: contains
+      value: authentication_failures
+- rule_id: oci.monitoring.alarm.log_metric_filter_disable_or_scheduled_cmk
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.metric_compartment_id
+      op: exists
+      value: null
+    - var: item.metric_compartment_id_in_subtree
+      op: exists
+      value: null
+    - var: item.namespace
+      op: exists
+      value: null
+    - var: item.query
+      op: exists
+      value: null
+    - var: item.resolution
+      op: exists
+      value: null
+    - var: item.pending_duration
+      op: exists
+      value: null
+    - var: item.severity
+      op: exists
+      value: null
+    - var: item.body
+      op: exists
+      value: null
+    - var: item.is_enabled
+      op: is_true
+      value: null
+    - var: item.is_notifications_per_metric_dimension_enabled
+      op: exists
+      value: null
+    - var: item.message_format
+      op: exists
+      value: null
+    - var: item.repeat_notification_duration
+      op: exists
+      value: null
+    - var: item.suppression
+      op: exists
+      value: null
+- rule_id: oci.monitoring.alarm.log_metric_filter_for_object_storage_changes
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.metric_compartment_id
+    op: exists
+    value: null
+- rule_id: oci.monitoring.alarm.log_metric_filter_for_s3_bucket_policy_changes
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.name
+      op: contains
+      value: S3
+- rule_id: oci.monitoring.alarm.log_metric_filter_oracle_organizations_changes
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.metric_compartment_id
+      op: exists
+      value: null
+    - var: item.metric_compartment_id_in_subtree
+      op: exists
+      value: null
+    - var: item.namespace
+      op: equals
+      value: oci_logging_analytics
+    - var: item.query
+      op: contains
+      value: organizations
+- rule_id: oci.monitoring.alarm.log_metric_filter_policy_changes
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.metric_compartment_id
+      op: exists
+      value: null
+    - var: item.metric_compartment_id_in_subtree
+      op: exists
+      value: null
+    - var: item.namespace
+      op: equals
+      value: oci_audit
+    - var: item.query
+      op: contains
+      value: eventName='UpdatePolicy'
+- rule_id: oci.monitoring.alarm.log_metric_filter_root_usage
+  for_each: oci.monitoring.list_alarms
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.metric_compartment_id
+      op: exists
+      value: null
+    - var: item.metric_compartment_id_in_subtree
+      op: exists
+      value: null
+    - var: item.namespace
+      op: equals
+      value: oci_computeagent
+    - var: item.query
+      op: contains
+      value: root_usage
+    - var: item.query
+      op: contains
+      value: metricStatistic
+- rule_id: oci.monitoring.alarm.log_metric_filter_security_group_changes
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.metric_compartment_id
+    op: exists
+    value: null
+- rule_id: oci.monitoring.alarm.log_metric_filter_sign_in_without_mfa
+  for_each: oci.monitoring.list_alarms
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.metric_compartment_id
+      op: exists
+      value: null
+    - var: item.metric_compartment_id_in_subtree
+      op: exists
+      value: null
+    - var: item.namespace
+      op: equals
+      value: oci_logging_analytics
+    - var: item.query
+      op: contains
+      value: sign_in_without_mfa
+- rule_id: oci.monitoring.alarm.memory_utilization_alarm_configured
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.monitoring_admin_activity_logging_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: CRITICAL
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.monitoring_alert_destinations_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.destinations[]
+    op: not_empty
+    value: null
+- rule_id: oci.monitoring.alarm.monitoring_alerts_for_backup_failures_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.name
+      op: contains
+      value: backup
+- rule_id: oci.monitoring.alarm.monitoring_alerts_for_replication_lag_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.name
+      op: contains
+      value: replication lag
+- rule_id: oci.monitoring.alarm.monitoring_alerts_for_rpo_rto_breach_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.name
+      op: contains
+      value: RPO
+- rule_id: oci.monitoring.alarm.monitoring_logs_retention_days_minimum_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.metric_compartment_id
+    op: exists
+    value: null
+- rule_id: oci.monitoring.alarm.monitoring_query_access_logging_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.network_acls_alarm_configured
+  for_each: oci.monitoring.list_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.network_gateways_alarm_configured
+  for_each: oci.monitoring.list_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.network_route_tables_alarm_configured
+  for_each: oci.monitoring.list_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.notification_destinations_configured
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.notification_destinations[]
+    op: not_empty
+    value: null
+- rule_id: oci.monitoring.alarm.notification_endpoints_authenticated
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.metric_compartment_id
+      op: exists
+      value: null
+- rule_id: oci.monitoring.alarm.notification_message_tls_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.notification_message_tls_enabled
+    op: is_true
+    value: null
+- rule_id: oci.monitoring.alarm.notification_no_public_webhooks_blocked
+  for_each: oci.monitoring.list_alarms
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - any:
+      - var: item.metric_compartment_id_in_subtree
+        op: is_false
+        value: null
+      - var: item.metric_compartment_id_in_subtree
+        op: not_exists
+        value: null
+    - var: item.destinations
+      op: exists
+      value: null
+    - var: item.destinations[].topic_id
+      op: exists
+      value: null
+    - var: item.destinations[].topic_id
+      op: not_contains
+      value: public_webhook
+    - var: item.destinations[].topic_id
+      op: not_contains
+      value: webhook_public
+- rule_id: oci.monitoring.alarm.policy_assignment
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.policy_changes
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.sampling_rule_access_rbac_least_privilege_required
+  for_each: oci.monitoring.list_alarms
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.sampling_rule_access_rbac_least_privilege_required
+      op: is_true
+      value: null
+- rule_id: oci.monitoring.alarm.sampling_rule_rules_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.sampling_rule_storage_encrypted
+  for_each: oci.monitoring.list_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.sampling_rule.storage_encrypted
+    op: is_true
+    value: null
+- rule_id: oci.monitoring.alarm.storage_account_with_activity_logs_cmk_encrypted
+  for_each: oci.monitoring.list_alarms
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.name
+      op: contains
+      value: storage
+    - var: item.name
+      op: contains
+      value: encryption
+- rule_id: oci.monitoring.alarm.storage_account_with_activity_logs_is_private
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.name
+      op: contains
+      value: storage_account_with_activity_logs_is_private
+- rule_id: oci.monitoring.alarm.storage_bucket_policy_changes
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.name
+    op: equals
+    value: storage_bucket_policy_changes
+- rule_id: oci.monitoring.alarm.storage_with_activity_logs_cmk_encrypted
+  for_each: oci.monitoring.list_alarms
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.monitoring.alarm.storage_with_activity_logs_is_private
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.store_access_rbac_least_privilege_required
+  for_each: oci.monitoring.list_alarms
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.monitoring.alarm.store_encryption_cmek_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: HIGH
+  conditions:
+    var: item.encryption_cmek_enabled
+    op: is_true
+    value: null
+- rule_id: oci.monitoring.alarm.store_immutability_or_object_lock_where_supported_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.monitoring.alarm.store_retention_days_minimum_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.retention_period_days
+      op: gte
+      value: '30'
+- rule_id: oci.monitoring.alarm.stream_encryption_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.stream_ingestion_auth_required
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.alarm.stream_retention_days_minimum_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.stream_retention_days
+    op: gte
+    value: '30'
+- rule_id: oci.monitoring.alarm.trace_access_rbac_least_privilege_required
+  for_each: oci.monitoring.list_alarms
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.monitoring.alarm.trace_retention_days_minimum_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.trace_retention_days
+    op: gte
+    value: '30'
+- rule_id: oci.monitoring.alarm.trace_store_encrypted
+  for_each: oci.monitoring.list_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.freeform_tags.trace_store_encrypted
+    op: exists
+    value: null
+- rule_id: oci.monitoring.log.group_retention_policy_specific_days_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.monitoring.log.metric_filter_policy_changes
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    var: item.name
+    op: contains
+    value: policy_changes
+- rule_id: oci.monitoring.metric.metric_filter_cmk_deletion_or_disable_detected_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: LOW
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.metric_compartment_id_in_subtree
+      op: is_true
+      value: null
+    - var: item.metric_compartment_id
+      op: exists
+      value: null
+    - var: item.namespace
+      op: equals
+      value: oci_vault
+    - var: item.metric_name
+      op: equals
+      value: KeyDeletionAttemptCount
+    - var: item.message_format
+      op: equals
+      value: ONS_OPTIMIZED
+    - var: item.is_enabled
+      op: is_true
+      value: null
+- rule_id: oci.monitoring.metric.metric_filter_console_root_login_detected_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.name
+      op: contains
+      value: ConsoleRootLoginDetected
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+- rule_id: oci.monitoring.metric.metric_filter_network_acl_or_sg_enabled
+  for_each: oci.monitoring.list_alarms
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE

@@ -1,0 +1,750 @@
+version: '1.0'
+provider: azure
+service: network
+checks:
+- rule_id: azure.network.access_control.no_permit_all
+  for_each: azure.network.azurefirewalls.list_all
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.custom_rules[].source_addresses[]
+      op: not_contains
+      value: '*'
+    - var: item.custom_rules[].source_addresses[]
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.custom_rules[].source_addresses[]
+      op: not_contains
+      value: ::/0
+    - var: item.custom_rules[].destination_addresses[]
+      op: not_contains
+      value: '*'
+    - var: item.custom_rules[].destination_addresses[]
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.custom_rules[].destination_addresses[]
+      op: not_contains
+      value: ::/0
+- rule_id: azure.network.access_control.policies_present
+  for_each: azure.network.azurefirewalls.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.managed_rules
+    op: exists
+    value: null
+- rule_id: azure.network.access_control.policy_store_encrypted
+  for_each: azure.network.applicationgateways.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.policy_settings
+    op: exists
+    value: null
+- rule_id: azure.network.anomaly_detection.anomaly_destinations_encrypted
+  for_each: azure.network.applicationgateways.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.properties.webApplicationFirewallConfiguration.enabled
+    op: is_true
+    value: null
+- rule_id: azure.network.anomaly_detection.anomaly_detectors_enabled
+  for_each: azure.network.applicationgateways.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.policy_settings
+    op: exists
+    value: null
+- rule_id: azure.network.automation.change_audit_logging_enabled
+  for_each: azure.network.azurefirewalls.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.policy_settings.log_scrubbing
+    op: exists
+    value: null
+- rule_id: azure.network.automation.remediation_roles_least_privilege
+  for_each: azure.network.applicationgateways.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.properties
+    op: exists
+    value: null
+- rule_id: azure.network.backend_pool.tg_health_checks_tls_where_supported
+  for_each: azure.network.applicationgateways.list_all
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.backendHttpSettingsCollection[].protocol
+      op: in
+      value:
+      - Https
+    - var: item.properties.backendHttpSettingsCollection[].trustedRootCertificates
+      op: not_empty
+      value: null
+- rule_id: azure.network.backend_pool.tg_targets_in_private_subnets
+  for_each: azure.network.applicationgateways.list_all
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.application_gateways[].backend_address_pools[].backend_addresses[].ip_address
+      op: exists
+      value: null
+    - var: item.application_gateways[].backend_address_pools[].backend_addresses[].ip_address
+      op: not_contains
+      value: 0.0.0.0
+- rule_id: azure.network.bastion.host.existence.check
+  for_each: azure.network.bastionhosts.list
+  severity: MEDIUM
+  conditions:
+    var: item.id
+    op: exists
+    value: null
+- rule_id: azure.network.customer_gateway.cgw_ip_addresses_valid_and_owned
+  for_each: azure.network.applicationgateways.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.properties.custom_rules
+    op: exists
+    value: null
+- rule_id: azure.network.customer_gateway.cgw_no_public_management_interfaces_exposed
+  for_each: azure.network.bastionhosts.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.enableTunneling
+    op: is_true
+    value: null
+- rule_id: azure.network.encryption.mtls_required_for_internal_services_where_supported
+  for_each: azure.network.applicationgateways.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.properties.sslPolicy.policyType
+    op: equals
+    value: Predefined
+- rule_id: azure.network.encryption.tls_min_1_2_enforced
+  for_each: azure.network.applicationgateways.list_all
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.sslPolicy.minProtocolVersion
+      op: exists
+      value: null
+    - var: item.properties.sslPolicy.minProtocolVersion
+      op: not_equals
+      value: TLSv1_0
+    - var: item.properties.sslPolicy.minProtocolVersion
+      op: not_equals
+      value: TLSv1_1
+- rule_id: azure.network.endpoint.policy_least_privilege
+  for_each: azure.network.azurefirewalls.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.policy_settings
+    op: exists
+    value: null
+- rule_id: azure.network.endpoint.private_dns_enabled_where_supported
+  for_each: azure.network.azurefirewalls.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.properties.privateDnsEnabled
+    op: is_true
+    value: null
+- rule_id: azure.network.firewall.logging_enabled
+  for_each: azure.network.azurefirewalls.list_all
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.diagnosticsProfile.logAnalytics.workspaceId
+      op: exists
+      value: null
+    - var: item.properties.diagnosticsProfile.logAnalytics.enabled
+      op: is_true
+      value: null
+- rule_id: azure.network.firewall.no_permit_any_any
+  for_each: azure.network.azurefirewalls.list_all
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.custom_rules
+      op: exists
+      value: null
+    - var: item.custom_rules[].source_addresses
+      op: not_contains
+      value: '*'
+    - var: item.custom_rules[].destination_addresses
+      op: not_contains
+      value: '*'
+- rule_id: azure.network.firewall.rule_groups_attached
+  for_each: azure.network.azurefirewalls.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.managed_rules
+    op: exists
+    value: null
+- rule_id: azure.network.flow.log.retention.period.check
+  for_each: azure.network.azurefirewalls.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.properties.flowLogs[].properties.retentionPolicy.days
+    op: gte
+    value: 90
+- rule_id: azure.network.interface.eni_security_groups_present
+  for_each: azure.network.networkinterfaces.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.properties.networkSecurityGroup.id
+    op: exists
+    value: null
+- rule_id: azure.network.interface.eni_security_groups_restrictive
+  for_each: azure.network.azurefirewalls.list_all
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.managed_rules
+      op: exists
+      value: null
+    - var: item.custom_rules
+      op: exists
+      value: null
+    - var: item.policy_settings
+      op: exists
+      value: null
+- rule_id: azure.network.isolation.automated_isolation_supported
+  for_each: azure.network.azurefirewalls.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.managed_rules
+    op: exists
+    value: null
+- rule_id: azure.network.isolation.quarantine_network_defined
+  for_each: azure.network.ddosprotectionplans.list
+  severity: MEDIUM
+  conditions:
+    var: item.id
+    op: exists
+    value: null
+- rule_id: azure.network.listener.cipher_policy_secure
+  for_each: azure.network.applicationgateways.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.http_listeners[].ssl_cipher_suites[]
+    op: contains
+    value: TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+- rule_id: azure.network.listener.tls_min_1_2
+  for_each: azure.network.applicationgateways.list_all
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.http_listeners[].properties.protocol
+      op: equals
+      value: Https
+    - var: item.http_listeners[].properties.sslProfile.properties.minProtocolVersion
+      op: equals
+      value: TLSv1_2
+- rule_id: azure.network.load_balancer.lb_access_logs_enabled
+  for_each: azure.network.loadbalancers.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.properties.enableFloatingIP
+    op: is_true
+    value: null
+- rule_id: azure.network.load_balancer.lb_listener_tls_min_1_2
+  for_each: azure.network.applicationgateways.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.properties.sslPolicy.minProtocolVersion
+    op: in
+    value:
+    - TLSv1_2
+    - TLSv1_3
+- rule_id: azure.network.load_balancer.lb_valid_certificate_attached
+  for_each: azure.network.applicationgateways.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.properties.sslCertificates
+    op: not_empty
+    value: null
+- rule_id: azure.network.load_balancer.lb_waf_attached_where_supported
+  for_each: azure.network.applicationgateways.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.managed_rules
+    op: exists
+    value: null
+- rule_id: azure.network.micro_segmentation.microseg_endpoint_policies_applied
+  for_each: azure.network.azurefirewalls.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.custom_rules
+    op: exists
+    value: null
+- rule_id: azure.network.micro_segmentation.microseg_identity_aware_policies_enabled
+  for_each: azure.network.azurefirewalls.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.managed_rules
+    op: exists
+    value: null
+- rule_id: azure.network.monitoring.alerts_for_anomalies
+  for_each: azure.network.azurefirewalls.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.managed_rules
+    op: exists
+    value: null
+- rule_id: azure.network.monitoring.flow_logs_enabled
+  for_each: azure.network.applicationgateways.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.properties.flowLogs[].enabled
+    op: is_true
+    value: null
+- rule_id: azure.network.network_acl.nacl_egress_restricted
+  for_each: azure.network.azurefirewalls.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.properties.networkRuleCollections[].properties.rules[].destinationAddresses[]
+    op: not_contains
+    value: '*'
+- rule_id: azure.network.network_acl.nacl_no_allow_all_rules
+  for_each: azure.network.applicationgateways.list_all
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.custom_rules
+      op: not_empty
+      value: null
+    - var: item.custom_rules[].action
+      op: not_equals
+      value: Allow
+    - var: item.custom_rules[].source_addresses
+      op: not_contains
+      value: '*'
+    - var: item.custom_rules[].destination_addresses
+      op: not_contains
+      value: '*'
+- rule_id: azure.network.networksecuritygroups.list
+  for_each: azure.network.networksecuritygroups.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.security_rules[].sourceAddressPrefix
+      op: not_contains
+      value: '*'
+    - var: item.security_rules[].destinationAddressPrefix
+      op: not_contains
+      value: '*'
+- rule_id: azure.network.networksecuritygroups.list
+  for_each: azure.network.networksecuritygroups.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.retentionPolicy.days
+    op: gte
+    value: 90
+- rule_id: azure.network.networksecuritygroups.list
+  for_each: azure.network.networksecuritygroups.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.flowLogs[].properties.targetResourceId
+    op: exists
+    value: null
+- rule_id: azure.network.nsg.inbound.http.access.check
+  for_each: azure.network.applicationgateways.list_all
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.security_rules[].properties.destinationPortRange
+      op: not_contains
+      value: '80'
+    - var: item.security_rules[].properties.destinationPortRange
+      op: not_contains
+      value: '8080'
+    - var: item.security_rules[].properties.destinationPortRange
+      op: not_contains
+      value: '443'
+- rule_id: azure.network.nsg.rdp.internet.access.check
+  for_each: azure.network.networksecuritygroups.list_all
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.security_rules[].properties.destinationPortRange
+      op: not_contains
+      value: '3389'
+    - var: item.security_rules[].properties.destinationPortRange
+      op: not_contains
+      value: '*'
+    - var: item.security_rules[].properties.sourceAddressPrefix
+      op: not_contains
+      value: '*'
+    - var: item.security_rules[].properties.sourceAddressPrefix
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.security_rules[].properties.sourceAddressPrefix
+      op: not_contains
+      value: ::/0
+    - var: item.security_rules[].properties.sourceAddressPrefix
+      op: not_contains
+      value: Internet
+    - var: item.security_rules[].properties.access
+      op: not_equals
+      value: Allow
+- rule_id: azure.network.nsg.ssh.access.evaluation
+  for_each: azure.network.networksecuritygroups.list_all
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.security_rules[].properties.destinationPortRange
+      op: not_contains
+      value: '22'
+    - var: item.security_rules[].properties.sourceAddressPrefix
+      op: not_contains
+      value: '*'
+    - var: item.security_rules[].properties.access
+      op: not_equals
+      value: Allow
+- rule_id: azure.network.nsg.udp.internet.access.check
+  for_each: azure.network.networksecuritygroups.list_all
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.security_rules[].properties.destinationPortRange
+      op: not_contains
+      value: '*'
+    - var: item.security_rules[].properties.sourceAddressPrefix
+      op: not_contains
+      value: '*'
+    - var: item.security_rules[].properties.sourceAddressPrefix
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.security_rules[].properties.sourceAddressPrefix
+      op: not_contains
+      value: ::/0
+    - var: item.security_rules[].properties.protocol
+      op: not_equals
+      value: UDP
+    - var: item.security_rules[].properties.access
+      op: not_equals
+      value: Allow
+- rule_id: azure.network.paas_app.private_networking_enforced
+  for_each: azure.network.applicationgateways.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.properties.privateEndpointConnections[].properties.privateLinkServiceConnectionState.status
+    op: equals
+    value: Approved
+- rule_id: azure.network.privacy_anonymization.jobs_private_networking
+  for_each: azure.network.applicationgateways.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.properties.privateEndpointConnections[].properties.privateLinkServiceConnectionState.status
+    op: equals
+    value: Approved
+- rule_id: azure.network.public.ip.list.and.review
+  for_each: azure.network.publicipaddresses.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.properties.publicIPAllocationMethod
+    op: not_equals
+    value: Static
+- rule_id: azure.network.route_table.no_0_0_0_0_from_private_subnets
+  for_each: azure.network.routetables.list_all
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.subnets[].properties.addressPrefix
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.properties.routes[].properties.addressPrefix
+      op: not_equals
+      value: 0.0.0.0/0
+- rule_id: azure.network.route_table.vpc_endpoints_used_for_saas_where_supported
+  for_each: azure.network.routetables.list_all
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.subnets[].properties.addressPrefix
+      op: exists
+      value: null
+    - var: item.properties.routes[].properties.nextHopType
+      op: not_contains
+      value: Internet
+- rule_id: azure.network.security_group.data_warehouse_sg_egress_egress_restricted
+  for_each: azure.network.networksecuritygroups.list_all
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.security_rules[].properties.destinationAddressPrefix
+      op: not_contains
+      value: '*'
+    - var: item.security_rules[].properties.destinationAddressPrefix
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.security_rules[].properties.destinationAddressPrefix
+      op: not_contains
+      value: ::/0
+    - var: item.security_rules[].properties.destinationAddressPrefixes
+      op: not_contains
+      value: '*'
+    - var: item.security_rules[].properties.destinationAddressPrefixes
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.security_rules[].properties.destinationAddressPrefixes
+      op: not_contains
+      value: ::/0
+- rule_id: azure.network.security_group.data_warehouse_sg_egress_restricted
+  for_each: azure.network.networksecuritygroups.list_all
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.security_rules[].properties.destinationAddressPrefix
+      op: not_contains
+      value: '*'
+    - var: item.security_rules[].properties.destinationAddressPrefix
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.security_rules[].properties.destinationAddressPrefix
+      op: not_contains
+      value: ::/0
+    - var: item.security_rules[].properties.destinationAddressPrefixes
+      op: not_contains
+      value: '*'
+    - var: item.security_rules[].properties.destinationAddressPrefixes
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.security_rules[].properties.destinationAddressPrefixes
+      op: not_contains
+      value: ::/0
+- rule_id: azure.network.security_group.data_warehouse_sg_ingress_no_0_0_0_0
+  for_each: azure.network.networksecuritygroups.list_all
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.security_rules[].properties.sourceAddressPrefix
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.security_rules[].properties.sourceAddressPrefix
+      op: not_contains
+      value: ::/0
+    - var: item.security_rules[].properties.sourceAddressPrefixes[]
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.security_rules[].properties.sourceAddressPrefixes[]
+      op: not_contains
+      value: ::/0
+- rule_id: azure.network.security_group.data_warehouse_sg_ingress_only_required_ports
+  for_each: azure.network.networksecuritygroups.list_all
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.security_rules[].properties.destinationPortRange
+      op: not_contains
+      value: '1433'
+    - var: item.security_rules[].properties.destinationPortRange
+      op: not_contains
+      value: '1434'
+    - var: item.security_rules[].properties.destinationPortRange
+      op: not_contains
+      value: '3389'
+- rule_id: azure.network.security_group.data_warehouse_sg_no_0_0_0_0_ingress
+  for_each: azure.network.networksecuritygroups.list_all
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.security_rules[].properties.sourceAddressPrefix
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.security_rules[].properties.sourceAddressPrefix
+      op: not_contains
+      value: ::/0
+    - var: item.security_rules[].properties.sourceAddressPrefixes[]
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.security_rules[].properties.sourceAddressPrefixes[]
+      op: not_contains
+      value: ::/0
+- rule_id: azure.network.security_group.data_warehouse_sg_only_required_ports_open
+  for_each: azure.network.networksecuritygroups.list_all
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.security_rules[].properties.destinationPortRange
+      op: not_contains
+      value: '1433'
+    - var: item.security_rules[].properties.destinationPortRange
+      op: not_contains
+      value: '1434'
+    - var: item.security_rules[].properties.destinationPortRange
+      op: not_contains
+      value: '3389'
+    - var: item.security_rules[].properties.destinationPortRange
+      op: not_contains
+      value: '22'
+- rule_id: azure.network.security_group.sg_egress_restricted
+  for_each: azure.network.azurefirewalls.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.properties.networkRuleCollections[].properties.rules[].destinationAddresses[]
+    op: not_contains
+    value: '*'
+- rule_id: azure.network.security_group.sg_no_0_0_0_0_ingress
+  for_each: azure.network.networksecuritygroups.list_all
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.security_rules[].properties.sourceAddressPrefix
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.default_security_rules[].properties.sourceAddressPrefix
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: azure.network.security_group.sg_only_required_ports_open
+  for_each: azure.network.networksecuritygroups.list_all
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.security_rules[].properties.destinationPortRange
+      op: not_contains
+      value: '*'
+    - var: item.security_rules[].properties.sourceAddressPrefix
+      op: not_contains
+      value: '*'
+- rule_id: azure.network.segmentation.default_deny_between_tiers
+  for_each: azure.network.azurefirewalls.list_all
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.managed_rules
+      op: exists
+      value: null
+    - var: item.custom_rules
+      op: exists
+      value: null
+- rule_id: azure.network.segmentation.exception_approvals_required
+  for_each: azure.network.azurefirewalls.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.managed_rules
+    op: exists
+    value: null
+- rule_id: azure.network.segmentation.tier_to_tier_policies_defined
+  for_each: azure.network.azurefirewalls.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.custom_rules
+    op: not_empty
+    value: null
+- rule_id: azure.network.subnet.private_subnets_no_igw_route
+  for_each: azure.network.routetables.list_all
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.subnets[].properties.addressPrefix
+      op: exists
+      value: null
+    - var: item.properties.routes[].properties.nextHopType
+      op: not_equals
+      value: Internet
+- rule_id: azure.network.subnet.public_subnets_use_nacl_restrictions
+  for_each: azure.network.applicationgateways.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.security_rules[].properties.sourceAddressPrefix
+    op: not_contains
+    value: '*'
+- rule_id: azure.network.subnet.route_table_association_present
+  for_each: azure.network.subnets.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.routeTable.id
+    op: exists
+    value: null
+- rule_id: azure.network.traffic_analysis.alert_destinations
+  for_each: azure.network.azurefirewalls.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.properties.threatIntelMode
+    op: equals
+    value: Alert
+- rule_id: azure.network.traffic_analysis.ids_ips_enabled_where_supported
+  for_each: azure.network.azurefirewalls.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.managed_rules
+    op: exists
+    value: null
+- rule_id: azure.network.virtual.network.ddos.protection.status
+  for_each: azure.network.ddosprotectionplans.list
+  severity: MEDIUM
+  conditions:
+    var: item.id
+    op: exists
+    value: null
+- rule_id: azure.network.virtual_network.dns_hostnames_and_support
+  for_each: azure.network.applicationgateways.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.properties.enableDnsHostnames
+    op: is_true
+    value: null
+- rule_id: azure.network.virtual_network.flow_logs_enabled
+  for_each: azure.network.virtualnetworks.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.properties.flowLogs
+    op: not_empty
+    value: null
+- rule_id: azure.network.virtual_network.route_tables_no_unintended_internet_paths
+  for_each: azure.network.routetables.list_all
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.routes[].properties.nextHopType
+      op: not_equals
+      value: Internet
+    - var: item.properties.routes[].properties.addressPrefix
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: azure.network.vnet.flow.logs.to.log.analytics.enabled
+  for_each: azure.network.azurefirewalls.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.properties.flowLogs[].enabled
+    op: is_true
+    value: null
+- rule_id: azure.network.vnet.subnet.nsg.association.check
+  for_each: azure.network.virtualnetworks.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.subnets[].properties.networkSecurityGroup.id
+    op: exists
+    value: null
+- rule_id: azure.network.vpn_connection.vpn_ike_phase_encryption_strong
+  for_each: azure.network.vpnconnections.list_by_vpn_gateway
+  severity: MEDIUM
+  conditions:
+    var: item.properties.ipsecPolicies[].ikeEncryption
+    op: in
+    value:
+    - AES256
+    - AES192
+    - AES128
+    - GCMAES256
+    - GCMAES128
+- rule_id: azure.network.vpn_connection.vpn_pre_shared_keys_rotation_policy_defined
+  for_each: azure.network.vpnconnections.list_by_vpn_gateway
+  severity: MEDIUM
+  conditions:
+    var: item.properties.ipsecPolicies[].ikeEncryption
+    op: exists
+    value: null
+- rule_id: azure.network.vpn_connection.vpn_tunnel_health_monitoring_enabled
+  for_each: azure.network.vpnconnections.list_by_vpn_gateway
+  severity: MEDIUM
+  conditions:
+    var: item.properties.connectionStatus
+    op: exists
+    value: null
+- rule_id: azure.network.watcher.region.compliance.check
+  for_each: azure.network.applicationgateways.list_all
+  severity: MEDIUM
+  conditions:
+    var: item.location
+    op: exists
+    value: null

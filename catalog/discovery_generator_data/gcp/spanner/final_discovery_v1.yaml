@@ -1,0 +1,64 @@
+# ============================================================
+# Discovery YAML — spanner (final_discovery v1)
+# Generated: 2026-04-16T09:26:48Z
+# Source: gcp_master_field_catalog.csv
+# Check rules: 1 | ops in scope: 1 (1 independent, 0 dependent)
+# ============================================================
+version: '1.0'
+provider: gcp
+service: spanner
+
+services:
+  client: spanner
+  module: "googleapiclient.discovery.build('spanner', 'v1')"
+
+# Anchors: service-level parameters provided by caller
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: unknown
+    identifier_op: gcp.spanner.projects.instances.list
+    identifier_field: instances[].name
+    item_var_path: item.instances[].name
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── gcp.spanner.projects.instances.list ──
+  # python: svc.projects().instances().list(**params).execute()
+  - discovery_id: gcp.spanner.projects.instances.list
+    calls:
+      - action: projects.instances.list
+        params:
+          parent: '{{ project_id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.instances }}'
+      item:
+        autoscalingConfig: '{{ item.autoscalingConfig }}'
+        config: '{{ item.config }}'
+        createTime: '{{ item.createTime }}'
+        defaultBackupScheduleType: '{{ item.defaultBackupScheduleType }}'
+        displayName: '{{ item.displayName }}'
+        edition: '{{ item.edition }}'
+        endpointUris: '{{ item.endpointUris }}'
+        freeInstanceMetadata: '{{ item.freeInstanceMetadata }}'
+        instanceType: '{{ item.instanceType }}'
+        labels: '{{ item.labels }}'
+        name: '{{ item.name }}'
+        nodeCount: '{{ item.nodeCount }}'
+        processingUnits: '{{ item.processingUnits }}'
+        replicaComputeCapacity: '{{ item.replicaComputeCapacity }}'
+        state: '{{ item.state }}'
+        updateTime: '{{ item.updateTime }}'

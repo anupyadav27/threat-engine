@@ -1,0 +1,38 @@
+rule_id: aws.acm-pca.certificateauthority.revocation_configured
+service: acm-pca
+resource: certificateauthority
+requirement: ACM Private CA CRL Revocation Configured
+title: 'ACM-PCA certificateauthority: Revocation Configured'
+scope: acm-pca.certificateauthority.revocation
+domain: configuration_and_change_management
+subcategory: configuration
+posture_category: key_management
+rationale: Without certificate revocation (CRL or OCSP), compromised or expired certificates
+  cannot be invalidated before their natural expiry. This allows attackers to continue
+  using stolen certificates to impersonate services or bypass mTLS controls.
+severity: high
+assertion_id: key_management.acm_pca_certificateauthority_revocation_configured
+source: default
+description: Checks that ACM Private Certificate Authorities have Certificate Revocation
+  List (CRL) configuration enabled. CRL distribution allows relying parties to check
+  whether a certificate has been revoked before trusting it. Without revocation configured,
+  certificates that are stolen, mis-issued, or associated with decommissioned services
+  remain valid and exploitable until their scheduled expiry date.
+references:
+- https://docs.aws.amazon.com/privateca/latest/userguide/crl-planning.html
+- https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/welcome.html
+remediation: "Enable CRL revocation on ACM Private CAs:\n\n1. Open the AWS Certificate\
+  \ Manager console\n2. Select the Private CA\n3. Navigate to Actions > Update CA\
+  \ configuration\n 4. Under Revocation, enable CRL distribution:\n   - Specify an\
+  \ S3 bucket for the CRL\n   - Set the CRL expiration period\n   - Enable OCSP if\
+  \ supported\n5. Ensure the S3 bucket policy allows public read access for CRL files\n\
+  \nAWS CLI:\n  aws acm-pca update-certificate-authority \\\n    --certificate-authority-arn\
+  \ <arn> \\\n    --revocation-configuration '{\n      \"CrlConfiguration\": {\n \
+  \       \"Enabled\": true,\n        \"ExpirationInDays\": 7,\n        \"S3BucketName\"\
+  : \"<your-crl-bucket>\"\n      }\n    }'\n\nBest Practices:\n• Keep CRL expiry period\
+  \ short (3-7 days) for timely revocation propagation\n• Enable OCSP stapling where\
+  \ supported for real-time revocation checks\n• Protect the CRL S3 bucket from accidental\
+  \ deletion\n• Test revocation by revoking a test certificate and verifying CRL contents"
+metadata_source: default
+generated_by: fix_disc_only_services
+compliance: []

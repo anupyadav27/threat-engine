@@ -1,0 +1,72 @@
+rule_id: gcp.compute.activity.route_insert
+service: compute
+provider: gcp
+check_type: log
+severity: medium
+title: 'Compute: Custom Network Route Created'
+description: Custom VPC route created — adversaries inject routes to redirect traffic through attacker-controlled instances for interception.
+rationale: Adversaries create custom network routes in GCP VPC to redirect traffic through adversary-controlled instances, enabling man-in-the-middle attacks on internal network traffic. Route injection by non-network engineering identities is a strong indicator of compromise. Detected via compute.googleapis.com routes.insert.
+threat_category: network_attack
+mitre_tactics:
+- lateral_movement
+- collection
+mitre_techniques:
+- T1599
+risk_score: 68
+resource: vpc_route
+source: default
+is_active: true
+domain: compute_and_workload_security
+action_category: create
+log_source_type: 
+posture_category: threat_posture
+threat_tags:
+- T1599
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: compute_instance
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_gcp_v2:
+  - 3.6
+  - 3.7
+  - 3.8
+  nist_800_53_r5:
+  - SC-7
+  - SI-4
+  - AC-4
+  pci_dss_v4:
+  - 1.3
+  - 1.4
+  iso_27001_2022:
+  - A.8.20
+  - A.8.22
+remediation: |
+  1. Audit and delete the unauthorized VPN tunnel, route, or firewall rule.
+  2. Review VPC network topology for unexpected routes or peering connections.
+  3. Enable VPC Flow Logs on all subnets and alert on anomalous traffic patterns.
+  4. Apply Org Policy firewall constraints to restrict inbound SSH/RDP from 0.0.0.0/0.
+  5. Use Cloud Armor security policies to protect public-facing workloads.
+references:
+- https://attack.mitre.org/techniques/T1599/
+- https://cloud.google.com/vpc/docs/routes
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: compute.googleapis.com
+    - field: operation
+      op: contains
+      value: routes.insert
+version: '1.0'

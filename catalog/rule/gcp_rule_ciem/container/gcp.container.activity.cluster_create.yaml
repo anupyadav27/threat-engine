@@ -1,0 +1,80 @@
+rule_id: gcp.container.activity.cluster_create
+service: container
+provider: gcp
+check_type: log
+severity: medium
+title: 'GKE: Cluster Created'
+description: New GKE cluster created — may be provisioned with insecure defaults (legacy auth, public endpoint, no network policy) for adversary use.
+rationale: 'Adversaries deploy containers into environments using Docker APIs or Kubernetes control planes to facilitate execution or evade defenses by running malicious images outside standard deployment processes. Deployed containers can host C2 infrastructure, cryptomining workloads, or data exfiltration tools. Detected via: container create + start by non-admin principals, images not on an allowlist or using ''latest'' tag, privileged mode or host namespace mount at runtime, and unauthenticated Docker API access.'
+threat_category: execution
+mitre_tactics:
+- execution
+- persistence
+mitre_techniques:
+- T1610
+risk_score: 58
+resource: gke_cluster
+source: default
+is_active: true
+domain: container_and_kubernetes_security
+action_category: create
+posture_category: workload_posture
+threat_tags:
+- T1610
+- remote_execution
+- cloud_exec
+- kubernetes
+- container_security
+risk_indicators:
+  actor_type: service_account_or_workload
+  action_type: write
+  target_type: kubernetes_workload
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_gcp_v2:
+  - 4.1
+  - 4.2
+  - 4.3
+  nist_800_53_r5:
+  - CM-7
+  - SI-3
+  - SI-4
+  pci_dss_v4:
+  - 6.3
+  - 6.4
+  iso_27001_2022:
+  - A.8.19
+  - A.8.20
+detection_events:
+- pods/create (Kubernetes audit)
+- 'containers:create via Docker API'
+- 'aks:CreatePod by non-CI/CD principal'
+- Admission controller deny events (missing context = bypass attempt)
+remediation: |
+  1. Audit the compute instance or function for malicious startup scripts or code.
+  2. Verify the workload image against a trusted artifact registry with Binary Authorization.
+  3. Apply Org Policy `compute.requireShieldedVm` for all new VM instances.
+  4. Enable Security Command Center threats for anomalous compute execution events.
+  5. Review service account permissions attached to the created instance or function.
+references:
+- https://attack.mitre.org/techniques/T1610/
+- https://cloud.google.com/binary-authorization/docs/overview
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: container.googleapis.com
+    - field: operation
+      op: contains
+      value: CreateCluster
+version: '1.0'

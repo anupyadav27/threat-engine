@@ -93,14 +93,17 @@ class ThreatDetector:
             elif risk_score <= 60:
                 confidence = Confidence.LOW
 
-            # Create threat key for grouping (group by threat type + resource)
+            # Group by threat_type + resource_uid so multiple rules on the
+            # same resource cluster into ONE threat with many contributing findings.
             threat_key = f"{threat_type.value}:{resource_uid}:{finding.account}:{finding.region}"
 
             if threat_key not in threat_groups:
                 threat_groups[threat_key] = {
                     "threat_type": threat_type,
                     "findings": [],
+                    "rule_ids": [],
                     "resource_uid": resource_uid,
+                    "resource_type": finding.resource.get("resource_type", ""),
                     "account": finding.account,
                     "region": finding.region,
                     "severity": finding.severity,
@@ -112,6 +115,10 @@ class ThreatDetector:
                 }
 
             threat_groups[threat_key]["findings"].append(finding)
+            threat_groups[threat_key]["rule_ids"].append(finding.rule_id)
+            # Keep highest risk_score and severity across all findings in group
+            if risk_score > threat_groups[threat_key]["risk_score"]:
+                threat_groups[threat_key]["risk_score"] = risk_score
             # Aggregate MITRE techniques and tactics across findings in group
             if mitre_techniques:
                 threat_groups[threat_key]["mitre_techniques"].extend(mitre_techniques)
@@ -160,29 +167,48 @@ class ThreatDetector:
             group["region"]
         )
 
-        # Collect misconfig finding refs
+        # Collect misconfig finding refs and unique rule_ids
         misconfig_finding_refs = [f.misconfig_finding_id for f in findings]
+        unique_rule_ids = list(dict.fromkeys(group.get("rule_ids", [])))
 
-        # Build title and description from rule metadata (use first finding's metadata)
+        # Build title and description
         threat_type = group["threat_type"]
+        resource_uid = group["resource_uid"]
+        resource_type = group.get("resource_type", "")
+        threat_label = threat_type.value.replace("_", " ").title()
 
-        # Try to get title from rule metadata (findings now have this from enrichment)
-        rule_title = first_finding.title if first_finding.title else None
-        rule_remediation = first_finding.remediation if first_finding.remediation else None
+        # Extract resource short name (last segment of ARN or uid)
+        resource_short = resource_uid.rsplit("/", 1)[-1].rsplit(":", 1)[-1] if resource_uid else "unknown"
+        service_label = (resource_type.split(".")[0] if resource_type else "resource").upper()
 
-        if rule_title:
-            title = f"{rule_title} - {threat_type.value.replace('_', ' ').title()}"
+        # Collect all remediations from findings
+        all_remediations = []
+        for f in findings:
+            if f.remediation and f.remediation not in all_remediations:
+                all_remediations.append(f.remediation)
+
+        if len(unique_rule_ids) == 1:
+            # Single rule — use rule title directly
+            rule_title = first_finding.title or unique_rule_ids[0]
+            title = f"{rule_title} — {threat_label}"
             description = (
-                f"Detected {len(findings)} violations of '{rule_title}' "
-                f"indicating {threat_type.value.replace('_', ' ')} risk. "
-                f"Affected resource: {group['resource_uid']}"
+                f"{threat_label} risk detected on {service_label} '{resource_short}'. "
+                f"Rule: {unique_rule_ids[0]}"
             )
         else:
-            title = f"{threat_type.value.replace('_', ' ').title()} Threat Detected"
+            # Multiple rules — summarize as compound threat
+            title = f"{service_label} {threat_label} — {len(unique_rule_ids)} violations on {resource_short}"
+            # Collect distinct rule titles
+            rule_titles = []
+            for f in findings:
+                t = f.title or f.rule_id
+                if t and t not in rule_titles:
+                    rule_titles.append(t)
             description = (
-                f"Detected {len(findings)} misconfiguration(s) that indicate a "
-                f"{threat_type.value.replace('_', ' ')} threat. "
-                f"Resource: {group['resource_uid']}"
+                f"Detected {len(findings)} misconfiguration(s) across {len(unique_rule_ids)} rules "
+                f"indicating {threat_label.lower()} risk on {service_label} '{resource_short}'. "
+                f"Rules: {', '.join(unique_rule_ids[:5])}"
+                + (f" (+{len(unique_rule_ids) - 5} more)" if len(unique_rule_ids) > 5 else "")
             )
 
         # Add MITRE context to description if available
@@ -226,15 +252,20 @@ class ThreatDetector:
                 highest_severity = sev
                 break
 
-        # Build remediation from rule metadata or generic
+        # Build remediation from ALL contributing findings
         remediation_steps = []
-        if rule_remediation:
-            remediation_steps.append(rule_remediation)
-        remediation_steps.extend([
-            f"Review misconfig findings: {', '.join(misconfig_finding_refs[:3])}",
-            "Apply recommended remediation for each finding",
-            "Re-scan to verify threat is resolved"
-        ])
+        for rem in all_remediations[:5]:
+            remediation_steps.append(rem)
+        if not remediation_steps:
+            remediation_steps.append(f"Review and remediate {len(unique_rule_ids)} failing rule(s)")
+        remediation_steps.append("Re-scan to verify threat is resolved")
+
+        # Detect source (ciem or check)
+        sources = set()
+        for f in findings:
+            fd = f.resource if isinstance(f.resource, dict) else {}
+            sources.add(fd.get("source", "check"))
+        source = "ciem" if "ciem" in sources else "check"
 
         threat = Threat(
             threat_id=threat_id,
@@ -250,13 +281,21 @@ class ThreatDetector:
             affected_assets=affected_assets,
             evidence_refs=evidence_refs,
             remediation={
-                "summary": f"Review and remediate {len(findings)} misconfiguration(s) to mitigate this threat",
-                "steps": remediation_steps
+                "summary": f"Remediate {len(unique_rule_ids)} rule violation(s) to mitigate this {threat_label.lower()} threat",
+                "steps": remediation_steps,
             },
             # MITRE ATT&CK enrichment
             mitre_techniques=mitre_techniques,
             mitre_tactics=mitre_tactics,
             risk_score=group.get("risk_score"),
+            # Multi-rule grouping fields
+            rule_id=unique_rule_ids[0] if unique_rule_ids else None,
+            contributing_rules=unique_rule_ids,
+            finding_count=len(findings),
+            resource_type=resource_type,
+            account_id=group.get("account", ""),
+            region=group.get("region", ""),
+            source=source,
         )
 
         return threat

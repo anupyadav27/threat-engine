@@ -1,0 +1,1998 @@
+tech_type: suse
+category: linux
+cis_benchmark: CIS SUSE Linux 15 v2.0.1
+cis_section: '1'
+
+rules:
+
+  - rule_id: suse.cis.1.cramfs_kernel_module_is_not_available
+    title: "Ensure cramfs kernel module is not available"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.1.1'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.cramfs_kernel_module_is_not_available
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following to unload and disable the cramfs kernel module. This can
+      also be done by running the script included below. 1. Run the following
+      commands to unload the cramfs kernel module: # modprobe -r cramfs 2>/dev/null
+      # rmmod cramfs 2>/dev/null 2. Perform the following to disable the cramfs
+      kernel module: a) Create a file ending in .conf with install cramfs /bin/false
+      in the /etc/modprobe.d/ directory Example: # printf '\n%s\n' 'install cramfs
+      /bin/false' >> cramfs.conf b) Create a file ending in .conf with blacklist
+      cramfs in the /etc/modprobe.d/ directory Example: # printf '\n%s\n' 'blacklist
+      cramfs' >> cramfs.conf Optional remediation script: This script will perform
+      the above remediation as required by the system #!/usr/bin/env bash {
+      a_output2=() a_output3=() l_dl='' l_mod_name='cramfs' l_mod_type='fs'
+      l_mod_path='$(readlink -f /usr/lib/modules/**/kernel/$l_mod_type || readlink
+      -f /lib/modules/**/kernel/$l_mod_type)' f_module_fix() { l_dl='y'
+      a_showconfig=() while IFS= read -r l_showconfig; do
+      a_showconfig+=('$l_showconfig') done < <(modprobe --showconfig | grep -P --
+      '\b(install|blacklist)\h+''${l_mod_chk_name//-/_}''\b') if lsmod | grep
+      '$l_mod_chk_name' &> /dev/null; then a_output2+=(' - unloading kernel module:
+      \'$l_mod_name\'') modprobe -r '$l_mod_chk_name' 2>/dev/null; rmmod
+      '$l_mod_name' 2>/dev/null fi if ! grep -Pq --
+      '\binstall\h+''${l_mod_chk_name//- /_}''\h+(\/usr)?\/bin\/(true|false)\b' <<<
+      '${a_showconfig[*]}'; then a_output2+=(' - setting kernel module:
+      \'$l_mod_name\' to \'$(readlink -f /bin/false)\'') printf '%s\n' 'install
+      $l_mod_chk_name $(readlink -f /bin/false)' >>
+      /etc/modprobe.d/'$l_mod_name'.conf fi if ! grep -Pq --
+      '\bblacklist\h+''${l_mod_chk_name//-/_}''\b' <<< '${a_showconfig[*]}'; then
+      a_output2+=(' - denylisting kernel module: \'$l_mod_name\'') printf '%s\n'
+      'blacklist $l_mod_chk_name' >> /etc/modprobe.d/'$l_mod_name'.conf fi } for
+      l_mod_base_directory in $l_mod_path; do # Check if the module exists on the
+      system if [ -d '$l_mod_base_directory/${l_mod_name/-/\/}' ] && [ -n '$(ls -A
+      '$l_mod_base_directory/${l_mod_name/-/\/}')' ]; then a_output3+=(' -
+      \'$l_mod_base_directory\'') l_mod_chk_name='$l_mod_name' [[ '$l_mod_name' =~
+      overlay ]] && l_mod_chk_name='${l_mod_name::-2}' [ '$l_dl' != 'y' ] &&
+      f_module_fix else printf '%s\n' ' - kernel module: \'$l_mod_name\' doesn't
+      exist in \'$l_mod_base_directory\'' fi done [ '${#a_output3[@]}' -gt 0 ] &&
+      printf '%s\n' '' ' -- INFO --' ' - module: \'$l_mod_name\' exists in:'
+      '${a_output3[@]}' [ '${#a_output2[@]}' -gt 0 ] && printf '%s\n' ''
+      '${a_output2[@]}' || printf '%s\n' '' ' - No changes needed' printf '%s\n' ''
+      ' - remediation of kernel module: \'$l_mod_name\' complete' '' } References:
+      1. NIST SP 800-53: CM-7 a 2. NIST SP 800-53A :: CM-7.1 (ii) 3. RHEL 8 STIG
+      Group ID: V-230498 4. RHEL 9 STIG Group ID: V-257880
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_1_1
+
+  - rule_id: suse.cis.1.freevxfs_kernel_module_is_not_available
+    title: "Ensure freevxfs kernel module is not available"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.1.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.freevxfs_kernel_module_is_not_available
+    assertion:
+      field: version
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following to unload and disable the freevxfs kernel module. This can
+      also be done by running the script included below. Run the following commands
+      to unload the freevxfs kernel module: # modprobe -r freevxfs 2>/dev/null #
+      rmmod freevxfs 2>/dev/null Perform the following to disable the freevxfs
+      kernel module: Create a file ending in .conf with install freevxfs /bin/false
+      in the /etc/modprobe.d/ directory Example: # printf '\n%s\n' 'install freevxfs
+      /bin/false' >> freevxfs.conf Create a file ending in .conf with blacklist
+      freevxfs in the /etc/modprobe.d/ directory Example: # printf '\n%s\n'
+      'blacklist freevxfs' >> freevxfs.conf Optional remediation script: This script
+      will perform the above remediation as required by the system #!/usr/bin/env
+      bash { a_output2=() a_output3=() l_dl='' l_mod_name='freevxfs' l_mod_type='fs'
+      l_mod_path='$(readlink -f /usr/lib/modules/**/kernel/$l_mod_type || readlink
+      -f /lib/modules/**/kernel/$l_mod_type)' f_module_fix() { l_dl='y'
+      a_showconfig=() while IFS= read -r l_showconfig; do
+      a_showconfig+=('$l_showconfig') done < <(modprobe --showconfig | grep -P --
+      '\b(install|blacklist)\h+''${l_mod_chk_name//-/_}''\b') if lsmod | grep
+      '$l_mod_chk_name' &> /dev/null; then a_output2+=(' - unloading kernel module:
+      \'$l_mod_name\'') modprobe -r '$l_mod_chk_name' 2>/dev/null; rmmod
+      '$l_mod_name' 2>/dev/null fi if ! grep -Pq --
+      '\binstall\h+''${l_mod_chk_name//- /_}''\h+(\/usr)?\/bin\/(true|false)\b' <<<
+      '${a_showconfig[*]}'; then a_output2+=(' - setting kernel module:
+      \'$l_mod_name\' to \'$(readlink -f /bin/false)\'') printf '%s\n' 'install
+      $l_mod_chk_name $(readlink -f /bin/false)' >>
+      /etc/modprobe.d/'$l_mod_name'.conf fi if ! grep -Pq --
+      '\bblacklist\h+''${l_mod_chk_name//-/_}''\b' <<< '${a_showconfig[*]}'; then
+      a_output2+=(' - denylisting kernel module: \'$l_mod_name\'') printf '%s\n'
+      'blacklist $l_mod_chk_name' >> /etc/modprobe.d/'$l_mod_name'.conf fi } for
+      l_mod_base_directory in $l_mod_path; do # Check if the module exists on the
+      system if [ -d '$l_mod_base_directory/${l_mod_name/-/\/}' ] && [ -n '$(ls -A
+      '$l_mod_base_directory/${l_mod_name/-/\/}')' ]; then a_output3+=(' -
+      \'$l_mod_base_directory\'') l_mod_chk_name='$l_mod_name' [[ '$l_mod_name' =~
+      overlay ]] && l_mod_chk_name='${l_mod_name::-2}' [ '$l_dl' != 'y' ] &&
+      f_module_fix else printf '%s\n' ' - kernel module: \'$l_mod_name\' doesn't
+      exist in \'$l_mod_base_directory\'' fi done [ '${#a_output3[@]}' -gt 0 ] &&
+      printf '%s\n' '' ' -- INFO --' ' - module: \'$l_mod_name\' exists in:'
+      '${a_output3[@]}' [ '${#a_output2[@]}' -gt 0 ] && printf '%s\n' ''
+      '${a_output2[@]}' || printf '%s\n' '' ' - No changes needed' printf '%s\n' ''
+      ' - remediation of kernel module: \'$l_mod_name\' complete' '' } References:
+      1. NIST SP 800-53: CM-7 a 2. NIST SP 800-53A: CM-7.1 (ii)
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_1_2
+
+  - rule_id: suse.cis.1.hfs_kernel_module_is_not_available
+    title: "Ensure hfs kernel module is not available"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.1.3'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.hfs_kernel_module_is_not_available
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following to unload and disable the hfs kernel module. This can also
+      be done by running the script included below. Run the following commands to
+      unload the hfs kernel module: # modprobe -r hfs 2>/dev/null # rmmod hfs
+      2>/dev/null Perform the following to disable the hfs kernel module: Create a
+      file ending in .conf with install hfs /bin/false in the /etc/modprobe.d/
+      directory Example: # printf '\n%s\n' 'install hfs /bin/false' >> hfs.conf
+      Create a file ending in .conf with blacklist hfs in the /etc/modprobe.d/
+      directory Example: # printf '\n%s\n' 'blacklist hfs' >> hfs.conf Optional
+      remediation script: This script will perform the above remediation as required
+      by the system #!/usr/bin/env bash { a_output2=() a_output3=() l_dl=''
+      l_mod_name='hfs' l_mod_type='fs' l_mod_path='$(readlink -f
+      /usr/lib/modules/**/kernel/$l_mod_type || readlink -f
+      /lib/modules/**/kernel/$l_mod_type)' f_module_fix() { l_dl='y' a_showconfig=()
+      while IFS= read -r l_showconfig; do a_showconfig+=('$l_showconfig') done <
+      <(modprobe --showconfig | grep -P --
+      '\b(install|blacklist)\h+''${l_mod_chk_name//-/_}''\b') if lsmod | grep
+      '$l_mod_chk_name' &> /dev/null; then a_output2+=(' - unloading kernel module:
+      \'$l_mod_name\'') modprobe -r '$l_mod_chk_name' 2>/dev/null; rmmod
+      '$l_mod_name' 2>/dev/null fi if ! grep -Pq --
+      '\binstall\h+''${l_mod_chk_name//- /_}''\h+(\/usr)?\/bin\/(true|false)\b' <<<
+      '${a_showconfig[*]}'; then a_output2+=(' - setting kernel module:
+      \'$l_mod_name\' to \'$(readlink -f /bin/false)\'') printf '%s\n' 'install
+      $l_mod_chk_name $(readlink -f /bin/false)' >>
+      /etc/modprobe.d/'$l_mod_name'.conf fi if ! grep -Pq --
+      '\bblacklist\h+''${l_mod_chk_name//-/_}''\b' <<< '${a_showconfig[*]}'; then
+      a_output2+=(' - denylisting kernel module: \'$l_mod_name\'') printf '%s\n'
+      'blacklist $l_mod_chk_name' >> /etc/modprobe.d/'$l_mod_name'.conf fi } for
+      l_mod_base_directory in $l_mod_path; do # Check if the module exists on the
+      system if [ -d '$l_mod_base_directory/${l_mod_name/-/\/}' ] && [ -n '$(ls -A
+      '$l_mod_base_directory/${l_mod_name/-/\/}')' ]; then a_output3+=(' -
+      \'$l_mod_base_directory\'') l_mod_chk_name='$l_mod_name' [[ '$l_mod_name' =~
+      overlay ]] && l_mod_chk_name='${l_mod_name::-2}' [ '$l_dl' != 'y' ] &&
+      f_module_fix else printf '%s\n' ' - kernel module: \'$l_mod_name\' doesn't
+      exist in \'$l_mod_base_directory\'' fi done [ '${#a_output3[@]}' -gt 0 ] &&
+      printf '%s\n' '' ' -- INFO --' ' - module: \'$l_mod_name\' exists in:'
+      '${a_output3[@]}' [ '${#a_output2[@]}' -gt 0 ] && printf '%s\n' ''
+      '${a_output2[@]}' || printf '%s\n' '' ' - No changes needed' printf '%s\n' ''
+      ' - remediation of kernel module: \'$l_mod_name\' complete' '' } References:
+      1. NIST SP 800-53: CM-7 a 2. NIST SP 800-53A :: CM-7.1 (ii)
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_1_3
+
+  - rule_id: suse.cis.1.hfsplus_kernel_module_is_not_available
+    title: "Ensure hfsplus kernel module is not available"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.1.4'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.hfsplus_kernel_module_is_not_available
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following to unload and disable the hfsplus kernel module. This can
+      also be done by running the script included below. Run the following commands
+      to unload the hfsplus kernel module: # modprobe -r hfsplus 2>/dev/null # rmmod
+      hfsplus 2>/dev/null Perform the following to disable the hfsplus kernel
+      module: Create a file ending in .conf with install hfsplus /bin/false in the
+      /etc/modprobe.d/ directory Example: # printf '\n%s\n' 'install hfsplus
+      /bin/false' >> hfsplus.conf Create a file ending in .conf with blacklist
+      hfsplus in the /etc/modprobe.d/ directory Example: # printf '\n%s\n'
+      'blacklist hfsplus' >> hfsplus.conf Optional remediation script: This script
+      will perform the above remediation as required by the system #!/usr/bin/env
+      bash { a_output2=() a_output3=() l_dl='' l_mod_name='hfsplus' l_mod_type='fs'
+      l_mod_path='$(readlink -f /usr/lib/modules/**/kernel/$l_mod_type || readlink
+      -f /lib/modules/**/kernel/$l_mod_type)' f_module_fix() { l_dl='y'
+      a_showconfig=() while IFS= read -r l_showconfig; do
+      a_showconfig+=('$l_showconfig') done < <(modprobe --showconfig | grep -P --
+      '\b(install|blacklist)\h+''${l_mod_chk_name//-/_}''\b') if lsmod | grep
+      '$l_mod_chk_name' &> /dev/null; then a_output2+=(' - unloading kernel module:
+      \'$l_mod_name\'') modprobe -r '$l_mod_chk_name' 2>/dev/null; rmmod
+      '$l_mod_name' 2>/dev/null fi if ! grep -Pq --
+      '\binstall\h+''${l_mod_chk_name//- /_}''\h+(\/usr)?\/bin\/(true|false)\b' <<<
+      '${a_showconfig[*]}'; then a_output2+=(' - setting kernel module:
+      \'$l_mod_name\' to \'$(readlink -f /bin/false)\'') printf '%s\n' 'install
+      $l_mod_chk_name $(readlink -f /bin/false)' >>
+      /etc/modprobe.d/'$l_mod_name'.conf fi if ! grep -Pq --
+      '\bblacklist\h+''${l_mod_chk_name//-/_}''\b' <<< '${a_showconfig[*]}'; then
+      a_output2+=(' - denylisting kernel module: \'$l_mod_name\'') printf '%s\n'
+      'blacklist $l_mod_chk_name' >> /etc/modprobe.d/'$l_mod_name'.conf fi } for
+      l_mod_base_directory in $l_mod_path; do # Check if the module exists on the
+      system if [ -d '$l_mod_base_directory/${l_mod_name/-/\/}' ] && [ -n '$(ls -A
+      '$l_mod_base_directory/${l_mod_name/-/\/}')' ]; then a_output3+=(' -
+      \'$l_mod_base_directory\'') l_mod_chk_name='$l_mod_name' [[ '$l_mod_name' =~
+      overlay ]] && l_mod_chk_name='${l_mod_name::-2}' [ '$l_dl' != 'y' ] &&
+      f_module_fix else printf '%s\n' ' - kernel module: \'$l_mod_name\' doesn't
+      exist in \'$l_mod_base_directory\'' fi done [ '${#a_output3[@]}' -gt 0 ] &&
+      printf '%s\n' '' ' -- INFO --' ' - module: \'$l_mod_name\' exists in:'
+      '${a_output3[@]}' [ '${#a_output2[@]}' -gt 0 ] && printf '%s\n' ''
+      '${a_output2[@]}' || printf '%s\n' '' ' - No changes needed' printf '%s\n' ''
+      ' - remediation of kernel module: \'$l_mod_name\' complete' '' } References:
+      1. NIST SP 800-53 Rev. 5: CM-7 a 2. NIST SP 800-53A :: CM-7.1 (ii)
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_1_4
+
+  - rule_id: suse.cis.1.jffs2_kernel_module_is_not_available
+    title: "Ensure jffs2 kernel module is not available"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.1.5'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.jffs2_kernel_module_is_not_available
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following to unload and disable the jffs2 kernel module. This can also
+      be done by running the script included below. Run the following commands to
+      unload the jffs2 kernel module: # modprobe -r jffs2 2>/dev/null # rmmod jffs2
+      2>/dev/null Perform the following to disable the jffs2 kernel module: Create a
+      file ending in .conf with install jffs2 /bin/false in the /etc/modprobe.d/
+      directory Example: # printf '\n%s\n' 'install jffs2 /bin/false' >> jffs2.conf
+      Create a file ending in .conf with blacklist jffs2 in the /etc/modprobe.d/
+      directory Example: # printf '\n%s\n' 'blacklist jffs2' >> jffs2.conf Optional
+      remediation script: This script will perform the above remediation as required
+      by the system #!/usr/bin/env bash { a_output2=() a_output3=() l_dl=''
+      l_mod_name='jffs2' l_mod_type='fs' l_mod_path='$(readlink -f
+      /usr/lib/modules/**/kernel/$l_mod_type || readlink -f
+      /lib/modules/**/kernel/$l_mod_type)' f_module_fix() { l_dl='y' a_showconfig=()
+      while IFS= read -r l_showconfig; do a_showconfig+=('$l_showconfig') done <
+      <(modprobe --showconfig | grep -P --
+      '\b(install|blacklist)\h+''${l_mod_chk_name//-/_}''\b') if lsmod | grep
+      '$l_mod_chk_name' &> /dev/null; then a_output2+=(' - unloading kernel module:
+      \'$l_mod_name\'') modprobe -r '$l_mod_chk_name' 2>/dev/null; rmmod
+      '$l_mod_name' 2>/dev/null fi if ! grep -Pq --
+      '\binstall\h+''${l_mod_chk_name//- /_}''\h+(\/usr)?\/bin\/(true|false)\b' <<<
+      '${a_showconfig[*]}'; then a_output2+=(' - setting kernel module:
+      \'$l_mod_name\' to \'$(readlink -f /bin/false)\'') printf '%s\n' 'install
+      $l_mod_chk_name $(readlink -f /bin/false)' >>
+      /etc/modprobe.d/'$l_mod_name'.conf fi if ! grep -Pq --
+      '\bblacklist\h+''${l_mod_chk_name//-/_}''\b' <<< '${a_showconfig[*]}'; then
+      a_output2+=(' - denylisting kernel module: \'$l_mod_name\'') printf '%s\n'
+      'blacklist $l_mod_chk_name' >> /etc/modprobe.d/'$l_mod_name'.conf fi } for
+      l_mod_base_directory in $l_mod_path; do # Check if the module exists on the
+      system if [ -d '$l_mod_base_directory/${l_mod_name/-/\/}' ] && [ -n '$(ls -A
+      '$l_mod_base_directory/${l_mod_name/-/\/}')' ]; then a_output3+=(' -
+      \'$l_mod_base_directory\'') l_mod_chk_name='$l_mod_name' [[ '$l_mod_name' =~
+      overlay ]] && l_mod_chk_name='${l_mod_name::-2}' [ '$l_dl' != 'y' ] &&
+      f_module_fix else printf '%s\n' ' - kernel module: \'$l_mod_name\' doesn't
+      exist in \'$l_mod_base_directory\'' fi done [ '${#a_output3[@]}' -gt 0 ] &&
+      printf '%s\n' '' ' -- INFO --' ' - module: \'$l_mod_name\' exists in:'
+      '${a_output3[@]}' [ '${#a_output2[@]}' -gt 0 ] && printf '%s\n' ''
+      '${a_output2[@]}' || printf '%s\n' '' ' - No changes needed' printf '%s\n' ''
+      ' - remediation of kernel module: \'$l_mod_name\' complete' '' } References:
+      1. NIST SP 800-53 Rev. 5: CM-7
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_1_5
+
+  - rule_id: suse.cis.1.overlay_kernel_module_is_not_available
+    title: "Ensure overlay kernel module is not available"
+    severity: medium
+    automation_type: automated
+    cis_control: '1.1.1.6'
+    cis_section: '1'
+    profile_applicability: "Level 2"
+    scope: suse.section_1.overlay_kernel_module_is_not_available
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following to unload and disable the overlay kernel module. This can
+      also be done by running the script included below. Run the following commands
+      to unload the overlay kernel module: # modprobe -r overlay 2>/dev/null # rmmod
+      overlay 2>/dev/null Perform the following to disable the overlay kernel
+      module: Create a file ending in .conf with install overlay /bin/false in the
+      /etc/modprobe.d/ directory Example: # printf '\n%s\n' 'install overlay
+      /bin/false' >> overlay.conf Create a file ending in .conf with blacklist
+      overlay in the /etc/modprobe.d/ directory Example: # printf '\n%s\n'
+      'blacklist overlay' >> overlay.conf Optional remediation script: This script
+      will perform the above remediation as required by the system #!/usr/bin/env
+      bash { a_output2=() a_output3=() l_dl='' l_mod_name='overlayfs'
+      l_mod_type='fs' l_mod_path='$(readlink -f
+      /usr/lib/modules/**/kernel/$l_mod_type || readlink -f
+      /lib/modules/**/kernel/$l_mod_type)' f_module_fix() { l_dl='y' a_showconfig=()
+      while IFS= read -r l_showconfig; do a_showconfig+=('$l_showconfig') done <
+      <(modprobe --showconfig | grep -P --
+      '\b(install|blacklist)\h+''${l_mod_chk_name//-/_}''\b') if lsmod | grep
+      '$l_mod_chk_name' &> /dev/null; then a_output2+=(' - unloading kernel module:
+      \'$l_mod_chk_name\'') modprobe -r '$l_mod_chk_name' 2>/dev/null; rmmod
+      '$l_mod_chk_name' 2>/dev/null fi if ! grep -Pq --
+      '\binstall\h+''${l_mod_chk_name//- /_}''\h+(\/usr)?\/bin\/(true|false)\b' <<<
+      '${a_showconfig[*]}'; then a_output2+=(' - setting kernel module:
+      \'$l_mod_chk_name\' to \'$(readlink -f /bin/false)\'') printf '%s\n' 'install
+      $l_mod_chk_name $(readlink -f /bin/false)' >>
+      /etc/modprobe.d/'$l_mod_chk_name'.conf fi if ! grep -Pq --
+      '\bblacklist\h+''${l_mod_chk_name//-/_}''\b' <<< '${a_showconfig[*]}'; then
+      a_output2+=(' - denylisting kernel module: \'$l_mod_chk_name\'') printf '%s\n'
+      'blacklist $l_mod_chk_name' >> /etc/modprobe.d/'$l_mod_chk_name'.conf fi } for
+      l_mod_base_directory in $l_mod_path; do # Check if the module exists on the
+      system if [ -d '$l_mod_base_directory/${l_mod_name/-/\/}' ] && [ -n '$(ls -A
+      '$l_mod_base_directory/${l_mod_name/-/\/}')' ]; then a_output3+=(' -
+      \'$l_mod_base_directory\'') l_mod_chk_name='$l_mod_name' [[ '$l_mod_name' =~
+      overlay ]] && l_mod_chk_name='${l_mod_name::-2}' [ '$l_dl' != 'y' ] &&
+      f_module_fix else printf '%s\n' ' - kernel module: \'$l_mod_name\' doesn't
+      exist in \'$l_mod_base_directory\'' fi done [ '${#a_output3[@]}' -gt 0 ] &&
+      printf '%s\n' '' ' -- INFO --' ' - module: \'$l_mod_name\' exists in:'
+      '${a_output3[@]}' [ '${#a_output2[@]}' -gt 0 ] && printf '%s\n' ''
+      '${a_output2[@]}' || printf '%s\n' '' ' - No changes needed' printf '%s\n' ''
+      ' - remediation of kernel module: \'$l_mod_name\' complete' '' } References:
+      1. NIST SP 800-53 Rev. 5: CM-7 2.
+      https://docs.kernel.org/filesystems/overlayfs.html 3.
+      https://wiki.archlinux.org/title/Overlay_filesystem 4.
+      https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword=overlayfs
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_1_6
+
+  - rule_id: suse.cis.1.squashfs_kernel_module_is_not_available
+    title: "Ensure squashfs kernel module is not available"
+    severity: medium
+    automation_type: automated
+    cis_control: '1.1.1.7'
+    cis_section: '1'
+    profile_applicability: "Level 2"
+    scope: suse.section_1.squashfs_kernel_module_is_not_available
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following to unload and disable the squashfs kernel module. This can
+      also be done by running the script included below. Run the following commands
+      to unload the squashfs kernel module: # modprobe -r squashfs 2>/dev/null #
+      rmmod squashfs 2>/dev/null Perform the following to disable the squashfs
+      kernel module: Create a file ending in .conf with install squashfs /bin/false
+      in the /etc/modprobe.d/ directory Example: # printf '\n%s\n' 'install squashfs
+      /bin/false' >> squashfs.conf Create a file ending in .conf with blacklist
+      squashfs in the /etc/modprobe.d/ directory Example: # printf '\n%s\n'
+      'blacklist squashfs' >> squashfs.conf Optional remediation script: This script
+      will perform the above remediation as required by the system #!/usr/bin/env
+      bash { a_output2=() a_output3=() l_dl='' l_mod_name='squashfs' l_mod_type='fs'
+      l_mod_path='$(readlink -f /usr/lib/modules/**/kernel/$l_mod_type || readlink
+      -f /lib/modules/**/kernel/$l_mod_type)' f_module_fix() { l_dl='y'
+      a_showconfig=() while IFS= read -r l_showconfig; do
+      a_showconfig+=('$l_showconfig') done < <(modprobe --showconfig | grep -P --
+      '\b(install|blacklist)\h+''${l_mod_chk_name//-/_}''\b') if lsmod | grep
+      '$l_mod_chk_name' &> /dev/null; then a_output2+=(' - unloading kernel module:
+      \'$l_mod_name\'') modprobe -r '$l_mod_chk_name' 2>/dev/null; rmmod
+      '$l_mod_name' 2>/dev/null fi if ! grep -Pq --
+      '\binstall\h+''${l_mod_chk_name//- /_}''\h+(\/usr)?\/bin\/(true|false)\b' <<<
+      '${a_showconfig[*]}'; then a_output2+=(' - setting kernel module:
+      \'$l_mod_name\' to \'$(readlink -f /bin/false)\'') printf '%s\n' 'install
+      $l_mod_chk_name $(readlink -f /bin/false)' >>
+      /etc/modprobe.d/'$l_mod_name'.conf fi if ! grep -Pq --
+      '\bblacklist\h+''${l_mod_chk_name//-/_}''\b' <<< '${a_showconfig[*]}'; then
+      a_output2+=(' - denylisting kernel module: \'$l_mod_name\'') printf '%s\n'
+      'blacklist $l_mod_chk_name' >> /etc/modprobe.d/'$l_mod_name'.conf fi } for
+      l_mod_base_directory in $l_mod_path; do # Check if the module exists on the
+      system if [ -d '$l_mod_base_directory/${l_mod_name/-/\/}' ] && [ -n '$(ls -A
+      '$l_mod_base_directory/${l_mod_name/-/\/}')' ]; then a_output3+=(' -
+      \'$l_mod_base_directory\'') l_mod_chk_name='$l_mod_name' [[ '$l_mod_name' =~
+      overlay ]] && l_mod_chk_name='${l_mod_name::-2}' [ '$l_dl' != 'y' ] &&
+      f_module_fix else printf '%s\n' ' - kernel module: \'$l_mod_name\' doesn't
+      exist in \'$l_mod_base_directory\'' fi done [ '${#a_output3[@]}' -gt 0 ] &&
+      printf '%s\n' '' ' -- INFO --' ' - module: \'$l_mod_name\' exists in:'
+      '${a_output3[@]}' [ '${#a_output2[@]}' -gt 0 ] && printf '%s\n' ''
+      '${a_output2[@]}' || printf '%s\n' '' ' - No changes needed' printf '%s\n' ''
+      ' - remediation of kernel module: \'$l_mod_name\' complete' '' } References:
+      1. NIST SP 800-53 Rev. 5: CM-7
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_1_7
+
+  - rule_id: suse.cis.1.udf_kernel_module_is_not_available
+    title: "Ensure udf kernel module is not available"
+    severity: medium
+    automation_type: automated
+    cis_control: '1.1.1.8'
+    cis_section: '1'
+    profile_applicability: "Level 2"
+    scope: suse.section_1.udf_kernel_module_is_not_available
+    assertion:
+      field: port
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following to unload and disable the udf kernel module. This can also
+      be done by running the script included below. Run the following commands to
+      unload the udf kernel module: # modprobe -r udf 2>/dev/null # rmmod udf
+      2>/dev/null Perform the following to disable the udf kernel module: Create a
+      file ending in .conf with install udf /bin/false in the /etc/modprobe.d/
+      directory Example: # printf '\n%s\n' 'install udf /bin/false' >> udf.conf
+      Create a file ending in .conf with blacklist udf in the /etc/modprobe.d/
+      directory Example: # printf '\n%s\n' 'blacklist udf' >> udf.conf Optional
+      remediation script: This script will perform the above remediation as required
+      by the system #!/usr/bin/env bash { a_output2=() a_output3=() l_dl=''
+      l_mod_name='udf' l_mod_type='fs' l_mod_path='$(readlink -f
+      /usr/lib/modules/**/kernel/$l_mod_type || readlink -f
+      /lib/modules/**/kernel/$l_mod_type)' f_module_fix() { l_dl='y' a_showconfig=()
+      while IFS= read -r l_showconfig; do a_showconfig+=('$l_showconfig') done <
+      <(modprobe --showconfig | grep -P --
+      '\b(install|blacklist)\h+''${l_mod_chk_name//-/_}''\b') if lsmod | grep
+      '$l_mod_chk_name' &> /dev/null; then a_output2+=(' - unloading kernel module:
+      \'$l_mod_name\'') modprobe -r '$l_mod_chk_name' 2>/dev/null; rmmod
+      '$l_mod_name' 2>/dev/null fi if ! grep -Pq --
+      '\binstall\h+''${l_mod_chk_name//- /_}''\h+(\/usr)?\/bin\/(true|false)\b' <<<
+      '${a_showconfig[*]}'; then a_output2+=(' - setting kernel module:
+      \'$l_mod_name\' to \'$(readlink -f /bin/false)\'') printf '%s\n' 'install
+      $l_mod_chk_name $(readlink -f /bin/false)' >>
+      /etc/modprobe.d/'$l_mod_name'.conf fi if ! grep -Pq --
+      '\bblacklist\h+''${l_mod_chk_name//-/_}''\b' <<< '${a_showconfig[*]}'; then
+      a_output2+=(' - denylisting kernel module: \'$l_mod_name\'') printf '%s\n'
+      'blacklist $l_mod_chk_name' >> /etc/modprobe.d/'$l_mod_name'.conf fi } for
+      l_mod_base_directory in $l_mod_path; do # Check if the module exists on the
+      system if [ -d '$l_mod_base_directory/${l_mod_name/-/\/}' ] && [ -n '$(ls -A
+      '$l_mod_base_directory/${l_mod_name/-/\/}')' ]; then a_output3+=(' -
+      \'$l_mod_base_directory\'') l_mod_chk_name='$l_mod_name' [[ '$l_mod_name' =~
+      overlay ]] && l_mod_chk_name='${l_mod_name::-2}' [ '$l_dl' != 'y' ] &&
+      f_module_fix else printf '%s\n' ' - kernel module: \'$l_mod_name\' doesn't
+      exist in \'$l_mod_base_directory\'' fi done [ '${#a_output3[@]}' -gt 0 ] &&
+      printf '%s\n' '' ' -- INFO --' ' - module: \'$l_mod_name\' exists in:'
+      '${a_output3[@]}' [ '${#a_output2[@]}' -gt 0 ] && printf '%s\n' ''
+      '${a_output2[@]}' || printf '%s\n' '' ' - No changes needed' printf '%s\n' ''
+      ' - remediation of kernel module: \'$l_mod_name\' complete' '' } References:
+      1. NIST SP 800-53 Rev. 5: CM-7
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_1_8
+
+  - rule_id: suse.cis.1.tmp_is_a_separate_partition
+    title: "Ensure /tmp is a separate partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.1.1'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.tmp_is_a_separate_partition
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      First ensure that systemd is correctly configured to ensure that /tmp will be
+      mounted at boot time. # systemctl unmask tmp.mount For specific configuration
+      requirements of the /tmp mount for your environment, modify /etc/fstab.
+      Example of using tmpfs with specific mount options: tmpfs /tmp tmpfs
+      defaults,rw,nosuid,nodev,noexec,relatime,size=2G 0 0 Note: the size=2G is an
+      example of setting a specific size for tmpfs. Example of using a volume or
+      disk with specific mount options. The source location of the volume or disk
+      will vary depending on your environment: <device> /tmp <fstype>
+      defaults,nodev,nosuid,noexec 0 0 References: 1.
+      https://www.freedesktop.org/wiki/Software/systemd/APIFileSystems/ 2.
+      https://www.freedesktop.org/software/systemd/man/systemd-fstab-generator.html
+      3. https://www.kernel.org/doc/Documentation/filesystems/tmpfs.txt 4. NIST SP
+      800-53 Rev. 5: CM-7 5. RHEL 8 STIG Vul ID: V-230295 6. RHEL 8 Rule ID:
+      SV-30295r627750 Additional Information: /tmp can be configured to use tmpfs.
+      tmpfs puts everything into the kernel internal caches and grows and shrinks to
+      accommodate the files it contains and is able to swap unneeded pages out to
+      swap space. It has maximum size limits which can be adjusted on the fly via
+      mount -o remount. Since tmpfs lives completely in the page cache and on swap,
+      all tmpfs pages will be shown as 'Shmem' in /proc/meminfo and 'Shared' in
+      free. Notice that these counters also include shared memory. The most reliable
+      way to get the count is using df and du. tmpfs has three mount options for
+      sizing: • size: The limit of allocated bytes for this tmpfs instance. The
+      default is half of your physical RAM without swap. If you oversize your tmpfs
+      instances the machine will deadlock since the OOM handler will not be able to
+      free that memory. • nr_blocks: The same as size, but in blocks of PAGE_SIZE. •
+      nr_inodes: The maximum number of inodes for this instance. The default is half
+      of the number of your physical RAM pages, or (on a machine with highmem) the
+      number of lowmem RAM pages, whichever is the lower. These parameters accept a
+      suffix k, m or g and can be changed on remount. The size parameter also
+      accepts a suffix % to limit this tmpfs instance to that percentage of your
+      physical RAM. The default, when neither size nor nr_blocks is specified, is
+      size=50%.
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_2_1_1
+
+  - rule_id: suse.cis.1.nodev_option_set_on_tmp_partition
+    title: "Ensure nodev option set on /tmp partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.1.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.nodev_option_set_on_tmp_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /tmp. Edit the /etc/fstab file and add
+      nodev to the fourth field (mounting options) for the /tmp partition. Example:
+      <device> /tmp <fstype> defaults,rw,nosuid,nodev,noexec,relatime 0 0 Run the
+      following command to remount /tmp with the configured options: # mount -o
+      remount /tmp References: 1. See the fstab(5) manual page for more information.
+      2. NIST SP 800-53 Rev. 5: CM-7 3. NIST SP 800-53 Revision 5 :: CM-7 (2) 4.
+      RHEL 8 STIG Vul ID: V-230511 5. RHEL 8 STIG Rule ID: SV-230511r854052
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_2_1_2
+
+  - rule_id: suse.cis.1.nosuid_option_set_on_tmp_partition
+    title: "Ensure nosuid option set on /tmp partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.1.3'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.nosuid_option_set_on_tmp_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /tmp. Edit the /etc/fstab file and add
+      nosuid to the fourth field (mounting options) for the /tmp partition. Example:
+      <device> /tmp <fstype> defaults,rw,nosuid,nodev,noexec,relatime 0 0 Run the
+      following command to remount /tmp with the configured options: # mount -o
+      remount /tmp References: 1. See the fstab(5) manual page for more information.
+      2. NIST SP 800-53 Rev. 5: AC-3, MP-2 3. RHEL 8 STIG Vul ID: V-230512 4. RHEL 8
+      STIG Rule ID: SV-230512r854053
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_2_1_3
+
+  - rule_id: suse.cis.1.noexec_option_set_on_tmp_partition
+    title: "Ensure noexec option set on /tmp partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.1.4'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.noexec_option_set_on_tmp_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /tmp. Edit the /etc/fstab file and add
+      noexec to the fourth field (mounting options) for the /tmp partition. Example:
+      <device> /tmp <fstype> defaults,rw,nosuid,nodev,noexec,relatime 0 0 Run the
+      following command to remount /tmp with the configured options: # mount -o
+      remount /tmp References: 1. See the fstab(5) manual page for more information.
+      2. NIST SP 800-53 Rev. 5: AC-3, MP-2 3. NIST SP 800-53 Revision 5 :: CM-7 (2)
+      4. RHEL 8 STIG Vul ID: V-230513 5. RHEL 8 STIG Rule ID: SV-230513r854054
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_2_1_4
+
+  - rule_id: suse.cis.1.dev_shm_is_a_separate_partition
+    title: "Ensure /dev/shm is a separate partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.2.1'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.dev_shm_is_a_separate_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      For specific configuration requirements of the /dev/shm mount for your
+      environment, modify /etc/fstab. Example: tmpfs /dev/shm tmpfs
+      defaults,rw,nosuid,nodev,noexec,relatime,size=2G 0 0 References: 1.
+      https://www.freedesktop.org/wiki/Software/systemd/APIFileSystems/ 2.
+      https://www.freedesktop.org/software/systemd/man/systemd-fstab-generator.html
+      3. NIST SP 800-53 Rev. 5: CM-7
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_2_2_1
+
+  - rule_id: suse.cis.1.nodev_option_set_on_dev_shm_partition
+    title: "Ensure nodev option set on /dev/shm partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.2.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.nodev_option_set_on_dev_shm_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /dev/shm. Edit the /etc/fstab file and
+      add nodev to the fourth field (mounting options) for the /dev/shm partition.
+      See the fstab(5) manual page for more information. Example: tmpfs /dev/shm
+      tmpfs defaults,rw,nosuid,nodev,noexec,relatime 0 0 Run the following command
+      to remount /dev/shm with the configured options: # mount -o remount /dev/shm
+      Note: It is recommended to use tmpfs as the device/filesystem type as /dev/shm
+      is used as shared memory space by applications. References: 1. NIST SP 800-53
+      Rev. 5: AC-3, MP-2 2. NIST SP 800-53 Revision 5 :: CM-7 (2) 3. RHEL 8 STIG Vul
+      ID: V-230508 4. RHEL 8 STIG Rule ID: SV-230508r854049 Additional Information:
+      Some distributions mount /dev/shm through other means and require /dev/shm to
+      be added to /etc/fstab even though it is already being mounted on boot. Others
+      may configure /dev/shm in other locations and may override /etc/fstab
+      configuration. Consult the documentation appropriate for your distribution.
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_2_2_2
+
+  - rule_id: suse.cis.1.nosuid_option_set_on_dev_shm_partition
+    title: "Ensure nosuid option set on /dev/shm partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.2.3'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.nosuid_option_set_on_dev_shm_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /dev/shm. Edit the /etc/fstab file and
+      add nosuid to the fourth field (mounting options) for the /dev/shm partition.
+      See the fstab(5) manual page for more information. Example: tmpfs /dev/shm
+      tmpfs defaults,rw,nosuid,nodev,noexec,relatime 0 0 Run the following command
+      to remount /dev/shm with the configured options: # mount -o remount /dev/shm
+      Note: It is recommended to use tmpfs as the device/filesystem type as /dev/shm
+      is used as shared memory space by applications. References: 1. NIST SP 800-53
+      Rev. 5: AC-3, MP-2 2. NIST SP 800-53 Revision 5 :: CM-7 (2) 3. RHEL 8 STIG Vul
+      ID: V-230509 4. RHEL 8 STIG Rule ID: SV-230509r854050 Additional Information:
+      Some distributions mount /dev/shm through other means and require /dev/shm to
+      be added to /etc/fstab even though it is already being mounted on boot. Others
+      may configure /dev/shm in other locations and may override /etc/fstab
+      configuration. Consult the documentation appropriate for your distribution.
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_2_2_3
+
+  - rule_id: suse.cis.1.noexec_option_set_on_dev_shm_partition
+    title: "Ensure noexec option set on /dev/shm partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.2.4'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.noexec_option_set_on_dev_shm_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /dev/shm. Edit the /etc/fstab file and
+      add noexec to the fourth field (mounting options) for the /dev/shm partition.
+      Example: tmpfs /dev/shm tmpfs defaults,rw,nosuid,nodev,noexec,relatime 0 0 Run
+      the following command to remount /dev/shm with the configured options: # mount
+      -o remount /dev/shm Note: It is recommended to use tmpfs as the
+      device/filesystem type as /dev/shm is used as shared memory space by
+      applications. References: 1. See the fstab(5) manual page for more
+      information. 2. NIST SP 800-53 Rev. 5: AC-3, MP-2 3. NIST SP 800-53 Revision 5
+      :: CM-7 (2) 4. RHEL 8 STIG Vul ID: V-230510 5. RHEL 8 STIG Rule ID:
+      SV-230510r854051
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_2_2_4
+
+  - rule_id: suse.cis.1.separate_partition_exists_for_home
+    title: "Ensure separate partition exists for /home"
+    severity: medium
+    automation_type: automated
+    cis_control: '1.1.2.3.1'
+    cis_section: '1'
+    profile_applicability: "Level 2"
+    scope: suse.section_1.separate_partition_exists_for_home
+    assertion:
+      field: port
+      operator: exists
+      expected: "true"
+    remediation: >
+      For new installations, during installation create a custom partition setup and
+      specify a separate partition for /home. For systems that were previously
+      installed, create a new partition and configure /etc/fstab as appropriate.
+      References: 1. AJ Lewis, 'LVM HOWTO', http://tldp.org/HOWTO/LVM-HOWTO/ 2. NIST
+      SP 800-53 Rev. 5: CM-7 Additional Information: When modifying /home it is
+      advisable to bring the system to emergency mode (so auditd is not running),
+      rename the existing directory, mount the new file system, and migrate the data
+      over before returning to multi-user mode.
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_2_3_1
+
+  - rule_id: suse.cis.1.nodev_option_set_on_home_partition
+    title: "Ensure nodev option set on /home partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.3.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.nodev_option_set_on_home_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /home. Edit the /etc/fstab file and add
+      nodev to the fourth field (mounting options) for the /home partition. Example:
+      <device> /home <fstype> defaults,rw,nosuid,nodev,relatime 0 0 Run the
+      following command to remount /home with the configured options: # mount -o
+      remount /home References: 1. See the fstab(5) manual page for more
+      information. 2. NIST SP 800-53 Rev. 5: AC-3, MP-2
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_2_3_2
+
+  - rule_id: suse.cis.1.nosuid_option_set_on_home_partition
+    title: "Ensure nosuid option set on /home partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.3.3'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.nosuid_option_set_on_home_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /home. Edit the /etc/fstab file and add
+      nosuid to the fourth field (mounting options) for the /home partition.
+      Example: <device> /home <fstype> defaults,rw,nosuid,nodev,relatime 0 0 Run the
+      following command to remount /home with the configured options: # mount -o
+      remount /home References: 1. See the fstab(5) manual page for more
+      information. 2. NIST SP 800-53 Rev. 5: AC-3, MP-2
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_2_3_3
+
+  - rule_id: suse.cis.1.separate_partition_exists_for_var
+    title: "Ensure separate partition exists for /var"
+    severity: medium
+    automation_type: automated
+    cis_control: '1.1.2.4.1'
+    cis_section: '1'
+    profile_applicability: "Level 2"
+    scope: suse.section_1.separate_partition_exists_for_var
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      For new installations, during installation create a custom partition setup and
+      specify a separate partition for /var. For systems that were previously
+      installed, create a new partition and configure /etc/fstab as appropriate.
+      References: 1. AJ Lewis, 'LVM HOWTO', http://tldp.org/HOWTO/LVM-HOWTO/ 2. NIST
+      SP 800-53 Rev. 5: CM-7 3. RHEL 8 STIG Vul ID: V-244529 4. RHEL 8 STIG Rule ID:
+      SV-244529r902737 Additional Information: When modifying /var it is advisable
+      to bring the system to emergency mode (so auditd is not running), rename the
+      existing directory, mount the new file system, and migrate the data over
+      before returning to multi-user mode.
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_2_4_1
+
+  - rule_id: suse.cis.1.nodev_option_set_on_var_partition
+    title: "Ensure nodev option set on /var partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.4.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.nodev_option_set_on_var_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /var. Edit the /etc/fstab file and add
+      nodev to the fourth field (mounting options) for the /var partition. Example:
+      <device> /var <fstype> defaults,rw,nosuid,nodev,relatime 0 0 Run the following
+      command to remount /var with the configured options: # mount -o remount /var
+      References: 1. See the fstab(5) manual page for more information. 2. NIST SP
+      800-53 Rev. 5: AC-3, MP-2
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_2_4_2
+
+  - rule_id: suse.cis.1.nosuid_option_set_on_var_partition
+    title: "Ensure nosuid option set on /var partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.4.3'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.nosuid_option_set_on_var_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /var. Edit the /etc/fstab file and add
+      nosuid to the fourth field (mounting options) for the /var partition. Example:
+      <device> /var <fstype> defaults,rw,nosuid,nodev,relatime 0 0 Run the following
+      command to remount /var with the configured options: # mount -o remount /var
+      References: 1. See the fstab(5) manual page for more information. 2. NIST SP
+      800-53 Rev. 5: AC-3, MP-2
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_2_4_3
+
+  - rule_id: suse.cis.1.separate_partition_exists_for_var_tmp
+    title: "Ensure separate partition exists for /var/tmp"
+    severity: medium
+    automation_type: automated
+    cis_control: '1.1.2.5.1'
+    cis_section: '1'
+    profile_applicability: "Level 2"
+    scope: suse.section_1.separate_partition_exists_for_var_tmp
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      For new installations, during installation create a custom partition setup and
+      specify a separate partition for /var/tmp. For systems that were previously
+      installed, create a new partition and configure /etc/fstab as appropriate.
+      References: 1. AJ Lewis, 'LVM HOWTO', http://tldp.org/HOWTO/LVM-HOWTO/ 2. NIST
+      SP 800-53 Rev. 5: CM-7 3. NIST SP 800-53A :: CM-6.1 (iv) 4. RHEL 8 STIG Vul
+      ID: V-244529 5. RHEL 8 STIG Rule ID: SV-244529r902737 Additional Information:
+      When modifying /var/tmp it is advisable to bring the system to emergency mode
+      (so auditd is not running), rename the existing directory, mount the new file
+      system, and migrate the data over before returning to multi-user mode.
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_2_5_1
+
+  - rule_id: suse.cis.1.nodev_option_set_on_var_tmp_partition
+    title: "Ensure nodev option set on /var/tmp partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.5.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.nodev_option_set_on_var_tmp_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /var/tmp. Edit the /etc/fstab file and
+      add nodev to the fourth field (mounting options) for the /var/tmp partition.
+      Example: <device> /var/tmp <fstype> defaults,rw,nosuid,nodev,noexec,relatime 0
+      0 Run the following command to remount /var/tmp with the configured options: #
+      mount -o remount /var/tmp References: 1. See the fstab(5) manual page for more
+      information. 2. NIST SP 800-53 Rev. 5: AC-3, MP-2 3. NIST SP 800-53 Revision 5
+      :: CM-7 (2) 4. RHEL 8 STIG Vul ID: V-230520 5. RHEL 8 STIG Rule ID:
+      SV-230520r854061
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_2_5_2
+
+  - rule_id: suse.cis.1.nosuid_option_set_on_var_tmp_partition
+    title: "Ensure nosuid option set on /var/tmp partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.5.3'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.nosuid_option_set_on_var_tmp_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /var/tmp. Edit the /etc/fstab file and
+      add nosuid to the fourth field (mounting options) for the /var/tmp partition.
+      Example: <device> /var/tmp <fstype> defaults,rw,nosuid,nodev,noexec,relatime 0
+      0 Run the following command to remount /var/tmp with the configured options: #
+      mount -o remount /var/tmp References: 1. See the fstab(5) manual page for more
+      information. 2. NIST SP 800-53 Rev. 5: AC-3, MP-2 3. NIST SP 800-53 Revision 5
+      :: CM-7 (2) 4. RHEL 8 STIG Vul ID: V-230521 5. RHEL 8 STIG STIG ID:
+      RHEL-08-040133
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_2_5_3
+
+  - rule_id: suse.cis.1.noexec_option_set_on_var_tmp_partition
+    title: "Ensure noexec option set on /var/tmp partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.5.4'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.noexec_option_set_on_var_tmp_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /var/tmp. Edit the /etc/fstab file and
+      add noexec to the fourth field (mounting options) for the /var/tmp partition.
+      Example: <device> /var/tmp <fstype> defaults,rw,nosuid,nodev,noexec,relatime 0
+      0 Run the following command to remount /var/tmp with the configured options: #
+      mount -o remount /var/tmp References: 1. See the fstab(5) manual page for more
+      information. 2. NIST SP 800-53 Rev. 5: AC-3, MP-2 3. NIST SP 800-53 Revision 5
+      :: CM-7 (2) 4. RHEL 8 STIG Vul ID: V-230522 5. RHEL 8 STIG Rule ID:
+      SV-230522r854063
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_2_5_4
+
+  - rule_id: suse.cis.1.separate_partition_exists_for_var_log
+    title: "Ensure separate partition exists for /var/log"
+    severity: medium
+    automation_type: automated
+    cis_control: '1.1.2.6.1'
+    cis_section: '1'
+    profile_applicability: "Level 2"
+    scope: suse.section_1.separate_partition_exists_for_var_log
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      For new installations, during installation create a custom partition setup and
+      specify a separate partition for /var/log . For systems that were previously
+      installed, create a new partition and configure /etc/fstab as appropriate.
+      References: 1. AJ Lewis, 'LVM HOWTO', http://tldp.org/HOWTO/LVM-HOWTO/ 2. NIST
+      SP 800-53 Rev. 5:: CM-6 b CM-7 3. NIST SP 800-53A :: CM-6.1 (iv) 4. RHEL 8
+      STIG Vul ID: V-230293 5. RHEL 8 STIG Rule ID: SV-230293r902720 Additional
+      Information: When modifying /var/log it is advisable to bring the system to
+      emergency mode (so auditd is not running), rename the existing directory,
+      mount the new file system, and migrate the data over before returning to
+      multiuser mode.
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_2_6_1
+
+  - rule_id: suse.cis.1.nodev_option_set_on_var_log_partition
+    title: "Ensure nodev option set on /var/log partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.6.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.nodev_option_set_on_var_log_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /var/log. Edit the /etc/fstab file and
+      add nodev to the fourth field (mounting options) for the /var/log partition.
+      Example: <device> /var/log <fstype> defaults,rw,nosuid,nodev,noexec,relatime 0
+      0 Run the following command to remount /var/log with the configured options: #
+      mount -o remount /var/log References: 1. See the fstab(5) manual page for more
+      information. 2. NIST SP 800-53 Rev. 5: AC-3, MP-2 3. NIST SP 800-53 Revision 5
+      :: CM-7 (2) 4. RHEL 8 STIG Vul ID: V-230514 5. RHEL 8 STIG Rule ID:
+      SV-230514r854055
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_2_6_2
+
+  - rule_id: suse.cis.1.nosuid_option_set_on_var_log_partition
+    title: "Ensure nosuid option set on /var/log partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.6.3'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.nosuid_option_set_on_var_log_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /var/log. Edit the /etc/fstab file and
+      add nosuid to the fourth field (mounting options) for the /var/log partition.
+      Example: <device> /var/log <fstype> defaults,rw,nosuid,nodev,noexec,relatime 0
+      0 Run the following command to remount /var/log with the configured options: #
+      mount -o remount /var/log References: 1. See the fstab(5) manual page for more
+      information. 2. NIST SP 800-53 Rev. 5: AC-3, MP-2 3. NIST SP 800-53 Revision 5
+      :: CM-7 (2) 4. RHEL 8 STIG Vul ID: V-230515 5. RHEL 8 STIG Rule ID:
+      SV-230515r854056
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_2_6_3
+
+  - rule_id: suse.cis.1.noexec_option_set_on_var_log_partition
+    title: "Ensure noexec option set on /var/log partition"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2.6.4'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.noexec_option_set_on_var_log_partition
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - a separate partition exists for /var/log. Edit the /etc/fstab file and
+      add noexec to the fourth field (mounting options) for the /var/log partition.
+      Example: <device> /var/log <fstype> defaults,rw,nosuid,nodev,noexec,relatime 0
+      0 Run the following command to remount /var/log with the configured options: #
+      mount -o remount /var/log References: 1. See the fstab(5) manual page for more
+      information. 2. NIST SP 800-53 Rev. 5: AC-3, MP-2 3. NIST SP 800-53 Revision 5
+      :: CM-7 (2) 4. RHEL 8 STIG Vul ID: V-230516 5. RHEL 8 STIG Rule ID:
+      SV-230516r854057
+    compliance:
+      - cis_suse_15_v2_0_1_1_1_2_6_4
+
+  - rule_id: suse.cis.1.gpgcheck_is_globally_activated
+    title: "Ensure gpgcheck is globally activated"
+    severity: high
+    automation_type: automated
+    cis_control: '1.2.1.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.gpgcheck_is_globally_activated
+    assertion:
+      field: value
+      operator: equals
+      expected: "off"
+    remediation: >
+      Edit /etc/zypp/zypp.conf and set gpgcheck=on: Example # sed -i
+      's/^gpgcheck\s*=\s*.*/gpgcheck=on/' /etc/zypp/zypp.conf Edit any failing files
+      in /etc/zypp/repos.d/* and set all instances starting with gpgcheck to on.
+      Example: # find /etc/zypp/repos.d/ -name '*.repo' -exec echo 'Checking:' {} \;
+      -exec sed -i 's/^gpgcheck\s*=\s*.*/gpgcheck=on/' {} \; Note: true,yes, or 1 is
+      also acceptable. References: 1. NIST SP 800-53 Rev. 5: SI-2
+    compliance:
+      - cis_suse_15_v2_0_1_1_2_1_2
+
+  - rule_id: suse.cis.1.apparmor_is_installed
+    title: "Ensure AppArmor is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '1.3.1.1'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.apparmor_is_installed
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to install apparmor-utils: # zypper install
+      apparmor-parser apparmor-profiles apparmor-utils libapparmor1 References: 1.
+      NIST SP 800-53 Rev. 5: AC-3 2.
+      https://documentation.suse.com/sles/15-SP6/html/SLES-all/cha-apparmor-
+      intro.html
+    compliance:
+      - cis_suse_15_v2_0_1_1_3_1_1
+
+  - rule_id: suse.cis.1.apparmor_is_enabled_in_the_bootloader
+    title: "Ensure AppArmor is enabled in the bootloader configuration"
+    severity: high
+    automation_type: automated
+    cis_control: '1.3.1.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.apparmor_is_enabled_in_the_bootloader
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Edit /etc/default/grub and add the apparmor=1 and security=apparmor parameters
+      to the GRUB_CMDLINE_LINUX= line GRUB_CMDLINE_LINUX='apparmor=1
+      security=apparmor' Run the following command to update the grub2
+      configuration: # grub2-mkconfig -o /boot/grub2/grub.cfg References: 1. NIST SP
+      800-53 Rev. 5: AC-3
+    compliance:
+      - cis_suse_15_v2_0_1_1_3_1_2
+
+  - rule_id: suse.cis.1.bootloader_password_is_set
+    title: "Ensure bootloader password is set"
+    severity: high
+    automation_type: automated
+    cis_control: '1.4.1'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.bootloader_password_is_set
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Create an encrypted password with grub2-mkpasswd-pbkdf2: # grub2-mkpasswd-
+      pbkdf2 Enter password:<password> Reenter password:<password> PBKDF2 hash of
+      your password is <encrypted-password> Add the following into
+      /etc/grub.d/40_custom set superusers='<username>' password_pbkdf2 <username>
+      <encrypted-password> Run the following command to import the changes into the
+      main configuration file: # grub2-mkconfig -o /boot/grub2/grub.cfg References:
+      1. NIST SP 800-53 Rev. 5: AC-3 2. NIST SP 800-53A :: AC-3.1 3.
+      https://documentation.suse.com/sles/15-SP6/html/SLES-all/cha-grub2.html 4.
+      https://www.gnu.org/software/grub/manual/grub/grub.html#Security Additional
+      Information: This recommendation is designed around the grub2 bootloader, if
+      LILO or another bootloader is in use in your environment enact equivalent
+      settings.
+    compliance:
+      - cis_suse_15_v2_0_1_1_4_1
+
+  - rule_id: suse.cis.1.address_space_layout_randomization_is_enabled
+    title: "Ensure address space layout randomization is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '1.5.1'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.address_space_layout_randomization_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Set the following parameter in /etc/sysctl.conf or a file in /etc/sysctl.d/
+      ending in .conf: • kernel.randomize_va_space = 2 Example: # printf '\n%s\n'
+      'kernel.randomize_va_space = 2' >> /etc/sysctl.d/60- kernel_sysctl.conf Run
+      the following command to set the active kernel parameter: # sysctl -w
+      kernel.randomize_va_space=2 Note: If these settings appear in a canonically
+      later file, or later in the same file, these settings will be overwritten
+      Default Value: kernel.randomize_va_space = 2 References: 1. CCI-000366: The
+      organization implements the security configuration settings 2. NIST SP 800-53:
+      CM-6 3. NIST SP 800-53A: CM-6.1 (iv) 4. NIST SP 800-53: SI-16
+    compliance:
+      - cis_suse_15_v2_0_1_1_5_1
+
+  - rule_id: suse.cis.1.core_dumps_are_restricted
+    title: "Ensure core dumps are restricted"
+    severity: high
+    automation_type: automated
+    cis_control: '1.5.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.core_dumps_are_restricted
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Add the following line to /etc/security/limits.conf or a
+      /etc/security/limits.d/* file: * hard core 0 Set the following parameter in
+      /etc/sysctl.conf or a /etc/sysctl.d/* file: fs.suid_dumpable = 0 Run the
+      following command to set the active kernel parameter: # sysctl -w
+      fs.suid_dumpable=0 - IF - systemd-coredump is installed: edit
+      /etc/systemd/coredump.conf and add/modify the following lines: Storage=none
+      ProcessSizeMax=0 Run the command: systemctl daemon-reload
+    compliance:
+      - cis_suse_15_v2_0_1_1_5_2
+
+  - rule_id: suse.cis.1.prelink_is_disabled
+    title: "Ensure prelink is disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '1.5.3'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.prelink_is_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Run the following command to restore binaries to normal: # prelink -ua Run the
+      following command to uninstall prelink: # zypper remove prelink
+    compliance:
+      - cis_suse_15_v2_0_1_1_5_3
+
+  - rule_id: suse.cis.1.crypto_policies_scripts_package_is_installed
+    title: "Ensure crypto-policies-scripts package is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '1.6.1'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.crypto_policies_scripts_package_is_installed
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to install crypto-policies-scripts: # zypper install
+      crypto-policies-scripts References: 1.
+      https://documentation.suse.com/sles/15-SP6/html/SLES-all/cha-security-
+      fips.html 2. crypto-policies(7) 3. update-crypto-policies(8)
+    compliance:
+      - cis_suse_15_v2_0_1_1_6_1
+
+  - rule_id: suse.cis.1.system_wide_crypto_policy_is_not_set_to_legacy
+    title: "Ensure system wide crypto policy is not set to legacy"
+    severity: high
+    automation_type: automated
+    cis_control: '1.6.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.system_wide_crypto_policy_is_not_set_to_legacy
+    assertion:
+      field: port
+      operator: gte
+      expected: "no"
+    remediation: >
+      Run the following command to change the system-wide crypto policy # update-
+      crypto-policies --set <CRYPTO POLICY> Example: # update-crypto-policies --set
+      DEFAULT Run the following to make the updated system-wide crypto policy active
+      # update-crypto-policies Default Value: DEFAULT References: 1. CRYPTO-
+      POLICIES(7) 2. fips-mode-setup(8) 3. NIST SP 800-53 Rev. 5: SC-8 Additional
+      Information: - IF - FIPS is required by local site policy: The system-wide
+      cryptographic policies contain a policy level that enables cryptographic
+      algorithms in accordance with the requirements by the Federal Information
+      Processing Standard (FIPS) Publication 140. The fips-mode-setup tool that
+      enables or disables FIPS mode internally uses the FIPS systemwide
+      cryptographic policy. Switching the system to FIPS mode by using the FIPS
+      system-wide cryptographic policy does not guarantee compliance with the FIPS
+      140 standard. Re-generating all cryptographic keys after setting the system to
+      FIPS mode may not be possible. For example, in the case of an existing IdM
+      realm with users' cryptographic keys you cannot re-generate all the keys. The
+      fips-mode-setup tool uses the FIPS policy internally. But on top of what the
+      update-crypto-policies command with the --set FIPS option does, fips-mode-
+      setup ensures the installation of the FIPS dracut module by using the fips-
+      finish- install tool, it also adds the fips=1 boot option to the kernel
+      command line and regenerates the initial ramdisk. IMPORTANT: Only enabling
+      FIPS mode during installation ensures that the system generates all keys with
+      FIPS-approved algorithms and continuous monitoring tests in place. Run the
+      following command to switch the system to FIPS mode: # fips-mode-setup
+      --enable Output: Kernel initramdisks are being regenerated. This might take
+      some time. Setting system policy to FIPS Note: System-wide crypto policies are
+      applied on application start-up. It is recommended to restart the system for
+      the change of policies to fully take place. FIPS mode will be enabled. Please
+      reboot the system for the setting to take effect. Run the following command to
+      restart the system: # reboot After the reboot has completed, run the following
+      command to verify FIPS mode: # fips-mode-setup --check Output: FIPS mode is
+      enabled.
+    compliance:
+      - cis_suse_15_v2_0_1_1_6_2
+
+  - rule_id: suse.cis.1.system_wide_crypto_policy_is_not_set_in_sshd
+    title: "Ensure system wide crypto policy is not set in sshd configuration"
+    severity: high
+    automation_type: automated
+    cis_control: '1.6.3'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.system_wide_crypto_policy_is_not_set_in_sshd
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Run the following commands: # sed -ri 's/^\s*(CRYPTO_POLICY\s*=.*)$/# \1/'
+      /etc/sysconfig/ssh # systemctl reload sshd References: 1. NIST SP 800-53 Rev.
+      5: SC-8, IA-5, AC-17
+    compliance:
+      - cis_suse_15_v2_0_1_1_6_3
+
+  - rule_id: suse.cis.1.system_wide_crypto_policy_disables_sha1_hash_and
+    title: "Ensure system wide crypto policy disables sha1 hash and signature support"
+    severity: high
+    automation_type: automated
+    cis_control: '1.6.4'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.system_wide_crypto_policy_disables_sha1_hash_and
+    assertion:
+      field: port
+      operator: equals
+      expected: "true"
+    remediation: >
+      Note: • The commands below are written for the included DEFAULT system-wide
+      crypto policy. If another policy is in use and follows local site policy,
+      replace DEFAULT with the name of your system-wide crypto policy. • Multiple
+      subpolicies may be assigned to a policy as a colon separated list. e.g.
+      DEFAULT:NO-SHA1:NO-SSHCBC • Subpolicies: o Not included in the update-crypto-
+      policies --set command will not be applied to the system wide crypto policy. o
+      must exist before they can be applied to the system wide crypto policy. o
+      .pmod file filenames must be in all upper case, upper case, e.g. NO-
+      SHA1.pmod, or they will not be read by the update-crypto-policies -- set
+      command. Create or edit a file in /etc/crypto-policies/policies/modules/
+      ending in .pmod and add or modify the following lines: hash = -SHA1 sign =
+      -*-SHA1 sha1_in_certs = 0 Example: # printf '%s\n' '# This is a subpolicy
+      dropping the SHA1 hash and signature support' 'hash = -SHA1' 'sign = -*-SHA1'
+      'sha1_in_certs = 0' >> /etc/crypto- policies/policies/modules/NO-SHA1.pmod Run
+      the following command to update the system-wide cryptographic policy # update-
+      crypto-policies --set
+      <CRYPTO_POLICY>:<CRYPTO_SUBPOLICY1>:<CRYPTO_SUBPOLICY2>:<CRYPTO_SUBPOLICY3>
+      Example: update-crypto-policies --set DEFAULT:NO-SHA1 Run the following
+      command to reboot the system to make your cryptographic settings effective for
+      already running services and applications: # reboot References: 1. crypto-
+      policies(7) 2. update-crypto-policies(8) 3. Red Hat Enterprise 8 security
+      hardening 4. https://www.redhat.com/en/blog/how-customize-crypto-policies-
+      rhel-82 5. https://access.redhat.com/articles/3642912 6. NIST SP 800-53 Rev.
+      5: SC-8
+    compliance:
+      - cis_suse_15_v2_0_1_1_6_4
+
+  - rule_id: suse.cis.1.system_wide_crypto_policy_disables_macs_less_than
+    title: "Ensure system wide crypto policy disables macs less than 128 bits"
+    severity: high
+    automation_type: automated
+    cis_control: '1.6.5'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.system_wide_crypto_policy_disables_macs_less_than
+    assertion:
+      field: length
+      operator: equals
+      expected: "true"
+    remediation: >
+      Note: • The commands below are written for the included DEFAULT system-wide
+      crypto policy. If another policy is in use and follows local site policy,
+      replace DEFAULT with the name of your system-wide crypto policy. • Multiple
+      subpolicies may be assigned to a policy as a colon separated list. e.g.
+      DEFAULT:NO-SHA1:NO-SSHCBC • Subpolicies: o Not included in the update-crypto-
+      policies --set command will not be applied to the system wide crypto policy. o
+      must exist before they can be applied to the system wide crypto policy. o
+      .pmod file filenames must be in all upper case, upper case, e.g. NO-
+      WEAKMAC.pmod, or they will not be read by the update-crypto-policies --set
+      command. Create or edit a file in /etc/crypto-policies/policies/modules/
+      ending in .pmod and add or modify one of the following lines: mac = -*-128* #
+      Disables weak macs Example: # printf '%s\n' '# This is a subpolicy to disable
+      weak macs' 'mac = -*-128' >> /etc/crypto-policies/policies/modules/NO-
+      WEAKMAC.pmod Run the following command to update the system-wide cryptographic
+      policy # update-crypto-policies --set
+      <CRYPTO_POLICY>:<CRYPTO_SUBPOLICY1>:<CRYPTO_SUBPOLICY2>:<CRYPTO_SUBPOLICY3>
+      Example: update-crypto-policies --set DEFAULT:NO-SHA1:NO-WEAKMAC Run the
+      following command to reboot the system to make your cryptographic settings
+      effective for already running services and applications: # reboot References:
+      1. https://nvd.nist.gov/vuln/detail/CVE-2008-5161 2. crypto-policies(7) 3.
+      update-crypto-policies(8) 4. Red Hat Enterprise 8 security hardening 5.
+      https://www.redhat.com/en/blog/how-customize-crypto-policies-rhel-82 6.
+      https://csrc.nist.gov/glossary/term/message_authentication_code_algorithm 7.
+      NIST SP 800-53 Rev. 5: SC-8
+    compliance:
+      - cis_suse_15_v2_0_1_1_6_5
+
+  - rule_id: suse.cis.1.system_wide_crypto_policy_disables_cbc_for_ssh
+    title: "Ensure system wide crypto policy disables cbc for ssh"
+    severity: high
+    automation_type: automated
+    cis_control: '1.6.6'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.system_wide_crypto_policy_disables_cbc_for_ssh
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Note: • The commands below are written for the included DEFAULT system-wide
+      crypto policy. If another policy is in use and follows local site policy,
+      replace DEFAULT with the name of your system-wide crypto policy. • CBC can be
+      turned off globally by using the argument cipher opposed to cipher@SSH •
+      Multiple subpolicies may be assigned to a policy as a colon separated list.
+      e.g. DEFAULT:NO-SHA1:NO-SSHCBC • Subpolicies: o Not included in the update-
+      crypto-policies --set command will not be applied to the system wide crypto
+      policy. o must exist before they can be applied to the system wide crypto
+      policy. o .pmod file filenames must be in all upper case, upper case, e.g. NO-
+      SSHCBC.pmod, or they will not be read by the update-crypto-policies --set
+      command. Create or edit a file in /etc/crypto-policies/policies/modules/
+      ending in .pmod and add or modify one of the the following lines: cipher@SSH =
+      -*-CBC # Disables the CBC cipher for SSH Example: # printf '%s\n' '# This is a
+      subpolicy to disable all CBC mode ciphers' '# for the SSH protocol (libssh and
+      OpenSSH)' 'cipher@SSH = -*-CBC' >> /etc/crypto-policies/policies/modules/NO-
+      SSHCBC.pmod Run the following command to update the system-wide cryptographic
+      policy # update-crypto-policies --set
+      <CRYPTO_POLICY>:<CRYPTO_SUBPOLICY1>:<CRYPTO_SUBPOLICY2>:<CRYPTO_SUBPOLICY3>
+      Example: update-crypto-policies --set DEFAULT:NO-SHA1:NO-WEAKMAC:NO-SSHCBC Run
+      the following command to reboot the system to make your cryptographic settings
+      effective for already running services and applications: # reboot References:
+      1. https://nvd.nist.gov/vuln/detail/CVE-2008-5161 2. crypto-policies(7) 3.
+      update-crypto-policies(8) 4. Red Hat Enterprise 8 security hardening 5.
+      https://www.redhat.com/en/blog/how-customize-crypto-policies-rhel-82 6. NIST
+      SP 800-53 Rev. 5: SC-8
+    compliance:
+      - cis_suse_15_v2_0_1_1_6_6
+
+  - rule_id: suse.cis.1.system_wide_crypto_policy_disables_chacha20
+    title: "Ensure system wide crypto policy disables chacha20- poly1305 for ssh"
+    severity: high
+    automation_type: automated
+    cis_control: '1.6.7'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.system_wide_crypto_policy_disables_chacha20
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Note: • The commands below are written for the included DEFAULT system-wide
+      crypto policy. If another policy is in use and follows local site policy,
+      replace DEFAULT with the name of your system-wide crypto policy. •
+      chacha20-poly1305 can be turned off globally by using the argument cipher
+      opposed to cipher@SSH • Multiple subpolicies may be assigned to a policy as a
+      colon separated list. e.g. DEFAULT:NO-SHA1:NO-SSHCBC • Subpolicies: o Not
+      included in the update-crypto-policies --set command will not be applied to
+      the system wide crypto policy. o must exist before they can be applied to the
+      system wide crypto policy. o .pmod file filenames must be in all upper case,
+      upper case, e.g. NO- SSHCHACHA20.pmod, or they will not be read by the update-
+      crypto- policies --set command. - IF - CVE-2023-48795 has been addressed, and
+      it meets local site policy, this recommendation may be skipped. Create or edit
+      a file in /etc/crypto-policies/policies/modules/ ending in .pmod and add or
+      modify one of the the following lines: cipher@SSH = -CHACHA20-POLY1305 #
+      Disables the chacha20-poly1305 cipher for SSH Example: # printf '%s\n' '# This
+      is a subpolicy to disable the chacha20-poly1305 ciphers' '# for the SSH
+      protocol (libssh and OpenSSH)' 'cipher@SSH = - CHACHA20-POLY1305' >>
+      /etc/crypto-policies/policies/modules/NO- SSHCHACHA20.pmod Run the following
+      command to update the system-wide cryptographic policy # update-crypto-
+      policies --set
+      <CRYPTO_POLICY>:<CRYPTO_SUBPOLICY1>:<CRYPTO_SUBPOLICY2>:<CRYPTO_SUBPOLICY3>
+      Example: # update-crypto-policies --set DEFAULT:NO-SHA1:NO-WEAKMAC:NO-
+      SSHCBC:NO- SSHCHACHA20 Run the following command to reboot the system to make
+      your cryptographic settings effective for already running services and
+      applications: # reboot References: 1.
+      https://nvd.nist.gov/vuln/detail/CVE-2023-48795 2. crypto-policies(7) 3.
+      update-crypto-policies(8) 4. Red Hat Enterprise 8 security hardening 5.
+      https://www.redhat.com/en/blog/how-customize-crypto-policies-rhel-82 6. NIST
+      SP 800-53 Rev. 5: SC-8
+    compliance:
+      - cis_suse_15_v2_0_1_1_6_7
+
+  - rule_id: suse.cis.1.gdm_screen_locks_when_the_user_is_idle
+    title: "Ensure GDM screen locks when the user is idle"
+    severity: high
+    automation_type: automated
+    cis_control: '1.8.4'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.gdm_screen_locks_when_the_user_is_idle
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "on"
+    remediation: >
+      Create or edit a file in the /etc/dconf/profile/ and verify it includes the
+      following: user-db:user system-db:{NAME_OF_DCONF_DATABASE} Note: local is the
+      name of a dconf database used in the examples. Example: # echo -e '\nuser-
+      db:user\nsystem-db:local' >> /etc/dconf/profile/user Create the directory
+      /etc/dconf/db/{NAME_OF_DCONF_DATABASE}.d/ if it doesn't already exist:
+      Example: # mkdir /etc/dconf/db/local.d Create the key file
+      /etc/dconf/db/{NAME_OF_DCONF_DATABASE}.d/{FILE_NAME} to provide information
+      for the {NAME_OF_DCONF_DATABASE} database: Example script: #!/usr/bin/env bash
+      { l_key_file='/etc/dconf/db/local.d/00-screensaver' l_idmv='900' # Set max
+      value for idle-delay in seconds (between 1 and 900) l_ldmv='5' # Set max value
+      for lock-delay in seconds (between 0 and 5) { echo '# Specify the dconf path'
+      echo '[org/gnome/desktop/session]' echo '' echo '# Number of seconds of
+      inactivity before the screen goes blank' echo '# Set to 0 seconds if you want
+      to deactivate the screensaver.' echo 'idle-delay=uint32 $l_idmv' echo '' echo
+      '# Specify the dconf path' echo '[org/gnome/desktop/screensaver]' echo '' echo
+      '# Number of seconds after the screen is blank before locking the screen' echo
+      'lock-delay=uint32 $l_ldmv' } > '$l_key_file' } Note: You must include the
+      uint32 along with the integer key values as shown. Run the following command
+      to update the system databases: # dconf update Note: Users must log out and
+      back in again before the system-wide settings take effect. References: 1.
+      https://help.gnome.org/admin/system-admin-guide/stable/desktop-
+      lockscreen.html.en
+    compliance:
+      - cis_suse_15_v2_0_1_1_8_4
+
+  - rule_id: suse.cis.1.gdm_screen_locks_cannot_be_overridden
+    title: "Ensure GDM screen locks cannot be overridden"
+    severity: high
+    automation_type: automated
+    cis_control: '1.8.5'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.gdm_screen_locks_cannot_be_overridden
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following script to ensure screen locks cannot be overridden:
+      #!/usr/bin/env bash { # Check if GNMOE Desktop Manager is installed. If
+      package isn't installed, recommendation is Not Applicable\n # determine
+      system's package manager l_pkgoutput='' if command -v dpkg-query > /dev/null
+      2>&1; then l_pq='dpkg-query -W' elif command -v rpm > /dev/null 2>&1; then
+      l_pq='rpm -q' fi # Check if GDM is installed l_pcl='gdm gdm3' # Space
+      separated list of packages to check for l_pn in $l_pcl; do $l_pq '$l_pn' >
+      /dev/null 2>&1 && l_pkgoutput='y' && echo -e '\n - Package: \'$l_pn\' exists
+      on the system\n - remediating configuration if needed' done # Check
+      configuration (If applicable) if [ -n '$l_pkgoutput' ]; then # Look for idle-
+      delay to determine profile in use, needed for remaining tests
+      l_kfd='/etc/dconf/db/$(grep -Psril '^\h*idle- delay\h*=\h*uint32\h+\d+\b'
+      /etc/dconf/db/*/ | awk -F'/' '{split($(NF- 1),a,'.');print a[1]}').d' #set
+      directory of key file to be locked # Look for lock-delay to determine profile
+      in use, needed for remaining tests l_kfd2='/etc/dconf/db/$(grep -Psril
+      '^\h*lock- delay\h*=\h*uint32\h+\d+\b' /etc/dconf/db/*/ | awk -F'/'
+      '{split($(NF- 1),a,'.');print a[1]}').d' #set directory of key file to be
+      locked if [ -d '$l_kfd' ]; then # If key file directory doesn't exist, options
+      can't be locked if grep -Prilq '^\h*\/org\/gnome\/desktop\/session\/idle-
+      delay\b' '$l_kfd'; then echo ' - \'idle-delay\' is locked in \'$(grep -Pril
+      '^\h*\/org\/gnome\/desktop\/session\/idle-delay\b' '$l_kfd')\'' else echo
+      'creating entry to lock \'idle-delay\'' [ ! -d '$l_kfd'/locks ] && echo
+      'creating directory $l_kfd/locks' && mkdir '$l_kfd'/locks { echo -e '\n# Lock
+      desktop screensaver idle-delay setting' echo '/org/gnome/desktop/session/idle-
+      delay' } >> '$l_kfd'/locks/00-screensaver fi else echo -e ' - \'idle-delay\'
+      is not set so it can not be locked\n - Please follow Recommendation \'Ensure
+      GDM screen locks when the user is idle\' and follow this Recommendation again'
+      fi if [ -d '$l_kfd2' ]; then # If key file directory doesn't exist, options
+      can't be locked if grep -Prilq '^\h*\/org\/gnome\/desktop\/screensaver\/lock-
+      delay\b' '$l_kfd2'; then echo ' - \'lock-delay\' is locked in \'$(grep -Pril
+      '^\h*\/org\/gnome\/desktop\/screensaver\/lock-delay\b' '$l_kfd2')\'' else echo
+      'creating entry to lock \'lock-delay\'' [ ! -d '$l_kfd2'/locks ] && echo
+      'creating directory $l_kfd2/locks' && mkdir '$l_kfd2'/locks { echo -e '\n#
+      Lock desktop screensaver lock-delay setting' echo
+      '/org/gnome/desktop/screensaver/lock-delay' } >>
+      '$l_kfd2'/locks/00-screensaver fi else echo -e ' - \'lock-delay\' is not set
+      so it can not be locked\n - Please follow Recommendation \'Ensure GDM screen
+      locks when the user is idle\' and follow this Recommendation again' fi else
+      echo -e ' - GNOME Desktop Manager package is not installed on the system\n -
+      Recommendation is not applicable' fi } Run the following command to update the
+      system databases: # dconf update Note: Users must log out and back in again
+      before the system-wide settings take effect. References: 1.
+      https://help.gnome.org/admin/system-admin-guide/stable/desktop-
+      lockscreen.html.en 2. https://help.gnome.org/admin/system-admin-
+      guide/stable/dconf-lockdown.html.en
+    compliance:
+      - cis_suse_15_v2_0_1_1_8_5
+
+  - rule_id: suse.cis.1.gdm_automatic_mounting_of_removable_media_is
+    title: "Ensure GDM automatic mounting of removable media is disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '1.8.6'
+    cis_section: '1'
+    profile_applicability: "Level 1 + Level 2"
+    scope: suse.section_1.gdm_automatic_mounting_of_removable_media_is
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Run the following script to disable automatic mounting of media for all GNOME
+      users: #!/usr/bin/env bash { l_pkgoutput='' l_gpname='local' # Set to desired
+      dconf profile name (default is local) # Check if GNOME Desktop Manager is
+      installed. If package isn't installed, recommendation is Not Applicable\n #
+      determine system's package manager if command -v dpkg-query > /dev/null 2>&1;
+      then l_pq='dpkg-query -W' elif command -v rpm > /dev/null 2>&1; then l_pq='rpm
+      -q' fi # Check if GDM is installed l_pcl='gdm gdm3' # Space separated list of
+      packages to check for l_pn in $l_pcl; do $l_pq '$l_pn' > /dev/null 2>&1 &&
+      l_pkgoutput='$l_pkgoutput\n - Package: \'$l_pn\' exists on the system\n -
+      checking configuration' done # Check configuration (If applicable) if [ -n
+      '$l_pkgoutput' ]; then echo -e '$l_pkgoutput' # Look for existing settings and
+      set variables if they exist l_kfile='$(grep -Prils -- '^\h*automount\b'
+      /etc/dconf/db/*.d)' l_kfile2='$(grep -Prils -- '^\h*automount-open\b'
+      /etc/dconf/db/*.d)' # Set profile name based on dconf db directory
+      ({PROFILE_NAME}.d) if [ -f '$l_kfile' ]; then l_gpname='$(awk -F\/
+      '{split($(NF-1),a,'.');print a[1]}' <<< '$l_kfile')' echo ' - updating dconf
+      profile name to \'$l_gpname\'' elif [ -f '$l_kfile2' ]; then l_gpname='$(awk
+      -F\/ '{split($(NF-1),a,'.');print a[1]}' <<< '$l_kfile2')' echo ' - updating
+      dconf profile name to \'$l_gpname\'' fi # check for consistency (Clean up
+      configuration if needed) if [ -f '$l_kfile' ] && [ '$(awk -F\/
+      '{split($(NF-1),a,'.');print a[1]}' <<< '$l_kfile')' != '$l_gpname' ]; then
+      sed -ri '/^\s*automount\s*=/s/^/# /' '$l_kfile'
+      l_kfile='/etc/dconf/db/$l_gpname.d/00-media-automount' fi if [ -f '$l_kfile2'
+      ] && [ '$(awk -F\/ '{split($(NF-1),a,'.');print a[1]}' <<< '$l_kfile2')' !=
+      '$l_gpname' ]; then sed -ri '/^\s*automount-open\s*=/s/^/# /' '$l_kfile2' fi [
+      -z '$l_kfile' ] && l_kfile='/etc/dconf/db/$l_gpname.d/00-media- automount' #
+      Check if profile file exists if grep -Pq -- '^\h*system-db:$l_gpname\b'
+      /etc/dconf/profile/*; then echo -e '\n - dconf database profile exists in:
+      \'$(grep -Pl -- '^\h*system-db:$l_gpname\b' /etc/dconf/profile/*)\'' else if [
+      ! -f '/etc/dconf/profile/user' ]; then l_gpfile='/etc/dconf/profile/user' else
+      l_gpfile='/etc/dconf/profile/user2' fi echo -e ' - creating dconf database
+      profile' { echo -e '\nuser-db:user' echo 'system-db:$l_gpname' } >>
+      '$l_gpfile' fi # create dconf directory if it doesn't exists
+      l_gpdir='/etc/dconf/db/$l_gpname.d' if [ -d '$l_gpdir' ]; then echo ' - The
+      dconf database directory \'$l_gpdir\' exists' else echo ' - creating dconf
+      database directory \'$l_gpdir\'' mkdir '$l_gpdir' fi # check automount-open
+      setting if grep -Pqs -- '^\h*automount-open\h*=\h*false\b' '$l_kfile'; then
+      echo ' - \'automount-open\' is set to false in: \'$l_kfile\'' else echo ' -
+      creating \'automount-open\' entry in \'$l_kfile\'' ! grep -Psq --
+      '\^\h*\[org\/gnome\/desktop\/media-handling\]\b' '$l_kfile' && echo
+      '[org/gnome/desktop/media-handling]' >> '$l_kfile' sed -ri
+      '/^\s*\[org\/gnome\/desktop\/media-handling\]/a \\nautomount-open=false'
+      '$l_kfile' fi # check automount setting if grep -Pqs --
+      '^\h*automount\h*=\h*false\b' '$l_kfile'; then echo ' - \'automount\' is set
+      to false in: \'$l_kfile\'' else echo ' - creating \'automount\' entry in
+      \'$l_kfile\'' ! grep -Psq -- '\^\h*\[org\/gnome\/desktop\/media-handling\]\b'
+      '$l_kfile' && echo '[org/gnome/desktop/media-handling]' >> '$l_kfile' sed -ri
+      '/^\s*\[org\/gnome\/desktop\/media-handling\]/a \\nautomount=false' '$l_kfile'
+      fi # update dconf database dconf update else echo -e '\n - GNOME Desktop
+      Manager package is not installed on the system\n - Recommendation is not
+      applicable' fi } - OR - Run the following command to uninstall the GNOME
+      desktop Manager package: # zypper remove gdm References: 1.
+      https://access.redhat.com/solutions/20107
+    compliance:
+      - cis_suse_15_v2_0_1_1_8_6
+
+  - rule_id: suse.cis.1.gdm_disabling_automatic_mounting_of_removable
+    title: "Ensure GDM disabling automatic mounting of removable media is not overridden"
+    severity: high
+    automation_type: automated
+    cis_control: '1.8.7'
+    cis_section: '1'
+    profile_applicability: "Level 1 + Level 2"
+    scope: suse.section_1.gdm_disabling_automatic_mounting_of_removable
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following script to lock disable automatic mounting of media for all
+      GNOME users: #!/usr/bin/env bash { # Check if GNMOE Desktop Manager is
+      installed. If package isn't installed, recommendation is Not Applicable\n #
+      determine system's package manager l_pkgoutput='' if command -v dpkg-query >
+      /dev/null 2>&1; then l_pq='dpkg-query -W' elif command -v rpm > /dev/null
+      2>&1; then l_pq='rpm -q' fi # Check if GDM is installed l_pcl='gdm gdm3' #
+      Space separated list of packages to check for l_pn in $l_pcl; do $l_pq '$l_pn'
+      > /dev/null 2>&1 && l_pkgoutput='y' && echo -e '\n - Package: \'$l_pn\' exists
+      on the system\n - remediating configuration if needed' done # Check
+      configuration (If applicable) if [ -n '$l_pkgoutput' ]; then # Look for
+      automount to determine profile in use, needed for remaining tests
+      l_kfd='/etc/dconf/db/$(grep -Psril '^\h*automount\b' /etc/dconf/db/*/ | awk
+      -F'/' '{split($(NF-1),a,'.');print a[1]}').d' #set directory of key file to be
+      locked # Look for automount-open to determine profile in use, needed for
+      remaining tests l_kfd2='/etc/dconf/db/$(grep -Psril '^\h*automount-open\b'
+      /etc/dconf/db/*/ | awk -F'/' '{split($(NF-1),a,'.');print a[1]}').d' #set
+      directory of key file to be locked if [ -d '$l_kfd' ]; then # If key file
+      directory doesn't exist, options can't be locked if grep -Priq
+      '^\h*\/org/gnome\/desktop\/media- handling\/automount\b' '$l_kfd'; then echo '
+      - \'automount\' is locked in \'$(grep -Pril '^\h*\/org/gnome\/desktop\/media-
+      handling\/automount\b' '$l_kfd')\'' else echo ' - creating entry to lock
+      \'automount\'' [ ! -d '$l_kfd'/locks ] && echo 'creating directory
+      $l_kfd/locks' && mkdir '$l_kfd'/locks { echo -e '\n# Lock desktop media-
+      handling automount setting' echo '/org/gnome/desktop/media-handling/automount'
+      } >> '$l_kfd'/locks/00-media-automount fi else echo -e ' - \'automount\' is
+      not set so it can not be locked\n - Please follow Recommendation \'Ensure GDM
+      automatic mounting of removable media is disabled\' and follow this
+      Recommendation again' fi if [ -d '$l_kfd2' ]; then # If key file directory
+      doesn't exist, options can't be locked if grep -Priq
+      '^\h*\/org/gnome\/desktop\/media-handling\/automount- open\b' '$l_kfd2'; then
+      echo ' - \'automount-open\' is locked in \'$(grep -Pril
+      '^\h*\/org/gnome\/desktop\/media-handling\/automount-open\b' '$l_kfd2')\''
+      else echo ' - creating entry to lock \'automount-open\'' [ ! -d
+      '$l_kfd2'/locks ] && echo 'creating directory $l_kfd2/locks' && mkdir
+      '$l_kfd2'/locks { echo -e '\n# Lock desktop media-handling automount-open
+      setting' echo '/org/gnome/desktop/media-handling/automount-open' } >>
+      '$l_kfd2'/locks/00-media-automount fi else echo -e ' - \'automount-open\' is
+      not set so it can not be locked\n - Please follow Recommendation \'Ensure GDM
+      automatic mounting of removable media is disabled\' and follow this
+      Recommendation again' fi # update dconf database dconf update else echo -e ' -
+      GNOME Desktop Manager package is not installed on the system\n -
+      Recommendation is not applicable' fi } References: 1.
+      https://help.gnome.org/admin/system-admin-guide/stable/dconf-lockdown.html.en
+    compliance:
+      - cis_suse_15_v2_0_1_1_8_7
+
+  - rule_id: suse.cis.1.gdm_autorun_never_is_enabled
+    title: "Ensure GDM autorun-never is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '1.8.8'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.gdm_autorun_never_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following script to set autorun-never to true for GDM users:
+      #!/usr/bin/env bash { l_pkgoutput='' l_output='' l_output2='' l_gpname='local'
+      # Set to desired dconf profile name (default is local) # Check if GNOME
+      Desktop Manager is installed. If package isn't installed, recommendation is
+      Not Applicable\n # determine system's package manager if command -v dpkg-query
+      > /dev/null 2>&1; then l_pq='dpkg-query -W' elif command -v rpm > /dev/null
+      2>&1; then l_pq='rpm -q' fi # Check if GDM is installed l_pcl='gdm gdm3' #
+      Space separated list of packages to check for l_pn in $l_pcl; do $l_pq '$l_pn'
+      > /dev/null 2>&1 && l_pkgoutput='$l_pkgoutput\n - Package: \'$l_pn\' exists on
+      the system\n - checking configuration' done echo -e '$l_pkgoutput' # Check
+      configuration (If applicable) if [ -n '$l_pkgoutput' ]; then echo -e
+      '$l_pkgoutput' # Look for existing settings and set variables if they exist
+      l_kfile='$(grep -Prils -- '^\h*autorun-never\b' /etc/dconf/db/*.d)' # Set
+      profile name based on dconf db directory ({PROFILE_NAME}.d) if [ -f '$l_kfile'
+      ]; then l_gpname='$(awk -F\/ '{split($(NF-1),a,'.');print a[1]}' <<<
+      '$l_kfile')' echo ' - updating dconf profile name to \'$l_gpname\'' fi [ ! -f
+      '$l_kfile' ] && l_kfile='/etc/dconf/db/$l_gpname.d/00-media- autorun' # Check
+      if profile file exists if grep -Pq -- '^\h*system-db:$l_gpname\b'
+      /etc/dconf/profile/*; then echo -e '\n - dconf database profile exists in:
+      \'$(grep -Pl -- '^\h*system-db:$l_gpname\b' /etc/dconf/profile/*)\'' else [ !
+      -f '/etc/dconf/profile/user' ] && l_gpfile='/etc/dconf/profile/user' ||
+      l_gpfile='/etc/dconf/profile/user2' echo -e ' - creating dconf database
+      profile' { echo -e '\nuser-db:user' echo 'system-db:$l_gpname' } >>
+      '$l_gpfile' fi # create dconf directory if it doesn't exists
+      l_gpdir='/etc/dconf/db/$l_gpname.d' if [ -d '$l_gpdir' ]; then echo ' - The
+      dconf database directory \'$l_gpdir\' exists' else echo ' - creating dconf
+      database directory \'$l_gpdir\'' mkdir '$l_gpdir' fi # check autorun-never
+      setting if grep -Pqs -- '^\h*autorun-never\h*=\h*true\b' '$l_kfile'; then echo
+      ' - \'autorun-never\' is set to true in: \'$l_kfile\'' else echo ' - creating
+      or updating \'autorun-never\' entry in \'$l_kfile\'' if grep -Psq --
+      '^\h*autorun-never' '$l_kfile'; then sed -ri 's/(^\s*autorun-
+      never\s*=\s*)(\S+)(\s*.*)$/\1true \3/' '$l_kfile' else ! grep -Psq --
+      '\^\h*\[org\/gnome\/desktop\/media-handling\]\b' '$l_kfile' && echo
+      '[org/gnome/desktop/media-handling]' >> '$l_kfile' sed -ri
+      '/^\s*\[org\/gnome\/desktop\/media-handling\]/a \\nautorun-never=true'
+      '$l_kfile' fi fi else echo -e '\n - GNOME Desktop Manager package is not
+      installed on the system\n - Recommendation is not applicable' fi # update
+      dconf database dconf update } Default Value: false
+    compliance:
+      - cis_suse_15_v2_0_1_1_8_8
+
+  - rule_id: suse.cis.1.gdm_autorun_never_is_not_overridden
+    title: "Ensure GDM autorun-never is not overridden"
+    severity: high
+    automation_type: automated
+    cis_control: '1.8.9'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.gdm_autorun_never_is_not_overridden
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following script to ensure that autorun-never=true cannot be
+      overridden: #!/usr/bin/env bash { # Check if GNOME Desktop Manager is
+      installed. If package isn't installed, recommendation is Not Applicable\n #
+      determine system's package manager l_pkgoutput='' if command -v dpkg-query >
+      /dev/null 2>&1; then l_pq='dpkg-query -W' elif command -v rpm > /dev/null
+      2>&1; then l_pq='rpm -q' fi # Check if GDM is installed l_pcl='gdm gdm3' #
+      Space separated list of packages to check for l_pn in $l_pcl; do $l_pq '$l_pn'
+      > /dev/null 2>&1 && l_pkgoutput='y' && echo -e '\n - Package: \'$l_pn\' exists
+      on the system\n - remediating configuration if needed' done # Check
+      configuration (If applicable) if [ -n '$l_pkgoutput' ]; then # Look for
+      autorun to determine profile in use, needed for remaining tests
+      l_kfd='/etc/dconf/db/$(grep -Psril '^\h*autorun-never\b' /etc/dconf/db/*/ |
+      awk -F'/' '{split($(NF-1),a,'.');print a[1]}').d' #set directory of key file
+      to be locked if [ -d '$l_kfd' ]; then # If key file directory doesn't exist,
+      options can't be locked if grep -Priq '^\h*\/org/gnome\/desktop\/media-
+      handling\/autorun- never\b' '$l_kfd'; then echo ' - \'autorun-never\' is
+      locked in \'$(grep -Pril '^\h*\/org/gnome\/desktop\/media-handling\/autorun-
+      never\b' '$l_kfd')\'' else echo ' - creating entry to lock \'autorun-never\''
+      [ ! -d '$l_kfd'/locks ] && echo 'creating directory $l_kfd/locks' && mkdir
+      '$l_kfd'/locks { echo -e '\n# Lock desktop media-handling autorun-never
+      setting' echo '/org/gnome/desktop/media-handling/autorun-never' } >>
+      '$l_kfd'/locks/00-media-autorun fi else echo -e ' - \'autorun-never\' is not
+      set so it can not be locked\n - Please follow Recommendation \'Ensure GDM
+      autorun-never is enabled\' and follow this Recommendation again' fi # update
+      dconf database dconf update else echo -e ' - GNOME Desktop Manager package is
+      not installed on the system\n - Recommendation is not applicable' fi }
+    compliance:
+      - cis_suse_15_v2_0_1_1_8_9
+
+  - rule_id: suse.cis.1.mounting_of_squashfs_filesystems_is_disabled
+    title: "Ensure mounting of squashfs filesystems is disabled"
+    severity: medium
+    automation_type: automated
+    cis_control: '1.1.1.1'
+    cis_section: '1'
+    profile_applicability: "Level 2"
+    scope: suse.section_1.mounting_of_squashfs_filesystems_is_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Edit or create a file in the /etc/modprobe.d/ directory ending in .conf
+      Example: vi /etc/modprobe.d/squashfs.conf and add the following line: install
+      squashfs /bin/true Run the following command to unload the squashfs module: #
+      modprobe -r squashfs
+    compliance:
+      - cis_suse_12_v3_2_1_1_1_1_1
+
+  - rule_id: suse.cis.1.mounting_of_udf_filesystems_is_disabled
+    title: "Ensure mounting of udf filesystems is disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.1.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.mounting_of_udf_filesystems_is_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Edit or create a file in the /etc/modprobe.d/ directory ending in .conf
+      Example: vi /etc/modprobe.d/udf.conf and add the following line: install udf
+      /bin/true Run the following command to unload the udf module: # modprobe -r
+      udf
+    compliance:
+      - cis_suse_12_v3_2_1_1_1_1_2
+
+  - rule_id: suse.cis.1.mounting_of_fat_filesystems_is_limited
+    title: "Ensure mounting of FAT filesystems is limited"
+    severity: medium
+    automation_type: automated
+    cis_control: '1.1.1.3'
+    cis_section: '1'
+    profile_applicability: "Level 2"
+    scope: suse.section_1.mounting_of_fat_filesystems_is_limited
+    assertion:
+      field: port
+      operator: equals
+      expected: "no"
+    remediation: >
+      Edit or create a file in the /etc/modprobe.d/ directory ending in .conf and
+      add the following lines: Example: vim /etc/modprobe.d/fat.conf install fat
+      /bin/true install vfat /bin/true install msdos /bin/true Run the following
+      commands to unload the msdos, vfat, and fat modules: # modprobe -r msdos #
+      modprobe -r vfat # modprobe -r fat
+    compliance:
+      - cis_suse_12_v3_2_1_1_1_1_3
+
+  - rule_id: suse.cis.1.tmp_is_configured
+    title: "Ensure /tmp is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.tmp_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      Create or update an entry for /tmp in either /etc/fstab - OR - in a systemd
+      tmp.mount file: - IF - /etc/fstab is used: • Configure /etc/fstab as
+      appropriate. _ Example:_ tmpfs /tmp tmpfs
+      defaults,rw,nosuid,nodev,noexec,relatime 0 0 • Run the following command to
+      remount /tmp # mount -o remount,noexec,nodev,nosuid /tmp - OR - - IF - an
+      explicit systemd target is used to mount /tmp:_ • Run the following command to
+      create the file /etc/systemd/system/tmp.mount if it doesn't exist: # [ ! -f
+      /etc/systemd/system/tmp.mount ] && cp -v /usr/share/systemd/tmp.mount
+      /etc/systemd/system/ • Edit the file /etc/systemd/system/tmp.mount: Example
+      tmp.mount file: # This file is part of systemd. # # systemd is free software;
+      you can redistribute it and/or modify it # under the terms of the GNU Lesser
+      General Public License as published by # the Free Software Foundation; either
+      version 2.1 of the License, or # (at your option) any later version. [Unit]
+      Description=Temporary Directory (/tmp) Documentation=man:hier(7)
+      Documentation=https://www.freedesktop.org/wiki/Software/systemd/APIFileSystem
+      s ConditionPathIsSymbolicLink=!/tmp DefaultDependencies=no
+      Conflicts=umount.target Before=local-fs.target umount.target After=swap.target
+      [Mount] What=tmpfs Where=/tmp Type=tmpfs
+      Options=mode=1777,strictatime,nosuid,nodev,nosuid [Install] WantedBy=local-
+      fs.target • Run the following command to reload the systemd daemon: #
+      systemctl daemon-reload • Run the following command to unmask tmp.mount: #
+      systemctl unmask tmp.mount • Run the following command to enable and start
+      tmp.mount: # systemctl enable --now tmp.mount References: 1. AJ Lewis, 'LVM
+      HOWTO', http://tldp.org/HOWTO/LVM-HOWTO/ 2.
+      https://www.freedesktop.org/wiki/Software/systemd/APIFileSystems/
+    compliance:
+      - cis_suse_12_v3_2_1_1_1_2
+
+  - rule_id: suse.cis.1.sticky_bit_is_set_on_all_world_writable
+    title: "Ensure sticky bit is set on all world-writable directories"
+    severity: high
+    automation_type: automated
+    cis_control: '1.1.22'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.sticky_bit_is_set_on_all_world_writable
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Run the following command to set the sticky bit on all world writable
+      directories: # df --local -P | awk '{if (NR!=1) print $6}' | xargs -I '{}'
+      find '{}' -xdev -type d \( -perm -0002 -a ! -perm -1000 \) 2>/dev/null | xargs
+      -I '{}' chmod a+t '{}'
+    compliance:
+      - cis_suse_12_v3_2_1_1_1_22
+
+  - rule_id: suse.cis.1.aide_is_installed
+    title: "Ensure AIDE is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '1.4.1'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.aide_is_installed
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Configure AIDE as appropriate for your environment. Consult the AIDE
+      documentation for options. Run the following command to install AIDE: # zypper
+      install aide Run the following commands to initialize AIDE: # aide --init # mv
+      /var/lib/aide/aide.db.new /var/lib/aide/aide.db
+    compliance:
+      - cis_suse_12_v3_2_1_1_4_1
+
+  - rule_id: suse.cis.1.filesystem_integrity_is_regularly_checked
+    title: "Ensure filesystem integrity is regularly checked"
+    severity: high
+    automation_type: automated
+    cis_control: '1.4.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.filesystem_integrity_is_regularly_checked
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF - cron will be used to schedule and run aide check Run the following
+      command: # crontab -u root -e Add the following line to the crontab: 0 5 * * *
+      /usr/bin/aide --check - OR/IF - aidecheck.service and aidecheck.timer will be
+      used to schedule and run aide check: Create or edit the file
+      /etc/systemd/system/aidecheck.service and add the following lines: [Unit]
+      Description=Aide Check [Service] Type=simple ExecStart=/usr/bin/aide --check
+      [Install] WantedBy=multi-user.target Create or edit the file
+      /etc/systemd/system/aidecheck.timer and add the following lines: [Unit]
+      Description=Aide check every day at 5AM [Timer] OnCalendar=*-*-* 05:00:00
+      Unit=aidecheck.service [Install] WantedBy=multi-user.target Run the following
+      commands: # chown root:root /etc/systemd/system/aidecheck.* # chmod 0644
+      /etc/systemd/system/aidecheck.* # systemctl daemon-reload # systemctl enable
+      aidecheck.service # systemctl --now enable aidecheck.timer References: 1.
+      https://github.com/konstruktoid/hardening/blob/master/config/aidecheck.service
+      2.
+      https://github.com/konstruktoid/hardening/blob/master/config/aidecheck.timer
+    compliance:
+      - cis_suse_12_v3_2_1_1_4_2
+
+  - rule_id: suse.cis.1.permissions_on_bootloader_config_are_configured
+    title: "Ensure permissions on bootloader config are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '1.5.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.permissions_on_bootloader_config_are_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following commands to set ownership and permissions on your grub
+      configuration: # chown root:root /boot/grub2/grub.cfg # chmod og-rwx
+      /boot/grub2/grub.cfg
+    compliance:
+      - cis_suse_12_v3_2_1_1_5_2
+
+  - rule_id: suse.cis.1.authentication_required_for_single_user_mode
+    title: "Ensure authentication required for single user mode"
+    severity: high
+    automation_type: automated
+    cis_control: '1.5.3'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.authentication_required_for_single_user_mode
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Edit /usr/lib/systemd/system/rescue.service and add/modify the following line:
+      ExecStart=-/bin/sh -c '/usr/sbin/sulogin; echo 'Starting default target';
+      /usr/bin/systemctl --job-mode=fail --no-block default' Edit
+      /usr/lib/systemd/system/emergency.service and add/modify the following line:
+      ExecStart=-/bin/sh -c '/usr/sbin/sulogin; echo 'Starting default target';
+      /usr/bin/systemctl --job-mode=fail --no-block default' After modifying the
+      systemd service files run the following command to reload the systemd manager
+      configuration to apply the changes: # systemctl daemon-reload
+    compliance:
+      - cis_suse_12_v3_2_1_1_5_3
+
+  - rule_id: suse.cis.1.xd_nx_support_is_enabled
+    title: "Ensure XD/NX support is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '1.6.2'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.xd_nx_support_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "on"
+    remediation: >
+      On 32 bit systems install a kernel with PAE support, no installation is
+      required on 64 bit systems: If necessary configure your bootloader to load the
+      new kernel and reboot the system. You may need to enable NX or XD support in
+      your bios.
+    compliance:
+      - cis_suse_12_v3_2_1_1_6_2
+
+  - rule_id: suse.cis.1.address_space_layout_randomization_aslr_is_enabled
+    title: "Ensure address space layout randomization (ASLR) is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '1.6.3'
+    cis_section: '1'
+    profile_applicability: "Level 1"
+    scope: suse.section_1.address_space_layout_randomization_aslr_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Set the following parameter in /etc/sysctl.conf or a /etc/sysctl.d/* file:
+      Example: echo ' kernel.randomize_va_space = 2 ' >>
+      /etc/sysctl.d/50-kernel_sysctl.conf Run the following command to set the
+      active kernel parameter: # sysctl -w kernel.randomize_va_space=2
+    compliance:
+      - cis_suse_12_v3_2_1_1_6_3
+
+

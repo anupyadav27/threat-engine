@@ -1,0 +1,100 @@
+# ==========================================================
+# Discovery YAML — stepfunctions (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 39 | ops: 2 independent, 1 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: stepfunctions
+
+services:
+  client: stepfunctions
+  module: "boto3.client('stepfunctions')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: activity
+    identifier_op: aws.stepfunctions.list_activities
+    identifier_field: activityArn
+    item_var_path: item.activityArn
+    identifier_template: '{activityarn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.stepfunctions.list_activities  ──
+  - discovery_id: aws.stepfunctions.list_activities
+    calls:
+      - action: list_activities
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.activities }}'
+      item:
+        activityArn: '{{ item.activityArn }}'
+        creationDate: '{{ item.creationDate }}'
+        encryptionConfiguration: '{{ item.encryptionConfiguration }}'
+        encryptionConfiguration.type: '{{ item.encryptionConfiguration.type }}'
+        input: '{{ item.input }}'
+        kmsDataKeyReusePeriodSeconds: '{{ item.kmsDataKeyReusePeriodSeconds }}'
+        kmsKeyId: '{{ item.kmsKeyId }}'
+        name: '{{ item.name }}'
+        taskToken: '{{ item.taskToken }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.stepfunctions.list_state_machines  ──
+  - discovery_id: aws.stepfunctions.list_state_machines
+    calls:
+      - action: list_state_machines
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.stateMachines }}'
+      item:
+        Tags: '{{ item.Tags }}'
+        creationDate: '{{ item.creationDate }}'
+        definition: '{{ item.definition }}'
+        description: '{{ item.description }}'
+        label: '{{ item.label }}'
+        name: '{{ item.name }}'
+        stateMachineArn: '{{ item.stateMachineArn }}'
+        type: '{{ item.type }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.stepfunctions.describe_state_machine [dependent] ──
+  - discovery_id: aws.stepfunctions.describe_state_machine
+    for_each: aws.stepfunctions.list_executions
+    calls:
+      - action: describe_state_machine
+        params:
+          stateMachineArn: "{{ item.stateMachineArn }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        creationDate: '{{ item.creationDate }}'
+        definition: '{{ item.definition }}'
+        description: '{{ item.description }}'
+        destinations: '{{ item.destinations }}'
+        encryptionConfiguration: '{{ item.encryptionConfiguration }}'
+        includeExecutionData: '{{ item.includeExecutionData }}'
+        label: '{{ item.label }}'
+        level: '{{ item.level }}'
+        loggingConfiguration: '{{ item.loggingConfiguration }}'
+        loggingConfiguration.includeExecutionData: '{{ item.loggingConfiguration.includeExecutionData }}'
+        loggingConfiguration.level: '{{ item.loggingConfiguration.level }}'
+        name: '{{ item.name }}'
+        revisionId: '{{ item.revisionId }}'
+        roleArn: '{{ item.roleArn }}'
+        stateMachineArn: '{{ item.stateMachineArn }}'
+        status: '{{ item.status }}'
+        tracingConfiguration: '{{ item.tracingConfiguration }}'
+        type: '{{ item.type }}'
+        variableReferences: '{{ item.variableReferences }}'
+

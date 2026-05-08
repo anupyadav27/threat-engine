@@ -1,0 +1,541 @@
+tech_type: debian
+category: linux
+cis_benchmark: CIS Debian 12 v1.1.0
+cis_section: '4'
+
+rules:
+
+  - rule_id: debian.cis.4.a_single_firewall_configuration_utility_is_in_use
+    title: "Ensure a single firewall configuration utility is in use"
+    severity: high
+    automation_type: automated
+    cis_control: '4.1.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.a_single_firewall_configuration_utility_is_in_use
+    assertion:
+      field: port
+      operator: equals
+      expected: "on"
+    remediation: >
+      Remediating to a single firewall configuration is a complex process and
+      involves several steps. The following provides the basic steps to follow for a
+      single firewall configuration: 1. Determine which firewall utility best fits
+      organizational needs 2. Follow the recommendations in the subsequent
+      subsection for the single firewall to be used Note: Review the firewall
+      subsection overview for the selected firewall to be used, it contains a script
+      to simplify this process. 3. Return to this recommendation to ensure a single
+      firewall configuration utility is in use References: 1.
+      https://wiki.debian.org/DebianFirewall 2.
+      https://wiki.ubuntu.com/UncomplicatedFirewall 3.
+      https://assets.ubuntu.com/v1/544d9904-ubuntu-server-guide-2024-01-22.pdf 4.
+      https://www.debian.org/doc/manuals/debian-reference/debian-reference.en.pdf
+    compliance:
+      - cis_debian_12_v1_1_0_4_1_1
+
+  - rule_id: debian.cis.4.ufw_is_installed
+    title: "Ensure ufw is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.ufw_is_installed
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to install Uncomplicated Firewall (UFW): # apt
+      install ufw References: 1. NIST SP 800-53 Rev. 5: SC-7
+    compliance:
+      - cis_debian_12_v1_1_0_4_2_1
+
+  - rule_id: debian.cis.4.iptables_persistent_is_not_installed_with_ufw
+    title: "Ensure iptables-persistent is not installed with ufw"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.iptables_persistent_is_not_installed_with_ufw
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to remove the iptables-persistent package: # apt
+      purge iptables-persistent References: 1. NIST SP 800-53 Rev. 5: SC-7
+    compliance:
+      - cis_debian_12_v1_1_0_4_2_2
+
+  - rule_id: debian.cis.4.ufw_service_is_enabled
+    title: "Ensure ufw service is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.3'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.ufw_service_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Run the following command to unmask the ufw daemon: # systemctl unmask
+      ufw.service Run the following command to enable and start the ufw daemon: #
+      systemctl --now enable ufw.service active Run the following command to enable
+      ufw: # ufw enable References: 1.
+      http://manpages.ubuntu.com/manpages/precise/en/man8/ufw.8.html 2. NIST SP
+      800-53 Rev. 5: SC-7
+    compliance:
+      - cis_debian_12_v1_1_0_4_2_3
+
+  - rule_id: debian.cis.4.ufw_loopback_traffic_is_configured
+    title: "Ensure ufw loopback traffic is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.4'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.ufw_loopback_traffic_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      Run the following commands to configure the loopback interface to accept
+      traffic: # ufw allow in on lo # ufw allow out on lo Run the following commands
+      to configure all other interfaces to deny traffic to the loopback network: #
+      ufw deny in from 127.0.0.0/8 # ufw deny in from ::1 Default Value: # allow all
+      on loopback -A ufw-before-input -i lo -j ACCEPT -A ufw-before-output -o lo -j
+      ACCEPT References: 1. NIST SP 800-53 Rev. 5: SC-7 2.
+      https://manpages.ubuntu.com/manpages/jammy/en/man8/ufw-framework.8.html
+    compliance:
+      - cis_debian_12_v1_1_0_4_2_4
+
+  - rule_id: debian.cis.4.ufw_firewall_rules_exist_for_all_open_ports
+    title: "Ensure ufw firewall rules exist for all open ports"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.6'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.ufw_firewall_rules_exist_for_all_open_ports
+    assertion:
+      field: port
+      operator: equals
+      expected: "true"
+    remediation: >
+      For each port identified in the audit which does not have a firewall rule,
+      evaluate the service listening on the port and add a rule for accepting or
+      denying inbound connections in accordance with local site policy: Examples: #
+      ufw allow in <port>/<tcp or udp protocol> # ufw deny in <port>/<tcp or udp
+      protocol> Note: Examples create rules for from any, to any. More specific
+      rules should be concentered when allowing inbound traffic e.g only traffic
+      from this network. Example to allow traffic on port 443 using the tcp protocol
+      from the 192.168.1.0 network: ufw allow from 192.168.1.0/24 to any proto tcp
+      port 443 References: 1. NIST SP 800-53 Rev. 5: SC-7
+    compliance:
+      - cis_debian_12_v1_1_0_4_2_6
+
+  - rule_id: debian.cis.4.ufw_default_deny_firewall_policy
+    title: "Ensure ufw default deny firewall policy"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.7'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.ufw_default_deny_firewall_policy
+    assertion:
+      field: port
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following commands to implement a default deny policy: # ufw default
+      deny incoming # ufw default deny outgoing # ufw default deny routed
+      References: 1. NIST SP 800-53 Rev. 5: SC-7
+    compliance:
+      - cis_debian_12_v1_1_0_4_2_7
+
+  - rule_id: debian.cis.4.nftables_is_installed
+    title: "Ensure nftables is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '4.3.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.nftables_is_installed
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following command to install nftables: # apt install nftables
+      References: 1. NIST SP 800-53 Rev. 5: CA-9
+    compliance:
+      - cis_debian_12_v1_1_0_4_3_1
+
+  - rule_id: debian.cis.4.ufw_is_uninstalled_or_disabled_with_nftables
+    title: "Ensure ufw is uninstalled or disabled with nftables"
+    severity: high
+    automation_type: automated
+    cis_control: '4.3.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.ufw_is_uninstalled_or_disabled_with_nftables
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Run one of the following to either remove ufw or disable ufw and mask
+      ufw.service: Run the following command to remove ufw: # apt purge ufw -OR- Run
+      the following commands to disable ufw and mask ufw.service: # ufw disable #
+      systemctl stop ufw.service # systemctl mask ufw.service Note: ufw disable
+      needs to be run before systemctl mask ufw.service in order to correctly
+      disable UFW References: 1. NIST SP 800-53 Rev. 5: SC-7
+    compliance:
+      - cis_debian_12_v1_1_0_4_3_2
+
+  - rule_id: debian.cis.4.a_nftables_table_exists
+    title: "Ensure a nftables table exists"
+    severity: high
+    automation_type: automated
+    cis_control: '4.3.4'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.a_nftables_table_exists
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following command to create a table in nftables # nft create table
+      inet <table name> Example: # nft create table inet filter References: 1. NIST
+      SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_debian_12_v1_1_0_4_3_4
+
+  - rule_id: debian.cis.4.nftables_base_chains_exist
+    title: "Ensure nftables base chains exist"
+    severity: high
+    automation_type: automated
+    cis_control: '4.3.5'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.nftables_base_chains_exist
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to create the base chains: # nft create chain inet
+      <table name> <base chain name> { type filter hook <(input|forward|output)>
+      priority 0 \; } Example: # nft create chain inet filter input { type filter
+      hook input priority 0 \; } # nft create chain inet filter forward { type
+      filter hook forward priority 0 \; } # nft create chain inet filter output {
+      type filter hook output priority 0 \; }
+    compliance:
+      - cis_debian_12_v1_1_0_4_3_5
+
+  - rule_id: debian.cis.4.nftables_loopback_traffic_is_configured
+    title: "Ensure nftables loopback traffic is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.3.6'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.nftables_loopback_traffic_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      Run the following commands to implement the loopback rules: # nft add rule
+      inet filter input iif lo accept # nft add rule inet filter input ip saddr
+      127.0.0.0/8 counter drop - IF - IPv6 is enabled on the system: Run the
+      following command to implement the IPv6 loopback rule: # nft add rule inet
+      filter input ip6 saddr ::1 counter drop References: 1. NIST SP 800-53 Rev. 5:
+      CA-9, SC-7
+    compliance:
+      - cis_debian_12_v1_1_0_4_3_6
+
+  - rule_id: debian.cis.4.nftables_default_deny_firewall_policy
+    title: "Ensure nftables default deny firewall policy"
+    severity: high
+    automation_type: automated
+    cis_control: '4.3.8'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.nftables_default_deny_firewall_policy
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command for the base chains with the input, forward, and
+      output hooks to implement a default DROP policy: # nft chain <table family>
+      <table name> <chain name> { policy drop \; } Example: # nft chain inet filter
+      input { policy drop \; } # nft chain inet filter forward { policy drop \; } #
+      nft chain inet filter output { policy drop \; } Default Value: accept
+      References: 1. Manual Page nft 2. NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_debian_12_v1_1_0_4_3_8
+
+  - rule_id: debian.cis.4.nftables_service_is_enabled
+    title: "Ensure nftables service is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '4.3.9'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.nftables_service_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to enable the nftables service: # systemctl enable
+      nftables References: 1. NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_debian_12_v1_1_0_4_3_9
+
+  - rule_id: debian.cis.4.nftables_rules_are_permanent
+    title: "Ensure nftables rules are permanent"
+    severity: high
+    automation_type: automated
+    cis_control: '4.3.10'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.nftables_rules_are_permanent
+    assertion:
+      field: port
+      operator: equals
+      expected: "on"
+    remediation: >
+      Edit the /etc/nftables.conf file and un-comment or add a line with include
+      <Absolute path to nftables rules file> for each nftables file you want
+      included in the nftables ruleset on boot Example: # vi /etc/nftables.conf Add
+      the line: include '/etc/nftables.rules' References: 1. NIST SP 800-53 Rev. 5:
+      CA-9, SC-7
+    compliance:
+      - cis_debian_12_v1_1_0_4_3_10
+
+  - rule_id: debian.cis.4.iptables_packages_are_installed
+    title: "Ensure iptables packages are installed"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.1.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.iptables_packages_are_installed
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to install iptables and iptables-persistent # apt
+      install iptables iptables-persistent References: 1. NIST SP 800-53 Rev. 5:
+      CA-9, SC-7
+    compliance:
+      - cis_debian_12_v1_1_0_4_4_1_1
+
+  - rule_id: debian.cis.4.nftables_is_not_in_use_with_iptables
+    title: "Ensure nftables is not in use with iptables"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.1.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.nftables_is_not_in_use_with_iptables
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to remove nftables: # apt purge nftables - OR - Run
+      the following commands to stop and mask nftables.service: # systemctl stop
+      nftables.service # systemctl mask nftables.service References: 1. NIST SP
+      800-53 Rev. 5: CA-9, CM-7
+    compliance:
+      - cis_debian_12_v1_1_0_4_4_1_2
+
+  - rule_id: debian.cis.4.ufw_is_not_in_use_with_iptables
+    title: "Ensure ufw is not in use with iptables"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.1.3'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.ufw_is_not_in_use_with_iptables
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to remove ufw: # apt purge ufw - OR - Run the
+      following commands to disable ufw, and stop and mask ufw.service: # ufw
+      disable # systemctl stop ufw.service # systemctl mask ufw.service Note: ufw
+      disable needs to be run before systemctl mask ufw.service in order to
+      correctly disable UFW References: 1. NIST SP 800-53 Rev. 5: CA-9, CM-7
+    compliance:
+      - cis_debian_12_v1_1_0_4_4_1_3
+
+  - rule_id: debian.cis.4.iptables_default_deny_firewall_policy
+    title: "Ensure iptables default deny firewall policy"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.2.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.iptables_default_deny_firewall_policy
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following commands to implement a default DROP policy: # iptables -P
+      INPUT DROP # iptables -P OUTPUT DROP # iptables -P FORWARD DROP References: 1.
+      NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_debian_12_v1_1_0_4_4_2_1
+
+  - rule_id: debian.cis.4.iptables_loopback_traffic_is_configured
+    title: "Ensure iptables loopback traffic is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.2.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.iptables_loopback_traffic_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following commands to implement the loopback rules: # iptables -A
+      INPUT -i lo -j ACCEPT # iptables -A OUTPUT -o lo -j ACCEPT # iptables -A INPUT
+      -s 127.0.0.0/8 -j DROP References: 1. NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_debian_12_v1_1_0_4_4_2_2
+
+  - rule_id: debian.cis.4.iptables_firewall_rules_exist_for_all_open_ports
+    title: "Ensure iptables firewall rules exist for all open ports"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.2.4'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.iptables_firewall_rules_exist_for_all_open_ports
+    assertion:
+      field: port
+      operator: equals
+      expected: "on"
+    remediation: >
+      For each port identified in the audit which does not have a firewall rule
+      establish a proper rule for accepting inbound connections: # iptables -A INPUT
+      -p <protocol> --dport <port> -m state --state NEW -j ACCEPT References: 1.
+      NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_debian_12_v1_1_0_4_4_2_4
+
+  - rule_id: debian.cis.4.ip6tables_default_deny_firewall_policy
+    title: "Ensure ip6tables default deny firewall policy"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.3.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.ip6tables_default_deny_firewall_policy
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      - IF - IPv6 is enabled on your system: Run the following commands to implement
+      a default DROP policy: # ip6tables -P INPUT DROP # ip6tables -P OUTPUT DROP #
+      ip6tables -P FORWARD DROP References: 1. NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_debian_12_v1_1_0_4_4_3_1
+
+  - rule_id: debian.cis.4.ip6tables_loopback_traffic_is_configured
+    title: "Ensure ip6tables loopback traffic is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.3.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.ip6tables_loopback_traffic_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      Run the following commands to implement the loopback rules: # ip6tables -A
+      INPUT -i lo -j ACCEPT # ip6tables -A OUTPUT -o lo -j ACCEPT # ip6tables -A
+      INPUT -s ::1 -j DROP References: 1. NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_debian_12_v1_1_0_4_4_3_2
+
+  - rule_id: debian.cis.4.ip6tables_firewall_rules_exist_for_all_open_ports
+    title: "Ensure ip6tables firewall rules exist for all open ports"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.3.4'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.ip6tables_firewall_rules_exist_for_all_open_ports
+    assertion:
+      field: port
+      operator: equals
+      expected: "on"
+    remediation: >
+      For each port identified in the audit which does not have a firewall rule
+      establish a proper rule for accepting inbound connections: # ip6tables -A
+      INPUT -p <protocol> --dport <port> -m state --state NEW -j ACCEPT References:
+      1. NIST SP 800-53 Rev. 5: CA-9, SC-7
+    compliance:
+      - cis_debian_12_v1_1_0_4_4_3_4
+
+  - rule_id: debian.cis.4.nftables_is_not_installed_with_iptables
+    title: "Ensure nftables is not installed with iptables"
+    severity: high
+    automation_type: automated
+    cis_control: '4.3.1.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.nftables_is_not_installed_with_iptables
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to remove nftables: # apt purge nftables References:
+      1. NIST SP 800-53 Rev. 5: CA-9, CM-7
+    compliance:
+      - cis_debian_11_v2_0_0_4_3_1_2
+
+  - rule_id: debian.cis.4.ufw_is_uninstalled_or_disabled_with_iptables
+    title: "Ensure ufw is uninstalled or disabled with iptables"
+    severity: high
+    automation_type: automated
+    cis_control: '4.3.1.3'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: debian.section_4.ufw_is_uninstalled_or_disabled_with_iptables
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "false"
+    remediation: >
+      Run one of the following commands to either remove ufw or stop and mask ufw
+      Run the following command to remove ufw: # apt purge ufw - OR - Run the
+      following commands to disable ufw: # ufw disable # systemctl stop ufw #
+      systemctl mask ufw Note: ufw disable needs to be run before systemctl mask ufw
+      in order to correctly disable UFW References: 1. NIST SP 800-53 Rev. 5: CA-9,
+      CM-7
+    compliance:
+      - cis_debian_11_v2_0_0_4_3_1_3
+
+

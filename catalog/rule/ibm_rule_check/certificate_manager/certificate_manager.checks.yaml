@@ -1,0 +1,36 @@
+# Auto-generated: check rules for IBM certificate_manager from test-rulecheck_python_code
+version: '1.0'
+provider: ibm
+service: certificate_manager
+checks:
+- rule_id: ibm.certificate_manager.certificate.auto_renewal_enabled
+  for_each: ibm.certificate_manager.list_certificates
+  severity: HIGH
+  conditions:
+    var: item.AutoRenewalEnabled
+    op: is_true
+- rule_id: ibm.certificate_manager.certificate.not_expired
+  for_each: ibm.certificate_manager.list_certificates
+  severity: CRITICAL
+  conditions:
+    var: item.ExpiresOn
+    op: gt
+    value: now
+- rule_id: ibm.certificate_manager.certificate.not_expiring_soon
+  for_each: ibm.certificate_manager.list_certificates
+  severity: MEDIUM
+  conditions:
+    var: item.ExpiresOn
+    op: gte
+    value: now+30d
+- rule_id: ibm.certificate_manager.certificate.strong_key_algorithm
+  for_each: ibm.certificate_manager.list_certificates
+  severity: HIGH
+  conditions:
+    var: item.KeyAlgorithm
+    op: in
+    value:
+    - RSA2048
+    - RSA4096
+    - EC256
+    - EC384

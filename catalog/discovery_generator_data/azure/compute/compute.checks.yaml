@@ -1,0 +1,156 @@
+version: '1.0'
+provider: azure
+service: compute
+checks:
+# ═══════════════════════════════════════════
+# Virtual Machines — azure.compute.virtualmachines.list_all
+# Fields: id, name, type, location, tags, zones, identity, provisioning_state,
+#         security_profile, network_profile, os_profile, storage_profile,
+#         hardware_profile, diagnostics_profile, billing_profile, eviction_policy,
+#         host, host_group, instance_view, license_type, managed_by, plan,
+#         priority, vm_id, capacity_reservation, extended_location,
+#         proximity_placement_group, scheduled_events_profile, user_data
+# ═══════════════════════════════════════════
+
+# --- Security ---
+- rule_id: azure.compute.vm.security_profile_configured
+  for_each: azure.compute.virtualmachines.list_all
+  conditions:
+    var: item.security_profile
+    op: not_empty
+
+- rule_id: azure.compute.vm.managed_identity_enabled
+  for_each: azure.compute.virtualmachines.list_all
+  conditions:
+    var: item.identity
+    op: not_empty
+
+# --- Network ---
+- rule_id: azure.compute.vm.network_profile_configured
+  for_each: azure.compute.virtualmachines.list_all
+  conditions:
+    var: item.network_profile
+    op: not_empty
+
+# --- OS & Storage ---
+- rule_id: azure.compute.vm.os_profile_configured
+  for_each: azure.compute.virtualmachines.list_all
+  conditions:
+    var: item.os_profile
+    op: not_empty
+
+- rule_id: azure.compute.vm.storage_profile_configured
+  for_each: azure.compute.virtualmachines.list_all
+  conditions:
+    var: item.storage_profile
+    op: not_empty
+
+# --- Monitoring ---
+- rule_id: azure.compute.vm.diagnostics_profile_configured
+  for_each: azure.compute.virtualmachines.list_all
+  conditions:
+    var: item.diagnostics_profile
+    op: not_empty
+
+# --- Availability ---
+- rule_id: azure.compute.vm.availability_zones_configured
+  for_each: azure.compute.virtualmachines.list_all
+  conditions:
+    var: item.zones
+    op: not_empty
+
+- rule_id: azure.compute.vm.host_group_configured
+  for_each: azure.compute.virtualmachines.list_all
+  conditions:
+    var: item.host_group
+    op: not_empty
+
+- rule_id: azure.compute.vm.capacity_reservation_configured
+  for_each: azure.compute.virtualmachines.list_all
+  conditions:
+    var: item.capacity_reservation
+    op: not_empty
+
+- rule_id: azure.compute.vm.proximity_placement_configured
+  for_each: azure.compute.virtualmachines.list_all
+  conditions:
+    var: item.proximity_placement_group
+    op: not_empty
+
+- rule_id: azure.compute.vm.scheduled_events_configured
+  for_each: azure.compute.virtualmachines.list_all
+  conditions:
+    var: item.scheduled_events_profile
+    op: not_empty
+
+# --- Inventory ---
+- rule_id: azure.compute.vm.provisioning_succeeded
+  for_each: azure.compute.virtualmachines.list_all
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.compute.vm.tags_configured
+  for_each: azure.compute.virtualmachines.list_all
+  conditions:
+    var: item.tags
+    op: not_empty
+
+# ═══════════════════════════════════════════
+# VMSS — azure.compute.virtualmachinescalesets.list_all
+# Same field structure as VMs
+# ═══════════════════════════════════════════
+- rule_id: azure.compute.vmss.security_profile_configured
+  for_each: azure.compute.virtualmachinescalesets.list_all
+  conditions:
+    var: item.security_profile
+    op: not_empty
+
+- rule_id: azure.compute.vmss.managed_identity_enabled
+  for_each: azure.compute.virtualmachinescalesets.list_all
+  conditions:
+    var: item.identity
+    op: not_empty
+
+- rule_id: azure.compute.vmss.network_profile_configured
+  for_each: azure.compute.virtualmachinescalesets.list_all
+  conditions:
+    var: item.network_profile
+    op: not_empty
+
+- rule_id: azure.compute.vmss.diagnostics_profile_configured
+  for_each: azure.compute.virtualmachinescalesets.list_all
+  conditions:
+    var: item.diagnostics_profile
+    op: not_empty
+
+- rule_id: azure.compute.vmss.availability_zones_configured
+  for_each: azure.compute.virtualmachinescalesets.list_all
+  conditions:
+    var: item.zones
+    op: not_empty
+
+- rule_id: azure.compute.vmss.provisioning_succeeded
+  for_each: azure.compute.virtualmachinescalesets.list_all
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.compute.vmss.tags_configured
+  for_each: azure.compute.virtualmachinescalesets.list_all
+  conditions:
+    var: item.tags
+    op: not_empty
+
+# ═══════════════════════════════════════════
+# Disks — azure.compute.disks.list_by_resource_group
+# Fields: id, name, type, location, tags, public_key, system_data
+# Note: Disk encryption/network details are in properties blob on full get
+# ═══════════════════════════════════════════
+- rule_id: azure.compute.disk.tags_configured
+  for_each: azure.compute.disks.list_by_resource_group
+  conditions:
+    var: item.tags
+    op: not_empty

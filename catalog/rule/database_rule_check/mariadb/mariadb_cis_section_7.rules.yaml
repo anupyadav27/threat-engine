@@ -1,0 +1,155 @@
+tech_type: mariadb
+category: database
+cis_benchmark: CIS MariaDB 10.6 v1.1.0
+cis_section: '7'
+
+rules:
+
+  - rule_id: mariadb.cis.7.disable_use_of_the_mysql_old_password_plugin
+    title: "Disable use of the mysql_old_password plugin"
+    severity: high
+    automation_type: automated
+    cis_control: '7.1'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: mariadb.section_7.disable_use_of_the_mysql_old_password_plugin
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "on"
+    remediation: >
+      If old_passwords was ON, add the following line to the [mariadbd] section in
+      mariadb.cnf: old_passwords=0 If 'secure_authwasOFF, add the following line to
+      the [mariadbd]section inmariadb.cnf`: secure_auth=ON Restart MariaDB. Default
+      Value: old_passwords is OFF by default. secure_auth is ON by default.
+      References: 1. https://mariadb.org/history-of-mysql-mariadb-authentication-
+      protocols/ 2. https://mariadb.com/kb/en/pluggable-authentication-
+      overview/#default-server- authentication-plugin
+    compliance:
+      - cis_mariadb_10_6_v1_1_0_7_1
+
+  - rule_id: mariadb.cis.7.passwords_are_not_stored_in_the_global
+    title: "Ensure Passwords are Not Stored in the Global Configuration"
+    severity: high
+    automation_type: automated
+    cis_control: '7.2'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: mariadb.section_7.passwords_are_not_stored_in_the_global
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Use the user-specific options file, .mariadb.cnf., and restricting file access
+      permissions to the user identity. References: 1.
+      https://mariadb.com/kb/en/mysql_config_editor-compatibility/ Additional
+      Information: There must not be a password in any of the sections of the global
+      configuration.
+    compliance:
+      - cis_mariadb_10_6_v1_1_0_7_2
+
+  - rule_id: mariadb.cis.7.strong_authentication_is_utilized_for_all_accounts
+    title: "Ensure strong authentication is utilized for all accounts"
+    severity: high
+    automation_type: automated
+    cis_control: '7.3'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: mariadb.section_7.strong_authentication_is_utilized_for_all_accounts
+    assertion:
+      field: row_count
+      operator: exists
+      expected: "no"
+    remediation: >
+      If the root user is returned in the audit procedure results, set that account
+      to utilize only the unix_socket plugin by running the following mariadb
+      command: alter user 'root'@'localhost' identified via 'unix_socket'; If the
+      mysql user is returned in the audit procedure results, set that account to use
+      an invalid password by running the following mariadb command: set password for
+      'mysql'@'localhost' = 'invalid'; If the mariadb.sys user is returned in the
+      audit procedure results, set that account to use an invalid password by
+      running the following mariadb command: set password for
+      'mariadb.sys'@'localhost' = 'invalid'; For every other user identified by the
+      audit procedure, use the ALTER USER command to configure the account to
+      utilize one of the following authentication plugins as appropriate: • ed25519
+      • gssapi • pam • unix_socket Notes: Some of these plugins will require
+      installation if not already in use. Changing a user to utilize the ed25519
+      plugin but without providing a password will make the account inaccessible.
+      For service accounts, set a new password in MariaDB and where the service
+      account is used. For human user accounts, set a temporary password and notify
+      the user to change the password immediately. If password validation plugins
+      are already implemented, strict_password_validation may need to be temporarily
+      disabled to reset mysql and mariadb.sys accounts to use invalid passwords. To
+      do so, run set global strict_password_validation=0; before and set global
+      strict_password_validation=1; after the set password commands. Default Value:
+      root is configured to use the unix_socket plugin but to fallback to the
+      mysql_native_password plugin. root and mysql users are created with an invalid
+      password string, preventing password-based authentication. mariadb.sys is a
+      locked account without a password set. If the account becomes unlocked,
+      authentication without a password can occur. By default, all new users are
+      created using the mysql_native_password plugin and without a password unless
+      otherwise specified. This allows authentication without a password.
+      References: 1. https://mariadb.com/kb/en/pluggable-authentication-overview/ 2.
+      https://mariadb.com/kb/en/authentication-from-mariadb-104/ 3.
+      https://mariadb.com/kb/en/set-password/ 4. https://mariadb.com/kb/en/alter-
+      user/ 5. https://mariadb.com/kb/en/create-user/ 6.
+      https://mariadb.org/history-of-mysql-mariadb-authentication-protocols/
+    compliance:
+      - cis_mariadb_10_6_v1_1_0_7_3
+
+  - rule_id: mariadb.cis.7.password_complexity_policies_are_in_place
+    title: "Ensure Password Complexity Policies are in Place"
+    severity: high
+    automation_type: automated
+    cis_control: '7.4'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: mariadb.section_7.password_complexity_policies_are_in_place
+    assertion:
+      field: length
+      operator: gte
+      expected: "on"
+    remediation: >
+      Install the password check plugins: INSTALL SONAME 'simple_password_check';
+      INSTALL SONAME 'cracklib_password_check'; Note A supporting linux distribution
+      package may need to be installed before installing the cracklib plugin. Follow
+      installation guidance on the Cracklib Password Check Plugin page in the
+      References section. Add the following lines to MariaDB configuration files:
+      plugin_load_add = simple_password_check simple_password_check =
+      FORCE_PLUS_PERMANENT simple_password_check_minimal_length = 14 plugin_load_add
+      = cracklib_password_check cracklib_password_check = FORCE_PLUS_PERMANENT
+      strict_password_validation = ON Consider customizing the password dictionary
+      to include usernames of all MariaDB users and any other risky passwords
+      patterns noted in the Audit Procedure. Set cracklib_password_check_dictionary
+      if using a customized password dictionary. Default Value: Simple Password
+      Check Plugin and Cracklib Password Check Plugin are not installed by default.
+      strict_password_validation is ON by default. References: 1.
+      https://mariadb.com/kb/en/password-validation-plugins/ 2.
+      https://mariadb.com/kb/en/simple-password-check-plugin/ 3.
+      https://mariadb.com/kb/en/cracklib-password-check-plugin/
+    compliance:
+      - cis_mariadb_10_6_v1_1_0_7_4
+
+  - rule_id: mariadb.cis.7.no_anonymous_accounts_exist
+    title: "Ensure No Anonymous Accounts Exist"
+    severity: high
+    automation_type: automated
+    cis_control: '7.6'
+    cis_section: '7'
+    profile_applicability: "Level 1"
+    scope: mariadb.section_7.no_anonymous_accounts_exist
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "no"
+    remediation: >
+      Perform the following actions to remediate this setting: 1. Enumerate the
+      anonymous users returned from executing the audit procedure. 2. For each
+      anonymous user, DROP or assign them a name. Note: As an alternative, you may
+      execute the mariadb-secure-installation utility. References: 1.
+      https://mariadb.com/kb/en/mysql_secure_installation/
+    compliance:
+      - cis_mariadb_10_6_v1_1_0_7_6
+
+

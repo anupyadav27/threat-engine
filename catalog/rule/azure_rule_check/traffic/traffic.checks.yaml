@@ -1,0 +1,43 @@
+version: '1.0'
+provider: azure
+service: traffic
+checks:
+- rule_id: azure.traffic.manager_profile.dns_policy_health_checks_required_for_failover
+  for_each: azure.trafficmanager.profiles.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.ProfileStatus
+      op: equals
+      value: Enabled
+    - var: item.MonitorConfig.Protocol
+      op: exists
+      value: null
+    - var: item.MonitorConfig.Port
+      op: exists
+      value: null
+    - var: item.MonitorConfig.Path
+      op: exists
+      value: null
+- rule_id: azure.traffic.manager_profile.dns_policy_policy_documents_encrypted_and_private
+  for_each: azure.trafficmanager.profiles.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.MonitorConfig.Protocol
+      op: equals
+      value: HTTPS
+    - var: item.Properties.TrafficRoutingMethod
+      op: not_equals
+      value: Performance
+- rule_id: azure.traffic.manager_profile.dns_policy_targets_approved_domains_only
+  for_each: azure.trafficmanager.profiles.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.DnsConfig.RelativeName
+      op: exists
+      value: null
+    - var: item.Properties.Endpoints[].Properties.Target
+      op: not_contains
+      value: example.com

@@ -1,0 +1,89 @@
+version: '1.0'
+provider: technology
+category: collaboration
+tech_type: google_workspace
+display_name: Google Workspace
+action_type: admin_sdk
+cis_benchmark: CIS Google Workspace 1.2
+cis_section: '1'
+
+# ─── Authentication & Access ───────────────────────────────────────────────────
+discovery:
+  - discovery_id: google_workspace.auth.local_accounts
+    description: Enumerate local user accounts and privilege levels
+    calls:
+      - action: admin_sdk
+        target: auth.accounts
+        save_as: accounts
+    emit:
+      as: items
+      items: "{{ accounts }}"
+      item:
+        resource_uid: "{{ item.username or item.name or item.id }}"
+        resource_type: google_workspace.user_account
+        username: "{{ item.username or item.name }}"
+        is_admin: "{{ item.is_admin or item.privileged }}"
+        last_login: "{{ item.last_login }}"
+
+  - discovery_id: google_workspace.auth.password_policy
+    description: Retrieve password policy configuration
+    calls:
+      - action: admin_sdk
+        target: auth.password_policy
+        save_as: policy
+    emit:
+      as: item
+      item:
+        resource_uid: "google_workspace.password_policy"
+        resource_type: google_workspace.policy
+        min_length: "{{ policy.min_length }}"
+        require_complexity: "{{ policy.complexity_enabled }}"
+        max_age_days: "{{ policy.max_age_days }}"
+
+# ─── Logging & Auditing ────────────────────────────────────────────────────────
+  - discovery_id: google_workspace.logging.audit_config
+    description: Retrieve audit/logging configuration
+    calls:
+      - action: admin_sdk
+        target: logging.audit_config
+        save_as: audit_cfg
+    emit:
+      as: item
+      item:
+        resource_uid: "google_workspace.audit_config"
+        resource_type: google_workspace.config
+        audit_enabled: "{{ audit_cfg.enabled }}"
+        log_destination: "{{ audit_cfg.destination }}"
+        log_level: "{{ audit_cfg.level }}"
+
+# ─── Encryption & Transport ────────────────────────────────────────────────────
+  - discovery_id: google_workspace.encryption.transport
+    description: Check transport encryption (TLS/SSL) configuration
+    calls:
+      - action: admin_sdk
+        target: encryption.transport
+        save_as: tls_cfg
+    emit:
+      as: item
+      item:
+        resource_uid: "google_workspace.transport_encryption"
+        resource_type: google_workspace.config
+        tls_enabled: "{{ tls_cfg.enabled }}"
+        tls_version: "{{ tls_cfg.min_version }}"
+        cert_path: "{{ tls_cfg.cert_path }}"
+
+# ─── Access Controls ──────────────────────────────────────────────────────────
+  - discovery_id: google_workspace.acl.admin_privileges
+    description: Identify accounts with administrative or superuser privileges
+    calls:
+      - action: admin_sdk
+        target: acl.admin_accounts
+        save_as: admins
+    emit:
+      as: items
+      items: "{{ admins }}"
+      item:
+        resource_uid: "{{ item.username or item.name }}"
+        resource_type: google_workspace.privileged_account
+        username: "{{ item.username or item.name }}"
+        privilege_level: "{{ item.role or item.level }}"

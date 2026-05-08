@@ -1,0 +1,72 @@
+version: '1.0'
+provider: azure
+service: management
+checks:
+- rule_id: azure.management.groups_group.governance_org_all_accounts_enrolled_in_org
+  for_each: azure.management.managementgroups.managementgroups_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.tenantId
+      op: exists
+      value: null
+    - var: item.properties.displayName
+      op: not_empty
+      value: null
+    - var: item.properties.children[].type
+      op: contains
+      value: subscription
+- rule_id: azure.management.groups_group.governance_org_block_leave_org_by_policy
+  for_each: azure.management.managementgroups.managementgroups_list
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.details.policy.assignments[].policyDefinitionId
+    op: contains
+    value: /providers/Microsoft.Authorization/policyDefinitions/1c84fa75-6f16-460b-9b6b-fde6e9c8c4f3
+- rule_id: azure.management.groups_group.governance_org_restrict_region_usage_by_policy_where_required
+  for_each: azure.management.managementgroups.managementgroups_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.PolicyAssignments[].Properties.Parameters.allowedLocations.value[]
+      op: contains
+      value: required_region
+    - var: item.Properties.PolicyAssignments[].Properties.DisplayName
+      op: contains
+      value: Allowed locations
+- rule_id: azure.management.groups_group.governance_org_scps_enabled
+  for_each: azure.management.managementgroups.managementgroups_list
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.details.scpEnabled
+    op: is_true
+    value: null
+- rule_id: azure.management.groups_group.governance_ou_auto_tag_policies_enabled_where_supported
+  for_each: azure.management.managementgroups.managementgroups_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.PolicyDefinitions[].PolicyType
+      op: contains
+      value: Microsoft.Authorization/policyDefinitions
+    - var: item.Properties.PolicyAssignments[].Properties.Parameters
+      op: exists
+      value: null
+- rule_id: azure.management.groups_group.governance_ou_no_overly_permissive_exceptions
+  for_each: azure.management.managementgroups.managementgroups_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.PolicyExceptions
+      op: not_exists
+      value: null
+    - var: item.Properties.PolicyAssignments[].PolicyDefinitionId
+      op: not_contains
+      value: overly_permissive
+- rule_id: azure.management.groups_group.governance_ou_required_scps_attached
+  for_each: azure.management.managementgroups.managementgroups_list
+  severity: MEDIUM
+  conditions:
+    var: item.Policies[].PolicyType
+    op: contains
+    value: ServiceControlPolicy

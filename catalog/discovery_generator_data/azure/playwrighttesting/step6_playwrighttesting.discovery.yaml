@@ -1,0 +1,62 @@
+# Discovery YAML — playwrighttesting (Azure)
+# Generated: 2026-04-15T10:39:31Z
+# Source: step1b_operation_registry.json (qualified ops + dependency chains)
+# Actions use {category}.{method} format for SDK method resolution
+version: '1.0'
+provider: azure
+service: playwrighttesting
+services:
+  client: playwrighttesting
+  module: azure.mgmt.playwrighttesting
+discovery:
+  # ── accounts.list_by_resource_group [root] ──
+  - discovery_id: azure.playwrighttesting.accounts.list_by_resource_group
+    calls:
+      - action: accounts.list_by_resource_group
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+  # ── accounts.list_by_subscription [root] ──
+  - discovery_id: azure.playwrighttesting.accounts.list_by_subscription
+    calls:
+      - action: accounts.list_by_subscription
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+  # ════════════════════════════════════════
+  # Dependent operations (for_each + params)
+  # ════════════════════════════════════════
+  # ── accountquotas.list_by_account [dependent] ──
+  - discovery_id: azure.playwrighttesting.accountquotas.list_by_account
+    for_each: azure.playwrighttesting.accounts.list_by_subscription
+    calls:
+      - action: accountquotas.list_by_account
+        save_as: response
+        on_error: continue
+        params:
+          account_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+
+  # ── Unwired dependent ops (no root producer found) ──
+  # SKIP: azure.playwrighttesting.quotas.list_by_subscription — required_params: ['location']

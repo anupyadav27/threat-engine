@@ -1,0 +1,769 @@
+tech_type: rhel
+category: linux
+cis_benchmark: CIS Red Hat Enterprise Linux 9 v2.0.0
+cis_section: '3'
+
+rules:
+
+  - rule_id: rhel.cis.3.wireless_interfaces_are_disabled
+    title: "Ensure wireless interfaces are disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '3.1.2'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: rhel.section_3.wireless_interfaces_are_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Run the following script to disable any wireless interfaces: #!/usr/bin/env
+      bash { module_fix() { if ! modprobe -n -v '$l_mname' | grep -P -- '^\h*install
+      \/bin\/(true|false)'; then echo -e ' - setting module: \'$l_mname\' to be un-
+      loadable' echo -e 'install $l_mname /bin/false' >>
+      /etc/modprobe.d/'$l_mname'.conf fi if lsmod | grep '$l_mname' > /dev/null
+      2>&1; then echo -e ' - unloading module \'$l_mname\'' modprobe -r '$l_mname'
+      fi if ! grep -Pq -- '^\h*blacklist\h+$l_mname\b' /etc/modprobe.d/*; then echo
+      -e ' - deny listing \'$l_mname\'' echo -e 'blacklist $l_mname' >>
+      /etc/modprobe.d/'$l_mname'.conf fi } if [ -n '$(find /sys/class/net/*/ -type d
+      -name wireless)' ]; then l_dname=$(for driverdir in $(find /sys/class/net/*/
+      -type d -name wireless | xargs -0 dirname); do basename '$(readlink -f
+      '$driverdir'/device/driver/module)';done | sort -u) for l_mname in $l_dname;
+      do module_fix done fi } References: 1. NIST SP 800-53 Rev. 5: CM-7
+    compliance:
+      - cis_rhel_9_v2_0_0_3_1_2
+
+  - rule_id: rhel.cis.3.bluetooth_services_are_not_in_use
+    title: "Ensure bluetooth services are not in use"
+    severity: high
+    automation_type: automated
+    cis_control: '3.1.3'
+    cis_section: '3'
+    profile_applicability: "Level 1 + Level 2"
+    scope: rhel.section_3.bluetooth_services_are_not_in_use
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following commands to stop bluetooth.service, and remove the bluez
+      package: # systemctl stop bluetooth.service # dnf remove bluez - OR - - IF -
+      the bluez package is required as a dependency: Run the following commands to
+      stop and mask bluetooth.service: # systemctl stop bluetooth.service #
+      systemctl mask bluetooth.service Note: A reboot may be required References: 1.
+      NIST SP 800-53 Rev. 5: CM-7
+    compliance:
+      - cis_rhel_9_v2_0_0_3_1_3
+
+  - rule_id: rhel.cis.3.tipc_kernel_module_is_not_available
+    title: "Ensure tipc kernel module is not available"
+    severity: medium
+    automation_type: automated
+    cis_control: '3.2.2'
+    cis_section: '3'
+    profile_applicability: "Level 2"
+    scope: rhel.section_3.tipc_kernel_module_is_not_available
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following script to unload and disable the tipc module: - IF - the
+      tipc kernel module is available in ANY installed kernel: • Create a file
+      ending in .conf with install tipc /bin/false in the /etc/modprobe.d/ directory
+      • Create a file ending in .conf with blacklist tipc in the /etc/modprobe.d/
+      directory • Run modprobe -r tipc 2>/dev/null; rmmod tipc 2>/dev/null to remove
+      tipc from the kernel - IF - the tipc kernel module is not available on the
+      system, or pre-compiled into the kernel, no remediation is necessary
+      #!/usr/bin/env bash { unset a_output2; l_output3='' l_dl='' # unset arrays and
+      clear variables l_mod_name='tipc' # set module name l_mod_type='net' # set
+      module type l_mod_path='$(readlink -f /lib/modules/**/kernel/$l_mod_type |
+      sort -u)' f_module_fix() { l_dl='y' # Set to ignore duplicate checks
+      a_showconfig=() # Create array with modprobe output while IFS= read -r
+      l_showconfig; do a_showconfig+=('$l_showconfig') done < <(modprobe
+      --showconfig | grep -P -- '\b(install|blacklist)\h+''${l_mod_name//-/_}''\b')
+      if lsmod | grep '$l_mod_name' &> /dev/null; then # Check if the module is
+      currently loaded a_output2+=(' - unloading kernel module: \'$l_mod_name\'')
+      modprobe -r '$l_mod_name' 2>/dev/null; rmmod '$l_mod_name' 2>/dev/null fi if !
+      grep -Pq -- '\binstall\h+''${l_mod_name//- /_}''\h+\/bin\/(true|false)\b' <<<
+      '${a_showconfig[*]}'; then a_output2+=(' - setting kernel module:
+      \'$l_mod_name\' to \'/bin/false\'') printf '%s\n' 'install $l_mod_name
+      /bin/false' >> /etc/modprobe.d/'$l_mod_name'.conf fi if ! grep -Pq --
+      '\bblacklist\h+''${l_mod_name//-/_}''\b' <<< '${a_showconfig[*]}'; then
+      a_output2+=(' - denylisting kernel module: \'$l_mod_name\'') printf '%s\n'
+      'blacklist $l_mod_name' >> /etc/modprobe.d/'$l_mod_name'.conf fi } for
+      l_mod_base_directory in $l_mod_path; do # Check if the module exists on the
+      system if [ -d '$l_mod_base_directory/${l_mod_name/-/\/}' ] && [ -n '$(ls -A
+      $l_mod_base_directory/${l_mod_name/-/\/})' ]; then l_output3='$l_output3\n -
+      \'$l_mod_base_directory\'' [[ '$l_mod_name' =~ overlay ]] &&
+      l_mod_name='${l_mod_name::-2}' [ '$l_dl' != 'y' ] && f_module_fix else echo -e
+      ' - kernel module: \'$l_mod_name\' doesn't exist in \'$l_mod_base_directory\''
+      fi done [ -n '$l_output3' ] && echo -e '\n\n -- INFO --\n - module:
+      \'$l_mod_name\' exists in:$l_output3' [ '${#a_output2[@]}' -gt 0 ] && printf
+      '%s\n' '${a_output2[@]}' echo -e '\n - remediation of kernel module:
+      \'$l_mod_name\' complete\n' } References: 1. NIST SP 800-53 Rev. 5: SI-4, CM-7
+    compliance:
+      - cis_rhel_9_v2_0_0_3_2_2
+
+  - rule_id: rhel.cis.3.rds_kernel_module_is_not_available
+    title: "Ensure rds kernel module is not available"
+    severity: medium
+    automation_type: automated
+    cis_control: '3.2.3'
+    cis_section: '3'
+    profile_applicability: "Level 2"
+    scope: rhel.section_3.rds_kernel_module_is_not_available
+    assertion:
+      field: port
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following script to unload and disable the rds module: - IF - the rds
+      kernel module is available in ANY installed kernel: • Create a file ending in
+      .conf with install rds /bin/false in the /etc/modprobe.d/ directory • Create a
+      file ending in .conf with blacklist rds in the /etc/modprobe.d/ directory •
+      Run modprobe -r rds 2>/dev/null; rmmod rds 2>/dev/null to remove rds from the
+      kernel - IF - the rds kernel module is not available on the system, or pre-
+      compiled into the kernel, no remediation is necessary #!/usr/bin/env bash {
+      unset a_output2; l_output3='' l_dl='' # unset arrays and clear variables
+      l_mod_name='rds' # set module name l_mod_type='net' # set module type
+      l_mod_path='$(readlink -f /lib/modules/**/kernel/$l_mod_type | sort -u)'
+      f_module_fix() { l_dl='y' # Set to ignore duplicate checks a_showconfig=() #
+      Create array with modprobe output while IFS= read -r l_showconfig; do
+      a_showconfig+=('$l_showconfig') done < <(modprobe --showconfig | grep -P --
+      '\b(install|blacklist)\h+''${l_mod_name//-/_}''\b') if lsmod | grep
+      '$l_mod_name' &> /dev/null; then # Check if the module is currently loaded
+      a_output2+=(' - unloading kernel module: \'$l_mod_name\'') modprobe -r
+      '$l_mod_name' 2>/dev/null; rmmod '$l_mod_name' 2>/dev/null fi if ! grep -Pq --
+      '\binstall\h+''${l_mod_name//- /_}''\h+\/bin\/(true|false)\b' <<<
+      '${a_showconfig[*]}'; then a_output2+=(' - setting kernel module:
+      \'$l_mod_name\' to \'/bin/false\'') printf '%s\n' 'install $l_mod_name
+      /bin/false' >> /etc/modprobe.d/'$l_mod_name'.conf fi if ! grep -Pq --
+      '\bblacklist\h+''${l_mod_name//-/_}''\b' <<< '${a_showconfig[*]}'; then
+      a_output2+=(' - denylisting kernel module: \'$l_mod_name\'') printf '%s\n'
+      'blacklist $l_mod_name' >> /etc/modprobe.d/'$l_mod_name'.conf fi } for
+      l_mod_base_directory in $l_mod_path; do # Check if the module exists on the
+      system if [ -d '$l_mod_base_directory/${l_mod_name/-/\/}' ] && [ -n '$(ls -A
+      $l_mod_base_directory/${l_mod_name/-/\/})' ]; then l_output3='$l_output3\n -
+      \'$l_mod_base_directory\'' [[ '$l_mod_name' =~ overlay ]] &&
+      l_mod_name='${l_mod_name::-2}' [ '$l_dl' != 'y' ] && f_module_fix else echo -e
+      ' - kernel module: \'$l_mod_name\' doesn't exist in \'$l_mod_base_directory\''
+      fi done [ -n '$l_output3' ] && echo -e '\n\n -- INFO --\n - module:
+      \'$l_mod_name\' exists in:$l_output3' [ '${#a_output2[@]}' -gt 0 ] && printf
+      '%s\n' '${a_output2[@]}' echo -e '\n - remediation of kernel module:
+      \'$l_mod_name\' complete\n' } References: 1. NIST SP 800-53 Rev. 5: SI-4, CM-7
+    compliance:
+      - cis_rhel_9_v2_0_0_3_2_3
+
+  - rule_id: rhel.cis.3.sctp_kernel_module_is_not_available
+    title: "Ensure sctp kernel module is not available"
+    severity: medium
+    automation_type: automated
+    cis_control: '3.2.4'
+    cis_section: '3'
+    profile_applicability: "Level 2"
+    scope: rhel.section_3.sctp_kernel_module_is_not_available
+    assertion:
+      field: port
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following script to unload and disable the sctp module: - IF - the
+      sctp kernel module is available in ANY installed kernel: • Create a file
+      ending in .conf with install sctp /bin/false in the /etc/modprobe.d/ directory
+      • Create a file ending in .conf with blacklist sctp in the /etc/modprobe.d/
+      directory • Run modprobe -r sctp 2>/dev/null; rmmod sctp 2>/dev/null to remove
+      sctp from the kernel - IF - the sctp kernel module is not available on the
+      system, or pre-compiled into the kernel, no remediation is necessary
+      #!/usr/bin/env bash { unset a_output2; l_output3='' l_dl='' # unset arrays and
+      clear variables l_mod_name='sctp' # set module name l_mod_type='net' # set
+      module type l_mod_path='$(readlink -f /lib/modules/**/kernel/$l_mod_type |
+      sort -u)' f_module_fix() { l_dl='y' # Set to ignore duplicate checks
+      a_showconfig=() # Create array with modprobe output while IFS= read -r
+      l_showconfig; do a_showconfig+=('$l_showconfig') done < <(modprobe
+      --showconfig | grep -P -- '\b(install|blacklist)\h+''${l_mod_name//-/_}''\b')
+      if lsmod | grep '$l_mod_name' &> /dev/null; then # Check if the module is
+      currently loaded a_output2+=(' - unloading kernel module: \'$l_mod_name\'')
+      modprobe -r '$l_mod_name' 2>/dev/null; rmmod '$l_mod_name' 2>/dev/null fi if !
+      grep -Pq -- '\binstall\h+''${l_mod_name//- /_}''\h+\/bin\/(true|false)\b' <<<
+      '${a_showconfig[*]}'; then a_output2+=(' - setting kernel module:
+      \'$l_mod_name\' to \'/bin/false\'') printf '%s\n' 'install $l_mod_name
+      /bin/false' >> /etc/modprobe.d/'$l_mod_name'.conf fi if ! grep -Pq --
+      '\bblacklist\h+''${l_mod_name//-/_}''\b' <<< '${a_showconfig[*]}'; then
+      a_output2+=(' - denylisting kernel module: \'$l_mod_name\'') printf '%s\n'
+      'blacklist $l_mod_name' >> /etc/modprobe.d/'$l_mod_name'.conf fi } for
+      l_mod_base_directory in $l_mod_path; do # Check if the module exists on the
+      system if [ -d '$l_mod_base_directory/${l_mod_name/-/\/}' ] && [ -n '$(ls -A
+      $l_mod_base_directory/${l_mod_name/-/\/})' ]; then l_output3='$l_output3\n -
+      \'$l_mod_base_directory\'' [[ '$l_mod_name' =~ overlay ]] &&
+      l_mod_name='${l_mod_name::-2}' [ '$l_dl' != 'y' ] && f_module_fix else echo -e
+      ' - kernel module: \'$l_mod_name\' doesn't exist in \'$l_mod_base_directory\''
+      fi done [ -n '$l_output3' ] && echo -e '\n\n -- INFO --\n - module:
+      \'$l_mod_name\' exists in:$l_output3' [ '${#a_output2[@]}' -gt 0 ] && printf
+      '%s\n' '${a_output2[@]}' echo -e '\n - remediation of kernel module:
+      \'$l_mod_name\' complete\n' } References: 1. NIST SP 800-53 Rev. 5: SI-4, CM-7
+    compliance:
+      - cis_rhel_9_v2_0_0_3_2_4
+
+  - rule_id: rhel.cis.3.ip_forwarding_is_disabled
+    title: "Ensure ip forwarding is disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3.1'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: rhel.section_3.ip_forwarding_is_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Set the following parameter in /etc/sysctl.conf or a file in /etc/sysctl.d/
+      ending in .conf: • net.ipv4.ip_forward = 0 Example: # printf '%s\n'
+      'net.ipv4.ip_forward = 0' >> /etc/sysctl.d/60- netipv4_sysctl.conf Run the
+      following script to set the active kernel parameters: #!/usr/bin/env bash {
+      sysctl -w net.ipv4.ip_forward=0 sysctl -w net.ipv4.route.flush=1 } - IF - IPv6
+      is enabled on the system: Set the following parameter in /etc/sysctl.conf or a
+      file in /etc/sysctl.d/ ending in .conf: • net.ipv6.conf.all.forwarding = 0
+      Example: # printf '%s\n' 'net.ipv6.conf.all.forwarding = 0' >>
+      /etc/sysctl.d/60- netipv6_sysctl.conf Run the following script to set the
+      active kernel parameters: #!/usr/bin/env bash { sysctl -w
+      net.ipv6.conf.all.forwarding=0 sysctl -w net.ipv6.route.flush=1 } Note: If
+      these settings appear in a canonically later file, or later in the same file,
+      these settings will be overwritten Default Value: net.ipv4.ip_forward = 0
+      net.ipv6.conf.all.forwarding = 0 References: 1. NIST SP 800-53 Rev. 5: CM-1,
+      CM-2, CM-6, CM-7, IA-5 Additional Information: On systems with Uncomplicated
+      Firewall, additional settings may be configured in /etc/ufw/sysctl.conf • The
+      settings in /etc/ufw/sysctl.conf will override settings in /etc/sysctl.conf •
+      This behavior can be changed by updating the IPT_SYSCTL parameter in
+      /etc/default/ufw
+    compliance:
+      - cis_rhel_9_v2_0_0_3_3_1
+
+  - rule_id: rhel.cis.3.packet_redirect_sending_is_disabled
+    title: "Ensure packet redirect sending is disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3.2'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: rhel.section_3.packet_redirect_sending_is_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Set the following parameters in /etc/sysctl.conf or a file in /etc/sysctl.d/
+      ending in .conf: • net.ipv4.conf.all.send_redirects = 0 •
+      net.ipv4.conf.default.send_redirects = 0 Example: # printf '%s\n'
+      'net.ipv4.conf.all.send_redirects = 0' 'net.ipv4.conf.default.send_redirects =
+      0' >> /etc/sysctl.d/60- netipv4_sysctl.conf Run the following script to set
+      the active kernel parameters: #!/usr/bin/env bash { sysctl -w
+      net.ipv4.conf.all.send_redirects=0 sysctl -w
+      net.ipv4.conf.default.send_redirects=0 sysctl -w net.ipv4.route.flush=1 }
+      Note: If these settings appear in a canonically later file, or later in the
+      same file, these settings will be overwritten Default Value:
+      net.ipv4.conf.all.send_redirects = 1 net.ipv4.conf.default.send_redirects = 1
+      References: 1. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5 Additional
+      Information: On systems with Uncomplicated Firewall, additional settings may
+      be configured in /etc/ufw/sysctl.conf • The settings in /etc/ufw/sysctl.conf
+      will override settings in /etc/sysctl.conf • This behavior can be changed by
+      updating the IPT_SYSCTL parameter in /etc/default/ufw
+    compliance:
+      - cis_rhel_9_v2_0_0_3_3_2
+
+  - rule_id: rhel.cis.3.bogus_icmp_responses_are_ignored
+    title: "Ensure bogus icmp responses are ignored"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3.3'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: rhel.section_3.bogus_icmp_responses_are_ignored
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Set the following parameter in /etc/sysctl.conf or a file in /etc/sysctl.d/
+      ending in .conf: • net.ipv4.icmp_ignore_bogus_error_responses = 1 Example: #
+      printf '%s\n' 'net.ipv4.icmp_ignore_bogus_error_responses = 1' >>
+      /etc/sysctl.d/60-netipv4_sysctl.conf Run the following script to set the
+      active kernel parameters: #!/usr/bin/env bash { sysctl -w
+      net.ipv4.icmp_ignore_bogus_error_responses=1 sysctl -w net.ipv4.route.flush=1
+      } Note: If these settings appear in a canonically later file, or later in the
+      same file, these settings will be overwritten Default Value:
+      net.ipv4.icmp_ignore_bogus_error_responses = 1 References: 1. NIST SP 800-53
+      Rev. 5: CM-1,CM-2, CM-6, CM-7, IA-5 Additional Information: On systems with
+      Uncomplicated Firewall, additional settings may be configured in
+      /etc/ufw/sysctl.conf • The settings in /etc/ufw/sysctl.conf will override
+      settings in /etc/sysctl.conf • This behavior can be changed by updating the
+      IPT_SYSCTL parameter in /etc/default/ufw
+    compliance:
+      - cis_rhel_9_v2_0_0_3_3_3
+
+  - rule_id: rhel.cis.3.broadcast_icmp_requests_are_ignored
+    title: "Ensure broadcast icmp requests are ignored"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3.4'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: rhel.section_3.broadcast_icmp_requests_are_ignored
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Set the following parameter in /etc/sysctl.conf or a file in /etc/sysctl.d/
+      ending in .conf: • net.ipv4.icmp_echo_ignore_broadcasts = 1 Example: # printf
+      '%s\n' 'net.ipv4.icmp_echo_ignore_broadcasts = 1' >>
+      /etc/sysctl.d/60-netipv4_sysctl.conf Run the following script to set the
+      active kernel parameters: #!/usr/bin/env bash { sysctl -w
+      net.ipv4.icmp_echo_ignore_broadcasts=1 sysctl -w net.ipv4.route.flush=1 }
+      Note: If these settings appear in a canonically later file, or later in the
+      same file, these settings will be overwritten Default Value:
+      net.ipv4.conf.default.log_martians = 0 References: 1. NIST SP 800-53 Rev. 5:
+      CM-1, CM-2, CM-6, CM-7, IA-5 Additional Information: On systems with
+      Uncomplicated Firewall, additional settings may be configured in
+      /etc/ufw/sysctl.conf • The settings in /etc/ufw/sysctl.conf will override
+      settings in /etc/sysctl.conf • This behavior can be changed by updating the
+      IPT_SYSCTL parameter in /etc/default/ufw
+    compliance:
+      - cis_rhel_9_v2_0_0_3_3_4
+
+  - rule_id: rhel.cis.3.icmp_redirects_are_not_accepted
+    title: "Ensure icmp redirects are not accepted"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3.5'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: rhel.section_3.icmp_redirects_are_not_accepted
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Set the following parameters in /etc/sysctl.conf or a file in /etc/sysctl.d/
+      ending in .conf: • net.ipv4.conf.all.accept_redirects = 0 •
+      net.ipv4.conf.default.accept_redirects = 0 Example: # printf '%s\n'
+      'net.ipv4.conf.all.accept_redirects = 0'
+      'net.ipv4.conf.default.accept_redirects = 0' >> /etc/sysctl.d/60-
+      netipv4_sysctl.conf Run the following script to set the active kernel
+      parameters: #!/usr/bin/env bash { sysctl -w
+      net.ipv4.conf.all.accept_redirects=0 sysctl -w
+      net.ipv4.conf.default.accept_redirects=0 sysctl -w net.ipv4.route.flush=1 } -
+      IF - IPv6 is enabled on the system: Set the following parameters in
+      /etc/sysctl.conf or a file in /etc/sysctl.d/ ending in .conf: •
+      net.ipv6.conf.all.accept_redirects = 0 •
+      net.ipv6.conf.default.accept_redirects = 0 Example: # printf '%s\n'
+      'net.ipv6.conf.all.accept_redirects = 0'
+      'net.ipv6.conf.default.accept_redirects = 0' >> /etc/sysctl.d/60-
+      netipv6_sysctl.conf Run the following script to set the active kernel
+      parameters: #!/usr/bin/env bash { sysctl -w
+      net.ipv6.conf.all.accept_redirects=0 sysctl -w
+      net.ipv6.conf.default.accept_redirects=0 sysctl -w net.ipv6.route.flush=1 }
+      Note: If these settings appear in a canonically later file, or later in the
+      same file, these settings will be overwritten Default Value:
+      net.ipv4.conf.all.accept_redirects = 1 net.ipv4.conf.default.accept_redirects
+      = 1 net.ipv6.conf.all.accept_redirects = 1
+      net.ipv6.conf.default.accept_redirects = 1 References: 1. NIST SP 800-53 Rev.
+      5: CM-1, CM-2, CM-6, CM-7, IA-5 Additional Information: On systems with
+      Uncomplicated Firewall, additional settings may be configured in
+      /etc/ufw/sysctl.conf • The settings in /etc/ufw/sysctl.conf will override
+      settings in /etc/sysctl.conf • This behavior can be changed by updating the
+      IPT_SYSCTL parameter in /etc/default/ufw
+    compliance:
+      - cis_rhel_9_v2_0_0_3_3_5
+
+  - rule_id: rhel.cis.3.secure_icmp_redirects_are_not_accepted
+    title: "Ensure secure icmp redirects are not accepted"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3.6'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: rhel.section_3.secure_icmp_redirects_are_not_accepted
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Set the following parameters in /etc/sysctl.conf or a file in /etc/sysctl.d/
+      ending in .conf: • net.ipv4.conf.all.secure_redirects = 0 •
+      net.ipv4.conf.default.secure_redirects = 0 Example: # printf '%s\n'
+      'net.ipv4.conf.all.secure_redirects = 0'
+      'net.ipv4.conf.default.secure_redirects = 0' >> /etc/sysctl.d/60-
+      netipv4_sysctl.conf Run the following script to set the active kernel
+      parameters: #!/usr/bin/env bash { sysctl -w
+      net.ipv4.conf.all.secure_redirects=0 sysctl -w
+      net.ipv4.conf.default.secure_redirects=0 sysctl -w net.ipv4.route.flush=1 }
+      Note: If these settings appear in a canonically later file, or later in the
+      same file, these settings will be overwritten Default Value:
+      net.ipv4.conf.all.secure_redirects = 1 net.ipv4.conf.default.secure_redirects
+      = 1 References: 1. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5
+      Additional Information: On systems with Uncomplicated Firewall, additional
+      settings may be configured in /etc/ufw/sysctl.conf • The settings in
+      /etc/ufw/sysctl.conf will override settings in /etc/sysctl.conf • This
+      behavior can be changed by updating the IPT_SYSCTL parameter in
+      /etc/default/ufw
+    compliance:
+      - cis_rhel_9_v2_0_0_3_3_6
+
+  - rule_id: rhel.cis.3.reverse_path_filtering_is_enabled
+    title: "Ensure reverse path filtering is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3.7'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: rhel.section_3.reverse_path_filtering_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "on"
+    remediation: >
+      Set the following parameters in /etc/sysctl.conf or a file in /etc/sysctl.d/
+      ending in .conf: • net.ipv4.conf.all.rp_filter = 1 •
+      net.ipv4.conf.default.rp_filter = 1 Example: # printf '%s\n'
+      'net.ipv4.conf.all.rp_filter = 1' 'net.ipv4.conf.default.rp_filter = 1' >>
+      /etc/sysctl.d/60-netipv4_sysctl.conf Run the following script to set the
+      active kernel parameters: #!/usr/bin/env bash { sysctl -w
+      net.ipv4.conf.all.rp_filter=1 sysctl -w net.ipv4.conf.default.rp_filter=1
+      sysctl -w net.ipv4.route.flush=1 } Note: If these settings appear in a
+      canonically later file, or later in the same file, these settings will be
+      overwritten Default Value: net.ipv4.conf.all.rp_filter = 2
+      net.ipv4.conf.default.rp_filter = 1 References: 1. NIST SP 800-53 Rev. 5:
+      CM-1,CM-2, CM-6, CM-7, IA-5 Additional Information: On systems with
+      Uncomplicated Firewall, additional settings may be configured in
+      /etc/ufw/sysctl.conf • The settings in /etc/ufw/sysctl.conf will override
+      settings in /etc/sysctl.conf • This behavior can be changed by updating the
+      IPT_SYSCTL parameter in /etc/default/ufw
+    compliance:
+      - cis_rhel_9_v2_0_0_3_3_7
+
+  - rule_id: rhel.cis.3.source_routed_packets_are_not_accepted
+    title: "Ensure source routed packets are not accepted"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3.8'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: rhel.section_3.source_routed_packets_are_not_accepted
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Set the following parameters in /etc/sysctl.conf or a file in /etc/sysctl.d/
+      ending in .conf: • net.ipv4.conf.all.accept_source_route = 0 •
+      net.ipv4.conf.default.accept_source_route = 0 Example: # printf '%s\n'
+      'net.ipv4.conf.all.accept_source_route = 0'
+      'net.ipv4.conf.default.accept_source_route = 0' >> /etc/sysctl.d/60-
+      netipv4_sysctl.conf Run the following script to set the active kernel
+      parameters: #!/usr/bin/env bash { sysctl -w
+      net.ipv4.conf.all.accept_source_route=0 sysctl -w
+      net.ipv4.conf.default.accept_source_route=0 sysctl -w net.ipv4.route.flush=1 }
+      - IF - IPv6 is enabled on the system: Set the following parameters in
+      /etc/sysctl.conf or a file in /etc/sysctl.d/ ending in .conf: •
+      net.ipv6.conf.all.accept_source_route = 0 •
+      net.ipv6.conf.default.accept_source_route = 0 Example: # printf '%s\n'
+      'net.ipv6.conf.all.accept_source_route = 0'
+      'net.ipv6.conf.default.accept_source_route = 0' >> /etc/sysctl.d/60-
+      netipv6_sysctl.conf Run the following command to set the active kernel
+      parameters: #!/usr/bin/env bash { sysctl -w
+      net.ipv6.conf.all.accept_source_route=0 sysctl -w
+      net.ipv6.conf.default.accept_source_route=0 sysctl -w net.ipv6.route.flush=1 }
+      Note: If these settings appear in a canonically later file, or later in the
+      same file, these settings will be overwritten Default Value:
+      net.ipv4.conf.all.accept_source_route = 0
+      net.ipv4.conf.default.accept_source_route = 0
+      net.ipv6.conf.all.accept_source_route = 0
+      net.ipv6.conf.default.accept_source_route = 0 References: 1. NIST SP 800-53
+      Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5 Additional Information: On systems with
+      Uncomplicated Firewall, additional settings may be configured in
+      /etc/ufw/sysctl.conf • The settings in /etc/ufw/sysctl.conf will override
+      settings in /etc/sysctl.conf • This behavior can be changed by updating the
+      IPT_SYSCTL parameter in /etc/default/ufw
+    compliance:
+      - cis_rhel_9_v2_0_0_3_3_8
+
+  - rule_id: rhel.cis.3.suspicious_packets_are_logged
+    title: "Ensure suspicious packets are logged"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3.9'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: rhel.section_3.suspicious_packets_are_logged
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "on"
+    remediation: >
+      Set the following parameters in /etc/sysctl.conf or a file in /etc/sysctl.d/
+      ending in .conf: • net.ipv4.conf.all.log_martians = 1 •
+      net.ipv4.conf.default.log_martians = 1 Example: # printf '%s\n'
+      'net.ipv4.conf.all.log_martians = 1' 'net.ipv4.conf.default.log_martians = 1'
+      >> /etc/sysctl.d/60- netipv4_sysctl.conf Run the following script to set the
+      active kernel parameters: #!/usr/bin/env bash { sysctl -w
+      net.ipv4.conf.all.log_martians=1 sysctl -w
+      net.ipv4.conf.default.log_martians=1 sysctl -w net.ipv4.route.flush=1 } Note:
+      If these settings appear in a canonically later file, or later in the same
+      file, these settings will be overwritten Default Value:
+      net.ipv4.conf.all.log_martians = 0 net.ipv4.conf.default.log_martians = 0
+      References: 1. NIST SP 800-53 Rev. 5: AU-3 Additional Information: On systems
+      with Uncomplicated Firewall, additional settings may be configured in
+      /etc/ufw/sysctl.conf • The settings in /etc/ufw/sysctl.conf will override
+      settings in /etc/sysctl.conf • This behavior can be changed by updating the
+      IPT_SYSCTL parameter in /etc/default/ufw
+    compliance:
+      - cis_rhel_9_v2_0_0_3_3_9
+
+  - rule_id: rhel.cis.3.tcp_syn_cookies_is_enabled
+    title: "Ensure tcp syn cookies is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3.10'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: rhel.section_3.tcp_syn_cookies_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "on"
+    remediation: >
+      Set the following parameter in /etc/sysctl.conf or a file in /etc/sysctl.d/
+      ending in .conf: • net.ipv4.tcp_syncookies = 1 Example: # printf '%s\n'
+      'net.ipv4.tcp_syncookies = 1' >> /etc/sysctl.d/60- netipv4_sysctl.conf Run the
+      following script to set the active kernel parameters: #!/usr/bin/env bash {
+      sysctl -w net.ipv4.tcp_syncookies=1 sysctl -w net.ipv4.route.flush=1 } Note:
+      If these settings appear in a canonically later file, or later in the same
+      file, these settings will be overwritten Default Value:
+      net.ipv4.tcp_syncookies = 1 References: 1. NIST SP 800-53 Rev. 5: CM-1,CM-2,
+      CM-6, CM-7, IA-5 Additional Information: On systems with Uncomplicated
+      Firewall, additional settings may be configured in /etc/ufw/sysctl.conf • The
+      settings in /etc/ufw/sysctl.conf will override settings in /etc/sysctl.conf •
+      This behavior can be changed by updating the IPT_SYSCTL parameter in
+      /etc/default/ufw
+    compliance:
+      - cis_rhel_9_v2_0_0_3_3_10
+
+  - rule_id: rhel.cis.3.ipv6_router_advertisements_are_not_accepted
+    title: "Ensure ipv6 router advertisements are not accepted"
+    severity: high
+    automation_type: automated
+    cis_control: '3.3.11'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: rhel.section_3.ipv6_router_advertisements_are_not_accepted
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      - IF - IPv6 is enabled on the system: Set the following parameters in
+      /etc/sysctl.conf or a file in /etc/sysctl.d/ ending in .conf: •
+      net.ipv6.conf.all.accept_ra = 0 • net.ipv6.conf.default.accept_ra = 0 Example:
+      # printf '%s\n' 'net.ipv6.conf.all.accept_ra = 0'
+      'net.ipv6.conf.default.accept_ra = 0' >> /etc/sysctl.d/60-netipv6_sysctl.conf
+      Run the following script to set the active kernel parameters: #!/usr/bin/env
+      bash { sysctl -w net.ipv6.conf.all.accept_ra=0 sysctl -w
+      net.ipv6.conf.default.accept_ra=0 sysctl -w net.ipv6.route.flush=1 } Note: If
+      these settings appear in a canonically later file, or later in the same file,
+      these settings will be overwritten Default Value: net.ipv6.conf.all.accept_ra
+      = 1 net.ipv6.conf.default.accept_ra = 1 References: 1. NIST SP 800-53 Rev. 5:
+      CM-1,CM-2, CM-6, CM-7, IA-5 Additional Information: On systems with
+      Uncomplicated Firewall, additional settings may be configured in
+      /etc/ufw/sysctl.conf • The settings in /etc/ufw/sysctl.conf will override
+      settings in /etc/sysctl.conf • This behavior can be changed by updating the
+      IPT_SYSCTL parameter in /etc/default/ufw
+    compliance:
+      - cis_rhel_9_v2_0_0_3_3_11
+
+  - rule_id: rhel.cis.3.nftables_is_installed
+    title: "Ensure nftables is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.1.1'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: rhel.section_3.nftables_is_installed
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to install nftables # dnf install nftables
+      References: 1. NIST SP 800-53 Rev. 5: CA-9
+    compliance:
+      - cis_rhel_8_v3_0_0_3_4_1_1
+
+  - rule_id: rhel.cis.3.a_single_firewall_configuration_utility_is_in_use
+    title: "Ensure a single firewall configuration utility is in use"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.1.2'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: rhel.section_3.a_single_firewall_configuration_utility_is_in_use
+    assertion:
+      field: port
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following script to ensure that a single firewall utility is in use on
+      the system: #!/usr/bin/env bash { l_output='' l_output2='' l_fwd_status=''
+      l_nft_status='' l_fwutil_status='' # Determine FirewallD utility Status rpm -q
+      firewalld > /dev/null 2>&1 && l_fwd_status='$(systemctl is-enabled
+      firewalld.service):$(systemctl is-active firewalld.service)' # Determine
+      NFTables utility Status rpm -q nftables > /dev/null 2>&1 &&
+      l_nft_status='$(systemctl is-enabled nftables.service):$(systemctl is-active
+      nftables.service)' l_fwutil_status='$l_fwd_status:$l_nft_status' case
+      $l_fwutil_status in
+      enabled:active:masked:inactive|enabled:active:disabled:inactive) echo -e '\n -
+      FirewallD utility is in use, enabled and active\n - NFTables utility is
+      correctly disabled or masked and inactive\n - no remediation required' ;;
+      masked:inactive:enabled:active|disabled:inactive:enabled:active) echo -e '\n -
+      NFTables utility is in use, enabled and active\n - FirewallD utility is
+      correctly disabled or masked and inactive\n - no remediation required' ;;
+      enabled:active:enabled:active) echo -e '\n - Both FirewallD and NFTables
+      utilities are enabled and active\n - stopping and masking NFTables utility'
+      systemctl stop nftables && systemctl --now mask nftables ;;
+      enabled:*:enabled:*) echo -e '\n - Both FirewallD and NFTables utilities are
+      enabled\n - remediating' if [ '$(awk -F: '{print $2}' <<< '$l_fwutil_status')'
+      = 'active' ] && [ '$(awk -F: '{print $4}' <<< '$l_fwutil_status')' =
+      'inactive' ]; then echo ' - masking NFTables utility' systemctl stop nftables
+      && systemctl --now mask nftables elif [ '$(awk -F: '{print $4}' <<<
+      '$l_fwutil_status')' = 'active' ] && [ '$(awk -F: '{print $2}' <<<
+      '$l_fwutil_status')' = 'inactive' ]; then echo ' - masking FirewallD utility'
+      systemctl stop firewalld && systemctl --now mask firewalld fi ;;
+      *:active:*:active) echo -e '\n - Both FirewallD and NFTables utilities are
+      active\n - remediating' if [ '$(awk -F: '{print $1}' <<< '$l_fwutil_status')'
+      = 'enabled' ] && [ '$(awk -F: '{print $3}' <<< '$l_fwutil_status')' !=
+      'enabled' ]; then echo ' - stopping and masking NFTables utility' systemctl
+      stop nftables && systemctl --now mask nftables elif [ '$(awk -F: '{print $3}'
+      <<< '$l_fwutil_status')' = 'enabled' ] && [ '$(awk -F: '{print $1}' <<<
+      '$l_fwutil_status')' != 'enabled' ]; then echo ' - stopping and masking
+      FirewallD utility' systemctl stop firewalld && systemctl --now mask firewalld
+      fi ;; :enabled:active) echo -e '\n - NFTables utility is in use, enabled, and
+      active\n - FirewallD package is not installed\n - no remediation required' ;;
+      :) echo -e '\n - Neither FirewallD or NFTables is installed.\n - remediating\n
+      - installing NFTables' dnf -q install nftables ;; *:*:) echo -e '\n - NFTables
+      package is not installed on the system\n - remediating\n - installing
+      NFTables' dnf -q install nftables ;; *) echo -e '\n - Unable to determine
+      firewall state' ;; esac } References: 1.
+      https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/9/html-
+      single/configuring_firewalls_and_packet_filters/index
+    compliance:
+      - cis_rhel_8_v3_0_0_3_4_1_2
+
+  - rule_id: rhel.cis.3.nftables_base_chains_exist
+    title: "Ensure nftables base chains exist"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.2.1'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: rhel.section_3.nftables_base_chains_exist
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      - IF not using FirewallD - Run the following command to create the base
+      chains: # nft create chain inet <table name> <base chain name> { type filter
+      hook <(input|forward|output)> priority 0 \; } Example: # nft create chain inet
+      filter input { type filter hook input priority 0 \; } # nft create chain inet
+      filter forward { type filter hook forward priority 0 \; } # nft create chain
+      inet filter output { type filter hook output priority 0 \; } References: 1.
+      NIST SP 800-53 Rev. 5: CA-9
+    compliance:
+      - cis_rhel_8_v3_0_0_3_4_2_1
+
+  - rule_id: rhel.cis.3.host_based_firewall_loopback_traffic_is_configured
+    title: "Ensure host based firewall loopback traffic is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.2.2'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: rhel.section_3.host_based_firewall_loopback_traffic_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following script to implement the loopback rules: #!/usr/bin/env bash
+      { l_hbfw='' if systemctl is-enabled firewalld.service | grep -q 'enabled' &&
+      systemctl is-enabled nftables.service | grep -q 'enabled'; then echo -e '\n -
+      Error - Both FirewallD and NFTables are enabled\n - Please follow
+      recommendation: \'Ensure a single firewall configuration utility is in use\''
+      elif ! systemctl is-enabled firewalld.service | grep -q 'enabled' && !
+      systemctl is-enabled nftables.service | grep -q 'enabled'; then echo -e '\n -
+      Error - Neither FirewallD or NFTables is enabled\n - Please follow
+      recommendation: \'Ensure a single firewall configuration utility is in use\''
+      else if systemctl is-enabled firewalld.service | grep -q 'enabled' && !
+      systemctl is-enabled nftables.service | grep -q 'enabled'; then echo -e '\n -
+      FirewallD is in use on the system' && l_hbfw='fwd' elif ! systemctl is-enabled
+      firewalld.service | grep -q 'enabled' && systemctl is-enabled nftables.service
+      | grep -q 'enabled'; then echo -e '\n - NFTables is in use on the system' &&
+      l_hbfw='nft' fi l_ipsaddr='$(nft list ruleset | awk
+      '/filter_IN_public_deny|hook\s+input\s+/,/\}\s*(#.*)?$/' | grep -P --
+      'ip\h+saddr')' if ! nft list ruleset | awk '/hook\s+input\s+/,/\}\s*(#.*)?$/'
+      | grep -Pq -- '\H+\h+'lo'\h+accept'; then echo -e '\n - Enabling input to
+      accept for loopback address' if [ '$l_hbfw' = 'fwd' ]; then firewall-cmd
+      --permanent --zone=trusted --add-interface=lo firewall-cmd --reload elif [
+      '$l_hbfw' = 'nft' ]; then nft add rule inet filter input iif lo accept fi fi
+      if ! grep -Pq --
+      'ip\h+saddr\h+127\.0\.0\.0\/8\h+(counter\h+packets\h+\d+\h+bytes\h+\d+\h+)?drop'
+      <<< '$l_ipsaddr' && ! grep -Pq --
+      'ip\h+daddr\h+\!\=\h+127\.0\.0\.1\h+ip\h+saddr\h+127\.0\.0\.1\h+drop' <<<
+      '$l_ipsaddr'; then echo -e '\n - Setting IPv4 network traffic from loopback
+      address to drop' if [ '$l_hbfw' = 'fwd' ]; then firewall-cmd --permanent
+      --add-rich-rule='rule family=ipv4 source address='127.0.0.1' destination not
+      address='127.0.0.1' drop' firewall-cmd --permanent --zone=trusted --add-rich-
+      rule='rule family=ipv4 source address='127.0.0.1' destination not
+      address='127.0.0.1' drop' firewall-cmd --reload elif [ '$l_hbfw' = 'nft' ];
+      then nft create rule inet filter input ip saddr 127.0.0.0/8 counter drop fi fi
+      if grep -Pq -- '^\h*0\h*$' /sys/module/ipv6/parameters/disable; then
+      l_ip6saddr='$(nft list ruleset | awk '/filter_IN_public_deny|hook input/,/}/'
+      | grep 'ip6 saddr')' if ! grep -Pq
+      'ip6\h+saddr\h+::1\h+(counter\h+packets\h+\d+\h+bytes\h+\d+\h+)?drop' <<<
+      '$l_ip6saddr' && ! grep -Pq --
+      'ip6\h+daddr\h+\!=\h+::1\h+ip6\h+saddr\h+::1\h+drop' <<< '$l_ip6saddr'; then
+      echo -e '\n - Setting IPv6 network traffic from loopback address to drop' if [
+      '$l_hbfw' = 'fwd' ]; then firewall-cmd --permanent --add-rich-rule='rule
+      family=ipv6 source address='::1' destination not address='::1' drop' firewall-
+      cmd --permanent --zone=trusted --add-rich-rule='rule family=ipv6 source
+      address='::1' destination not address='::1' drop' firewall-cmd --reload elif [
+      '$l_hbfw' = 'nft' ]; then nft add rule inet filter input ip6 saddr ::1 counter
+      drop fi fi fi fi } References: 1. NIST SP 800-53 Rev. 5: CA-9
+    compliance:
+      - cis_rhel_8_v3_0_0_3_4_2_2
+
+  - rule_id: rhel.cis.3.nftables_default_deny_firewall_policy
+    title: "Ensure nftables default deny firewall policy"
+    severity: high
+    automation_type: automated
+    cis_control: '3.4.2.5'
+    cis_section: '3'
+    profile_applicability: "Level 1"
+    scope: rhel.section_3.nftables_default_deny_firewall_policy
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      If NFTables utility is in use on your system: Run the following command for
+      the base chains with the input, forward, and output hooks to implement a
+      default DROP policy: # nft chain <table family> <table name> <chain name> {
+      policy drop \; } Example: # nft chain inet filter input { policy drop \; } #
+      nft chain inet filter forward { policy drop \; } Default Value: accept
+      References: 1. Manual Page nft 2. NIST SP 800-53 Rev. 5: CA-9
+    compliance:
+      - cis_rhel_8_v3_0_0_3_4_2_5
+
+

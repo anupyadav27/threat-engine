@@ -1,0 +1,63 @@
+rule_id: oci.vault.audit.key_deletion_scheduled
+service: vault
+provider: oci
+check_type: log
+severity: critical
+title: 'OCI Vault: Encryption Key Scheduled for Deletion'
+description: An OCI Vault encryption key was scheduled for deletion. Data encrypted with the key will be permanently inaccessible after deletion — a critical impact event.
+threat_category: impact
+mitre_tactics:
+- impact
+mitre_techniques:
+- T1486
+risk_score: 98
+resource: oci_kms_key
+domain: impact
+action_category: delete
+log_source_type: 
+posture_category: workload_posture
+threat_tags:
+- T1486
+- impact
+- availability
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: destructive
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: low
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - secrets_management
+  categories:
+  - sensitive_data_access
+  priority: critical
+  impact:
+    pci: PCI DSS Requirement 12.3 — Implement security awareness program and protect systems
+    gdpr: GDPR Article 32 — Appropriate technical and organizational measures for data security
+    hipaa: §164.306(a) — Ensure confidentiality, integrity, and availability of ePHI
+  sensitive_data_context: |
+  Unauthorized impact on vault resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks: {}
+remediation: Review and investigate this activity in the OCI Console and take corrective action.
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.vault
+    - field: operation
+      op: in
+      value:
+      - ScheduleKeyDeletion
+      - ScheduleKeyVersionDeletion

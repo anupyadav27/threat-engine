@@ -1,0 +1,246 @@
+tech_type: iis
+category: web_server
+cis_benchmark: CIS Microsoft IIS 10 v1.2.1
+cis_section: '4'
+
+rules:
+
+  - rule_id: iis.cis.4.l2_ensure_maxurl_request_filter_is_configured
+    title: "(L2) Ensure 'maxURL request filter' is configured"
+    severity: medium
+    automation_type: automated
+    cis_control: '4.2'
+    cis_section: '4'
+    profile_applicability: "Level 2"
+    scope: iis.section_4.l2_ensure_maxurl_request_filter_is_configured
+    assertion:
+      field: length
+      operator: lte
+      expected: "true"
+    remediation: >
+      The MaxURL Request Filter may be set for a server, website, or application
+      using the IIS Manager GUI, using AppCmd.exe commands in a command-line window,
+      and/or directly editing the configuration files. To configure using the IIS
+      Manager GUI: 1. Open Internet Information Services (IIS) Manager 2. In the
+      Connections pane, click on the connection, site, application, or directory to
+      be configured 3. In the Home pane, double-click Request Filtering 4. Click
+      Edit Feature Settings... in the Actions pane 5. Under the Request Limits
+      section, key the maximum URL length in bytes that has been tested with web
+      applications Enter the following command in AppCmd.exe to configure:
+      %systemroot%\system32\inetsrv\appcmd set config /section:requestfiltering
+      /requestLimits.maxURL:4096 OR Enter the following command in PowerShell to
+      configure: Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST'
+      -filter 'system.webServer/security/requestFiltering/requestLimits' -name
+      'maxUrl' - value 4096 Default Value: When Request Filtering is installed on a
+      system, the default value for maxURL=“4096”. References: 1.
+      http://www.iis.net/ConfigReference/system.webServer/security/requestFiltering/re
+      questLimits 2. http://learn.iis.net/page.aspx/143/use-request-filtering/
+    compliance:
+      - cis_iis_10_v1_2_1_4_2
+
+  - rule_id: iis.cis.4.l2_ensure_maxquerystring_request_filter_is
+    title: "(L2) Ensure 'MaxQueryString request filter' is configured"
+    severity: medium
+    automation_type: automated
+    cis_control: '4.3'
+    cis_section: '4'
+    profile_applicability: "Level 2"
+    scope: iis.section_4.l2_ensure_maxquerystring_request_filter_is
+    assertion:
+      field: length
+      operator: exists
+      expected: "true"
+    remediation: >
+      The MaxQueryString Request Filter may be set for a server, website, or
+      application using the IIS Manager GUI, using AppCmd.exe commands in a command-
+      line window, and/or directly editing the configuration files. To configure
+      using the IIS Manager GUI: 1. Open Internet Information Services (IIS) Manager
+      2. In the Connections pane, go to the connection, site, application, or
+      directory to be configured 3. In the Home pane, double-click Request Filtering
+      4. Click Edit Feature Settings... in the Actions pane 5. Under the Request
+      Limits section, key in a safe upper bound in the Maximum query string (Bytes)
+      textbox Enter the following command in AppCmd.exe to configure:
+      %systemroot%\system32\inetsrv\appcmd set config /section:requestfiltering
+      /requestLimits.maxQueryString:2048 OR Enter the following command in
+      PowerShell to configure: Set-WebConfigurationProperty -pspath
+      'MACHINE/WEBROOT/APPHOST' -filter
+      'system.webServer/security/requestFiltering/requestLimits' -name
+      'maxQueryString' -value 2048 Default Value: When request filtering is
+      installed on a system, the default value is maxQueryString=“2048”. References:
+      1.
+      http://www.iis.net/ConfigReference/system.webServer/security/requestFiltering/re
+      questLimits 2. http://learn.iis.net/page.aspx/143/use-request-filtering/
+    compliance:
+      - cis_iis_10_v1_2_1_4_3
+
+  - rule_id: iis.cis.4.l2_ensure_non_ascii_characters_in_urls_are_not
+    title: "(L2) Ensure non-ASCII characters in URLs are not allowed"
+    severity: medium
+    automation_type: automated
+    cis_control: '4.4'
+    cis_section: '4'
+    profile_applicability: "Level 2"
+    scope: iis.section_4.l2_ensure_non_ascii_characters_in_urls_are_not
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      The AllowHighBitCharacters Request Filter may be set for a server, website, or
+      application using the IIS Manager GUI, using AppCmd.exe commands in a command-
+      line window, and/or directly editing the configuration files. To configure
+      using the IIS Manager GUI: 1. Open Internet Information Services (IIS) Manager
+      2. In the Connections pane, go to the connection, site, application, or
+      directory to be configured 3. In the Home pane, double-click Request Filtering
+      4. Click Edit Feature Settings... in the Actions pane 5. Under the General
+      section, uncheck Allow high-bit characters Note: Disallowing high-bit ASCII
+      characters in the URL may negatively impact the functionality of sites
+      requiring international language support. Enter the following command in
+      AppCmd.exe to configure: %systemroot%\system32\inetsrv\appcmd set config
+      /section:requestfiltering /allowHighBitCharacters:false OR Enter the following
+      command in PowerShell to configure: Set-WebConfigurationProperty -pspath
+      'MACHINE/WEBROOT/APPHOST' -filter 'system.webServer/security/requestFiltering'
+      -name 'allowHighBitCharacters' - value 'False' Default Value: When Request
+      Filtering is installed on a system, the default behavior is to allow high-bit
+      characters in URI. References: 1. http://learn.iis.net/page.aspx/143/use-
+      request-filtering/ 2. http://learn.iis.net/page.aspx/936/urlscan-1-reference/
+      3. Professional IIS 7 by Ken Schaefer, Jeff Cochran, Scott Forsyth, Rob Baugh,
+      Mike Everest, Dennis Glendenning
+    compliance:
+      - cis_iis_10_v1_2_1_4_4
+
+  - rule_id: iis.cis.4.l1_ensure_double_encoded_requests_will_be_rejected
+    title: "(L1) Ensure Double-Encoded requests will be rejected"
+    severity: high
+    automation_type: automated
+    cis_control: '4.5'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: iis.section_4.l1_ensure_double_encoded_requests_will_be_rejected
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      The allowDoubleEscaping Request Filter may be set for a server, website, or
+      application using the IIS Manager GUI, using AppCmd.exe commands in a command-
+      line window, and/or directly editing the configuration files. To configure
+      using the IIS Manager GUI: 1. Open Internet Information Services (IIS) Manager
+      2. In the Connections pane, select the site, application, or directory to be
+      configured 3. In the Home pane, double-click Request Filtering 4. Click Edit
+      Feature Settings... in the Actions pane 5. Under the General section, uncheck
+      Allow double escaping If a file name in a URL includes '+' then
+      allowDoubleEscaping must be set to true to allow functionality. Enter the
+      following command in AppCmd.exe to configure:
+      %systemroot%\system32\inetsrv\appcmd set config /section:requestfiltering
+      /allowDoubleEscaping:false OR Enter the following command in PowerShell to
+      configure: Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST'
+      -filter 'system.webServer/security/requestFiltering' -name
+      'allowDoubleEscaping' - value 'True' Default Value: When Request Filtering is
+      installed on a system, the default behavior is to not allow double-encoded
+      requests. References: 1.
+      http://www.iis.net/ConfigReference/system.webServer/security/requestFiltering/re
+      questLimits 2. http://learn.iis.net/page.aspx/143/use-request-filtering/
+    compliance:
+      - cis_iis_10_v1_2_1_4_5
+
+  - rule_id: iis.cis.4.l1_ensure_unlisted_file_extensions_are_not_allowed
+    title: "(L1) Ensure Unlisted File Extensions are not allowed"
+    severity: high
+    automation_type: automated
+    cis_control: '4.7'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: iis.section_4.l1_ensure_unlisted_file_extensions_are_not_allowed
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      The allowUnlisted Request Filter may be set for a server, website, or
+      application using the IIS Manager GUI, using AppCmd.exe commands in a command-
+      line window, and/or directly editing the configuration files. To configure at
+      the server level using the IIS Manager GUI: 1. Open Internet Information
+      Services (IIS) Manager 2. In the Connections pane, select the server 3. In the
+      Home pane, double-click Request Filtering 4. Click Edit Feature Settings... in
+      the Actions pane 5. Under the General section, uncheck Allow unlisted file
+      name extensions Enter the following command in AppCmd.exe to configure:
+      %systemroot%\system32\inetsrv\appcmd set config /section:requestfiltering
+      /fileExtensions.allowunlisted:false OR Enter the following command in
+      PowerShell to configure: Set-WebConfigurationProperty -pspath
+      'MACHINE/WEBROOT/APPHOST' -filter
+      'system.webServer/security/requestFiltering/fileExtensions' -name
+      'allowUnlisted' -value 'False' Default Value: The default Request Filtering
+      configuration allows all unlisted file extensions to be requested. References:
+      1.
+      http://www.iis.net/ConfigReference/system.webServer/security/requestFiltering/re
+      questLimits 2. http://www.iis.net/learn/manage/configuring-security/configure-
+      request-filtering-in- iis
+    compliance:
+      - cis_iis_10_v1_2_1_4_7
+
+  - rule_id: iis.cis.4.l1_ensure_notlistedisapisallowed_is_set_to_false
+    title: "(L1) Ensure 'notListedIsapisAllowed' is set to false"
+    severity: high
+    automation_type: automated
+    cis_control: '4.9'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: iis.section_4.l1_ensure_notlistedisapisallowed_is_set_to_false
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      To use IIS Manager to set the notListedIsapisAllowed attribute to false: 1.
+      Open IIS Manager as Administrator 2. In the Connections pane on the left,
+      select server to be configured 3. In Features View, select ISAPI and CGI
+      Restrictions; in the Actions pane, select Open Feature 4. In the Actions pane,
+      select Edit Feature Settings 5. In the Edit ISAPI and CGI Restrictions
+      Settings dialog, clear the Allow unspecified ISAPI modules check box, if
+      checked 6. Click OK Enter the following command in AppCmd.exe to configure:
+      %systemroot%\system32\inetsrv\appcmd.exe set config -
+      section:system.webServer/security/isapiCgiRestriction
+      /notListedIsapisAllowed:false OR Enter the following command in PowerShell to
+      configure: Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST'
+      -filter 'system.webServer/security/isapiCgiRestriction' -name
+      'notListedIsapisAllowed' -value 'False' Default Value: The default value for
+      notListedIsapisAllowed is false. References: 1.
+      http://technet.microsoft.com/en-us/library/dd378846%28WS.10%29.aspx 2.
+      http://www.iis.net/ConfigReference/system.webServer/security/isapiCgiRestrictio
+      n
+    compliance:
+      - cis_iis_10_v1_2_1_4_9
+
+  - rule_id: iis.cis.4.l1_ensure_notlistedcgisallowed_is_set_to_false
+    title: "(L1) Ensure 'notListedCgisAllowed' is set to false"
+    severity: high
+    automation_type: automated
+    cis_control: '4.10'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: iis.section_4.l1_ensure_notlistedcgisallowed_is_set_to_false
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      To set the notListedCgisAllowed attribute to false using IIS Manager: 1. Open
+      IIS Manager as Administrator 2. In the Connections pane on the left, select
+      the server to configure 3. In Features View, select ISAPI and CGI
+      Restrictions; in the Actions pane, select Open Feature 4. In the Actions pane,
+      select Edit Feature Settings 5. In the Edit ISAPI and CGI Restrictions
+      Settings dialog, clear the Allow unspecified CGI modules check box 6. Click OK
+      Enter the following command in AppCmd.exe to configure:
+      %systemroot%\system32\inetsrv\appcmd.exe set config -
+      section:system.webServer/security/isapiCgiRestriction
+      /notListedCgisAllowed:false OR Enter the following command in PowerShell to
+      configure: Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST'
+      -filter 'system.webServer/security/isapiCgiRestriction' -name
+      'notListedCgisAllowed' -value 'False' Default Value: The default value for
+      notListedCgisAllowed is false. References: 1. http://technet.microsoft.com/en-
+      us/library/dd391919%28WS.10%29.aspx
+    compliance:
+      - cis_iis_10_v1_2_1_4_10
+
+

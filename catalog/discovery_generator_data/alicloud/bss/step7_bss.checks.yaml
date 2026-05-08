@@ -1,0 +1,203 @@
+checks:
+- rule_id: alicloud.bss.categories.access_billing_admins_mfa_required
+  for_each: alicloud.bss.categories
+  conditions:
+    var: item.mfa_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.bss.categories.access_billing_console_rbac_least_privilege
+  for_each: alicloud.bss.categories
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.bss.categories.access_cost_data_exports_private_and_encrypted
+  for_each: alicloud.bss.categories
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.bss.categories.access_cost_export_destinations_least_privilege
+  for_each: alicloud.bss.categories
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.bss.cost.budget_modify_permissions_restricted
+  for_each: alicloud.bss.cost
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.bss.document.secrets
+  for_each: alicloud.bss.document
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.bss.documents.set_as_public
+  for_each: alicloud.bss.documents
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.bss.ecs.regular_backups_configured
+  for_each: alicloud.ecs.compute_service
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.bss.encryption_at_rest_enabled.configured
+  for_each: alicloud.bss.encryption_at_rest_enabled
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.bss.instances.reservation_billing_admins_mfa_required
+  for_each: alicloud.apigateway.DescribeInstances
+  conditions:
+    var: item.mfa_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.bss.instances.reservation_purchase_permissions_restricted
+  for_each: alicloud.apigateway.DescribeInstances
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.bss.managed.compliant_patching
+  for_each: alicloud.bss.managed
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.bss.plans.properly_configured
+  for_each: alicloud.bss.plans_configured_and_active
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.bss.plans.retention_90_days_minimum
+  for_each: alicloud.bss.plans_configured_and_active
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.bss.plans.savings_plan_billing_admins_mfa_required
+  for_each: alicloud.bss.plans_configured_and_active
+  conditions:
+    var: item.mfa_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.bss.plans_configured_and_active.configured
+  for_each: alicloud.bss.plans_configured_and_active
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.bss.queues.not_publicly_accessible
+  for_each: alicloud.bss.queues
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+- rule_id: alicloud.bss.queues.server_side_encryption_enabled
+  for_each: alicloud.bss.queues
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.bss.recovery_point.encryption_at_rest_enabled
+  for_each: alicloud.bss.recovery_point
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.backup_enabled
+      op: equals
+- rule_id: alicloud.bss.recovery_point.retention_90_days_minimum
+  for_each: alicloud.bss.recovery_point
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.bss.recovery_point_encryption_at_rest_enabled.configured
+  for_each: alicloud.bss.recovery_point_encryption_at_rest_enabled
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.backup_enabled
+      op: equals
+- rule_id: alicloud.bss.reportplans_configured_and_active.configured
+  for_each: alicloud.bss.reportplans_configured_and_active
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.bss.snapshot.encryption
+  for_each: alicloud.bss.snapshot
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.bss.tls_via_cas_kms.encryption_mtls_required_for_internal_services_where_supported
+  for_each: alicloud.bss.tls_via_cas_kms
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.bss.tls_via_cas_kms.encryption_tls_min_1_2_enforced
+  for_each: alicloud.bss.tls_via_cas_kms
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.ssl_enabled
+      op: equals
+    - var: item.min_tls_version
+      op: gte
+- rule_id: alicloud.bss.topics.kms_encryption_at_rest_enabled
+  for_each: alicloud.apsaramq.ListTopics
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.bss.topics.not_publicly_accessible
+  for_each: alicloud.apsaramq.ListTopics
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+- rule_id: alicloud.bss.vault.encryption_at_rest_enabled
+  for_each: alicloud.bss.vault
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.backup_enabled
+      op: equals
+- rule_id: alicloud.bss.vaults.encryption_at_rest_enabled
+  for_each: alicloud.bss.vaults
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.backup_enabled
+      op: equals
+- rule_id: alicloud.bss.vaults_configured_and_access_controlled.configured
+  for_each: alicloud.bss.vaults_configured_and_access_controlled
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.bss.volume.backup_configured
+  for_each: alicloud.bss.volume
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: 'true'

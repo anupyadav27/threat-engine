@@ -106,12 +106,12 @@ def _get_recent_scans(
     """
     cur.execute(
         """
-        SELECT orchestration_id, scan_name, scan_type, trigger_type,
+        SELECT scan_run_id, scan_name, scan_type, trigger_type,
                provider, account_id, overall_status,
                started_at, completed_at,
                engines_requested, engines_completed,
                results_summary
-        FROM scan_orchestration
+        FROM scan_runs
         WHERE tenant_id = %s
         ORDER BY started_at DESC
         LIMIT %s

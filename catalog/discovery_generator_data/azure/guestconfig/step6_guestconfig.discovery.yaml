@@ -1,0 +1,91 @@
+# Discovery YAML — guestconfig (Azure)
+# Generated: 2026-04-15T10:39:30Z
+# Source: step1b_operation_registry.json (qualified ops + dependency chains)
+# Actions use {category}.{method} format for SDK method resolution
+version: '1.0'
+provider: azure
+service: guestconfig
+services:
+  client: guestconfig
+  module: azure.mgmt.guestconfig
+discovery:
+  # ════════════════════════════════════════
+  # Independent root operations
+  # ════════════════════════════════════════
+  # ── guestconfigurationassignments.list_by_subscription [root] ──
+  # Subscription-scoped; no required params beyond subscription_id (in client)
+  - discovery_id: azure.guestconfig.guestconfigurationassignments.list_by_subscription
+    calls:
+      - action: guestconfigurationassignments.list_by_subscription
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+
+  # ════════════════════════════════════════
+  # Dependent operations (for_each + params)
+  # ════════════════════════════════════════
+  # ── guestconfigurationassignmentreports.list [dependent] ──
+  - discovery_id: azure.guestconfig.guestconfigurationassignmentreports.list
+    for_each: azure.guestconfig.guestconfigurationassignments.list_by_subscription
+    calls:
+      - action: guestconfigurationassignmentreports.list
+        save_as: response
+        on_error: continue
+        params:
+          guest_configuration_assignment_name: '{{ item.name }}'
+          vm_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+  # ── guestconfigurationassignmentreportsvmss.list [dependent] ──
+  - discovery_id: azure.guestconfig.guestconfigurationassignmentreportsvmss.list
+    for_each: azure.guestconfig.guestconfigurationassignmentsvmss.list
+    calls:
+      - action: guestconfigurationassignmentreportsvmss.list
+        save_as: response
+        on_error: continue
+        params:
+          vmss_name: '{{ item.name }}'
+          name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+  # ── guestconfigurationhcrpassignmentreports.list [dependent] ──
+  - discovery_id: azure.guestconfig.guestconfigurationhcrpassignmentreports.list
+    for_each: azure.guestconfig.guestconfigurationhcrpassignments.list
+    calls:
+      - action: guestconfigurationhcrpassignmentreports.list
+        save_as: response
+        on_error: continue
+        params:
+          machine_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        properties: '{{ item.properties }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+
+  # ── Unwired dependent ops (no root producer found) ──
+  # SKIP: azure.guestconfig.guestconfigurationassignments.list — required_params: ['vm_name']
+  # SKIP: azure.guestconfig.guestconfigurationassignmentsvmss.list — required_params: ['vmss_name']
+  # SKIP: azure.guestconfig.guestconfigurationhcrpassignments.list — required_params: ['machine_name']

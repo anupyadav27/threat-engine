@@ -1,0 +1,59 @@
+# ==========================================================
+# Discovery YAML — secretsmanager (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 10 | ops: 1 independent, 0 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: secretsmanager
+
+services:
+  client: secretsmanager
+  module: "boto3.client('secretsmanager')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: lambda
+    identifier_op: aws.secretsmanager.list_secrets
+    identifier_field: ARN
+    item_var_path: item.ARN
+    identifier_template: '{arn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.secretsmanager.list_secrets  ──
+  - discovery_id: aws.secretsmanager.list_secrets
+    calls:
+      - action: list_secrets
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.SecretList }}'
+      item:
+        ARN: '{{ item.ARN }}'
+        CreatedDate: '{{ item.CreatedDate }}'
+        DeletedDate: '{{ item.DeletedDate }}'
+        Description: '{{ item.Description }}'
+        ExternalSecretRotationMetadata: '{{ item.ExternalSecretRotationMetadata }}'
+        ExternalSecretRotationRoleArn: '{{ item.ExternalSecretRotationRoleArn }}'
+        KmsKeyId: '{{ item.KmsKeyId }}'
+        LastAccessedDate: '{{ item.LastAccessedDate }}'
+        LastChangedDate: '{{ item.LastChangedDate }}'
+        LastRotatedDate: '{{ item.LastRotatedDate }}'
+        Name: '{{ item.Name }}'
+        NextRotationDate: '{{ item.NextRotationDate }}'
+        OwningService: '{{ item.OwningService }}'
+        PrimaryRegion: '{{ item.PrimaryRegion }}'
+        RotationEnabled: '{{ item.RotationEnabled }}'
+        RotationLambdaARN: '{{ item.RotationLambdaARN }}'
+        RotationRules: '{{ item.RotationRules }}'
+        SecretVersionsToStages: '{{ item.SecretVersionsToStages }}'
+        Tags: '{{ item.Tags }}'
+        Type: '{{ item.Type }}'
+        VersionIdsToStages: '{{ item.VersionIdsToStages }}'
+        item: '{{ item }}'
+

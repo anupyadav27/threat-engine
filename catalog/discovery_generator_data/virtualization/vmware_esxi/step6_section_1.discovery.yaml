@@ -1,0 +1,36 @@
+version: '1.0'
+provider: virtualization
+engine: vmware_esxi
+category: section_1
+cis_section: '1'
+description: >
+  vmware_esxi CIS Section 1 — (L1) Ensure the Image Profile VIB acceptance level is configured properly
+
+discovery:
+
+  - discovery_id: vmware_esxi.section_1.l1_ensure_the_image_profile_vib_acceptance_level
+    description: (L1) Ensure the Image Profile VIB acceptance level is configured properly
+    calls:
+      - action: run_command
+        command: "To verify the host image profile acceptance level perform the following: 1. From the vSphere Web Client, select the host. 2. Click Configure, then under System select Security Profile. 3. Under Host Image Profile Acceptance Level ensure it is set to one of the following - \u0027VMware Certified\u0027, \u0027VMware Accepted\u0027, or \u0027Partner Supported\u0027. This may also be performed as follows: 1. Connect to each ESX/ESXi host using the ESXi Shell or vCLI, and execute the command esxcli software acceptance get to verify the acceptance level is at either \u0027VMware Certified\u0027, \u0027VMware Accepted\u0027, or \u0027Partner Supported\u0027. 2. Connect to each ESX/ESXi host using the vCLI, and execute the command esxcli software vib list to verify the acceptance level for each VIB is either \u0027VMware Certified\u0027, \u0027VMware Accepted\u0027, or \u0027Partner Supported\u0027. Additionally, the following PowerCLI command may be used: # List the Software AcceptanceLevel for each host Foreach ($VMHost in Get-VMHost ) { $ESXCli = Get-EsxCli -VMHost $VMHost $VMHost | Select Name, @{N=\u0027AcceptanceLevel\u0027;E={$ESXCli.software.acceptance.get()}} } # List only the vibs which are not at \u0027VMwareCertified\u0027 or \u0027VMwareAccepted\u0027 or \u0027PartnerSupported\u0027 acceptance level Foreach ($VMHost in Get-VMHost ) { $ESXCli = Get-EsxCli -VMHost $VMHost $ESXCli.software.vib.list() | Where { ($_.AcceptanceLevel -ne \u0027VMwareCertified\u0027) -and ($_.AcceptanceLevel -ne \u0027VMwareAccepted\u0027) -and ($_.AcceptanceLevel -ne \u0027PartnerSupported\u0027) } }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l1_ensure_the_image_profile_vib_acceptance_level
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: vmware_esxi.section_1.l2_ensure_the_default_value_of_individual_salt
+    description: (L2) Ensure the default value of individual salt per vm is configured
+    calls:
+      - action: run_command
+        command: "From the vSphere Web Client: 1. Select a host 2. Click Configure then expand System then select Advanced System settings. 3. Click Edit then Filter for Mem.ShareForceSalting. 4. Verify that it is set to 2. Additionally the following PowerCLI command can be used: Get-VMHost | Get-AdvancedSetting -Name Mem.ShareForceSalting"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: l2_ensure_the_default_value_of_individual_salt
+        value: "{{ result.stdout }}"
+        expected: ""
+

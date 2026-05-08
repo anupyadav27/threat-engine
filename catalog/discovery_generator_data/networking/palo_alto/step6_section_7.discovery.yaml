@@ -1,0 +1,49 @@
+version: '1.0'
+provider: networking
+engine: palo_alto
+category: section_7
+cis_section: '7'
+description: >
+  palo_alto CIS Section 7 — application security policies exist when allowing traffic from an untrusted zone to a more trusted zone
+
+discovery:
+
+  - discovery_id: palo_alto.section_7.application_security_policies_exist_when_allowing
+    description: Ensure application security policies exist when allowing traffic from an untrusted zone to a more trusted zone
+    calls:
+      - action: run_command
+        command: "Navigate to Policies \u003e Security. For all Security Policies that transit from a less trusted to a more trusted interface, that the appropriate Application and Service values are set. For instance, for a web server exposed to the internet from a DMZ: Source tab: Zone set to OUTSIDE / Address set to Any Destination tab: Zone set to DMZ / Address set to [DMZ Host Object] Application tab: set to web-browsing Service/URL Category tab: set Service to ether: \u2022 application-default or: \u2022 service-http and/or service-https **Enhanced Security Recommendation: ** Assess this setting for Policies on all Interfaces, for traffic in all directions. Ensure that for each Security Policy that the appropriate settings are set for both Application and Service"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: application_security_policies_exist_when_allowing
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_7.service_setting_of_any_in_a_security_policy
+    description: Ensure 'Service setting of ANY' in a security policy allowing traffic does not exist
+    calls:
+      - action: run_command
+        command: "Navigate to Policies \u003e Security. For each exposed host, verify that a Security Policy exists with: \u2022 Source tab: Zone set to OUTSIDE Address set to any \u2022 Destination tab: Zone set to DMZ / Address set to \u003cDMZ Host Object\u003e \u2022 Application tab: Application set to web-browsing (or appropriate application) \u2022 Service tab: Service set to application-default. The value of any should never be used"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: service_setting_of_any_in_a_security_policy
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: palo_alto.section_7.security_policy_denying_any_all_traffic_to_from
+    description: Ensure 'Security Policy' denying any/all traffic to/from IP addresses on Trusted Threat Intelligence Sources Exists
+    calls:
+      - action: run_command
+        command: "Navigate to Policies \u003e Security Verify a Security Policy exists similar to: \u2022 General tab: Name set to Deny to Malicious IP \u2022 Source tab: Source Zone set to Any, \u2022 Destination tab: Destination Zone set to Any, Destination Address set to Palo Alto Networks - Known malicious IP addresses,Palo Alto Networks - High risk IP addresses, Palo Alto Networks - Tor exit IP addresses, Palo Alto Networks - Bulletproof IP addresses \u2022 Application tab: Application set to Any \u2022 Service/URL Category tab: Service set to Any \u2022 Actions tab: Action set to Block, Profile Type set to None Verify a Security Policy exists similar to: \u2022 General tab: Name set to Deny from Malicious IP \u2022 Source tab: Source Zone set to Any, Source Address set to Palo Alto Networks - Known malicious IP addresses,Palo Alto Networks - High risk IP addresses, Palo Alto Networks - Tor exit IP addresses, Palo Alto Networks - Bulletproof IP addresses \u2022 Destination tab: Destination Zone set to Any \u2022 Application tab: Application set to Any \u2022 Service/URL Category tab: Service set to Any \u2022 Actions tab: Action set to Block, Profile Type set to None Note: This recommendation requires a Palo Alto Networks \u0027Threat Prevention License\u0027"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: security_policy_denying_any_all_traffic_to_from
+        value: "{{ result.stdout }}"
+        expected: ""
+

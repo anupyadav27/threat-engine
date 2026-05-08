@@ -1,0 +1,49 @@
+version: '1.0'
+provider: db
+engine: mongodb
+category: access_control
+cis_section: '3'
+description: MongoDB CIS Section 3 — Access Control
+
+discovery:
+  - discovery_id: db.mongodb.acl.roles_with_root
+    calls:
+      - action: query_collection
+        db: admin
+        collection: system.users
+        filter: { "roles": { "$elemMatch": { "role": "root" } } }
+        projection: { "user": 1, "db": 1, "roles": 1 }
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        user: "{{ item.user }}"
+        database: "{{ item.db }}"
+
+  - discovery_id: db.mongodb.acl.roles_with_dbadmin_on_all
+    calls:
+      - action: query_collection
+        db: admin
+        collection: system.users
+        filter: { "roles": { "$elemMatch": { "role": "dbAdminAnyDatabase" } } }
+        projection: { "user": 1, "db": 1 }
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        user: "{{ item.user }}"
+        database: "{{ item.db }}"
+
+  - discovery_id: db.mongodb.acl.tls_mode
+    calls:
+      - action: command
+        command: getCmdLineOpts
+        save_as: result
+    emit:
+      as: item
+      item:
+        setting_name: net.tls.mode
+        value: "{{ result.parsed.net.tls.mode }}"
+        expected: requireTLS

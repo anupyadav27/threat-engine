@@ -1,0 +1,38 @@
+version: '1.0'
+provider: azure
+service: streamanalytics
+checks:
+# ═══════════════════════════════════════════
+# Stream Analytics Clusters — azure.streamanalytics.clusters.list_by_resource_group
+# Fields: id, name, type, location, tags, sku, identity, properties, provisioning_state, kind, zones
+# ═══════════════════════════════════════════
+- rule_id: azure.streamanalytics.cluster.managed_identity_enabled
+  for_each: azure.streamanalytics.clusters.list_by_resource_group
+  conditions:
+    var: item.identity
+    op: not_empty
+
+- rule_id: azure.streamanalytics.cluster.sku_configured
+  for_each: azure.streamanalytics.clusters.list_by_resource_group
+  conditions:
+    var: item.sku
+    op: not_empty
+
+- rule_id: azure.streamanalytics.cluster.properties_configured
+  for_each: azure.streamanalytics.clusters.list_by_resource_group
+  conditions:
+    var: item.properties
+    op: not_empty
+
+- rule_id: azure.streamanalytics.cluster.provisioning_succeeded
+  for_each: azure.streamanalytics.clusters.list_by_resource_group
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.streamanalytics.cluster.tags_configured
+  for_each: azure.streamanalytics.clusters.list_by_resource_group
+  conditions:
+    var: item.tags
+    op: not_empty

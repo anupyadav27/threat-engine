@@ -1,0 +1,100 @@
+# discoveries_only_check: 4 kept / 11 removed from 15 total
+# generated_from: step6_stepfunctions.discovery.yaml
+# purpose: only discoveries needed by stepfunctions.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: stepfunctions
+services:
+  client: stepfunctions
+  module: boto3.client
+discovery:
+- discovery_id: aws.stepfunctions.list_activities
+  calls:
+  - action: list_activities
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.activities }}'
+    item:
+      activityArn: '{{ item.activityArn }}'
+      creationDate: '{{ item.creationDate }}'
+      encryptionConfiguration: '{{ item.encryptionConfiguration }}'
+      input: '{{ item.input }}'
+      kmsDataKeyReusePeriodSeconds: '{{ item.kmsDataKeyReusePeriodSeconds }}'
+      kmsKeyId: '{{ item.kmsKeyId }}'
+      name: '{{ item.name }}'
+      taskToken: '{{ item.taskToken }}'
+- discovery_id: aws.stepfunctions.list_executions
+  calls:
+  - action: list_executions
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.executions }}'
+    item:
+      cause: '{{ item.cause }}'
+      error: '{{ item.error }}'
+      executionArn: '{{ item.executionArn }}'
+      inputDetails: '{{ item.inputDetails }}'
+      itemCount: '{{ item.itemCount }}'
+      mapRunArn: '{{ item.mapRunArn }}'
+      name: '{{ item.name }}'
+      output: '{{ item.output }}'
+      outputDetails: '{{ item.outputDetails }}'
+      redriveCount: '{{ item.redriveCount }}'
+      redriveDate: '{{ item.redriveDate }}'
+      startDate: '{{ item.startDate }}'
+      stateMachineAliasArn: '{{ item.stateMachineAliasArn }}'
+      stateMachineArn: '{{ item.stateMachineArn }}'
+      stateMachineVersionArn: '{{ item.stateMachineVersionArn }}'
+      status: '{{ item.status }}'
+      stopDate: '{{ item.stopDate }}'
+- discovery_id: aws.stepfunctions.list_state_machines
+  calls:
+  - action: list_state_machines
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.stateMachines }}'
+    item:
+      creationDate: '{{ item.creationDate }}'
+      definition: '{{ item.definition }}'
+      description: '{{ item.description }}'
+      label: '{{ item.label }}'
+      name: '{{ item.name }}'
+      stateMachineArn: '{{ item.stateMachineArn }}'
+      type: '{{ item.type }}'
+- discovery_id: aws.stepfunctions.describe_state_machine
+  for_each: aws.stepfunctions.list_executions
+  calls:
+  - action: describe_state_machine
+    params:
+      stateMachineArn: '{{ item.stateMachineArn }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      definition: '{{ response.loggingConfiguration.definition }}'
+      description: '{{ response.loggingConfiguration.description }}'
+      destinations: '{{ response.loggingConfiguration.destinations }}'
+      includeExecutionData: '{{ response.loggingConfiguration.includeExecutionData
+        }}'
+      label: '{{ response.loggingConfiguration.label }}'
+      level: '{{ response.loggingConfiguration.level }}'
+      loggingConfiguration: '{{ response.loggingConfiguration.loggingConfiguration
+        }}'
+      tracingConfiguration: '{{ response.loggingConfiguration.tracingConfiguration
+        }}'
+      creationDate: '{{ response.creationDate }}'
+      encryptionConfiguration: '{{ response.encryptionConfiguration }}'
+      name: '{{ response.name }}'
+      revisionId: '{{ response.revisionId }}'
+      roleArn: '{{ response.roleArn }}'
+      stateMachineArn: '{{ response.stateMachineArn }}'
+      status: '{{ response.status }}'
+      type: '{{ response.type }}'
+      variableReferences: '{{ response.variableReferences }}'

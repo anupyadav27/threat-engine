@@ -1,0 +1,17 @@
+version: '1.0'
+rule_id: azure.function.serverless_function.role_least_privilege
+for_each: azure.function.list_functions
+severity: MEDIUM
+conditions:
+  all:
+  - var: item.properties.config.bindings[].type
+    op: not_contains
+    value: httpTrigger
+  - var: item.identity.type
+    op: equals
+    value: SystemAssigned
+  - var: item.identity.principalId
+    op: exists
+  - var: item.identity.roleAssignments[].properties.roleDefinitionId
+    op: not_contains
+    value: /providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c

@@ -1,0 +1,75 @@
+rule_id: alicloud.compute.actiontrail.run_command
+service: compute
+provider: alicloud
+check_type: log
+severity: high
+title: 'AliCloud ECS: Remote Command Invoked via Cloud Assistant'
+description: ECS Cloud Assistant InvokeCommand was called to execute a command on
+  a running instance. This is equivalent to AWS SSM RunCommand and is abused for remote
+  code execution via the control plane.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: execution
+mitre_tactics:
+- execution
+mitre_techniques:
+- T1651
+risk_score: 85
+resource: alicloud_ecs_instance
+source: alicloud_ciem_generator
+is_active: true
+domain: compute_and_workload_security
+action_category: create
+log_source_type: alicloud_actiontrail
+posture_category: workload_posture
+threat_tags:
+- T1651
+- execution
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '8.1'
+  - '8.2'
+  nist_800_53_r5:
+  - CM-2
+  - CM-7
+  - SC-7
+  pci_dss_v4:
+  - '6.3'
+  - '6.4'
+  iso_27001_2022:
+  - A.8.9
+  - A.8.25
+remediation: '1. Restrict InvokeCommand to specific service accounts via RAM policies.
+
+  2. Alert on InvokeCommand calls by unexpected principals or outside maintenance
+  windows.
+
+  3. Enable Cloud Assistant run log auditing.'
+references:
+- https://attack.mitre.org/techniques/T1651/
+- https://www.alibabacloud.com/help/en/ecs/user-guide/cloud-assistant-overview
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: ecs
+    - field: operation
+      op: equals
+      value: InvokeCommand
+version: '1.0'

@@ -1,0 +1,36 @@
+version: '1.0'
+provider: database
+engine: cassandra
+category: section_3
+cis_section: '3'
+description: >
+  cassandra CIS Section 3 — cassandra and superuser roles are separate
+
+discovery:
+
+  - discovery_id: cassandra.section_3.cassandra_and_superuser_roles_are_separate
+    description: Ensure the cassandra and superuser roles are separate
+    calls:
+      - action: run_command
+        command: "To verify the configuration, run the following query: select role from system_auth.roles where is_superuser= True; If you get an error 2200 [ INVALID QUERY] due to where clause, add 'ALLOW FILTERING to end of query so it looks like this: select role from system_auth.roles where is_superuser= True ALLOW FILTERING; Looking at the role, verify any show up with is_superuser = True and make sure it is not cassandra or any unapproved role. If any are found then, this is a finding."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: cassandra_and_superuser_roles_are_separate
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: cassandra.section_3.the_default_password_is_changed_for_the_cassandra
+    description: Ensure that the default password is changed for the cassandra role
+    calls:
+      - action: run_command
+        command: "Connect to Cassandra database to verify whether the cassandra role has default password. cqlsh -u cassandra -p cassandra If the connection is successful this is a finding."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: the_default_password_is_changed_for_the_cassandra
+        value: "{{ result.stdout }}"
+        expected: ""
+

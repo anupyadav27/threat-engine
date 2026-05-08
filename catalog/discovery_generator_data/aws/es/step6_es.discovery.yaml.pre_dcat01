@@ -1,0 +1,378 @@
+version: '1.0'
+provider: aws
+service: es
+services:
+  client: es
+  module: boto3.client
+discovery:
+- discovery_id: aws.es.describe_inbound_cross_cluster_search_connections
+  calls:
+  - action: describe_inbound_cross_cluster_search_connections
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.CrossClusterSearchConnections }}'
+    item:
+      ConnectionStatus: '{{ item.ConnectionStatus }}'
+      CrossClusterSearchConnectionId: '{{ item.CrossClusterSearchConnectionId }}'
+      CrossClusterSearchConnections: '{{ item.CrossClusterSearchConnections }}'
+      DestinationDomainInfo: '{{ item.DestinationDomainInfo }}'
+      SourceDomainInfo: '{{ item.SourceDomainInfo }}'
+- discovery_id: aws.es.describe_outbound_cross_cluster_search_connections
+  calls:
+  - action: describe_outbound_cross_cluster_search_connections
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.CrossClusterSearchConnections }}'
+    item:
+      ConnectionAlias: '{{ item.ConnectionAlias }}'
+      ConnectionStatus: '{{ item.ConnectionStatus }}'
+      CrossClusterSearchConnectionId: '{{ item.CrossClusterSearchConnectionId }}'
+      DestinationDomainInfo: '{{ item.DestinationDomainInfo }}'
+      SourceDomainInfo: '{{ item.SourceDomainInfo }}'
+- discovery_id: aws.es.describe_reserved_elasticsearch_instance_offerings
+  calls:
+  - action: describe_reserved_elasticsearch_instance_offerings
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ReservedElasticsearchInstanceOfferings }}'
+    item:
+      CurrencyCode: '{{ item.CurrencyCode }}'
+      Duration: '{{ item.Duration }}'
+      ElasticsearchInstanceType: '{{ item.ElasticsearchInstanceType }}'
+      FixedPrice: '{{ item.FixedPrice }}'
+      PaymentOption: '{{ item.PaymentOption }}'
+      RecurringCharges: '{{ item.RecurringCharges }}'
+      ReservedElasticsearchInstanceOfferingId: '{{ item.ReservedElasticsearchInstanceOfferingId
+        }}'
+      ReservedElasticsearchInstanceOfferings: '{{ item.ReservedElasticsearchInstanceOfferings
+        }}'
+      UsagePrice: '{{ item.UsagePrice }}'
+- discovery_id: aws.es.describe_reserved_elasticsearch_instances
+  calls:
+  - action: describe_reserved_elasticsearch_instances
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ReservedElasticsearchInstances }}'
+    item:
+      State: '{{ item.State }}'
+      CurrencyCode: '{{ item.CurrencyCode }}'
+      Duration: '{{ item.Duration }}'
+      ElasticsearchInstanceCount: '{{ item.ElasticsearchInstanceCount }}'
+      ElasticsearchInstanceType: '{{ item.ElasticsearchInstanceType }}'
+      FixedPrice: '{{ item.FixedPrice }}'
+      PaymentOption: '{{ item.PaymentOption }}'
+      RecurringCharges: '{{ item.RecurringCharges }}'
+      ReservationName: '{{ item.ReservationName }}'
+      ReservedElasticsearchInstanceId: '{{ item.ReservedElasticsearchInstanceId }}'
+      ReservedElasticsearchInstanceOfferingId: '{{ item.ReservedElasticsearchInstanceOfferingId
+        }}'
+      ReservedElasticsearchInstances: '{{ item.ReservedElasticsearchInstances }}'
+      StartTime: '{{ item.StartTime }}'
+      UsagePrice: '{{ item.UsagePrice }}'
+- discovery_id: aws.es.list_domain_names
+  calls:
+  - action: list_domain_names
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.DomainNames }}'
+    item:
+      DomainName: '{{ item.DomainName }}'
+      EngineType: '{{ item.EngineType }}'
+- discovery_id: aws.es.list_elasticsearch_versions
+  calls:
+  - action: list_elasticsearch_versions
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ElasticsearchVersions }}'
+- discovery_id: aws.es.list_vpc_endpoints
+  calls:
+  - action: list_vpc_endpoints
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.VpcEndpointSummaryList }}'
+    item:
+      Status: '{{ item.Status }}'
+      DomainArn: '{{ item.DomainArn }}'
+      VpcEndpointId: '{{ item.VpcEndpointId }}'
+      VpcEndpointOwner: '{{ item.VpcEndpointOwner }}'
+- discovery_id: aws.es.describe_domain_auto_tunes
+  for_each: aws.es.list_domain_names
+  calls:
+  - action: describe_domain_auto_tunes
+    params:
+      DomainName: '{{ item.DomainName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.AutoTunes }}'
+    item:
+      AutoTuneDetails: '{{ item.AutoTuneDetails }}'
+      AutoTuneType: '{{ item.AutoTuneType }}'
+- discovery_id: aws.es.describe_domain_change_progress
+  for_each: aws.es.list_domain_names
+  calls:
+  - action: describe_domain_change_progress
+    params:
+      DomainName: '{{ item.DomainName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      Status: '{{ response.ChangeProgressStatus.Status }}'
+      ChangeId: '{{ response.ChangeProgressStatus.ChangeId }}'
+      ChangeProgressStages: '{{ response.ChangeProgressStatus.ChangeProgressStages
+        }}'
+      CompletedProperties: '{{ response.ChangeProgressStatus.CompletedProperties }}'
+      ConfigChangeStatus: '{{ response.ChangeProgressStatus.ConfigChangeStatus }}'
+      InitiatedBy: '{{ response.ChangeProgressStatus.InitiatedBy }}'
+      LastUpdatedTime: '{{ response.ChangeProgressStatus.LastUpdatedTime }}'
+      PendingProperties: '{{ response.ChangeProgressStatus.PendingProperties }}'
+      StartTime: '{{ response.ChangeProgressStatus.StartTime }}'
+      TotalNumberOfStages: '{{ response.ChangeProgressStatus.TotalNumberOfStages }}'
+- discovery_id: aws.es.describe_elasticsearch_domain
+  for_each: aws.es.list_domain_names
+  calls:
+  - action: describe_elasticsearch_domain
+    params:
+      DomainName: '{{ item.DomainName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      ARN: '{{ response.DomainStatus.ARN }}'
+      AccessPolicies: '{{ response.DomainStatus.AccessPolicies }}'
+      AdvancedOptions: '{{ response.DomainStatus.AdvancedOptions }}'
+      AdvancedSecurityOptions: '{{ response.DomainStatus.AdvancedSecurityOptions }}'
+      AutoTuneOptions: '{{ response.DomainStatus.AutoTuneOptions }}'
+      ChangeProgressDetails: '{{ response.DomainStatus.ChangeProgressDetails }}'
+      CognitoOptions: '{{ response.DomainStatus.CognitoOptions }}'
+      Created: '{{ response.DomainStatus.Created }}'
+      Deleted: '{{ response.DomainStatus.Deleted }}'
+      DomainEndpointOptions: '{{ response.DomainStatus.DomainEndpointOptions }}'
+      DomainId: '{{ response.DomainStatus.DomainId }}'
+      DomainName: '{{ response.DomainStatus.DomainName }}'
+      DomainProcessingStatus: '{{ response.DomainStatus.DomainProcessingStatus }}'
+      EBSOptions: '{{ response.DomainStatus.EBSOptions }}'
+      ElasticsearchClusterConfig: '{{ response.DomainStatus.ElasticsearchClusterConfig
+        }}'
+      ElasticsearchVersion: '{{ response.DomainStatus.ElasticsearchVersion }}'
+      EncryptionAtRestOptions: '{{ response.DomainStatus.EncryptionAtRestOptions }}'
+      Endpoint: '{{ response.DomainStatus.Endpoint }}'
+      Endpoints: '{{ response.DomainStatus.Endpoints }}'
+      LogPublishingOptions: '{{ response.DomainStatus.LogPublishingOptions }}'
+      ModifyingProperties: '{{ response.DomainStatus.ModifyingProperties }}'
+      NodeToNodeEncryptionOptions: '{{ response.DomainStatus.NodeToNodeEncryptionOptions
+        }}'
+      Processing: '{{ response.DomainStatus.Processing }}'
+      ServiceSoftwareOptions: '{{ response.DomainStatus.ServiceSoftwareOptions }}'
+      SnapshotOptions: '{{ response.DomainStatus.SnapshotOptions }}'
+      UpgradeProcessing: '{{ response.DomainStatus.UpgradeProcessing }}'
+      VPCOptions: '{{ response.DomainStatus.VPCOptions }}'
+- discovery_id: aws.es.describe_elasticsearch_domain_config
+  for_each: aws.es.list_domain_names
+  calls:
+  - action: describe_elasticsearch_domain_config
+    params:
+      DomainName: '{{ item.DomainName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      AccessPolicies: '{{ response.DomainConfig.AccessPolicies }}'
+      AdvancedOptions: '{{ response.DomainConfig.AdvancedOptions }}'
+      AdvancedSecurityOptions: '{{ response.DomainConfig.AdvancedSecurityOptions }}'
+      AutoTuneOptions: '{{ response.DomainConfig.AutoTuneOptions }}'
+      ChangeProgressDetails: '{{ response.DomainConfig.ChangeProgressDetails }}'
+      CognitoOptions: '{{ response.DomainConfig.CognitoOptions }}'
+      DomainEndpointOptions: '{{ response.DomainConfig.DomainEndpointOptions }}'
+      EBSOptions: '{{ response.DomainConfig.EBSOptions }}'
+      ElasticsearchClusterConfig: '{{ response.DomainConfig.ElasticsearchClusterConfig
+        }}'
+      ElasticsearchVersion: '{{ response.DomainConfig.ElasticsearchVersion }}'
+      EncryptionAtRestOptions: '{{ response.DomainConfig.EncryptionAtRestOptions }}'
+      LogPublishingOptions: '{{ response.DomainConfig.LogPublishingOptions }}'
+      ModifyingProperties: '{{ response.DomainConfig.ModifyingProperties }}'
+      NodeToNodeEncryptionOptions: '{{ response.DomainConfig.NodeToNodeEncryptionOptions
+        }}'
+      SnapshotOptions: '{{ response.DomainConfig.SnapshotOptions }}'
+      VPCOptions: '{{ response.DomainConfig.VPCOptions }}'
+- discovery_id: aws.es.describe_elasticsearch_domains
+  calls:
+  - action: describe_elasticsearch_domains
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.DomainStatusList }}'
+    item:
+      ARN: '{{ item.ARN }}'
+      AccessPolicies: '{{ item.AccessPolicies }}'
+      AdvancedOptions: '{{ item.AdvancedOptions }}'
+      AdvancedSecurityOptions: '{{ item.AdvancedSecurityOptions }}'
+      AutoTuneOptions: '{{ item.AutoTuneOptions }}'
+      ChangeProgressDetails: '{{ item.ChangeProgressDetails }}'
+      CognitoOptions: '{{ item.CognitoOptions }}'
+      Created: '{{ item.Created }}'
+      Deleted: '{{ item.Deleted }}'
+      DomainEndpointOptions: '{{ item.DomainEndpointOptions }}'
+      DomainId: '{{ item.DomainId }}'
+      DomainName: '{{ item.DomainName }}'
+      DomainProcessingStatus: '{{ item.DomainProcessingStatus }}'
+      DomainStatusList: '{{ item.DomainStatusList }}'
+      EBSOptions: '{{ item.EBSOptions }}'
+      ElasticsearchClusterConfig: '{{ item.ElasticsearchClusterConfig }}'
+      ElasticsearchVersion: '{{ item.ElasticsearchVersion }}'
+      EncryptionAtRestOptions: '{{ item.EncryptionAtRestOptions }}'
+      Endpoint: '{{ item.Endpoint }}'
+      Endpoints: '{{ item.Endpoints }}'
+      LogPublishingOptions: '{{ item.LogPublishingOptions }}'
+      ModifyingProperties: '{{ item.ModifyingProperties }}'
+      NodeToNodeEncryptionOptions: '{{ item.NodeToNodeEncryptionOptions }}'
+      Processing: '{{ item.Processing }}'
+      ServiceSoftwareOptions: '{{ item.ServiceSoftwareOptions }}'
+      SnapshotOptions: '{{ item.SnapshotOptions }}'
+      UpgradeProcessing: '{{ item.UpgradeProcessing }}'
+      VPCOptions: '{{ item.VPCOptions }}'
+- discovery_id: aws.es.describe_elasticsearch_instance_type_limits
+  calls:
+  - action: describe_elasticsearch_instance_type_limits
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      LimitsByRole: '{{ response.LimitsByRole }}'
+- discovery_id: aws.es.describe_vpc_endpoints
+  calls:
+  - action: describe_vpc_endpoints
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.VpcEndpoints }}'
+    item:
+      Status: '{{ item.Status }}'
+      DomainArn: '{{ item.DomainArn }}'
+      Endpoint: '{{ item.Endpoint }}'
+      VpcEndpointId: '{{ item.VpcEndpointId }}'
+      VpcEndpointOwner: '{{ item.VpcEndpointOwner }}'
+      VpcOptions: '{{ item.VpcOptions }}'
+- discovery_id: aws.es.get_upgrade_history
+  for_each: aws.es.list_domain_names
+  calls:
+  - action: get_upgrade_history
+    params:
+      DomainName: '{{ item.DomainName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.UpgradeHistories }}'
+    item:
+      StartTimestamp: '{{ item.StartTimestamp }}'
+      StepsList: '{{ item.StepsList }}'
+      UpgradeName: '{{ item.UpgradeName }}'
+      UpgradeStatus: '{{ item.UpgradeStatus }}'
+- discovery_id: aws.es.get_upgrade_status
+  for_each: aws.es.list_domain_names
+  calls:
+  - action: get_upgrade_status
+    params:
+      DomainName: '{{ item.DomainName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      StepStatus: '{{ response.StepStatus }}'
+      UpgradeName: '{{ response.UpgradeName }}'
+      UpgradeStep: '{{ response.UpgradeStep }}'
+- discovery_id: aws.es.list_elasticsearch_instance_types
+  calls:
+  - action: list_elasticsearch_instance_types
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.ElasticsearchInstanceTypes }}'
+- discovery_id: aws.es.list_packages_for_domain
+  for_each: aws.es.list_domain_names
+  calls:
+  - action: list_packages_for_domain
+    params:
+      DomainName: '{{ item.DomainName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.DomainPackageDetailsList }}'
+    item:
+      DomainName: '{{ item.DomainName }}'
+      DomainPackageStatus: '{{ item.DomainPackageStatus }}'
+      ErrorDetails: '{{ item.ErrorDetails }}'
+      LastUpdated: '{{ item.LastUpdated }}'
+      PackageDetailsList: '{{ item.PackageDetailsList }}'
+      PackageID: '{{ item.PackageID }}'
+      PackageName: '{{ item.PackageName }}'
+      PackageType: '{{ item.PackageType }}'
+      PackageVersion: '{{ item.PackageVersion }}'
+      ReferencePath: '{{ item.ReferencePath }}'
+- discovery_id: aws.es.list_tags
+  calls:
+  - action: list_tags
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.TagList }}'
+    item:
+      Key: '{{ item.Key }}'
+      Value: '{{ item.Value }}'
+- discovery_id: aws.es.list_vpc_endpoint_access
+  for_each: aws.es.list_domain_names
+  calls:
+  - action: list_vpc_endpoint_access
+    params:
+      DomainName: '{{ item.DomainName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.AuthorizedPrincipalList }}'
+    item:
+      Principal: '{{ item.Principal }}'
+      PrincipalType: '{{ item.PrincipalType }}'
+- discovery_id: aws.es.list_vpc_endpoints_for_domain
+  for_each: aws.es.list_domain_names
+  calls:
+  - action: list_vpc_endpoints_for_domain
+    params:
+      DomainName: '{{ item.DomainName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.VpcEndpointSummaryList }}'
+    item:
+      Status: '{{ item.Status }}'
+      DomainArn: '{{ item.DomainArn }}'
+      VpcEndpointId: '{{ item.VpcEndpointId }}'
+      VpcEndpointOwner: '{{ item.VpcEndpointOwner }}'

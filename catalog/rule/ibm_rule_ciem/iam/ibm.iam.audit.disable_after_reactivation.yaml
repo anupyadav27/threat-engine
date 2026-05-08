@@ -1,0 +1,75 @@
+rule_id: ibm.iam.audit.disable_after_reactivation
+service: iam
+provider: ibm
+check_type: log
+severity: medium
+title: Monitor for login after >90 day inactivity, and user disable immediately following
+  account reactivation
+description: Monitors login after long inactivity followed by immediate user disable.
+rationale: Monitoring this activity is essential for detecting adversary initial access
+  against IBM resources. Unauthorized or unexpected API calls may indicate account
+  compromise, privilege escalation, or an active attack chain.
+threat_category: initial_access
+mitre_tactics:
+- initial_access
+- persistence
+mitre_techniques:
+- T1078
+- T1078.004
+risk_score: 72
+resource: cloud_iam_principal
+source: csv_generated
+is_active: true
+domain: identity_and_access_management
+action_category: delete
+log_source_type: ibm_activity_tracker
+posture_category: threat_posture
+threat_tags:
+- T1078
+- T1078.004
+- initial_access
+- persistence
+- ciem_detection
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: true
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_ibm:
+  - '1.5'
+remediation: '1. Disable the dormant/inactive account immediately after investigation.
+
+  2. Audit all actions taken during the re-activation session.
+
+  3. Enforce automatic account deactivation after 90 days of inactivity.
+
+  4. Require MFA and manager approval for account reactivation.
+
+  5. Alert on first login after extended inactivity periods.'
+references:
+- https://attack.mitre.org/techniques/T1078/
+- https://attack.mitre.org/techniques/T1078.004/
+- https://cloud.ibm.com/docs/account?topic=account-iamoverview
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_activity_tracker
+    - field: service
+      op: equals
+      value: iam-am
+    - field: operation
+      op: in
+      value:
+      - iam-identity.user.login
+      - iam-am.user.disable
+  type: log
+  version: '1.0'

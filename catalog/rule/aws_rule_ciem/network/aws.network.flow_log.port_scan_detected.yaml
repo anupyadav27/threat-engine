@@ -1,0 +1,59 @@
+rule_id: aws.network.flow_log.port_scan_detected
+service: network
+provider: aws
+check_type: log
+severity: medium
+title: 'Network: Port Scan Detected'
+description: Port scan detected in network traffic — systematic probing of multiple ports or hosts.
+rationale: 'Network service scanning maps the cloud environment''s attack surface; early detection of reconnaissance activity can preempt follow-on attacks.'
+threat_category: discovery
+mitre_tactics:
+- discovery
+mitre_techniques:
+- T1046
+risk_score: 55
+resource: vpc
+source: ciem_rule_generator
+is_active: true
+domain: network_security_and_connectivity
+action_category: create
+log_source_type: vpc_flow
+posture_category: threat_posture
+threat_tags:
+- T1046
+- network_security
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: network_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: |
+  1. Investigate the source IP and principal performing the scan.
+  2. Apply NSG/security group rules to limit service scan visibility.
+  3. Enable VPC Flow Logs / NSG Flow Logs to detect scanning patterns.
+  4. Block or throttle API calls from suspicious scan sources.
+references:
+- https://attack.mitre.org/techniques/T1046/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: vpc_flow
+    - field: flow_action
+      op: equals
+      value: REJECT
+    - field: packets
+      op: greater_than
+      value: 50
+  for_each: log_events
+  log_source_type: vpc_flow
+  type: log
+version: '1.0'

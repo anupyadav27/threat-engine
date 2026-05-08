@@ -1,0 +1,183 @@
+# NGINX — CIEM Detection Rules
+# Real-time authentication & access event analysis
+# Log source: /var/log/nginx/access.log, error.log
+
+tech_type: nginx
+category: web_server
+log_source: /var/log/nginx/access.log, error.log
+
+rules:
+
+  - rule_id: tciem.nginx.nginx_is_run_using_a_non_privileged_dedicated
+    title: "Ensure that NGINX is run using a non-privileged, dedicated service account"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '2.2.1'
+    cis_section: '2'
+    log_source: "/var/log/nginx/access.log, error.log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Add a system account for the nginx user with a home directory of
+      /var/cache/nginx and a shell of /sbin/nologin so it does not have the ability
+      to log in, then add the nginx user to be used by nginx: useradd nginx -r -g
+      nginx -d /var/cache/nginx -s /sbin/nologin Then add the nginx user to
+      /etc/nginx/nginx.conf by adding the user directive as shown below: user nginx;
+      Default Value: By default, if nginx is compiled from source, the user and
+      group are nobody. If downloaded from dnf, the user and group nginx and the
+      account are not privileged. References: 1.
+      http://nginx.org/en/docs/ngx_core_module.html#user
+
+  - rule_id: tciem.nginx.nginx_service_account_is_locked
+    title: "Ensure the NGINX service account is locked"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '2.2.2'
+    cis_section: '2'
+    log_source: "/var/log/nginx/access.log, error.log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Use the passwd command to lock the nginx service account: passwd -l '$(awk
+      '$1~/^\s*user\s*$/ {print $2}' /etc/nginx/nginx.conf | sed - r 's/;.*//g')'
+      Default Value: The nginx user is locked by default.
+
+  - rule_id: tciem.nginx.nginx_service_account_has_an_invalid_shell
+    title: "Ensure the NGINX service account has an invalid shell"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.2.3'
+    cis_section: '2'
+    log_source: "/var/log/nginx/access.log, error.log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Change the login shell for the nginx account to /sbin/nologin by using the
+      following command: usermod -s /sbin/nologin nginx Default Value: The nginx
+      user has a shell of /sbin/nologin by default on RHEL systems.
+
+  - rule_id: tciem.nginx.access_to_nginx_directories_and_files_is
+    title: "Ensure access to NGINX directories and files is restricted"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '2.3.2'
+    cis_section: '2'
+    log_source: "/var/log/nginx/access.log, error.log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Permissions are set with the ability to read as other by default on all
+      configuration files: - rw-r--r-- Permissions are set with the ability to read
+      and execute as other by default on all directories: drwxr-xr-x To set
+      permissions to least privilege on the nginx configuration files, issue these
+      commands: find /etc/nginx -type d -exec chmod go-w {} + find /etc/nginx -type
+      f -exec chmod ug-x,o-rwx {} + Default Value: Permissions are set with the
+      ability to read as other by default on all configuration files: - rw-r--r--
+      Permissions are set with the ability to read and execute as other by default
+      on all directories: drwxr-xr-x References: 1. https://dev-
+      sec.io/baselines/nginx/ Additional Information: Note: You should always check
+      your private key permissions after implementing this recommendation. This
+      recommendation assumes the private key has not yet been created and is not in
+      the /etc/nginx directory.
+
+  - rule_id: tciem.nginx.requests_for_unknown_host_names_are_rejected
+    title: "Ensure requests for unknown host names are rejected"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.4.2'
+    cis_section: '2'
+    log_source: "/var/log/nginx/access.log, error.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Ensure your first server block mirrors the below in your nginx configuration,
+      either at /etc/nginx/nginx.conf or any included file within your nginx config:
+      server { return 404; } Then investigate each server block to ensure the
+      server_name directive is explicitly defined. Each server block should look
+      similar to the below with the defined hostname of the associated server block
+      in the server_name directive. For example, if your server is cisecurity.org,
+      the configuration should look like the below example: server { listen 443;
+      server_name cisecurity.org; ..... } Default Value: This is not set by default.
+      References: 1. https://www.acunetix.com/blog/articles/automated-detection-of-
+      host-header- attacks/ 2. https://hackerone.com/reports/94637 3.
+      https://stackoverflow.com/questions/9824328/why-is-nginx-responding-to-any-
+      domain-name
+
+  - rule_id: tciem.nginx.private_key_permissions_are_restricted
+    title: "Ensure private key permissions are restricted"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.1.3'
+    cis_section: '4'
+    log_source: "/var/log/nginx/access.log, error.log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Run the following command to remove excessive permissions on key files in the
+      `/etc/nginx/ directory. Note: The directory /etc/nginx/ should be replaced
+      with the location of your key file. find /etc/nginx/ -name '*.key' -exec chmod
+      u-wx,go-rwx {} + Default Value: The default permissions on the server's
+      private key are 644 or -rw-r--r--. Additional Information: Important Note:
+      This recommendation should be applied to both the keys of your server
+      certificate and the key of your client certificate if you are looking to
+      mutually authenticate a proxy server.
+
+  - rule_id: tciem.nginx.http_strict_transport_security_hsts_is_enabled
+    title: "Ensure HTTP Strict Transport Security (HSTS) is enabled"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.1.8'
+    cis_section: '4'
+    log_source: "/var/log/nginx/access.log, error.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Ensure the below snippet of code can be found in your server configuration for
+      your proxy or web server. This will ensure the HSTS header is set with a
+      validity period of six months, or 15768000 seconds. server { add_header
+      Strict-Transport-Security 'max-age=15768000;' always; } Default Value: HSTS
+      headers are not set by default. References: 1.
+      https://www.globalsign.com/en/blog/what-is-hsts-and-how-do-i-use-it/ 2.
+      https://mozilla.github.io/server-side-tls/ssl-config-generator/ 3.
+      https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-
+      Security#Preloading_Strict_Transport_Security 4. https://hstspreload.org 5.
+      https://tools.ietf.org/html/rfc6797
+

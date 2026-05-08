@@ -1,0 +1,20 @@
+version: '1.0'
+rule_id: aws.lambda.function.execution_role_no_admin_privileges_configured
+for_each: aws.lambda.get_function_configuration
+severity: HIGH
+conditions:
+  any:
+  - var: item.Role
+    op: not_exists
+  - all:
+    - var: item.Role
+      op: exists
+    - var: item.Role
+      op: not_equals
+      value: arn:aws:iam::*:role/*Admin*
+    - var: item.Role
+      op: not_contains
+      value: AdministratorAccess
+fixture_validated: false
+fixture_note: 'FAIL fixture returned PASS — conditions too loose (fail_fixture keys: [''DeadLetterConfig'', ''LogConfig'',
+  ''LoggingConfig'', ''State'', ''TracingConfig'', ''VpcConfig''])'

@@ -25,7 +25,7 @@ spec:
       serviceAccountName: engine-sa
       containers:
       - name: engine-secops
-        image: yadavanup84/secops-scanner:v-unified
+        image: yadavanup84/secops-scanner:v-secops-findings1
         imagePullPolicy: Always
         ports:
         - containerPort: 8009
@@ -91,13 +91,16 @@ spec:
               key: s3-region
         - name: ENGINE_NAME
           value: "secops"
-        # ── SCA/SBOM Engine — connects to vulnerability DB ──────────
+        - name: ONBOARDING_ENGINE_URL
+          value: "http://engine-onboarding"
+        # ── SecOps Engine DB config ────────────────────────────────
+        # Main pool (SAST + DAST + SCA output): threat_engine_secops
         - name: DB_HOST
           value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
         - name: DB_PORT
           value: "5432"
         - name: DB_NAME
-          value: "vulnerability_db"
+          value: "threat_engine_secops"
         - name: DB_USER
           value: "postgres"
         - name: DB_PASSWORD
@@ -105,6 +108,43 @@ spec:
             secretKeyRef:
               name: threat-engine-db-passwords
               key: SECOPS_DB_PASSWORD
+        # SAST engine explicit vars (fallback chain: SECOPS_DB_* → SHARED_DB_* → DB_*)
+        - name: SECOPS_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: SECOPS_DB_NAME
+          value: "threat_engine_secops"
+        - name: SECOPS_DB_USER
+          value: "postgres"
+        - name: SECOPS_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: SECOPS_DB_PASSWORD
+        # Vulnerability pool (SCA SBOM osv_advisory enrichment): vulnerability_db
+        - name: VULN_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: VULN_DB_PORT
+          value: "5432"
+        - name: VULN_DB_NAME
+          value: "vulnerability_db"
+        - name: VULN_DB_USER
+          value: "postgres"
+        - name: VULN_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: SECOPS_DB_PASSWORD
+        # ── AI Fix Engine (Mistral) ────────────────────────────────────────
+        - name: MISTRAL_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: MISTRAL_API_KEY
+              optional: true
+        - name: MISTRAL_MODEL
+          value: "mistral-medium"
+        - name: MISTRAL_TIMEOUT
+          value: "120"
         volumeMounts:
         - name: scan-input
           mountPath: /app/scan_input
@@ -131,46 +171,6 @@ spec:
           initialDelaySeconds: 10
           periodSeconds: 10
           failureThreshold: 3
-
-      - name: s3-sync
-        image: amazon/aws-cli:latest
-        command: ["/bin/sh", "-c"]
-        args:
-          - |
-            while true; do
-              # Sync input FROM S3
-              aws s3 sync "s3://${S3_BUCKET}/secops/input/" /app/scan_input/ \
-                --region ${AWS_REGION} --delete 2>/dev/null || true
-              # Sync output TO S3
-              if [ -d "/app/scan_output" ] && [ "$(ls -A /app/scan_output 2>/dev/null)" ]; then
-                aws s3 sync /app/scan_output/ "s3://${S3_BUCKET}/secops/output/" \
-                  --region ${AWS_REGION} --exclude "*.tmp" --exclude "*.lock" --delete 2>/dev/null
-              fi
-              sleep 30
-            done
-        env:
-        - name: S3_BUCKET
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-bucket
-        - name: AWS_REGION
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-region
-        volumeMounts:
-        - name: scan-input
-          mountPath: /app/scan_input
-        - name: scan-output
-          mountPath: /app/scan_output
-        resources:
-          requests:
-            memory: "64Mi"
-            cpu: "25m"
-          limits:
-            memory: "128Mi"
-            cpu: "100m"
 
       volumes:
       - name: scan-input

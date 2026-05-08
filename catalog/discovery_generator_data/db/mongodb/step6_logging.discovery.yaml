@@ -1,0 +1,45 @@
+version: '1.0'
+provider: db
+engine: mongodb
+category: logging
+cis_section: '4'
+description: MongoDB CIS Section 4 — Logging and Auditing
+
+discovery:
+  - discovery_id: db.mongodb.logging.audit_enabled
+    calls:
+      - action: command
+        command: getCmdLineOpts
+        save_as: result
+    emit:
+      as: item
+      item:
+        setting_name: auditLog.destination
+        value: "{{ result.parsed.auditLog.destination }}"
+        expected_not_empty: true
+
+  - discovery_id: db.mongodb.logging.log_verbosity
+    calls:
+      - action: command
+        command: getParameter
+        args: { logLevel: 1 }
+        save_as: result
+    emit:
+      as: item
+      item:
+        setting_name: logLevel
+        value: "{{ result.logLevel }}"
+        expected_min: 1
+
+  - discovery_id: db.mongodb.logging.slow_op_threshold
+    calls:
+      - action: command
+        command: getParameter
+        args: { slowOpThresholdMs: 1 }
+        save_as: result
+    emit:
+      as: item
+      item:
+        setting_name: slowOpThresholdMs
+        value: "{{ result.slowOpThresholdMs }}"
+        expected_max: 100

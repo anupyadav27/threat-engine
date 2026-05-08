@@ -1,0 +1,191 @@
+version: '1.0'
+provider: oci
+service: load_balancer
+checks:
+- rule_id: oci.load_balancer.backend_set.group_health_check_enabled
+  for_each: oci.load_balancer.list_backend_sets
+  severity: LOW
+  conditions:
+    var: item.health_checker
+    op: exists
+    value: null
+- rule_id: oci.load_balancer.balancer.logging_enabled
+  for_each: oci.load_balancer.list_load_balancers
+  severity: MEDIUM
+  conditions:
+    var: item.logging_enabled
+    op: is_true
+    value: null
+- rule_id: oci.load_balancer.listener.listener_cipher_policy_secure
+  for_each: oci.load_balancer.list_load_balancers
+  severity: MEDIUM
+  conditions:
+    var: item.listener_cipher_policy
+    op: equals
+    value: SECURE
+- rule_id: oci.load_balancer.listener.listener_tls_min_1_2_required
+  for_each: oci.load_balancer.list_load_balancers
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.listeners[].ssl_configuration.minimum_tls_version
+      op: in
+      value:
+      - TLSv1.2
+      - TLSv1.3
+- rule_id: oci.load_balancer.load_balancer.balancer_alb_https_redirect
+  for_each: oci.load_balancer.list_load_balancers
+  severity: LOW
+  conditions:
+    var: item.ip_addresses
+    op: exists
+    value: null
+- rule_id: oci.load_balancer.load_balancer.balancer_deletion_protection
+  for_each: oci.load_balancer.list_load_balancers
+  severity: LOW
+  conditions:
+    var: item.is_delete_protection_enabled
+    op: is_true
+    value: null
+- rule_id: oci.load_balancer.load_balancer.balancer_desync_mitigation_mode
+  for_each: oci.load_balancer.list_load_balancers
+  severity: LOW
+  conditions:
+    var: item.balancer_desync_mitigation_mode
+    op: exists
+    value: null
+- rule_id: oci.load_balancer.load_balancer.balancer_insecure_ssl_ciphers
+  for_each: oci.load_balancer.list_load_balancers
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - any:
+      - var: item.ip_addresses
+        op: not_exists
+        value: null
+      - var: item.ip_addresses
+        op: is_empty
+        value: null
+- rule_id: oci.load_balancer.load_balancer.balancer_logging_enabled
+  for_each: oci.load_balancer.list_load_balancers
+  severity: MEDIUM
+  conditions:
+    var: item.logging
+    op: exists
+    value: null
+- rule_id: oci.load_balancer.load_balancer.balancer_ssl_listeners
+  for_each: oci.load_balancer.list_load_balancers
+  severity: MEDIUM
+  conditions:
+    var: item.ip_addresses
+    op: exists
+    value: null
+- rule_id: oci.load_balancer.load_balancer.balancer_waf_acl_attached
+  for_each: oci.load_balancer.list_load_balancers
+  severity: LOW
+  conditions:
+    var: item.waf_config
+    op: exists
+    value: null
+- rule_id: oci.load_balancer.load_balancer.deletion_protection
+  for_each: oci.load_balancer.list_load_balancers
+  severity: LOW
+  conditions:
+    var: item.is_delete_protection_enabled
+    op: is_true
+    value: null
+- rule_id: oci.load_balancer.load_balancer.insecure_ssl_ciphers
+  for_each: oci.load_balancer.list_load_balancers
+  severity: MEDIUM
+  conditions:
+    var: item.ip_addresses
+    op: exists
+    value: null
+- rule_id: oci.load_balancer.load_balancer.internet_facing
+  for_each: oci.load_balancer.list_load_balancers
+  severity: LOW
+  conditions:
+    var: item.is_private
+    op: is_false
+    value: null
+- rule_id: oci.load_balancer.load_balancer.is_in_multiple_az
+  for_each: oci.load_balancer.list_load_balancers
+  severity: LOW
+  conditions:
+    var: item.ip_addresses
+    op: length_gte
+    value: 2
+- rule_id: oci.load_balancer.load_balancer.lb_access_logs_enabled
+  for_each: oci.load_balancer.list_load_balancers
+  severity: LOW
+  conditions:
+    var: item.access_logs_config.is_enabled
+    op: is_true
+    value: null
+- rule_id: oci.load_balancer.load_balancer.lb_listener_tls_min_1_2_required
+  for_each: oci.load_balancer.list_load_balancers
+  severity: MEDIUM
+  conditions:
+    var: item.listeners[].ssl_configuration.minimum_tls_version
+    op: in
+    value:
+    - TLSv1.2
+    - TLSv1.3
+- rule_id: oci.load_balancer.load_balancer.lb_valid_certificate_attached
+  for_each: oci.load_balancer.list_load_balancers
+  severity: MEDIUM
+  conditions:
+    var: item.ip_addresses
+    op: exists
+    value: null
+- rule_id: oci.load_balancer.load_balancer.lb_waf_attached_where_supported
+  for_each: oci.load_balancer.list_load_balancers
+  severity: LOW
+  conditions:
+    var: item.shape_name
+    op: not_equals
+    value: flexible
+- rule_id: oci.load_balancer.load_balancer.logging_enabled
+  for_each: oci.load_balancer.list_load_balancers
+  severity: MEDIUM
+  conditions:
+    var: item.logging
+    op: exists
+    value: null
+- rule_id: oci.load_balancer.load_balancer.ssl_listeners
+  for_each: oci.load_balancer.list_load_balancers
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.ssl_listeners
+      op: exists
+      value: null
+    - var: item.ssl_listeners[].ssl_certificate_name
+      op: exists
+      value: null
+- rule_id: oci.load_balancer.load_balancer.tg_health_checks_tls_where_supported
+  for_each: oci.load_balancer.list_backend_sets
+  severity: MEDIUM
+  conditions:
+    var: item.health_checker.protocol
+    op: in
+    value:
+    - HTTPS
+    - TCP
+- rule_id: oci.load_balancer.load_balancer.tg_targets_in_private_subnets_enforced
+  for_each: oci.load_balancer.list_load_balancers
+  severity: LOW
+  conditions:
+    var: item.is_private
+    op: is_true
+    value: null
+- rule_id: oci.load_balancer.load_balancer.waf_acl_attached
+  for_each: oci.load_balancer.list_load_balancers
+  severity: LOW
+  conditions:
+    var: item.waf_config.ocid
+    op: exists
+    value: null

@@ -1,0 +1,77 @@
+rule_id: gcp.compute.activity.instance_insert
+service: compute
+provider: gcp
+check_type: log
+severity: medium
+title: 'Compute: VM Instance Created'
+description: New GCP Compute Engine instance created — potential cryptomining, C2 hosting, or pivot point in attacker-controlled environment.
+rationale: 'Adversaries create new instances or VMs within cloud accounts to execute from a clean environment that bypasses existing firewall rules and permissions tied to existing resources. Fresh compute resources are also used for cryptomining, C2 hosting, or as pivot points. Detected via: VM launch by rarely-used or newly-created accounts, instance creation from unexpected geographic locations, and large instance type selection.'
+threat_category: execution
+mitre_tactics:
+- execution
+mitre_techniques:
+- T1578.002
+risk_score: 55
+resource: compute_instance
+source: default
+is_active: true
+domain: compute_and_workload_security
+action_category: execute
+posture_category: workload_posture
+threat_tags:
+- T1578.002
+- T1578
+- remote_execution
+- cloud_exec
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: execution
+  target_type: compute_instance
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_gcp_v2:
+  - 4.1
+  - 4.2
+  - 4.3
+  nist_800_53_r5:
+  - CM-7
+  - SI-3
+  - SI-4
+  pci_dss_v4:
+  - 6.3
+  - 6.4
+  iso_27001_2022:
+  - A.8.19
+  - A.8.20
+detection_events:
+- 'ec2:RunInstances'
+- Microsoft.Compute/virtualMachines/write
+- 'containers:create with privileged=true'
+remediation: |
+  1. Audit the compute instance or function for malicious startup scripts or code.
+  2. Verify the workload image against a trusted artifact registry with Binary Authorization.
+  3. Apply Org Policy `compute.requireShieldedVm` for all new VM instances.
+  4. Enable Security Command Center threats for anomalous compute execution events.
+  5. Review service account permissions attached to the created instance or function.
+references:
+- https://attack.mitre.org/techniques/T1578/002/
+- https://cloud.google.com/compute/docs/audit-logging
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: compute.googleapis.com
+    - field: operation
+      op: contains
+      value: instances.insert
+version: '1.0'

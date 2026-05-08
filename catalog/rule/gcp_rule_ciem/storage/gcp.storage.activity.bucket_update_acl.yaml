@@ -1,0 +1,93 @@
+rule_id: gcp.storage.activity.bucket_update_acl
+service: storage
+provider: gcp
+check_type: log
+severity: high
+title: 'Storage: GCS Bucket ACL Updated'
+description: GCS bucket ACL modified — legacy ACL change may grant public read/write access bypassing uniform bucket-level access controls.
+rationale: 'Adversaries access data from cloud object storage (S3, Azure Blob, GCS) which may be misconfigured with overly permissive policies exposing PII, medical records, financial data, or credentials. Bulk download followed by external transfer indicates active data theft. Detected via: unusual object access patterns from new IAM users or roles, OAuth token grants to external apps preceding high-volume downloads, and GetObject events from anomalous IPs or user agents.'
+threat_category: data_exfiltration
+mitre_tactics:
+- exfiltration
+mitre_techniques:
+- T1530
+risk_score: 75
+resource: gcs_bucket
+source: default
+is_active: true
+domain: data_protection_and_privacy
+action_category: modify
+posture_category: data_security_posture
+threat_tags:
+- T1530
+- data_exfiltration
+- data_loss
+- storage_access
+- data
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: storage_account
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - data_access_governance
+  - data_loss_prevention
+  categories:
+  - data_exfiltration
+  - unauthorized_access
+  priority: high
+  impact:
+    pci: PCI DSS Requirement 3.1 — Minimize cardholder data storage
+    gdpr: GDPR Article 25 — Data protection by design; minimize data exposure
+    hipaa: §164.312(a)(1) — Access controls on data repositories containing ePHI
+compliance_frameworks:
+  cis_gcp_v2:
+  - 5.1
+  - 5.2
+  - 7.1
+  nist_800_53_r5:
+  - AC-4
+  - DM-2
+  - SI-4
+  pci_dss_v4:
+  - 3.1
+  - 4.1
+  - 7.1
+  iso_27001_2022:
+  - A.8.12
+  - A.5.12
+  - A.8.10
+detection_events:
+- 's3:GetObject (high volume from single principal)'
+- Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read
+- ListObjects followed by bulk GetObject
+- Storage access from external/anonymous IP
+remediation: |
+  1. Audit and revoke the IAM binding granting public or broad access to the resource.
+  2. Enable VPC Service Controls to restrict data exfiltration to approved perimeters.
+  3. Configure DLP inspection on Cloud Storage and BigQuery for sensitive data.
+  4. Set up Cloud Monitoring alerts on bulk data read operations by unexpected principals.
+  5. Enable CMEK for storage and BigQuery to prevent data use without key access.
+references:
+- https://attack.mitre.org/techniques/T1530/
+- https://cloud.google.com/storage/docs/audit-logging
+- https://cloud.google.com/bigquery/docs/audit-logging
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: storage.googleapis.com
+    - field: operation
+      op: contains
+      value: storage.buckets.update
+version: '1.0'

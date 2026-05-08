@@ -1,0 +1,57 @@
+rule_id: aws.waf.web_acl_log.bot_control_block
+service: waf
+provider: aws
+check_type: log
+severity: medium
+title: 'WAF: Bot Control Block'
+description: WAF bot control blocked automated request — bot or scraper activity detected.
+rationale: Scanning for exposed IP ranges and hostnames enables attackers to map the cloud attack surface for vulnerability research and targeted exploitation.
+threat_category: web_attack
+mitre_tactics:
+- initial_access
+mitre_techniques:
+- T1595.001
+risk_score: 50
+resource: waf_webacl
+source: default
+is_active: true
+domain: network_security_and_connectivity
+action_category: create
+log_source_type: 
+posture_category: threat_posture
+threat_tags:
+- T1595.001
+- T1595
+- waf
+- web_security
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: |
+  1. Minimize the number of publicly routable cloud resources.
+  2. Use private endpoints for cloud services where possible.
+  3. Enable network flow logging and alert on scanning activity.
+references:
+- https://attack.mitre.org/techniques/T1595/001/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: waf
+    - field: operation
+      op: equals
+      value: BLOCK
+    - field: resource_name
+      op: contains
+      value: Bot
+version: '1.0'

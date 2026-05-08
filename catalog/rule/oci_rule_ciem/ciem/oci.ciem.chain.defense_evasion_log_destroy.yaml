@@ -1,0 +1,64 @@
+rule_id: oci.ciem.chain.defense_evasion_log_destroy
+service: ciem
+provider: oci
+check_type: log_correlation
+severity: critical
+title: 'OCI CIEM: Defense Evasion via Log Group Deletion + Cloud Guard Disable'
+description: 'Detect an evidence destruction chain: log group deleted + Cloud Guard disabled within a short window, indicating an attacker eliminating detection capabilities.'
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1562
+risk_score: 99
+resource: oci_logging_log_group
+domain: logging_monitoring_and_alerting
+action_category: modify
+log_source_type: 
+posture_category: security_posture
+threat_tags:
+- T1562
+- defense_evasion
+- log_tampering
+- ciem_correlation
+- attack_chain
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: tenant_or_account
+  stealth_risk: critical
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: Review and investigate this activity in the OCI Console and take corrective action.
+check_config:
+  events:
+  - conditions:
+      all:
+      - field: source_type
+        op: equals
+        value: oci_audit
+      - field: service
+        op: equals
+        value: com.oraclecloud.logging
+      - field: operation
+        op: equals
+        value: DeleteLogGroup
+  - conditions:
+      all:
+      - field: source_type
+        op: equals
+        value: oci_audit
+      - field: service
+        op: equals
+        value: com.oraclecloud.cloudguard
+      - field: operation
+        op: equals
+        value: UpdateConfiguration
+  type: sequence
+  window_seconds: 300

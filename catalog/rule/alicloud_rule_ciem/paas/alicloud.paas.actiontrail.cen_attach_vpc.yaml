@@ -1,0 +1,74 @@
+rule_id: alicloud.paas.actiontrail.cen_attach_vpc
+service: paas
+provider: alicloud
+check_type: log
+severity: medium
+title: 'AliCloud CEN: VPC Attached to Cloud Enterprise Network'
+description: A VPC was attached to a Cloud Enterprise Network (CEN) instance. Unauthorized
+  CEN attachments can create unintended lateral movement paths across accounts.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: lateral_movement
+mitre_tactics:
+- lateral_movement
+mitre_techniques:
+- T1021
+risk_score: 65
+resource: alicloud_cen_instance
+source: alicloud_ciem_generator
+is_active: true
+domain: network_security_and_connectivity
+action_category: modify
+log_source_type: alicloud_actiontrail
+posture_category: network_posture
+threat_tags:
+- T1021
+- lateral_movement
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '4.1'
+  - '4.2'
+  nist_800_53_r5:
+  - SC-7
+  - AC-17
+  - CM-7
+  pci_dss_v4:
+  - '1.2'
+  - '1.3'
+  - '7.1'
+  iso_27001_2022:
+  - A.8.20
+  - A.8.21
+  - A.8.22
+remediation: '1. Verify the CEN attachment was authorized.
+
+  2. Review route permissions between the newly attached VPC and others.
+
+  3. Alert on CEN modifications — they can enable account-to-account network access.'
+references:
+- https://attack.mitre.org/techniques/T1021/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: cen
+    - field: operation
+      op: equals
+      value: AttachCenChildInstance
+version: '1.0'

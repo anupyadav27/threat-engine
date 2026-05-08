@@ -1,0 +1,43 @@
+# ==========================================================
+# Discovery YAML — servicecatalog (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 1 | ops: 1 independent, 0 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: servicecatalog
+
+services:
+  client: servicecatalog
+  module: "boto3.client('servicecatalog')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: portfolio
+    identifier_op: aws.servicecatalog.list_portfolios
+    identifier_field: ARN
+    item_var_path: item.ARN
+    identifier_template: '{arn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.servicecatalog.list_portfolios  ──
+  - discovery_id: aws.servicecatalog.list_portfolios
+    calls:
+      - action: list_portfolios
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.PortfolioDetails }}'
+      item:
+        ARN: '{{ item.ARN }}'
+        Description: '{{ item.Description }}'
+        DisplayName: '{{ item.DisplayName }}'
+        Id: '{{ item.Id }}'
+        PortfolioShareDetails: '{{ item.PortfolioShareDetails }}'
+        ProviderName: '{{ item.ProviderName }}'
+

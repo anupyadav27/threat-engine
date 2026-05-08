@@ -1,0 +1,84 @@
+rule_id: aws.container.cloudtrail.ecs_task_def_host_network
+service: container
+provider: aws
+check_type: log
+severity: high
+title: 'Container: ECS Task Def Host Network'
+description: ECS task definition uses host network — container has access to host network stack.
+rationale: 'Adversaries deploy containers into environments using Docker APIs or Kubernetes control planes to facilitate execution or evade defenses by running malicious images outside standard deployment processes. Deployed containers can host C2 infrastructure, cryptomining workloads, or data exfiltration tools. Detected via: container create + start by non-admin principals, images not on an allowlist or using ''latest'' tag, privileged mode or host namespace mount at runtime, and unauthenticated Docker API access.'
+threat_category: lateral_movement
+mitre_tactics:
+- lateral_movement
+mitre_techniques:
+- T1610
+risk_score: 75
+resource: eks_cluster
+source: ciem_rule_generator
+is_active: true
+domain: container_and_kubernetes_security
+action_category: audit_activity
+log_source_type: cloudtrail
+posture_category: network_posture
+threat_tags:
+- T1610
+- lateral_movement
+- cloud_pivot
+- kubernetes
+- container_security
+risk_indicators:
+  actor_type: service_account_or_workload
+  action_type: write
+  target_type: kubernetes_workload
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 5.1
+  - 5.2
+  - 5.3
+  cis_azure_v2:
+  - 6.1
+  - 6.2
+  nist_800_53_r5:
+  - SC-7
+  - AC-4
+  - SI-3
+  pci_dss_v4:
+  - 1.2
+  - 1.3
+  - 7.2
+  iso_27001_2022:
+  - A.8.20
+  - A.8.22
+  - A.5.14
+detection_events:
+- pods/create (Kubernetes audit)
+- 'containers:create via Docker API'
+- 'aks:CreatePod by non-CI/CD principal'
+- Admission controller deny events (missing context = bypass attempt)
+remediation: |
+  1. Restrict container deployment permissions via Kubernetes RBAC / Azure Policy.
+  2. Enable admission controllers (OPA Gatekeeper / Azure Policy for AKS).
+  3. Alert on privileged container deployments.
+  4. Enforce container image signing and verification policies.
+references:
+- https://attack.mitre.org/techniques/T1610/
+- https://kubernetes.io/docs/concepts/security/pod-security-standards/
+check_config:
+  conditions:
+    all:
+    - field: operation
+      op: equals
+      value: RegisterTaskDefinition
+    - field: resource_uid
+      op: contains
+      value: networkMode
+  for_each: log_events
+  log_source_type: cloudtrail
+  type: log
+version: '1.0'

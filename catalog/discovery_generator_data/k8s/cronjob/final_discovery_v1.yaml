@@ -1,0 +1,43 @@
+# ============================================================
+# Discovery YAML — cronjob (final_discovery v1)
+# Generated: 2026-04-16T09:36:43Z
+# Check rules: 5 | ops in scope: 1
+# ============================================================
+version: '1.0'
+provider: k8s
+service: cronjob
+
+services:
+  client: batch_v1_api
+  module: kubernetes.client
+  api_class: BatchV1Api
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: 
+    identifier_op: k8s.cronjob.list
+    identifier_field: metadata.name
+    item_var_path: item.metadata.name
+    identifier_template: '{namespace}/{name}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── k8s.cronjob.list ──
+  - discovery_id: k8s.cronjob.list
+    calls:
+      - action: list_cronjob_for_all_namespaces
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        metadata.name: '{{ item.metadata.name }}'
+        metadata.namespace: '{{ item.metadata.namespace }}'
+        spec.concurrencyPolicy: '{{ item.spec.concurrencyPolicy }}'
+        spec.schedule: '{{ item.spec.schedule }}'
+        spec.suspend: '{{ item.spec.suspend }}'
+

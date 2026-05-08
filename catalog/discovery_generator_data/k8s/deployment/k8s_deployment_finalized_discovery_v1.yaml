@@ -1,0 +1,36 @@
+# ============================================================
+# K8s Finalized Discovery — deployment
+# Generated: 2026-04-16T14:28:05Z
+# Source: k8s_field_rule_catalog.csv
+# Ops: 1 list  +  1 get  =  2 total
+# ============================================================
+
+version: '1.0'
+provider: k8s
+service: deployment
+services:
+  client: apps_v1_api
+  module: kubernetes.client
+  api_class: AppsV1Api
+discovery:
+- discovery_id: k8s.deployment.list
+  calls:
+  - action: list_deployment_for_all_namespaces
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: k8s.deployment.get
+  for_each: k8s.deployment.list
+  calls:
+  - action: read_namespaced_deployment
+    save_as: response
+    on_error: continue
+    params:
+      name: '{{ item.metadata.name }}'
+      namespace: '{{ item.metadata.namespace }}'
+  emit:
+    as: item
+    item:
+      deployment: '{{ response }}'

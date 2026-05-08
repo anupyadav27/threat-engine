@@ -1,0 +1,36 @@
+# ============================================================
+# K8s Finalized Discovery — persistentvolumeclaim
+# Generated: 2026-04-16T14:28:05Z
+# Source: k8s_field_rule_catalog.csv
+# Ops: 1 list  +  1 get  =  2 total
+# ============================================================
+
+version: '1.0'
+provider: k8s
+service: persistentvolumeclaim
+services:
+  client: core_v1_api
+  module: kubernetes.client
+  api_class: CoreV1Api
+discovery:
+- discovery_id: k8s.persistentvolumeclaim.list
+  calls:
+  - action: list_persistent_volume_claim_for_all_namespaces
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+- discovery_id: k8s.persistentvolumeclaim.get
+  for_each: k8s.persistentvolumeclaim.list
+  calls:
+  - action: read_namespaced_persistent_volume_claim
+    save_as: response
+    on_error: continue
+    params:
+      name: '{{ item.metadata.name }}'
+      namespace: '{{ item.metadata.namespace }}'
+  emit:
+    as: item
+    item:
+      persistent_volume_claim: '{{ response }}'

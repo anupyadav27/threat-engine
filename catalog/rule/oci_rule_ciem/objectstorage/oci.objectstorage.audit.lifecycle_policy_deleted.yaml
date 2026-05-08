@@ -1,0 +1,62 @@
+rule_id: oci.objectstorage.audit.lifecycle_policy_deleted
+service: objectstorage
+provider: oci
+check_type: log
+severity: medium
+title: 'OCI Object Storage: Object Lifecycle Policy Deleted'
+description: An object lifecycle policy was deleted from a bucket. Removing lifecycle policies stops automated data retention enforcement.
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1562
+risk_score: 58
+resource: oci_objectstorage_bucket
+domain: logging_monitoring_and_alerting
+action_category: delete
+log_source_type: 
+posture_category: security_posture
+threat_tags:
+- T1562
+- defense_evasion
+- log_tampering
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: destructive
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: critical
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - data_access_governance
+  - data_lifecycle_management
+  categories:
+  - sensitive_data_access
+  priority: medium
+  impact:
+    pci: PCI DSS Requirement 3.1 — Minimize cardholder data storage
+    gdpr: GDPR Article 25 — Data protection by design; minimize data exposure
+    hipaa: §164.312(a)(1) — Access controls on data repositories containing ePHI
+  sensitive_data_context: |
+  Unauthorized defense evasion on objectstorage resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks: {}
+remediation: Review and investigate this activity in the OCI Console and take corrective action.
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.objectstorage
+    - field: operation
+      op: equals
+      value: DeleteObjectLifecyclePolicy

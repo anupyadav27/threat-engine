@@ -1,0 +1,78 @@
+version: '1.0'
+provider: oci
+service: data_safe
+checks:
+- rule_id: oci.data_safe.data_safe_configuration.anonymization_jobs_private_networking_enforced
+  for_each: oci.data_safe.get_data_safe_configuration
+  severity: MEDIUM
+  conditions:
+    var: item.is_anonymization_jobs_private_networking_enforced
+    op: is_true
+    value: null
+- rule_id: oci.data_safe.data_safe_configuration.classification_policy_blocks_public_for_sensitive_blocked
+  for_each: oci.data_safe.get_data_safe_configuration
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.is_public_access_blocked_for_sensitive_data
+      op: is_true
+      value: null
+    - var: item.is_public_access_blocked_for_sensitive_schema
+      op: is_true
+      value: null
+- rule_id: oci.data_safe.data_safe_configuration.compliance_access_rbac_least_privilege_required
+  for_each: oci.data_safe.get_data_safe_configuration
+  severity: HIGH
+  conditions:
+    var: item.compartment_id
+    op: exists
+    value: null
+- rule_id: oci.data_safe.data_safe_configuration.compliance_export_destinations_private_enforced
+  for_each: oci.data_safe.get_data_safe_configuration
+  severity: LOW
+  conditions:
+    var: item.compliance_export_destinations_private_enforced
+    op: is_true
+    value: null
+- rule_id: oci.data_safe.masking_policy.masking_execution_roles_least_privilege_required
+  for_each: oci.data_safe.list_target_databases
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_safe.masking_policy.masking_policies_present_for_sensitive_fields
+  for_each: oci.data_safe.list_target_databases
+  severity: MEDIUM
+  conditions:
+    var: item.masking_policies
+    op: not_empty
+    value: null
+- rule_id: oci.data_safe.security_assessment.anonymization_outputs_encrypted
+  for_each: oci.data_safe.list_target_databases
+  severity: MEDIUM
+  conditions:
+    var: item.anonymization_outputs_encrypted
+    op: is_true
+    value: null
+- rule_id: oci.data_safe.security_assessment.classification_auto_enabled
+  for_each: oci.data_safe.get_data_safe_configuration
+  severity: MEDIUM
+  conditions:
+    var: item.is_data_safe_classification_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_safe.security_assessment.classification_required_sensitivity_tags_present
+  for_each: oci.data_safe.list_target_databases
+  severity: MEDIUM
+  conditions:
+    var: item.defined_tags.Classification
+    op: exists
+    value: null
+- rule_id: oci.data_safe.target_database.compliance_reports_storage_encrypted
+  for_each: oci.data_safe.list_target_databases
+  severity: MEDIUM
+  conditions:
+    var: item.compliance_reports_storage_encrypted
+    op: is_true
+    value: null

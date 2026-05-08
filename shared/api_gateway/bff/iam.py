@@ -1,102 +1,210 @@
 """BFF view: /iam page.
 
-Single call to IAM engine /ui-data (was 2 calls to findings + modules).
-Engine /ui-data returns pre-organized: summary, modules, findings,
-roles, access_keys, privilege_escalation, service_accounts.
+Primary:  engine-iam /api/v1/iam-security/ui-data
+Fallback: engine-check /api/v1/check/findings?domain=identity_and_access_management
+
+IAM findings from the check engine are grouped into identity rows using the
+existing group_iam_findings_to_identities() transform.
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
-from ._shared import fetch_many, safe_get
+from ._auth import resolve_tenant_id
+from ._shared import fetch_many, fetch_all_check_findings, safe_get, is_empty_or_health
+from ._cache import cache_key, cached_view, TTL_IAM, auth_level_from_header
 from ._transforms import (
     group_iam_findings_to_identities, normalize_iam_role,
     normalize_access_key, normalize_privilege_escalation,
-    normalize_service_account, apply_global_filters, _safe_upper,
+    normalize_service_account, apply_global_filters,
 )
+from ._page_context import iam_page_context, iam_filter_schema
+from ._common_schemas import IamViewResponse
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
 
-@router.get("/iam")
+@router.get("/iam", response_model=IamViewResponse, response_model_exclude_none=False)
 async def view_iam(
-    tenant_id: str = Query(...),
+    request: Request,
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
     csp: str = Query("aws"),
     scan_id: str = Query("latest"),
 ):
-    """BFF view for /iam page — single endpoint for entire page."""
+    tenant_id = resolve_tenant_id(request)
     effective_csp = csp or (provider.lower() if provider else "aws")
+
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+    role_level = auth_level_from_header(auth_ctx_header)
+
+    ck = cache_key("iam", tenant_id, scan_id, effective_csp, provider or "", account or "", region or "", role_level=role_level)
+    cached = cached_view(ck)
+    if cached is not None:
+        return cached
 
     results = await fetch_many([
         ("iam", "/api/v1/iam-security/ui-data", {
             "tenant_id": tenant_id, "csp": effective_csp, "scan_id": scan_id,
         }),
-    ])
+    ], auth_headers=fwd_headers)
 
     data = results[0] or {}
 
+    # ── Fallback: use check engine filtered by IAM domain ──────────────────
+    if is_empty_or_health(data):
+        check_raw = await fetch_all_check_findings({
+            "tenant_id": tenant_id,
+            "domain": "identity_and_access_management",
+        }, auth_headers=fwd_headers)
+        if check_raw:
+            # check findings feed straight into the same grouping transform
+            data = {"findings": check_raw, "summary": {}}
+
     summary = safe_get(data, "summary", {})
     by_module = safe_get(summary, "by_module", {})
+    by_severity = safe_get(summary, "by_severity", {})
 
-    # Identities — group raw findings into identity rows
+    # ── Tab data ──
     raw_findings = safe_get(data, "findings", [])
     identities = group_iam_findings_to_identities(raw_findings)
     filtered = apply_global_filters(identities, provider, account, region)
 
-    # Roles — normalize from engine-provided roles
-    raw_roles = safe_get(data, "roles", [])
-    roles = [normalize_iam_role(r) for r in raw_roles]
+    roles        = [normalize_iam_role(r)                for r in safe_get(data, "roles",                [])]
+    access_keys  = [normalize_access_key(k)              for k in safe_get(data, "access_keys",          [])]
+    priv_esc     = [normalize_privilege_escalation(p)    for p in safe_get(data, "privilege_escalation", [])]
+    svc_accounts = [normalize_service_account(s)         for s in safe_get(data, "service_accounts",     [])]
 
-    # Access keys
-    raw_keys = safe_get(data, "access_keys", [])
-    access_keys = [normalize_access_key(k) for k in raw_keys]
+    # Derive roles/keys/privesc from raw findings when engine sections are empty.
+    # Check iam_modules array first (set by the IAM engine), then fall back to
+    # keyword matching on resource_type / rule_id.
+    if not roles and raw_findings:
+        role_findings = [f for f in raw_findings
+                         if 'role_management' in (f.get('iam_modules') or [])
+                         or 'role' in (f.get('resource_type') or '').lower()
+                         or 'role' in (f.get('resource_uid')  or '').lower()
+                         or 'role' in (f.get('rule_id') or '').lower()]
+        roles = [normalize_iam_role(f) for f in role_findings]
 
-    # Privilege escalation
-    raw_priv = safe_get(data, "privilege_escalation", [])
-    priv_esc = [normalize_privilege_escalation(p) for p in raw_priv]
+    if not access_keys and raw_findings:
+        key_findings = [f for f in raw_findings
+                        if 'access_control' in (f.get('iam_modules') or [])
+                        or 'access_key' in (f.get('rule_id') or '').lower()
+                        or 'key_rotation' in (f.get('rule_id') or '').lower()
+                        or ('access' in (f.get('rule_id') or '').lower()
+                            and 'key' in (f.get('rule_id') or '').lower())]
+        access_keys = [normalize_access_key(f) for f in key_findings]
 
-    # Service accounts
-    raw_svc = safe_get(data, "service_accounts", [])
-    svc_accounts = [normalize_service_account(s) for s in raw_svc]
+    if not priv_esc and raw_findings:
+        pe_findings = [f for f in raw_findings
+                       if 'least_privilege' in (f.get('iam_modules') or [])
+                       or 'priv'     in (f.get('rule_id') or '').lower()
+                       or 'escalat'  in (f.get('rule_id') or '').lower()
+                       or 'passrole' in (f.get('rule_id') or '').lower()
+                       or 'assume'   in (f.get('rule_id') or '').lower()]
+        priv_esc = [normalize_privilege_escalation(f) for f in pe_findings]
 
-    # KPI derivation
-    over_privileged = sum(1 for u in filtered if u.get("policies", 0) > 5 or u.get("risk_score", 0) >= 75)
-    no_mfa = sum(1 for u in filtered if not u.get("mfa"))
-    mfa_total = len(filtered)
+    # If sections are still empty (IAM engine may have non-IAM data in DB),
+    # supplement with check engine findings filtered to IAM domain.
+    if not any([roles, access_keys, priv_esc]):
+        _chk = await fetch_all_check_findings(
+            {"tenant_id": tenant_id, "domain": "identity_and_access_management"},
+            auth_headers=fwd_headers,
+        )
+        if _chk:
+            _role_r = [f for f in _chk if 'role' in (f.get('rule_id') or '').lower()]
+            _key_r  = [f for f in _chk if 'access_key' in (f.get('rule_id') or '').lower()
+                                          or 'key_rotation' in (f.get('rule_id') or '').lower()
+                                          or ('access' in (f.get('rule_id') or '').lower()
+                                              and 'key' in (f.get('rule_id') or '').lower())]
+            _pe_r   = [f for f in _chk if 'priv'     in (f.get('rule_id') or '').lower()
+                                          or 'escalat' in (f.get('rule_id') or '').lower()
+                                          or 'passrole' in (f.get('rule_id') or '').lower()
+                                          or 'assume'  in (f.get('rule_id') or '').lower()]
+            if _role_r:
+                roles = [normalize_iam_role(f) for f in _role_r]
+            if _key_r:
+                access_keys = [normalize_access_key(f) for f in _key_r]
+            if _pe_r:
+                priv_esc = [normalize_privilege_escalation(f) for f in _pe_r]
+            # Use check findings as main findings list if IAM engine had no usable data
+            if not raw_findings or not any(f.get('resource_uid') for f in raw_findings[:20]):
+                raw_findings = _chk
+                identities = group_iam_findings_to_identities(raw_findings)
+                filtered = apply_global_filters(identities, provider, account, region)
+
+    # ── Derived metrics ──
+    posture_score = safe_get(summary, "posture_score", 0) or safe_get(summary, "risk_score", 0)
+    if not posture_score and filtered:
+        sev_weights = {"critical": 4, "high": 3, "medium": 2, "low": 1}
+        total_weight = sum(sev_weights.get((f.get("severity") or "low").lower(), 1) for f in filtered)
+        max_weight   = len(filtered) * 4
+        posture_score = max(0, 100 - round((total_weight / max_weight) * 100)) if max_weight else 100
+
+    no_mfa     = sum(1 for u in filtered if not u.get("mfa"))
+    mfa_total  = len(filtered)
     mfa_adoption = round(((mfa_total - no_mfa) / mfa_total * 100), 1) if mfa_total > 0 else 0
-    wildcard_roles = sum(1 for r in roles if r.get("wildcard"))
-    inactive = sum(1 for u in filtered if u.get("status") == "inactive")
 
-    total_perms = sum(r.get("permissions", 0) for r in roles)
-    unused_perms = safe_get(summary, "unused_permissions", 0)
-    unused_pct = round((unused_perms / total_perms * 100), 1) if total_perms > 0 else 0
+    # by_severity from check fallback
+    if not by_severity and raw_findings:
+        for f in raw_findings:
+            sev = (f.get("severity") or "medium").lower()
+            by_severity[sev] = by_severity.get(sev, 0) + 1
 
-    risk_score = safe_get(summary, "risk_score", 0)
-    if not risk_score and filtered:
-        sev_w = {"critical": 90, "high": 70, "medium": 45, "low": 20}
-        total_w = sum(sev_w.get("medium", 45) for _ in filtered)
-        risk_score = min(100, round(total_w / max(len(filtered), 1)))
+    critical = by_severity.get("critical", 0)
+    high     = by_severity.get("high",     0)
+    medium   = by_severity.get("medium",   0)
 
-    return {
-        "kpi": {
-            "totalIdentities": safe_get(summary, "total_findings") or len(filtered),
-            "overPrivileged": by_module.get("privilege_escalation") or over_privileged,
-            "noMfa": by_module.get("mfa_disabled") or by_module.get("mfa") or no_mfa,
-            "inactive": by_module.get("inactive_accounts") or inactive,
-            "mfaAdoption": mfa_adoption,
-            "keysToRotate": len(access_keys),
-            "wildcardRoles": wildcard_roles,
-            "unusedPermissionsPct": unused_pct,
-        },
-        "riskScore": risk_score,
-        "findingsByModule": by_module,
-        "identities": filtered,
-        "roles": roles,
-        "accessKeys": access_keys,
+    # ── Page context ──
+    page_ctx = iam_page_context(summary)
+    page_ctx["tabs"] = [
+        {"id": "overview",              "label": "Overview"                                          },
+        {"id": "findings",              "label": "Findings",              "count": len(raw_findings)  },
+        {"id": "roles",                 "label": "Roles & Policies",      "count": len(roles)        },
+        {"id": "access_keys",           "label": "Access Control",        "count": len(access_keys)  },
+        {"id": "privilege_escalation",  "label": "Privilege Escalation",  "count": len(priv_esc)     },
+    ]
+
+    result = {
+        "pageContext":       page_ctx,
+        "filterSchema":     iam_filter_schema(list(by_module.keys())),
+        "kpiGroups": [
+            {
+                "title": "Identity Risk",
+                "items": [
+                    {"label": "Critical",       "value": critical                                              },
+                    {"label": "High",           "value": high                                                  },
+                    {"label": "Medium",         "value": medium                                                },
+                    {"label": "Posture Score",  "value": posture_score, "suffix": "/100"                      },
+                    {"label": "Total Findings", "value": safe_get(summary, "total_findings") or len(raw_findings)},
+                ],
+            },
+            {
+                "title": "Access Hygiene",
+                "items": [
+                    {"label": "MFA Adoption",  "value": mfa_adoption,                        "suffix": "%"},
+                    {"label": "Keys to Rotate","value": len(access_keys)                                   },
+                    {"label": "Overprivileged","value": by_module.get("least_privilege", 0)                },
+                    {"label": "Identities",    "value": len(filtered)                                      },
+                    {"label": "Modules",       "value": len(by_module) or len(set(
+                        (f.get("service") or "") for f in raw_findings if f.get("service")
+                    ))},
+                ],
+            },
+        ],
+        "findingsByModule":    by_module,
+        "byAccount":           safe_get(summary, "by_account",         []),
+        "byRegion":            safe_get(summary, "by_region",          []),
+        "identities":          filtered,
+        "findings":            raw_findings,
+        "roles":               roles,
+        "accessKeys":          access_keys,
         "privilegeEscalation": priv_esc,
-        "serviceAccounts": svc_accounts,
+        "serviceAccounts":     svc_accounts,
+        "scanTrend":           safe_get(data, "scan_trend",            []),
     }
+    cached_view(ck, result, ttl=TTL_IAM)
+    return result

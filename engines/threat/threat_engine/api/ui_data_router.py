@@ -22,11 +22,77 @@ from typing import Any, Dict, List, Optional
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["ui-data"])
+
+# ── Auth imports (engine_auth is COPY shared/auth/ ./engine_auth/ in Dockerfile) ──
+try:
+    from engine_auth.fastapi.dependencies import require_permission
+    from engine_auth.core.models import AuthContext
+    _AUTH_AVAILABLE = True
+except ImportError:
+    _AUTH_AVAILABLE = False
+    AuthContext = None  # type: ignore[assignment,misc]
+
+
+# Sensitive evidence sub-keys stripped for roles below tenant_admin
+_EVIDENCE_SENSITIVE_KEYS = frozenset({"raw_event", "log_entry", "actor_credentials"})
+
+# Roles that receive full evidence (raw_event/log_entry/actor_credentials included)
+_FULL_EVIDENCE_ROLES = frozenset({"tenant_admin", "platform_admin", "org_admin"})
+
+
+def strip_sensitive_fields(data: List[Dict[str, Any]], auth: Any) -> List[Dict[str, Any]]:
+    """Remove credential and raw-evidence fields based on caller's role.
+
+    Roles and stripping rules:
+        - platform_admin (l1): keeps all evidence; credential_ref kept (infra admin)
+        - org_admin (l2): keeps all evidence; credential_ref removed
+        - tenant_admin (l4): full evidence; credential_ref removed
+        - analyst (l4): evidence minus raw_event/log_entry/actor_credentials; credential_ref removed
+        - viewer (l4): evidence field set to None entirely; credential_ref removed
+        - raw_data: always stripped (internal debug field, never for UI)
+
+    Args:
+        data: List of threat finding/detection dicts.
+        auth: AuthContext instance (or None when auth is unavailable).
+
+    Returns:
+        New list with sensitive fields removed; original dicts are not mutated.
+    """
+    if not isinstance(data, list):
+        return data
+    stripped = []
+    for row in data:
+        r = dict(row) if not isinstance(row, dict) else row.copy()
+
+        # Strip infra-level secrets from all non-platform-admin callers
+        if auth is not None and auth.level > 1:
+            r.pop("credential_ref", None)
+            r.pop("credential_type", None)
+
+        # Strip raw_data always (internal debug field, never for UI)
+        r.pop("raw_data", None)
+
+        if auth is not None:
+            role = getattr(auth, "role", None)
+            if role == "viewer":
+                # Viewer sees no evidence at all — BFF renders "Evidence redacted"
+                r["evidence"] = None
+            elif role not in _FULL_EVIDENCE_ROLES:
+                # analyst and any unrecognised tenant role: strip sensitive sub-keys
+                evidence = r.get("evidence")
+                if isinstance(evidence, dict):
+                    r["evidence"] = {
+                        k: v for k, v in evidence.items()
+                        if k not in _EVIDENCE_SENSITIVE_KEYS
+                    }
+
+        stripped.append(r)
+    return stripped
 
 # ---------------------------------------------------------------------------
 # DB helpers
@@ -79,6 +145,7 @@ async def get_threat_ui_data(
     account_id: Optional[str] = Query(None, description="Filter by account"),
     region: Optional[str] = Query(None, description="Filter by region"),
     threat_category: Optional[str] = Query(None, description="Filter by threat category"),
+    auth: Any = Depends(require_permission("threat:read") if _AUTH_AVAILABLE else (lambda: None)),
 ):
     """
     Unified UI data endpoint — returns DETECTION-level threat data.
@@ -101,51 +168,82 @@ async def get_threat_ui_data(
         # ------------------------------------------------------------------ #
         # 1. Resolve scan_id
         # ------------------------------------------------------------------ #
-        scan_id = _resolve_scan_id(conn, tenant_id, scan_run_id)
-        if not scan_id:
+        resolved = _resolve_scan_id(conn, tenant_id, scan_run_id)
+        if not resolved:
             return _empty_response()
 
-        # ------------------------------------------------------------------ #
-        # 2. Summary (KPIs — always unfiltered for full picture)
-        # ------------------------------------------------------------------ #
-        summary = _query_summary(conn, tenant_id, scan_id)
+        # Check if we're operating from threat_findings (no detections yet)
+        findings_mode = resolved.startswith("FINDINGS:")
+        scan_id = resolved[len("FINDINGS:"):] if findings_mode else resolved
 
-        # ------------------------------------------------------------------ #
-        # 3. Paginated detections (with analysis JOIN + filters)
-        # ------------------------------------------------------------------ #
-        threats, total_filtered = _query_threats(
-            conn, tenant_id, scan_id,
-            limit, offset, severity, account_id, region, threat_category,
-        )
+        if findings_mode:
+            # -- Findings-only path: serve from threat_findings directly -----
+            summary   = _query_summary_findings(conn, tenant_id, scan_id)
+            threats, total_filtered = _query_threats_findings(
+                conn, tenant_id, scan_id,
+                limit, offset, severity, account_id, region, threat_category,
+            )
+            mitre_matrix = _query_mitre_findings(conn, tenant_id, scan_id)
+            trend        = _query_trend_findings(conn, tenant_id, days)
+            scan_trend   = _query_scan_trend_findings(conn, tenant_id)
+            top_services = _query_top_findings(conn, tenant_id, scan_id, "resource_type", "service")
+            top_accounts = _query_top_findings(conn, tenant_id, scan_id, "account_id",   "account_id")
+            top_regions  = _query_top_findings(conn, tenant_id, scan_id, "region",       "region")
+            threat_intel = _query_intel(conn, tenant_id)
+            findings     = _query_findings(conn, tenant_id, scan_id)
+        else:
+            # -- Normal detections path -------------------------------------
+            # ------------------------------------------------------------------ #
+            # 2. Summary (KPIs — always unfiltered for full picture)
+            # ------------------------------------------------------------------ #
+            summary = _query_summary(conn, tenant_id, scan_id)
 
-        # ------------------------------------------------------------------ #
-        # 4. MITRE matrix (from detections)
-        # ------------------------------------------------------------------ #
-        mitre_matrix = _query_mitre_matrix(conn, tenant_id, scan_id)
+            # ------------------------------------------------------------------ #
+            # 3. Paginated detections (with analysis JOIN + filters)
+            # ------------------------------------------------------------------ #
+            threats, total_filtered = _query_threats(
+                conn, tenant_id, scan_id,
+                limit, offset, severity, account_id, region, threat_category,
+            )
 
-        # ------------------------------------------------------------------ #
-        # 5. Trend (detection-level, last N days)
-        # ------------------------------------------------------------------ #
-        trend = _query_trend(conn, tenant_id, days)
+            # ------------------------------------------------------------------ #
+            # 4. MITRE matrix (from detections)
+            # ------------------------------------------------------------------ #
+            mitre_matrix = _query_mitre_matrix(conn, tenant_id, scan_id)
 
-        # ------------------------------------------------------------------ #
-        # 6. Top services / accounts / regions
-        # ------------------------------------------------------------------ #
-        top_services = _query_top_services(conn, tenant_id, scan_id)
-        top_accounts = _query_top_accounts(conn, tenant_id, scan_id)
-        top_regions = _query_top_regions(conn, tenant_id, scan_id)
+            # ------------------------------------------------------------------ #
+            # 5. Trend (detection-level, last N days)
+            # ------------------------------------------------------------------ #
+            trend = _query_trend(conn, tenant_id, days)
 
-        # ------------------------------------------------------------------ #
-        # 7. Threat intelligence (from threat_intelligence table)
-        # ------------------------------------------------------------------ #
-        threat_intel = _query_intel(conn, tenant_id)
+            # ------------------------------------------------------------------ #
+            # 5b. Scan trend (last 8 scan runs — for sparklines / charts)
+            # ------------------------------------------------------------------ #
+            scan_trend = _query_scan_trend(conn, tenant_id)
+
+            # ------------------------------------------------------------------ #
+            # 6. Top services / accounts / regions
+            # ------------------------------------------------------------------ #
+            top_services = _query_top_services(conn, tenant_id, scan_id)
+            top_accounts = _query_top_accounts(conn, tenant_id, scan_id)
+            top_regions = _query_top_regions(conn, tenant_id, scan_id)
+
+            # ------------------------------------------------------------------ #
+            # 7. Threat intelligence (from threat_intelligence table)
+            # ------------------------------------------------------------------ #
+            threat_intel = _query_intel(conn, tenant_id)
+
+            # ------------------------------------------------------------------ #
+            # 8. Atomic threat findings (up to 1000)
+            # ------------------------------------------------------------------ #
+            findings = _query_findings(conn, tenant_id, scan_id)
 
         # Release DB before graph queries
         conn.close()
         conn = None
 
         # ------------------------------------------------------------------ #
-        # 8. Graph queries (Neo4j)
+        # 9. Graph queries (Neo4j)
         # ------------------------------------------------------------------ #
         graph_data = _query_graph_data(tenant_id)
 
@@ -155,14 +253,17 @@ async def get_threat_ui_data(
             extra={"extra_fields": {
                 "duration_ms": round(duration_ms, 1),
                 "total_detections": summary["total_detections"],
+                "total_findings": len(findings),
             }},
         )
 
         return {
             "summary": summary,
-            "threats": threats,
+            "threats": strip_sensitive_fields(threats, auth),
+            "findings": strip_sensitive_fields(findings, auth),
             "total": total_filtered,
             "trend": trend,
+            "scan_trend": scan_trend,
             "mitre_matrix": mitre_matrix,
             "top_services": top_services,
             "top_accounts": top_accounts,
@@ -198,8 +299,10 @@ def _empty_response() -> dict:
             "by_verdict": {}, "total_findings": 0,
         },
         "threats": [],
+        "findings": [],
         "total": 0,
         "trend": [],
+        "scan_trend": [],
         "mitre_matrix": [],
         "top_services": [],
         "top_accounts": [],
@@ -216,10 +319,11 @@ def _resolve_scan_id(conn, tenant_id: str, scan_run_id: Optional[str]) -> Option
 
     Returns scan_id string, or "__all__" meaning don't filter by scan_id
     (for "latest" when detections span multiple scans — show all).
+    Falls back to threat_findings using scan_run_id when threat_detections is empty.
     """
     with conn.cursor() as cur:
         if scan_run_id and scan_run_id != "latest":
-            # Specific scan requested
+            # Specific scan requested — check detections first, then findings
             cur.execute(
                 "SELECT DISTINCT scan_id FROM threat_detections "
                 "WHERE tenant_id = %s AND scan_id = %s LIMIT 1",
@@ -228,9 +332,16 @@ def _resolve_scan_id(conn, tenant_id: str, scan_run_id: Optional[str]) -> Option
             row = cur.fetchone()
             if row:
                 return row[0]
-            return None
+            # Fall back: check threat_findings
+            cur.execute(
+                "SELECT DISTINCT scan_run_id FROM threat_findings "
+                "WHERE tenant_id = %s AND scan_run_id = %s LIMIT 1",
+                (tenant_id, scan_run_id),
+            )
+            row = cur.fetchone()
+            return f"FINDINGS:{row[0]}" if row else None
         else:
-            # "latest" — check if tenant has any detections at all
+            # "latest" — check detections first
             cur.execute(
                 "SELECT COUNT(*) FROM threat_detections WHERE tenant_id = %s",
                 (tenant_id,),
@@ -238,6 +349,14 @@ def _resolve_scan_id(conn, tenant_id: str, scan_run_id: Optional[str]) -> Option
             cnt = cur.fetchone()[0]
             if cnt > 0:
                 return "__all__"
+            # Fall back: check threat_findings
+            cur.execute(
+                "SELECT COUNT(*) FROM threat_findings WHERE tenant_id = %s",
+                (tenant_id,),
+            )
+            cnt = cur.fetchone()[0]
+            if cnt > 0:
+                return "FINDINGS:__all__"
             return None
 
 
@@ -423,6 +542,11 @@ def _query_threats(
                 "recommendations": _safe_json(row.get("recommendations")) or [],
                 # Evidence (from detection grouping)
                 "evidence": evidence,
+                "source": evidence.get("source", "check") if isinstance(evidence, dict) else "check",
+                # Multi-rule grouping (from evidence JSONB)
+                "contributing_rules": evidence.get("contributing_rules", []) if isinstance(evidence, dict) else [],
+                "remediation": evidence.get("remediation", {}) if isinstance(evidence, dict) else {},
+                "hasAttackPath": bool(_safe_json(row.get("attack_chain"))),
                 # Timestamps
                 "first_seen_at": _ts(row.get("first_seen_at")),
                 "last_seen_at": _ts(row.get("last_seen_at")),
@@ -508,6 +632,91 @@ def _query_trend(conn, tenant_id: str, days: int) -> List[dict]:
     except Exception as e:
         logger.warning(f"Trend query failed: {e}")
     return trend
+
+
+# -- scan trend (by scan run, for sparklines) -------------------------------
+
+def _query_scan_trend(conn, tenant_id: str) -> List[dict]:
+    """Last 8 scan runs from threat_detections — standard scan_trend format.
+
+    Groups detections by scan_id, ordered by most recent detection timestamp.
+    Returns oldest-first so sparklines and charts read left-to-right in time.
+    pass_rate is derived as an inverse-weighted severity ratio (0-100):
+      higher severity weight → lower pass_rate.
+    """
+    result: List[dict] = []
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT
+                    to_char(MAX(detection_timestamp), 'Mon DD')          AS date,
+                    COUNT(*)                                              AS total,
+                    COUNT(*) FILTER (WHERE severity = 'critical')        AS critical,
+                    COUNT(*) FILTER (WHERE severity = 'high')            AS high,
+                    COUNT(*) FILTER (WHERE severity = 'medium')          AS medium,
+                    COUNT(*) FILTER (WHERE severity = 'low')             AS low,
+                    COUNT(DISTINCT resource_type)                        AS services_affected,
+                    COALESCE(AVG(
+                        GREATEST(0,
+                            EXTRACT(EPOCH FROM (detection_timestamp - first_seen_at))
+                        ) / 86400
+                    )::int, 0)                                           AS avg_age_days,
+                    COUNT(*) FILTER (
+                        WHERE EXTRACT(EPOCH FROM
+                            (detection_timestamp - first_seen_at)) < 3600
+                    )                                                    AS new_this_scan,
+                    COUNT(*) FILTER (
+                        WHERE severity = 'critical'
+                          AND first_seen_at <= detection_timestamp - interval '30 days'
+                    ) + COUNT(*) FILTER (
+                        WHERE severity = 'high'
+                          AND first_seen_at <= detection_timestamp - interval '60 days'
+                    ) + COUNT(*) FILTER (
+                        WHERE severity = 'medium'
+                          AND first_seen_at <= detection_timestamp - interval '90 days'
+                    )                                                    AS sla_breached
+                FROM threat_detections
+                WHERE tenant_id = %s
+                  AND scan_id IS NOT NULL
+                GROUP BY scan_id
+                ORDER BY MAX(detection_timestamp) DESC
+                LIMIT 8
+                """,
+                (tenant_id,),
+            )
+            rows = list(reversed(cur.fetchall()))
+            for row in rows:
+                total = int(row["total"] or 0)
+                crit  = int(row["critical"] or 0)
+                high  = int(row["high"] or 0)
+                med   = int(row["medium"] or 0)
+                low   = int(row["low"] or 0)
+                # Weighted risk burden relative to worst-case (all critical)
+                if total > 0:
+                    weight = crit * 4 + high * 3 + med * 2 + low * 1
+                    max_weight = total * 4
+                    pass_rate = max(0, min(100, round(100 - (weight / max_weight) * 100)))
+                else:
+                    pass_rate = 100
+                result.append({
+                    "date":               row["date"] or "",
+                    "total":              total,
+                    "critical":           crit,
+                    "high":               high,
+                    "medium":             med,
+                    "low":                low,
+                    "pass_rate":          pass_rate,
+                    "services_affected":  int(row["services_affected"] or 0),
+                    "avg_age_days":       int(row["avg_age_days"] or 0),
+                    "new_this_scan":      int(row["new_this_scan"] or 0),
+                    "sla_breached":       int(row["sla_breached"] or 0),
+                    # auto_remediable not tracked in threat_detections — derived in BFF
+                    "auto_remediable":    0,
+                })
+    except Exception as e:
+        logger.warning(f"Scan trend query failed: {e}")
+    return result
 
 
 # -- top services / accounts / regions -------------------------------------
@@ -620,6 +829,342 @@ def _query_intel(conn, tenant_id: str) -> List[dict]:
     except Exception as e:
         logger.warning(f"Intel query failed: {e}")
     return intel
+
+
+# -- atomic findings --------------------------------------------------------
+
+def _query_findings(conn, tenant_id: str, scan_id: str, limit: int = 1000) -> List[dict]:
+    """Query atomic threat_findings (individual rule evaluations)."""
+    findings: List[dict] = []
+    try:
+        where_parts = ["tenant_id = %s"]
+        params: list = [tenant_id]
+        if scan_id and scan_id != "__all__":
+            # threat_findings uses scan_run_id (standard column)
+            where_parts.append("scan_run_id = %s")
+            params.append(scan_id)
+        where = " AND ".join(where_parts)
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                f"SELECT finding_id, rule_id, threat_category, severity, status, "
+                f"  resource_type, resource_uid, account_id, region, "
+                f"  mitre_tactics, mitre_techniques, first_seen_at, last_seen_at "
+                f"FROM threat_findings "
+                f"WHERE {where} "
+                f"ORDER BY "
+                f"  CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 "
+                f"  WHEN 'medium' THEN 3 ELSE 4 END, "
+                f"  first_seen_at DESC "
+                f"LIMIT %s",
+                params + [limit],
+            )
+            for row in cur.fetchall():
+                findings.append({
+                    "finding_id":       row["finding_id"],
+                    "rule_id":          row["rule_id"] or "",
+                    "threat_category":  row["threat_category"] or "",
+                    "severity":         (row["severity"] or "medium").lower(),
+                    "status":           (row["status"] or "FAIL").upper(),
+                    "resource_type":    row["resource_type"] or "",
+                    "resource_uid":     row["resource_uid"] or "",
+                    "account_id":       row["account_id"] or "",
+                    "region":           row["region"] or "",
+                    "mitre_tactics":    _safe_json(row["mitre_tactics"]) or [],
+                    "mitre_techniques": _safe_json(row["mitre_techniques"]) or [],
+                    "first_seen_at":    _ts(row["first_seen_at"]),
+                    "last_seen_at":     _ts(row["last_seen_at"]),
+                })
+    except Exception as e:
+        logger.warning(f"Threat findings query failed: {e}")
+    return findings
+
+
+# ===========================================================================
+# Findings-only helpers (used when threat_detections is empty)
+# threat_findings columns: finding_id, scan_run_id, rule_id, threat_category,
+#   severity, status, resource_type, resource_uid, resource_id, account_id,
+#   region, mitre_tactics, mitre_techniques, evidence, finding_data,
+#   first_seen_at, last_seen_at, provider, tenant_id
+# ===========================================================================
+
+def _findings_scan_filter(scan_id: str) -> tuple:
+    """Return (WHERE fragment, params) for threat_findings scan_run_id filter."""
+    if scan_id == "__all__":
+        return "", []
+    return " AND scan_run_id = %s", [scan_id]
+
+
+def _query_summary_findings(conn, tenant_id: str, scan_id: str) -> dict:
+    """KPIs from threat_findings (no detections table available)."""
+    summary: Dict[str, Any] = {
+        "total_detections": 0, "critical": 0, "high": 0, "medium": 0,
+        "low": 0, "avg_risk_score": 0, "by_category": {},
+        "by_verdict": {}, "total_findings": 0,
+    }
+    sf, sp = _findings_scan_filter(scan_id)
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(
+            f"SELECT severity, threat_category, COUNT(*) AS cnt "
+            f"FROM threat_findings "
+            f"WHERE tenant_id = %s{sf} "
+            f"GROUP BY severity, threat_category",
+            [tenant_id] + sp,
+        )
+        for row in cur.fetchall():
+            sev = (row["severity"] or "low").lower()
+            cat = row["threat_category"] or "uncategorized"
+            cnt = row["cnt"]
+            summary[sev] = summary.get(sev, 0) + cnt
+            summary["total_detections"] += cnt
+            summary["total_findings"] += cnt
+            summary["by_category"][cat] = summary["by_category"].get(cat, 0) + cnt
+    return summary
+
+
+def _query_threats_findings(
+    conn, tenant_id: str, scan_id: str,
+    limit: int, offset: int,
+    severity: Optional[str], account_id: Optional[str],
+    region: Optional[str], threat_category: Optional[str],
+) -> tuple:
+    """Map threat_findings rows to detection-like dicts for the UI threats list."""
+    where_parts = ["tenant_id = %s"]
+    params: list = [tenant_id]
+    if scan_id != "__all__":
+        where_parts.append("scan_run_id = %s")
+        params.append(scan_id)
+    if severity:
+        where_parts.append("severity = %s")
+        params.append(severity)
+    if account_id:
+        where_parts.append("account_id = %s")
+        params.append(account_id)
+    if region:
+        where_parts.append("region = %s")
+        params.append(region)
+    if threat_category:
+        where_parts.append("threat_category = %s")
+        params.append(threat_category)
+
+    where = " AND ".join(where_parts)
+    threats: List[dict] = []
+    total = 0
+
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(f"SELECT COUNT(*) AS cnt FROM threat_findings WHERE {where}", params)
+        total = cur.fetchone()["cnt"]
+
+        cur.execute(
+            f"SELECT finding_id, scan_run_id, rule_id, threat_category, severity, status, "
+            f"  resource_type, resource_uid, resource_id, account_id, region, provider, "
+            f"  mitre_tactics, mitre_techniques, evidence, finding_data, "
+            f"  first_seen_at, last_seen_at "
+            f"FROM threat_findings "
+            f"WHERE {where} "
+            f"ORDER BY "
+            f"  CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 "
+            f"  WHEN 'medium' THEN 3 ELSE 4 END, "
+            f"  first_seen_at DESC "
+            f"LIMIT %s OFFSET %s",
+            params + [limit, offset],
+        )
+        for row in cur.fetchall():
+            evidence = _safe_json(row.get("evidence"))
+            fd = _safe_json(row.get("finding_data"))
+            rule_name = fd.get("rule_name") or fd.get("check_id") or row.get("rule_id") or ""
+            threats.append({
+                "detection_id":      str(row["finding_id"]),
+                "detection_type":    row.get("threat_category") or "threat",
+                "rule_id":           row.get("rule_id") or "",
+                "rule_name":         rule_name,
+                "title":             rule_name or row.get("threat_category") or "Threat Finding",
+                "resource_uid":      row.get("resource_uid") or "",
+                "resource_type":     row.get("resource_type") or "",
+                "account_id":        row.get("account_id") or "",
+                "region":            row.get("region") or "",
+                "provider":          row.get("provider") or "",
+                "severity":          (row.get("severity") or "medium").lower(),
+                "confidence":        fd.get("confidence") or "medium",
+                "status":            (row.get("status") or "FAIL").upper(),
+                "threat_category":   row.get("threat_category") or "",
+                "risk_score":        fd.get("risk_score") or 0,
+                "verdict":           fd.get("verdict") or "",
+                "blast_radius":      0,
+                "finding_count":     1,
+                "mitre_techniques":  _safe_json(row.get("mitre_techniques")) or [],
+                "mitre_tactics":     _safe_json(row.get("mitre_tactics")) or [],
+                "attack_chain":      [],
+                "recommendations":   fd.get("recommendations") or [],
+                "evidence":          evidence,
+                "source":            "threat_findings",
+                "contributing_rules": [],
+                "remediation":       fd.get("remediation") or {},
+                "hasAttackPath":     False,
+                "first_seen_at":     _ts(row.get("first_seen_at")),
+                "last_seen_at":      _ts(row.get("last_seen_at")),
+                "detected_at":       _ts(row.get("first_seen_at")),
+            })
+
+    return threats, total
+
+
+def _query_mitre_findings(conn, tenant_id: str, scan_id: str) -> List[dict]:
+    """MITRE matrix from threat_findings.mitre_techniques."""
+    matrix: List[dict] = []
+    sf, sp = _findings_scan_filter(scan_id)
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(f"""
+                WITH technique_counts AS (
+                    SELECT
+                        CASE
+                            WHEN jsonb_typeof(elem) = 'object' THEN elem->>'id'
+                            WHEN jsonb_typeof(elem) = 'string' THEN elem #>> '{{}}'
+                            ELSE NULL
+                        END AS technique_id,
+                        COUNT(*) AS detection_count
+                    FROM threat_findings f,
+                         jsonb_array_elements(COALESCE(f.mitre_techniques, '[]'::jsonb)) AS elem
+                    WHERE f.tenant_id = %s{sf}
+                      AND f.mitre_techniques IS NOT NULL
+                      AND f.mitre_techniques != '[]'::jsonb
+                    GROUP BY 1
+                )
+                SELECT tc.technique_id, tc.detection_count,
+                       mr.technique_name, mr.tactics, mr.severity_base
+                FROM technique_counts tc
+                LEFT JOIN mitre_technique_reference mr ON tc.technique_id = mr.technique_id
+                WHERE tc.technique_id IS NOT NULL
+                ORDER BY tc.detection_count DESC
+            """, [tenant_id] + sp)
+            for row in cur.fetchall():
+                tactics = _safe_json(row.get("tactics"))
+                if isinstance(tactics, str):
+                    tactics = [tactics]
+                matrix.append({
+                    "technique_id":   row["technique_id"],
+                    "technique_name": row.get("technique_name") or row["technique_id"],
+                    "tactics":        tactics if isinstance(tactics, list) else [],
+                    "count":          row["detection_count"],
+                    "severity_base":  row.get("severity_base") or "medium",
+                })
+    except Exception as e:
+        logger.warning(f"MITRE findings matrix query failed: {e}")
+    return matrix
+
+
+def _query_trend_findings(conn, tenant_id: str, days: int) -> List[dict]:
+    """Trend from threat_findings over last N days."""
+    trend: List[dict] = []
+    try:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                "SELECT DATE(first_seen_at) AS d, severity, COUNT(*) AS cnt "
+                "FROM threat_findings "
+                "WHERE tenant_id = %s AND first_seen_at >= %s "
+                "GROUP BY 1, 2 ORDER BY 1",
+                (tenant_id, cutoff),
+            )
+            date_map: Dict[str, Dict[str, Any]] = defaultdict(
+                lambda: {"date": "", "total": 0, "critical": 0, "high": 0, "medium": 0, "low": 0}
+            )
+            for row in cur.fetchall():
+                d = str(row["d"])
+                sev = (row["severity"] or "low").lower()
+                date_map[d]["date"] = d
+                date_map[d]["total"] += row["cnt"]
+                date_map[d][sev] = date_map[d].get(sev, 0) + row["cnt"]
+            trend = [date_map[k] for k in sorted(date_map.keys())]
+    except Exception as e:
+        logger.warning(f"Trend findings query failed: {e}")
+    return trend
+
+
+def _query_scan_trend_findings(conn, tenant_id: str) -> List[dict]:
+    """Scan trend from threat_findings (last 8 scan_run_ids)."""
+    result: List[dict] = []
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT
+                    to_char(MAX(first_seen_at), 'Mon DD')                AS date,
+                    COUNT(*)                                              AS total,
+                    COUNT(*) FILTER (WHERE severity = 'critical')        AS critical,
+                    COUNT(*) FILTER (WHERE severity = 'high')            AS high,
+                    COUNT(*) FILTER (WHERE severity = 'medium')          AS medium,
+                    COUNT(*) FILTER (WHERE severity = 'low')             AS low,
+                    COUNT(DISTINCT resource_type)                        AS services_affected
+                FROM threat_findings
+                WHERE tenant_id = %s
+                  AND scan_run_id IS NOT NULL
+                GROUP BY scan_run_id
+                ORDER BY MAX(first_seen_at) DESC
+                LIMIT 8
+                """,
+                (tenant_id,),
+            )
+            rows = list(reversed(cur.fetchall()))
+            for row in rows:
+                total = int(row["total"] or 0)
+                crit  = int(row["critical"] or 0)
+                high  = int(row["high"] or 0)
+                med   = int(row["medium"] or 0)
+                low   = int(row["low"] or 0)
+                if total > 0:
+                    weight = crit * 4 + high * 3 + med * 2 + low * 1
+                    max_weight = total * 4
+                    pass_rate = max(0, min(100, round(100 - (weight / max_weight) * 100)))
+                else:
+                    pass_rate = 100
+                result.append({
+                    "date":              row["date"] or "",
+                    "total":             total,
+                    "critical":          crit,
+                    "high":              high,
+                    "medium":            med,
+                    "low":               low,
+                    "pass_rate":         pass_rate,
+                    "services_affected": int(row["services_affected"] or 0),
+                    "avg_age_days":      0,
+                    "new_this_scan":     0,
+                    "sla_breached":      0,
+                    "auto_remediable":   0,
+                })
+    except Exception as e:
+        logger.warning(f"Scan trend findings query failed: {e}")
+    return result
+
+
+def _query_top_findings(
+    conn, tenant_id: str, scan_id: str, column: str, key: str
+) -> List[dict]:
+    """Generic top-N from threat_findings grouped by an arbitrary column."""
+    result = []
+    sf, sp = _findings_scan_filter(scan_id)
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                f"SELECT COALESCE({column}, 'unknown') AS grp, severity, COUNT(*) AS cnt "
+                f"FROM threat_findings "
+                f"WHERE tenant_id = %s{sf} "
+                f"GROUP BY 1, 2",
+                [tenant_id] + sp,
+            )
+            grp_map: Dict[str, Dict[str, Any]] = defaultdict(
+                lambda: {key: "", "count": 0, "critical": 0, "high": 0, "medium": 0, "low": 0}
+            )
+            for row in cur.fetchall():
+                grp = row["grp"]
+                sev = (row["severity"] or "low").lower()
+                grp_map[grp][key] = grp
+                grp_map[grp]["count"] += row["cnt"]
+                grp_map[grp][sev] = grp_map[grp].get(sev, 0) + row["cnt"]
+            result = sorted(grp_map.values(), key=lambda x: x["count"], reverse=True)[:20]
+    except Exception as e:
+        logger.warning(f"Top {column} findings query failed: {e}")
+    return result
 
 
 # -- graph queries (Neo4j) --------------------------------------------------

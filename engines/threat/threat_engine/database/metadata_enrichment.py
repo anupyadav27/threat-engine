@@ -105,7 +105,7 @@ def get_enriched_check_results(
                     cf.status,
                     cf.checked_fields,
                     cf.finding_data,
-                    cf.created_at as first_seen_at,
+                    cf.first_seen_at,
 
                     -- Rule metadata
                     rm.service as rule_service,

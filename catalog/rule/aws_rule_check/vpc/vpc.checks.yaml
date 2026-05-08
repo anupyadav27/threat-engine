@@ -1,0 +1,572 @@
+version: '1.0'
+provider: aws
+service: vpc
+checks:
+- rule_id: aws.vpc.customergateway.api_dns_hostnames_and_support_configured
+  for_each: aws.vpc.describe_customer_gateways
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.CustomerGateways[].DeviceName
+      op: exists
+      value: null
+    - var: item.CustomerGateways[].IpAddress
+      op: exists
+      value: null
+- rule_id: aws.vpc.customergateway.flow_logging_enabled
+  for_each: aws.vpc.describe_customer_gateways
+  severity: MEDIUM
+  conditions:
+    var: item.FlowLogsEnabled
+    op: is_true
+    value: null
+- rule_id: aws.vpc.customergateway.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Routes[].GatewayId
+      op: not_contains
+      value: igw-
+    - var: item.Routes[].GatewayId
+      op: not_contains
+      value: vgw-
+- rule_id: aws.vpc.different_regions.different_regions_configured
+  for_each: aws.vpc.describe_customer_gateways
+  severity: MEDIUM
+  conditions:
+    var: item.CustomerGateways[].IpAddress
+    op: not_empty
+    value: null
+- rule_id: aws.vpc.endpoint_connections_trust_boundaries.endpoint_connections_trust_boundaries_configured
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    var: item.RouteTables
+    op: not_empty
+    value: null
+- rule_id: aws.vpc.endpoint_services_allowed_principals_trust_boundaries.endpoint_principals_trust_boundaries_configured
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    var: item.RouteTables
+    op: not_empty
+    value: null
+- rule_id: aws.vpc.flow.logging_enabled
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    var: item.VpcId
+    op: exists
+    value: null
+- rule_id: aws.vpc.internetgateway.api_dns_hostnames_and_support_configured
+  for_each: aws.vpc.describe_nat_gateways
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.ConnectivityType
+      op: equals
+      value: public
+    - var: item.NatGatewayAddresses[].PublicIp
+      op: exists
+      value: null
+- rule_id: aws.vpc.internetgateway.flow_logging_enabled
+  for_each: aws.vpc.describe_nat_gateways
+  severity: MEDIUM
+  conditions:
+    var: item.NatGatewayAddresses
+    op: not_empty
+    value: null
+- rule_id: aws.vpc.internetgateway.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Routes[].GatewayId
+      op: not_contains
+      value: igw-
+    - var: item.Routes[].DestinationCidrBlock
+      op: not_equals
+      value: 0.0.0.0/0
+- rule_id: aws.vpc.nacl_ingress_restricted_ports_22_3389.nacl_ingress_restricted_ports_22_3389_configured
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Routes[].DestinationCidrBlock
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.Routes[].GatewayId
+      op: not_contains
+      value: igw-
+- rule_id: aws.vpc.natgateway.api_dns_hostnames_and_support_configured
+  for_each: aws.vpc.describe_nat_gateways
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.NatGatewayAddresses[].PrivateIp
+      op: exists
+      value: null
+    - var: item.NatGatewayAddresses[].PublicIp
+      op: exists
+      value: null
+- rule_id: aws.vpc.natgateway.flow_logging_enabled
+  for_each: aws.vpc.describe_nat_gateways
+  severity: MEDIUM
+  conditions:
+    var: item.NatGatewayAddresses[].FlowLogs
+    op: not_empty
+    value: null
+- rule_id: aws.vpc.natgateway.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Routes[]
+      op: not_empty
+      value: null
+    - any:
+      - var: item.Routes[].GatewayId
+        op: contains
+        value: igw-
+      - var: item.Routes[].NatGatewayId
+        op: exists
+        value: null
+- rule_id: aws.vpc.network.acl_unused_configured
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.Routes[].NetworkAclId
+      op: exists
+      value: null
+    - var: item.Routes[].VpcPeeringConnectionId
+      op: exists
+      value: null
+    - var: item.Routes[].GatewayId
+      op: exists
+      value: local
+    - var: item.Routes[].NatGatewayId
+      op: exists
+      value: null
+    - var: item.Routes[].TransitGatewayId
+      op: exists
+      value: null
+    - var: item.Routes[].VpcEndpointId
+      op: exists
+      value: null
+    - var: item.Routes[].CarrierGatewayId
+      op: exists
+      value: null
+    - var: item.Routes[].CoreNetworkArn
+      op: exists
+      value: null
+    - var: item.Routes[].EgressOnlyInternetGatewayId
+      op: exists
+      value: null
+    - var: item.Routes[].InstanceId
+      op: exists
+      value: null
+    - var: item.Routes[].LocalGatewayId
+      op: exists
+      value: null
+    - var: item.Routes[].NetworkInterfaceId
+      op: exists
+      value: null
+- rule_id: aws.vpc.network.security_monitored
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    var: item.Routes
+    op: not_empty
+    value: null
+- rule_id: aws.vpc.network_interface.flow_logging_enabled
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    var: item.RouteTables[].FlowLogs
+    op: not_empty
+    value: null
+- rule_id: aws.vpc.network_interface.network_dns_hostnames_and_support_configured
+  for_each: aws.vpc.describe_route_tables
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.VpcId
+      op: exists
+      value: null
+    - var: item.Routes[].GatewayId
+      op: contains
+      value: igw-
+- rule_id: aws.vpc.network_interface.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Routes[].GatewayId
+      op: not_contains
+      value: igw-
+    - var: item.Routes[].DestinationCidrBlock
+      op: not_equals
+      value: 0.0.0.0/0
+- rule_id: aws.vpc.networkacl.flow_logging_enabled
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    var: item.RouteTables[].FlowLogs
+    op: not_empty
+    value: null
+- rule_id: aws.vpc.networkacl.network_dns_hostnames_and_support_configured
+  for_each: aws.vpc.describe_route_tables
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.RouteTables
+      op: not_empty
+      value: null
+    - var: item.RouteTables[].Routes[].DestinationCidrBlock
+      op: contains
+      value: 0.0.0.0/0
+    - var: item.RouteTables[].Routes[?(@.DestinationCidrBlock == '0.0.0.0/0')].GatewayId
+      op: not_contains
+      value: igw-
+- rule_id: aws.vpc.networkacl.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Routes[].GatewayId
+      op: not_contains
+      value: igw-
+    - var: item.Routes[].DestinationCidrBlock
+      op: not_equals
+      value: 0.0.0.0/0
+- rule_id: aws.vpc.peering_routing_tables_with_least_privilege.privilege
+  for_each: aws.vpc.describe_route_tables
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Routes[].GatewayId
+      op: not_contains
+      value: pcx-
+- rule_id: aws.vpc.resource.endpoint_for_ec2_enabled
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.Routes[].GatewayId
+      op: contains
+      value: vpce-
+- rule_id: aws.vpc.resource.endpoint_multi_az_enabled
+  for_each: aws.vpc.describe_nat_gateways
+  severity: MEDIUM
+  conditions:
+    var: item.AutoProvisionZones
+    op: exists
+    value: null
+- rule_id: aws.vpc.resource.flow_log_active_rejects_enabled
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    var: item.Routes[].DestinationCidrBlock
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: aws.vpc.resource.flow_logging_enabled
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    var: item.RouteTables
+    op: not_empty
+    value: null
+- rule_id: aws.vpc.routetable.dns_hostnames_and_support_configured
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.VpcId
+      op: exists
+      value: null
+    - var: item.RouteTableId
+      op: exists
+      value: null
+- rule_id: aws.vpc.routetable.flow_logging_enabled
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.Routes[].VpcPeeringConnectionId
+      op: exists
+      value: null
+    - var: item.Routes[].GatewayId
+      op: exists
+      value: null
+    - var: item.Routes[].NatGatewayId
+      op: exists
+      value: null
+    - var: item.Routes[].TransitGatewayId
+      op: exists
+      value: null
+    - var: item.Routes[].LocalGatewayId
+      op: exists
+      value: null
+    - var: item.Routes[].CarrierGatewayId
+      op: exists
+      value: null
+    - var: item.Routes[].EgressOnlyInternetGatewayId
+      op: exists
+      value: null
+    - var: item.Routes[].InstanceId
+      op: exists
+      value: null
+    - var: item.Routes[].NetworkInterfaceId
+      op: exists
+      value: null
+- rule_id: aws.vpc.routetable.s_no_unintended_internet_paths_configured
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Routes[].GatewayId
+      op: not_contains
+      value: igw-
+    - var: item.Routes[].GatewayId
+      op: not_contains
+      value: vgw-
+- rule_id: aws.vpc.securitygroup.flow_logging_enabled
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    var: item.RouteTables
+    op: not_empty
+    value: null
+- rule_id: aws.vpc.securitygroup.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Routes[].GatewayId
+      op: not_contains
+      value: igw-
+    - var: item.Routes[].DestinationCidrBlock
+      op: not_equals
+      value: 0.0.0.0/0
+- rule_id: aws.vpc.securitygroup.security_closed_ports_restricted
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Routes[].DestinationCidrBlock
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.Routes[].GatewayId
+      op: not_contains
+      value: igw-
+- rule_id: aws.vpc.securitygroup.security_dns_hostnames_and_support_configured
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Routes[].DestinationCidrBlock
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.Routes[].GatewayId
+      op: not_contains
+      value: igw-
+- rule_id: aws.vpc.subnet.dns_hostnames_and_support_configured
+  for_each: aws.ec2.describe_subnets
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.MapPublicIpOnLaunch
+      op: is_false
+      value: null
+    - var: item.AssignIpv6AddressOnCreation
+      op: is_false
+      value: null
+- rule_id: aws.vpc.subnet.flow_logging_enabled
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    var: item.RouteTables[].VpcId
+    op: exists
+    value: null
+- rule_id: aws.vpc.subnet.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Routes[].GatewayId
+      op: not_contains
+      value: igw-
+    - var: item.Routes[].DestinationCidrBlock
+      op: not_equals
+      value: 0.0.0.0/0
+- rule_id: aws.vpc.subnet_different_az.subnet_different_az_configured
+  for_each: aws.vpc.describe_nat_gateways
+  severity: MEDIUM
+  conditions:
+    var: item.AutoProvisionZones
+    op: not_empty
+    value: null
+- rule_id: aws.vpc.subnet_no_public_ip_by_default.subnet_no_public_ip_by_default_configured
+  for_each: aws.vpc.describe_route_tables
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.Routes[].GatewayId
+      op: not_contains
+      value: igw-
+    - var: item.Routes[].GatewayId
+      op: not_exists
+      value: null
+- rule_id: aws.vpc.subnet_separate_private_public.subnet_separate_private_public_configured
+  for_each: aws.vpc.describe_route_tables
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.RouteTables
+      op: not_empty
+      value: null
+    - any:
+      - var: item.RouteTables[].Routes[].GatewayId
+        op: contains
+        value: igw-
+      - var: item.RouteTables[].Routes[].NatGatewayId
+        op: exists
+        value: null
+    - any:
+      - var: item.RouteTables[].Routes[].GatewayId
+        op: not_contains
+        value: igw-
+      - var: item.RouteTables[].Routes[].NatGatewayId
+        op: not_exists
+        value: null
+- rule_id: aws.vpc.vpc.dns_hostnames_and_support_configured
+  for_each: aws.ec2.describe_vpcs
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.EnableDnsHostnames
+      op: is_true
+      value: null
+    - var: item.EnableDnsSupport
+      op: is_true
+      value: null
+- rule_id: aws.vpc.vpc.flow_logging_enabled
+  for_each: aws.vpc.describe_nat_gateways
+  severity: MEDIUM
+  conditions:
+    var: item.VpcId
+    op: exists
+    value: null
+- rule_id: aws.vpc.vpc.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Routes[].GatewayId
+      op: not_contains
+      value: igw-
+    - var: item.Routes[].DestinationCidrBlock
+      op: not_equals
+      value: 0.0.0.0/0
+- rule_id: aws.vpc.vpcendpoint.dns_hostnames_and_support_configured
+  for_each: aws.ec2.describe_vpc_endpoints
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.DnsOptions.DnsHostnamesEnabled
+      op: is_true
+      value: null
+    - var: item.DnsOptions.DnsSupportEnabled
+      op: is_true
+      value: null
+- rule_id: aws.vpc.vpcendpoint.flow_logging_enabled
+  for_each: aws.ec2.describe_vpc_endpoints
+  severity: MEDIUM
+  conditions:
+    var: item.FlowLogsEnabled
+    op: is_true
+    value: null
+- rule_id: aws.vpc.vpcendpoint.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Routes[].GatewayId
+      op: not_contains
+      value: igw-
+    - var: item.Routes[].GatewayId
+      op: not_contains
+      value: local
+- rule_id: aws.vpc.vpn_connection_tunnels_up.vpn_connection_tunnels_up_configured
+  for_each: aws.vpc.describe_customer_gateways
+  severity: MEDIUM
+  conditions:
+    var: item.State
+    op: equals
+    value: RUNNING
+- rule_id: aws.vpc.vpnconnection.dns_hostnames_and_support_configured
+  for_each: aws.vpc.describe_customer_gateways
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.State
+      op: equals
+      value: RUNNING
+    - var: item.CustomerGatewayId
+      op: exists
+      value: null
+- rule_id: aws.vpc.vpnconnection.flow_logging_enabled
+  for_each: aws.vpc.describe_customer_gateways
+  severity: MEDIUM
+  conditions:
+    var: item.FlowLogsEnabled
+    op: is_true
+    value: null
+- rule_id: aws.vpc.vpnconnection.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Routes[].GatewayId
+      op: not_contains
+      value: igw-
+    - var: item.Routes[].GatewayId
+      op: not_contains
+      value: vgw-
+- rule_id: aws.vpc.vpngateway.api_dns_hostnames_and_support_configured
+  for_each: aws.ec2.describe_vpn_gateways
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.VpnGatewayId
+      op: exists
+      value: null
+    - var: item.AmazonSideAsn
+      op: exists
+      value: null
+    - var: item.VpcAttachments[].VpcId
+      op: not_empty
+      value: null
+    - var: item.Tags
+      op: exists
+      value: null
+- rule_id: aws.vpc.vpngateway.flow_logging_enabled
+  for_each: aws.vpc.describe_nat_gateways
+  severity: MEDIUM
+  conditions:
+    var: item.NatGatewayAddresses
+    op: exists
+    value: null
+- rule_id: aws.vpc.vpngateway.route_tables_no_unintended_internet_paths_configured
+  for_each: aws.vpc.describe_route_tables
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.RouteTables[].Routes[].GatewayId
+      op: not_contains
+      value: igw-
+    - var: item.RouteTables[].Routes[].DestinationCidrBlock
+      op: not_equals
+      value: 0.0.0.0/0

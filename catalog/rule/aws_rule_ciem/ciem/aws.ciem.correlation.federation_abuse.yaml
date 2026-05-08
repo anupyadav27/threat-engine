@@ -1,0 +1,95 @@
+rule_id: aws.ciem.correlation.federation_abuse
+service: ciem
+provider: aws
+check_type: log_correlation
+severity: critical
+title: 'Correlation: Federation Abuse'
+description: 'Federation abuse pattern: identity provider created then used for role assumption.'
+rationale: 'Adversaries patch, modify, or backdoor cloud authentication processes tied to on-premises identities (Golden SAML / hybrid identity attack). Organizations using Password Hash Sync, Pass-Through Authentication, or AD FS are at risk. A rogue identity provider can issue valid tokens for any user in the tenant without their credentials. Detected via: AD FS token-signing certificate changes, federation trust modifications, and conditional access MFA bypass modifications.'
+threat_category: persistence
+mitre_tactics:
+- persistence
+- lateral_movement
+mitre_techniques:
+- T1556.007
+- T1550.001
+risk_score: 88
+resource: multi_resource
+source: ciem_rule_generator
+is_active: true
+domain: identity_and_access_management
+action_category: create
+posture_category: iam_posture
+threat_tags:
+- T1556.007
+- T1550.001
+- T1550
+- T1556
+- persistence
+- backdoor
+- ciem_correlation
+- attack_chain
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: tenant_or_account
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.1
+  - 1.4
+  - 1.16
+  cis_azure_v2:
+  - 1.1
+  - 2.1
+  - 2.9
+  nist_800_53_r5:
+  - AC-2
+  - AC-6
+  - IA-2
+  - SC-7
+  pci_dss_v4:
+  - 7.1
+  - 8.2
+  - 10.2
+  iso_27001_2022:
+  - A.8.2
+  - A.9.2
+  - A.5.18
+detection_events:
+- microsoft.directory/domains/federation/update
+- Set domain authentication (Entra ID audit)
+- AD FS token-signing certificate modification
+- ExternalIdP creation event
+remediation: |
+  1. Immediately revert the federation change and remove the rogue IdP.
+  2. Revoke all SAML tokens issued via the rogue IdP.
+  3. Restrict domain federation changes to break-glass accounts with approval workflows.
+  4. Enable Microsoft Sentinel detection rules for federation changes.
+  5. Implement PIM with approval for all federation management operations.
+references:
+- https://attack.mitre.org/techniques/T1556/007/
+- https://learn.microsoft.com/en-us/azure/active-directory/fundamentals/security-operations-introduction
+- https://www.microsoft.com/en-us/security/blog/2020/12/21/advice-for-incident-responders-on-recovery-from-systemic-identity-compromises/
+- https://attack.mitre.org/techniques/T1550/001/
+check_config:
+  for_each: log_events
+  match_by: actor.principal
+  min_events: 2
+  sequence:
+  - any_of:
+    - aws.ciem.correlation.cloudtrail.saml_provider_created
+    - aws.ciem.correlation.cloudtrail.oidc_provider_created
+  - any_of:
+    - aws.threat.correlation.cloudtrail.create_role
+    - aws.threat.correlation.cloudtrail.update_assume_role_policy
+  time_window_minutes: 60
+  type: correlation
+version: '1.0'

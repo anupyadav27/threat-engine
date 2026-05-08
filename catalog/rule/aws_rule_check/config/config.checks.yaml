@@ -1,0 +1,224 @@
+version: '1.0'
+provider: aws
+service: config
+checks:
+- rule_id: aws.config.aggregation_authorization.certificate_not_expired_or_revoked_valid
+  for_each: aws.config.describe_aggregation_authorizations
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.AggregationAuthorizationArn
+      op: exists
+      value: null
+    - var: item.CreationTime
+      op: exists
+      value: null
+- rule_id: aws.config.aggregation_authorization.config_target_accounts_correct_configured
+  for_each: aws.config.describe_aggregation_authorizations
+  severity: MEDIUM
+  conditions:
+    var: item.AggregationAuthorizations
+    op: not_empty
+    value: null
+- rule_id: aws.config.aggregation_authorization.config_trusts_least_privilege
+  for_each: aws.config.describe_aggregation_authorizations
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.AggregationAuthorizations[].AuthorizedAccountId
+      op: exists
+      value: null
+    - var: item.AggregationAuthorizations[].AuthorizedAwsRegion
+      op: exists
+      value: null
+- rule_id: aws.config.configrule.alerts_configured
+  for_each: aws.config.describe_config_rules
+  severity: MEDIUM
+  conditions:
+    var: item.ConfigRules
+    op: not_empty
+    value: null
+- rule_id: aws.config.configrule.config_rule_critical_resources_drift_detection_enabled
+  for_each: aws.config.describe_configuration_recorder_status
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.ConfigurationRecordersStatus
+      op: exists
+      value: null
+    - var: item.lastStatus
+      op: equals
+      value: ACTIVE
+- rule_id: aws.config.configrule.config_rule_evidence_export_configured
+  for_each: aws.config.describe_config_rules
+  severity: MEDIUM
+  conditions:
+    var: item.ConfigRules
+    op: not_empty
+    value: null
+- rule_id: aws.config.configrule.config_rule_reporting_dashboards_enabled
+  for_each: aws.config.describe_configuration_aggregators
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.ConfigurationAggregators
+      op: not_empty
+      value: null
+    - var: item.ConfigurationAggregators[].Enabled
+      op: is_true
+      value: null
+- rule_id: aws.config.configrule.config_rule_required_rules_present
+  for_each: aws.config.describe_config_rules
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.ConfigRuleState
+      op: equals
+      value: RUNNING
+    - var: item.ConfigRules
+      op: not_empty
+      value: null
+- rule_id: aws.config.configrule.remediation_rule_remediation_targets_bound_configured
+  for_each: aws.config.describe_config_rules
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.ConfigRules[].Source
+      op: contains
+      value: AWS::Config::RemediationConfiguration
+    - var: item.ConfigRules[].Source.AutomaticRemediation
+      op: exists
+      value: null
+- rule_id: aws.config.configrule.rule_config_rules_enabled
+  for_each: aws.config.describe_config_rules
+  severity: MEDIUM
+  conditions:
+    var: item.ConfigRuleState
+    op: equals
+    value: RUNNING
+- rule_id: aws.config.configuration_aggregator.configuration_auto_enroll_new_accounts_configured
+  for_each: aws.config.describe_configuration_aggregators
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.ConfigurationAggregators
+      op: not_empty
+      value: null
+    - var: item.ConfigurationAggregators[].OrganizationAggregationSource.AllAwsRegions
+      op: is_true
+      value: null
+- rule_id: aws.config.configuration_aggregator.configuration_org_aggregator_enabled
+  for_each: aws.config.describe_configuration_aggregators
+  severity: MEDIUM
+  conditions:
+    var: item.OrganizationAggregationSource
+    op: exists
+    value: null
+- rule_id: aws.config.configuration_aggregator.configuration_present_and_valid
+  for_each: aws.config.describe_configuration_aggregators
+  severity: MEDIUM
+  conditions:
+    var: item.ConfigurationAggregators
+    op: not_empty
+    value: null
+- rule_id: aws.config.configuration_recorder.configuration_config_recorder_enabled
+  for_each: aws.config.describe_configuration_recorder_status
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.ConfigurationRecordersStatus
+      op: exists
+      value: null
+    - var: item.lastStatus
+      op: equals
+      value: ACTIVE
+- rule_id: aws.config.configuration_recorder.configuration_global_resource_types_tracked_configured
+  for_each: aws.config.describe_configuration_recorders
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.ConfigurationRecorders
+      op: not_empty
+      value: null
+    - var: item.ConfigurationRecorders[].recordingGroup.allSupported
+      op: is_true
+      value: null
+    - var: item.ConfigurationRecorders[].recordingGroup.includeGlobalResourceTypes
+      op: is_true
+      value: null
+- rule_id: aws.config.configuration_recorder.configuration_secure_destination_configured
+  for_each: aws.config.describe_configuration_recorders
+  severity: MEDIUM
+  conditions:
+    var: item.ConfigurationRecorders[].recordingGroup
+    op: not_empty
+    value: null
+- rule_id: aws.config.deliverychannel.destination_access_least_privilege
+  for_each: aws.config.describe_configuration_recorders
+  severity: HIGH
+  conditions:
+    var: item.roleARN
+    op: exists
+    value: null
+- rule_id: aws.config.deliverychannel.kms_encryption_enabled
+  for_each: aws.config.describe_configuration_recorders
+  severity: HIGH
+  conditions:
+    var: item.recordingGroup.s3Bucket.kmsKeyArn
+    op: exists
+    value: null
+- rule_id: aws.config.recorder.config_all_regions_enabled
+  for_each: aws.config.describe_configuration_recorders
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.recordingGroup.includeGlobalResourceTypes
+      op: is_true
+      value: null
+    - var: item.recordingGroup.allSupported
+      op: is_true
+      value: null
+- rule_id: aws.config.remediation_configuration.auto_remediation_enabled_for_high
+  for_each: aws.config.describe_config_rules
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.ConfigRuleState
+      op: equals
+      value: RUNNING
+    - var: item.Source
+      op: contains
+      value: AWS Config Remediation
+- rule_id: aws.config.remediation_configuration.manual_runbooks_enabled
+  for_each: aws.config.describe_config_rules
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.ConfigRuleState
+      op: equals
+      value: RUNNING
+    - var: item.Source
+      op: contains
+      value: MANUAL_RUNBOOK
+- rule_id: aws.config.resource.config_lambda_config_recording_enabled
+  for_each: aws.config.describe_configuration_recorder_status
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.ConfigurationRecordersStatus
+      op: exists
+      value: null
+    - var: item.recording
+      op: is_true
+      value: null
+- rule_id: aws.config.resource.config_recorder_all_regions_enabled
+  for_each: aws.config.describe_configuration_recorders
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.recordingGroup.includeGlobalResourceTypes
+      op: is_true
+      value: null
+    - var: item.recordingGroup.allSupported
+      op: is_true
+      value: null

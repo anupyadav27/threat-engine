@@ -1,0 +1,45 @@
+# discoveries_only_check: 2 kept / 17 removed from 19 total
+# generated_from: step6_datasync.discovery.yaml
+# purpose: only discoveries needed by datasync.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: datasync
+services:
+  client: datasync
+  module: boto3.client
+discovery:
+- discovery_id: aws.datasync.list_tasks
+  calls:
+  - action: list_tasks
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Tasks }}'
+    item:
+      Name: '{{ item.Name }}'
+      Status: '{{ item.Status }}'
+      TaskArn: '{{ item.TaskArn }}'
+      TaskMode: '{{ item.TaskMode }}'
+- discovery_id: aws.datasync.describe_task
+  for_each: aws.datasync.list_tasks
+  calls:
+  - action: describe_task
+    params:
+      TaskArn: '{{ item.TaskArn }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      TaskArn: '{{ response.TaskArn }}'
+      Name: '{{ response.Name }}'
+      Status: '{{ response.Status }}'
+      CloudWatchLogGroupArn: '{{ response.CloudWatchLogGroupArn }}'
+      SourceLocationArn: '{{ response.SourceLocationArn }}'
+      DestinationLocationArn: '{{ response.DestinationLocationArn }}'
+      Options: '{{ response.Options }}'
+      Schedule: '{{ response.Schedule }}'
+      TaskReportConfig: '{{ response.TaskReportConfig }}'
+      Excludes: '{{ response.Excludes }}'
+      Includes: '{{ response.Includes }}'

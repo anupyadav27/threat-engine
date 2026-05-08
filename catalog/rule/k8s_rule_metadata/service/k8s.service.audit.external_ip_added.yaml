@@ -1,0 +1,46 @@
+rule_id: k8s.service.audit.external_ip_added
+rule_type: ciem
+title: 'Service: External IP Added to Service'
+scope: service.audit
+domain: container_and_kubernetes_security
+subcategory: container_security
+severity: high
+service: service
+resource: audit
+requirement: External Ip Added
+description: Kubernetes Service patched to add externalIPs or change type to LoadBalancer/NodePort
+  — exposes cluster-internal service to the internet, creating unauthorized ingress.
+rationale: Adversaries modify Kubernetes Service objects to add external load balancer
+  IPs or NodePort configurations, exposing internal cluster services to the internet.
+  This creates unauthorized ingress points for C2 traffic or data exfiltration. Detected
+  via K8s audit logs for service patch/update operations adding externalIPs or changing
+  type to NodePort/LoadBalancer.
+remediation: '1. Terminate the unauthorized kubectl exec or port-forward session immediately.
+
+  2. Audit RBAC permissions: restrict pods/exec and pods/portforward to specific service
+  accounts.
+
+  3. Apply NetworkPolicies to prevent unauthorized pod-to-pod communication.
+
+  4. Enable audit log alerting for exec/portforward operations by non-CI/CD users.
+
+  5. Use Falco rules to detect and alert on interactive exec sessions in production
+  namespaces.
+
+  '
+references:
+- https://attack.mitre.org/techniques/T1205/
+- https://kubernetes.io/docs/concepts/services-networking/service/
+compliance:
+- nist_800_171_r2_3_13_14
+threat_category: lateral_movement
+mitre_tactics:
+- command_and_control
+- exfiltration
+mitre_techniques:
+- T1205
+risk_score: 80
+action_category: create
+source: default
+metadata_source: auto_generated
+generated_by: k8s_ciem_generator

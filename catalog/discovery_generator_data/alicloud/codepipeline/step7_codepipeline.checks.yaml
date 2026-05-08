@@ -1,0 +1,78 @@
+version: '1.0'
+provider: alicloud
+service: codepipeline
+checks:
+- rule_id: alicloud.devops.project.artifact_encryption
+  for_each: alicloud.asr.GetProjectList
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.devops.project.envvar_awscred_check
+  for_each: alicloud.asr.GetProjectList
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.devops.project.logging_enabled
+  for_each: alicloud.asr.GetProjectList
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.devops.project.no_secrets_in_variables
+  for_each: alicloud.asr.GetProjectList
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.devops.project.no_secrets_in_variables_alicloud_devops_project_source_repo_url_no_sensitive_credentials_alicloud_oss_bucket_enforces_ssl_alicloud_alb_ssl_listeners_alicloud_elasticsearch_service_domains_node_to_node_encryption_enabled_alicloud_sl
+  for_each: alicloud.asr.GetProjectList
+  conditions:
+    all:
+    - var: item.ssl_enabled
+      op: equals
+    - var: item.min_tls_version
+      op: gte
+- rule_id: alicloud.devops.project.older_90_days
+  for_each: alicloud.asr.GetProjectList
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.devops.project.oss_logs_encrypted
+  for_each: alicloud.asr.GetProjectList
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.devops.project.source_repo_url_check
+  for_each: alicloud.asr.GetProjectList
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.devops.project.source_repo_url_no_sensitive_credentials
+  for_each: alicloud.asr.GetProjectList
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.devops.project.source_repo_url_no_sensitive_credentials_alicloud_devops_project_no_secrets_in_variables
+  for_each: alicloud.asr.GetProjectList
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.devops.project.user_controlled_buildspec
+  for_each: alicloud.asr.GetProjectList
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.devops.report.group_export_encrypted
+  for_each: alicloud.ack.reportplans
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'

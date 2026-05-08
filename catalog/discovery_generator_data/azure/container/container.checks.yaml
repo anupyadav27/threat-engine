@@ -1,0 +1,66 @@
+version: '1.0'
+provider: azure
+service: containerinstance
+checks:
+# ═══════════════════════════════════════════
+# Container Groups — azure.containerinstance.containergroups.list_by_resource_group
+# Fields: id, name, type, location, tags, zones, identity, provisioning_state,
+#         containers, diagnostics, dns_config, encryption_properties, extensions,
+#         image_registry_credentials, init_containers, instance_view, ip_address,
+#         os_type, priority, restart_policy, subnet_ids, volumes,
+#         confidential_compute_properties
+# ═══════════════════════════════════════════
+- rule_id: azure.containerinstance.group.encryption_configured
+  for_each: azure.containerinstance.containergroups.list_by_resource_group
+  conditions:
+    var: item.encryption_properties
+    op: not_empty
+
+- rule_id: azure.containerinstance.group.managed_identity_enabled
+  for_each: azure.containerinstance.containergroups.list_by_resource_group
+  conditions:
+    var: item.identity
+    op: not_empty
+
+- rule_id: azure.containerinstance.group.diagnostics_configured
+  for_each: azure.containerinstance.containergroups.list_by_resource_group
+  conditions:
+    var: item.diagnostics
+    op: not_empty
+
+- rule_id: azure.containerinstance.group.subnet_configured
+  for_each: azure.containerinstance.containergroups.list_by_resource_group
+  conditions:
+    var: item.subnet_ids
+    op: not_empty
+
+- rule_id: azure.containerinstance.group.dns_config_present
+  for_each: azure.containerinstance.containergroups.list_by_resource_group
+  conditions:
+    var: item.dns_config
+    op: not_empty
+
+- rule_id: azure.containerinstance.group.containers_present
+  for_each: azure.containerinstance.containergroups.list_by_resource_group
+  conditions:
+    var: item.containers
+    op: not_empty
+
+- rule_id: azure.containerinstance.group.provisioning_succeeded
+  for_each: azure.containerinstance.containergroups.list_by_resource_group
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.containerinstance.group.availability_zones_configured
+  for_each: azure.containerinstance.containergroups.list_by_resource_group
+  conditions:
+    var: item.zones
+    op: not_empty
+
+- rule_id: azure.containerinstance.group.tags_configured
+  for_each: azure.containerinstance.containergroups.list_by_resource_group
+  conditions:
+    var: item.tags
+    op: not_empty

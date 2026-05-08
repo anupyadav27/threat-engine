@@ -1,0 +1,53 @@
+version: '1.0'
+provider: azure
+service: databricks
+checks:
+- rule_id: azure.databricks.scim.sync.verification
+  for_each: azure.databricks.workspaces.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.public_network_access
+    op: equals
+    value: Disabled
+- rule_id: azure.databricks.workspace.check.no.public.ip.enabled
+  for_each: azure.databricks.workspaces.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.public_network_access
+    op: not_equals
+    value: Enabled
+- rule_id: azure.databricks.workspace.diagnostic.logging.configured
+  for_each: azure.databricks.workspaces.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.parameters.diagnosticSettings
+    op: exists
+    value: null
+- rule_id: azure.databricks.workspace.encryption.cmk.enabled
+  for_each: azure.databricks.workspaces.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.encryption
+    op: exists
+    value: null
+- rule_id: azure.databricks.workspace.private.endpoint.status.check
+  for_each: azure.databricks.workspaces.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.private_endpoint_connections
+    op: exists
+    value: null
+- rule_id: azure.databricks.workspace.public.network.access.check
+  for_each: azure.databricks.workspaces.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.public_network_access
+    op: not_equals
+    value: Enabled
+- rule_id: azure.databricks.workspace.vnet.configuration.check
+  for_each: azure.databricks.workspaces.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.parameters.requirePublicIp
+    op: is_false
+    value: null

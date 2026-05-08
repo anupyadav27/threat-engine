@@ -1,0 +1,704 @@
+version: '1.0'
+provider: azure
+service: cdn
+services:
+  client: cdn
+  module: azure.mgmt.cdn
+discovery:
+- discovery_id: azure.cdn.edgenodes.list
+  calls:
+  - action: edgenodes.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      current_value: '{{ item.current_value }}'
+      limit: '{{ item.limit }}'
+      resource_type: '{{ item.resource_type }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cdn.managedrulesets.list
+  calls:
+  - action: managedrulesets.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      current_value: '{{ item.current_value }}'
+      limit: '{{ item.limit }}'
+      resource_type: '{{ item.resource_type }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cdn.policies.list
+  calls:
+  - action: policies.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      current_value: '{{ item.current_value }}'
+      limit: '{{ item.limit }}'
+      resource_type: '{{ item.resource_type }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cdn.profiles.list
+  calls:
+  - action: profiles.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      current_value: '{{ item.current_value }}'
+      limit: '{{ item.limit }}'
+      resource_type: '{{ item.resource_type }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cdn.profiles.list_by_resource_group
+  calls:
+  - action: profiles.list_by_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      extended_properties: '{{ item.extended_properties }}'
+      front_door_id: '{{ item.front_door_id }}'
+      log_scrubbing: '{{ item.log_scrubbing }}'
+      origin_response_timeout_seconds: '{{ item.origin_response_timeout_seconds }}'
+      resource_state: '{{ item.resource_state }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.cdn.resourceusage.list
+  calls:
+  - action: resourceusage.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      current_value: '{{ item.current_value }}'
+      limit: '{{ item.limit }}'
+      resource_type: '{{ item.resource_type }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cdn.afdcustomdomains.list_by_profile
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: afdcustomdomains.list_by_profile
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      deployment_status: '{{ item.deployment_status }}'
+      parameters: '{{ item.parameters }}'
+      profile_name: '{{ item.profile_name }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.cdn.afdendpoints.list_by_profile
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: afdendpoints.list_by_profile
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      deployment_status: '{{ item.deployment_status }}'
+      parameters: '{{ item.parameters }}'
+      profile_name: '{{ item.profile_name }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.cdn.afdendpoints.list_resource_usage
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: afdendpoints.list_resource_usage
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      current_value: '{{ item.current_value }}'
+      limit: '{{ item.limit }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cdn.afdorigingroups.list_by_profile
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: afdorigingroups.list_by_profile
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      deployment_status: '{{ item.deployment_status }}'
+      parameters: '{{ item.parameters }}'
+      profile_name: '{{ item.profile_name }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.cdn.afdorigingroups.list_resource_usage
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: afdorigingroups.list_resource_usage
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      current_value: '{{ item.current_value }}'
+      limit: '{{ item.limit }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cdn.afdorigins.list_by_origin_group
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: afdorigins.list_by_origin_group
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      azure_origin: '{{ item.azure_origin }}'
+      deployment_status: '{{ item.deployment_status }}'
+      enabled_state: '{{ item.enabled_state }}'
+      enforce_certificate_name_check: '{{ item.enforce_certificate_name_check }}'
+      host_name: '{{ item.host_name }}'
+      http_port: '{{ item.http_port }}'
+      https_port: '{{ item.https_port }}'
+      origin_group_name: '{{ item.origin_group_name }}'
+      origin_host_header: '{{ item.origin_host_header }}'
+      priority: '{{ item.priority }}'
+      shared_private_link_resource: '{{ item.shared_private_link_resource }}'
+      system_data: '{{ item.system_data }}'
+      weight: '{{ item.weight }}'
+- discovery_id: azure.cdn.afdprofiles.list_resource_usage
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: afdprofiles.list_resource_usage
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      current_value: '{{ item.current_value }}'
+      limit: '{{ item.limit }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cdn.customdomains.list_by_endpoint
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: customdomains.list_by_endpoint
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      cache_configuration: '{{ item.cache_configuration }}'
+      custom_domains: '{{ item.custom_domains }}'
+      deployment_status: '{{ item.deployment_status }}'
+      enabled_state: '{{ item.enabled_state }}'
+      endpoint_name: '{{ item.endpoint_name }}'
+      forwarding_protocol: '{{ item.forwarding_protocol }}'
+      https_redirect: '{{ item.https_redirect }}'
+      link_to_default_domain: '{{ item.link_to_default_domain }}'
+      origin_group: '{{ item.origin_group }}'
+      origin_path: '{{ item.origin_path }}'
+      patterns_to_match: '{{ item.patterns_to_match }}'
+      rule_sets: '{{ item.rule_sets }}'
+      supported_protocols: '{{ item.supported_protocols }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.cdn.endpoints.list_by_profile
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: endpoints.list_by_profile
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      deployment_status: '{{ item.deployment_status }}'
+      parameters: '{{ item.parameters }}'
+      profile_name: '{{ item.profile_name }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.cdn.endpoints.list_resource_usage
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: endpoints.list_resource_usage
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      current_value: '{{ item.current_value }}'
+      limit: '{{ item.limit }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cdn.loganalytics.get_log_analytics_locations
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: loganalytics.get_log_analytics_locations
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cdn.loganalytics.get_log_analytics_metrics
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: loganalytics.get_log_analytics_metrics
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+      metrics: '{{ item.metrics }}'
+      date_time_begin: '{{ item.date_time_begin }}'
+      date_time_end: '{{ item.date_time_end }}'
+      granularity: '{{ item.granularity }}'
+      custom_domains: '{{ item.custom_domains }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cdn.loganalytics.get_log_analytics_rankings
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: loganalytics.get_log_analytics_rankings
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+      metrics: '{{ item.metrics }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cdn.loganalytics.get_log_analytics_resources
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: loganalytics.get_log_analytics_resources
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cdn.loganalytics.get_waf_log_analytics_metrics
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: loganalytics.get_waf_log_analytics_metrics
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+      metrics: '{{ item.metrics }}'
+      date_time_begin: '{{ item.date_time_begin }}'
+      date_time_end: '{{ item.date_time_end }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.cdn.loganalytics.get_waf_log_analytics_rankings
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: loganalytics.get_waf_log_analytics_rankings
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+      date_time_begin: '{{ item.date_time_begin }}'
+      date_time_end: '{{ item.date_time_end }}'
+  emit:
+    as: item
+    item:
+      group_values: '{{ response.group_values }}'
+      metrics: '{{ response.metrics }}'
+- discovery_id: azure.cdn.origingroups.list_by_endpoint
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: origingroups.list_by_endpoint
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      cache_configuration: '{{ item.cache_configuration }}'
+      custom_domains: '{{ item.custom_domains }}'
+      deployment_status: '{{ item.deployment_status }}'
+      enabled_state: '{{ item.enabled_state }}'
+      endpoint_name: '{{ item.endpoint_name }}'
+      forwarding_protocol: '{{ item.forwarding_protocol }}'
+      https_redirect: '{{ item.https_redirect }}'
+      link_to_default_domain: '{{ item.link_to_default_domain }}'
+      origin_group: '{{ item.origin_group }}'
+      origin_path: '{{ item.origin_path }}'
+      patterns_to_match: '{{ item.patterns_to_match }}'
+      rule_sets: '{{ item.rule_sets }}'
+      supported_protocols: '{{ item.supported_protocols }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.cdn.origins.list_by_endpoint
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: origins.list_by_endpoint
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      cache_configuration: '{{ item.cache_configuration }}'
+      custom_domains: '{{ item.custom_domains }}'
+      deployment_status: '{{ item.deployment_status }}'
+      enabled_state: '{{ item.enabled_state }}'
+      endpoint_name: '{{ item.endpoint_name }}'
+      forwarding_protocol: '{{ item.forwarding_protocol }}'
+      https_redirect: '{{ item.https_redirect }}'
+      link_to_default_domain: '{{ item.link_to_default_domain }}'
+      origin_group: '{{ item.origin_group }}'
+      origin_path: '{{ item.origin_path }}'
+      patterns_to_match: '{{ item.patterns_to_match }}'
+      rule_sets: '{{ item.rule_sets }}'
+      supported_protocols: '{{ item.supported_protocols }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.cdn.profiles.list_resource_usage
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: profiles.list_resource_usage
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      current_value: '{{ item.current_value }}'
+      limit: '{{ item.limit }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cdn.profiles.list_supported_optimization_types
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: profiles.list_supported_optimization_types
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.cdn.routes.list_by_endpoint
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: routes.list_by_endpoint
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      cache_configuration: '{{ item.cache_configuration }}'
+      custom_domains: '{{ item.custom_domains }}'
+      deployment_status: '{{ item.deployment_status }}'
+      enabled_state: '{{ item.enabled_state }}'
+      endpoint_name: '{{ item.endpoint_name }}'
+      forwarding_protocol: '{{ item.forwarding_protocol }}'
+      https_redirect: '{{ item.https_redirect }}'
+      link_to_default_domain: '{{ item.link_to_default_domain }}'
+      origin_group: '{{ item.origin_group }}'
+      origin_path: '{{ item.origin_path }}'
+      patterns_to_match: '{{ item.patterns_to_match }}'
+      rule_sets: '{{ item.rule_sets }}'
+      supported_protocols: '{{ item.supported_protocols }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.cdn.rules.list_by_rule_set
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: rules.list_by_rule_set
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+      rule_set_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      actions: '{{ item.actions }}'
+      conditions: '{{ item.conditions }}'
+      deployment_status: '{{ item.deployment_status }}'
+      match_processing_behavior: '{{ item.match_processing_behavior }}'
+      order: '{{ item.order }}'
+      rule_set_name: '{{ item.rule_set_name }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.cdn.rulesets.list_by_profile
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: rulesets.list_by_profile
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      deployment_status: '{{ item.deployment_status }}'
+      parameters: '{{ item.parameters }}'
+      profile_name: '{{ item.profile_name }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.cdn.rulesets.list_resource_usage
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: rulesets.list_resource_usage
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+      rule_set_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      current_value: '{{ item.current_value }}'
+      limit: '{{ item.limit }}'
+      unit: '{{ item.unit }}'
+- discovery_id: azure.cdn.secrets.list_by_profile
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: secrets.list_by_profile
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      deployment_status: '{{ item.deployment_status }}'
+      parameters: '{{ item.parameters }}'
+      profile_name: '{{ item.profile_name }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.cdn.securitypolicies.list_by_profile
+  for_each: azure.cdn.profiles.list
+  calls:
+  - action: securitypolicies.list_by_profile
+    save_as: response
+    on_error: continue
+    params:
+      profile_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      deployment_status: '{{ item.deployment_status }}'
+      parameters: '{{ item.parameters }}'
+      profile_name: '{{ item.profile_name }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.cdn.list_by_resource_group
+  calls:
+  - action: list_by_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'

@@ -1,0 +1,215 @@
+# IIS — CIEM Detection Rules
+# Real-time authentication & access event analysis
+# Log source: IIS logs, Windows Event Log
+
+tech_type: iis
+category: web_server
+log_source: IIS logs, Windows Event Log
+
+rules:
+
+  - rule_id: tciem.iis.l1_ensure_application_pool_identity_is_configured
+    title: "(L1) Ensure 'application pool identity' is configured for all application pools"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '1.4'
+    cis_section: '1'
+    log_source: "IIS logs, Windows Event Log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      The default Application Pool identity may be set for an application using the
+      IIS Manager GUI, using AppCmd.exe commands in a command-line window, directly
+      editing the configuration files, or by writing WMI scripts. Perform the
+      following to change the default identity to the built-in
+      ApplicationPoolIdentity in the IIS Manager GUI: 1. Open the IIS Manager GUI 2.
+      In the connections pane, expand the server node and click Application Pools 3.
+      On the Application Pools page, select the DefaultAppPool, and then click
+      Advanced Settings in the Actions pane 4. For the Identity property, click the
+      '...' button to open the Application Pool Identity dialog box 5. Select the
+      Built-in account option choose ApplicationPoolIdentity from the list, or input
+      a unique application user created for this purpose 6. Restart IIS To change
+      the ApplicationPool identity to the built-in ApplicationPoolIdentity using
+      AppCmd.exe, run the following from a command prompt: Enter the following
+      command in AppCmd.exe to configure %systemroot%\system32\inetsrv\appcmd set
+      config /section:applicationPools /[name='<apppool
+      name>'].processModel.identityType:ApplicationPoolIdentity OR To change the
+      ApplicationPool identity to the built-in ApplicationPoolIdentity using
+      PowerShell: Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST'
+      -filter 'system.applicationHost/applicationPools/add[@name='<apppool
+      name>']/processModel' -name 'identityType' -value 'ApplicationPoolIdentity'
+      The example code above will set just the DefaultAppPool. Run this command for
+      each configured Application Pool. Additionally, ApplicationPoolIdentity can be
+      made the default for all Application Pools by using the Set Application Pool
+      Defaults action on the Application Pools node. If using a custom defined
+      Windows user such as a dedicated service account, that user will need to be a
+      member of the IIS_IUSRS group. The IIS_IUSRS group has access to all the
+      necessary file and system resources so that an account, when added to this
+      group, can seamlessly act as an application pool identity. Default Value: By
+      Default, the DefaultAppPool in IIS is configured to use the
+      ApplicationPoolIdentity account. References: 1.
+      http://technet.microsoft.com/en-us/library/cc771170%28WS.10%29.aspx 2.
+      http://learn.iis.net/page.aspx/140/understanding-built-in-user-and-group-
+      accounts-in-iis-7/ 3. http://learn.iis.net/page.aspx/624/application-pool-
+      identities/ 4.
+      http://blogs.iis.net/tomwoolums/archive/2008/12/17/iis-7-0-application-
+      pools.aspx
+
+  - rule_id: tciem.iis.l1_ensure_forms_authentication_require_ssl
+    title: "(L1) Ensure 'forms authentication' require SSL"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.3'
+    cis_section: '2'
+    log_source: "IIS logs, Windows Event Log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      1. Open IIS Manager and navigate to the appropriate tier 2. In Features View,
+      double-click Authentication 3. On the Authentication page, select Forms
+      Authentication 4. In the Actions pane, click Edit 5. Check the Requires SSL
+      checkbox in the cookie settings section, click OK OR Enter the following
+      command in AppCmd.exe to configure: %systemroot%\system32\inetsrv\appcmd set
+      config - section:system.web/authentication /mode:Forms OR Enter the following
+      command in PowerShell to configure: Set-WebConfigurationProperty -pspath
+      'MACHINE/WEBROOT/APPHOST/Default Web Site' -filter
+      'system.web/authentication/forms' -name 'requireSSL' -value 'True' Default
+      Value: SSL is not required when Forms Authentication is enabled. References:
+      1. http://technet.microsoft.com/en-us/library/cc771077(WS.10).aspx
+
+  - rule_id: tciem.iis.l1_ensure_transport_layer_security_for_basic
+    title: "(L1) Ensure transport layer security for 'basic authentication' is configured"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.6'
+    cis_section: '2'
+    log_source: "IIS logs, Windows Event Log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To protect Basic Authentication with transport layer security: 1. Open IIS
+      Manager 2. In the Connections pane on the left, select the server to be
+      configured 3. In the Connections pane, expand the server, then expand Sites
+      and select the site to be configured 4. In the Actions pane, click Bindings;
+      the Site Bindings dialog appears 5. If an HTTPS binding is available, click
+      Close and see below 'To require SSL' 6. If no HTTPS binding is visible,
+      perform the following steps To add an HTTPS binding: 1. In the Site Bindings
+      dialog, click Add; the Add Site Binding dialog appears 2. Under Type, select
+      https 3. Under SSL certificate, select an X.509 certificate 4. Click OK, then
+      close To require SSL: 1. In Features View, double-click SSL Settings 2. On the
+      SSL Settings page, select Require SSL. 3. In the Actions pane, click Apply OR
+      Enter the following command in PowerShell to configure: Set-
+      WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST' -location '<website
+      name>' -filter 'system.webServer/security/access' -name 'sslFlags' -value
+      'Ssl' Default Value: Transport Layer Security is not enabled by default when
+      Basic Authentication is configured. References: 1.
+      http://technet.microsoft.com/en-us/library/dd378853%28WS.10%29.aspx
+
+  - rule_id: tciem.iis.l1_ensure_iis_http_detailed_errors_are_hidden
+    title: "(L1) Ensure IIS HTTP detailed errors are hidden from displaying remotely"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '3.4'
+    cis_section: '3'
+    log_source: "IIS logs, Windows Event Log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      The following describes how to change the errorMode attribute to
+      DetailedLocalOnly or Custom for a Web site by using IIS Manager: 1. Open IIS
+      Manager with Administrative privileges 2. In the Connections pane on the left,
+      expand the server, then expand the Sites folder 3. Select the Web site or
+      application to be configured 4. In Features View, select Error Pages, in the
+      Actions pane, select Open Feature 5. In the Actions pane, select Edit Feature
+      Settings 6. In the Edit Error Pages Settings dialog, under Error Responses,
+      select either Custom error pages or Detailed errors for local requests and
+      custom error pages for remote requests 7. Click OK and exit the Edit Error
+      Pages Settings dialog OR Enter the following command in PowerShell to
+      configure: Set-WebConfigurationProperty -pspath
+      'MACHINE/WEBROOT/APPHOST/<website name>' -filter 'system.webServer/httpErrors'
+      -name 'errorMode' -value 'DetailedLocalOnly' Default Value: The default
+      errorMode is DetailedLocalOnly. References: 1.
+      http://technet.microsoft.com/en-us/library/dd391900%28WS.10%29.aspx 2.
+      http://www.iis.net/configreference/system.webserver/httperrors
+
+  - rule_id: tciem.iis.l1_ensure_cookies_are_set_with_httponly_attribute
+    title: "(L1) Ensure 'cookies' are set with HttpOnly attribute"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.7'
+    cis_section: '3'
+    log_source: "IIS logs, Windows Event Log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      1. Locate and open the application's web.config file 2. Add the <httpCookies
+      httpOnlyCookies='true' /> tag within <system.web>: <configuration>
+      <system.web> <httpCookies httpOnlyCookies='true' /> </system.web>
+      </configuration> Setting the value of the httpOnlyCookies attribute of the
+      httpCookies element to true will add the HttpOnly flag to all the cookies set
+      by the application. All modern versions of browsers recognize HttpOnly
+      attribute; older versions will either treat them as normal cookies or simply
+      ignore them altogether. Default Value: By default, ASP.NET 2.0 does not force
+      cookies to httpOnly. References: 1.
+      https://tools.ietf.org/wg/httpstate/charters 2.
+      https://www.owasp.org/index.php/HTTPOnly#Browsers_Supporting_HttpOnly 3.
+      https://msdn.microsoft.com/en-us/library/ms533046.aspx
+
+  - rule_id: tciem.iis.l1_ensure_global_net_trust_level_is_configured
+    title: "(L1) Ensure global .NET trust level is configured"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '3.10'
+    cis_section: '3'
+    log_source: "IIS logs, Windows Event Log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Trust level can be set by using the UI, running appcmd.exe commands, by
+      editing configuration files directly, or by writing WMI scripts. To set the
+      .Net Trust Level to Medium at the server level using an appcmd.exe command:
+      %systemroot%\system32\inetsrv\appcmd set config /commit:WEBROOT /section:trust
+      /level:Medium When Appcmd.exe is used to configure the element at the global
+      level in IIS, the /commit:WEBROOT switch must be included so that
+      configuration changes are made to the root web.config file instead of
+      ApplicationHost.config. OR Enter the following command in PowerShell to
+      configure: Set-WebConfigurationProperty -pspath 'MACHINE/WEBROOT' -filter
+      'system.web/trust' -name 'level' -value 'Medium' Default Value: By default,
+      ASP.NET web applications run under the full trust setting. References: 1.
+      http://technet.microsoft.com/en-us/library/cc772237(WS.10).aspx 2.
+      http://msdn.microsoft.com/en-us/library/ms691448%28VS.90%29.aspx 3.
+      http://support.microsoft.com/kb/2698981
+

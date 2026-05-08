@@ -1,0 +1,78 @@
+version: '1.0'
+provider: database
+engine: mysql
+category: section_7
+cis_section: '7'
+description: >
+  mysql CIS Section 7 — Passwords are Not Stored in the Global Configuration
+
+discovery:
+
+  - discovery_id: mysql.section_7.passwords_are_not_stored_in_the_global
+    description: Ensure Passwords are Not Stored in the Global Configuration
+    calls:
+
+
+      - action: query_setting
+        query: "SHOW VARIABLES LIKE 'passwords_are_not_stored_in_the_global';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: passwords_are_not_stored_in_the_global
+        setting_name: passwords_are_not_stored_in_the_global
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: mysql.section_7.set_default_password_lifetime_to_require_a_yearly
+    description: Set 'default_password_lifetime' to Require a Yearly Password Change
+    calls:
+
+
+      - action: query_setting
+        query: "SHOW VARIABLES LIKE 'default_password_lifetime';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: set_default_password_lifetime_to_require_a_yearly
+        setting_name: default_password_lifetime
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: mysql.section_7.password_complexity_policies_are_in_place
+    description: Ensure Password Complexity Policies are in Place
+    calls:
+
+
+      - action: query_setting
+        query: "select * from mysql.component where component_urn like '%validate_password';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_complexity_policies_are_in_place
+        setting_name: validate_password%
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: mysql.section_7.no_anonymous_accounts_exist
+    description: Ensure No Anonymous Accounts Exist
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT user,host FROM mysql.user WHERE user = '';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: no_anonymous_accounts_exist
+        setting_name: no_anonymous_accounts_exist
+        value: "{{ result.value }}"
+        expected: ""
+
+

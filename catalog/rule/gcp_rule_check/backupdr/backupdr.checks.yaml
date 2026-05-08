@@ -1,0 +1,144 @@
+version: '1.0'
+provider: gcp
+service: backupdr
+checks:
+- rule_id: gcp.backupdr.backup_job.monitoring_alert_destinations_configured
+  for_each: gcp.backupdr.projects.locations.managementServers.list
+  severity: MEDIUM
+  conditions:
+    var: item.managementUri
+    op: exists
+    value: null
+- rule_id: gcp.backupdr.backup_job.monitoring_alert_rules_for_job_failures_configured
+  for_each: gcp.backupdr.projects.locations.backupPlans.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: exists
+    value: null
+- rule_id: gcp.backupdr.backup_job.monitoring_alert_rules_for_sla_breach_configured
+  for_each: gcp.backupdr.projects.locations.backupPlans.list
+  severity: MEDIUM
+  conditions:
+    var: item.name
+    op: exists
+    value: null
+- rule_id: gcp.backupdr.backup_job.monitoring_metrics_export_enabled
+  for_each: gcp.backupdr.projects.locations.managementServers.list
+  severity: MEDIUM
+  conditions:
+    var: item.monitoringMetricsExportEnabled
+    op: is_true
+    value: null
+- rule_id: gcp.backupdr.backup_plan.access_backup_admins_mfa_required
+  for_each: gcp.backupdr.projects.locations.managementServers.list
+  severity: HIGH
+  conditions:
+    var: item.oauth2ClientId
+    op: exists
+    value: null
+- rule_id: gcp.backupdr.backup_plan.access_backup_keys_access_least_privilege
+  for_each: gcp.backupdr.projects.locations.backupPlans.list
+  severity: HIGH
+  conditions:
+    var: item.oauth2ClientId
+    op: exists
+    value: null
+- rule_id: gcp.backupdr.backup_plan.access_backup_vault_rbac_least_privilege
+  for_each: gcp.backupdr.projects.locations.backupVaults.list
+  severity: HIGH
+  conditions:
+    var: item.name
+    op: exists
+    value: null
+- rule_id: gcp.backupdr.backup_plan.access_no_public_access_to_backup_vault
+  for_each: gcp.backupdr.projects.locations.backupVaults.list
+  severity: HIGH
+  conditions:
+    var: item.networks
+    op: not_contains
+    value: 0.0.0.0/0
+- rule_id: gcp.backupdr.backup_plan.coverage_policy_assignment_complete
+  for_each: gcp.backupdr.projects.locations.backupPlans.list
+  severity: MEDIUM
+  conditions:
+    var: item.coveragePolicyAssignmentComplete
+    op: is_true
+    value: null
+- rule_id: gcp.backupdr.backup_plan.coverage_unprotected_assets_alerting_enabled
+  for_each: gcp.backupdr.projects.locations.backupPlans.list
+  severity: MEDIUM
+  conditions:
+    var: item.coverageUnprotectedAssetsAlertingEnabled
+    op: is_true
+    value: null
+- rule_id: gcp.backupdr.backup_plan.health_failed_jobs_alerting_enabled
+  for_each: gcp.backupdr.projects.locations.backupPlans.list
+  severity: MEDIUM
+  conditions:
+    var: item.healthFailedJobsAlertingEnabled
+    op: is_true
+    value: null
+- rule_id: gcp.backupdr.backup_plan.health_job_success_rate_minimum
+  for_each: gcp.backupdr.projects.locations.backupPlans.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: gcp.backupdr.backup_plan.health_last_backup_recency_within_days
+  for_each: gcp.backupdr.projects.locations.backupVaults.dataSources.backups.list
+  severity: MEDIUM
+  conditions:
+    var: item.createTime
+    op: gte
+    value: now-7d
+- rule_id: gcp.backupdr.backup_plan.inventory_resource_discovery_synced
+  for_each: gcp.backupdr.projects.locations.backupPlans.list
+  severity: MEDIUM
+  conditions:
+    var: item.state
+    op: equals
+    value: RUNNING
+- rule_id: gcp.backupdr.backup_vault.encryption_backup_storage_immutability_enabled
+  for_each: gcp.backupdr.projects.locations.backupVaults.list
+  severity: MEDIUM
+  conditions:
+    var: item.satisfiesPzi
+    op: is_true
+    value: null
+- rule_id: gcp.backupdr.backup_vault.encryption_cmk_cmek_key_configured
+  for_each: gcp.backupdr.projects.locations.backupVaults.list
+  severity: CRITICAL
+  conditions:
+    var: item.encryptionConfig.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.backupdr.backup_vault.encryption_encryption_at_rest_enabled
+  for_each: gcp.backupdr.projects.locations.backupVaults.list
+  severity: HIGH
+  conditions:
+    var: item.satisfiesPzs
+    op: is_true
+    value: null
+- rule_id: gcp.backupdr.backup_vault.encryption_encryption_in_transit_tls_min_1_2
+  for_each: gcp.backupdr.projects.locations.backupVaults.list
+  severity: HIGH
+  conditions:
+    var: item.networks
+    op: contains
+    value: tls1.2
+- rule_id: gcp.backupdr.backup_vault.encryption_key_policy_least_privilege
+  for_each: gcp.backupdr.projects.locations.backupVaults.list
+  severity: HIGH
+  conditions:
+    var: item.encryptionKeyPolicy
+    op: exists
+    value: null
+- rule_id: gcp.backupdr.backup_vault.encryption_key_rotation_enabled
+  for_each: gcp.backupdr.projects.locations.backupVaults.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryptionKeyRotationEnabled
+    op: is_true
+    value: null

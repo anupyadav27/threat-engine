@@ -1,0 +1,128 @@
+version: '1.0'
+provider: azure
+service: dns
+checks:
+- rule_id: azure.dns.health_probe.health_check_alerts_configured
+  for_each: azure.dns.zones.list
+  severity: HIGH
+  conditions:
+    var: item.health_probe_alerts
+    op: exists
+    value: null
+- rule_id: azure.dns.health_probe.health_check_https_or_tls_used
+  for_each: azure.dns.zones.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.zone_type
+      op: equals
+      value: Private
+    - var: item.registration_virtual_networks
+      op: exists
+      value: null
+    - var: item.resolution_virtual_networks
+      op: exists
+      value: null
+- rule_id: azure.dns.health_probe.health_check_no_plaintext_credentials_in_url
+  for_each: azure.dns.zones.list
+  severity: HIGH
+  conditions:
+    var: item.health_probe_url
+    op: not_contains
+    value: password
+- rule_id: azure.dns.record_set.alias_targets_in_approved_services
+  for_each: azure.dns.zones.list
+  severity: MEDIUM
+  conditions:
+    var: item.record_sets[].alias_target.service
+    op: in
+    value:
+    - Microsoft.Network/trafficManagerProfiles
+    - Microsoft.Network/privateEndpoints
+    - Microsoft.Web/sites
+    - Microsoft.Storage/storageAccounts
+    - Microsoft.ContainerService/managedClusters
+- rule_id: azure.dns.record_set.caa_records_present_for_root_and_wildcard
+  for_each: azure.dns.zones.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.name_servers
+      op: not_empty
+      value: null
+    - var: item.zone_type
+      op: equals
+      value: Public
+- rule_id: azure.dns.record_set.dmarc_record_present_when_mx_present
+  for_each: azure.dns.zones.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.type
+      op: equals
+      value: Microsoft.Network/dnszones
+    - any:
+      - var: item.properties.recordSets[].type
+        op: not_contains
+        value: MX
+      - all:
+        - var: item.properties.recordSets[?type=='MX']
+          op: not_empty
+          value: null
+        - var: item.properties.recordSets[?type=='TXT' && name=='_dmarc']
+          op: not_empty
+          value: null
+- rule_id: azure.dns.record_set.no_overly_broad_wildcard_records_in_sensitive_zones
+  for_each: azure.dns.zones.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.tags.Environment
+      op: equals
+      value: production
+    - var: item.zone_type
+      op: equals
+      value: Private
+- rule_id: azure.dns.record_set.no_rfc1918_in_public_zones
+  for_each: azure.dns.zones.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.zone_type
+      op: equals
+      value: Public
+    - var: item.registration_virtual_networks
+      op: is_empty
+      value: null
+    - var: item.resolution_virtual_networks
+      op: is_empty
+      value: null
+- rule_id: azure.dns.zone.cross_account_sharing_restricted
+  for_each: azure.dns.zones.list
+  severity: MEDIUM
+  conditions:
+    var: item.registration_virtual_networks
+    op: exists
+    value: null
+- rule_id: azure.dns.zone.dnssec_enabled_where_supported
+  for_each: azure.dns.zones.list
+  severity: MEDIUM
+  conditions:
+    var: item.zone_type
+    op: equals
+    value: Private
+- rule_id: azure.dns.zone.query_logging_enabled
+  for_each: azure.dns.zones.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.logging
+    op: exists
+    value: null
+- rule_id: azure.dns.zone.zone_transfer_restricted_or_tsig_required
+  for_each: azure.dns.zones.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.zone_type
+      op: equals
+      value: Private

@@ -1,0 +1,10 @@
+version: '1.0'
+rule_id: aws.cloudwatch.changes_to_vpcs_alarm_configured.changes_to_vpcs_alarm_configured_configured
+for_each: aws.cloudwatch.describe_alarms
+severity: HIGH
+conditions:
+  any:
+  - var: item.MetricAlarms[?(@.MetricName == 'VpcEventCount' && @.Namespace == 'AWS/Events' && contains(@.AlarmActions, 'arn:aws:sns'))]
+    op: not_empty
+  - var: item.CompositeAlarms[?(@.AlarmRule && contains(@.AlarmRule, 'VPC') && contains(@.AlarmActions, 'arn:aws:sns'))]
+    op: not_empty

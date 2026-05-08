@@ -1,0 +1,64 @@
+version: '1.0'
+provider: gcp
+service: lb
+checks:
+- rule_id: gcp.lb.armor_blocked
+  for_each: gcp.compute.list_backend_services
+  severity: MEDIUM
+  conditions:
+    var: item.SecuritySettings.ArmorConfig.EnableArmor
+    op: is_true
+    value: null
+- rule_id: gcp.lb.backend_5xx
+  for_each: gcp.lb.list_backend_services
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Backends[].BalancingMode
+      op: exists
+      value: null
+    - var: item.Backends[].BalancingMode
+      op: not_equals
+      value: RATE
+- rule_id: gcp.lb.backend_timeout
+  for_each: gcp.compute.list_backend_services
+  severity: MEDIUM
+  conditions:
+    var: item.timeoutSec
+    op: lt
+    value: 30
+- rule_id: gcp.lb.http_401
+  for_each: gcp.compute.list_backend_services
+  severity: MEDIUM
+  conditions:
+    var: item.protocol
+    op: not_equals
+    value: HTTP
+- rule_id: gcp.lb.rate_limited
+  for_each: gcp.compute.list_forwarding_rules
+  severity: MEDIUM
+  conditions:
+    var: item.loadBalancingScheme
+    op: equals
+    value: EXTERNAL
+- rule_id: gcp.lb.request_too_large
+  for_each: gcp.compute.list_backend_services
+  severity: MEDIUM
+  conditions:
+    var: item.securitySettings.maxTlsVersion
+    op: exists
+    value: null
+- rule_id: gcp.lb.sqli_detected
+  for_each: gcp.lb.list_load_balancers
+  severity: MEDIUM
+  conditions:
+    var: item.Settings.SqlInjectionDetectionEnabled
+    op: is_true
+    value: null
+- rule_id: gcp.lb.xss_detected
+  for_each: gcp.lb.list_load_balancers
+  severity: MEDIUM
+  conditions:
+    var: item.XssProtectionEnabled
+    op: is_true
+    value: null

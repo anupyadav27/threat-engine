@@ -33,7 +33,7 @@ spec:
       serviceAccountName: engine-sa
       initContainers:
       - name: migrate
-        image: yadavanup84/cspm-django-backend:latest
+        image: yadavanup84/cspm-django-backend:v-di-sprint2
         imagePullPolicy: Always
         command: ["python", "manage.py", "migrate", "--noinput"]
         env:
@@ -61,7 +61,7 @@ spec:
           value: "require"
       containers:
       - name: cspm-backend
-        image: yadavanup84/cspm-django-backend:latest
+        image: yadavanup84/cspm-django-backend:v-di-sprint2
         imagePullPolicy: Always
         ports:
         - containerPort: 8000
@@ -76,10 +76,14 @@ spec:
               optional: true
         - name: DEBUG
           value: "False"
+        - name: COOKIE_SECURE
+          value: "false"
         - name: ALLOWED_HOSTS
           value: "*"
         - name: FRONTEND_URL
-          value: "http://a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com/ui"
+          value: "http://a6fff2656f8c845e5a2d8effc1b3e56f-1461670384.ap-south-1.elb.amazonaws.com/ui"
+        - name: ALLOWED_REDIRECT_HOSTS
+          value: "a6fff2656f8c845e5a2d8effc1b3e56f-1461670384.ap-south-1.elb.amazonaws.com,localhost,127.0.0.1"
         # ── Database — use explicit DB_* vars (not DATABASE_URL) ──────
         - name: DB_NAME
           value: "cspm"
@@ -101,7 +105,31 @@ spec:
           value: "require"
         # ── Engine URLs (all default to cluster-local) ───────────
         - name: ONBOARDING_ENGINE_URL
-          value: "http://engine-onboarding.threat-engine-engines.svc.cluster.local"
+          value: "http://engine-onboarding.threat-engine-engines.svc.cluster.local/api/v1"
+        # ── hCaptcha ─────────────────────────────────────────────
+        - name: HCAPTCHA_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: cspm-portal-secret
+              key: HCAPTCHA_SECRET_KEY
+              optional: true
+        # ── Celery (async tenant sync) ───────────────────────────
+        - name: CELERY_BROKER_URL
+          valueFrom:
+            secretKeyRef:
+              name: cspm-celery-secrets
+              key: CELERY_BROKER_URL
+              optional: true
+        - name: CELERY_RESULT_BACKEND
+          valueFrom:
+            secretKeyRef:
+              name: cspm-celery-secrets
+              key: CELERY_RESULT_BACKEND
+              optional: true
+        - name: ACCESS_TOKEN_LIFETIME_MINUTES
+          value: "480"
+        - name: ALLOW_LOCAL_SIGNUP
+          value: "false"
         - name: THREAT_ENGINE_URL
           value: "http://engine-threat.threat-engine-engines.svc.cluster.local"
         - name: COMPLIANCE_ENGINE_URL
@@ -120,6 +148,56 @@ spec:
           value: "http://engine-check.threat-engine-engines.svc.cluster.local"
         - name: API_GATEWAY_URL
           value: "http://api-gateway.threat-engine-engines.svc.cluster.local"
+        - name: BILLING_ENGINE_URL
+          value: "http://engine-billing.threat-engine-engines.svc.cluster.local:8040"
+        # ── Internal service auth secret (BILL-S11) ──────────────
+        # Must match BILLING_INTERNAL_SECRET on the billing engine pod.
+        # Create with:
+        # kubectl create secret generic threat-engine-secrets \
+        #   --from-literal=BILLING_INTERNAL_SECRET=$(openssl rand -hex 32) \
+        #   -n threat-engine-engines
+        - name: BILLING_INTERNAL_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-secrets
+              key: BILLING_INTERNAL_SECRET
+        # ── Google OAuth ─────────────────────────────────────────
+        - name: GOOGLE_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: cspm-oauth-secrets
+              key: GOOGLE_CLIENT_ID
+              optional: true
+        - name: GOOGLE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: cspm-oauth-secrets
+              key: GOOGLE_CLIENT_SECRET
+              optional: true
+        - name: GOOGLE_REDIRECT_URI
+          value: "https://a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com/api/auth/google/callback/"
+        # ── Microsoft OIDC (Azure AD multi-tenant) ────────────────
+        - name: MICROSOFT_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: cspm-oauth-secrets
+              key: MICROSOFT_CLIENT_ID
+              optional: true
+        - name: MICROSOFT_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: cspm-oauth-secrets
+              key: MICROSOFT_CLIENT_SECRET
+              optional: true
+        - name: MICROSOFT_REDIRECT_URI
+          value: "https://a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com/api/auth/microsoft/callback/"
+        # ── Email (SES) ──────────────────────────────────────────
+        - name: SES_FROM_EMAIL
+          valueFrom:
+            configMapKeyRef:
+              name: cspm-portal-config
+              key: SES_FROM_EMAIL
+              optional: true
         # ── AWS ──────────────────────────────────────────────────
         - name: AWS_REGION
           valueFrom:
@@ -139,6 +217,7 @@ spec:
             port: 8000
           initialDelaySeconds: 30
           periodSeconds: 15
+          timeoutSeconds: 5
           failureThreshold: 3
         readinessProbe:
           httpGet:
@@ -146,6 +225,116 @@ spec:
             port: 8000
           initialDelaySeconds: 15
           periodSeconds: 10
+          timeoutSeconds: 5
+---
+# ────────────────────────────────────────────────────────────────
+# Celery worker — tenant-sync queue
+# ────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cspm-celery-worker
+  namespace: threat-engine-engines
+  labels:
+    app: cspm-celery-worker
+    tier: portal
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: cspm-celery-worker
+  template:
+    metadata:
+      labels:
+        app: cspm-celery-worker
+        tier: portal
+    spec:
+      serviceAccountName: engine-sa
+      containers:
+      - name: celery-worker
+        image: yadavanup84/cspm-django-backend:v-di-sprint2
+        imagePullPolicy: Always
+        command:
+          - celery
+          - -A
+          - config
+          - worker
+          - --loglevel=info
+          - --queues=tenant-sync
+          - --concurrency=4
+        env:
+        # ── Core ────────────────────────────────────────────────
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: cspm-portal-secret
+              key: SECRET_KEY
+              optional: true
+        - name: DEBUG
+          value: "False"
+        - name: ALLOWED_HOSTS
+          value: "*"
+        # ── Database ─────────────────────────────────────────────
+        - name: DB_NAME
+          value: "cspm"
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: threat-engine-db-config
+              key: DB_HOST
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_USER
+          value: "postgres"
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: ONBOARDING_DB_PASSWORD
+        - name: DB_SSLMODE
+          value: "require"
+        # ── Engine URLs ──────────────────────────────────────────
+        - name: ONBOARDING_ENGINE_URL
+          value: "http://engine-onboarding.threat-engine-engines.svc.cluster.local/api/v1"
+        - name: BILLING_ENGINE_URL
+          value: "http://engine-billing.threat-engine-engines.svc.cluster.local:8040"
+        # ── Internal service auth secret (BILL-S11) ──────────────
+        - name: BILLING_INTERNAL_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-secrets
+              key: BILLING_INTERNAL_SECRET
+        # ── Celery broker ────────────────────────────────────────
+        - name: CELERY_BROKER_URL
+          valueFrom:
+            secretKeyRef:
+              name: cspm-celery-secrets
+              key: CELERY_BROKER_URL
+              optional: true
+        - name: CELERY_RESULT_BACKEND
+          valueFrom:
+            secretKeyRef:
+              name: cspm-celery-secrets
+              key: CELERY_RESULT_BACKEND
+              optional: true
+        # ── AWS ──────────────────────────────────────────────────
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: platform-config
+              key: aws-region
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
 ---
 apiVersion: v1
 kind: Service
@@ -194,7 +383,7 @@ spec:
       serviceAccountName: engine-sa
       containers:
       - name: cspm-frontend
-        image: yadavanup84/cspm-frontend:v-std-cols
+        image: yadavanup84/cspm-frontend:v-cwpp-overview2
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
@@ -206,6 +395,14 @@ spec:
           value: "3000"
         - name: NODE_ENV
           value: "production"
+        - name: NLB_URL
+          valueFrom:
+            configMapKeyRef:
+              name: platform-config
+              key: nlb-url
+              optional: true
+        - name: CSPM_BACKEND_URL
+          value: "http://cspm-backend.threat-engine-engines.svc.cluster.local"
         resources:
           requests:
             memory: "256Mi"
@@ -243,3 +440,27 @@ spec:
     name: http
   selector:
     app: cspm-frontend
+---
+# ── Auth API ingress — routes /api/* to Django backend without path rewrite
+# Required because NEXT_PUBLIC_AUTH_URL is baked empty; browser calls /api/auth/...
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cspm-api-ingress
+  namespace: threat-engine-engines
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - path: /api/
+        pathType: Prefix
+        backend:
+          service:
+            name: cspm-backend
+            port:
+              number: 80

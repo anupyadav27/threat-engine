@@ -143,7 +143,7 @@ class CheckDBLoader:
                 cr.scan_run_id, cr.customer_id, cr.tenant_id, cr.provider,
                 cr.account_id, cr.hierarchy_type, cr.rule_id,
                 cr.resource_uid, cr.resource_id, cr.resource_type,
-                cr.status, cr.checked_fields, cr.finding_data, cr.created_at
+                cr.status, cr.checked_fields, cr.finding_data, cr.first_seen_at as created_at
             FROM check_findings cr
             WHERE cr.scan_run_id = %s AND cr.tenant_id = %s
         """
@@ -163,7 +163,7 @@ class CheckDBLoader:
             query += " AND cr.status = %s"
             params.append(status_filter)
 
-        query += " ORDER BY cr.created_at DESC, cr.resource_uid"
+        query += " ORDER BY cr.first_seen_at DESC, cr.resource_uid"
 
         rows: List[Dict[str, Any]] = []
         try:

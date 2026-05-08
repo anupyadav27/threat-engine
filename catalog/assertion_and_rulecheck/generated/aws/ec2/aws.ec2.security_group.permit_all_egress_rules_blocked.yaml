@@ -1,0 +1,15 @@
+version: '1.0'
+rule_id: aws.ec2.security_group.permit_all_egress_rules_blocked
+for_each: aws.ec2.describe_security_groups
+severity: MEDIUM
+conditions:
+  all:
+  - var: item.IpPermissionsEgress
+    op: not_empty
+  - all:
+    - var: item.IpPermissionsEgress[].IpRanges[].CidrIp
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.IpPermissionsEgress[].Ipv6Ranges[].CidrIpv6
+      op: not_contains
+      value: ::/0

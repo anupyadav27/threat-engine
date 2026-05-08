@@ -1,0 +1,67 @@
+version: '1.0'
+provider: oci
+service: network_firewall
+checks:
+- rule_id: oci.network_firewall.network_firewall.firewall_logging_enabled
+  for_each: oci.network_firewall.list_network_firewalls
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.network_firewall.network_firewall.firewall_no_permit_any
+  for_each: oci.network_firewall.list_network_firewalls
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: exists
+    value: null
+- rule_id: oci.network_firewall.network_firewall.firewall_rule_groups_attached
+  for_each: oci.network_firewall.list_network_firewalls
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.network_firewall.network_firewall.in_all_vcn
+  for_each: oci.network_firewall.list_network_firewalls
+  severity: LOW
+  conditions:
+    var: item.ocid
+    op: exists
+    value: null
+- rule_id: oci.network_firewall.network_firewall.ip_set_sources_trusted
+  for_each: oci.network_firewall.list_network_firewalls
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.network_firewall.network_firewall.ip_set_storage_encrypted
+  for_each: oci.network_firewall.list_network_firewalls
+  severity: MEDIUM
+  conditions:
+    var: item.ip_set_storage_encrypted
+    op: is_true
+    value: null
+- rule_id: oci.network_firewall.network_firewall.ip_set_used_by_detectors
+  for_each: oci.network_firewall.list_network_firewalls
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.network_firewall.network_firewall.logging_enabled
+  for_each: oci.network_firewall.list_network_firewalls
+  severity: MEDIUM
+  conditions:
+    var: item.logging_configuration.is_enabled
+    op: is_true
+    value: null
+- rule_id: oci.network_firewall.network_firewall.multi_az
+  for_each: oci.network_firewall.list_network_firewalls
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE

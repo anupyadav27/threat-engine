@@ -1,0 +1,52 @@
+rule_id: aws.alb.alb_log.bad_gateway
+service: alb
+provider: aws
+check_type: log
+severity: low
+title: 'ALB: Bad Gateway'
+description: HTTP 502 Bad Gateway from ALB — upstream server unavailable or misconfigured.
+rationale: Vulnerability scanning of cloud endpoints identifies exploitable weaknesses that can be used for initial access or follow-on exploitation.
+threat_category: discovery
+mitre_tactics:
+- discovery
+mitre_techniques:
+- T1595.002
+risk_score: 20
+resource: elb_load_balancer
+source: default
+is_active: true
+domain: network_security_and_connectivity
+action_category: create
+log_source_type: 
+posture_category: threat_posture
+threat_tags:
+- T1595.002
+- T1595
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: |
+  1. Apply security patches promptly for all cloud-exposed services.
+  2. Enable Defender for Cloud / Amazon Inspector for vulnerability detection.
+  3. Alert on unusual port scanning activity in network flow logs.
+references:
+- https://attack.mitre.org/techniques/T1595/002/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alb
+    - field: error_code
+      op: equals
+      value: '502'
+version: '1.0'

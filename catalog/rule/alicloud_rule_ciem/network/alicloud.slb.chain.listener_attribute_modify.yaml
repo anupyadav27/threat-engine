@@ -1,0 +1,86 @@
+rule_id: alicloud.slb.chain.listener_attribute_modify
+service: network
+provider: alicloud
+check_type: log
+severity: medium
+title: Detect security group rule updates allowing non-SSL traffic and chained modifications
+  to SLB listener attributes that could remove HTTPS/SSL certifica
+description: Detects chained listener modifications and non-SSL traffic rule updates.
+rationale: Monitoring this activity is essential for detecting adversary defense evasion
+  against ALICLOUD resources. Unauthorized or unexpected API calls may indicate account
+  compromise, privilege escalation, or an active attack chain.
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1562
+risk_score: 60
+resource: alicloud_network_resource
+source: csv_generated
+is_active: true
+domain: network_security_and_connectivity
+action_category: modify
+log_source_type: alicloud_actiontrail
+posture_category: threat_posture
+threat_tags:
+- T1562
+- defense_evasion
+- ciem_detection
+- attack_chain
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: high
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_alicloud:
+  - 6.3.5
+remediation: '1. Immediately investigate the principal that performed this action
+  — treat as potentially compromised.
+
+  2. Restore any disabled/deleted security controls (logging, agents, scanning).
+
+  3. Review the full session context for lateral movement or data exfiltration following
+  this action.
+
+  4. Restrict the ability to disable security tools to break-glass roles with MFA
+  enforcement.
+
+  5. Add SCPs/Organization Policies to prevent non-authorized disablement of security
+  controls.'
+references:
+- https://attack.mitre.org/techniques/T1562/
+- https://www.alibabacloud.com/help/en/ram/
+check_config:
+  events:
+  - conditions:
+      all:
+      - field: source_type
+        op: equals
+        value: alicloud_actiontrail
+      - field: service
+        op: equals
+        value: slb
+      - field: operation
+        op: equals
+        value: SetLoadBalancerHTTPSListenerAttribute
+  - conditions:
+      all:
+      - field: source_type
+        op: equals
+        value: alicloud_actiontrail
+      - field: service
+        op: equals
+        value: slb
+      - field: operation
+        op: equals
+        value: ModifyListenerAttribute
+  type: sequence
+  window_seconds: 600
+  version: '1.0'

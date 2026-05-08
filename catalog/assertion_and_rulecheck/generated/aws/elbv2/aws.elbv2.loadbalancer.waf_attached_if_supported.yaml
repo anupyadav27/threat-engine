@@ -1,0 +1,26 @@
+version: '1.0'
+rule_id: aws.elbv2.loadbalancer.waf_attached_if_supported
+for_each: aws.elbv2.describe_load_balancers
+severity: MEDIUM
+conditions:
+  all:
+  - var: item.Type
+    op: equals
+    value: application
+  - var: item.LoadBalancerArn
+    op: exists
+  - any:
+    - var: item.LoadBalancerArn
+      op: not_contains
+      value: app/
+    - all:
+      - var: item.LoadBalancerArn
+        op: contains
+        value: app/
+      - var: item.LoadBalancerArn
+        op: not_exists
+        value: arn:aws:elasticloadbalancing:.*:.*:loadbalancer/app/.*/.*
+fixture_validated: false
+fixture_note: 'PASS fixture returned FAIL — wrong field or operator (pass_fixture keys: [''AvailabilityZones'', ''CanonicalHostedZoneId'',
+  ''CreatedTime'', ''CustomerOwnedIpv4Pool'', ''DNSName'', ''EnablePrefixForIpv6SourceNat'', ''EnforceSecurityGroupInboundRulesOnPrivateLinkTraffic'',
+  ''IpAddressType''])'

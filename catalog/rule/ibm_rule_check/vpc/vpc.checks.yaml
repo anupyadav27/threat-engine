@@ -1,0 +1,261 @@
+# Auto-generated: check rules for IBM vpc from test-rulecheck_python_code
+version: '1.0'
+provider: ibm
+service: vpc
+checks:
+- rule_id: ibm.vpc.activity.floating_ip_change
+  for_each: ibm.vpc.get-floating-ip
+  severity: MEDIUM
+  conditions:
+    var: item.status
+    op: equals
+    value: available
+- rule_id: ibm.vpc.activity.network_acl_change
+  for_each: ibm.vpc.get-network-acl
+  severity: HIGH
+  conditions:
+    var: item.rules[].action
+    op: not_contains
+    value: allow
+- rule_id: ibm.vpc.activity.public_gateway_change
+  for_each: ibm.vpc.get-public-gateway
+  severity: HIGH
+  conditions:
+    var: item.status
+    op: not_equals
+    value: available
+- rule_id: ibm.vpc.activity.security_group_rule_change
+  for_each: ibm.vpc.get-security-group
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.rules[].direction
+      op: equals
+      value: inbound
+    - var: item.rules[].remote.cidr_block
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: ibm.vpc.activity.vpc_change
+  for_each: ibm.vpc.get-backup-policy
+  severity: MEDIUM
+  conditions:
+    var: item.status
+    op: equals
+    value: ACTIVE
+- rule_id: ibm.vpc.flow_log.enabled_for_vpc
+  for_each: ibm.vpc.get-vpc
+  severity: MEDIUM
+  conditions:
+    var: item.flow_logs[].id
+    op: exists
+- rule_id: ibm.vpc.image.encryption_enabled
+  for_each: ibm.vpc.get-bare-metal-server-disk
+  severity: MEDIUM
+  conditions:
+    var: item.encryption
+    op: exists
+- rule_id: ibm.vpc.image.not_publicly_accessible
+  for_each: ibm.vpc.get-image
+  severity: MEDIUM
+  conditions:
+    var: item.visibility
+    op: not_equals
+    value: public
+- rule_id: ibm.vpc.instance.boot_volume_encrypted
+  for_each: ibm.vpc.get-bare-metal-server
+  severity: HIGH
+  conditions:
+    var: item.boot_volume_encryption
+    op: exists
+- rule_id: ibm.vpc.instance.metadata_service_disabled
+  for_each: ibm.vpc.get-bare-metal-server
+  severity: MEDIUM
+  conditions:
+    var: item.metadata_service.enabled
+    op: is_false
+- rule_id: ibm.vpc.instance.no_public_ip_address
+  for_each: ibm.vpc.get-bare-metal-server
+  severity: HIGH
+  conditions:
+    var: item.public_ip
+    op: not_exists
+- rule_id: ibm.vpc.instance.not_in_default_security_group
+  for_each: ibm.vpc.get-bare-metal-server
+  severity: MEDIUM
+  conditions:
+    var: item.security_groups[].name
+    op: not_contains
+    value: default
+- rule_id: ibm.vpc.instance.secure_boot_enabled
+  for_each: ibm.vpc.get-bare-metal-server
+  severity: MEDIUM
+  conditions:
+    var: item.secure_boot
+    op: is_true
+- rule_id: ibm.vpc.load_balancer.https_listener_enabled
+  for_each: ibm.vpc.get-load-balancer
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.listeners[].protocol
+      op: equals
+      value: https
+    - var: item.listeners[].protocol
+      op: equals
+      value: tls
+- rule_id: ibm.vpc.load_balancer.logging_enabled
+  for_each: ibm.vpc.get-load-balancer
+  severity: MEDIUM
+  conditions:
+    var: item.logging.datapath.active
+    op: is_true
+- rule_id: ibm.vpc.load_balancer.private_load_balancer
+  for_each: ibm.vpc.get-load-balancer
+  severity: MEDIUM
+  conditions:
+    var: item.is_public
+    op: is_false
+- rule_id: ibm.vpc.network_acl.default_deny_inbound
+  for_each: ibm.vpc.get-network-acl
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.rules[].direction
+      op: contains
+      value: inbound
+    - var: item.rules[].action
+      op: contains
+      value: deny
+- rule_id: ibm.vpc.network_acl.default_deny_outbound
+  for_each: ibm.vpc.get-network-acl
+  severity: MEDIUM
+  conditions:
+    var: item.rules[].direction
+    op: contains
+    value: outbound
+- rule_id: ibm.vpc.public_gateway.floating_ip_not_all_subnets
+  for_each: ibm.vpc.get-public-gateway
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.floating_ip
+      op: not_exists
+    - var: item.subnets[].floating_ip
+      op: all
+      conditions:
+        var: item
+        op: is_true
+- rule_id: ibm.vpc.security_group.default_security_group_restricts_all
+  for_each: ibm.vpc.get-security-group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.rules[].direction
+      op: equals
+      value: inbound
+    - var: item.rules[].remote.cidr_block
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: ibm.vpc.security_group.no_unrestricted_inbound
+  for_each: ibm.vpc.get-security-group
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.rules[].source
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.rules[].source
+      op: not_contains
+      value: ::/0
+- rule_id: ibm.vpc.security_group.no_unrestricted_rdp_access
+  for_each: ibm.vpc.get-security-group
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.rules[].source
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.rules[].direction
+      op: equals
+      value: inbound
+    - var: item.rules[].port_min
+      op: lte
+      value: 3389
+    - var: item.rules[].port_max
+      op: gte
+      value: 3389
+    - var: item.rules[].protocol
+      op: equals
+      value: tcp
+- rule_id: ibm.vpc.security_group.no_unrestricted_ssh_access
+  for_each: ibm.vpc.get-security-group
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.rules[].direction
+      op: equals
+      value: inbound
+    - var: item.rules[].remote.cidr_block
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.rules[].protocol
+      op: equals
+      value: tcp
+    - var: item.rules[].port_min
+      op: lte
+      value: 22
+    - var: item.rules[].port_max
+      op: gte
+      value: 22
+- rule_id: ibm.vpc.subnet.auto_assign_public_ip_disabled
+  for_each: ibm.vpc.get-subnet
+  severity: HIGH
+  conditions:
+    var: item.auto_assign_public_ip
+    op: is_false
+- rule_id: ibm.vpc.subnet.not_using_default_network_acl
+  for_each: ibm.vpc.get-subnet
+  severity: MEDIUM
+  conditions:
+    var: item.network_acl.name
+    op: not_equals
+    value: default
+- rule_id: ibm.vpc.volume.encryption_enabled
+  for_each: ibm.vpc.get-bare-metal-server-disk
+  severity: HIGH
+  conditions:
+    var: item.encryption
+    op: equals
+    value: user_managed
+- rule_id: ibm.vpc.volume.not_unattached
+  for_each: ibm.vpc.get-bare-metal-server-disk
+  severity: LOW
+  conditions:
+    var: item.status
+    op: not_equals
+    value: unattached
+- rule_id: ibm.vpc.vpn_gateway.ike_policy_strong_algorithm
+  for_each: ibm.vpc.get-vpn-gateway-ike-policy
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.authentication_algorithm
+      op: in
+      value:
+      - sha256
+      - sha384
+      - sha512
+    - var: item.encryption_algorithm
+      op: in
+      value:
+      - aes256
+      - aes256_gcm16
+    - var: item.dh_group
+      op: gte
+      value: 14
+- rule_id: ibm.vpc.vpn_gateway.ipsec_policy_pfs_enabled
+  for_each: ibm.vpc.get-vpn-gateway
+  severity: HIGH
+  conditions:
+    var: item.ipsec_policy.pfs
+    op: is_true

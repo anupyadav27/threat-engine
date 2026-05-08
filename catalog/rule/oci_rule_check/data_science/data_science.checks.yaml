@@ -1,0 +1,768 @@
+version: '1.0'
+provider: oci
+service: data_science
+checks:
+- rule_id: oci.data_science.job.ai_services_training_job_inter_container_enabled
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.inter_container_traffic_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_science.job.ai_services_training_job_network_isolation_enabled
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.network_isolation
+    op: is_true
+    value: null
+- rule_id: oci.data_science.job.ai_services_training_job_output_encryption_enabled
+  for_each: oci.data_science.list_model_deployments
+  severity: HIGH
+  conditions:
+    var: item.encryption
+    op: exists
+    value: null
+- rule_id: oci.data_science.job.ai_services_training_job_volume_encryption_enabled
+  for_each: oci.data_science.list_model_deployments
+  severity: HIGH
+  conditions:
+    var: item.volume_encryption_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_science.job.ai_services_training_job_vpc_configured
+  for_each: oci.data_science.list_notebook_sessions
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_science.job.training_job_roles_least_privilege_required
+  for_each: oci.data_science.list_notebook_sessions
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_science.job.training_jobs_intercontainer_encryption_enabled
+  for_each: oci.data_science.list_model_deployments
+  severity: HIGH
+  conditions:
+    var: item.intercontainer_encryption_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_science.job.training_jobs_vcn_settings_configured
+  for_each: oci.data_science.list_notebook_sessions
+  severity: MEDIUM
+  conditions:
+    var: item.network_configuration
+    op: exists
+    value: null
+- rule_id: oci.data_science.job.training_jobs_volume_and_output_encryption_enabled
+  for_each: oci.data_science.list_jobs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.jobStorageMountConfigurationDetailsList[].storageType
+      op: equals
+      value: FILE_STORAGE_SERVICE
+    - var: item.jobStorageMountConfigurationDetailsList[].isOutputStorageEnabled
+      op: is_true
+      value: null
+    - var: item.jobStorageMountConfigurationDetailsList[].storageMountTargetId
+      op: exists
+      value: null
+- rule_id: oci.data_science.job.transform_job_roles_least_privilege_required
+  for_each: oci.data_science.list_notebook_sessions
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_science.model.ai_services_model_deployment_endpoint_in_vpc
+  for_each: oci.data_science.list_model_deployments
+  severity: LOW
+  conditions:
+    var: item.endpoint_in_vpc
+    op: is_true
+    value: null
+- rule_id: oci.data_science.model.ai_services_model_deployment_kms_encryption_enabled
+  for_each: oci.data_science.list_model_deployments
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.data_science.model.ai_services_model_deployment_logging_enabled
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.logging_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_science.model.ai_services_model_version_image_scan_passed_required
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_science.model.ai_services_model_version_kms_encryption_enabled
+  for_each: oci.data_science.list_model_deployments
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.data_science.model.ai_services_model_version_package_approved_required
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_science.model.ai_services_supply_chain_model_artifact_critical
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.freeform_tags.Environment
+    op: exists
+    value: null
+- rule_id: oci.data_science.model.ai_services_supply_chain_model_artifact_sbom_present
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.freeform_tags.supply_chain_sbom
+    op: exists
+    value: null
+- rule_id: oci.data_science.model.ai_services_supply_chain_model_artifact_validated
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_science.model.model_package_artifact_signed_and_verified_validated
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.model_package_artifact_signed_and_verified
+    op: is_true
+    value: null
+- rule_id: oci.data_science.model.model_package_not_publicly_shared_blocked
+  for_each: oci.data_science.list_model_deployments
+  severity: CRITICAL
+  conditions:
+    var: item.freeform_tags.Public
+    op: not_exists
+    value: null
+- rule_id: oci.data_science.model.model_registry_cross_account_sharing_restricted
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.freeform_tags
+    op: not_contains
+    value: cross_account_sharing
+- rule_id: oci.data_science.model.model_registry_rbac_least_privilege_required
+  for_each: oci.data_science.list_model_deployments
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_science.model.models_vcn_settings_configured
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.vcn_config
+    op: exists
+    value: null
+- rule_id: oci.data_science.model_deployment.ai_endpoint_authn_required
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.access
+    op: exists
+    value: null
+- rule_id: oci.data_science.model_deployment.ai_endpoint_authz_policies_enforced
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.access_policies
+    op: exists
+    value: null
+- rule_id: oci.data_science.model_deployment.ai_endpoint_private_networking_enforced
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.network_configuration.network_type
+    op: equals
+    value: PRIVATE_ENDPOINT
+- rule_id: oci.data_science.model_deployment.ai_endpoint_rate_limiting_enabled
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.model_deployment_configuration_details.model_configuration_details.scaling_policy.maximum_instance_count
+    op: exists
+    value: null
+- rule_id: oci.data_science.model_deployment.ai_endpoint_waf_attached
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.waf_config
+    op: exists
+    value: null
+- rule_id: oci.data_science.model_deployment.ai_services_inference_endpoint_data_capture_s3_encrypted
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.model_deployment_configuration_details.model_configuration_details.scaling_policy
+    op: exists
+    value: null
+- rule_id: oci.data_science.model_deployment.ai_services_inference_endpoint_kms_encryption_enabled
+  for_each: oci.data_science.list_model_deployments
+  severity: HIGH
+  conditions:
+    var: item.model_deployment_configuration_details.model_configuration_details.scaling_policy
+    op: exists
+    value: null
+- rule_id: oci.data_science.model_deployment.ai_services_inference_endpoint_private_networking_enforced
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.network_configuration.network_type
+    op: equals
+    value: PRIVATE_ENDPOINT
+- rule_id: oci.data_science.model_deployment.ai_services_inference_endpoint_security_group_restrictive
+  for_each: oci.data_science.list_model_deployments
+  severity: LOW
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.model_deployment_configuration_details.model_configuration_details.scaling_policy
+      op: exists
+      value: null
+- rule_id: oci.data_science.model_deployment.ai_services_workspace_private_networking_enforced
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.network_configuration.network_type
+    op: equals
+    value: PRIVATE_ENDPOINT
+- rule_id: oci.data_science.model_deployment.automl_private_networking_enforced
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.network_configuration.private_endpoint_details
+    op: exists
+    value: null
+- rule_id: oci.data_science.model_deployment.dev_endpoint_no_public_access_blocked
+  for_each: oci.data_science.list_model_deployments
+  severity: CRITICAL
+  conditions:
+    var: item.lifecycle_state
+    op: not_equals
+    value: ACTIVE
+- rule_id: oci.data_science.model_deployment.dev_endpoint_role_least_privilege_required
+  for_each: oci.data_science.list_model_deployments
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_science.model_deployment.endpoint_config_cmks_restricted_enabled
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.endpoint_config.cmks_restricted
+    op: is_true
+    value: null
+- rule_id: oci.data_science.model_deployment.endpoint_config_prod_variant_instances
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.endpoint_config.production_variant[].instance_count
+    op: gt
+    value: 1
+- rule_id: oci.data_science.model_deployment.feature_store_private_networking_enforced
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.feature_store_private_networking_enforced
+    op: is_true
+    value: null
+- rule_id: oci.data_science.model_deployment.prompt_gateway_private_networking_enforced
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.network_details.network_type
+    op: equals
+    value: PRIVATE_ENDPOINT
+- rule_id: oci.data_science.model_deployment.training_pipeline_private_networking_enforced
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.network_configuration.network_type
+    op: equals
+    value: PRIVATE_ENDPOINT
+- rule_id: oci.data_science.model_deployment.vector_index_private_networking_enforced
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.private_endpoint_id
+    op: exists
+    value: null
+- rule_id: oci.data_science.notebook_session.notebook_execution_role_least_privilege_required
+  for_each: oci.data_science.list_notebook_sessions
+  severity: HIGH
+  conditions:
+    var: item.notebook_session_configuration_details.notebook_session_shape_config_details
+    op: exists
+    value: null
+- rule_id: oci.data_science.notebook_session.notebook_idle_shutdown_configured
+  for_each: oci.data_science.list_notebook_sessions
+  severity: MEDIUM
+  conditions:
+    var: item.notebook_session_configuration_details.notebook_session_shape_config_details.memory_in_gbs
+    op: exists
+    value: null
+- rule_id: oci.data_science.notebook_session.notebook_instance_encryption_enabled
+  for_each: oci.data_science.list_notebook_sessions
+  severity: HIGH
+  conditions:
+    var: item.notebook_session_configuration_details.notebook_session_shape_config_details
+    op: exists
+    value: null
+- rule_id: oci.data_science.notebook_session.notebook_instance_vcn_settings_configured
+  for_each: oci.data_science.list_notebook_sessions
+  severity: MEDIUM
+  conditions:
+    var: item.network_configuration_details
+    op: exists
+    value: null
+- rule_id: oci.data_science.notebook_session.notebook_no_public_access_blocked
+  for_each: oci.data_science.list_notebook_sessions
+  severity: CRITICAL
+  conditions:
+    var: item.notebook_session_configuration_details.notebook_session_shape_config_details
+    op: exists
+    value: null
+- rule_id: oci.data_science.pipeline.ai_services_pipeline_iam_role_least_privileged_enforced
+  for_each: oci.data_science.list_model_deployments
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_science.pipeline.pipeline_roles_least_privilege_required
+  for_each: oci.data_science.list_model_deployments
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_science.pipeline.training_pipeline_secrets_from_vault_only
+  for_each: oci.data_science.list_model_deployments
+  severity: HIGH
+  conditions:
+    var: item.secret_configuration.secret_id
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.agent_orchestrator_data_exfiltration_policies_enforced
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.agent_orchestrator_config.data_exfiltration_policies_enforced
+    op: is_true
+    value: null
+- rule_id: oci.data_science.project.agent_orchestrator_secrets_isolation_enabled
+  for_each: oci.data_science.list_model_deployments
+  severity: HIGH
+  conditions:
+    var: item.agent_orchestrator_secrets_isolation_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_science.project.agent_orchestrator_tool_use_allowlist_enforced
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.agent_orchestrator_config.tool_use_config.allowlist_enforced
+    op: is_true
+    value: null
+- rule_id: oci.data_science.project.ai_services_feature_store_offline_block_blocked
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.ai_services_feature_store_offline_block
+    op: is_true
+    value: null
+- rule_id: oci.data_science.project.ai_services_feature_store_offline_s3_encrypted
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.ai_services_feature_store_offline_s3_encrypted
+    op: is_true
+    value: null
+- rule_id: oci.data_science.project.ai_services_feature_store_online_kms_encryption_enabled
+  for_each: oci.data_science.list_model_deployments
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.ai_services_pipeline_kms_encryption_enabled
+  for_each: oci.data_science.list_model_deployments
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.ai_services_pipeline_logging_enabled
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.log_details
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.ai_services_workspace_encryption_enabled
+  for_each: oci.data_science.list_model_deployments
+  severity: HIGH
+  conditions:
+    var: item.encryption
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.ai_services_workspace_iam_role_least_privileged_enforced
+  for_each: oci.data_science.list_notebook_sessions
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.data_science.project.ai_services_workspace_idle_shutdown_configured
+  for_each: oci.data_science.list_notebook_sessions
+  severity: MEDIUM
+  conditions:
+    var: item.notebook_session_configuration_details.notebook_session_shape_config_details.idle_time_in_minutes
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.automl_logs_enabled
+  for_each: oci.data_science.list_model_deployments
+  severity: LOW
+  conditions:
+    var: item.automl_logs_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_science.project.automl_private_networking_enforced
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.network_details.network_type
+    op: equals
+    value: PRIVATE_ENDPOINT
+- rule_id: oci.data_science.project.automl_roles_least_privilege_required
+  for_each: oci.data_science.list_model_deployments
+  severity: HIGH
+  conditions:
+    var: item.freeform_tags.Environment
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.dev_endpoint_encrypted
+  for_each: oci.data_science.list_notebook_sessions
+  severity: MEDIUM
+  conditions:
+    var: item.notebook_session_configuration_details.notebook_session_shape_config_details
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.endpoint_authn_required
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.endpoint_authn
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.endpoint_authz_policies_enforced
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.endpoint_authz_policies_enforced
+    op: is_true
+    value: null
+- rule_id: oci.data_science.project.endpoint_config_capture_store_encrypted_and_private
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.endpoint_config.capture_store.encryption_key_id
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.endpoint_config_content_type_whitelist_enforced
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.endpoint_config.content_type_whitelist
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.endpoint_config_data_capture_bucket_encrypted_private
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.endpoint_config.data_capture.bucket.encryption
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.endpoint_kms_encryption_enabled
+  for_each: oci.data_science.list_model_deployments
+  severity: HIGH
+  conditions:
+    var: item.model_deployment_configuration_details.model_configuration_details.scaling_policy
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.endpoint_logging_enabled
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.endpoint_logging_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_science.project.endpoint_private_networking_enforced
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.network_configuration.nat_gateway_id
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.experiment_logs_enabled
+  for_each: oci.data_science.list_notebook_sessions
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_science.project.experiment_metadata_store_encrypted
+  for_each: oci.data_science.list_notebook_sessions
+  severity: MEDIUM
+  conditions:
+    var: item.freeform_tags.Environment
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.experiment_rbac_least_privilege_required
+  for_each: oci.data_science.list_notebook_sessions
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_science.project.feature_store_rbac_least_privilege_required
+  for_each: oci.data_science.list_notebook_sessions
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_science.project.hpo_logs_enabled
+  for_each: oci.data_science.list_work_request_logs
+  severity: LOW
+  conditions:
+    var: item.ocid
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.hpo_private_networking_enforced
+  for_each: oci.data_science.list_notebook_sessions
+  severity: MEDIUM
+  conditions:
+    var: item.network_security_group_id
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.hpo_roles_least_privilege_required
+  for_each: oci.data_science.list_model_deployments
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_science.project.human_review_artifacts_encrypted
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.freeform_tags.Environment
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.human_review_ui_private_networking_enforced
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.network_configuration.network_type
+    op: equals
+    value: PRIVATE_ENDPOINT
+- rule_id: oci.data_science.project.human_review_workteam_access_rbac_least_privilege_required
+  for_each: oci.data_science.list_model_deployments
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_science.project.model_artifact_encrypted_at_rest_cmek
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.model_deployment_configuration_details.model_configuration_details.scaling_policy
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.model_package_encrypted
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.model_package_encrypted
+    op: is_true
+    value: null
+- rule_id: oci.data_science.project.model_registry_artifact_encryption_enabled
+  for_each: oci.data_science.list_model_deployments
+  severity: HIGH
+  conditions:
+    var: item.model_deployment_configuration_details.model_configuration_details.scaling_policy
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.notebook_encrypted
+  for_each: oci.data_science.list_notebook_sessions
+  severity: MEDIUM
+  conditions:
+    var: item.notebook_session_configuration_details.notebook_session_shape_config_details
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.notebook_instance_without_direct_internet_access_configured
+  for_each: oci.data_science.list_notebook_sessions
+  severity: MEDIUM
+  conditions:
+    var: item.notebook_session_configuration_details.notebook_session_shape_config_details
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.pipeline_artifacts_private_and_encrypted
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.freeform_tags.Environment
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.pipeline_kms_encryption_enabled
+  for_each: oci.data_science.list_model_deployments
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.pipeline_logging_enabled
+  for_each: oci.data_science.list_work_request_logs
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.prompt_gateway_authn_required
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.prompt_gateway_authn_required
+    op: is_true
+    value: null
+- rule_id: oci.data_science.project.prompt_gateway_token_scopes_least_privilege_required
+  for_each: oci.data_science.list_model_deployments
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_science.project.secrets_vault_access_rbac_least_privilege_required
+  for_each: oci.data_science.list_notebook_sessions
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.data_science.project.secrets_vault_kms_encryption_and_rotation_enabled
+  for_each: oci.data_science.list_model_deployments
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_science.project.secrets_vault_no_plaintext_in_config
+  for_each: oci.data_science.list_model_deployments
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.training_job_input_output_encrypted
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.training_job_input_output_encrypted
+    op: is_true
+    value: null
+- rule_id: oci.data_science.project.training_job_logs_enabled
+  for_each: oci.data_science.list_work_request_logs
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.training_job_private_networking_enforced
+  for_each: oci.data_science.list_notebook_sessions
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_science.project.transform_job_input_output_encrypted
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.freeform_tags.Environment
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.transform_job_logs_enabled
+  for_each: oci.data_science.list_work_request_logs
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.transform_job_private_networking_enforced
+  for_each: oci.data_science.list_notebook_sessions
+  severity: MEDIUM
+  conditions:
+    var: item.network_security_group_id
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.vector_index_authn_required
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_science.project.vector_index_encrypted_at_rest_cmek
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.encryption_key_id
+    op: exists
+    value: null
+- rule_id: oci.data_science.project.vector_index_rbac_tenant_isolation_enforced
+  for_each: oci.data_science.list_model_deployments
+  severity: MEDIUM
+  conditions:
+    var: item.freeform_tags.Environment
+    op: exists
+    value: null

@@ -1,0 +1,71 @@
+rule_id: aws.dns.query_log.crypto_mining_domain
+service: dns
+provider: aws
+check_type: log
+severity: high
+title: 'Route53: Crypto Mining Domain'
+description: Known crypto-mining domain queried — cryptocurrency mining activity detected.
+rationale: Resource hijacking (cryptomining, botnet hosting) causes unexpected cloud costs and may indicate a broader compromise of cloud credentials or workloads.
+threat_category: execution
+mitre_tactics:
+- command_and_control
+mitre_techniques:
+- T1496
+risk_score: 80
+resource: route53_zone
+source: default
+is_active: true
+domain: compute_and_workload_security
+action_category: execute
+log_source_type: 
+posture_category: workload_posture
+threat_tags:
+- T1496
+- remote_execution
+- cloud_exec
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: execution
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 3.1
+  - 5.1
+  cis_azure_v2:
+  - 5.1
+  - 6.1
+  nist_800_53_r5:
+  - CM-7
+  - SI-3
+  - AU-12
+  pci_dss_v4:
+  - 6.3
+  - 10.2
+  iso_27001_2022:
+  - A.8.19
+  - A.8.8
+remediation: |
+  1. Terminate the unauthorized workloads immediately.
+  2. Revoke compromised credentials used to launch the resources.
+  3. Enable budget alerts and anomaly detection for unexpected spend spikes.
+  4. Use AWS Cost Anomaly Detection / Azure Cost Management alerts.
+references:
+- https://attack.mitre.org/techniques/T1496/
+- https://docs.aws.amazon.com/cost-management/latest/userguide/getting-started-ad.html
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: dns
+    - field: operation
+      op: contains
+      value: pool
+version: '1.0'

@@ -1,0 +1,66 @@
+version: '1.0'
+provider: db
+engine: postgres
+category: access_control
+cis_section: '6'
+description: PostgreSQL CIS Section 6 — Access Controls
+
+discovery:
+  - discovery_id: db.postgres.acl.public_schema_access
+    calls:
+      - action: query_table
+        query: >
+          SELECT nspname, nspacl
+          FROM pg_namespace
+          WHERE nspname = 'public';
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        schema: "{{ item.nspname }}"
+        acl: "{{ item.nspacl }}"
+
+  - discovery_id: db.postgres.acl.roles_without_password
+    calls:
+      - action: query_table
+        query: >
+          SELECT rolname
+          FROM pg_authid
+          WHERE rolcanlogin = true
+            AND rolpassword IS NULL;
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        role_name: "{{ item.rolname }}"
+
+  - discovery_id: db.postgres.acl.object_privileges
+    calls:
+      - action: query_table
+        query: >
+          SELECT grantee, table_catalog, table_schema, table_name, privilege_type
+          FROM information_schema.role_table_grants
+          WHERE grantee NOT IN ('postgres')
+          ORDER BY grantee, table_name;
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        grantee: "{{ item.grantee }}"
+        table: "{{ item.table_schema }}.{{ item.table_name }}"
+        privilege: "{{ item.privilege_type }}"
+
+  - discovery_id: db.postgres.acl.ssl_enabled
+    calls:
+      - action: query_setting
+        query: "SHOW ssl;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        setting_name: ssl
+        value: "{{ result.ssl }}"
+        expected: "on"

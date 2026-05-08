@@ -1,0 +1,924 @@
+version: '1.0'
+provider: azure
+service: data
+checks:
+- rule_id: azure.data.factory_dataset.pipeline_object_environment_no_plaintext_secrets
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.activities[].linkedServiceName
+      op: exists
+      value: null
+    - var: item.activities[].linkedServiceName
+      op: not_contains
+      value: DefaultEndpointsProtocol
+    - var: item.activities[].linkedServiceName
+      op: not_contains
+      value: AccountKey
+- rule_id: azure.data.factory_dataset.pipeline_object_execution_role_least_privilege
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.Activities[].Policy.Role
+      op: exists
+      value: null
+    - var: item.Properties.Activities[].Policy.Role
+      op: not_contains
+      value: '*'
+- rule_id: azure.data.factory_dataset.pipeline_object_logging_enabled
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    var: item.properties.logSettings
+    op: exists
+    value: null
+- rule_id: azure.data.factory_dataset.pipeline_object_network_private_only
+  for_each: azure.datafactory.datasets.list_by_factory
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.typeProperties.location.type
+      op: equals
+      value: AzureBlobStorage
+    - var: item.Properties.typeProperties.location.storeSettings.type
+      op: equals
+      value: AzureBlobStorageReadSettings
+    - var: item.Properties.typeProperties.location.storeSettings.enablePrivateEndpoint
+      op: is_true
+      value: null
+- rule_id: azure.data.factory_pipeline.pipeline_definition_signed_and_verified
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Policy.SignatureVerificationEnabled
+      op: is_true
+      value: null
+    - var: item.Policy.SignatureRequired
+      op: is_true
+      value: null
+- rule_id: azure.data.factory_pipeline.pipeline_definition_storage_encrypted
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryptionConfiguration.keyEncryptionKey
+    op: exists
+    value: null
+- rule_id: azure.data.factory_pipeline.pipeline_definition_storage_private
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    var: item.properties.definition_storage_linked_service.properties.typeProperties.url
+    op: contains
+    value: core.windows.net
+- rule_id: azure.data.factory_pipeline.pipeline_definition_version_immutability_enforced
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    var: item.properties.policy.definitionVersionImmutable
+    op: is_true
+    value: null
+- rule_id: azure.data.factory_pipeline.pipeline_pipeline_artifacts_private_and_encrypted
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.PipelineArtifacts.Private
+      op: is_true
+      value: null
+    - var: item.PipelineArtifacts.Encrypted
+      op: is_true
+      value: null
+- rule_id: azure.data.factory_pipeline.pipeline_pipeline_execution_roles_least_privilege
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.PipelineActivities[].ExecutionRole
+      op: exists
+      value: null
+    - var: item.PipelineActivities[].ExecutionRole.Permissions[].Action
+      op: not_contains
+      value: '*'
+- rule_id: azure.data.factory_pipeline.pipeline_pipeline_kms_encryption_enabled
+  for_each: azure.datafactory.factories.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption.key_vault_properties.key_name
+    op: exists
+    value: null
+- rule_id: azure.data.factory_pipeline.pipeline_pipeline_logs_and_metrics_enabled
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.logSettings
+      op: exists
+      value: null
+    - var: item.properties.monitoringSettings
+      op: exists
+      value: null
+- rule_id: azure.data.factory_pipeline.pipeline_pipeline_private_networking_enforced
+  for_each: azure.datafactory.factories.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.managedVirtualNetwork
+    op: exists
+    value: null
+- rule_id: azure.data.factory_pipeline_parameter.pipeline_parameter_allowed_values_defined_where_applicable
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    var: item.parameters[].allowedValues
+    op: exists
+    value: null
+- rule_id: azure.data.factory_pipeline_parameter.pipeline_parameter_attributes_no_plaintext_secrets
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Parameters
+      op: exists
+      value: null
+    - var: item.Parameters[].DefaultValue
+      op: not_contains
+      value: plaintext
+    - var: item.Parameters[].DefaultValue
+      op: not_contains
+      value: secret
+- rule_id: azure.data.factory_pipeline_parameter.pipeline_parameter_binding_only_expected_params_bound
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Parameters
+      op: exists
+      value: null
+    - var: item.Parameters[].Value
+      op: not_exists
+      value: null
+- rule_id: azure.data.factory_pipeline_parameter.pipeline_parameter_binding_secret_refs_resolved_at_runtime
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Parameters
+      op: exists
+      value: null
+    - var: item.Parameters[].DefaultValue
+      op: not_exists
+      value: null
+- rule_id: azure.data.factory_pipeline_parameter.pipeline_parameter_binding_sensitive_params_not_logged
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Parameters
+      op: exists
+      value: null
+    - var: item.Parameters[].Secure
+      op: is_true
+      value: null
+- rule_id: azure.data.factory_pipeline_parameter.pipeline_parameter_constraint_allowlist_defined_when_applicable
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    var: item.properties.parameters
+    op: exists
+    value: null
+- rule_id: azure.data.factory_pipeline_parameter.pipeline_parameter_constraint_max_length_defined_when_applicable
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.parameters
+      op: exists
+      value: null
+    - var: item.properties.parameters
+      op: not_empty
+      value: null
+    - all:
+      - var: item.properties.parameters[].maxLength
+        op: exists
+        value: null
+      - var: item.properties.parameters[].maxLength
+        op: gt
+        value: 0
+- rule_id: azure.data.factory_pipeline_parameter.pipeline_parameter_constraint_min_length_defined_when_applicable
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.parameters
+      op: exists
+      value: null
+    - var: item.properties.parameters[].minLength
+      op: exists
+      value: null
+- rule_id: azure.data.factory_pipeline_parameter.pipeline_parameter_constraint_pattern_defined_when_applicable
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    var: item.parameters[].defaultValue
+    op: exists
+    value: null
+- rule_id: azure.data.factory_pipeline_parameter.pipeline_parameter_default_not_sensitive
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Parameters
+      op: exists
+      value: null
+    - var: item.Parameters[].DefaultValue
+      op: not_exists
+      value: null
+- rule_id: azure.data.factory_pipeline_parameter.pipeline_parameter_max_length_defined_where_applicable
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.parameters
+      op: exists
+      value: null
+    - var: item.properties.parameters[].maxLength
+      op: exists
+      value: null
+- rule_id: azure.data.factory_pipeline_parameter.pipeline_parameter_metadata_disallowed_attribute_keys_blocked
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Parameters
+      op: exists
+      value: null
+    - var: item.Parameters[].Metadata
+      op: exists
+      value: null
+    - var: item.Parameters[].Metadata
+      op: not_contains
+      value: disallowedAttributeKey
+- rule_id: azure.data.factory_pipeline_parameter.pipeline_parameter_metadata_sensitive_keys_require_secret_type
+  for_each: azure.datafactory.factories.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.pipelines[].parameters
+      op: exists
+      value: null
+    - any:
+      - var: item.properties.pipelines[].parameters[].type
+        op: equals
+        value: SecureString
+      - var: item.properties.pipelines[].parameters[].type
+        op: equals
+        value: AzureKeyVaultSecret
+- rule_id: azure.data.factory_pipeline_parameter.pipeline_parameter_metadata_values_not_plaintext_secret
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Parameters
+      op: exists
+      value: null
+    - var: item.Parameters[].DefaultValue
+      op: not_exists
+      value: null
+- rule_id: azure.data.factory_pipeline_parameter.pipeline_parameter_min_length_defined_where_applicable
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.parameters
+      op: exists
+      value: null
+    - var: item.properties.parameters[].minLength
+      op: exists
+      value: null
+- rule_id: azure.data.factory_pipeline_parameter.pipeline_parameter_pattern_defined_where_applicable
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    var: item.properties.parameters
+    op: exists
+    value: null
+- rule_id: azure.data.factory_pipeline_parameter.pipeline_parameter_type_set
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    var: item.Parameters[].Type
+    op: exists
+    value: null
+- rule_id: azure.data.factory_pipeline_parameter.pipeline_parameter_value_from_secrets_manager_when_sensitive
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Parameters[].IsSecure
+      op: is_true
+      value: null
+    - var: item.Parameters[].DefaultValue
+      op: not_exists
+      value: null
+- rule_id: azure.data.factory_pipeline_run.analytics_snapshot_encrypted_at_rest_cmek
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    var: item.Encrypted
+    op: is_true
+    value: null
+- rule_id: azure.data.factory_pipeline_run.analytics_snapshot_kms_key_policy_least_privilege
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.Encryption.KmsKey.KeyVaultProperties.KeyIdentifier
+      op: exists
+      value: null
+    - var: item.Properties.Encryption.KmsKey.KeyVaultProperties.KeyIdentifier
+      op: not_contains
+      value: wrapKey
+    - var: item.Properties.Encryption.KmsKey.KeyVaultProperties.KeyIdentifier
+      op: not_contains
+      value: unwrapKey
+- rule_id: azure.data.factory_pipeline_run.analytics_snapshot_not_publicly_shared
+  for_each: azure.datafactory.pipelines.list_by_factory
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.Annotations[]
+      op: not_contains
+      value: public
+    - var: item.Properties.Annotations[]
+      op: not_contains
+      value: shared
+- rule_id: azure.data.lake_analytics_catalog.datalake_catalog_audit_logging_enabled
+  for_each: azure.data.lake_analytics_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.properties.diagnosticSettings
+    op: not_empty
+    value: null
+- rule_id: azure.data.lake_analytics_catalog.datalake_catalog_cross_account_sharing_restricted
+  for_each: azure.data.lake_analytics_catalog.datalake_catalog_cross_account_sharing_restricted.list
+  severity: MEDIUM
+  conditions:
+    var: item.Permissions[].PrincipalId
+    op: not_contains
+    value: '*'
+- rule_id: azure.data.lake_analytics_catalog.datalake_catalog_metaencryption_enabled
+  for_each: azure.data.lake_analytics_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    var: item.EncryptionConfiguration.EncryptionState
+    op: equals
+    value: Enabled
+- rule_id: azure.data.lake_analytics_catalog.datalake_catalog_rbac_least_privilege
+  for_each: azure.data.lake_analytics_catalog.list_catalogs
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.effectivePermissions[].permission
+      op: not_in
+      value:
+      - '*'
+      - all
+      - admin
+- rule_id: azure.data.lake_analytics_classifier.datalake_classifier_definition_version_pinned
+  for_each: azure.data.lake_analytics.classifiers.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.classifierType
+    op: exists
+    value: null
+- rule_id: azure.data.lake_analytics_classifier.datalake_classifier_rbac_least_privilege
+  for_each: azure.data.lake_analytics.list_classifiers
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Permissions[].Actions
+      op: not_contains
+      value: '*'
+    - var: item.Permissions[].DataLakeStorePermissions
+      op: not_contains
+      value: '*'
+- rule_id: azure.data.lake_analytics_classifier.datalake_classifier_source_trusted
+  for_each: azure.data.lake_analytics.list_classifiers
+  severity: MEDIUM
+  conditions:
+    var: item.Source
+    op: in
+    value:
+    - AzureSqlDatabase
+    - AzureSqlDataWarehouse
+    - AzureStorage
+    - AzureDataLakeStore
+- rule_id: azure.data.lake_analytics_compute_policy.datalake_dev_endpoint_encrypted
+  for_each: azure.data.lake_analytics_compute_policy.list_compute_policies
+  severity: MEDIUM
+  conditions:
+    var: item.properties.firewallState
+    op: equals
+    value: Enabled
+- rule_id: azure.data.lake_analytics_compute_policy.datalake_dev_endpoint_no_public_access
+  for_each: azure.data.lake_analytics.list_compute_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.objectId
+      op: exists
+      value: null
+    - var: item.properties.objectId
+      op: not_contains
+      value: all users
+    - var: item.properties.objectId
+      op: not_contains
+      value: everyone
+- rule_id: azure.data.lake_analytics_compute_policy.datalake_dev_endpoint_role_least_privilege
+  for_each: azure.data.lake_analytics_compute_policy.list_compute_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.ObjectId
+      op: exists
+      value: null
+    - var: item.ObjectType
+      op: equals
+      value: User
+    - var: item.MaxDegreeOfParallelismPerJob
+      op: lte
+      value: 32
+    - var: item.MinPriorityPerJob
+      op: gte
+      value: 1000
+- rule_id: azure.data.lake_analytics_connection.datalake_connection_credentials_in_secrets_manager
+  for_each: azure.data.lake_analytics.list_connections
+  severity: MEDIUM
+  conditions:
+    var: item.Credentials
+    op: not_exists
+    value: null
+- rule_id: azure.data.lake_analytics_connection.datalake_connection_private_networking_enforced
+  for_each: azure.data.lake_analytics_connection.list_connections
+  severity: MEDIUM
+  conditions:
+    var: item.PrivateEndpointConnections[].PrivateLinkServiceConnectionState.Status
+    op: contains
+    value: Approved
+- rule_id: azure.data.lake_analytics_connection.datalake_connection_role_least_privilege
+  for_each: azure.data.lake_analytics.list_accounts
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.firewallRules[].properties.startIpAddress
+      op: not_contains
+      value: 0.0.0.0
+    - var: item.properties.firewallRules[].properties.endIpAddress
+      op: not_contains
+      value: 255.255.255.255
+- rule_id: azure.data.lake_analytics_connection.datalake_connection_tls_required
+  for_each: azure.data.lake_analytics.connections.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.requireTls
+    op: is_true
+    value: null
+- rule_id: azure.data.lake_analytics_database.datalake_database_cross_account_sharing_restricted
+  for_each: azure.data.lake_analytics.databases.list
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.ExternalTableSharingAccess
+    op: not_contains
+    value: CrossAccount
+- rule_id: azure.data.lake_analytics_database.datalake_database_encrypted
+  for_each: azure.data.lake_analytics_database.list_databases
+  severity: MEDIUM
+  conditions:
+    var: item.EncryptionConfiguration.EncryptionState
+    op: equals
+    value: Enabled
+- rule_id: azure.data.lake_analytics_database.datalake_database_policy_least_privilege
+  for_each: azure.data.lake_analytics_database.list_datalake_analytics_databases
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Permissions
+      op: exists
+      value: null
+    - var: item.Permissions[].Permission
+      op: not_contains
+      value: '*'
+- rule_id: azure.data.lake_analytics_job.datalake_crawler_logs_enabled
+  for_each: azure.data.lake_analytics.list_jobs
+  severity: MEDIUM
+  conditions:
+    var: item.Diagnostics.LogLevel
+    op: exists
+    value: null
+- rule_id: azure.data.lake_analytics_job.datalake_crawler_network_private_only
+  for_each: azure.data.lake_analytics_job.list_jobs
+  severity: MEDIUM
+  conditions:
+    var: item.NetworkAccess
+    op: equals
+    value: Private
+- rule_id: azure.data.lake_analytics_job.datalake_crawler_role_least_privilege
+  for_each: azure.data.lake_analytics_job.list_jobs
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.RoleAssignments[].RoleDefinitionName
+      op: not_contains
+      value: Owner
+    - var: item.RoleAssignments[].RoleDefinitionName
+      op: not_contains
+      value: Contributor
+- rule_id: azure.data.lake_analytics_job.datalake_crawler_scope_restricted_to_allowlist
+  for_each: azure.data.lake_analytics_jobs.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.scopeJobResource[].properties.principalId
+    op: not_contains
+    value: '*'
+- rule_id: azure.data.lake_analytics_job.datalake_job_logs_and_metrics_enabled
+  for_each: azure.data.lake_analytics_job.list_jobs
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Diagnostics.StorageAccountId
+      op: exists
+      value: null
+    - var: item.Diagnostics.MetricsEnabled
+      op: is_true
+      value: null
+    - var: item.Diagnostics.LogsEnabled
+      op: is_true
+      value: null
+- rule_id: azure.data.lake_analytics_job.datalake_job_network_private_only
+  for_each: azure.data.lake_analytics.list_jobs
+  severity: MEDIUM
+  conditions:
+    var: item.NetworkAccess
+    op: equals
+    value: Private
+- rule_id: azure.data.lake_analytics_job.datalake_job_role_least_privilege
+  for_each: azure.data.lake_analytics_job.list_jobs
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.RoleAssignments[].RoleDefinitionName
+      op: not_contains
+      value: Owner
+    - var: item.RoleAssignments[].RoleDefinitionName
+      op: not_contains
+      value: Contributor
+- rule_id: azure.data.lake_analytics_job.datalake_job_script_location_private_and_encrypted
+  for_each: azure.data.lake_analytics.list_jobs
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.scriptLocation.private
+      op: is_true
+      value: null
+    - var: item.properties.scriptLocation.encrypted
+      op: is_true
+      value: null
+- rule_id: azure.data.lake_analytics_lineage.datalake_lineage_access_rbac_least_privilege
+  for_each: azure.data.lake_analytics.list_accounts
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.firewallRules[].properties.startIpAddress
+      op: not_contains
+      value: 0.0.0.0
+    - var: item.properties.firewallRules[].properties.endIpAddress
+      op: not_contains
+      value: 255.255.255.255
+- rule_id: azure.data.lake_analytics_lineage.datalake_lineage_capture_enabled
+  for_each: azure.data_lake_analytics.list_accounts
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.DiagnosticsSettings[].LogSettings[].Enabled
+    op: is_true
+    value: null
+- rule_id: azure.data.lake_analytics_lineage.datalake_lineage_export_destination_encrypted
+  for_each: azure.data.lake_analytics.list_accounts
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryptionState
+    op: equals
+    value: Enabled
+- rule_id: azure.data.lake_analytics_ml_transform.datalake_ml_transform_logs_enabled
+  for_each: azure.data.lake_analytics_ml_transform.describe_datalake_ml_transforms
+  severity: MEDIUM
+  conditions:
+    var: item.DiagnosticsSettings.Logging.Enabled
+    op: is_true
+    value: null
+- rule_id: azure.data.lake_analytics_ml_transform.datalake_ml_transform_network_private_only
+  for_each: azure.data.lake_analytics_ml_transform.list_transforms
+  severity: MEDIUM
+  conditions:
+    var: item.NetworkAccess
+    op: equals
+    value: Private
+- rule_id: azure.data.lake_analytics_ml_transform.datalake_ml_transform_role_least_privilege
+  for_each: azure.data.lake_analytics_ml_transform.list_transforms
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.RoleAssignments[].RoleDefinitionName
+      op: not_contains
+      value: Owner
+    - var: item.RoleAssignments[].RoleDefinitionName
+      op: not_contains
+      value: Contributor
+- rule_id: azure.data.lake_analytics_partition.datalake_partition_access_policies_least_privilege
+  for_each: azure.data.lake_analytics.list_accounts
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.firewallRules[].properties.startIpAddress
+      op: not_contains
+      value: 0.0.0.0
+    - var: item.properties.firewallRules[].properties.endIpAddress
+      op: not_contains
+      value: 255.255.255.255
+- rule_id: azure.data.lake_analytics_partition.datalake_partition_catalog_encrypted
+  for_each: azure.data.lake_analytics.list_partitions
+  severity: MEDIUM
+  conditions:
+    var: item.Encryption
+    op: exists
+    value: null
+- rule_id: azure.data.lake_analytics_quality.datalake_quality_logs_enabled
+  for_each: azure.data.lake_analytics.describe_accounts
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.DiagnosticSettings[].Logs[].Enabled
+    op: is_true
+    value: null
+- rule_id: azure.data.lake_analytics_quality.datalake_quality_output_location_private_and_encrypted
+  for_each: azure.data.lake_analytics.list_accounts
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.firewallState
+      op: equals
+      value: Enabled
+    - var: item.properties.encryptionState
+      op: equals
+      value: Enabled
+- rule_id: azure.data.lake_analytics_quality.datalake_quality_role_least_privilege
+  for_each: azure.data.lake_analytics.list_accounts
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.defaultDataLakeStoreAccount
+      op: exists
+      value: null
+    - var: item.identity
+      op: exists
+      value: null
+    - var: item.identity.type
+      op: equals
+      value: SystemAssigned
+- rule_id: azure.data.lake_analytics_registry.datalake_registry_cross_account_sharing_restricted
+  for_each: azure.data.lake_analytics_registry.describe_registry
+  severity: MEDIUM
+  conditions:
+    var: item.Permissions[].PrincipalId
+    op: not_contains
+    value: '*'
+- rule_id: azure.data.lake_analytics_registry.datalake_registry_metaencryption_enabled
+  for_each: azure.data.lake_analytics.list_registries
+  severity: MEDIUM
+  conditions:
+    var: item.EncryptionState
+    op: equals
+    value: Enabled
+- rule_id: azure.data.lake_analytics_registry.datalake_registry_rbac_least_privilege
+  for_each: azure.data.lake_analytics.list_registries
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.roleAssignments[].roleDefinitionName
+      op: not_in
+      value:
+      - Owner
+      - Contributor
+      - User Access Administrator
+- rule_id: azure.data.lake_analytics_schema.datalake_schema_encrypted
+  for_each: azure.data.lake_analytics.list_accounts
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.EncryptionState
+    op: equals
+    value: Enabled
+- rule_id: azure.data.lake_analytics_schema.datalake_schema_rbac_least_privilege
+  for_each: azure.data.lake_analytics_schema.list_schemas
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Permissions[].Role
+      op: not_in
+      value:
+      - Owner
+      - Contributor
+- rule_id: azure.data.lake_analytics_schema.datalake_schema_version_immutability_enforced
+  for_each: azure.data.lake_analytics.list_accounts
+  severity: MEDIUM
+  conditions:
+    var: item.properties.firewallState
+    op: equals
+    value: Enabled
+- rule_id: azure.data.lake_analytics_table.datalake_table_access_policies_least_privilege
+  for_each: azure.data.lake_analytics_table.list_tables
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.AccessPolicies[].Permissions
+      op: not_contains
+      value: '*'
+    - var: item.AccessPolicies[].Permissions
+      op: not_contains
+      value: All
+- rule_id: azure.data.lake_analytics_table.datalake_table_column_level_access_controls_enabled
+  for_each: azure.data.lake_analytics.list_tables
+  severity: MEDIUM
+  conditions:
+    var: item.ColumnLevelAccessControlsEnabled
+    op: is_true
+    value: null
+- rule_id: azure.data.lake_analytics_table.datalake_table_encrypted
+  for_each: azure.data.lake_analytics.list_tables
+  severity: MEDIUM
+  conditions:
+    var: item.Encryption
+    op: exists
+    value: null
+- rule_id: azure.data.lake_analytics_table.datalake_table_public_sharing_disabled
+  for_each: azure.data_lake_analytics.tables.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.permissions[].type
+    op: not_contains
+    value: public
+- rule_id: azure.data.lake_analytics_trigger.datalake_trigger_event_sources_restricted
+  for_each: azure.data.lake_analytics.triggers.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.type
+    op: not_in
+    value:
+    - Event
+    - Schedule
+- rule_id: azure.data.lake_analytics_trigger.datalake_trigger_logs_enabled
+  for_each: azure.data.lake_analytics.list_triggers
+  severity: MEDIUM
+  conditions:
+    var: item.properties.loggingEnabled
+    op: is_true
+    value: null
+- rule_id: azure.data.lake_analytics_trigger.datalake_trigger_targets_least_privilege
+  for_each: azure.data.lake_analytics.list_triggers
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Permissions[].Action
+      op: not_contains
+      value: '*'
+    - var: item.Permissions[].Principal
+      op: not_contains
+      value: '*'
+- rule_id: azure.data.lake_analytics_workflow.datalake_workflow_cross_account_trusts_restricted
+  for_each: azure.data.lake_analytics.workflows.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.TrustedAccountIds
+      op: exists
+      value: null
+    - var: item.Properties.TrustedAccountIds[]
+      op: not_contains
+      value: '*'
+- rule_id: azure.data.lake_analytics_workflow.datalake_workflow_execution_role_least_privilege
+  for_each: azure.data.lake_analytics_workflow.list_workflows
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.RoleAssignments[].RoleDefinitionName
+      op: not_contains
+      value: Owner
+    - var: item.Properties.RoleAssignments[].RoleDefinitionName
+      op: not_contains
+      value: Contributor
+- rule_id: azure.data.lake_analytics_workflow.datalake_workflow_kms_encryption_enabled
+  for_each: azure.data.lake_analytics.list_workflows
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryptionConfiguration.keyEncryptionKey
+    op: exists
+    value: null
+- rule_id: azure.data.media_stream.streaming_video_encryption_at_rest_enabled
+  for_each: azure.media_stream.list_streaming_endpoints
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryption.enabled
+    op: is_true
+    value: null
+- rule_id: azure.data.media_stream.streaming_video_encryption_in_transit_required
+  for_each: azure.media.streamingendpoints.list
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.Protocols[]
+    op: contains
+    value: Https
+- rule_id: azure.data.media_stream.streaming_video_retention_days_minimum
+  for_each: azure.media.streamingendpoints.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.contentKeyPolicies[].properties.options[].properties.restriction.playReady.playReadyCustomAttributes
+      op: exists
+      value: null
+    - var: item.properties.contentKeyPolicies[].properties.options[].properties.restriction.playReady.playReadyCustomAttributes
+      op: contains
+      value: urn:microsoft:azure:mediaservices:contentkeypolicy:playreadycustomattributes:minimumretentiondays
+    - var: item.properties.contentKeyPolicies[].properties.options[].properties.restriction.playReady.playReadyCustomAttributes
+      op: contains
+      value: '365'
+- rule_id: azure.data.stream_analytics.destination_encrypted
+  for_each: azure.streamanalytics.streamingjobs.list
+  severity: MEDIUM
+  conditions:
+    var: item.Outputs[].Datasource.Properties.Encryption
+    op: exists
+    value: null
+- rule_id: azure.data.stream_analytics.destination_least_privilege
+  for_each: azure.streamanalytics.streamingjobs.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Outputs[].Datasource.Type
+      op: not_equals
+      value: Microsoft.Storage/Blob
+    - var: item.Outputs[].Datasource.AuthenticationMode
+      op: not_equals
+      value: ConnectionString
+- rule_id: azure.data.stream_analytics.logging_enabled
+  for_each: azure.streamanalytics.streamingjobs.list
+  severity: MEDIUM
+  conditions:
+    var: item.Diagnostics.DiagnosticSettings[].Logs[].Enabled
+    op: is_true
+    value: null
+- rule_id: azure.data.stream_analytics_job.streaming_analytics_checkpoints_and_outputs_encrypted
+  for_each: azure.streamanalytics.streamingjobs.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.outputErrorPolicy
+      op: equals
+      value: Stop
+    - var: item.properties.eventsOutOfOrderPolicy
+      op: equals
+      value: Drop
+    - var: item.properties.eventsOutOfOrderMaxDelayInSeconds
+      op: gte
+      value: 0
+    - var: item.properties.eventsLateArrivalMaxDelayInSeconds
+      op: gte
+      value: 5
+- rule_id: azure.data.stream_analytics_job.streaming_analytics_network_private_only
+  for_each: azure.streamanalytics.streamingjobs.list
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.NetworkProfile
+    op: exists
+    value: null
+- rule_id: azure.data.stream_analytics_job.streaming_analytics_role_least_privilege
+  for_each: azure.streamanalytics.streamingjobs.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Identity.Type
+      op: equals
+      value: SystemAssigned
+    - var: item.Identity.PrincipalId
+      op: exists
+      value: null
+    - var: item.Properties.OutputErrorPolicy
+      op: equals
+      value: Stop
+    - var: item.Properties.EventsOutOfOrderPolicy
+      op: equals
+      value: Adjust
+    - var: item.Properties.EventsOutOfOrderMaxDelayInSeconds
+      op: gte
+      value: 0
+    - var: item.Properties.EventsLateArrivalMaxDelayInSeconds
+      op: gte
+      value: 5

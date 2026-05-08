@@ -1,0 +1,57 @@
+tech_type: postgresql
+category: database
+cis_benchmark: CIS PostgreSQL 17 v1.0.0
+cis_section: '2'
+
+rules:
+
+  - rule_id: postgresql.cis.2.extension_directory_has_appropriate_ownership_and
+    title: "Ensure extension directory has appropriate ownership and permissions"
+    severity: high
+    automation_type: automated
+    cis_control: '2.2'
+    cis_section: '2'
+    profile_applicability: "Level 1"
+    scope: postgresql.section_2.extension_directory_has_appropriate_ownership_and
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      If needed, correct the permissions on the extension dir by executing: # whoami
+      root # chown -c root:root $(/usr/pgsql-17/bin/pg_config --sharedir)/extension
+      # chmod -c 0755 $(/usr/pgsql-17/bin/pg_config --sharedir)/extension If the
+      permissions needed correct, it is imperative that all extensions found in
+      $(/usr/pgsql-17/bin/pg_config --sharedir)/extension are evaluated to ensure
+      they have not been modified!
+    compliance:
+      - cis_postgresql_17_v1_0_0_2_2
+
+  - rule_id: postgresql.cis.2.disable_postgresql_command_history
+    title: "Disable PostgreSQL Command History"
+    severity: high
+    automation_type: automated
+    cis_control: '2.3'
+    cis_section: '2'
+    profile_applicability: "Level 1"
+    scope: postgresql.section_2.disable_postgresql_command_history
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      For each OS user on the PostgreSQL server, perform the following steps to
+      implement this setting: 1. Remove .psql_history if it exists. # whoami root #
+      rm -f ~ <user> /.psql_history || true 2. Use either of the techniques below to
+      prevent it from being created again: 1. Set the HISTFILE variable to /dev/null
+      in ~<user>/.psqlrc # whoami root # cat << EOF >> ~ <user> /.psqlrc \set
+      HISTFILE /dev/null EOF 2. Create ~ <user> /.psql_history as a symbolic to
+      /dev/null. # whoami root # ln -s /dev/null $HOME/.psql_history `` 3. Set the
+      PSQL_HISTORY variable for all users: # whoami root # echo
+      'PSQL_HISTORY=/dev/null' >> /etc/environment References: 1.
+      https://www.postgresql.org/docs/current/app-psql.html#APP-PSQL-VARIABLES-
+      HISTFILE
+    compliance:
+      - cis_postgresql_17_v1_0_0_2_3
+
+

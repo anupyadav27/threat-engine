@@ -1,0 +1,1268 @@
+version: '1.0'
+provider: oci
+service: database
+checks:
+- rule_id: oci.database.autonomous_database.account_firewall_use_selected_networks
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.are_only_whitelisted_ips_used
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.account_use_private_endpoints
+  for_each: oci.database.list_autonomous_databases
+  severity: LOW
+  conditions:
+    var: item.nsg_ids
+    op: not_empty
+    value: null
+- rule_id: oci.database.autonomous_database.auditing_retention_90_days
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.audit_configuration.audit_retention_period_in_days
+      op: gte
+      value: '90'
+    - var: item.audit_configuration.is_audit_enabled
+      op: is_true
+      value: null
+- rule_id: oci.database.autonomous_database.aurora_backup_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.aurora_backup_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.auto_minor_version_upgrade
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_auto_scaling_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.automation_artifacts_encrypted_and_private
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.automation_artifacts_encrypted
+      op: is_true
+      value: null
+    - var: item.automation_artifacts_private
+      op: is_true
+      value: null
+- rule_id: oci.database.autonomous_database.automation_execution_roles_least_privilege_required
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.automation_execution_roles
+    op: is_empty
+    value: null
+- rule_id: oci.database.autonomous_database.autonomous_database_access_control_restricted_to_vcn
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.private_endpoint
+    op: exists
+    value: null
+- rule_id: oci.database.autonomous_database.backup_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_backup_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.backup_encrypted_at_rest_cmek
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.database.autonomous_database.backup_encryption_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.is_backup_encryption_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.backup_immutable_or_worm_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.backup_config.is_immutable
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.backup_retention_period
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.backup_retention_period_in_days
+    op: gte
+    value: 30
+- rule_id: oci.database.autonomous_database.cluster_audit_logging
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.database.autonomous_database.cluster_copy_tags_to_snapshots
+  for_each: oci.database.list_autonomous_databases
+  severity: LOW
+  conditions:
+    var: item.is_free_tier
+    op: is_false
+    value: null
+- rule_id: oci.database.autonomous_database.cluster_deletion_protection_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_deletion_protection_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.cluster_integration_cloudwatch_logs
+  for_each: oci.database.list_autonomous_databases
+  severity: LOW
+  conditions:
+    var: item.cluster_integration_cloudwatch_logs
+    op: exists
+    value: null
+- rule_id: oci.database.autonomous_database.cluster_integration_monitoring_logs
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_cluster_integration_monitoring_logs_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.cluster_minor_version_auto_upgrade_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_auto_upgrade_for_major_version_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.cluster_multi_az
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_multi_az
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.cluster_private_networking_enforced
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.nsg_ids
+    op: exists
+    value: null
+- rule_id: oci.database.autonomous_database.cluster_public_access
+  for_each: oci.database.list_autonomous_databases
+  severity: CRITICAL
+  conditions:
+    var: item.is_public
+    op: is_false
+    value: null
+- rule_id: oci.database.autonomous_database.cluster_snapshot_cross_region_copy_encrypted
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.isCrossRegionBackupEnabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.cluster_snapshot_encrypted
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_clone_snapshot_encrypted
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.cluster_storage_encrypted
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_storage_encrypted
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.cluster_tls_min_1_2_enforced
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_tls_required
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.database_encryption_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.is_auto_scaling_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.dataset_access_policies_least_privilege_required
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.dataset_access_policies
+    op: is_empty
+    value: null
+- rule_id: oci.database.autonomous_database.dataset_encrypted_at_rest_cmek
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.database.autonomous_database.dataset_public_sharing_disabled
+  for_each: oci.database.list_autonomous_databases
+  severity: CRITICAL
+  conditions:
+    var: item.is_data_guard_enabled
+    op: is_false
+    value: null
+- rule_id: oci.database.autonomous_database.dataset_row_level_security_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.dataset_row_level_security_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.dr_job_logs_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: LOW
+  conditions:
+    var: item.dr_job_logs_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.dr_job_network_private_only_enforced
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_data_guard_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.dr_job_roles_least_privilege_required
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.ocid
+      op: exists
+      value: null
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+- rule_id: oci.database.autonomous_database.dr_plan_approvals_required_for_changes
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.dr_plan_approvals_required_for_changes
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.dr_plan_change_audit_logging_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_auto_scaling_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.dr_plan_storage_encrypted_and_private
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.dr_plan_storage_encrypted
+      op: is_true
+      value: null
+    - var: item.dr_plan_storage_private
+      op: is_true
+      value: null
+- rule_id: oci.database.autonomous_database.dr_source_agent_to_service_tls_required
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_mtls_connection_required
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.dr_source_encryption_cmek_where_supported_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.dr_source_encryption_cmek_where_supported_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.dr_source_min_telemtry_required_no_pii
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.database.autonomous_database.dw_cluster_audit_logging
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_data_guard_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.dw_cluster_public_access
+  for_each: oci.database.list_autonomous_databases
+  severity: CRITICAL
+  conditions:
+    var: item.is_data_guard_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.dynamodb_table_encryption_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.dynamodb_table_encryption_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.enabled_for_ec2
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_access_control_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.encryption_backup_storage_immutability_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.backup_storage_immutability_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.encryption_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.encryption_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.encryption_key_rotation_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.database.autonomous_database.endpoint_access_allowed_cidrs_minimized_restricted
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.are_primary_whitelisted_ips_used
+      op: is_true
+      value: null
+    - var: item.whitelisted_ips
+      op: length_lte
+      value: 1
+    - var: item.whitelisted_ips[0]
+      op: not_equals
+      value: 0.0.0.0/0
+- rule_id: oci.database.autonomous_database.endpoint_access_private_only_restricted
+  for_each: oci.database.list_autonomous_databases
+  severity: LOW
+  conditions:
+    var: item.nsg_ids
+    op: exists
+    value: null
+- rule_id: oci.database.autonomous_database.endpoint_access_tls_required
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_mtls_connection_required
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.endpoint_authz_no_anonymous_access_restricted
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.are_primary_whitelisted_ips_used
+      op: is_true
+      value: null
+    - var: item.whitelisted_ips[].value
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: oci.database.autonomous_database.endpoint_authz_rbac_least_privilege_required
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.connection_strings.all_connection_strings
+      op: exists
+      value: null
+    - var: item.connection_strings.all_connection_strings[].host_format
+      op: not_contains
+      value: public
+- rule_id: oci.database.autonomous_database.endpoint_redis_in_transit_encryption_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.is_redis_in_transit_encryption_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.instance_backup_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_backup_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.instance_backup_encrypted
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_backup_encrypted
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.instance_copy_tags_to_snapshots
+  for_each: oci.database.list_autonomous_databases
+  severity: LOW
+  conditions:
+    var: item.is_auto_scaling_enabled
+    op: is_false
+    value: null
+- rule_id: oci.database.autonomous_database.instance_deletion_protection
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_deletion_protection_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.instance_deletion_protection_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_deletion_protection_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.instance_encryption_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.is_data_guard_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.instance_enhanced_monitoring_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_monitoring_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.instance_iam_authentication_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.is_mtls_connection_required
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.instance_iam_or_managed_identity_auth_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_iam_or_managed_identity_auth_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.instance_inside_vpc
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.nsg_ids
+    op: not_empty
+    value: null
+- rule_id: oci.database.autonomous_database.instance_integration_cloudwatch_logs
+  for_each: oci.database.list_autonomous_databases
+  severity: LOW
+  conditions:
+    var: item.is_integration_with_cloudwatch_logs_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.instance_integration_monitoring_logs
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.operations_insights_status
+    op: equals
+    value: ENABLED
+- rule_id: oci.database.autonomous_database.instance_logging_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_free_tier
+    op: is_false
+    value: null
+- rule_id: oci.database.autonomous_database.instance_multi_az
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_multi_az
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.instance_no_public_access
+  for_each: oci.database.list_autonomous_databases
+  severity: CRITICAL
+  conditions:
+    var: item.is_publicly_accessible
+    op: is_false
+    value: null
+- rule_id: oci.database.autonomous_database.instance_performance_insights_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_insights_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.instance_public_access_disabled
+  for_each: oci.database.list_autonomous_databases
+  severity: CRITICAL
+  conditions:
+    var: item.is_public
+    op: is_false
+    value: null
+- rule_id: oci.database.autonomous_database.instance_ssl_connections
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_tls_required
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.instance_storage_encrypted
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_storage_encrypted
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.instance_transport_encrypted
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_transport_layer_security_required
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.microsoft_defender_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.microsoft_defender_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.multi_az_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_data_guard_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.option_group_insecure_extensions_not_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.are_primary_whitelisted_ips_used
+      op: is_false
+      value: null
+    - var: item.is_mtls_connection_required
+      op: is_true
+      value: null
+- rule_id: oci.database.autonomous_database.option_group_only_approved_extensions_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.option_group_only_approved_extensions_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.parameter_group_audit_logging_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.parameter_group_audit_logging_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.parameter_group_insecure_features_disabled_where_applicable
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.parameter_group_insecure_features_disabled_where_applicable
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.parameter_group_logging_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.parameter_group_logging_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.parameter_group_tls_required
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.connection_strings.profiles[].tls_authentication
+    op: in
+    value:
+    - REQUIRED
+    - MUTUAL
+- rule_id: oci.database.autonomous_database.partition_catalog_encryption_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.is_auto_scaling_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.plan_configured
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.plan
+    op: exists
+    value: null
+- rule_id: oci.database.autonomous_database.plan_min_retention
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.plan_retention
+    op: gte
+    value: 30
+- rule_id: oci.database.autonomous_database.plans_exist
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.ocid
+    op: exists
+    value: null
+- rule_id: oci.database.autonomous_database.recommended_minimal_tls_version
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.recommended_minimal_tls_version
+    op: in
+    value:
+    - '1.2'
+    - '1.3'
+- rule_id: oci.database.autonomous_database.recovery_point_encrypted
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.recovery_point_encrypted
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.recovery_point_encryption
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.recovery_point_encryption
+    op: exists
+    value: null
+- rule_id: oci.database.autonomous_database.recovery_point_retention
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.recovery_window_in_days
+    op: exists
+    value: null
+- rule_id: oci.database.autonomous_database.replication_task_source_logging_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_replication_task_source_logging_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.replication_task_target_logging_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_replication_target_logging_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.reportplans_exist
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.reportplans
+    op: not_empty
+    value: null
+- rule_id: oci.database.autonomous_database.restore_cross_account_blocked_by_policy
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.restore_cross_account_blocked_by_policy
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.restore_from_encrypted_backups_only
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.restoreFromEncryptedBackupOnly
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.restore_logs_and_artifacts_encrypted
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.restore_logs_and_artifacts_encrypted
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.restore_roles_least_privilege_required
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.restore_roles
+      op: exists
+      value: null
+    - var: item.restore_roles
+      op: not_empty
+      value: null
+- rule_id: oci.database.autonomous_database.schema_encrypted
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_schema_encryption_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.schema_encryption_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.is_schema_encryption_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.schema_version_immutability_enforced
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_schema_version_immutable
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.snapshot_cross_region_copy_encrypted
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.snapshot_cross_region_copy_encrypted
+      op: is_true
+      value: null
+- rule_id: oci.database.autonomous_database.snapshot_encrypted
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_snapshot_encrypted
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.snapshot_encrypted_at_rest_cmek
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.database.autonomous_database.snapshots_encrypted
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_snapshot_encrypted
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.snapshots_public_access
+  for_each: oci.database.list_autonomous_databases
+  severity: CRITICAL
+  conditions:
+    var: item.is_access_control_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.storage_encrypted
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_storage_auto_scaling_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.table_column_level_access_controls_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.table_column_level_access_controls_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.table_encrypted
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.table_encryption
+    op: exists
+    value: null
+- rule_id: oci.database.autonomous_database.table_public_sharing_disabled
+  for_each: oci.database.list_autonomous_databases
+  severity: CRITICAL
+  conditions:
+    var: item.is_data_guard_enabled
+    op: is_false
+    value: null
+- rule_id: oci.database.autonomous_database.tde_encrypted_with_cmk
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.database.autonomous_database.tde_encryption_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.is_tde_encryption_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.testing_execution_roles_least_privilege_required
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.database.autonomous_database.testing_logs_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: LOW
+  conditions:
+    var: item.is_auto_scaling_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.testing_results_storage_encrypted_and_private
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.testing_results_storage_encrypted
+      op: is_true
+      value: null
+    - var: item.testing_results_storage_private
+      op: is_true
+      value: null
+- rule_id: oci.database.autonomous_database.unrestricted_inbound_access
+  for_each: oci.database.list_autonomous_databases
+  severity: CRITICAL
+  conditions:
+    var: item.is_free_tier
+    op: is_false
+    value: null
+- rule_id: oci.database.autonomous_database.vault_encryption_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.database.autonomous_database.vaults_encrypted
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.database.autonomous_database.vaults_exist
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.vault_id
+    op: exists
+    value: null
+- rule_id: oci.database.autonomous_database.workflow_approval_steps_required_for_destructive_actions
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.workflow_approval_steps_required_for_destructive_actions
+    op: is_true
+    value: null
+- rule_id: oci.database.autonomous_database.workflow_integrations_least_privilege_required
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.workload_type
+    op: equals
+    value: OLTP
+- rule_id: oci.database.autonomous_database.workflow_kms_encryption_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.database.backup.backup_destination_private_only_enforced
+  for_each: oci.database.list_autonomous_container_databases
+  severity: MEDIUM
+  conditions:
+    var: item.backup_config.recovery_window_in_days
+    op: exists
+    value: null
+- rule_id: oci.database.backup.backup_schedule_defined_min_frequency_required
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.backup_config.automatic_backup_retention_period_days
+    op: gte
+    value: 1
+- rule_id: oci.database.backup.encryption_cmk_key_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.database.backup.encryption_key_policy_least_privilege_enabled_enforced
+  for_each: oci.database.list_autonomous_container_databases
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.database.backup.encryption_tls_min_1_2_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.connection_strings.all_connection_strings.profiles[].tls_authentication
+    op: in
+    value:
+    - TLS
+    - MUTUAL_TLS
+- rule_id: oci.database.backup.restore_from_encrypted_backups_only
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.Encrypted
+    op: is_true
+    value: null
+- rule_id: oci.database.backup.restore_logs_and_artifacts_encrypted
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_backup_logs_and_artifacts_encrypted
+    op: is_true
+    value: null
+- rule_id: oci.database.backup.snapshot_not_publicly_shared_blocked
+  for_each: oci.database.list_autonomous_databases
+  severity: CRITICAL
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.database.cluster.backup_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_backup_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.cluster.cluster_automated_snapshot
+  for_each: oci.database.list_autonomous_container_databases
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.database.cluster.cluster_encrypted_at_rest
+  for_each: oci.database.list_autonomous_container_databases
+  severity: MEDIUM
+  conditions:
+    var: item.encryption_key_id
+    op: exists
+    value: null
+- rule_id: oci.database.cluster.cluster_enhanced_vcn_routing
+  for_each: oci.database.list_autonomous_container_databases
+  severity: MEDIUM
+  conditions:
+    var: item.enhanced_vcn_routing
+    op: is_true
+    value: null
+- rule_id: oci.database.cluster.cluster_in_transit_encryption_enabled
+  for_each: oci.database.list_autonomous_container_databases
+  severity: HIGH
+  conditions:
+    var: item.is_transit_encryption_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.cluster.cluster_multi_az_enabled
+  for_each: oci.database.list_autonomous_container_databases
+  severity: MEDIUM
+  conditions:
+    var: item.availability_domain
+    op: exists
+    value: null
+- rule_id: oci.database.cluster.cluster_public_access
+  for_each: oci.database.list_autonomous_databases
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.is_free_tier
+      op: is_false
+      value: null
+    - var: item.nsg_ids
+      op: not_empty
+      value: null
+    - var: item.private_endpoint_ip
+      op: exists
+      value: null
+    - var: item.subnet_id
+      op: exists
+      value: null
+- rule_id: oci.database.cluster.default_admin
+  for_each: oci.database.list_autonomous_container_databases
+  severity: CRITICAL
+  conditions:
+    var: item.name
+    op: not_equals
+    value: ADMIN
+- rule_id: oci.database.database.cross_account_sharing_restricted
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.freeform_tags
+    op: exists
+    value: null
+- rule_id: oci.database.database.database_cross_account_sharing_restricted
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.freeform_tags.Environment
+    op: exists
+    value: null
+- rule_id: oci.database.database.database_policy_least_privilege_required
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.database.database.partition_access_policies_least_privilege_required
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.partition_access_policies
+    op: exists
+    value: null
+- rule_id: oci.database.database.schema_rbac_least_privilege_required
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.database.database.table_access_policies_least_privilege_required
+  for_each: oci.database.list_autonomous_databases
+  severity: HIGH
+  conditions:
+    var: item.table_access_policies
+    op: exists
+    value: null
+- rule_id: oci.database.db_system.cluster_admin_access_least_privilege_required
+  for_each: oci.database.list_autonomous_container_databases
+  severity: CRITICAL
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.database.db_system.cluster_automated_snapshot
+  for_each: oci.database.list_autonomous_container_databases
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.database.db_system.cluster_automatic_upgrades
+  for_each: oci.database.list_autonomous_container_databases
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.database.db_system.cluster_copy_tags_to_snapshots
+  for_each: oci.database.list_autonomous_databases
+  severity: LOW
+  conditions:
+    var: item.defined_tags.Environment
+    op: exists
+    value: null
+- rule_id: oci.database.db_system.cluster_encryption_cmek_enabled
+  for_each: oci.database.list_autonomous_container_databases
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.database.db_system.cluster_maintenance_settings
+  for_each: oci.database.list_autonomous_container_databases
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.maintenance_window
+      op: exists
+      value: null
+    - var: item.maintenance_window.days_of_week
+      op: not_empty
+      value: null
+- rule_id: oci.database.db_system.cluster_multi_az
+  for_each: oci.database.list_autonomous_container_databases
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.database.db_system.cluster_snapshot_cross_account_sharing_restricted
+  for_each: oci.database.list_autonomous_container_databases
+  severity: LOW
+  conditions:
+    var: item.freeform_tags.Environment
+    op: not_contains
+    value: cross-account
+- rule_id: oci.database.db_system.cluster_snapshot_encrypted
+  for_each: oci.database.list_autonomous_container_databases
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.database.db_system.cluster_snapshot_not_publicly_shared_blocked
+  for_each: oci.database.list_autonomous_container_databases
+  severity: CRITICAL
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.database.db_system.cluster_storage_encrypted
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.Encrypted
+    op: is_true
+    value: null
+- rule_id: oci.database.db_system.dw_cluster_automated_snapshot
+  for_each: oci.database.list_autonomous_databases
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.database.db_system.dw_cluster_automatic_upgrades
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_auto_scaling_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.db_system.dw_cluster_encrypted
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.Encrypted
+    op: is_true
+    value: null
+- rule_id: oci.database.db_system.dw_cluster_maintenance_settings
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.database.db_system.instance_multi_az_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_multi_az
+    op: is_true
+    value: null
+- rule_id: oci.database.db_system.instance_require_tls_in_transit_required
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_tls_required
+    op: is_true
+    value: null
+- rule_id: oci.database.db_system.multi_az_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.is_data_guard_enabled
+    op: is_true
+    value: null
+- rule_id: oci.database.db_system.parameter_group_require_ssl_required
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.connection_strings.profiles[].value
+    op: contains
+    value: tcps
+- rule_id: oci.database.db_system.recovery_instance_private_network_only_enforced
+  for_each: oci.database.list_autonomous_container_databases
+  severity: MEDIUM
+  conditions:
+    var: item.recovery_instance_private_network_only_enforced
+    op: is_true
+    value: null
+- rule_id: oci.database.db_system.recovery_instance_security_groups_restrictive
+  for_each: oci.database.list_autonomous_container_databases
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.database.db_system.recovery_instance_volumes_encrypted
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.recovery_instance_volumes_encrypted
+    op: is_true
+    value: null
+- rule_id: oci.database.db_system.snapshot_cross_account_sharing_restricted
+  for_each: oci.database.list_autonomous_databases
+  severity: LOW
+  conditions:
+    var: item.freeform_tags.Environment
+    op: exists
+    value: null
+- rule_id: oci.database.db_system.snapshot_not_publicly_shared_blocked
+  for_each: oci.database.list_autonomous_databases
+  severity: CRITICAL
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.database.db_system.user_approved_list_of_superusers_only
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.database.db_system.user_no_unused_or_default_superusers_enabled
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.database.db_system.user_password_auth_hardened_or_iam_enforced
+  for_each: oci.database.list_autonomous_databases
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.is_free_tier
+      op: is_false
+      value: null
+    - any:
+      - var: item.connection_strings.profiles[].consumer_group
+        op: in
+        value:
+        - TP
+        - TPURGENT
+      - var: item.is_mtls_connection_required
+        op: is_true
+        value: null
+- rule_id: oci.database.instance.no_public_access
+  for_each: oci.database.list_autonomous_databases
+  severity: CRITICAL
+  conditions:
+    var: item.is_free_tier
+    op: is_false
+    value: null

@@ -16,32 +16,56 @@ Tables read (threat_engine_inventory):
 """
 
 import logging
-import os
 from typing import Any, Dict, List, Optional
 
 import psycopg2
 import psycopg2.extras
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from engine_common.db_connections import get_inventory_conn
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["inventory-ui-data"])
 
+# ── Auth imports (engine_auth is COPY shared/auth/ ./engine_auth/ in Dockerfile) ──
+try:
+    from engine_auth.fastapi.dependencies import require_permission
+    from engine_auth.core.models import AuthContext
+    _AUTH_AVAILABLE = True
+except ImportError:
+    _AUTH_AVAILABLE = False
+    AuthContext = None  # type: ignore[assignment,misc]
+
+
+def strip_sensitive_fields(data: List[Dict[str, Any]], auth: Any) -> List[Dict[str, Any]]:
+    """Remove credential and raw-evidence fields based on caller's auth level.
+
+    Args:
+        data: List of inventory asset/finding dicts.
+        auth: AuthContext instance (or None when auth is unavailable).
+
+    Returns:
+        New list with sensitive fields removed; original dicts are not mutated.
+    """
+    if not isinstance(data, list):
+        return data
+    stripped = []
+    for row in data:
+        r = dict(row) if not isinstance(row, dict) else row.copy()
+        if auth is not None and auth.level > 1:
+            r.pop("credential_ref", None)
+            r.pop("credential_type", None)
+        if auth is not None and auth.level >= 4:
+            r.pop("raw_data", None)
+            r.pop("evidence", None)
+        stripped.append(r)
+    return stripped
+
 
 # ---------------------------------------------------------------------------
 # Database helpers
 # ---------------------------------------------------------------------------
-
-def _get_inventory_conn():
-    """Create a psycopg2 connection to the inventory database."""
-    return psycopg2.connect(
-        host=os.getenv("INVENTORY_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("INVENTORY_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("INVENTORY_DB_NAME", "threat_engine_inventory"),
-        user=os.getenv("INVENTORY_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("INVENTORY_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-    )
-
 
 def _resolve_scan_run_id(
     cursor: psycopg2.extensions.cursor,
@@ -81,13 +105,36 @@ def _resolve_scan_run_id(
         # Fallback: maybe the value IS a scan_run_id already.
         return scan_run_id
 
-    # "latest" — pick the most recent report for this tenant.
+    # "latest" — pick the most recent completed report that ALSO has findings rows.
+    # Fall back to any report with findings, then to inventory_findings directly.
+    # Verify findings exist before accepting a report-based scan_run_id to avoid
+    # returning a report whose write phase failed (report written, findings missing).
     cursor.execute(
         """
-        SELECT scan_run_id
-        FROM inventory_report
-        WHERE tenant_id = %s
+        SELECT r.scan_run_id
+        FROM inventory_report r
+        WHERE r.tenant_id = %s AND r.status = 'completed' AND r.total_assets > 0
+          AND EXISTS (
+              SELECT 1 FROM inventory_findings f
+              WHERE f.scan_run_id = r.scan_run_id AND f.tenant_id = r.tenant_id
+          )
         ORDER BY created_at DESC LIMIT 1
+        """,
+        (tenant_id,),
+    )
+    row = cursor.fetchone()
+    if row:
+        return row["scan_run_id"]
+
+    # Fallback: most recent scan_run_id with actual findings data
+    cursor.execute(
+        """
+        SELECT scan_run_id, COUNT(*) AS cnt
+        FROM inventory_findings
+        WHERE tenant_id = %s
+        GROUP BY scan_run_id
+        ORDER BY MAX(last_seen_at) DESC NULLS LAST, cnt DESC
+        LIMIT 1
         """,
         (tenant_id,),
     )
@@ -105,6 +152,7 @@ async def inventory_ui_data(
     scan_run_id: str = Query("latest", description="Scan run ID or 'latest'"),
     limit: int = Query(200, ge=1, le=2000, description="Page size for assets"),
     offset: int = Query(0, ge=0, description="Offset for asset pagination"),
+    auth: Any = Depends(require_permission("inventory:read") if _AUTH_AVAILABLE else (lambda: None)),
 ) -> Dict[str, Any]:
     """Return a consolidated UI payload for the inventory dashboard.
 
@@ -126,7 +174,7 @@ async def inventory_ui_data(
     """
     conn = None
     try:
-        conn = _get_inventory_conn()
+        conn = get_inventory_conn()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         # 1. Resolve scan_run_id ----------------------------------------
@@ -243,7 +291,7 @@ async def inventory_ui_data(
             """
             SELECT change_type, COUNT(*) AS cnt
             FROM inventory_drift
-            WHERE scan_run_id = %s AND tenant_id = %s
+            WHERE inventory_scan_id = %s AND tenant_id = %s
             GROUP BY change_type
             ORDER BY cnt DESC
             """,
@@ -259,7 +307,7 @@ async def inventory_ui_data(
         # 6. Paginated asset list -----------------------------------------------
         cursor.execute(
             """
-            SELECT finding_id, scan_run_id, tenant_id, resource_uid,
+            SELECT asset_id, scan_run_id, tenant_id, resource_uid,
                    resource_type, name, provider, account_id,
                    region, tags, configuration, first_seen_at,
                    updated_at
@@ -282,7 +330,7 @@ async def inventory_ui_data(
                 config_val = {}
 
             assets.append({
-                "id": str(r["finding_id"]),
+                "id": str(r["asset_id"]),
                 "resource_uid": r["resource_uid"],
                 "resource_type": r["resource_type"],
                 "resource_name": r["name"],
@@ -313,7 +361,7 @@ async def inventory_ui_data(
                 "assets_by_region": assets_by_region,
                 "relationships_by_type": relationships_by_type,
             },
-            "assets": assets,
+            "assets": strip_sensitive_fields(assets, auth),
             "total": effective_total,
             "has_more": has_more,
             "scan_id": inv_scan_id,

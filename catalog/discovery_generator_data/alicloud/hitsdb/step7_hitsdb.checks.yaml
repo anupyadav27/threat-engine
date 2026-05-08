@@ -1,0 +1,95 @@
+version: '1.0'
+provider: alicloud
+service: hitsdb
+checks:
+- rule_id: alicloud.hologres.database.access_policies_least_privilege
+  for_each: alicloud.dlf.ListDatabases
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.hologres.database.cluster_admin_access_least_privilege
+  for_each: alicloud.dlf.ListDatabases
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.hologres.database.cluster_audit_logging_enabled
+  for_each: alicloud.dlf.ListDatabases
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.hologres.database.cluster_encryption_at_rest_cmek
+  for_each: alicloud.dlf.ListDatabases
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.kms_key_id
+      op: exists
+- rule_id: alicloud.hologres.database.cluster_private_networking_enforced
+  for_each: alicloud.dlf.ListDatabases
+  conditions:
+    var: item.vpc_id
+    op: exists
+- rule_id: alicloud.hologres.database.cluster_tls_min_1_2_enforced
+  for_each: alicloud.dlf.ListDatabases
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.ssl_enabled
+      op: equals
+    - var: item.min_tls_version
+      op: gte
+- rule_id: alicloud.hologres.database.encrypted
+  for_each: alicloud.dlf.ListDatabases
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.hologres.database.public_sharing_disabled
+  for_each: alicloud.dlf.ListDatabases
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.hologres.parameter.audit_logging_enabled
+  for_each: alicloud.hologres.parameter
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.hologres.parameter.tls_required
+  for_each: alicloud.hologres.parameter
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.hologres.snapshot.at_rest_cmek
+  for_each: alicloud.hologres.snapshot
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.kms_key_id
+      op: exists
+- rule_id: alicloud.hologres.snapshot.publicly_shared
+  for_each: alicloud.hologres.snapshot
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+    - var: item.permissions
+      op: not_contains
+- rule_id: alicloud.hologres.snapshot_kms.least_privilege
+  for_each: alicloud.hologres.snapshot_kms
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.permissions
+      op: not_contains

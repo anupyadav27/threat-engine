@@ -1,0 +1,23 @@
+version: '1.0'
+rule_id: aws.elbv2.insecure_ssl_ciphers.insecure_ssl_ciphers_configured
+for_each: aws.elbv2.describe_listeners
+severity: HIGH
+conditions:
+  any:
+  - var: item.Protocol
+    op: not_equals
+    value: HTTPS
+  - var: item.SslPolicy
+    op: exists
+  - all:
+    - var: item.SslPolicy
+      op: not_contains
+      value: ELBSecurityPolicy-TLS13
+    - var: item.SslPolicy
+      op: not_contains
+      value: ELBSecurityPolicy-FS
+    - var: item.SslPolicy
+      op: not_contains
+      value: ELBSecurityPolicy-TLS-1-2-Ext
+fixture_validated: false
+fixture_note: 'FAIL fixture returned PASS — conditions too loose (fail_fixture keys: [''Protocol'', ''Version''])'

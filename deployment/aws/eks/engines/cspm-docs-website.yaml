@@ -1,0 +1,105 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cspm-docs-website
+  namespace: threat-engine-engines
+  labels:
+    app: cspm-docs-website
+    tier: docs
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: cspm-docs-website
+  template:
+    metadata:
+      labels:
+        app: cspm-docs-website
+        tier: docs
+    spec:
+      containers:
+      - name: cspm-docs-website
+        image: yadavanup84/cspm-docs-website:v6
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+          name: http
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /docs/
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 15
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /docs/
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cspm-docs-website
+  namespace: threat-engine-engines
+  labels:
+    app: cspm-docs-website
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  selector:
+    app: cspm-docs-website
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cspm-docs-ingress
+  namespace: threat-engine-engines
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - path: /docs
+        pathType: Prefix
+        backend:
+          service:
+            name: cspm-docs-website
+            port:
+              number: 80
+      - path: /_next/static
+        pathType: Prefix
+        backend:
+          service:
+            name: cspm-docs-website
+            port:
+              number: 80
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: cspm-docs-website
+            port:
+              number: 80

@@ -1,0 +1,110 @@
+version: '1.0'
+provider: alicloud
+service: cas
+checks:
+- rule_id: alicloud.cas.cas.certificate_key_length_minimum
+  for_each: alicloud.cas.certificate
+  severity: MEDIUM
+  conditions:
+    var: item.key_length
+    op: gte
+    value: '2048'
+- rule_id: alicloud.cas.cas.certificate_not_expired
+  for_each: alicloud.cas.certificates
+  severity: MEDIUM
+  conditions:
+    var: item.status
+    op: not_equals
+    value: EXPIRED
+- rule_id: alicloud.cas.cas.certificate_trusted_issuer
+  for_each: alicloud.cas.certificate
+  severity: MEDIUM
+  conditions:
+    var: item.issuer
+    op: exists
+    value: null
+- rule_id: alicloud.cas.cas_private_ca.private_ca_ca_access_rbac_least_privilege
+  for_each: alicloud.cas.cas_private_ca
+  severity: HIGH
+  conditions:
+    var: item.permissions
+    op: exists
+    value: null
+- rule_id: alicloud.cas.cas_private_ca.private_ca_ca_key_in_hsm_where_supported
+  for_each: alicloud.cas.cas_private_ca
+  severity: MEDIUM
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.cas.cas_private_ca.private_ca_crl_or_ocsp_configured
+  for_each: alicloud.cas.cas_private_ca
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.crl_configuration
+      op: exists
+      value: null
+    - var: item.ocsp_configuration
+      op: exists
+      value: null
+- rule_id: alicloud.cas.certificate.expiration
+  for_each: alicloud.cas.certificates
+  severity: MEDIUM
+  conditions:
+    var: item.status
+    op: equals
+    value: ACTIVE
+- rule_id: alicloud.cas.certificates.expiration_check
+  for_each: alicloud.cas.certificates
+  severity: MEDIUM
+  conditions:
+    var: item.status
+    op: not_equals
+    value: EXPIRED
+- rule_id: alicloud.cas.certificates.expiration_check_alicloud_alb_ssl_listeners_alicloud_slb_ssl_listeners_alicloud_cdn_distributions_using_deprecated_ssl_protocols
+  for_each: alicloud.cas.certificates
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.min_tls_version
+      op: exists
+      value: null
+    - var: item.min_tls_version
+      op: not_equals
+      value: '1.0'
+    - var: item.min_tls_version
+      op: not_equals
+      value: '1.1'
+- rule_id: alicloud.cas.certificates.expiration_check_alicloud_oss_bucket_enforces_ssl_alicloud_alb_ssl_listeners_alicloud_elasticsearch_service_domains_node_to_node_encryption_enabled_alicloud_slb_ssl_listeners_alicloud_elasticsearch_service_domains_https_communica
+  for_each: alicloud.cas.certificates
+  severity: HIGH
+  conditions:
+    var: item.status
+    op: equals
+    value: ACTIVE
+- rule_id: alicloud.cas.certificates.not_expired_and_valid
+  for_each: alicloud.cas.certificates
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.status
+      op: equals
+      value: ISSUED
+    - var: item.expired
+      op: is_false
+      value: null
+- rule_id: alicloud.cas.kubernetes.cluster_confidential_computing_enabled
+  for_each: alicloud.cas.kubernetes
+  severity: MEDIUM
+  conditions:
+    var: item.confidential_computing_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.cas.kubernetes_cluster.confidential_computing_enforced
+  for_each: alicloud.cas.kubernetes
+  severity: MEDIUM
+  conditions:
+    var: item.confidential_computing_enforced
+    op: is_true
+    value: null

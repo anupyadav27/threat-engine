@@ -1,0 +1,48 @@
+# Auto-generated: check rules for IBM iks from test-rulecheck_python_code
+version: '1.0'
+provider: ibm
+service: iks
+checks:
+- rule_id: ibm.iks.activity.cluster_config_update
+  for_each: ibm.iks.list_clusters
+  severity: HIGH
+  conditions:
+    var: item.activity_tracking_enabled
+    op: is_true
+- rule_id: ibm.iks.k8s_audit.namespace_change
+  for_each: k8s.audit.list_namespace_events
+  severity: MEDIUM
+  conditions:
+    var: item.eventType
+    op: not_equals
+    value: NamespaceChange
+- rule_id: ibm.iks.k8s_audit.pod_exec
+  for_each: k8s.audit.list_pods
+  severity: HIGH
+  conditions:
+    var: item.spec.containers[].securityContext.allowPrivilegeEscalation
+    op: is_false
+- rule_id: ibm.iks.k8s_audit.privileged_pod
+  for_each: ibm.iks.list_pods
+  severity: CRITICAL
+  conditions:
+    var: item.spec.containers[].securityContext.privileged
+    op: is_false
+- rule_id: ibm.iks.k8s_audit.rolebinding_change
+  for_each: ibm.iks.list_rolebindings
+  severity: CRITICAL
+  conditions:
+    var: item.metadata.annotations['kubernetes.io/change-cause']
+    op: exists
+- rule_id: ibm.iks.k8s_audit.secret_accessed
+  for_each: ibm.iks.list_secrets
+  severity: HIGH
+  conditions:
+    var: item.Accessed
+    op: is_false
+- rule_id: ibm.iks.k8s_audit.webhook_change
+  for_each: ibm.iks.list_clusters
+  severity: CRITICAL
+  conditions:
+    var: item.WebhookAdmissionController.Enabled
+    op: is_true

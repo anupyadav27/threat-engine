@@ -162,10 +162,9 @@ class CheckFindingsReader:
 
         try:
             # Query check_findings for mapped rules
-            # Note: check_findings uses 'id' not 'finding_id', and has no 'severity'/'account_id' columns
             placeholders = ",".join(["%s"] * len(mapped_rule_ids))
             query = f"""
-                SELECT id AS finding_id, scan_run_id, tenant_id,
+                SELECT finding_id, scan_run_id, tenant_id,
                        rule_id, status,
                        resource_type, resource_id, resource_uid,
                        account_id, region,

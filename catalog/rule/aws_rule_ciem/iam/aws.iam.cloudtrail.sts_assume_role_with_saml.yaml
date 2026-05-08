@@ -1,0 +1,83 @@
+rule_id: aws.iam.cloudtrail.sts_assume_role_with_saml
+service: iam
+provider: aws
+check_type: log
+severity: high
+title: 'IAM: STS Assume Role With SAML'
+description: Role assumed via SAML federation — forged or legitimate SAML token used to gain AWS access.
+rationale: Forging SAML tokens (Golden SAML attack) enables long-term, tenant-wide authentication as any user including administrators, without triggering MFA or password checks.
+threat_category: lateral_movement
+mitre_tactics:
+- lateral_movement
+- initial_access
+mitre_techniques:
+- T1606.002
+- T1078.004
+risk_score: 72
+resource: iam_principal
+source: default
+is_active: true
+domain: network_security_and_connectivity
+action_category: audit_activity
+log_source_type: 
+posture_category: network_posture
+threat_tags:
+- T1606.002
+- T1078.004
+- T1078
+- T1606
+- lateral_movement
+- cloud_pivot
+- cloud_iam
+- identity
+risk_indicators:
+  actor_type: iam_user_or_role
+  action_type: write
+  target_type: iam_identity
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 5.1
+  - 5.2
+  - 5.3
+  cis_azure_v2:
+  - 6.1
+  - 6.2
+  nist_800_53_r5:
+  - SC-7
+  - AC-4
+  - SI-3
+  pci_dss_v4:
+  - 1.2
+  - 1.3
+  - 7.2
+  iso_27001_2022:
+  - A.8.20
+  - A.8.22
+  - A.5.14
+remediation: |
+  1. Rotate all SAML signing certificates immediately.
+  2. Enable sign-in risk detection and Conditional Access for suspicious tokens.
+  3. Monitor for unusual service usage patterns from federated accounts.
+  4. Consider migrating to OIDC/OAuth2 from SAML where possible.
+references:
+- https://attack.mitre.org/techniques/T1606/002/
+- https://www.microsoft.com/en-us/security/blog/2020/12/21/advice-for-incident-responders-on-recovery-from-systemic-identity-compromises/
+- https://attack.mitre.org/techniques/T1078/004/
+check_config:
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: sts
+    - field: operation
+      op: equals
+      value: AssumeRoleWithSAML
+version: '1.0'

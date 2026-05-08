@@ -1,0 +1,72 @@
+# ==========================================================
+# Discovery YAML — resiliencehub (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 2 | ops: 0 independent, 2 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: resiliencehub
+
+services:
+  client: resiliencehub
+  module: "boto3.client('resiliencehub')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  []
+
+checks: []
+
+discovery:
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.resiliencehub.describe_app_version_resource [dependent] ──
+  - discovery_id: aws.resiliencehub.describe_app_version_resource
+    for_each: aws.resiliencehub.list_app_assessments
+    calls:
+      - action: describe_app_version_resource
+        params:
+          appArn: "{{ item.appArn }}"
+          appVersion: "{{ item.appVersion }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Tags: '{{ item.Tags }}'
+        additionalInfo: '{{ item.additionalInfo }}'
+        appComponents: '{{ item.appComponents }}'
+        excluded: '{{ item.excluded }}'
+        logicalResourceId: '{{ item.logicalResourceId }}'
+        parentResourceName: '{{ item.parentResourceName }}'
+        physicalResourceId: '{{ item.physicalResourceId }}'
+        resourceName: '{{ item.resourceName }}'
+        resourceType: '{{ item.resourceType }}'
+        sourceType: '{{ item.sourceType }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.resiliencehub.describe_resiliency_policy [dependent] ──
+  - discovery_id: aws.resiliencehub.describe_resiliency_policy
+    for_each: aws.resiliencehub.list_resiliency_policies
+    calls:
+      - action: describe_resiliency_policy
+        params:
+          policyArn: "{{ item.policyArn }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Tags: '{{ item.Tags }}'
+        creationTime: '{{ item.creationTime }}'
+        dataLocationConstraint: '{{ item.dataLocationConstraint }}'
+        estimatedCostTier: '{{ item.estimatedCostTier }}'
+        policy: '{{ item.policy }}'
+        policyArn: '{{ item.policyArn }}'
+        policyDescription: '{{ item.policyDescription }}'
+        policyName: '{{ item.policyName }}'
+        tags: '{{ item.tags }}'
+        tier: '{{ item.tier }}'
+

@@ -1,0 +1,57 @@
+version: '1.0'
+provider: azure
+service: containerservice
+checks:
+# ═══════════════════════════════════════════
+# AKS Managed Clusters — azure.containerservice.managedclusters.list
+# Fields: id, name, type, properties, zones
+# azure.containerservice.managedclusters.list_by_resource_group
+# Fields: id, name, type, location, tags, kubernetes_version, node_image_version,
+#         os_sku, os_type, vm_size, enable_fips, creation_data, snapshot_type, system_data
+# ═══════════════════════════════════════════
+
+# --- Security ---
+- rule_id: azure.aks.cluster.fips_enabled
+  for_each: azure.containerservice.managedclusters.list_by_resource_group
+  conditions:
+    var: item.enable_fips
+    op: equals
+    value: 'true'
+
+- rule_id: azure.aks.cluster.kubernetes_version_current
+  for_each: azure.containerservice.managedclusters.list_by_resource_group
+  conditions:
+    var: item.kubernetes_version
+    op: not_empty
+
+# --- Inventory ---
+- rule_id: azure.aks.cluster.os_sku_configured
+  for_each: azure.containerservice.managedclusters.list_by_resource_group
+  conditions:
+    var: item.os_sku
+    op: not_empty
+
+- rule_id: azure.aks.cluster.tags_configured
+  for_each: azure.containerservice.managedclusters.list_by_resource_group
+  conditions:
+    var: item.tags
+    op: not_empty
+
+- rule_id: azure.aks.cluster.system_data_present
+  for_each: azure.containerservice.managedclusters.list_by_resource_group
+  conditions:
+    var: item.system_data
+    op: not_empty
+
+# --- Properties (via .list which emits properties blob) ---
+- rule_id: azure.aks.cluster.properties_configured
+  for_each: azure.containerservice.managedclusters.list
+  conditions:
+    var: item.properties
+    op: not_empty
+
+- rule_id: azure.aks.cluster.zones_configured
+  for_each: azure.containerservice.managedclusters.list
+  conditions:
+    var: item.zones
+    op: not_empty

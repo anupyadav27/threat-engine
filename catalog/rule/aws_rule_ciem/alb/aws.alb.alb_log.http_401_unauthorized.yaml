@@ -1,0 +1,70 @@
+rule_id: aws.alb.alb_log.http_401_unauthorized
+service: alb
+provider: aws
+check_type: log
+severity: medium
+title: 'ALB: HTTP 401 Unauthorized'
+description: HTTP 401 Unauthorized — authentication required; possible credential enumeration.
+rationale: Password guessing attacks can compromise accounts with weak passwords; detection enables account lockout before successful compromise occurs.
+threat_category: initial_access
+mitre_tactics:
+- credential_access
+mitre_techniques:
+- T1110.001
+risk_score: 45
+resource: elb_load_balancer
+source: default
+is_active: true
+domain: network_security_and_connectivity
+action_category: create
+log_source_type: 
+posture_category: threat_posture
+threat_tags:
+- T1110.001
+- T1110
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.14
+  - 2.1
+  cis_azure_v2:
+  - 1.2
+  - 2.1
+  nist_800_53_r5:
+  - AC-17
+  - IA-2
+  - SI-3
+  pci_dss_v4:
+  - 8.3
+  - 11.5
+  iso_27001_2022:
+  - A.8.5
+  - A.9.4
+remediation: |
+  1. Enforce account lockout policies after consecutive failed attempts.
+  2. Require strong password complexity and minimum length.
+  3. Enable MFA to prevent successful login even if password is guessed.
+  4. Block sign-ins from high-risk IP ranges using Conditional Access policies.
+references:
+- https://attack.mitre.org/techniques/T1110/001/
+- https://learn.microsoft.com/en-us/azure/active-directory/authentication/tutorial-enable-azure-mfa
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alb
+    - field: error_code
+      op: equals
+      value: '401'
+version: '1.0'

@@ -1,0 +1,2921 @@
+# ORACLE_DB — CIEM Detection Rules
+# Real-time authentication & access event analysis
+# Log source: audit_trail, v$xml_audit_trail
+
+tech_type: oracle_db
+category: database
+log_source: audit_trail, v$xml_audit_trail
+
+rules:
+
+  - rule_id: tciem.oracle_db.sqlnet_allowed_logon_version_client_is_set_to_12a
+    title: "Ensure 'SQLNET.ALLOWED_LOGON_VERSION_CLIENT' Is Set To 12a"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.2.4'
+    cis_section: '2'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this recommendation, set SQLNET.ALLOWED_LOGON_VERSION_CLIENT to
+      12a. Default Value: 12 References: 1.
+      https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/netrf/parameters- for-the-
+      sqlnet.ora.html#GUID-B2908ADF-0973-44A9-9B34-587A3D605BED
+
+  - rule_id: tciem.oracle_db.sqlnet_allowed_logon_version_server_is_set_to_12a
+    title: "Ensure 'SQLNET.ALLOWED_LOGON_VERSION_SERVER' Is Set To 12a"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.2.5'
+    cis_section: '2'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this recommendation, set SQLNET.ALLOWED_LOGON_VERSION_SERVER to
+      12a. Default Value: 12 References: 1.
+      https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/netrf/parameters- for-the-
+      sqlnet.ora.html#GUID-B2908ADF-0973-44A9-9B34-587A3D605BED
+
+  - rule_id: tciem.oracle_db.allow_group_access_to_sga_is_set_to_false
+    title: "Ensure 'ALLOW_GROUP_ACCESS_TO_SGA' Is Set To `FALSE`"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.3.4'
+    cis_section: '2'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement. ALTER SYSTEM
+      SET ALLOW_GROUP_ACCESS_TO_SGA='FALSE' SCOPE=SPFILE; Default Value: FALSE
+      References: 1. https://docs.oracle.com/en//database/oracle/oracle-
+      database/23/refrn/ALLOW_GROUP_ACCESS_TO_SGA.html#GUID-
+      A6BABC97-7EF8-4E1A-89C9-CF81EDCFB4A2
+
+  - rule_id: tciem.oracle_db.sec_max_failed_login_attempts_is_set_to_3_or_less
+    title: "Ensure 'SEC_MAX_FAILED_LOGIN_ATTEMPTS' Is Set To '3' Or Less"
+    severity: high
+    mitre_technique: T1110
+    mitre_tactic: credential_access
+    cis_control: '2.3.8'
+    cis_section: '2'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: authentication_failure
+      threshold: 5
+      window_seconds: 300
+      group_by: [source_ip, username]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement and restart the
+      instance. ALTER SYSTEM SET SEC_MAX_FAILED_LOGIN_ATTEMPTS = 3 SCOPE = SPFILE;
+      Default Value: 3 References: 1.
+      https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/refrn/SEC_MAX_FAILED_LOGIN_ATTEMPTS.html
+
+  - rule_id: tciem.oracle_db.remote_login_passwordfile_is_set_to_none
+    title: "Ensure 'REMOTE_LOGIN_PASSWORDFILE' Is Set To 'NONE'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.3.12'
+    cis_section: '2'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement and restart the
+      instance. ALTER SYSTEM SET REMOTE_LOGIN_PASSWORDFILE = 'NONE' SCOPE = SPFILE;
+      Default Value: EXCLUSIVE References: 1.
+      https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/refrn/REMOTE_LOGIN_PASSWORDFILE.html
+
+  - rule_id: tciem.oracle_db.admin_restrictions_is_set_to_on
+    title: "Ensure 'ADMIN_RESTRICTIONS_' Is Set to 'ON'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '2.1.2'
+    cis_section: '2'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this recommendation: Use a text editor such as vi to set the
+      admin_restrictions_ <listener_name> to the value ON. Default Value: Not set.
+      References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/netag/configuring-and-administering-oracle-net-listener.html
+
+  - rule_id: tciem.oracle_db.audit_sys_operations_is_set_to_true
+    title: "Ensure 'AUDIT_SYS_OPERATIONS' Is Set to 'TRUE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '2.2.1'
+    cis_section: '2'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement and restart the
+      instance. ALTER SYSTEM SET AUDIT_SYS_OPERATIONS = TRUE SCOPE=SPFILE; Default
+      Value: TRUE References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/refrn/AUDIT_SYS_OPERATIONS.html
+
+  - rule_id: tciem.oracle_db.audit_trail_is_set_to_db_xml_os_db_extended_or
+    title: "Ensure 'AUDIT_TRAIL' Is Set to 'DB', 'XML', 'OS', 'DB,EXTENDED', or 'XML,EXTENDED'"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '2.2.2'
+    cis_section: '2'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute one of the following SQL statements and
+      restart the instance. ALTER SYSTEM SET AUDIT_TRAIL = DB, EXTENDED SCOPE =
+      SPFILE; ALTER SYSTEM SET AUDIT_TRAIL = OS SCOPE = SPFILE; ALTER SYSTEM SET
+      AUDIT_TRAIL = XML, EXTENDED SCOPE = SPFILE; ALTER SYSTEM SET AUDIT_TRAIL = DB
+      SCOPE = SPFILE; ALTER SYSTEM SET AUDIT_TRAIL = XML SCOPE = SPFILE; References:
+      1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/refrn/AUDIT_TRAIL.html
+
+  - rule_id: tciem.oracle_db.remote_os_authent_is_set_to_false
+    title: "Ensure 'REMOTE_OS_AUTHENT' Is Set to 'FALSE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '2.2.7'
+    cis_section: '2'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement. ALTER SYSTEM
+      SET REMOTE_OS_AUTHENT = FALSE SCOPE = SPFILE; References: 1.
+      https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/refrn/REMOTE_OS_AUTHENT.html
+
+  - rule_id: tciem.oracle_db.sec_case_sensitive_logon_is_set_to_true
+    title: "Ensure 'SEC_CASE_SENSITIVE_LOGON' Is Set to 'TRUE'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.2.9'
+    cis_section: '2'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement. ALTER SYSTEM
+      SET SEC_CASE_SENSITIVE_LOGON = TRUE SCOPE = SPFILE; References: 1.
+      https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/refrn/SEC_CASE_SENSITIVE_LOGON.html
+
+  - rule_id: tciem.oracle_db.sec_max_failed_login_attempts_is_3_or_less
+    title: "Ensure 'SEC_MAX_FAILED_LOGIN_ATTEMPTS' Is '3' or Less"
+    severity: high
+    mitre_technique: T1110
+    mitre_tactic: credential_access
+    cis_control: '2.2.10'
+    cis_section: '2'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: authentication_failure
+      threshold: 5
+      window_seconds: 300
+      group_by: [source_ip, username]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement. ALTER SYSTEM
+      SET SEC_MAX_FAILED_LOGIN_ATTEMPTS = 3 SCOPE = SPFILE; References: 1.
+      https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/refrn/SEC_MAX_FAILED_LOGIN_ATTEMPTS.html
+
+  - rule_id: tciem.oracle_db.sql92_security_is_set_to_true
+    title: "Ensure 'SQL92_SECURITY' Is Set to 'TRUE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '2.2.14'
+    cis_section: '2'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement. ALTER SYSTEM
+      SET SQL92_SECURITY = TRUE SCOPE = SPFILE; Default Value: TRUE References: 1.
+      https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/refrn/SQL92_SECURITY.html
+
+  - rule_id: tciem.oracle_db.trace_files_public_is_set_to_false
+    title: "Ensure '_trace_files_public' Is Set to 'FALSE'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.2.15'
+    cis_section: '2'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement. ALTER SYSTEM
+      SET '_trace_files_public' = FALSE SCOPE = SPFILE; References: 1.
+      http://asktom.oracle.com/pls/asktom/f?p=100:11:0::::P11_QUESTION_ID:429552
+      1746131
+
+  - rule_id: tciem.oracle_db.failed_login_attempts_is_less_than_or_equal_to_5
+    title: "Ensure 'FAILED_LOGIN_ATTEMPTS' Is Less Than Or Equal To '5'"
+    severity: high
+    mitre_technique: T1110
+    mitre_tactic: credential_access
+    cis_control: '3.1'
+    cis_section: '3'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: authentication_failure
+      threshold: 5
+      window_seconds: 300
+      group_by: [source_ip, username]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Remediate this setting by executing the following SQL statement for each
+      PROFILE returned by the audit procedure. ALTER PROFILE <profile_name> LIMIT
+      FAILED_LOGIN_ATTEMPTS 5; Default Value: 10 References: 1.
+      https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/CREATE-
+      PROFILE.html#d387296e851 Additional Information: The similar setting used to
+      block a DDoS, the SEC_MAX_FAILED_LOGIN_ATTEMPTS initialization parameter, can
+      be used to protect unauthorized intruders from attacking the server processes
+      for applications, but this setting does not protect against unauthorized
+      attempts via valid usernames. The SEC_MAX_FAILED_LOGIN_ATTEMPTS prevents
+      multiple failed login attempts by a single connection. The parameter differs
+      from the limit set on user profiles and applied to failed login attempts to a
+      single user account. Limiting failed authentication attempts by a single
+      connection helps protect against Denial of Service (DoS) attacks and
+      authentication attempts against multiple user accounts.
+
+  - rule_id: tciem.oracle_db.password_lock_time_is_greater_than_or_equal_to_1
+    title: "Ensure 'PASSWORD_LOCK_TIME' Is Greater Than Or Equal To '1'"
+    severity: high
+    mitre_technique: T1110
+    mitre_tactic: credential_access
+    cis_control: '3.2'
+    cis_section: '3'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: authentication_failure
+      threshold: 5
+      window_seconds: 300
+      group_by: [source_ip, username]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Remediate this setting by executing the following SQL statement for each
+      PROFILE returned by the audit procedure. ALTER PROFILE <profile_name> LIMIT
+      PASSWORD_LOCK_TIME 1; Default Value: 1 References: 1.
+      https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/CREATE-
+      PROFILE.html#d387296e968
+
+  - rule_id: tciem.oracle_db.inactive_account_time_is_less_than_or_equal_to_120
+    title: "Ensure 'INACTIVE_ACCOUNT_TIME' Is Less than or Equal to '120'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.8'
+    cis_section: '3'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Remediate this setting by executing the following SQL statement for each
+      PROFILE returned by the audit procedure. ALTER PROFILE DEFAULT LIMIT
+      INACTIVE_ACCOUNT_TIME 120 Default Value: The default value may vary based on
+      Oracle versions and configurations. References: 1.
+      https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/configuring-authentication.html#d23067e2021
+
+  - rule_id: tciem.oracle_db.password_grace_time_is_less_than_or_equal_to_5
+    title: "Ensure 'PASSWORD_GRACE_TIME' Is Less than or Equal to '5'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.6'
+    cis_section: '3'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Remediate this setting by executing the following SQL statement for each
+      PROFILE returned by the audit procedure. ALTER PROFILE <profile_name> LIMIT
+      PASSWORD_GRACE_TIME 5; References: 1.
+      https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/CREATE-
+      PROFILE.html#d346953e806
+
+  - rule_id: tciem.oracle_db.all_default_passwords_are_changed
+    title: "Ensure All Default Passwords Are Changed"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.1'
+    cis_section: '4'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To reset the account with NO AUTHENTICATION, execute the following SQL
+      statement in CDB: ALTER USER <USERNAME> NO AUTHENTICATION; Notes: • As per
+      Oracle Support Document 2173962.1, newly created database may list SYS and
+      SYSTEM in CBA_USERS_WITH_DEFPWD even if they were set with non- default
+      passwords. Running ALTER USER with the same password will correctly recognize
+      these accounts as non-default. • If remote_password_file is set to NONE,
+      changing the SYS password via ALTER USER is not possible. In this case, update
+      remote_password_file to EXCLUSIVE before modifying the SYS password.
+      References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/keeping- your-oracle-database-secure.html 2.
+      https://support.oracle.com/epmos/faces/DocumentDisplay?id=2173962.1
+
+  - rule_id: tciem.oracle_db.latest_version_of_the_password_file_is_used
+    title: "Ensure The Latest Version of The Password File Is Used"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.5'
+    cis_section: '4'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To update the password file to the latest format (12.2), follow these steps: •
+      Ensure that all users in the password file have passwords meeting 12.2
+      complexity requirements. • Use the orapwd utility to create a new password
+      file in 12.2 format: orapwd file=orapwd122 FORMAT=12.2 • If the password file
+      name or location has recently changed and the changes are not reflected,
+      refresh the metadata cache: ALTER SYSTEM FLUSH PASSWORDFILE_METADATA_CACHE; •
+      Validate the password file format using the audit query again. Default Value:
+      12.2 References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/refrn/V- PASSWORDFILE_INFO.html#GUID-726CF0F6-14A4-465B-B46B-
+      E2AC8CFFD27A
+
+  - rule_id: tciem.oracle_db.no_public_database_links_exist
+    title: "Ensure No Public Database Links Exist"
+    severity: high
+    mitre_technique: T1530
+    mitre_tactic: collection
+    cis_control: '4.7'
+    cis_section: '4'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: data_access
+      threshold: 1
+      filters:
+        data_classification: sensitive
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remove a public database link, execute the following SQL command: DROP
+      PUBLIC DATABASE LINK <DB_LINK> ;
+
+  - rule_id: tciem.oracle_db.dba_users_authentication_type_is_not_set_to
+    title: "Ensure 'DBA_USERS.AUTHENTICATION_TYPE' Is Not Set to 'EXTERNAL' for Any User"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.3'
+    cis_section: '4'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. ALTER USER <username> IDENTIFIED BY
+      <password> ; References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/refrn/DBA_USERS.html#d1365273e525 Additional Information: The
+      PASSWORD keyword (column) used in the SQL for prior Oracle versions has been
+      deprecated from version 11.2 onward in favor of the new AUTHENTICATION_TYPE
+      keyword (column) for the DBA_USERS table. However, the PASSWORD column has
+      still been retained for backward compatibility.
+
+  - rule_id: tciem.oracle_db.all_auditable_system_actions_commands_are_audited
+    title: "Ensure All Auditable System Actions Commands Are Audited"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '5.1'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this recommendation: ALTER
+      AUDIT POLICY CIS_LOCAL_SYSTEM_ACTIONS ADD ACTIONS <DDL> ; or ALTER AUDIT
+      POLICY CIS_LOCAL_SYSTEM_ACTIONS ADD PRIVILEGES <DDL> ; Note: If you do not
+      have CIS_LOCAL_SYSTEM_ACTIONS, please create one using the CREATE AUDIT POLICY
+      statement. References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/sqlrf/Types-of- SQL-Statements.html#GUID-
+      FD9A8CB4-6B9A-44E5-B114-EFB8DA76FC88 2.
+      https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/AUDIT-
+      Unified-Auditing.html Additional Information: Check for EXCEPTION, as it may
+      disable auditing for certain users. SELECT POLICY_NAME, ENABLED_OPTION,
+      ENTITY_NAME FROM AUDIT_UNIFIED_ENABLED_POLICIES WHERE ENABLED_OPTION = 'EXCEPT
+      USER';
+
+  - rule_id: tciem.oracle_db.logon_and_logoff_actions_audit_is_enabled
+    title: "Ensure the 'LOGON' AND 'LOGOFF' Actions Audit Is Enabled"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.2'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. Run the
+      following query in the CDB and in each PDB: CREATE AUDIT POLICY
+      CIS_CDB_LOGON_LOGOFF ACTIONS LOGON, LOGOFF ACTIONS COMPONENT=PROTOCOL HTTP,
+      FTP, AUTHENTICATION; AUDIT POLICY CIS_CDB_LOGON_LOGOFF; Note: If you do not
+      have CIS_CDB_LOGON_LOGOFF, please create one using the CREATE AUDIT POLICY
+      statement. Refer to Section 8.2 where a PL/SQL block is provided to help
+      create or modify the audit policy to remediate this item in both container and
+      pluggable database.
+
+  - rule_id: tciem.oracle_db.critical_packages_are_audited
+    title: "Ensure Critical Packages Are Audited"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '5.3'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this recommendation: CREATE
+      AUDIT POLICY DRVADMIN_MIGHTY_PACKAGES ACTIONS EXECUTE ON SYS.DBMS_AW, EXECUTE
+      ON SYS.DBMS_CRYPTO, EXECUTE ON SYS.DBMS_FGA, EXECUTE ON SYS.DBMS_JAVA_TEST,
+      EXECUTE ON SYS.DBMS_JOB, EXECUTE ON SYS.DBMS_LOGMNR, EXECUTE ON
+      SYS.DBMS_NETWORK_ACL_ADMIN, EXECUTE ON SYS.DBMS_OBFUSCATION_TOOLKIT, EXECUTE
+      ON SYS.DBMS_REDACT, EXECUTE ON SYS.DBMS_REDEFINITION, EXECUTE ON SYS.DBMS_RLS,
+      EXECUTE ON SYS.DBMS_SCHEDULER, EXECUTE ON SYS.DBMS_SQL_TRANSLATOR, EXECUTE ON
+      SYS.DBMS_SYS_SQL, EXECUTE ON SYS.DBMS_TSDP_MANAGE, EXECUTE ON
+      SYS.DBMS_TSDP_PROTECT, EXECUTE ON SYS.DBMS_XMLGEN, EXECUTE ON
+      SYS.DBMS_XMLSTORE, EXECUTE ON SYS.OWA_UTIL ONLY TOPLEVEL; Default Value: These
+      packages are not audited by default.
+
+  - rule_id: tciem.oracle_db.all_export_activities_are_audited
+    title: "Ensure All Export Activities Are Audited"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '5.4'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement in the CDB and in each PDB to remediate
+      this recommendation: ALTER AUDIT POLICY CIS_CDB_EXPORT ADD ACTIONS
+      COMPONENT=datapump EXPORT; Note: If you do not have CIS_CDB_EXPORT, please
+      create one using the CREATE AUDIT POLICY statement. Refer to Section 8.4 where
+      a PL/SQL block is provided to help create or modify the audit policy to
+      remediate this item in both container and pluggable database. Default Value:
+      Export datapump activities are not audited by default. References: 1.
+      https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/configuring-audit-policies.html#GUID-AA781864-5756-464E-
+      AFB6-675625AF0EF5 Additional Information: RMAN activities are subject to
+      mandatory auditing as part of the ORA$MANDATORY audit policy, which is listed
+      in the UNIFIED_AUDIT_POLITICES column of the UNIFIED_AUDIT_TRAIL data
+      dictionary view. This policy cannot be disabled.
+
+  - rule_id: tciem.oracle_db.use_of_sys_privileges_is_audited
+    title: "Ensure The Use Of SYS* Privileges Is Audited"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '5.5'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement in the CDB and in each PDB to remediate
+      this recommendation: CREATE AUDIT POLICY
+      CIS_CDB_ALL_ACTIONS_BY_PRIVILEGED_USERS ACTIONS ALL WHEN q'!
+      (SYS_CONTEXT('USERENV','CLIENT_PROGRAM_NAME') NOT IN ('emagent') AND
+      INSTR(UPPER(SYS_CONTEXT('USERENV','CLIENT_PROGRAM_NAME')),'PERL') = 0 AND
+      INSTR(UPPER(SYS_CONTEXT('USERENV','CLIENT_PROGRAM_NAME')),'RMAN') = 0 AND
+      INSTR(UPPER(SYS_CONTEXT('USERENV','CLIENT_PROGRAM_NAME')),'OMS') = 0)!'
+      EVALUATE PER SESSION ONLY TOPLEVEL; AUDIT POLICY
+      CIS_CDB_ALL_ACTIONS_BY_PRIVILEGED_USERS BY SYS, SYSKM, SYSBACKUP, SYSRAC,
+      SYSDG, PUBLIC; Note: If you do not have
+      CIS_CDB_ALL_ACTIONS_BY_PRIVILEGED_USERS, please create one using the CREATE
+      AUDIT POLICY statement. Refer to Section 8.5 where a PL/SQL block is provided
+      to help create or modify the audit policy to remediate this item in both
+      container and pluggable database. For legacy reasons the SYSOPER privilege is
+      using the name PUBLIC. The used privilege in the unified audit log is SYSOPR.
+      Emagent, OMS, RMAN and Perl have been excluded to prevent an excessive number
+      of events and issues with spillover files. Default Value: Empty References: 1.
+      https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/CREATE-
+      AUDIT-POLICY-Unified-Auditing.html
+
+  - rule_id: tciem.oracle_db.execute_is_revoked_from_public_on_network_packages
+    title: "Ensure 'EXECUTE' is revoked from 'PUBLIC' on 'Network' Packages"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.1.1.1'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. REVOKE EXECUTE ON DBMS_LDAP FROM PUBLIC;
+      REVOKE EXECUTE ON UTL_INADDR FROM PUBLIC; REVOKE EXECUTE ON UTL_TCP FROM
+      PUBLIC; REVOKE EXECUTE ON UTL_MAIL FROM PUBLIC; REVOKE EXECUTE ON UTL_SMTP
+      FROM PUBLIC; REVOKE EXECUTE ON UTL_DBWS FROM PUBLIC; REVOKE EXECUTE ON
+      UTL_ORAMTS FROM PUBLIC; REVOKE EXECUTE ON UTL_HTTP FROM PUBLIC; REVOKE EXECUTE
+      ON HTTPURITYPE FROM PUBLIC;
+
+  - rule_id: tciem.oracle_db.execute_is_revoked_from_public_on_file_system
+    title: "Ensure 'EXECUTE' is revoked from 'PUBLIC' on 'File System' Packages"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.1.1.2'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. REVOKE EXECUTE ON DBMS_ADVISOR FROM PUBLIC;
+      REVOKE EXECUTE ON DBMS_LOB FROM PUBLIC; REVOKE EXECUTE ON UTL_FILE FROM
+      PUBLIC;
+
+  - rule_id: tciem.oracle_db.execute_is_revoked_from_public_on_java_packages
+    title: "Ensure 'EXECUTE' is revoked from 'PUBLIC' on 'Java' Packages"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '5.1.1.4'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. REVOKE EXECUTE ON DBMS_JAVA FROM PUBLIC;
+      REVOKE EXECUTE ON DBMS_JAVA_TEST FROM PUBLIC;
+
+  - rule_id: tciem.oracle_db.execute_is_revoked_from_public_on_sql_injection
+    title: "Ensure 'EXECUTE' is revoked from 'PUBLIC' on 'SQL Injection Helper' Packages"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '5.1.1.6'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. REVOKE EXECUTE ON DBMS_SQL FROM PUBLIC;
+      REVOKE EXECUTE ON DBMS_XMLGEN FROM PUBLIC; REVOKE EXECUTE ON DBMS_XMLQUERY
+      FROM PUBLIC; REVOKE EXECUTE ON DBMS_XMLSAVE FROM PUBLIC; REVOKE EXECUTE ON
+      DBMS_XMLSTORE FROM PUBLIC; REVOKE EXECUTE ON DBMS_AW FROM PUBLIC; REVOKE
+      EXECUTE ON OWA_UTIL FROM PUBLIC; REVOKE EXECUTE ON DBMS_REDACT FROM PUBLIC;
+
+  - rule_id: tciem.oracle_db.all_is_revoked_from_unauthorized_grantee_on_aud
+    title: "Ensure 'ALL' Is Revoked from Unauthorized 'GRANTEE' on 'AUD$'"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '5.1.3.1'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. REVOKE ALL ON AUD$ FROM <grantee> ;
+      References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/dbseg/administering-the-audit-trail.html
+
+  - rule_id: tciem.oracle_db.all_is_revoked_from_unauthorized_grantee_on_dba
+    title: "Ensure 'ALL' Is Revoked from Unauthorized 'GRANTEE' on 'DBA_%'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '5.1.3.2'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Replace <Non-DBA/SYS grantee> in the query below, with the Oracle login(s) or
+      role(s) returned from the associated audit procedure and execute, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke: REVOKE ALL ON <DBA_%> FROM <Non-DBA/SYS
+      grantee> ; References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/refrn/static-data- dictionary-views.html
+
+  - rule_id: tciem.oracle_db.all_is_revoked_on_sensitive_tables
+    title: "Ensure 'ALL' Is Revoked on 'Sensitive' Tables"
+    severity: high
+    mitre_technique: T1530
+    mitre_tactic: collection
+    cis_control: '5.1.3.3'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: data_access
+      threshold: 1
+      filters:
+        data_classification: sensitive
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute applicable SQLs listed below to remediate: REVOKE ALL ON
+      SYS.CDB_LOCAL_ADMINAUTH$ FROM <grantee> ; REVOKE ALL ON SYS.DEFAULT_PWD$ FROM
+      <grantee> ; REVOKE ALL ON SYS.ENC$ FROM <grantee> ; REVOKE ALL ON SYS.HISTGRM$
+      FROM <grantee> ; REVOKE ALL ON SYS.HIST_HEAD$ FROM <grantee> ; REVOKE ALL ON
+      SYS.LINK$ FROM <grantee> ; REVOKE ALL ON SYS.PDB_SYNC$ FROM <grantee> ; REVOKE
+      ALL ON SYS.SCHEDULER$_CREDENTIAL FROM <grantee> ; REVOKE ALL ON SYS.USER$ FROM
+      <grantee> ; REVOKE ALL ON SYS.USER_HISTORY$ FROM <grantee> ; REVOKE ALL ON
+      SYS.XS$VERIFIERS FROM <grantee> ;
+
+  - rule_id: tciem.oracle_db.dba_sys_privs_is_revoked_from_unauthorized
+    title: "Ensure 'DBA_SYS_PRIVS.%' Is Revoked from Unauthorized 'GRANTEE' with 'ADMIN_OPTION' Set to 'YES'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '5.2.2'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. REVOKE <privilege> FROM <grantee> ;
+
+  - rule_id: tciem.oracle_db.execute_any_procedure_is_revoked_from_outln
+    title: "Ensure 'EXECUTE ANY PROCEDURE' Is Revoked from 'OUTLN'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '5.2.3'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. REVOKE EXECUTE ANY PROCEDURE FROM OUTLN;
+
+  - rule_id: tciem.oracle_db.execute_any_procedure_is_revoked_from_dbsnmp
+    title: "Ensure 'EXECUTE ANY PROCEDURE' Is Revoked from 'DBSNMP'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '5.2.4'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. REVOKE EXECUTE ANY PROCEDURE FROM DBSNMP;
+
+  - rule_id: tciem.oracle_db.select_any_dictionary_is_revoked_from
+    title: "Ensure 'SELECT ANY DICTIONARY' Is Revoked from Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '5.2.5'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. REVOKE SELECT ANY DICTIONARY FROM <grantee>
+      ; References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/dbseg/configuring-privilege-and-role-authorization.html 2.
+      http://arup.blogspot.de/2011/07/difference-between-select-any.html
+
+  - rule_id: tciem.oracle_db.select_any_table_is_revoked_from_unauthorized
+    title: "Ensure 'SELECT ANY TABLE' Is Revoked from Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '5.2.6'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. REVOKE SELECT ANY TABLE FROM <grantee> ;
+      References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/dbseg/configuring-privilege-and-role-authorization.html Additional
+      Information: In Oracle 19c, O7_DICTIONARY_ACCESSIBILITY parameter has been de-
+      supported. It can no longer be set. In Oracle versions before 19c,
+      O7_DICTIONARY_ACCESSIBILITY parameter had a side effect that it allowed access
+      to the SYS objects when the SELECT ANY TABLE privilege was granted.
+
+  - rule_id: tciem.oracle_db.audit_system_is_revoked_from_unauthorized_grantee
+    title: "Ensure 'AUDIT SYSTEM' Is Revoked from Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '5.2.7'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. REVOKE AUDIT SYSTEM FROM <grantee> ;
+      References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/sqlrf/AUDIT- Traditional-Auditing.html
+
+  - rule_id: tciem.oracle_db.exempt_access_policy_is_revoked_from_unauthorized
+    title: "Ensure 'EXEMPT ACCESS POLICY' Is Revoked from Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.2.8'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. REVOKE EXEMPT ACCESS POLICY FROM <grantee> ;
+      References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/dbseg/configuring-audit-policies.html
+
+  - rule_id: tciem.oracle_db.become_user_is_revoked_from_unauthorized_grantee
+    title: "Ensure 'BECOME USER' Is Revoked from Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '5.2.9'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. REVOKE BECOME USER FROM <grantee> ;
+      References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/dbseg/configuring-audit-policies.html
+
+  - rule_id: tciem.oracle_db.create_procedure_is_revoked_from_unauthorized
+    title: "Ensure 'CREATE PROCEDURE' Is Revoked from Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '5.2.10'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. REVOKE CREATE PROCEDURE FROM <grantee> ;
+      References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/dbseg/configuring-audit-policies.html
+
+  - rule_id: tciem.oracle_db.alter_system_is_revoked_from_unauthorized_grantee
+    title: "Ensure 'ALTER SYSTEM' Is Revoked from Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '5.2.11'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. REVOKE ALTER SYSTEM FROM <grantee> ;
+      References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/dbseg/configuring-audit-policies.html
+
+  - rule_id: tciem.oracle_db.create_any_library_is_revoked_from_unauthorized
+    title: "Ensure 'CREATE ANY LIBRARY' Is Revoked from Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '5.2.12'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. REVOKE CREATE ANY LIBRARY FROM <grantee> ;
+      References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/dbseg/configuring-audit-policies.html Additional Information:
+      Oracle has two identical privileges: CREATE LIBRARY and CREATE ANY LIBRARY.
+
+  - rule_id: tciem.oracle_db.create_library_is_revoked_from_unauthorized
+    title: "Ensure 'CREATE LIBRARY' Is Revoked from Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '5.2.13'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. REVOKE CREATE LIBRARY FROM <grantee> ;
+      References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/dbseg/configuring-audit-policies.html Additional Information:
+      Oracle has two identical privileges: CREATE LIBRARY and CREATE ANY LIBRARY.
+
+  - rule_id: tciem.oracle_db.grant_any_object_privilege_is_revoked_from
+    title: "Ensure 'GRANT ANY OBJECT PRIVILEGE' Is Revoked from Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '5.2.14'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. REVOKE GRANT ANY OBJECT PRIVILEGE FROM
+      <grantee> ; References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.grant_any_privilege_is_revoked_from_unauthorized
+    title: "Ensure 'GRANT ANY PRIVILEGE' Is Revoked from Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '5.2.16'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. REVOKE GRANT ANY PRIVILEGE FROM <grantee> ;
+      References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.select_catalog_role_is_revoked_from_unauthorized
+    title: "Ensure 'SELECT_CATALOG_ROLE' Is Revoked from Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '5.3.1'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. REVOKE SELECT_CATALOG_ROLE FROM <grantee> ;
+      References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.execute_catalog_role_is_revoked_from_unauthorized
+    title: "Ensure 'EXECUTE_CATALOG_ROLE' Is Revoked from Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '5.3.2'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. REVOKE EXECUTE_CATALOG_ROLE FROM <grantee> ;
+      References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.dba_is_revoked_from_unauthorized_grantee
+    title: "Ensure 'DBA' Is Revoked from Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '5.3.3'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. REVOKE DBA FROM <grantee> ; References: 1.
+      https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.audit_admin_is_revoked_from_unauthorized_grantee
+    title: "Ensure AUDIT_ADMIN' Is Revoked from Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '5.3.4'
+    cis_section: '5'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. REVOKE AUDIT_ADMIN FROM <grantee> ;
+      References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.admin_privileges_are_revoked_from_unauthorized
+    title: "Ensure Admin Privileges Are Revoked from Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.1.2'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE <SYSTEM PRIVILEGE> FROM
+      <grantee> ; If needed, grant the privilege to user without admin option: GRANT
+      <SYSTEM PRIVILEGE> TO <grantee> ; In the case of a grant via a role: REVOKE
+      <rolename> FROM <grantee> ; References: 1.
+      https://docs.oracle.com/en/database/oracle/oracle-database/23/dbseg/keeping-
+      your-oracle-database-secure.html#GUID-1574C821-528C-4874-AD6B- 92762DBEB400
+
+  - rule_id: tciem.oracle_db.import_and_export_full_database_is_revoked_from
+    title: "Ensure 'IMPORT' And 'EXPORT' 'FULL DATABASE' Is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.1.3'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE IMPORT FULL DATABASE FROM
+      <grantee> ; REVOKE EXPORT FULL DATABASE FROM <grantee> ; In the case of a
+      grant via a role: REVOKE <rolename> FROM <grantee> ; References: 1.
+      https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/configuring-privilege-and-role-authorization.html#GUID-
+      58D04BBE-A40D-4699-A2D7-1AB40F532A6D
+
+  - rule_id: tciem.oracle_db.create_external_job_is_revoked_from_unauthorized
+    title: "Ensure 'CREATE EXTERNAL JOB' Is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.1.4'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE CREATE EXTERNAL JOB FROM
+      <grantee> ; In the case of a grant via a role: REVOKE <rolename> FROM
+      <grantee> ; References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/keeping- your-oracle-database-secure.html
+
+  - rule_id: tciem.oracle_db.become_user_is_revoked_from_unauthorized_grantee_2
+    title: "Ensure 'BECOME USER' Is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.1.5'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE BECOME USER FROM <grantee> ;
+      In the case of a grant via a role: REVOKE <rolename> FROM <grantee> ;
+      References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/keeping- your-oracle-database-secure.html
+
+  - rule_id: tciem.oracle_db.text_datastore_access_is_revoked_from
+    title: "Ensure 'TEXT DATASTORE ACCESS' Is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.1.6'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE TEXT DATASTORE ACCESS FROM
+      <grantee> ; In the case of a grant via a role: REVOKE <rolename> FROM
+      <grantee> ; References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/ccref/oracle-text- indexing-elements.html
+
+  - rule_id: tciem.oracle_db.logmining_is_revoked_from_unauthorized_grantee
+    title: "Ensure 'LOGMINING' Is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.1.8'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE LOGMINING FROM <grantee> ;
+      In the case of a grant via a role: REVOKE <rolename> FROM <grantee> ;
+      References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/sutil/oracle- logminer-
+      utility.html#GUID-D857AF96-AC24-4CA1-B620-8EA3DF30D72E
+
+  - rule_id: tciem.oracle_db.alter_system_is_revoked_from_unauthorized_grantee_2
+    title: "Ensure 'ALTER SYSTEM' Is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.1.9'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. REVOKE ALTER SYSTEM FROM <grantee> ;
+      References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/keeping- your-oracle-database-
+      secure.html#GUID-1574C821-528C-4874-AD6B- 92762DBEB400
+
+  - rule_id: tciem.oracle_db.create_library_is_revoked_from_unauthorized_2
+    title: "Ensure 'CREATE LIBRARY' Is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.1.10'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE CREATE LIBRARY FROM
+      <grantee> ; In the case of a grant via a role: REVOKE <rolename> FROM
+      <grantee> ; References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/keeping- your-oracle-database-
+      secure.html#GUID-1574C821-528C-4874-AD6B- 92762DBEB400 Additional Information:
+      Oracle has two identical privileges: CREATE LIBRARY and CREATE ANY LIBRARY.
+
+  - rule_id: tciem.oracle_db.all_system_privileges_are_revoked_from
+    title: "Ensure All `SYSTEM` Privileges Are Revoked from Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.1.11'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE <SYSTEM PRIVILEGE> FROM
+      <grantee> ; In the case of a grant via a role: REVOKE <rolename> FROM
+      <grantee> ; References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/keeping- your-oracle-database-
+      secure.html#GUID-1574C821-528C-4874-AD6B- 92762DBEB400
+
+  - rule_id: tciem.oracle_db.dba_is_revoked_from_unauthorized_grantee_2
+    title: "Ensure 'DBA' Is Revoked from Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.1'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE DBA FROM <grantee> ; In the
+      case of a grant via a role: REVOKE <rolename> FROM <grantee> ; References: 1.
+      https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.exp_full_database_is_revoked_from_unauthorized
+    title: "Ensure 'EXP_FULL_DATABASE' Is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.2'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE EXP_FULL_DATABASE FROM
+      <grantee> ; In the case of a grant via a role: REVOKE <rolename> FROM
+      <grantee> ; References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.imp_full_database_is_revoked_from_unauthorized
+    title: "Ensure 'IMP_FULL_DATABASE' Is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.3'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE IMP_FULL_DATABASE FROM
+      <grantee> ; In the case of a grant via a role: REVOKE <rolename> FROM
+      <grantee> ; References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.datapump_exp_full_database_is_revoked_from
+    title: "Ensure 'DATAPUMP_EXP_FULL_DATABASE' Is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.4'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE DATAPUMP_EXP_FULL_DATABASE
+      FROM <grantee> ; In the case of a grant via a role: REVOKE <rolename> FROM
+      <grantee> ; References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.datapump_imp_full_database_is_revoked_from
+    title: "Ensure 'DATAPUMP_IMP_FULL_DATABASE' is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.5'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE DATAPUMP_IMP_FULL_DATABASE
+      FROM <grantee> ; In the case of a grant via a role: REVOKE <rolename> FROM
+      <grantee> ; References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.dv_admin_is_revoked_from_unauthorized_grantee
+    title: "Ensure 'DV_ADMIN’ Is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '6.2.6'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE DV_ADMIN FROM <grantee> ; In
+      the case of a grant via a role: REVOKE <rolename> FROM <grantee> ; References:
+      1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.dv_audit_cleanup_is_revoked_from_unauthorized
+    title: "Ensure 'DV_AUDIT_CLEANUP’ Is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '6.2.7'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE DV_AUDIT_CLEANUP FROM
+      <grantee> ; In the case of a grant via a role: REVOKE <rolename> FROM
+      <grantee> ; References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.olap_dba_is_revoked_from_unauthorized_grantee
+    title: "Ensure 'OLAP_DBA' Is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.8'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE OLAP_DBA FROM <grantee> ; In
+      the case of a grant via a role: REVOKE <rolename> FROM <grantee> ; References:
+      1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.lbac_dba_is_revoked_from_unauthorized_grantee
+    title: "Ensure 'LBAC_DBA' Is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.9'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE LBAC_DBA FROM <grantee> ; In
+      the case of a grant via a role: REVOKE <rolename> FROM <grantee> ; References:
+      1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.javasysprivs_is_revoked_from_unauthorized_grantee
+    title: "Ensure 'JAVASYSPRIVS' Is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.11'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE JAVAUSERPRIV FROM <grantee>
+      ; In the case of a grant via a role: REVOKE <rolename> FROM <grantee> ;
+      References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.logstdby_administrator_is_revoked_from
+    title: "Ensure 'LOGSTDBY_ADMINISTRATOR' Is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.12'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE LOGSTDBY_ADMINISTRATOR FROM
+      <grantee> ; In the case of a grant via a role: REVOKE <rolename> FROM
+      <grantee> ; References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.sql_firewall_admin_is_revoked_from_unauthorized
+    title: "Ensure 'SQL_FIREWALL_ADMIN' Is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.13'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE SQL_FIREWALL_ADMIN FROM
+      <grantee> ; In the case of a grant via a role: REVOKE <rolename> FROM
+      <grantee> ; References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/configuring-privilege-and-role-authorization.html 2.
+      https://docs.oracle.com/en/database/oracle/oracle-database/23/dbseg/using-sql-
+      firewall.html#GUID-47339B36-F95A-4371-AC87-F8EF2C799455
+
+  - rule_id: tciem.oracle_db.maintplan_app_is_revoked_from_unauthorized_grantee
+    title: "Ensure 'MAINTPLAN_APP' Is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.14'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE MAINTPLAN_APP FROM <grantee>
+      ; In the case of a grant via a role: REVOKE <rolename> FROM <grantee> ;
+      References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.javadebugpriv_is_revoked_from_unauthorized_grantee
+    title: "Ensure 'JAVADEBUGPRIV' Is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.15'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE JAVADEBUGPRIV FROM <grantee>
+      ; In the case of a grant via a role: REVOKE <rolename> FROM <grantee> ;
+      References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.dv_patch_admin_is_revoked_from_unauthorized
+    title: "Ensure 'DV_PATCH_ADMIN' Is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.16'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE DV_PATCH_ADMIN FROM
+      <grantee> ; In the case of a grant via a role: REVOKE <rolename> FROM
+      <grantee> ; References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.dv_policy_owner_is_revoked_from_unauthorized
+    title: "Ensure 'DV_POLICY_OWNER' Is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.17'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE DV_POLICY_OWNER FROM
+      <grantee> ; In the case of a grant via a role: REVOKE <rolename> FROM
+      <grantee> ; References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.audit_admin_is_revoked_from_unauthorized_grantee_2
+    title: "Ensure AUDIT_ADMIN' Is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.18'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE AUDIT_ADMIN FROM <grantee> ;
+      In the case of a grant via a role: REVOKE <rolename> FROM <grantee> ;
+      References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.audit_viewer_is_revoked_from_unauthorized_grantee
+    title: "Ensure 'AUDIT_VIEWER' Is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.19'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE AUDIT_VIEWER FROM <grantee>
+      ; In the case of a grant via a role: REVOKE <rolename> FROM <grantee> ;
+      References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.pdb_dba_is_revoked_from_unauthorized_grantee
+    title: "Ensure 'PDB_DBA' Is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.20'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE PDB_DBA FROM <grantee> ; In
+      the case of a grant via a role: REVOKE <rolename> FROM <grantee> ; References:
+      1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.select_catalog_role_is_revoked_from_unauthorized_2
+    title: "Ensure 'SELECT_CATALOG_ROLE' Is Revoked From Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.21'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE SELECT_CATALOG_ROLE FROM
+      <grantee> In the case of a grant via a role: REVOKE <rolename> FROM <grantee>
+      ; References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.execute_catalog_role_is_revoked_from_unauthorized_2
+    title: "Ensure 'EXECUTE_CATALOG_ROLE' Is Revoked from Unauthorized 'GRANTEE'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.22'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this is granted in both container and pluggable database, you must
+      connect to both places to revoke. Please ensure proper impact analysis is done
+      before revoking the privilege from a role. REVOKE EXECUTE_CATALOG_ROLE FROM
+      <grantee> ; In the case of a grant via a role: REVOKE <rolename> FROM
+      <grantee> ; References: 1. https://docs.oracle.com/en/database/oracle/oracle-
+      database/23/dbseg/configuring-privilege-and-role-authorization.html
+
+  - rule_id: tciem.oracle_db.all_is_revoked_on_sensitive_tables_2
+    title: "Ensure 'ALL' Is Revoked On 'Sensitive' Tables"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.4.1'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this recommendation, revoke privileges that are no longer
+      required by executing the following SQL statement. REVOKE <privilege> ON
+      <table> <directory_name> ;
+
+  - rule_id: tciem.oracle_db.user_audit_option_is_enabled
+    title: "Ensure the 'USER' Audit Option Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.1.1'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement in either the
+      non multi- tenant or container database, it does NOT need run in the
+      pluggable. AUDIT USER;
+
+  - rule_id: tciem.oracle_db.role_audit_option_is_enabled
+    title: "Ensure the 'ROLE' Audit Option Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.1.2'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement in either the
+      non multi- tenant or container database, it does NOT need run in the
+      pluggable. AUDIT ROLE; Additional Information: This option does not audit role
+      grants and revokes.
+
+  - rule_id: tciem.oracle_db.system_grant_audit_option_is_enabled
+    title: "Ensure the 'SYSTEM GRANT' Audit Option Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.1.3'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement in either the
+      non multi- tenant or container database, it does NOT need run in the
+      pluggable. AUDIT SYSTEM GRANT;
+
+  - rule_id: tciem.oracle_db.profile_audit_option_is_enabled
+    title: "Ensure the 'PROFILE' Audit Option Is Enabled"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '6.1.4'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement in either the
+      non multi- tenant or container database, it does NOT need run in the
+      pluggable. AUDIT PROFILE; Additional Information: The statement auditing
+      option audit PROFILE audits everything that the three privilege audits audit
+      CREATE PROFILE, audit DROP PROFILE and audit ALTER PROFILE do, but also
+      audits: 1. Attempts to create a profile by a user without the CREATE PROFILE
+      system privilege. 2. Attempts to drop a profile by a user without the DROP
+      PROFILE system privilege 3. Attempts to alter a profile by a user without the
+      ALTER PROFILE system privilege.
+
+  - rule_id: tciem.oracle_db.database_link_audit_option_is_enabled
+    title: "Ensure the 'DATABASE LINK' Audit Option Is Enabled"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '6.1.5'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement in either the
+      non multi- tenant or container database, it does NOT need run in the
+      pluggable. AUDIT DATABASE LINK; References: 1.
+      https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/dbseg/configuring-audit-policies.html
+
+  - rule_id: tciem.oracle_db.public_database_link_audit_option_is_enabled
+    title: "Ensure the 'PUBLIC DATABASE LINK' Audit Option Is Enabled"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '6.1.6'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement in either the
+      non multi- tenant or container database, it does NOT need run in the
+      pluggable. AUDIT PUBLIC DATABASE LINK;
+
+  - rule_id: tciem.oracle_db.public_synonym_audit_option_is_enabled
+    title: "Ensure the 'PUBLIC SYNONYM' Audit Option Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.1.7'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement in either the
+      non multi- tenant or container database, it does NOT need run in the
+      pluggable. AUDIT PUBLIC SYNONYM;
+
+  - rule_id: tciem.oracle_db.synonym_audit_option_is_enabled
+    title: "Ensure the 'SYNONYM' Audit Option Is Enabled"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '6.1.8'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement in either the
+      non multi- tenant or container database, it does NOT need run in the
+      pluggable. AUDIT SYNONYM; References: 1.
+      https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/dbseg/configuring-audit-policies.html
+
+  - rule_id: tciem.oracle_db.directory_audit_option_is_enabled
+    title: "Ensure the 'DIRECTORY' Audit Option Is Enabled"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '6.1.9'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement in either the
+      non multi- tenant or container database, it does NOT need run in the
+      pluggable. AUDIT DIRECTORY; References: 1.
+      https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/dbseg/configuring-audit-policies.html
+
+  - rule_id: tciem.oracle_db.select_any_dictionary_audit_option_is_enabled
+    title: "Ensure the 'SELECT ANY DICTIONARY' Audit Option Is Enabled"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '6.1.10'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement in either the
+      non multi- tenant or container database, it does NOT need run in the
+      pluggable. AUDIT SELECT ANY DICTIONARY; References: 1.
+      https://docs.oracle.com/en/database/oracle/oracle-
+      database/19/dbseg/configuring-audit-policies.html
+
+  - rule_id: tciem.oracle_db.grant_any_object_privilege_audit_option_is_enabled
+    title: "Ensure the 'GRANT ANY OBJECT PRIVILEGE' Audit Option Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.1.11'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement, keeping in
+      mind if this needs to be done in both container and pluggable database, you
+      must connect to both places to do the audit statement. AUDIT GRANT ANY OBJECT
+      PRIVILEGE; Additional Information: This does NOT audit all attempts to grant
+      or revoke object privileges since this can also be done by anyone who was
+      granted an object privilege with the grant option. Also, this never creates an
+      audit record for anyone who does not hold the GRANT ANY OBJECT PRIVILEGE
+      system privilege. Therefore, many attempts, successful or not, to grant and
+      revoke object privileges are not audited by this.
+
+  - rule_id: tciem.oracle_db.grant_any_privilege_audit_option_is_enabled
+    title: "Ensure the 'GRANT ANY PRIVILEGE' Audit Option Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.1.12'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement in either the
+      non multi- tenant or container database, it does NOT need run in the
+      pluggable. AUDIT GRANT ANY PRIVILEGE; Additional Information: This does NOT
+      audit all attempts to grant or revoke system privileges since this can also be
+      done by anyone who was granted a system privilege with the admin option. Also,
+      this never creates an audit record for anyone who does not hold the GRANT ANY
+      PRIVILEGE system privilege. Thus, many attempts, successful or not, to grant
+      and revoke system privileges are not audited by this.
+
+  - rule_id: tciem.oracle_db.drop_any_procedure_audit_option_is_enabled
+    title: "Ensure the 'DROP ANY PROCEDURE' Audit Option Is Enabled"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '6.1.13'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement in either the
+      non multi- tenant or container database, it does NOT need run in the
+      pluggable. AUDIT DROP ANY PROCEDURE;
+
+  - rule_id: tciem.oracle_db.all_audit_option_on_sys_aud_is_enabled
+    title: "Ensure the 'ALL' Audit Option on 'SYS.AUD$' Is Enabled"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '6.1.14'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement in either the
+      non multi- tenant or container database, it does NOT need run in the
+      pluggable. AUDIT ALL ON SYS.AUD$ BY ACCESS;
+
+  - rule_id: tciem.oracle_db.procedure_audit_option_is_enabled
+    title: "Ensure the 'PROCEDURE' Audit Option Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.1.15'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement in either the
+      non multi- tenant or container database, it does NOT need run in the
+      pluggable. AUDIT PROCEDURE; Additional Information: Not all auditing options
+      work alike. In particular, the statement auditing option audit PROCEDURE does
+      indeed audit create and drop library as well as all types of procedures and
+      java schema objects. However, privilege audits do not work this way. So, for
+      example, none of audit CREATE ANY PROCEDURE, audit DROP ANY PROCEDURE, or
+      audit CREATE PROCEDURE will audit create or drop library activities. In
+      statement auditing, PROCEDURE has a larger scope than in privilege auditing,
+      where it is specific to functions, packages and procedures, but excludes
+      libraries and perhaps other object types. Audit PROCEDURE does not audit
+      altering procedures, either in your own schema or in another via the ALTER ANY
+      PROCEDURE system privilege. There seems to be no statement audit that is a
+      better replacement for Audit ALTER ANY PROCEDURE, but beware that will not
+      create any audit records for users that do not have the privilege. Thus,
+      attempts to alter procedures in one's own schema are never audited, and
+      attempts to alter procedures in another's schema that fail for lack of the
+      ALTER ANY PROCEDURE privilege are not audited. This is simply a weakness in
+      the current state of Oracle auditing. Fortunately, though, all that the ALTER
+      command can be used for regarding procedures, functions, packages and
+      libraries is compile options, so the inability to comprehensively audit alter
+      procedure activities and requests is not as bad as it would be for other
+      object types (USER, PROFILE, etc.)
+
+  - rule_id: tciem.oracle_db.alter_system_audit_option_is_enabled
+    title: "Ensure the 'ALTER SYSTEM' Audit Option Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.1.16'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement in either the
+      non multi- tenant or container database, it does NOT need run in the
+      pluggable. AUDIT ALTER SYSTEM;
+
+  - rule_id: tciem.oracle_db.trigger_audit_option_is_enabled
+    title: "Ensure the 'TRIGGER' Audit Option Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.1.17'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement in either the
+      non multi- tenant or container database, it does NOT need run in the
+      pluggable. AUDIT TRIGGER; Additional Information: There is no current CIS
+      recommendation to audit the use of the system privilege CREATE TRIGGER, as
+      there is for CREATE SYNONYM, CREATE PROCEDURE and some other types of objects,
+      so this is actually a scope escalation also - to audit such actions in one's
+      own schema. However, this is the only way to comprehensively audit things like
+      attempts to create, drop or alter triggers in another's schema if the user
+      attempting to operation does not hold the required ANY privilege - and these
+      are exactly the sorts of things that should raise a large red flag. The
+      statement auditing option audit TRIGGER audits almost everything that the
+      three privilege audits audit CREATE ANY TRIGGER, audit ALTER ANY TRIGGER and
+      audit DROP ANY TRIGGER do, but also audits: 1. Statements to create, drop,
+      enable or disable a trigger in the user's own schema. 2. Attempts to create a
+      trigger by a user without the CREATE TRIGGER system privilege. 3. Attempts to
+      create a trigger in another schema by users without the CREATE ANY TRIGGER
+      privilege. 4. Attempts to drop a trigger in another schema by users without
+      the DROP ANY TRIGGER privilege. 5. Attempts to disable or enable a trigger in
+      another schema by users without the ALTER ANY TRIGGER privilege. The one thing
+      is audited by any of the three privilege audits that is not audited by this is
+      ALTER TRIGGER ...COMPILE if the trigger is in another's schema, which is
+      audited by audit ALTER ANY TRIGGER, but only if the user attempting the
+      alteration actually holds the ALTER ANY TRIGGER system privilege. Audit
+      TRIGGER only audits ALTER TABLE or ALTER TRIGGER statements used to enable or
+      disable triggers. It does not audit ALTER TRIGGER or ALTER TABLE statements
+      used only with compile options.
+
+  - rule_id: tciem.oracle_db.create_session_audit_option_is_enabled
+    title: "Ensure the 'CREATE SESSION' Audit Option Is Enabled"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '6.1.18'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, execute the following SQL statement in either the
+      non multi- tenant or container database, it does NOT need run in the
+      pluggable. AUDIT SESSION; Additional Information: Although listed in the
+      documentation as a privilege audit, audit CREATE SESSION actually audits the
+      CONNECT statement. This is evidenced by the undocumented audit CONNECT which
+      has the same result as audit SESSION or audit CREATE SESSION. There is no
+      system privilege named either SESSION or CONNECT (CONNECT is a role, not a
+      system privilege). Also, it behaves as statement auditing rather than
+      privilege auditing in that it audits all attempts to create a session, even if
+      the user does not hold the CREATE SESSION system privilege.
+
+  - rule_id: tciem.oracle_db.create_user_action_audit_is_enabled
+    title: "Ensure the 'CREATE USER' Action Audit Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.1'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS CREATE USER; Note: If you do not
+      have CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE AUDIT POLICY
+      statement.
+
+  - rule_id: tciem.oracle_db.alter_user_action_audit_is_enabled
+    title: "Ensure the 'ALTER USER' Action Audit Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.2'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS ALTER USER; Note: If you do not
+      have CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE AUDIT POLICY
+      statement.
+
+  - rule_id: tciem.oracle_db.drop_user_audit_option_is_enabled
+    title: "Ensure the 'DROP USER' Audit Option Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.3'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS DROP USER; Note: If you do not
+      have CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE AUDIT POLICY
+      statement.
+
+  - rule_id: tciem.oracle_db.create_role_action_audit_is_enabled
+    title: "Ensure the 'CREATE ROLE' Action Audit Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.4'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS CREATE ROLE; Note: If you do not
+      have CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE AUDIT POLICY
+      statement.
+
+  - rule_id: tciem.oracle_db.alter_role_action_audit_is_enabled
+    title: "Ensure the 'ALTER ROLE' Action Audit Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.5'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS ALTER ROLE; Note: If you do not
+      have CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE AUDIT POLICY
+      statement.
+
+  - rule_id: tciem.oracle_db.drop_role_action_audit_is_enabled
+    title: "Ensure the 'DROP ROLE' Action Audit Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.6'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS DROP ROLE; Note: If you do not
+      have CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE AUDIT POLICY
+      statement.
+
+  - rule_id: tciem.oracle_db.grant_action_audit_is_enabled
+    title: "Ensure the 'GRANT' Action Audit Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.7'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS GRANT; Note: If you do not have
+      CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE AUDIT POLICY
+      statement.
+
+  - rule_id: tciem.oracle_db.revoke_action_audit_is_enabled
+    title: "Ensure the 'REVOKE' Action Audit Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.8'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS REVOKE; Note: If you do not have
+      CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE AUDIT POLICY
+      statement.
+
+  - rule_id: tciem.oracle_db.create_profile_action_audit_is_enabled
+    title: "Ensure the 'CREATE PROFILE' Action Audit Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.9'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS CREATE PROFILE; Note: If you do
+      not have CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE AUDIT
+      POLICY statement.
+
+  - rule_id: tciem.oracle_db.alter_profile_action_audit_is_enabled
+    title: "Ensure the 'ALTER PROFILE' Action Audit Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.10'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS ALTER PROFILE; Note: If you do not
+      have CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE AUDIT POLICY
+      statement.
+
+  - rule_id: tciem.oracle_db.drop_profile_action_audit_is_enabled
+    title: "Ensure the 'DROP PROFILE' Action Audit Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.11'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS DROP PROFILE; Note: If you do not
+      have CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE AUDIT POLICY
+      statement.
+
+  - rule_id: tciem.oracle_db.create_database_link_action_audit_is_enabled
+    title: "Ensure the 'CREATE DATABASE LINK' Action Audit Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.12'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS CREATE DATABASE LINK; Note: If you
+      do not have CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE AUDIT
+      POLICY statement.
+
+  - rule_id: tciem.oracle_db.alter_database_link_action_audit_is_enabled
+    title: "Ensure the 'ALTER DATABASE LINK' Action Audit Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.13'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS ALTER DATABASE LINK; Note: If you
+      do not have CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE AUDIT
+      POLICY statement.
+
+  - rule_id: tciem.oracle_db.drop_database_link_action_audit_is_enabled
+    title: "Ensure the 'DROP DATABASE LINK' Action Audit Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.14'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS DROP DATABASE LINK; Note: If you
+      do not have CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE AUDIT
+      POLICY statement.
+
+  - rule_id: tciem.oracle_db.create_synonym_action_audit_is_enabled
+    title: "Ensure the 'CREATE SYNONYM' Action Audit Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.15'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS CREATE SYNONYM; Note: If you do
+      not have CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE AUDIT
+      POLICY statement.
+
+  - rule_id: tciem.oracle_db.alter_synonym_action_audit_is_enabled
+    title: "Ensure the 'ALTER SYNONYM' Action Audit Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.16'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS ALTER SYNONYM; Note: If you do not
+      have CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE AUDIT POLICY
+      statement.
+
+  - rule_id: tciem.oracle_db.drop_synonym_action_audit_is_enabled
+    title: "Ensure the 'DROP SYNONYM' Action Audit Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.17'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS DROP SYNONYM; Note: If you do not
+      have CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE AUDIT POLICY
+      statement.
+
+  - rule_id: tciem.oracle_db.select_any_dictionary_privilege_audit_is_enabled
+    title: "Ensure the 'SELECT ANY DICTIONARY' Privilege Audit Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.18'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD PRIVILEGES SELECT ANY DICTIONARY; Note: If
+      you do not have CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE
+      AUDIT POLICY statement.
+
+  - rule_id: tciem.oracle_db.audsys_aud_unified_access_audit_is_enabled
+    title: "Ensure the 'AUDSYS.AUD$UNIFIED' Access Audit Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.19'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      For Oracle 12.2 and above, execute the following SQL statement to remediate
+      this setting. ALTER AUDIT POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS ALL on
+      AUDSYS.AUD$UNIFIED; Note: If you do not have CIS_UNIFIED_AUDIT_POLICY, please
+      create one using the CREATE AUDIT POLICY statement.
+
+  - rule_id: tciem.oracle_db.create_procedure_function_package_package_body
+    title: "Ensure the 'CREATE PROCEDURE/FUNCTION/PACKAGE/PACKAGE BODY' Action Audit Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.20'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS CREATE PROCEDURE, CREATE FUNCTION,
+      CREATE PACKAGE, CREATE PACKAGE BODY; Note: If you do not have
+      CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE AUDIT POLICY
+      statement.
+
+  - rule_id: tciem.oracle_db.alter_procedure_function_package_package_body
+    title: "Ensure the 'ALTER PROCEDURE/FUNCTION/PACKAGE/PACKAGE BODY' Action Audit Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.21'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS ALTER PROCEDURE, ALTER FUNCTION,
+      ALTER PACKAGE, ALTER PACKAGE BODY; Note: If you do not have
+      CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE AUDIT POLICY
+      statement.
+
+  - rule_id: tciem.oracle_db.drop_procedure_function_package_package_body
+    title: "Ensure the 'DROP PROCEDURE/FUNCTION/PACKAGE/PACKAGE BODY' Action Audit Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.22'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS DROP PROCEDURE, DROP FUNCTION,
+      DROP PACKAGE, DROP PACKAGE BODY; Note: If you do not have
+      CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE AUDIT POLICY
+      statement.
+
+  - rule_id: tciem.oracle_db.alter_system_action_audit_is_enabled
+    title: "Ensure the 'ALTER SYSTEM' Action Audit is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.23'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS ALTER SYSTEM; Note: If you do not
+      have CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE AUDIT POLICY
+      statement.
+
+  - rule_id: tciem.oracle_db.create_trigger_action_audit_is_enabled
+    title: "Ensure the 'CREATE TRIGGER' Action Audit Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.24'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS CREATE TRIGGER; Note: If you do
+      not have CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE AUDIT
+      POLICY statement.
+
+  - rule_id: tciem.oracle_db.alter_trigger_action_audit_is_enabled
+    title: "Ensure the 'ALTER TRIGGER' Action Audit IS Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.25'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS ALTER TRIGGER; Note: If you do not
+      have CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE AUDIT POLICY
+      statement.
+
+  - rule_id: tciem.oracle_db.drop_trigger_action_audit_is_enabled
+    title: "Ensure the 'DROP TRIGGER' Action Audit Is Enabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '6.2.26'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS DROP TRIGGER; Note: If you do not
+      have CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE AUDIT POLICY
+      statement.
+
+  - rule_id: tciem.oracle_db.logon_and_logoff_actions_audit_is_enabled_2
+    title: "Ensure the 'LOGON' AND 'LOGOFF' Actions Audit Is Enabled"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '6.2.27'
+    cis_section: '6'
+    log_source: "audit_trail, v$xml_audit_trail"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement to remediate this setting. ALTER AUDIT
+      POLICY CIS_UNIFIED_AUDIT_POLICY ADD ACTIONS LOGON, LOGOFF; Note: If you do not
+      have CIS_UNIFIED_AUDIT_POLICY, please create one using the CREATE AUDIT POLICY
+      statement.
+

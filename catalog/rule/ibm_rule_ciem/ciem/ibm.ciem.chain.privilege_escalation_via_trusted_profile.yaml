@@ -1,0 +1,63 @@
+rule_id: ibm.ciem.chain.privilege_escalation_via_trusted_profile
+service: ciem
+provider: ibm
+check_type: log_correlation
+severity: critical
+title: 'IBM CIEM: Privilege Escalation via Trusted Profile + IAM Policy Change'
+description: 'Detect IBM Cloud privilege escalation: trusted profile created/modified → IAM policy granting Administrator role → privileged API calls, indicating a multi-step takeover.'
+threat_category: privilege_escalation
+mitre_tactics:
+- privilege_escalation
+mitre_techniques:
+- T1548
+risk_score: 98
+resource: ibm_iam_trusted_profile
+domain: identity_and_access_management
+action_category: privilege_escalation
+log_source_type: 
+posture_category: iam_posture
+threat_tags:
+- T1548
+- cloud_iam
+- privilege_escalation
+- ciem_correlation
+- attack_chain
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: privilege_change
+  target_type: cloud_resource
+  blast_radius: tenant_or_account
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - role_management
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: Review and investigate this activity in the IBM Cloud Console and take corrective action.
+check_config:
+  events:
+  - conditions:
+      all:
+      - field: source_type
+        op: equals
+        value: ibm_activity
+      - field: operation
+        op: in
+        value:
+        - iam-identity.profile.create
+        - iam-identity.profile.update
+  - conditions:
+      all:
+      - field: source_type
+        op: equals
+        value: ibm_activity
+      - field: operation
+        op: in
+        value:
+        - iam-am.policy.create
+        - iam-am.policy.update
+  type: sequence
+  window_seconds: 600

@@ -1,0 +1,55 @@
+version: '1.0'
+provider: db
+engine: mssql
+category: authentication
+cis_section: '3'
+description: SQL Server CIS Section 3 — Authentication
+
+discovery:
+  - discovery_id: db.mssql.auth.sa_account_disabled
+    calls:
+      - action: query_table
+        query: >
+          SELECT name, is_disabled
+          FROM sys.server_principals
+          WHERE name = 'sa';
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        account: "{{ item.name }}"
+        is_disabled: "{{ item.is_disabled }}"
+
+  - discovery_id: db.mssql.auth.sql_authentication_logins
+    calls:
+      - action: query_table
+        query: >
+          SELECT name, type_desc, is_disabled
+          FROM sys.server_principals
+          WHERE type = 'S'
+            AND name NOT IN ('sa', '##MS_PolicyEventProcessingLogin##', '##MS_AgentSigningCertificate##');
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        login: "{{ item.name }}"
+        type: "{{ item.type_desc }}"
+        is_disabled: "{{ item.is_disabled }}"
+
+  - discovery_id: db.mssql.auth.password_policy_enforced
+    calls:
+      - action: query_table
+        query: >
+          SELECT name, is_policy_checked, is_expiration_checked
+          FROM sys.sql_logins
+          WHERE is_policy_checked = 0 OR is_expiration_checked = 0;
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        login: "{{ item.name }}"
+        policy_checked: "{{ item.is_policy_checked }}"
+        expiration_checked: "{{ item.is_expiration_checked }}"

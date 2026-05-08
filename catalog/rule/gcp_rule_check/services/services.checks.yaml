@@ -1,0 +1,29 @@
+version: '1.0'
+provider: gcp
+service: services
+checks:
+- rule_id: gcp.services.service.keys_active_service_configured
+  for_each: gcp.services.list
+  severity: MEDIUM
+  conditions:
+    var: item.keys[].state
+    op: not_contains
+    value: ACTIVE
+- rule_id: gcp.services.service.keys_restrictions_enforced
+  for_each: gcp.services.list_keys
+  severity: MEDIUM
+  conditions:
+    var: item.Restrictions[]
+    op: not_empty
+    value: null
+- rule_id: gcp.services.service.keys_rotation_90_days_configured
+  for_each: gcp.services.service.list_keys
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.rotationPeriod
+      op: exists
+      value: null
+    - var: item.rotationPeriod
+      op: lte
+      value: 7776000s

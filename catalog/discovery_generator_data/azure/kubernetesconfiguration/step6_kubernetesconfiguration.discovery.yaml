@@ -1,0 +1,69 @@
+# Discovery YAML — kubernetesconfiguration (Azure)
+# Generated: 2026-04-15T10:39:30Z
+# Source: step1b_operation_registry.json (qualified ops + dependency chains)
+# Actions use {category}.{method} format for SDK method resolution
+version: '1.0'
+provider: azure
+service: kubernetesconfiguration
+services:
+  client: kubernetesconfiguration
+  module: azure.mgmt.kubernetesconfiguration.v2020_07_01_preview
+discovery:
+  # ════════════════════════════════════════
+  # Independent root operations
+  # ════════════════════════════════════════
+  # ── sourcecontrolconfigurations.list [root] ──
+  # NOTE: requires AKS cluster params; fails gracefully on_error:continue
+  - discovery_id: azure.kubernetesconfiguration.sourcecontrolconfigurations.list
+    calls:
+      - action: sourcecontrolconfigurations.list
+        save_as: response
+        on_error: continue
+        params:
+          cluster_rp: ''
+          cluster_resource_name: ''
+          cluster_name: ''
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        type: '{{ item.type }}'
+
+  # ════════════════════════════════════════
+  # Dependent operations (for_each + params)
+  # ════════════════════════════════════════
+  # ── extensions.list [dependent] ──
+  - discovery_id: azure.kubernetesconfiguration.extensions.list
+    for_each: azure.kubernetesconfiguration.sourcecontrolconfigurations.list
+    calls:
+      - action: extensions.list
+        save_as: response
+        on_error: continue
+        params:
+          cluster_resource_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        name: '{{ item.name }}'
+        provisioning_state: '{{ item.provisioning_state }}'
+        id: '{{ item.id }}'
+        compliance_status: '{{ item.compliance_status }}'
+        configuration_protected_settings: '{{ item.configuration_protected_settings }}'
+        enable_helm_operator: '{{ item.enable_helm_operator }}'
+        helm_operator_properties: '{{ item.helm_operator_properties }}'
+        operator_instance_name: '{{ item.operator_instance_name }}'
+        operator_namespace: '{{ item.operator_namespace }}'
+        operator_params: '{{ item.operator_params }}'
+        operator_scope: '{{ item.operator_scope }}'
+        operator_type: '{{ item.operator_type }}'
+        repository_public_key: '{{ item.repository_public_key }}'
+        repository_url: '{{ item.repository_url }}'
+        ssh_known_hosts_contents: '{{ item.ssh_known_hosts_contents }}'
+        system_data: '{{ item.system_data }}'
+
+  # ── Unwired dependent ops (no root producer found) ──
+  # SKIP: azure.kubernetesconfiguration.sourcecontrolconfigurations.list — required_params: ['cluster_rp', 'cluster_resource_name', 'cluster_name']

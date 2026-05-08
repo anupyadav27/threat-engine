@@ -9,24 +9,13 @@ Supports NDJSON fallback for local testing.
 import os
 import sys
 import json
-import psycopg2
 from psycopg2.extras import RealDictCursor
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 from pathlib import Path
 from collections import defaultdict, Counter
 
-
-def _get_discoveries_conn():
-    """Return a fresh psycopg2 connection to the discoveries DB via env vars."""
-    return psycopg2.connect(
-        host=os.getenv("DISCOVERIES_DB_HOST", "localhost"),
-        port=int(os.getenv("DISCOVERIES_DB_PORT", "5432")),
-        dbname=os.getenv("DISCOVERIES_DB_NAME", "threat_engine_discoveries"),
-        user=os.getenv("DISCOVERIES_DB_USER", "postgres"),
-        password=os.getenv("DISCOVERIES_DB_PASSWORD", ""),
-        connect_timeout=10,
-    )
+from engine_common.db_connections import get_discoveries_conn
 
 
 class DiscoveryDatabaseQueries:
@@ -49,7 +38,7 @@ class DiscoveryDatabaseQueries:
 
     def _execute_query(self, query: str, params: List = None):
         """Execute a query using direct psycopg2 connection."""
-        conn = _get_discoveries_conn()
+        conn = get_discoveries_conn()
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(query, params or [])
@@ -64,7 +53,7 @@ class DiscoveryDatabaseQueries:
 
     def _execute_query_one(self, query: str, params: List = None):
         """Execute a query and return single result"""
-        conn = _get_discoveries_conn()
+        conn = get_discoveries_conn()
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(query, params or [])
@@ -766,7 +755,7 @@ class DiscoveryDatabaseQueries:
         """
         Get configuration drift events for a scan from discovery_history.
         """
-        where_clauses = ["dh.tenant_id = %s", "dh.scan_run_id = %s", "dh.change_type = 'modified'"]
+        where_clauses = ["dh.tenant_id = %s", "dh.discovery_scan_id = %s", "dh.change_type = 'modified'"]
         params = [tenant_id, current_scan_id]
 
         if account_id:
@@ -802,7 +791,7 @@ class DiscoveryDatabaseQueries:
             prev.scan_run_id as baseline_scan_id
         FROM discovery_history dh
         LEFT JOIN discovery_findings d
-          ON d.scan_run_id = dh.scan_run_id
+          ON d.scan_run_id = dh.discovery_scan_id
          AND d.discovery_id = dh.discovery_id
          AND d.resource_uid = dh.resource_uid
          AND d.tenant_id = dh.tenant_id

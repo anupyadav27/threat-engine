@@ -1,0 +1,726 @@
+version: '1.0'
+provider: gcp
+service: gke
+checks:
+- rule_id: gcp.gke.addon.addon_from_trusted_channel
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.AddonsConfig.HttpLoadBalancing.Disabled
+      op: is_true
+      value: null
+    - var: item.AddonsConfig.HorizontalPodAutoscaling.Disabled
+      op: is_true
+      value: null
+    - var: item.AddonsConfig.NetworkPolicyConfig.Disabled
+      op: is_true
+      value: null
+- rule_id: gcp.gke.addon.addon_no_privileged_permissions
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.AddonsConfig[].Name
+      op: not_contains
+      value: privileged
+    - var: item.AddonsConfig[].Name
+      op: not_contains
+      value: privileged-permissions
+- rule_id: gcp.gke.addon.addon_version_pinned_and_supported
+  for_each: gcp.gke.clusters.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.addonsConfig.kubernetesDashboard.disabled
+      op: is_true
+      value: null
+    - var: item.addonsConfig.httpLoadBalancing.disabled
+      op: is_false
+      value: null
+    - var: item.addonsConfig.horizontalPodAutoscaling.disabled
+      op: is_false
+      value: null
+    - var: item.addonsConfig.networkPolicyConfig.disabled
+      op: is_false
+      value: null
+- rule_id: gcp.gke.admission_controller.admission_host_namespace_usage_denied
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    var: item.MasterAuthorizedNetworksConfig.Enabled
+    op: is_true
+    value: null
+- rule_id: gcp.gke.admission_controller.admission_image_registry_allowlist_enforced
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    var: item.AdmissionControllerConfig.ImagePolicyConfig.AllowedImagePatterns
+    op: not_empty
+    value: null
+- rule_id: gcp.gke.admission_controller.admission_image_signature_verification_enabled
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    var: item.AdmissionControllerConfig.ImagePolicyConfig.VerifyImages
+    op: is_true
+    value: null
+- rule_id: gcp.gke.admission_controller.admission_pod_security_admission_restricted_default
+  for_each: gcp.container.clusters.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.securityConfig.podSecurityPolicyConfig.enabled
+      op: is_true
+      value: null
+    - var: item.securityConfig.podSecurityAdmissionConfig.defaultConfig.mode
+      op: equals
+      value: restricted
+- rule_id: gcp.gke.admission_controller.admission_privilege_escalation_denied
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.AdmissionControllerConfig
+      op: exists
+      value: null
+    - var: item.AdmissionControllerConfig.Enabled
+      op: is_true
+      value: null
+    - var: item.AdmissionControllerConfig.PodSecurityPolicyConfig
+      op: exists
+      value: null
+    - var: item.AdmissionControllerConfig.PodSecurityPolicyConfig.Enabled
+      op: is_true
+      value: null
+- rule_id: gcp.gke.autopilot.fargate_profile_execution_role_least_privilege
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Autopilot.Enabled
+      op: is_true
+      value: null
+    - var: item.SecurityConfig.WorkloadConfig
+      op: exists
+      value: null
+    - var: item.SecurityConfig.WorkloadConfig.ExecutionRole
+      op: exists
+      value: null
+    - var: item.SecurityConfig.WorkloadConfig.ExecutionRole.Policies[].PolicyName
+      op: not_contains
+      value: '*Admin*'
+    - var: item.SecurityConfig.WorkloadConfig.ExecutionRole.Policies[].PolicyName
+      op: not_contains
+      value: '*FullAccess*'
+- rule_id: gcp.gke.autopilot.fargate_profile_logging_enabled
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.autopilot.enabled
+      op: is_true
+      value: null
+    - var: item.loggingConfig.componentConfig.enableComponents
+      op: contains
+      value: SYSTEM_COMPONENTS
+- rule_id: gcp.gke.autopilot.fargate_profile_private_subnets_only
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Autopilot.Enabled
+      op: is_true
+      value: null
+    - var: item.NetworkConfig.PrivateClusterConfig.EnablePrivateNodes
+      op: is_true
+      value: null
+    - var: item.NetworkConfig.PrivateClusterConfig.EnablePrivateEndpoint
+      op: is_true
+      value: null
+- rule_id: gcp.gke.cluster.cluster_default_service_account_automount_disabled
+  for_each: gcp.container.projects.zones.clusters.list
+  severity: HIGH
+  conditions:
+    var: item.serviceAccount
+    op: equals
+    value: default
+- rule_id: gcp.gke.cluster.cluster_private_control_plane_endpoint_enabled
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    var: item.PrivateClusterConfig.PrivateEndpointEnabled
+    op: is_true
+    value: null
+- rule_id: gcp.gke.cluster.cluster_secrets_encryption_kms_enabled
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    var: item.DatabaseEncryption.State
+    op: equals
+    value: ENCRYPTED
+- rule_id: gcp.gke.cluster.cluster_service_dns_and_metrics_from_approved_sources
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.privateClusterConfig.enablePrivateNodes
+      op: is_true
+      value: null
+    - var: item.privateClusterConfig.masterGlobalAccessConfig.enabled
+      op: is_true
+      value: null
+    - var: item.privateClusterConfig.masterAuthorizedNetworksConfig.cidrBlocks[].cidrBlock
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: gcp.gke.cluster.cluster_service_kube_system_services_not_public
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.privateClusterConfig.enablePrivateNodes
+      op: is_true
+      value: null
+    - var: item.privateClusterConfig.masterIpv4CidrBlock
+      op: exists
+      value: null
+- rule_id: gcp.gke.control_plane_apiserver.apiserver_admission_psa_enforce_mode
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    var: item.PodSecurityPolicyConfig.AdmissionRule.EnforcementMode
+    op: equals
+    value: ENFORCED
+- rule_id: gcp.gke.control_plane_apiserver.apiserver_authorization_mode_rbac
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    var: item.MasterAuthorizedNetworksConfig.Enabled
+    op: is_true
+    value: null
+- rule_id: gcp.gke.control_plane_apiserver.apiserver_etcd_connection_encrypted
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    var: item.MasterAuthorizedNetworksConfig.Enabled
+    op: is_true
+    value: null
+- rule_id: gcp.gke.control_plane_apiserver.apiserver_insecure_port_disabled
+  for_each: gcp.container.projects.zones.clusters.list
+  severity: HIGH
+  conditions:
+    var: item.legacyAbac.enabled
+    op: is_false
+    value: null
+- rule_id: gcp.gke.control_plane_apiserver.apiserver_tls_min_1_2_enforced
+  for_each: gcp.gke.clusters.list
+  severity: HIGH
+  conditions:
+    var: item.masterAuth.clusterCaCertificate
+    op: exists
+    value: null
+- rule_id: gcp.gke.control_plane_apiserver.apiserver_tls_min_version_1_2
+  for_each: gcp.gke.clusters.list
+  severity: HIGH
+  conditions:
+    var: item.masterAuth.config.issueClientCertificate
+    op: is_false
+    value: null
+- rule_id: gcp.gke.control_plane_apiserver.k8s_apiserver_anonymous_auth_disabled
+  for_each: gcp.container.projects.locations.clusters.list
+  severity: HIGH
+  conditions:
+    var: item.masterAuth.anonymousAuthEnabled
+    op: is_false
+    value: null
+- rule_id: gcp.gke.control_plane_apiserver.k8s_apiserver_audit_logging_enabled
+  for_each: gcp.gke.control_plane_apiserver.describe_clusters
+  severity: HIGH
+  conditions:
+    var: item.auditConfig.enabled
+    op: is_true
+    value: null
+- rule_id: gcp.gke.control_plane_controller_manager.controller_manager_root_ca_file_configured
+  for_each: gcp.gke.control_plane_controller_manager.list
+  severity: HIGH
+  conditions:
+    var: item.controllerManagerRootCAFile
+    op: exists
+    value: null
+- rule_id: gcp.gke.control_plane_controller_manager.controller_manager_secure_port_tls_enabled
+  for_each: gcp.gke.control_plane_controller_manager.list
+  severity: HIGH
+  conditions:
+    var: item.securePortTlsEnabled
+    op: is_true
+    value: null
+- rule_id: gcp.gke.control_plane_controller_manager.controller_manager_use_service_account_credentials_enabled
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    var: item.ControllerManagerConfig.UseServiceAccountCredentials
+    op: is_true
+    value: null
+- rule_id: gcp.gke.control_plane_controller_manager.controllermanager_secure_port_enabled
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    var: item.ControllerManagerSecurePortEnabled
+    op: is_true
+    value: null
+- rule_id: gcp.gke.control_plane_controller_manager.controllermanager_service_account_token_signing_enabled
+  for_each: gcp.gke.describe_clusters
+  severity: HIGH
+  conditions:
+    var: item.ControllerManagerConfig.ServiceAccountTokenSigningEnabled
+    op: is_true
+    value: null
+- rule_id: gcp.gke.control_plane_etcd.etcd_auth_enabled
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    var: item.MasterAuth.ClientCertificate
+    op: exists
+    value: null
+- rule_id: gcp.gke.control_plane_etcd.etcd_client_cert_auth_enabled
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    var: item.MasterAuth.ClientCertificate
+    op: exists
+    value: null
+- rule_id: gcp.gke.control_plane_etcd.etcd_client_tls_enabled
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    var: item.masterAuth.clientCertificate
+    op: exists
+    value: null
+- rule_id: gcp.gke.control_plane_etcd.etcd_peer_tls_enabled
+  for_each: gcp.gke.clusters.list
+  severity: HIGH
+  conditions:
+    var: item.masterAuth.clusterCaCertificate
+    op: exists
+    value: null
+- rule_id: gcp.gke.control_plane_etcd.k8s_etcd_encryption_at_rest_enabled
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    var: item.databaseEncryption.state
+    op: equals
+    value: ENCRYPTED
+- rule_id: gcp.gke.control_plane_scheduler.scheduler_authentication_kubeconfig_configured
+  for_each: gcp.gke.control_plane_scheduler.list
+  severity: HIGH
+  conditions:
+    var: item.schedulerAuthentication.kubeconfig
+    op: exists
+    value: null
+- rule_id: gcp.gke.control_plane_scheduler.scheduler_authorization_kubeconfig_configured
+  for_each: gcp.gke.clusters.list
+  severity: HIGH
+  conditions:
+    var: item.masterAuth.config
+    op: exists
+    value: null
+- rule_id: gcp.gke.control_plane_scheduler.scheduler_leader_election_enabled
+  for_each: gcp.gke.describe_clusters
+  severity: HIGH
+  conditions:
+    var: item.controlPlaneSchedulerConfig.schedulerLeaderElectionEnabled
+    op: is_true
+    value: null
+- rule_id: gcp.gke.control_plane_scheduler.scheduler_profiling_disabled
+  for_each: gcp.container.projects.zones.clusters.list
+  severity: HIGH
+  conditions:
+    var: item.masterConfig.enableProfiling
+    op: is_false
+    value: null
+- rule_id: gcp.gke.control_plane_scheduler.scheduler_secure_port_enabled
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    var: item.SchedulerSecurePortEnabled
+    op: is_true
+    value: null
+- rule_id: gcp.gke.control_plane_scheduler.scheduler_secure_port_tls_enabled
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    var: item.masterAuth.config.securePort
+    op: is_true
+    value: null
+- rule_id: gcp.gke.namespace.namespace_default_service_account_automount_disabled
+  for_each: gcp.container.projects.zones.clusters.list
+  severity: HIGH
+  conditions:
+    var: item.Config.AuthenticatorGroupsConfig.Enabled
+    op: is_true
+    value: null
+- rule_id: gcp.gke.namespace.namespace_network_policies_present
+  for_each: gcp.gke.namespace.list
+  severity: HIGH
+  conditions:
+    var: item.networkPolicy.enabled
+    op: is_true
+    value: null
+- rule_id: gcp.gke.namespace.namespace_pod_security_level_restricted
+  for_each: gcp.container.projects.zones.clusters.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.PodSecurityPolicyConfig
+      op: exists
+      value: null
+    - var: item.PodSecurityPolicyConfig.enabled
+      op: is_true
+      value: null
+- rule_id: gcp.gke.network_policy.networkpolicy_default_deny_egress_per_namespace
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.NetworkPolicy.Enabled
+      op: is_true
+      value: null
+    - var: item.NetworkPolicy.Provider
+      op: equals
+      value: CALICO
+- rule_id: gcp.gke.network_policy.networkpolicy_default_deny_ingress_per_namespace
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.NetworkPolicyConfig.Enabled
+      op: is_true
+      value: null
+    - var: item.NetworkPolicyConfig.Provider
+      op: equals
+      value: CALICO
+- rule_id: gcp.gke.network_policy.networkpolicy_required_allowlist_for_namespace_services
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.NetworkPolicy.Enabled
+      op: is_true
+      value: null
+    - var: item.NetworkPolicy.Provider
+      op: equals
+      value: CALICO
+- rule_id: gcp.gke.node_kubelet.k8s_kubelet_anonymous_auth_disabled
+  for_each: gcp.container.clusters.list
+  severity: HIGH
+  conditions:
+    var: item.nodeConfig.kubeletConfig.anonymousAuthEnabled
+    op: is_false
+    value: null
+- rule_id: gcp.gke.node_kubelet.k8s_kubelet_read_only_port_disabled
+  for_each: gcp.container.projects.zones.clusters.nodePools.list
+  severity: HIGH
+  conditions:
+    var: item.config.kubeletConfig.readOnlyPort
+    op: not_exists
+    value: null
+- rule_id: gcp.gke.node_kubelet.kubelet_authz_webhook_or_rbac_enabled
+  for_each: gcp.gke.describe_clusters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.NodeConfig.Config.KubeletConfig.Authentication
+      op: exists
+      value: null
+    - var: item.NodeConfig.Config.KubeletConfig.Authorization.Mode
+      op: in
+      value:
+      - Webhook
+      - RBAC
+- rule_id: gcp.gke.node_kubelet.kubelet_client_cert_rotation_enabled
+  for_each: gcp.gke.describe_node_pools
+  severity: HIGH
+  conditions:
+    var: item.Config.KubeletConfig.RotateKubeletClientCertificate
+    op: is_true
+    value: null
+- rule_id: gcp.gke.node_kubelet.kubelet_protect_kernel_defaults_enabled
+  for_each: gcp.gke.describe_clusters
+  severity: HIGH
+  conditions:
+    var: item.NodeConfig.ShieldedInstanceConfig.EnableIntegrityMonitoring
+    op: is_true
+    value: null
+- rule_id: gcp.gke.node_kubelet.kubelet_tls_min_1_2_enforced
+  for_each: gcp.gke.clusters.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.nodeConfig.config.kubeletConfig
+      op: exists
+      value: null
+    - var: item.nodeConfig.config.kubeletConfig.tlsMinVersion
+      op: in
+      value:
+      - '1.2'
+      - '1.3'
+- rule_id: gcp.gke.node_pool.container_instance_env_no_plaintext_secrets
+  for_each: gcp.gke.list_node_pools
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.config.metadata[].key
+      op: not_contains
+      value: GOOGLE_APPLICATION_CREDENTIALS
+    - var: item.config.metadata[].value
+      op: not_contains
+      value: .json
+- rule_id: gcp.gke.node_pool.container_instance_no_privileged_containers
+  for_each: gcp.gke.list_node_pools
+  severity: HIGH
+  conditions:
+    var: item.Config.Containers[].SecurityContext.Privileged
+    op: not_contains
+    value: true
+- rule_id: gcp.gke.node_pool.container_instance_read_only_root_filesystem
+  for_each: gcp.gke.list_node_pools
+  severity: HIGH
+  conditions:
+    var: item.config.securityContext.readOnlyRootFilesystem
+    op: is_true
+    value: null
+- rule_id: gcp.gke.node_pool.node_pool_disk_encryption_enabled
+  for_each: gcp.gke.list_node_pools
+  severity: HIGH
+  conditions:
+    var: item.Config.BootDiskKmsKey
+    op: exists
+    value: null
+- rule_id: gcp.gke.node_pool.node_pool_nodes_no_public_ip
+  for_each: gcp.gke.list_node_pools
+  severity: HIGH
+  conditions:
+    var: item.config.workloadMetadataConfig.nodeMetadata
+    op: not_equals
+    value: EXPOSE
+- rule_id: gcp.gke.node_pool.node_pool_shielded_secure_boot_enabled
+  for_each: gcp.gke.list_node_pools
+  severity: HIGH
+  conditions:
+    var: item.Config.ShieldedInstanceConfig.EnableSecureBoot
+    op: is_true
+    value: null
+- rule_id: gcp.gke.node_pool.node_pool_workload_identity_enabled
+  for_each: gcp.gke.list_node_pools
+  severity: HIGH
+  conditions:
+    var: item.Config.WorkloadMetadataConfig.Mode
+    op: equals
+    value: GKE_METADATA
+- rule_id: gcp.gke.rbac.rbac_authorization_mode_rbac_enabled
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    var: item.RbacAuthorizationMode
+    op: exists
+    value: null
+- rule_id: gcp.gke.rbac.rbac_default_sa_not_cluster_admin
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.NodePools[].Config.ServiceAccount
+      op: exists
+      value: null
+    - var: item.NodePools[].Config.ServiceAccount
+      op: not_equals
+      value: default
+- rule_id: gcp.gke.rbac.rbac_no_cluster_admin_bindings_to_users
+  for_each: gcp.gke.rbac.list_cluster_role_bindings
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.roleRef.name
+      op: equals
+      value: cluster-admin
+    - var: item.subjects[].kind
+      op: not_contains
+      value: User
+- rule_id: gcp.gke.rbac.rbac_no_cluster_admin_to_authenticated
+  for_each: gcp.gke.rbac.list_cluster_role_bindings
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.roleRef.name
+      op: not_equals
+      value: cluster-admin
+    - var: item.subjects[].kind
+      op: not_contains
+      value: User
+    - var: item.subjects[].name
+      op: not_contains
+      value: system:authenticated
+- rule_id: gcp.gke.rbac.rbac_no_wildcard_rules_in_clusterroles
+  for_each: gcp.container.clusterroles.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.rules[].verbs
+      op: not_contains
+      value: '*'
+    - var: item.rules[].apiGroups
+      op: not_contains
+      value: '*'
+    - var: item.rules[].resources
+      op: not_contains
+      value: '*'
+- rule_id: gcp.gke.rbac.rbac_subjects_scoped_to_namespaces
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.RoleBindings[].Subjects[].Namespace
+      op: exists
+      value: null
+    - var: item.RoleBindings[].Subjects[].Kind
+      op: not_equals
+      value: ServiceAccount
+- rule_id: gcp.gke.rbac.rbac_wildcard_verbs_disallowed
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.RoleBindings[].RoleRef.Name
+      op: not_contains
+      value: '*'
+    - var: item.RoleBindings[].Subjects[].Kind
+      op: not_contains
+      value: '*'
+- rule_id: gcp.gke.service.service_external_ips_not_used
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.servicesConfig.disableLoadBalancerIngress
+      op: is_true
+      value: null
+    - var: item.servicesConfig.disableLoadBalancerEgress
+      op: is_true
+      value: null
+- rule_id: gcp.gke.service.service_nodeport_usage_restricted
+  for_each: gcp.container.clusters.list
+  severity: HIGH
+  conditions:
+    var: item.servicesConfig.nodePortsConfig.enabledServices[]
+    op: not_contains
+    value: NodePort
+- rule_id: gcp.gke.service.service_type_loadbalancer_internal_only_where_required
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.servicesConfig.loadBalancerType
+      op: equals
+      value: Internal
+    - var: item.servicesConfig.loadBalancerSubnet
+      op: exists
+      value: null
+- rule_id: gcp.gke.workload.workload_drop_net_raw_and_reduce_caps
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.workloadConfig.securityContext.dropCapabilities[]
+      op: contains
+      value: NET_RAW
+    - var: item.workloadConfig.securityContext.dropCapabilities[]
+      op: contains
+      value: ALL
+    - var: item.workloadConfig.securityContext.capabilities.drop[]
+      op: contains
+      value: ALL
+- rule_id: gcp.gke.workload.workload_env_no_plaintext_secrets
+  for_each: gcp.gke.workload.list_workloads
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.spec.containers[].env[].valueFrom
+      op: exists
+      value: null
+    - var: item.spec.containers[].env[].value
+      op: not_exists
+      value: null
+- rule_id: gcp.gke.workload.workload_host_network_pid_ipc_disabled
+  for_each: gcp.container.clusters.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.workloadConfig.securityPostureConfig.vulnerabilityMode
+      op: exists
+      value: null
+    - var: item.workloadConfig.securityPostureConfig.workloadVulnerabilityScanning
+      op: is_true
+      value: null
+    - var: item.workloadConfig.hostNetwork
+      op: is_false
+      value: null
+    - var: item.workloadConfig.hostPid
+      op: is_false
+      value: null
+    - var: item.workloadConfig.hostIpc
+      op: is_false
+      value: null
+- rule_id: gcp.gke.workload.workload_image_tag_not_latest
+  for_each: gcp.gke.list_workloads
+  severity: HIGH
+  conditions:
+    var: item.spec.containers[].image
+    op: not_contains
+    value: :latest
+- rule_id: gcp.gke.workload.workload_no_hostpath_mounts
+  for_each: gcp.gke.workload.list_workloads
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.spec.volumes[].hostPath
+      op: not_exists
+      value: null
+- rule_id: gcp.gke.workload.workload_no_privileged_containers
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.NodePools[].Config.SecurityContext.Privileged
+      op: is_false
+      value: null
+- rule_id: gcp.gke.workload.workload_read_only_root_filesystem
+  for_each: gcp.gke.workload.list_workloads
+  severity: HIGH
+  conditions:
+    var: item.spec.containers[].securityContext.readOnlyRootFilesystem
+    op: is_true
+    value: null
+- rule_id: gcp.gke.workload.workload_run_as_non_root
+  for_each: gcp.gke.describe_workloads
+  severity: HIGH
+  conditions:
+    var: item.SecurityContext.RunAsNonRoot
+    op: is_true
+    value: null
+- rule_id: gcp.gke.workload.workload_seccomp_profile_runtime_default
+  for_each: gcp.gke.list_clusters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.nodePools[].config.sandboxConfig.type
+      op: exists
+      value: null
+    - var: item.nodePools[].config.sandboxConfig.type
+      op: equals
+      value: gvisor
+    - var: item.nodePools[].config.workloadMetadataConfig.mode
+      op: exists
+      value: null
+    - var: item.nodePools[].config.workloadMetadataConfig.mode
+      op: equals
+      value: GKE_METADATA

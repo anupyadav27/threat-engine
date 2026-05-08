@@ -1,0 +1,140 @@
+checks:
+- rule_id: alicloud.fc.compute.function_not_publicly_accessible
+  for_each: alicloud.fc.compute
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+- rule_id: alicloud.fc.compute.function_restrict_public_access
+  for_each: alicloud.fc.compute
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.fc.compute.function_url_authentication
+  for_each: alicloud.fc.compute
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.fc.compute.function_url_public
+  for_each: alicloud.fc.compute
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.fc.function.dependency_scan_passed
+  for_each: alicloud.fc.function_public_access_blocked
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.fc.function.inside_vpc
+  for_each: alicloud.fc.function_public_access_blocked
+  conditions:
+    var: item.vpc_id
+    op: exists
+- rule_id: alicloud.fc.function.invoke_api_operations_actiontrail_logging_enabled_with_90_day_retention
+  for_each: alicloud.fc.function_public_access_blocked
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.fc.function.least_privilege_identity_enforced
+  for_each: alicloud.fc.function_public_access_blocked
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.fc.function.public_access_blocked
+  for_each: alicloud.fc.function_public_access_blocked
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+- rule_id: alicloud.fc.function.reserved_concurrency_set
+  for_each: alicloud.fc.function_public_access_blocked
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.fc.function.url_cors_policy_enforced
+  for_each: alicloud.fc.function_public_access_blocked
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.fc.function.url_public
+  for_each: alicloud.fc.function_public_access_blocked
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.fc.function.url_public_access_blocked
+  for_each: alicloud.fc.function_public_access_blocked
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+- rule_id: alicloud.fc.function.vpc_isolation_enabled
+  for_each: alicloud.fc.function_public_access_blocked
+  conditions:
+    var: item.vpc_id
+    op: exists
+- rule_id: alicloud.fc.function.vpc_multi_az_deployment
+  for_each: alicloud.fc.function_public_access_blocked
+  conditions:
+    var: item.vpc_id
+    op: exists
+- rule_id: alicloud.fc.function_public_access_blocked.configured
+  for_each: alicloud.fc.function_public_access_blocked
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.fc.function_url_public_access_blocked.configured
+  for_each: alicloud.fc.function_url_public_access_blocked
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+- rule_id: alicloud.fc.http.logs_enabled_with_no_secrets_in_logs
+  for_each: alicloud.fc.http
+  conditions:
+    var: item.logging_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.fc.minimum_tls_version_1_2_enforced.configured
+  for_each: alicloud.fc.minimum_tls_version_1_2_enforced
+  conditions:
+    all:
+    - var: item.ssl_enabled
+      op: equals
+    - var: item.min_tls_version
+      op: gte
+- rule_id: alicloud.fc.provisioned_concurrency.prov_conc_execution_role_least_privilege
+  for_each: alicloud.fc.provisioned_concurrency
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.fc.trigger.event_source_permissions_least_privilege
+  for_each: alicloud.fc.ListTriggers
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.fc.trigger.event_source_source_authenticated
+  for_each: alicloud.fc.ListTriggers
+  conditions:
+    var: item.status
+    op: equals
+    value: Active

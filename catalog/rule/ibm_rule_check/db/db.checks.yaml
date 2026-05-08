@@ -1,0 +1,34 @@
+# Auto-generated: check rules for IBM db from test-rulecheck_python_code
+version: '1.0'
+provider: ibm
+service: db
+checks:
+- rule_id: ibm.db.activity.audit_config_change
+  for_each: ibm.db.list_instances
+  severity: HIGH
+  conditions:
+    var: item.ActivityAuditLoggingEnabled
+    op: is_true
+- rule_id: ibm.db.activity.db_admin_activity
+  for_each: ibm.cloudant.list_databases
+  severity: HIGH
+  conditions:
+    var: item.AdminActivityLoggingEnabled
+    op: is_true
+- rule_id: ibm.db.activity.db_schema_change
+  for_each: ibm.cloud-databases.list_instances
+  severity: HIGH
+  conditions:
+    var: item.allow_schema_change
+    op: is_false
+- rule_id: ibm.db.activity.user_management
+  for_each: ibm.database.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Users[].Role
+      op: not_contains
+      value: Administrator
+    - var: item.Users[].Role
+      op: not_contains
+      value: Owner

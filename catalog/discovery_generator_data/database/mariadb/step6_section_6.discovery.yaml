@@ -1,0 +1,78 @@
+version: '1.0'
+provider: database
+engine: mariadb
+category: section_6
+cis_section: '6'
+description: >
+  mariadb CIS Section 6 — 'log_error' is configured correctly
+
+discovery:
+
+  - discovery_id: mariadb.section_6.log_error_is_configured_correctly
+    description: Ensure 'log_error' is configured correctly
+    calls:
+
+
+      - action: query_setting
+        query: "SHOW VARIABLES LIKE 'log_error';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: log_error_is_configured_correctly
+        setting_name: "log_error"
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: mariadb.section_6.log_files_are_stored_on_a_non_system_partition
+    description: Ensure Log Files are Stored on a Non-System Partition
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT @@global.log_bin_basename;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: log_files_are_stored_on_a_non_system_partition
+        setting_name: "log_files_are_stored_on_a_non_system_partition"
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: mariadb.section_6.log_warnings_is_set_to_2
+    description: Ensure 'log_warnings' is Set to '2'
+    calls:
+
+
+      - action: query_setting
+        query: "SHOW VARIABLES LIKE 'log_warnings';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: log_warnings_is_set_to_2
+        setting_name: "log_warnings"
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: mariadb.section_6.binary_and_relay_logs_are_encrypted
+    description: Ensure Binary and Relay Logs are Encrypted
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT VARIABLE_NAME, VARIABLE_VALUE, 'BINLOG - At Rest Encryption' as Note FROM information_schema.global_variables where variable_name like '%ENCRYPT_LOG%';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: binary_and_relay_logs_are_encrypted
+        setting_name: "binary_and_relay_logs_are_encrypted"
+        value: "{{ result.value }}"
+        expected: ""
+
+

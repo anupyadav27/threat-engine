@@ -1,0 +1,36 @@
+version: '1.0'
+provider: web_server
+engine: nginx
+category: section_3
+cis_section: '3'
+description: >
+  nginx CIS Section 3 — error logging is enabled and set to the info logging level
+
+discovery:
+
+  - discovery_id: nginx.section_3.error_logging_is_enabled_and_set_to_the_info
+    description: Ensure error logging is enabled and set to the info logging level
+    calls:
+      - action: run_command
+        command: "Run the following to verify the error logging configuration in /etc/nginx/nginx.conf: grep error_log /etc/nginx/nginx.conf If there is no output, the output is commented out, or the logging level is set to anything other than info, this recommendation is not implemented."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: error_logging_is_enabled_and_set_to_the_info
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: nginx.section_3.log_files_are_rotated
+    description: Ensure log files are rotated
+    calls:
+      - action: run_command
+        command: "Run the below commands to verify the log rotation configuration. They should show that log compression occurs weekly and log rotation occurs every 13 weeks. cat /etc/logrotate.d/nginx | grep weekly cat /etc/logrotate.d/nginx | grep rotate"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: log_files_are_rotated
+        value: "{{ result.stdout }}"
+        expected: ""
+

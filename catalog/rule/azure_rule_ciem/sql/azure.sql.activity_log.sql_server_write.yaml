@@ -1,0 +1,65 @@
+rule_id: azure.sql.activity_log.sql_server_write
+service: sql
+provider: azure
+check_type: log
+severity: medium
+title: 'SQL: SQL Server Write'
+description: SQL Server created or modified — server configuration including AD authentication changed.
+rationale: Public-facing application exploitation can provide initial foothold in cloud environments; early detection limits attacker dwell time significantly.
+threat_category: initial_access
+mitre_tactics:
+- initial_access
+mitre_techniques:
+- T1190
+risk_score: 50
+resource: azure_sql
+source: default
+is_active: true
+domain: threat_detection
+action_category: create
+log_source_type: activity_log
+posture_category: threat_posture
+threat_tags:
+- T1190
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.14
+  - 2.1
+  cis_azure_v2:
+  - 1.2
+  - 2.1
+  nist_800_53_r5:
+  - AC-17
+  - IA-2
+  - SI-3
+  pci_dss_v4:
+  - 8.3
+  - 11.5
+  iso_27001_2022:
+  - A.8.5
+  - A.9.4
+remediation: |
+  1. Apply WAF rules to detect and block exploitation attempts.
+  2. Enable vulnerability scanning for all public-facing services.
+  3. Apply security patches promptly for all known CVEs.
+references:
+- https://attack.mitre.org/techniques/T1190/
+check_config:
+  conditions:
+    all:
+    - field: operation
+      op: equals
+      value: Microsoft.Sql/servers/write
+  log_source_type: activity_log
+version: '1.0'

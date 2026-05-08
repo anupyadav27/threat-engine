@@ -2,7 +2,7 @@
 Orchestration metadata helper for engines.
 
 Allows engines to receive ONLY scan_run_id and query
-all other metadata from scan_orchestration table (single source of truth).
+all other metadata from scan_runs table (single source of truth).
 
 This eliminates parameter passing errors and ensures consistency.
 """
@@ -12,7 +12,7 @@ from typing import Dict, Any, Optional
 
 
 def _get_orchestration_conn():
-    """Return a psycopg2 connection to scan_orchestration in threat_engine_onboarding."""
+    """Return a psycopg2 connection to scan_runs in threat_engine_onboarding."""
     return psycopg2.connect(
         host=os.getenv("ONBOARDING_DB_HOST"),
         port=int(os.getenv("ONBOARDING_DB_PORT", "5432")),
@@ -24,9 +24,9 @@ def _get_orchestration_conn():
 
 def get_orchestration_metadata(scan_run_id: str) -> Dict[str, Any]:
     """
-    Get complete orchestration metadata from scan_orchestration table.
+    Get complete orchestration metadata from scan_runs table.
 
-    Reads from threat_engine_onboarding (scan_orchestration table).
+    Reads from threat_engine_onboarding (scan_runs table).
 
     Args:
         scan_run_id: Scan run UUID (pipeline-wide identifier)
@@ -62,21 +62,21 @@ def get_orchestration_metadata(scan_run_id: str) -> Dict[str, Any]:
                 credential_type,
                 credential_ref,
                 include_services,
-                include_regions
-            FROM scan_orchestration
+                include_regions,
+                customer_id
+            FROM scan_runs
             WHERE scan_run_id = %s::uuid
         """, (scan_run_id,))
 
         row = cursor.fetchone()
         if not row:
-            raise ValueError(f"Scan run ID {scan_run_id} not found in scan_orchestration table")
+            return None
 
         sid = str(row[0])
+        tenant_id = row[1]
         return {
             "scan_run_id": sid,
-            "discovery_scan_run_id": sid,  # alias — check engine uses this
-            "discovery_scan_id": sid,      # alias — inventory engine uses this
-            "tenant_id": row[1],
+            "tenant_id": tenant_id,
             "account_id": row[2],
             "provider_type": row[3],   # alias kept for callers
             "provider": row[3],
@@ -88,6 +88,7 @@ def get_orchestration_metadata(scan_run_id: str) -> Dict[str, Any]:
             "credential_ref": row[8],
             "include_services": row[9],
             "include_regions": row[10],
+            "customer_id": row[11] or tenant_id,  # fall back to tenant_id if not set
         }
     finally:
         cursor.close()

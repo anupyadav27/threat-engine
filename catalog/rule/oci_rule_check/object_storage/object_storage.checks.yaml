@@ -1,0 +1,634 @@
+version: '1.0'
+provider: oci
+service: object_storage
+checks:
+- rule_id: oci.object_storage.bucket.ai_dataset_encrypted_at_rest_cmek
+  for_each: oci.object_storage.list_buckets
+  severity: MEDIUM
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.object_storage.bucket.ai_dataset_public_access_blocked_blocked
+  for_each: oci.object_storage.list_buckets
+  severity: CRITICAL
+  conditions:
+    var: item.public_access_type
+    op: not_equals
+    value: ObjectRead
+- rule_id: oci.object_storage.bucket.ai_services_dataset_access_logging_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: MEDIUM
+  conditions:
+    var: item.ai_services_dataset_access_logging_enabled
+    op: is_true
+    value: null
+- rule_id: oci.object_storage.bucket.ai_services_dataset_lifecycle_policy_configured
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.freeform_tags.ai_services_dataset_lifecycle_policy
+    op: exists
+    value: null
+- rule_id: oci.object_storage.bucket.ai_services_dataset_s3_block_public_access_blocked
+  for_each: oci.object_storage.list_buckets
+  severity: CRITICAL
+  conditions:
+    var: item.public_access_type
+    op: not_equals
+    value: ObjectRead
+- rule_id: oci.object_storage.bucket.ai_services_dataset_s3_encrypted_at_rest
+  for_each: oci.object_storage.list_buckets
+  severity: MEDIUM
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.object_storage.bucket.blob_public_access_level_is_disabled
+  for_each: oci.object_storage.list_buckets
+  severity: CRITICAL
+  conditions:
+    var: item.public_access_type
+    op: equals
+    value: NoPublicAccess
+- rule_id: oci.object_storage.bucket.bucket_access_logging_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: MEDIUM
+  conditions:
+    var: item.public_access_type
+    op: not_equals
+    value: NoPublicAccess
+- rule_id: oci.object_storage.bucket.bucket_block_public_access_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: CRITICAL
+  conditions:
+    var: item.public_access_type
+    op: not_exists
+    value: null
+- rule_id: oci.object_storage.bucket.bucket_cmk_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.object_storage.bucket.bucket_encryption_cmk_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.object_storage.bucket.bucket_encryption_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.object_storage.bucket.bucket_log_retention_policy_lock
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.object_lifecycle_policy_lock
+    op: exists
+    value: null
+- rule_id: oci.object_storage.bucket.bucket_metrics_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.metrics_enabled
+    op: exists
+    value: null
+- rule_id: oci.object_storage.bucket.bucket_policy_denies_public_and_insecure_blocked
+  for_each: oci.object_storage.list_buckets
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.public_access_type
+      op: not_equals
+      value: ObjectRead
+    - var: item.public_access_type
+      op: not_equals
+      value: ObjectReadWithoutList
+    - var: item.public_access_type
+      op: not_equals
+      value: ObjectReadWrite
+- rule_id: oci.object_storage.bucket.bucket_policy_deny_insecure_transport
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.public_access_type
+    op: not_equals
+    value: ObjectReadWithoutList
+- rule_id: oci.object_storage.bucket.bucket_policy_deny_unencrypted_puts
+  for_each: oci.object_storage.list_buckets
+  severity: MEDIUM
+  conditions:
+    var: item.public_access_type
+    op: not_equals
+    value: ObjectReadWithoutList
+- rule_id: oci.object_storage.bucket.bucket_policy_no_public_principals_blocked
+  for_each: oci.object_storage.list_buckets
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.public_access_type
+      op: exists
+      value: null
+    - var: item.public_access_type
+      op: not_equals
+      value: ObjectRead
+    - var: item.public_access_type
+      op: not_equals
+      value: ObjectReadWithoutList
+- rule_id: oci.object_storage.bucket.bucket_policy_no_wildcards_on_actions_or_principals
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    all:
+    - var: item.policy_statements[].actions[]
+      op: not_contains
+      value: '*'
+    - var: item.policy_statements[].principals[]
+      op: not_contains
+      value: '*'
+- rule_id: oci.object_storage.bucket.bucket_public_access
+  for_each: oci.object_storage.list_buckets
+  severity: CRITICAL
+  conditions:
+    var: item.public_access_type
+    op: not_equals
+    value: ObjectRead
+- rule_id: oci.object_storage.bucket.bucket_replication_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.replication_enabled
+    op: is_true
+    value: null
+- rule_id: oci.object_storage.bucket.bucket_require_tls_in_transit_required
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.public_access_type
+    op: not_equals
+    value: ObjectReadWithoutList
+- rule_id: oci.object_storage.bucket.bucket_versioning_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.versioning
+    op: equals
+    value: Enabled
+- rule_id: oci.object_storage.bucket.encryption_backup_storage_immutability_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: HIGH
+  conditions:
+    var: item.storage_tier
+    op: equals
+    value: Archive
+- rule_id: oci.object_storage.bucket.encryption_cmk_key_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.object_storage.bucket.encryption_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.object_storage.bucket.encryption_key_policy_least_privilege_enabled_enforced
+  for_each: oci.object_storage.list_buckets
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.kms_key_id
+      op: exists
+      value: null
+    - var: item.kms_key_id
+      op: not_equals
+      value: null
+- rule_id: oci.object_storage.bucket.encryption_key_rotation_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.object_storage.bucket.encryption_tls_min_1_2_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.public_access_type
+      op: not_equals
+      value: ObjectRead
+    - var: item.public_access_type
+      op: not_equals
+      value: ObjectReadWithoutList
+- rule_id: oci.object_storage.bucket.ensure_encryption_with_cmks
+  for_each: oci.object_storage.list_buckets
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.object_storage.bucket.ensure_minimum_tls_version_12
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.minimum_tls_version
+    op: in
+    value:
+    - TLS_1_2
+    - TLS_1_3
+- rule_id: oci.object_storage.bucket.ensure_oracle_services_are_trusted_to_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.public_access_type
+    op: not_equals
+    value: ObjectReadWithoutList
+- rule_id: oci.object_storage.bucket.ensure_private_endpoints_in_storage_accounts
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.public_access_type
+    op: equals
+    value: NoPublicAccess
+- rule_id: oci.object_storage.bucket.ensure_soft_delete_is_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.soft_delete_retention_duration_in_days
+    op: gt
+    value: 0
+- rule_id: oci.object_storage.bucket.fileshare_encryption_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: HIGH
+  conditions:
+    var: item.public_access_type
+    op: not_equals
+    value: ObjectReadWithoutList
+- rule_id: oci.object_storage.bucket.infrastructure_encryption_is_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.object_storage.bucket.lifecycle_expiration_rules_defined_required
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_policy_rules
+    op: not_empty
+    value: null
+- rule_id: oci.object_storage.bucket.lifecycle_immutable_retention_locked_where_required
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.object_lifecycle_policy.is_locked
+    op: is_true
+    value: null
+- rule_id: oci.object_storage.bucket.lifecycle_versioning_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.versioning
+    op: exists
+    value: null
+- rule_id: oci.object_storage.bucket.object_encrypted_at_rest
+  for_each: oci.object_storage.list_buckets
+  severity: MEDIUM
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.object_storage.bucket.object_lock_or_immutability_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    any:
+    - var: item.object_lifecycle_policy
+      op: exists
+      value: null
+    - var: item.versioning
+      op: equals
+      value: Enabled
+- rule_id: oci.object_storage.bucket.partition_access_policies_least_privilege_required
+  for_each: oci.object_storage.list_buckets
+  severity: HIGH
+  conditions:
+    var: item.public_access_type
+    op: equals
+    value: NoPublicAccess
+- rule_id: oci.object_storage.bucket.partition_catalog_encrypted
+  for_each: oci.object_storage.list_buckets
+  severity: MEDIUM
+  conditions:
+    var: item.partition_catalog_encrypted
+    op: is_true
+    value: null
+- rule_id: oci.object_storage.bucket.replication_cross_region_encrypted
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    all:
+    - var: item.replication_enabled
+      op: is_true
+      value: null
+    - var: item.replication_details[].destination_region_name
+      op: exists
+      value: null
+    - var: item.replication_details[].encryption_key_id
+      op: exists
+      value: null
+- rule_id: oci.object_storage.bucket.replication_lag_monitoring_alerts_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: MEDIUM
+  conditions:
+    var: item.replication_lag_monitoring_alerts_enabled
+    op: is_true
+    value: null
+- rule_id: oci.object_storage.bucket.replication_tls_required
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    all:
+    - var: item.replication_enabled
+      op: is_true
+      value: null
+    - var: item.replication_tls_required
+      op: is_true
+      value: null
+- rule_id: oci.object_storage.bucket.retention_enforced_on_sensitive_datasets
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    all:
+    - var: item.freeform_tags.Sensitivity
+      op: exists
+      value: null
+    - var: item.freeform_tags.Sensitivity
+      op: in
+      value:
+      - high
+      - medium
+      - restricted
+      - confidential
+    - var: item.retention_rules
+      op: exists
+      value: null
+- rule_id: oci.object_storage.bucket.retention_policies_defined_required
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.retention_policies
+    op: exists
+    value: null
+- rule_id: oci.object_storage.bucket.retention_protected_from_public_override_blocked
+  for_each: oci.object_storage.list_buckets
+  severity: CRITICAL
+  conditions:
+    var: item.public_access_type
+    op: not_equals
+    value: ObjectReadWithoutList
+- rule_id: oci.object_storage.bucket.secure_transfer_required_is_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.public_access_type
+    op: not_equals
+    value: ObjectRead
+- rule_id: oci.object_storage.bucket.server_in_transit_encryption_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.object_storage.bucket.storage_account_level_public_access_blocks
+  for_each: oci.object_storage.list_buckets
+  severity: CRITICAL
+  conditions:
+    var: item.public_access_type
+    op: not_equals
+    value: ObjectRead
+- rule_id: oci.object_storage.bucket.storage_accounts
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.public_access_type
+    op: not_equals
+    value: ObjectRead
+- rule_id: oci.object_storage.bucket.storage_bucket_cross_region_replication
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.replication_enabled
+    op: is_true
+    value: null
+- rule_id: oci.object_storage.bucket.storage_bucket_default_encryption
+  for_each: oci.object_storage.list_buckets
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.object_storage.bucket.storage_bucket_default_kms_encryption
+  for_each: oci.object_storage.list_buckets
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.object_storage.bucket.storage_bucket_encryption_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.object_storage.bucket.storage_bucket_kms_encryption
+  for_each: oci.object_storage.list_buckets
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.object_storage.bucket.storage_bucket_level_public_access_blocks
+  for_each: oci.object_storage.list_buckets
+  severity: CRITICAL
+  conditions:
+    var: item.public_access_type
+    op: not_equals
+    value: ObjectRead
+- rule_id: oci.object_storage.bucket.storage_bucket_lifecycle_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_policy
+    op: exists
+    value: null
+- rule_id: oci.object_storage.bucket.storage_bucket_logging_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: MEDIUM
+  conditions:
+    var: item.logging
+    op: exists
+    value: null
+- rule_id: oci.object_storage.bucket.storage_bucket_object_versioning
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.versioning
+    op: equals
+    value: Enabled
+- rule_id: oci.object_storage.bucket.storage_bucket_policy_public_write_access
+  for_each: oci.object_storage.list_buckets
+  severity: CRITICAL
+  conditions:
+    var: item.public_access_type
+    op: not_equals
+    value: ObjectReadWrite
+- rule_id: oci.object_storage.bucket.storage_bucket_public_access
+  for_each: oci.object_storage.list_buckets
+  severity: CRITICAL
+  conditions:
+    var: item.public_access_type
+    op: not_equals
+    value: ObjectRead
+- rule_id: oci.object_storage.bucket.storage_bucket_public_access_restricted
+  for_each: oci.object_storage.list_buckets
+  severity: CRITICAL
+  conditions:
+    var: item.public_access_type
+    op: equals
+    value: NoPublicAccess
+- rule_id: oci.object_storage.bucket.storage_bucket_public_read_prohibited
+  for_each: oci.object_storage.list_buckets
+  severity: CRITICAL
+  conditions:
+    var: item.public_access_type
+    op: not_equals
+    value: ObjectRead
+- rule_id: oci.object_storage.bucket.storage_bucket_public_write_prohibited
+  for_each: oci.object_storage.list_buckets
+  severity: CRITICAL
+  conditions:
+    var: item.public_access_type
+    op: not_equals
+    value: ObjectReadWrite
+- rule_id: oci.object_storage.bucket.storage_bucket_replication_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.replication_enabled
+    op: is_true
+    value: null
+- rule_id: oci.object_storage.bucket.storage_bucket_secure_transport_policy
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.public_access_type
+    op: not_equals
+    value: ObjectRead
+- rule_id: oci.object_storage.bucket.storage_bucket_server_access_logging_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: MEDIUM
+  conditions:
+    var: item.public_access_type
+    op: not_equals
+    value: NoPublicAccess
+- rule_id: oci.object_storage.bucket.storage_bucket_versioning_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.versioning
+    op: equals
+    value: Enabled
+- rule_id: oci.object_storage.bucket.storage_bucket_write_access_logging_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: MEDIUM
+  conditions:
+    var: item.public_access_type
+    op: equals
+    value: NoPublicAccess
+- rule_id: oci.object_storage.bucket.storage_s3_bucket_encryption_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: HIGH
+  conditions:
+    var: item.kms_key_id
+    op: exists
+    value: null
+- rule_id: oci.object_storage.bucket.storage_website_https_only
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.public_access_type
+    op: not_equals
+    value: ObjectReadWithoutList
+- rule_id: oci.object_storage.bucket.vaults_policy_public_access
+  for_each: oci.object_storage.list_buckets
+  severity: CRITICAL
+  conditions:
+    var: item.public_access_type
+    op: not_equals
+    value: ObjectRead
+- rule_id: oci.object_storage.object.object_not_publicly_readable_blocked
+  for_each: oci.object_storage.list_buckets
+  severity: CRITICAL
+  conditions:
+    var: item.public_access_type
+    op: not_equals
+    value: ObjectRead
+- rule_id: oci.object_storage.replication_policy.replication_auth_roles_least_privilege_required
+  for_each: oci.object_storage.list_buckets
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.replication_policy
+      op: exists
+      value: null
+    - var: item.replication_policy.destination_region_name
+      op: exists
+      value: null
+    - var: item.replication_policy.destination_bucket_name
+      op: exists
+      value: null
+    - var: item.replication_policy.destination_bucket_namespace
+      op: exists
+      value: null
+    - var: item.replication_policy.destination_compartment_id
+      op: exists
+      value: null
+    - var: item.replication_policy.destination_compartment_id
+      op: equals
+      value: item.compartment_id
+- rule_id: oci.object_storage.storage.bucket_cross_region_replication
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.replication_enabled
+    op: is_true
+    value: null
+- rule_id: oci.object_storage.storage.bucket_lifecycle_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: LOW
+  conditions:
+    var: item.lifecycle_policy
+    op: exists
+    value: null
+- rule_id: oci.object_storage.storage.bucket_server_access_logging_enabled
+  for_each: oci.object_storage.list_buckets
+  severity: MEDIUM
+  conditions:
+    var: item.public_access_type
+    op: not_equals
+    value: ObjectRead

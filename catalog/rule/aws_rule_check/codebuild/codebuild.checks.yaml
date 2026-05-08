@@ -1,0 +1,72 @@
+version: '1.0'
+provider: aws
+service: codebuild
+checks:
+- rule_id: aws.codebuild.group.codebuild_export_encrypted
+  for_each: aws.codebuild.batch_get_projects
+  severity: HIGH
+  conditions:
+    var: item.encryptionKey
+    op: exists
+    value: null
+- rule_id: aws.codebuild.project.codebuild_older_90_days_configured
+  for_each: aws.codebuild.batch_get_projects
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.lastModified
+      op: exists
+      value: null
+    - var: item.lastModified
+      op: gte
+      value: 90 days ago
+- rule_id: aws.codebuild.projectartifact.encryption_enabled
+  for_each: aws.codebuild.batch_get_projects
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.artifacts.encryptionDisabled
+      op: is_false
+      value: null
+    - var: item.secondaryArtifacts[].encryptionDisabled
+      op: not_contains
+      value: true
+- rule_id: aws.codebuild.resource.codebuild_project_envvar_awscred_configured
+  for_each: aws.codebuild.batch_get_projects
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.environment.environmentVariables[].name
+      op: not_contains
+      value: AWS_ACCESS_KEY_ID
+    - var: item.environment.environmentVariables[].name
+      op: not_contains
+      value: AWS_SECRET_ACCESS_KEY
+- rule_id: aws.codebuild.resource.codebuild_project_s3_logs_encrypted
+  for_each: aws.codebuild.batch_get_projects
+  severity: HIGH
+  conditions:
+    var: item.logsConfig.s3Logs.encryptionDisabled
+    op: is_false
+    value: null
+- rule_id: aws.codebuild.resource.codebuild_project_source_repo_url_configured
+  for_each: aws.codebuild.batch_get_projects
+  severity: MEDIUM
+  conditions:
+    var: item.source
+    op: exists
+    value: null
+- rule_id: aws.codebuild.resource.project_logging_enabled
+  for_each: aws.codebuild.batch_get_projects
+  severity: MEDIUM
+  conditions:
+    var: item.logsConfig
+    op: exists
+    value: null
+- rule_id: aws.codebuild.user.codebuild_controlled_buildspec_configured
+  for_each: aws.codebuild.batch_get_projects
+  severity: MEDIUM
+  conditions:
+    var: item.source.buildspec
+    op: exists
+    value: null

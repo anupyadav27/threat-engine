@@ -1,0 +1,74 @@
+rule_id: alicloud.database.actiontrail.delete_db_backup
+service: database
+provider: alicloud
+check_type: log
+severity: critical
+title: 'AliCloud RDS: Automated Backup Policy Disabled'
+description: RDS automated backup was disabled or the backup retention period was
+  set to zero. This enables ransomware attacks — data can be encrypted with no recovery
+  path.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: impact
+mitre_tactics:
+- impact
+mitre_techniques:
+- T1490
+risk_score: 92
+resource: alicloud_rds_instance
+source: alicloud_ciem_generator
+is_active: true
+domain: storage_and_database_security
+action_category: modify
+log_source_type: alicloud_actiontrail
+posture_category: data_security_posture
+threat_tags:
+- T1490
+- impact
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '6.1'
+  - '6.2'
+  nist_800_53_r5:
+  - SC-28
+  - AC-3
+  - AU-9
+  pci_dss_v4:
+  - '3.4'
+  - '6.2'
+  - '10.2'
+  iso_27001_2022:
+  - A.8.10
+  - A.8.24
+remediation: '1. Re-enable automated backups with a minimum 7-day retention.
+
+  2. Investigate who disabled backups — treat as a pre-ransomware indicator.
+
+  3. Alert on backup policy changes on production databases.'
+references:
+- https://attack.mitre.org/techniques/T1490/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: rds
+    - field: operation
+      op: equals
+      value: ModifyBackupPolicy
+version: '1.0'

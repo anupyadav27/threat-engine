@@ -1,0 +1,53 @@
+version: '1.0'
+provider: k8s
+service: deployment
+checks:
+- rule_id: k8s.deployment.container.automount_sa_token_disabled
+  for_each: k8s.deployments.list
+  severity: MEDIUM
+  conditions:
+    var: item.spec.template.spec.automountServiceAccountToken
+    op: is_false
+    value: null
+- rule_id: k8s.deployment.container.host_ipc_disabled
+  for_each: k8s.deployments.list
+  severity: MEDIUM
+  conditions:
+    var: item.spec.template.spec.hostIPC
+    op: is_false
+    value: null
+- rule_id: k8s.deployment.container.host_network_disabled
+  for_each: k8s.deployments.list
+  severity: HIGH
+  conditions:
+    var: item.spec.template.spec.hostNetwork
+    op: is_false
+    value: null
+- rule_id: k8s.deployment.container.host_pid_disabled
+  for_each: k8s.deployments.list
+  severity: HIGH
+  conditions:
+    var: item.spec.template.spec.hostPID
+    op: is_false
+    value: null
+- rule_id: k8s.deployment.container.privileged_disabled
+  for_each: k8s.deployments.list
+  severity: CRITICAL
+  conditions:
+    var: item.spec.template.spec.containers[].securityContext.privileged
+    op: not_contains
+    value: true
+- rule_id: k8s.deployment.container.resource_limits_configured
+  for_each: k8s.deployment.list
+  severity: MEDIUM
+  conditions:
+    var: item.spec.template.spec.containers[].resources.limits
+    op: not_empty
+    value: null
+- rule_id: k8s.deployment.container.run_as_non_root_enabled
+  for_each: k8s.deployment.list_deployments
+  severity: HIGH
+  conditions:
+    var: item.spec.template.spec.containers[].securityContext.runAsNonRoot
+    op: is_true
+    value: null

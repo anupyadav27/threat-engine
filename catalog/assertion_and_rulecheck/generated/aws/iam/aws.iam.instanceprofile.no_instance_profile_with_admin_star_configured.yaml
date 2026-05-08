@@ -1,0 +1,23 @@
+version: '1.0'
+rule_id: aws.iam.instanceprofile.no_instance_profile_with_admin_star_configured
+for_each: aws.iam.get_account_authorization_details
+severity: MEDIUM
+conditions:
+  all:
+  - var: item.RoleDetailList[].InstanceProfileList[].Arn
+    op: exists
+  - var: item.RoleDetailList[].AssumeRolePolicyDocument.Statement[].Action
+    op: not_contains
+    value: sts:AssumeRole
+  - var: item.RoleDetailList[].AttachedManagedPolicies[].PolicyName
+    op: not_equals
+    value: AdministratorAccess
+  - var: item.RoleDetailList[].RolePolicyList[].PolicyDocument.Statement[].Effect
+    op: not_equals
+    value: Allow
+  - var: item.RoleDetailList[].RolePolicyList[].PolicyDocument.Statement[].Action
+    op: not_contains
+    value: '*'
+  - var: item.RoleDetailList[].RolePolicyList[].PolicyDocument.Statement[].Resource
+    op: not_contains
+    value: '*'

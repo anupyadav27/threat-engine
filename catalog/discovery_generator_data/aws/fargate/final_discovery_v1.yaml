@@ -1,0 +1,152 @@
+# ==========================================================
+# Discovery YAML — fargate (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 10 | ops: 2 independent, 1 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: fargate
+
+services:
+  client: fargate
+  module: "boto3.client('fargate')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: service
+    identifier_op: aws.ecs.describe_services
+    identifier_field: clusterArn
+    item_var_path: item.clusterArn
+    identifier_template: '{clusterarn}'
+  - resource_type: task
+    identifier_op: aws.ecs.describe_tasks
+    identifier_field: clusterArn
+    item_var_path: item.clusterArn
+    identifier_template: '{clusterarn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.ecs.describe_services  ──
+  - discovery_id: aws.ecs.describe_services
+    calls:
+      - action: describe_services
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.services }}'
+      item:
+        availabilityZoneRebalancing: '{{ item.availabilityZoneRebalancing }}'
+        capacityProviderStrategy: '{{ item.capacityProviderStrategy }}'
+        clusterArn: '{{ item.clusterArn }}'
+        createdAt: '{{ item.createdAt }}'
+        createdBy: '{{ item.createdBy }}'
+        currentServiceDeployment: '{{ item.currentServiceDeployment }}'
+        currentServiceRevisions: '{{ item.currentServiceRevisions }}'
+        deploymentConfiguration: '{{ item.deploymentConfiguration }}'
+        deploymentController: '{{ item.deploymentController }}'
+        deployments: '{{ item.deployments }}'
+        desiredCount: '{{ item.desiredCount }}'
+        enableECSManagedTags: '{{ item.enableECSManagedTags }}'
+        enableExecuteCommand: '{{ item.enableExecuteCommand }}'
+        events: '{{ item.events }}'
+        healthCheckGracePeriodSeconds: '{{ item.healthCheckGracePeriodSeconds }}'
+        launchType: '{{ item.launchType }}'
+        loadBalancers: '{{ item.loadBalancers }}'
+        networkConfiguration: '{{ item.networkConfiguration }}'
+        pendingCount: '{{ item.pendingCount }}'
+        placementConstraints: '{{ item.placementConstraints }}'
+        placementStrategy: '{{ item.placementStrategy }}'
+        platformFamily: '{{ item.platformFamily }}'
+        platformVersion: '{{ item.platformVersion }}'
+        propagateTags: '{{ item.propagateTags }}'
+        resourceManagementType: '{{ item.resourceManagementType }}'
+        roleArn: '{{ item.roleArn }}'
+        runningCount: '{{ item.runningCount }}'
+        schedulingStrategy: '{{ item.schedulingStrategy }}'
+        serviceArn: '{{ item.serviceArn }}'
+        serviceName: '{{ item.serviceName }}'
+        serviceRegistries: '{{ item.serviceRegistries }}'
+        status: '{{ item.status }}'
+        tags: '{{ item.tags }}'
+        taskDefinition: '{{ item.taskDefinition }}'
+        taskSets: '{{ item.taskSets }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.ecs.describe_tasks  ──
+  - discovery_id: aws.ecs.describe_tasks
+    calls:
+      - action: describe_tasks
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.tasks }}'
+      item:
+        attachments: '{{ item.attachments }}'
+        attributes: '{{ item.attributes }}'
+        availabilityZone: '{{ item.availabilityZone }}'
+        capacityProviderName: '{{ item.capacityProviderName }}'
+        clusterArn: '{{ item.clusterArn }}'
+        connectivity: '{{ item.connectivity }}'
+        connectivityAt: '{{ item.connectivityAt }}'
+        containerInstanceArn: '{{ item.containerInstanceArn }}'
+        containers: '{{ item.containers }}'
+        cpu: '{{ item.cpu }}'
+        createdAt: '{{ item.createdAt }}'
+        desiredStatus: '{{ item.desiredStatus }}'
+        enableExecuteCommand: '{{ item.enableExecuteCommand }}'
+        ephemeralStorage: '{{ item.ephemeralStorage }}'
+        executionStoppedAt: '{{ item.executionStoppedAt }}'
+        fargateEphemeralStorage: '{{ item.fargateEphemeralStorage }}'
+        group: '{{ item.group }}'
+        healthStatus: '{{ item.healthStatus }}'
+        inferenceAccelerators: '{{ item.inferenceAccelerators }}'
+        lastStatus: '{{ item.lastStatus }}'
+        launchType: '{{ item.launchType }}'
+        memory: '{{ item.memory }}'
+        overrides: '{{ item.overrides }}'
+        platformFamily: '{{ item.platformFamily }}'
+        platformVersion: '{{ item.platformVersion }}'
+        pullStartedAt: '{{ item.pullStartedAt }}'
+        pullStoppedAt: '{{ item.pullStoppedAt }}'
+        startedAt: '{{ item.startedAt }}'
+        startedBy: '{{ item.startedBy }}'
+        stopCode: '{{ item.stopCode }}'
+        stoppedAt: '{{ item.stoppedAt }}'
+        stoppedReason: '{{ item.stoppedReason }}'
+        stoppingAt: '{{ item.stoppingAt }}'
+        tags: '{{ item.tags }}'
+        taskArn: '{{ item.taskArn }}'
+        taskDefinitionArn: '{{ item.taskDefinitionArn }}'
+        version: '{{ item.version }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.ecs.describe_task_definition [dependent] ──
+  - discovery_id: aws.ecs.describe_task_definition
+    for_each: aws.ecs.list_task_definitions
+    calls:
+      - action: describe_task_definition
+        params:
+          taskDefinition: '{{ item }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ [response.taskDefinition] }}'
+      item:
+        containerDefinitions: '{{ item.containerDefinitions }}'
+        cpu: '{{ item.cpu }}'
+        executionRoleArn: '{{ item.executionRoleArn }}'
+        family: '{{ item.family }}'
+        memory: '{{ item.memory }}'
+        networkMode: '{{ item.networkMode }}'
+        requiresCompatibilities: '{{ item.requiresCompatibilities }}'
+        revision: '{{ item.revision }}'
+        status: '{{ item.status }}'
+        taskDefinitionArn: '{{ item.taskDefinitionArn }}'
+        taskRoleArn: '{{ item.taskRoleArn }}'
+

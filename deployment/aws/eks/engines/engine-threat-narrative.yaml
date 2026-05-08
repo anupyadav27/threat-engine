@@ -1,0 +1,218 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: engine-threat-narrative
+  namespace: threat-engine-engines
+  labels:
+    app: engine-threat-narrative
+    tier: engine
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: engine-threat-narrative
+  template:
+    metadata:
+      labels:
+        app: engine-threat-narrative
+        tier: engine
+    spec:
+      serviceAccountName: engine-sa
+      containers:
+      - name: engine-threat-narrative
+        image: yadavanup84/engine-threat-narrative:v-narrative-1
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8040
+          name: http
+        envFrom:
+        - configMapRef:
+            name: threat-engine-db-config
+        - secretRef:
+            name: threat-engine-db-passwords
+        env:
+        - name: PYTHONPATH
+          value: /app
+        - name: LOG_LEVEL
+          value: "INFO"
+        # ── Threat DB (primary — read detections + write narrative) ────────
+        - name: THREAT_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: THREAT_DB_PORT
+          value: "5432"
+        - name: THREAT_DB_USER
+          value: "postgres"
+        - name: THREAT_DB_NAME
+          value: "threat_engine_threat"
+        - name: THREAT_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: THREAT_DB_PASSWORD
+              optional: true
+        # ── Risk DB (blast_radius_score, affected_resources) ───────────────
+        - name: RISK_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: RISK_DB_PORT
+          value: "5432"
+        - name: RISK_DB_USER
+          value: "postgres"
+        - name: RISK_DB_NAME
+          value: "threat_engine_risk"
+        - name: RISK_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: RISK_DB_PASSWORD
+              optional: true
+        # ── DataSec DB (data_classification) ──────────────────────────────
+        - name: DATASEC_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: DATASEC_DB_PORT
+          value: "5432"
+        - name: DATASEC_DB_USER
+          value: "postgres"
+        - name: DATASEC_DB_NAME
+          value: "threat_engine_datasec"
+        - name: DATASEC_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: DATASEC_DB_PASSWORD
+              optional: true
+        # ── Check DB (check_findings + rule_control_mapping + compliance) ──
+        - name: CHECK_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: CHECK_DB_PORT
+          value: "5432"
+        - name: CHECK_DB_USER
+          value: "postgres"
+        - name: CHECK_DB_NAME
+          value: "threat_engine_check"
+        - name: CHECK_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: CHECK_DB_PASSWORD
+              optional: true
+        # ── Discoveries DB (resource_name + resource_tags) ─────────────────
+        - name: DISCOVERIES_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: DISCOVERIES_DB_PORT
+          value: "5432"
+        - name: DISCOVERIES_DB_USER
+          value: "postgres"
+        - name: DISCOVERIES_DB_NAME
+          value: "threat_engine_discoveries"
+        - name: DISCOVERIES_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: DISCOVERIES_DB_PASSWORD
+              optional: true
+        # ── CIEM DB (identity_type, privilege_level, principal_name) ───────
+        - name: CIEM_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: CIEM_DB_PORT
+          value: "5432"
+        - name: CIEM_DB_USER
+          value: "postgres"
+        - name: CIEM_DB_NAME
+          value: "threat_engine_ciem"
+        - name: CIEM_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: CIEM_DB_PASSWORD
+              optional: true
+        # ── LLM API Key (optional — service degrades gracefully without it) ─
+        # CRITICAL: optional: true is mandatory. Service starts and passes health
+        # checks even if the secret does not yet exist.
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-llm-keys
+              key: ANTHROPIC_API_KEY
+              optional: true
+        - name: MISTRAL_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-llm-keys
+              key: MISTRAL_API_KEY
+              optional: true
+        # ── OpenTelemetry ──────────────────────────────────────────────────
+        - name: OTEL_SERVICE_NAME
+          value: "engine-threat-narrative"
+        - name: OTEL_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_ENABLED
+              optional: true
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_EXPORTER_OTLP_ENDPOINT
+              optional: true
+        - name: OTEL_EXPORTER_OTLP_INSECURE
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_EXPORTER_OTLP_INSECURE
+              optional: true
+        - name: OTEL_TRACES_SAMPLER
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_TRACES_SAMPLER
+              optional: true
+        - name: OTEL_PROPAGATORS
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_PROPAGATORS
+              optional: true
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health/live
+            port: 8040
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 6
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health/ready
+            port: 8040
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: engine-threat-narrative
+  namespace: threat-engine-engines
+  labels:
+    app: engine-threat-narrative
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8040
+    protocol: TCP
+    name: http
+  selector:
+    app: engine-threat-narrative

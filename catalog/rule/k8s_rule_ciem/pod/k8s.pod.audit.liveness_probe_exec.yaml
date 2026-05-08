@@ -1,0 +1,76 @@
+rule_id: k8s.pod.audit.liveness_probe_exec
+service: pod
+provider: k8s
+check_type: log
+severity: medium
+title: 'Pod: Liveness Probe Uses Exec Command'
+description: Pod created with livenessProbe.exec.command — exec-based probes run arbitrary commands inside containers; can be abused for persistent command execution.
+rationale: Adversaries execute commands inside running Kubernetes pods via the kubectl exec API — achieving interactive shell access without SSH or network access to the pod. Pod exec by non-CI/CD users or service accounts, especially in production namespaces, indicates unauthorized access or post-exploitation activity. Detected via K8s audit logs for pods/exec subresource with create verb.
+threat_category: execution
+mitre_tactics:
+- execution
+mitre_techniques:
+- T1609
+risk_score: 60
+resource: k8s_pod
+source: default
+is_active: true
+domain: compute_and_workload_security
+action_category: execute
+log_source_type: k8s_audit
+posture_category: workload_posture
+threat_tags:
+- T1609
+- remote_execution
+- cloud_exec
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: execution
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_k8s_v1:
+  - 5.2.1
+  - 5.2.2
+  - 5.2.3
+  nist_800_53_r5:
+  - CM-7
+  - SI-3
+  - SI-4
+  pci_dss_v4:
+  - 6.3
+  - 6.4
+  iso_27001_2022:
+  - A.8.19
+  - A.8.20
+remediation: |
+  1. Audit the created pod or container for malicious images or startup commands.
+  2. Enforce Binary Authorization or Cosign image signing via admission webhooks.
+  3. Apply Pod Security Standards (Restricted profile) to prevent privileged execution.
+  4. Restrict pod creation to specific service accounts in production namespaces.
+  5. Enable runtime threat detection (Falco, Tetragon) for anomalous container behavior.
+references:
+- https://attack.mitre.org/techniques/T1609/
+- https://kubernetes.io/docs/tasks/debug/debug-application/get-shell-running-container/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: k8s_audit
+    - field: resource
+      op: equals
+      value: pods
+    - field: verb
+      op: equals
+      value: create
+    - field: liveness_probe_exec
+      op: equals
+      value: true
+version: '1.0'

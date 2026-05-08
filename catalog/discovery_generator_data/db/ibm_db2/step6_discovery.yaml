@@ -1,0 +1,89 @@
+version: '1.0'
+provider: technology
+category: db
+tech_type: ibm_db2
+display_name: IBM Db2
+action_type: query_table
+cis_benchmark: CIS IBM Db2 11.5
+cis_section: '3'
+
+# ─── Authentication & Access ───────────────────────────────────────────────────
+discovery:
+  - discovery_id: ibm_db2.auth.local_accounts
+    description: Enumerate local user accounts and privilege levels
+    calls:
+      - action: query_table
+        target: auth.accounts
+        save_as: accounts
+    emit:
+      as: items
+      items: "{{ accounts }}"
+      item:
+        resource_uid: "{{ item.username or item.name or item.id }}"
+        resource_type: ibm_db2.user_account
+        username: "{{ item.username or item.name }}"
+        is_admin: "{{ item.is_admin or item.privileged }}"
+        last_login: "{{ item.last_login }}"
+
+  - discovery_id: ibm_db2.auth.password_policy
+    description: Retrieve password policy configuration
+    calls:
+      - action: query_table
+        target: auth.password_policy
+        save_as: policy
+    emit:
+      as: item
+      item:
+        resource_uid: "ibm_db2.password_policy"
+        resource_type: ibm_db2.policy
+        min_length: "{{ policy.min_length }}"
+        require_complexity: "{{ policy.complexity_enabled }}"
+        max_age_days: "{{ policy.max_age_days }}"
+
+# ─── Logging & Auditing ────────────────────────────────────────────────────────
+  - discovery_id: ibm_db2.logging.audit_config
+    description: Retrieve audit/logging configuration
+    calls:
+      - action: query_table
+        target: logging.audit_config
+        save_as: audit_cfg
+    emit:
+      as: item
+      item:
+        resource_uid: "ibm_db2.audit_config"
+        resource_type: ibm_db2.config
+        audit_enabled: "{{ audit_cfg.enabled }}"
+        log_destination: "{{ audit_cfg.destination }}"
+        log_level: "{{ audit_cfg.level }}"
+
+# ─── Encryption & Transport ────────────────────────────────────────────────────
+  - discovery_id: ibm_db2.encryption.transport
+    description: Check transport encryption (TLS/SSL) configuration
+    calls:
+      - action: query_table
+        target: encryption.transport
+        save_as: tls_cfg
+    emit:
+      as: item
+      item:
+        resource_uid: "ibm_db2.transport_encryption"
+        resource_type: ibm_db2.config
+        tls_enabled: "{{ tls_cfg.enabled }}"
+        tls_version: "{{ tls_cfg.min_version }}"
+        cert_path: "{{ tls_cfg.cert_path }}"
+
+# ─── Access Controls ──────────────────────────────────────────────────────────
+  - discovery_id: ibm_db2.acl.admin_privileges
+    description: Identify accounts with administrative or superuser privileges
+    calls:
+      - action: query_table
+        target: acl.admin_accounts
+        save_as: admins
+    emit:
+      as: items
+      items: "{{ admins }}"
+      item:
+        resource_uid: "{{ item.username or item.name }}"
+        resource_type: ibm_db2.privileged_account
+        username: "{{ item.username or item.name }}"
+        privilege_level: "{{ item.role or item.level }}"

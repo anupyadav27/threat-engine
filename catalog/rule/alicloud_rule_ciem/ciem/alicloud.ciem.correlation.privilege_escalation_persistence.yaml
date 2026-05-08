@@ -1,0 +1,82 @@
+rule_id: alicloud.ciem.correlation.privilege_escalation_persistence
+service: ciem
+provider: alicloud
+check_type: log
+severity: critical
+title: 'AliCloud CIEM: Policy Attachment Followed by Access Key Creation'
+description: 'Correlated privilege escalation + persistence: a RAM policy was attached
+  (privilege escalation) then an access key was created within the same session (backdoor).'
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: privilege_escalation
+mitre_tactics:
+- privilege_escalation
+- persistence
+mitre_techniques:
+- T1548
+- T1098
+risk_score: 94
+resource: alicloud_ram_user
+source: alicloud_ciem_generator
+is_active: true
+domain: identity_and_access_management
+action_category: privilege_escalation
+log_source_type: alicloud_actiontrail
+posture_category: iam_posture
+threat_tags:
+- T1548
+- T1098
+- privilege_escalation
+- persistence
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '2.1'
+  - '2.2'
+  - '2.3'
+  nist_800_53_r5:
+  - AC-2
+  - AC-3
+  - AC-6
+  - IA-2
+  - IA-5
+  pci_dss_v4:
+  - '7.1'
+  - '8.2'
+  - '10.2'
+  iso_27001_2022:
+  - A.5.18
+  - A.8.2
+  - A.9.2
+remediation: '1. Immediately revoke the access key created after the policy attachment.
+
+  2. Detach the attached policy and investigate the actor.
+
+  3. Treat the actor identity as compromised.'
+references:
+- https://attack.mitre.org/techniques/T1548/
+- https://attack.mitre.org/techniques/T1098/
+check_config:
+  type: correlation
+  for_each: log_events
+  match_by: actor.principal
+  sequence:
+  - any_of:
+    - alicloud.iam.actiontrail.attach_policy_to_role
+    - alicloud.iam.actiontrail.attach_policy_to_user
+    - alicloud.iam.actiontrail.set_policy_version
+  - rule_id: alicloud.iam.actiontrail.create_access_key
+  time_window_minutes: 60
+  min_events: 2
+version: '1.0'

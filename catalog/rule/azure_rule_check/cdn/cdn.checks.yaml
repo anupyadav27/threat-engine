@@ -1,0 +1,272 @@
+version: '1.0'
+provider: azure
+service: cdn
+checks:
+- rule_id: azure.cdn.custom_domain.edge_ip_set_cidrs_valid_and_minimized
+  for_each: azure.cdn.afdcustomdomains.list_by_profile
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.parameters
+      op: exists
+      value: null
+    - var: item.parameters.edge_ip_set_cidrs
+      op: exists
+      value: null
+    - var: item.parameters.edge_ip_set_cidrs[]
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: azure.cdn.custom_domain.edge_ip_set_cross_account_sharing_restricted
+  for_each: azure.cdn.afdcustomdomains.list_by_profile
+  severity: MEDIUM
+  conditions:
+    var: item.parameters
+    op: not_contains
+    value: cross-account-sharing
+- rule_id: azure.cdn.custom_domain.edge_ip_set_not_empty
+  for_each: azure.cdn.afdcustomdomains.list_by_profile
+  severity: MEDIUM
+  conditions:
+    var: item.parameters
+    op: not_empty
+    value: null
+- rule_id: azure.cdn.custom_domain.edge_ip_set_used_by_at_least_one_rule
+  for_each: azure.cdn.afdcustomdomains.list_by_profile
+  severity: MEDIUM
+  conditions:
+    var: item.parameters
+    op: exists
+    value: null
+- rule_id: azure.cdn.endpoint.deprecated_ssl_protocols
+  for_each: azure.cdn.afdcustomdomains.list_by_profile
+  severity: MEDIUM
+  conditions:
+    var: item.parameters
+    op: not_contains
+    value: TLSv1.0
+- rule_id: azure.cdn.endpoint.edge_cache_policy_allowlists_minimal_query_headers_cookies
+  for_each: azure.cdn.policies.list
+  severity: MEDIUM
+  conditions:
+    var: item.parameters
+    op: exists
+    value: null
+- rule_id: azure.cdn.endpoint.edge_cache_policy_no_sensitive_headers_cached
+  for_each: azure.cdn.policies.list
+  severity: MEDIUM
+  conditions:
+    var: item.parameters
+    op: exists
+    value: null
+- rule_id: azure.cdn.endpoint.edge_cache_policy_respects_cache_control_no_store_private
+  for_each: azure.cdn.policies.list
+  severity: MEDIUM
+  conditions:
+    var: item.parameters
+    op: exists
+    value: null
+- rule_id: azure.cdn.endpoint.edge_origin_request_policy_forward_cookies_minimal
+  for_each: azure.cdn.profiles.list
+  severity: MEDIUM
+  conditions:
+    var: item.current_value
+    op: exists
+    value: null
+- rule_id: azure.cdn.endpoint.edge_origin_request_policy_forward_headers_minimal
+  for_each: azure.cdn.profiles.list
+  severity: MEDIUM
+  conditions:
+    var: item.current_value
+    op: exists
+    value: null
+- rule_id: azure.cdn.endpoint.edge_origin_request_policy_forward_querystrings_minimal
+  for_each: azure.cdn.policies.list
+  severity: MEDIUM
+  conditions:
+    var: item.parameters
+    op: exists
+    value: null
+- rule_id: azure.cdn.endpoint.edge_origin_request_policy_no_secret_headers_forwarded
+  for_each: azure.cdn.policies.list
+  severity: MEDIUM
+  conditions:
+    var: item.parameters
+    op: exists
+    value: null
+- rule_id: azure.cdn.endpoint.edge_regex_set_no_overly_broad_patterns
+  for_each: azure.cdn.afdcustomdomains.list_by_profile
+  severity: MEDIUM
+  conditions:
+    var: item.parameters
+    op: not_contains
+    value: '*'
+- rule_id: azure.cdn.endpoint.edge_regex_set_not_empty
+  for_each: azure.cdn.afdcustomdomains.list_by_profile
+  severity: MEDIUM
+  conditions:
+    var: item.parameters
+    op: not_empty
+    value: null
+- rule_id: azure.cdn.endpoint.edge_regex_set_used_by_at_least_one_rule
+  for_each: azure.cdn.policies.list
+  severity: MEDIUM
+  conditions:
+    var: item.parameters
+    op: exists
+    value: null
+- rule_id: azure.cdn.endpoint.https_required
+  for_each: azure.cdn.afdcustomdomains.list_by_profile
+  severity: MEDIUM
+  conditions:
+    var: item.parameters
+    op: exists
+    value: null
+- rule_id: azure.cdn.endpoint.logging_enabled
+  for_each: azure.cdn.afdcustomdomains.list_by_profile
+  severity: MEDIUM
+  conditions:
+    var: item.parameters
+    op: exists
+    value: null
+- rule_id: azure.cdn.profile.edge_access_logging_enabled
+  for_each: azure.cdn.profiles.list
+  severity: MEDIUM
+  conditions:
+    var: item.current_value
+    op: exists
+    value: null
+- rule_id: azure.cdn.profile.edge_cache_key_excludes_sensitive_headers
+  for_each: azure.cdn.profiles.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.type
+      op: equals
+      value: Microsoft.Cdn/profiles
+    - var: item.sku.name
+      op: in
+      value:
+      - Standard_AzureFrontDoor
+      - Premium_AzureFrontDoor
+    - var: item.properties.edgeCacheKey.excludedQueryStringNames
+      op: contains
+      value: Authorization
+    - var: item.properties.edgeCacheKey.excludedQueryStringNames
+      op: contains
+      value: Cookie
+- rule_id: azure.cdn.profile.edge_cache_key_minimal_query_and_cookie_variants
+  for_each: azure.cdn.profiles.list
+  severity: MEDIUM
+  conditions:
+    var: item.current_value
+    op: exists
+    value: null
+- rule_id: azure.cdn.profile.edge_hsts_enabled
+  for_each: azure.cdn.profiles.list
+  severity: MEDIUM
+  conditions:
+    var: item.current_value
+    op: exists
+    value: null
+- rule_id: azure.cdn.profile.edge_https_only_viewer_protocol
+  for_each: azure.cdn.afdcustomdomains.list_by_profile
+  severity: MEDIUM
+  conditions:
+    var: item.parameters
+    op: exists
+    value: null
+- rule_id: azure.cdn.profile.edge_origin_access_restricted
+  for_each: azure.cdn.profiles.list
+  severity: MEDIUM
+  conditions:
+    var: item.current_value
+    op: exists
+    value: null
+- rule_id: azure.cdn.profile.edge_signed_urls_or_headers_required_for_private_content
+  for_each: azure.cdn.profiles.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.parameters
+      op: exists
+      value: null
+    - var: item.parameters.signed_urls_enabled
+      op: is_true
+      value: null
+    - var: item.parameters.signed_headers_enabled
+      op: is_true
+      value: null
+- rule_id: azure.cdn.profile.edge_tls_min_1_2_enforced
+  for_each: azure.cdn.afdcustomdomains.list_by_profile
+  severity: MEDIUM
+  conditions:
+    var: item.parameters
+    op: exists
+    value: null
+- rule_id: azure.cdn.profile.edge_valid_trusted_certificate_attached
+  for_each: azure.cdn.afdcustomdomains.list_by_profile
+  severity: MEDIUM
+  conditions:
+    var: item.parameters
+    op: exists
+    value: null
+- rule_id: azure.cdn.profile.edge_waf_web_acl_attached
+  for_each: azure.cdn.profiles.list
+  severity: MEDIUM
+  conditions:
+    var: item.sku.name
+    op: equals
+    value: Premium_AzureFrontDoor
+- rule_id: azure.cdn.rule.edge_has_effective_action_not_count_only
+  for_each: azure.cdn.policies.list
+  severity: MEDIUM
+  conditions:
+    var: item.current_value
+    op: not_equals
+    value: count_only
+- rule_id: azure.cdn.rule.edge_priority_unique_within_web_acl
+  for_each: azure.cdn.policies.list
+  severity: MEDIUM
+  conditions:
+    var: item.parameters
+    op: exists
+    value: null
+- rule_id: azure.cdn.rule.edge_references_valid_ip_or_regex_sets_only
+  for_each: azure.cdn.policies.list
+  severity: MEDIUM
+  conditions:
+    var: item.parameters
+    op: exists
+    value: null
+- rule_id: azure.cdn.rule_set.edge_rule_group_no_permit_all_rule
+  for_each: azure.cdn.profiles.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.current_value
+      op: not_equals
+      value: example-value
+    - var: item.limit
+      op: not_equals
+      value: example-value
+- rule_id: azure.cdn.rule_set.edge_rule_group_references_only_approved_managed_sets_where_used
+  for_each: azure.cdn.profiles.list
+  severity: MEDIUM
+  conditions:
+    var: item.type
+    op: equals
+    value: Microsoft.Cdn/profiles
+- rule_id: azure.cdn.rule_set.edge_rule_group_unique_priorities
+  for_each: azure.cdn.profiles.list
+  severity: MEDIUM
+  conditions:
+    var: item.current_value
+    op: exists
+    value: null
+- rule_id: azure.cdn.rule_set.edge_rule_group_visibility_config_enabled
+  for_each: azure.cdn.profiles.list
+  severity: MEDIUM
+  conditions:
+    var: item.current_value
+    op: exists
+    value: null

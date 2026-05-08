@@ -1,0 +1,434 @@
+version: '1.0'
+provider: azure
+service: compute
+checks:
+- rule_id: azure.compute.dedicated_host.host_sharing_restricted
+  for_each: azure.compute.dedicatedhosts.list_by_host_group
+  severity: MEDIUM
+  conditions:
+    var: item.license_type
+    op: equals
+    value: Windows_Server_Hybrid
+- rule_id: azure.compute.dedicated_host.instance_auto_placement_controlled
+  for_each: azure.compute.dedicatedhosts.list_by_host_group
+  severity: MEDIUM
+  conditions:
+    var: item.auto_replace_on_failure
+    op: is_false
+    value: null
+- rule_id: azure.compute.disk.cmk_cmek_configured
+  for_each: azure.compute.disks.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption.disk_encryption_set_id
+    op: exists
+    value: null
+- rule_id: azure.compute.disk.encryption.cmk.check
+  for_each: azure.compute.disks.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption.disk_encryption_set_id
+    op: exists
+    value: null
+- rule_id: azure.compute.disk.encryption_at_rest_enabled
+  for_each: azure.compute.disks.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption
+    op: exists
+    value: null
+- rule_id: azure.compute.disk.encryption_enabled:az.compute_disk.compute_security_disk_encryption_at_rest_enabled
+  for_each: azure.compute.disks.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption
+    op: exists
+    value: null
+- rule_id: azure.compute.disk.in_use
+  for_each: azure.compute.disks.list
+  severity: MEDIUM
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: RUNNING
+- rule_id: azure.compute.disk.snapshots_encrypted
+  for_each: azure.compute.disks.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption.type
+    op: exists
+    value: null
+- rule_id: azure.compute.disk.snapshots_not_public
+  for_each: azure.compute.disks.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.networkAccessPolicy
+    op: not_equals
+    value: AllowAll
+- rule_id: azure.compute.image.approved_image_allowlist_enforced
+  for_each: azure.compute.disks.list
+  severity: MEDIUM
+  conditions:
+    var: item.source
+    op: exists
+    value: null
+- rule_id: azure.compute.image.encrypted_cmek
+  for_each: azure.compute.disks.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption.type
+    op: equals
+    value: EncryptionAtRestWithCustomerKey
+- rule_id: azure.compute.image.image_signed_and_verified
+  for_each: azure.compute.galleries.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.trusted_image_signing_enabled
+    op: is_true
+    value: null
+- rule_id: azure.compute.image.not_publicly_shared
+  for_each: azure.compute.galleries.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.sharingProfile.permissions
+    op: not_equals
+    value: Community
+- rule_id: azure.compute.image.vuln_scanned_no_critical
+  for_each: azure.compute.galleries.list
+  severity: MEDIUM
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: RUNNING
+- rule_id: azure.compute.instance.older_than_specific_days
+  for_each: azure.compute.dedicatedhosts.list_by_host_group
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.provisioning_time
+      op: exists
+      value: null
+    - var: item.provisioning_time
+      op: gte
+      value: '2025-01-01T00:00:00Z'
+- rule_id: azure.compute.instance.profile_attached
+  for_each: azure.compute.availabilitysets.list
+  severity: MEDIUM
+  conditions:
+    var: item.provisioning_state
+    op: exists
+    value: null
+- rule_id: azure.compute.paas_lightsail_instance.paas_instance_disk_encrypted
+  for_each: azure.compute.disks.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption
+    op: exists
+    value: null
+- rule_id: azure.compute.paas_lightsail_instance.paas_instance_no_public_ip_unless_required
+  for_each: azure.compute.availabilitysets.list
+  severity: MEDIUM
+  conditions:
+    var: item.public_key
+    op: not_exists
+    value: null
+- rule_id: azure.compute.paas_lightsail_instance.paas_instance_ssh_password_auth_disabled
+  for_each: azure.compute.availabilitysets.list
+  severity: MEDIUM
+  conditions:
+    var: item.public_key
+    op: exists
+    value: null
+- rule_id: azure.compute.spot_virtual_machine.spot_instance_instance_profile_least_privilege
+  for_each: azure.compute.availabilitysets.list
+  severity: HIGH
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: RUNNING
+- rule_id: azure.compute.spot_virtual_machine.spot_instance_no_public_ip_assigned
+  for_each: azure.compute.virtualmachines.list
+  severity: HIGH
+  conditions:
+    var: item.properties.priority
+    op: not_equals
+    value: Spot
+- rule_id: azure.compute.spot_virtual_machine.spot_instance_uses_approved_launch_template
+  for_each: azure.compute.virtualmachines.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.properties.priority
+      op: equals
+      value: Spot
+    - var: item.properties.evictionPolicy
+      op: not_equals
+      value: Delete
+- rule_id: azure.compute.ssh_public_key.key_pair_disable_unused_keys
+  for_each: azure.compute.availabilitysets.list_by_subscription
+  severity: HIGH
+  conditions:
+    var: item.public_key
+    op: not_exists
+    value: null
+- rule_id: azure.compute.ssh_public_key.key_pair_max_age_days
+  for_each: azure.compute.availabilitysets.list_by_subscription
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.public_key
+      op: exists
+      value: null
+    - var: item.time_created
+      op: exists
+      value: key_age_days
+    - var: item.key_age_days
+      op: lte
+      value: '90'
+- rule_id: azure.compute.virtual_machine.vm_data_volumes_encrypted_cmek
+  for_each: azure.compute.disks.list
+  severity: HIGH
+  conditions:
+    var: item.encryption.disk_encryption_set_id
+    op: exists
+    value: null
+- rule_id: azure.compute.virtual_machine.vm_imds_hardened
+  for_each: azure.compute.virtualmachines.list
+  severity: HIGH
+  conditions:
+    var: item.properties.osProfile.linuxConfiguration.provisionVMAgent
+    op: is_true
+    value: null
+- rule_id: azure.compute.virtual_machine.vm_no_public_ip_assigned
+  for_each: azure.compute.virtualmachines.list
+  severity: HIGH
+  conditions:
+    var: item.network_profile.network_interfaces[].properties.ip_configurations[].properties.public_ip_address
+    op: not_exists
+    value: null
+- rule_id: azure.compute.virtual_machine.vm_root_volume_encrypted_cmek
+  for_each: azure.compute.disks.list
+  severity: HIGH
+  conditions:
+    var: item.encryption.disk_encryption_set_id
+    op: exists
+    value: null
+- rule_id: azure.compute.virtual_machine.vm_secure_boot_enabled
+  for_each: azure.compute.virtualmachines.list
+  severity: HIGH
+  conditions:
+    var: item.properties.securityProfile.uefiSettings.secureBootEnabled
+    op: is_true
+    value: null
+- rule_id: azure.compute.virtual_machine.vm_security_group_inbound_restricted
+  for_each: azure.compute.virtualmachines.list
+  severity: HIGH
+  conditions:
+    var: item.network_profile.network_interfaces[].network_security_group.security_rules[].source_address_prefix
+    op: not_contains
+    value: '*'
+- rule_id: azure.compute.virtual_machine.vm_serial_console_access_restricted
+  for_each: azure.compute.virtualmachines.list
+  severity: HIGH
+  conditions:
+    var: item.os_profile.linux_configuration.disable_password_authentication
+    op: is_true
+    value: null
+- rule_id: azure.compute.virtual_machine.vm_ssh_key_based_auth_required
+  for_each: azure.compute.virtualmachines.list
+  severity: HIGH
+  conditions:
+    var: item.os_profile.linux_configuration.disable_password_authentication
+    op: is_true
+    value: null
+- rule_id: azure.compute.virtual_machine.vm_ssh_password_auth_disabled
+  for_each: azure.compute.virtualmachines.list
+  severity: HIGH
+  conditions:
+    var: item.properties.osProfile.linuxConfiguration.disablePasswordAuthentication
+    op: is_true
+    value: null
+- rule_id: azure.compute.virtual_machine.vm_user_data_no_secrets
+  for_each: azure.compute.virtualmachines.list
+  severity: HIGH
+  conditions:
+    var: item.properties.osProfile.customData
+    op: not_exists
+    value: null
+- rule_id: azure.compute.virtual_machine.vm_vtpm_enabled
+  for_each: azure.compute.virtualmachines.list
+  severity: HIGH
+  conditions:
+    var: item.security_profile.uefi_settings.v_tpm_enabled
+    op: is_true
+    value: null
+- rule_id: azure.compute.virtual_machine_scale_set.instance_group_instance_profile_least_privilege
+  for_each: azure.compute.virtualmachinescalesets.list
+  severity: HIGH
+  conditions:
+    var: item.identity.type
+    op: exists
+    value: null
+- rule_id: azure.compute.virtual_machine_scale_set.instance_group_no_public_ip_assigned
+  for_each: azure.compute.virtualmachinescalesets.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.virtual_machine_profile.network_profile.network_interface_configurations[].ip_configurations[].public_ip_address_configuration
+      op: not_exists
+      value: null
+- rule_id: azure.compute.virtual_machine_scale_set.instance_group_uses_approved_launch_template
+  for_each: azure.compute.virtualmachinescalesets.list
+  severity: HIGH
+  conditions:
+    var: item.virtual_machine_profile.storage_profile.image_reference.publisher
+    op: in
+    value:
+    - MicrosoftWindowsServer
+    - Canonical
+    - RedHat
+    - SUSE
+    - OpenLogic
+    - Debian
+- rule_id: azure.compute.virtual_machine_scale_set.instance_group_volumes_encrypted
+  for_each: azure.compute.disks.list
+  severity: HIGH
+  conditions:
+    var: item.Encrypted
+    op: is_true
+    value: null
+- rule_id: azure.compute.virtualmachines.list
+  for_each: azure.compute.virtualmachines.list
+  severity: HIGH
+  conditions:
+    var: item.properties.osProfile.linuxConfiguration.provisionVMAgent
+    op: is_true
+    value: null
+- rule_id: azure.compute.virtualmachines.list
+  for_each: azure.compute.virtualmachines.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.instance_profile
+      op: exists
+      value: null
+    - var: item.instance_profile.role_arn
+      op: not_contains
+      value: '*'
+- rule_id: azure.compute.virtualmachines.list
+  for_each: azure.compute.virtualmachines.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.properties.public_ip_address_configuration
+      op: not_exists
+      value: null
+- rule_id: azure.compute.virtual_machine_template.launch_template_root_volume_encrypted_by_default
+  for_each: azure.compute.disks.list
+  severity: HIGH
+  conditions:
+    var: item.encryption
+    op: exists
+    value: null
+- rule_id: azure.compute.virtualmachines.list
+  for_each: azure.compute.virtualmachines.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.network_profile.network_interface_configurations[].network_security_group.id
+      op: exists
+      value: null
+    - var: item.network_profile.network_interface_configurations[].network_security_group.properties.security_rules[].properties.sourceAddressPrefix
+      op: not_contains
+      value: '*'
+    - var: item.network_profile.network_interface_configurations[].network_security_group.properties.security_rules[].properties.destinationPortRange
+      op: not_contains
+      value: '*'
+- rule_id: azure.compute.virtualmachines.list
+  for_each: azure.compute.virtualmachines.list
+  severity: HIGH
+  conditions:
+    var: item.protected_parameters
+    op: exists
+    value: null
+- rule_id: azure.compute.vm.aslr_enabled
+  for_each: azure.compute.virtualmachines.list
+  severity: MEDIUM
+  conditions:
+    var: item.os_profile.windows_configuration.additional_unattend_content[].component_name
+    op: equals
+    value: Microsoft-Windows-Shell-Setup
+- rule_id: azure.compute.vm.automation_compliance
+  for_each: azure.compute.disks.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryption.type
+    op: exists
+    value: null
+- rule_id: azure.compute.vm.backup_enabled
+  for_each: azure.compute.disks.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryptionSettingsCollection.enabled
+    op: is_true
+    value: null
+- rule_id: azure.compute.vm.dep_enabled
+  for_each: azure.compute.availabilitysets.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.virtualMachines
+    op: exists
+    value: null
+- rule_id: azure.compute.vm.managed_disks_enabled
+  for_each: azure.compute.disks.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.osType
+    op: exists
+    value: null
+- rule_id: azure.compute.vm.patch_compliance
+  for_each: azure.compute.virtualmachines.list
+  severity: MEDIUM
+  conditions:
+    var: item.os_profile.linux_configuration.patch_settings.assessment_mode
+    op: equals
+    value: AutomaticByPlatform
+- rule_id: azure.compute.vm.trusted_launch_enabled
+  for_each: azure.compute.virtualmachines.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.securityProfile.uefiSettings
+      op: exists
+      value: null
+    - var: item.properties.securityProfile.uefiSettings.secureBootEnabled
+      op: is_true
+      value: null
+    - var: item.properties.securityProfile.uefiSettings.vTpmEnabled
+      op: is_true
+      value: null
+- rule_id: azure.compute.vm.unrestricted_ingress
+  for_each: azure.compute.virtualmachines.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.networkProfile.networkInterfaces[].properties.networkSecurityGroup.properties.securityRules[].properties.sourceAddressPrefix
+    op: not_contains
+    value: '*'
+- rule_id: azure.compute.vm.unrestricted_network_ingress
+  for_each: azure.compute.virtualmachines.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.networkProfile.networkInterfaces[].properties.networkSecurityGroup.properties.securityRules[].properties.destinationAddressPrefix
+      op: not_contains
+      value: '*'
+    - var: item.properties.networkProfile.networkInterfaces[].properties.networkSecurityGroup.properties.securityRules[].properties.sourceAddressPrefix
+      op: not_contains
+      value: '*'
+- rule_id: azure.compute.vmss.autoscale_enabled
+  for_each: azure.compute.virtualmachinescalesets.list
+  severity: MEDIUM
+  conditions:
+    var: item.sku.capacity
+    op: exists
+    value: null

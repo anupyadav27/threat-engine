@@ -69,7 +69,7 @@ def get_scope_filter(ctx: AuthContext) -> dict:
     filters = {}
 
     if ctx.org_ids is not None:
-        filters["organization_id__in"] = ctx.org_ids
+        filters["customer_id__in"] = ctx.org_ids
 
     if ctx.tenant_ids is not None:
         filters["tenant_id__in"] = ctx.tenant_ids

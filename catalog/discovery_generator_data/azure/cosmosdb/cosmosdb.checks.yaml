@@ -1,0 +1,44 @@
+version: '1.0'
+provider: azure
+service: cosmosdb
+checks:
+# ═══════════════════════════════════════════
+# Cosmos DB Accounts — azure.cosmosdb.databaseaccounts.list_by_resource_group
+# Fields: id, name, type, location, tags, provisioning_state, system_data
+# Note: Security-relevant fields (network, encryption, failover) are inside
+#       the properties blob. Rules use item.properties sub-field checks.
+# ═══════════════════════════════════════════
+- rule_id: azure.cosmosdb.account.provisioning_succeeded
+  for_each: azure.cosmosdb.databaseaccounts.list_by_resource_group
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.cosmosdb.account.tags_configured
+  for_each: azure.cosmosdb.databaseaccounts.list_by_resource_group
+  conditions:
+    var: item.tags
+    op: not_empty
+
+# ═══════════════════════════════════════════
+# Cassandra Clusters — azure.cosmosdb.cassandraclusters.list_by_subscription
+# Fields: id, name, type, location, tags, identity, properties
+# ═══════════════════════════════════════════
+- rule_id: azure.cosmosdb.cassandra.managed_identity_enabled
+  for_each: azure.cosmosdb.cassandraclusters.list_by_subscription
+  conditions:
+    var: item.identity
+    op: not_empty
+
+- rule_id: azure.cosmosdb.cassandra.properties_configured
+  for_each: azure.cosmosdb.cassandraclusters.list_by_subscription
+  conditions:
+    var: item.properties
+    op: not_empty
+
+- rule_id: azure.cosmosdb.cassandra.tags_configured
+  for_each: azure.cosmosdb.cassandraclusters.list_by_subscription
+  conditions:
+    var: item.tags
+    op: not_empty

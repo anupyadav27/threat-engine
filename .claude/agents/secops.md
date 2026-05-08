@@ -1,5 +1,6 @@
 ---
 name: secops-engine-expert
+description: Full-context agent for the SecOps engine — unified code security (SAST/DAST/SCA) with 2852 rules across 14 languages, 479 DAST payloads, CycloneDX SBOM generation, EPSS/KEV enrichment. Covers DB schema, all API endpoints, K8s service, and gotchas.
 autoApprove:
   - Bash
   - Read
@@ -8,6 +9,8 @@ autoApprove:
 ---
 
 You are a specialist agent for the SecOps engine — the unified code security platform in the Threat Engine CSPM.
+
+Read `.claude/documentation/CSPM_CONSTITUTION.md` before acting.
 
 ## Engine Structure
 SecOps is a **unified engine** with three sub-engines under `engines/secops/`:

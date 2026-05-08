@@ -1,0 +1,190 @@
+# ============================================================
+# Discovery YAML — sql (final_discovery v1)
+# Generated: 2026-04-16T09:26:48Z
+# Source: gcp_master_field_catalog.csv
+# Check rules: 117 | ops in scope: 6 (2 independent, 4 dependent)
+# ============================================================
+version: '1.0'
+provider: gcp
+service: sql
+
+services:
+  client: sqladmin
+  module: "googleapiclient.discovery.build('sqladmin', 'v1')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: connect
+    identifier_op: gcp.sqladmin.instances.listServerCas
+    identifier_field: certs[].selfLink
+    item_var_path: item.certs[].selfLink
+    identifier_template: 'projects/{project}/instances/{instance}/connectSettings'
+  - resource_type: unknown
+    identifier_op: gcp.sqladmin.Backups.ListBackups
+    identifier_field: backups[].name
+    item_var_path: item.backups[].name
+  - resource_type: unknown
+    identifier_op: gcp.sqladmin.instances.list
+    identifier_field: warnings[].region
+    item_var_path: item.warnings[].region
+  - resource_type: unknown
+    identifier_op: gcp.sqladmin.backupRuns.list
+    identifier_field: items[].selfLink
+    item_var_path: item.selfLink
+  - resource_type: unknown
+    identifier_op: gcp.sqladmin.sslCerts.list
+    identifier_field: items[].selfLink
+    item_var_path: item.selfLink
+  - resource_type: unknown
+    identifier_op: gcp.sqladmin.users.list
+    identifier_field: items[].name
+    item_var_path: item.name
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── gcp.sqladmin.Backups.ListBackups ──
+  - discovery_id: gcp.sqladmin.Backups.ListBackups
+    calls:
+      - action: Backups.ListBackups
+        params:
+          parent: '{{ project_id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        backupConfiguration: '{{ item.backupConfiguration }}'
+        backupInterval: '{{ item.backupInterval }}'
+        backupKind: '{{ item.backupKind }}'
+        backupRun: '{{ item.backupRun }}'
+        databaseVersion: '{{ item.databaseVersion }}'
+        description: '{{ item.description }}'
+        diskEncryptionConfiguration: '{{ item.diskEncryptionConfiguration }}'
+        diskEncryptionStatus: '{{ item.diskEncryptionStatus }}'
+        error: '{{ item.error }}'
+        expiryTime: '{{ item.expiryTime }}'
+        instance: '{{ item.instance }}'
+        instanceDeletionTime: '{{ item.instanceDeletionTime }}'
+        instanceSettings: '{{ item.instanceSettings }}'
+        kmsKey: '{{ item.kmsKey }}'
+        kmsKeyVersion: '{{ item.kmsKeyVersion }}'
+        location: '{{ item.location }}'
+        maxChargeableBytes: '{{ item.maxChargeableBytes }}'
+        name: '{{ item.name }}'
+        satisfiesPzi: '{{ item.satisfiesPzi }}'
+        satisfiesPzs: '{{ item.satisfiesPzs }}'
+        selfLink: '{{ item.selfLink }}'
+        settings: '{{ item.settings }}'
+        state: '{{ item.state }}'
+        timeZone: '{{ item.timeZone }}'
+        ttlDays: '{{ item.ttlDays }}'
+        type: '{{ item.type }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── gcp.sqladmin.instances.list ──
+  - discovery_id: gcp.sqladmin.instances.list
+    calls:
+      - action: instances.list
+        params:
+          project: '{{ project_id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        code: '{{ item.code }}'
+        databaseVersion: '{{ item.databaseVersion }}'
+        diskEncryptionConfiguration: '{{ item.diskEncryptionConfiguration }}'
+        diskEncryptionStatus: '{{ item.diskEncryptionStatus }}'
+        iamConfiguration: '{{ item.iamConfiguration }}'
+        message: '{{ item.message }}'
+        name: '{{ item.name }}'
+        region: '{{ item.region }}'
+        rootPassword: '{{ item.rootPassword }}'
+        settings: '{{ item.settings }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── gcp.sqladmin.instances.listServerCas ──
+  - discovery_id: gcp.sqladmin.instances.listServerCas
+    calls:
+      - action: instances.listServerCas
+        params:
+          instance: '{{ item.instance }}'
+          project: '{{ project_id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        activeVersion: '{{ item.activeVersion }}'
+        cert: '{{ item.cert }}'
+        certSerialNumber: '{{ item.certSerialNumber }}'
+        commonName: '{{ item.commonName }}'
+        createTime: '{{ item.createTime }}'
+        expirationTime: '{{ item.expirationTime }}'
+        instance: '{{ item.instance }}'
+        selfLink: '{{ item.selfLink }}'
+        sha1Fingerprint: '{{ item.sha1Fingerprint }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── gcp.sqladmin.backupRuns.list [dependent] ──
+  - discovery_id: gcp.sqladmin.backupRuns.list
+    for_each: gcp.sqladmin.instances.listServerCas
+    calls:
+      - action: backupRuns.list
+        params:
+          instance: '{{ item.selfLink }}'
+          project: '{{ project_id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        diskEncryptionConfiguration: '{{ item.diskEncryptionConfiguration }}'
+        instanceType: '{{ item.instanceType }}'
+        items: '{{ response.items }}'
+        name: '{{ item.name }}'
+        settings: '{{ item.settings }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── gcp.sqladmin.sslCerts.list [dependent] ──
+  - discovery_id: gcp.sqladmin.sslCerts.list
+    for_each: gcp.sqladmin.instances.listServerCas
+    calls:
+      - action: sslCerts.list
+        params:
+          instance: '{{ item.selfLink }}'
+          project: '{{ project_id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        certSerialNumber: '{{ item.certSerialNumber }}'
+        items: '{{ response.items }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── gcp.sqladmin.users.list [dependent] ──
+  - discovery_id: gcp.sqladmin.users.list
+    for_each: gcp.sqladmin.instances.listServerCas
+    calls:
+      - action: users.list
+        params:
+          instance: '{{ item.selfLink }}'
+          project: '{{ project_id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        iamStatus: '{{ item.iamStatus }}'
+        items: '{{ response.items }}'
+        name: '{{ item.name }}'
+        passwordPolicy: '{{ item.passwordPolicy }}'
+

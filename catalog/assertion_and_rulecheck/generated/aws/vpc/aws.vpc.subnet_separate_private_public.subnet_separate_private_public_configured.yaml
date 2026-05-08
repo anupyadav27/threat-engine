@@ -1,0 +1,23 @@
+version: '1.0'
+rule_id: aws.vpc.subnet_separate_private_public.subnet_separate_private_public_configured
+for_each: aws.vpc.describe_route_tables
+severity: HIGH
+conditions:
+  all:
+  - var: item.RouteTables
+    op: not_empty
+  - any:
+    - var: item.RouteTables[].Routes[].GatewayId
+      op: contains
+      value: igw-
+    - var: item.RouteTables[].Routes[].NatGatewayId
+      op: exists
+  - any:
+    - var: item.RouteTables[].Routes[].GatewayId
+      op: not_contains
+      value: igw-
+    - var: item.RouteTables[].Routes[].NatGatewayId
+      op: not_exists
+fixture_validated: false
+fixture_note: 'PASS fixture returned FAIL — wrong field or operator (pass_fixture keys: [''Associations'', ''PropagatingVgws'',
+  ''RouteTableId'', ''RouteTables'', ''Routes'', ''Tags'', ''VpcId''])'

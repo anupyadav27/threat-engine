@@ -1,0 +1,191 @@
+version: '1.0'
+provider: aws
+service: mediaconvert
+services:
+  client: mediaconvert
+  module: boto3.client
+discovery:
+- discovery_id: aws.mediaconvert.describe_endpoints
+  calls:
+  - action: describe_endpoints
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Endpoints }}'
+    item:
+      Endpoints: '{{ item.Endpoints }}'
+      Url: '{{ item.Url }}'
+- discovery_id: aws.mediaconvert.get_policy
+  calls:
+  - action: get_policy
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      Policy: '{{ response.Policy.Policy }}'
+      HttpInputs: '{{ response.Policy.HttpInputs }}'
+      HttpsInputs: '{{ response.Policy.HttpsInputs }}'
+      S3Inputs: '{{ response.Policy.S3Inputs }}'
+      Statement: '{{ response.Policy.Statement }}'
+- discovery_id: aws.mediaconvert.list_job_templates
+  calls:
+  - action: list_job_templates
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.JobTemplates }}'
+    item:
+      Name: '{{ item.Name }}'
+      Category: '{{ item.Category }}'
+      Description: '{{ item.Description }}'
+      DestinationArn: '{{ item.DestinationArn }}'
+      Enabled: '{{ item.Enabled }}'
+      Format: '{{ item.Format }}'
+      LastUpdated: '{{ item.LastUpdated }}'
+      Level: '{{ item.Level }}'
+      Type: '{{ item.Type }}'
+- discovery_id: aws.mediaconvert.list_jobs
+  calls:
+  - action: list_jobs
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Jobs }}'
+    item:
+      Jobs: '{{ item.Jobs }}'
+- discovery_id: aws.mediaconvert.list_presets
+  calls:
+  - action: list_presets
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Presets }}'
+    item:
+      Name: '{{ item.Name }}'
+      Category: '{{ item.Category }}'
+      Description: '{{ item.Description }}'
+      LastUpdated: '{{ item.LastUpdated }}'
+      Preset: '{{ item.Preset }}'
+      Type: '{{ item.Type }}'
+- discovery_id: aws.mediaconvert.list_queues
+  calls:
+  - action: list_queues
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Queues }}'
+    item:
+      Name: '{{ item.Name }}'
+      ConcurrentJobs: '{{ item.ConcurrentJobs }}'
+      Description: '{{ item.Description }}'
+      LastUpdated: '{{ item.LastUpdated }}'
+      PricingPlan: '{{ item.PricingPlan }}'
+      ProgressingJobsCount: '{{ item.ProgressingJobsCount }}'
+      ReservationPlan: '{{ item.ReservationPlan }}'
+      ServiceOverrides: '{{ item.ServiceOverrides }}'
+      SubmittedJobsCount: '{{ item.SubmittedJobsCount }}'
+      Type: '{{ item.Type }}'
+- discovery_id: aws.mediaconvert.list_versions
+  calls:
+  - action: list_versions
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Versions }}'
+    item:
+      ExpirationDate: '{{ item.ExpirationDate }}'
+      Version: '{{ item.Version }}'
+- discovery_id: aws.mediaconvert.search_jobs
+  calls:
+  - action: search_jobs
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Jobs }}'
+- discovery_id: aws.mediaconvert.get_job
+  calls:
+  - action: get_job
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      Job: '{{ response.Job }}'
+- discovery_id: aws.mediaconvert.get_job_template
+  for_each: aws.mediaconvert.list_job_templates
+  calls:
+  - action: get_job_template
+    params:
+      Name: '{{ item.Name }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      Name: '{{ response.JobTemplate.Name }}'
+      Category: '{{ response.JobTemplate.Category }}'
+      Description: '{{ response.JobTemplate.Description }}'
+      LastUpdated: '{{ response.JobTemplate.LastUpdated }}'
+      Type: '{{ response.JobTemplate.Type }}'
+- discovery_id: aws.mediaconvert.get_jobs_query_results
+  calls:
+  - action: get_jobs_query_results
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Jobs }}'
+- discovery_id: aws.mediaconvert.get_preset
+  for_each: aws.mediaconvert.list_job_templates
+  calls:
+  - action: get_preset
+    params:
+      Name: '{{ item.Name }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      Name: '{{ response.Preset.Name }}'
+      Category: '{{ response.Preset.Category }}'
+      Description: '{{ response.Preset.Description }}'
+      LastUpdated: '{{ response.Preset.LastUpdated }}'
+      Type: '{{ response.Preset.Type }}'
+- discovery_id: aws.mediaconvert.get_queue
+  for_each: aws.mediaconvert.list_job_templates
+  calls:
+  - action: get_queue
+    params:
+      Name: '{{ item.Name }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      Name: '{{ response.Queue.Name }}'
+      ConcurrentJobs: '{{ response.Queue.ConcurrentJobs }}'
+      Description: '{{ response.Queue.Description }}'
+      LastUpdated: '{{ response.Queue.LastUpdated }}'
+      PricingPlan: '{{ response.Queue.PricingPlan }}'
+      ProgressingJobsCount: '{{ response.Queue.ProgressingJobsCount }}'
+      ReservationPlan: '{{ response.Queue.ReservationPlan }}'
+      ServiceOverrides: '{{ response.Queue.ServiceOverrides }}'
+      SubmittedJobsCount: '{{ response.Queue.SubmittedJobsCount }}'
+      Type: '{{ response.Queue.Type }}'
+- discovery_id: aws.mediaconvert.list_tags_for_resource
+  calls:
+  - action: list_tags_for_resource
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      Tags: '{{ response.ResourceTags.Tags }}'

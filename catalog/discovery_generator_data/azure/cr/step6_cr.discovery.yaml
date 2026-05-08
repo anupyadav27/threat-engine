@@ -1,0 +1,26 @@
+version: '1.0'
+provider: azure
+service: cr
+discovery:
+- discovery_id: azure.containerregistry.scopemaps.list
+  calls:
+  - action: scopemaps.list
+    save_as: response
+    on_error: continue
+    params:
+      registry_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      status: '{{ item.status }}'
+      id: '{{ item.id }}'
+      creation_date: '{{ item.creation_date }}'
+      credentials: '{{ item.credentials }}'
+      scope_map_id: '{{ item.scope_map_id }}'
+      system_data: '{{ item.system_data }}'
+  _used_by_rules:
+  - azure.cr.image.vulnerability_assessment_enabled

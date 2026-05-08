@@ -1,0 +1,70 @@
+version: '1.0'
+provider: azure
+service: loganalytics
+checks:
+# ═══════════════════════════════════════════
+# Log Analytics Workspaces — azure.loganalytics.workspaces.list
+# Fields: id, name, type, location, tags, sku, identity, provisioning_state,
+#         public_network_access_for_ingestion, public_network_access_for_query,
+#         force_cmk_for_query, retention_in_days, workspace_capping,
+#         private_link_scoped_resources, default_data_collection_rule_resource_id,
+#         features, replication, failover, customer_id, created_date, modified_date
+# ═══════════════════════════════════════════
+- rule_id: azure.loganalytics.workspace.public_ingestion_disabled
+  for_each: azure.loganalytics.workspaces.list
+  conditions:
+    var: item.public_network_access_for_ingestion
+    op: equals
+    value: Disabled
+
+- rule_id: azure.loganalytics.workspace.public_query_disabled
+  for_each: azure.loganalytics.workspaces.list
+  conditions:
+    var: item.public_network_access_for_query
+    op: equals
+    value: Disabled
+
+- rule_id: azure.loganalytics.workspace.cmk_enforced_for_query
+  for_each: azure.loganalytics.workspaces.list
+  conditions:
+    var: item.force_cmk_for_query
+    op: equals
+    value: 'true'
+
+- rule_id: azure.loganalytics.workspace.retention_configured
+  for_each: azure.loganalytics.workspaces.list
+  conditions:
+    var: item.retention_in_days
+    op: gte
+    value: 90
+
+- rule_id: azure.loganalytics.workspace.private_link_configured
+  for_each: azure.loganalytics.workspaces.list
+  conditions:
+    var: item.private_link_scoped_resources
+    op: not_empty
+
+- rule_id: azure.loganalytics.workspace.managed_identity_enabled
+  for_each: azure.loganalytics.workspaces.list
+  conditions:
+    var: item.identity
+    op: not_empty
+
+- rule_id: azure.loganalytics.workspace.workspace_capping_configured
+  for_each: azure.loganalytics.workspaces.list
+  conditions:
+    var: item.workspace_capping
+    op: not_empty
+
+- rule_id: azure.loganalytics.workspace.provisioning_succeeded
+  for_each: azure.loganalytics.workspaces.list
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.loganalytics.workspace.tags_configured
+  for_each: azure.loganalytics.workspaces.list
+  conditions:
+    var: item.tags
+    op: not_empty

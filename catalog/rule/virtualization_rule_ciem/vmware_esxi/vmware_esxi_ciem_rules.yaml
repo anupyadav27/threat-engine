@@ -1,0 +1,764 @@
+# VMWARE_ESXI — CIEM Detection Rules
+# Real-time authentication & access event analysis
+# Log source: syslog, /var/log/vmkernel.log
+
+tech_type: vmware_esxi
+category: virtualization
+log_source: syslog, /var/log/vmkernel.log
+
+rules:
+
+  - rule_id: tciem.vmware_esxi.l1_host_must_have_reliable_time_synchronization
+    title: "(L1) Host must have reliable time synchronization sources"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '2.6'
+    cis_section: '2'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To enable and properly configure NTP synchronization, perform the following
+      from the vSphere web client: 1. Select a host 2. Click Configure then expand
+      System then select Time Configuration. 3. Select Edit next to Network Time
+      Protocol 4. Select the Enable box, then fill in the appropriate NTP Servers.
+      5. in the NTP Service Startup Policy drop down select Start and stop with
+      host. 6. Click OK. To implement the recommended configuration state, run the
+      following PowerCLI command: # Set the NTP Settings for all hosts # If an
+      internal NTP server is used, replace pool.ntp.org with # the IP address or the
+      Fully Qualified Domain Name (FQDN) of the internal NTP server $NTPServers =
+      'pool.ntp.org', 'pool2.ntp.org' Get-VMHost | Add-VmHostNtpServer $NTPServers
+      References: 1. https://docs.vmware.com/en/VMware-vSphere/8.0/vsphere-
+      security/GUID- 2553C86E-7981-4F79-B9FC-A6CECA52F6CC.html Additional
+      Information: Notes: Verify the NTP firewall ports are open. It is recommended
+      to synchronize the ESXi clock with a time server that is located on the
+      management network rather than directly with a time server on a public
+      network. This time server can then synchronize with a public source through a
+      strictly controlled network connection with a firewall.
+
+  - rule_id: tciem.vmware_esxi.l1_host_must_restrict_inter_vm_transparent_page
+    title: "(L1) Host must restrict inter-VM transparent page sharing"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.10'
+    cis_section: '2'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      From the vSphere Web Client: 1. Select a host 2. Click Configure then expand
+      System then select Advanced System settings. 3. Click Edit then Filter for
+      Mem.ShareForceSalting. 4. Set the value to 2. 5. Click OK. Additionally, the
+      following PowerCLI command can be used: Get-VMHost | Get-AdvancedSetting -Name
+      Mem.ShareForceSalting | Set- AdvancedSetting -Value 2 References: 1.
+      https://kb.vmware.com/s/article/2097593 2.
+      https://blogs.vmware.com/vsphere/2015/01/assess-the-performance-impact-of-
+      the-security-change-in-transparent-page-sharing-behaviour.html
+
+  - rule_id: tciem.vmware_esxi.l1_ensure_ntp_time_synchronization_is_configured
+    title: "(L1) Ensure NTP time synchronization is configured properly"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.1'
+    cis_section: '2'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To enable and properly configure NTP synchronization, perform the following
+      from the vSphere web client: 1. Select a host 2. Click Configure then expand
+      System then select Time Configuration. 3. Select Edit next to Network Time
+      Protocol 4. Select the Enable box, then fill in the appropriate NTP Servers.
+      5. in the NTP Service Startup Policy drop down select Start and stop with
+      host. 6. Click OK. To implement the recommended configuration state, run the
+      following PowerCLI command: # Set the NTP Settings for all hosts # If an
+      internal NTP server is used, replace pool.ntp.org with # the IP address or the
+      Fully Qualified Domain Name (FQDN) of the internal NTP server $NTPServers =
+      'pool.ntp.org', 'pool2.ntp.org' Get-VMHost | Add-VmHostNtpServer $NTPServers
+      References: 1. https://docs.vmware.com/en/VMware-
+      vSphere/6.7/com.vmware.vsphere.security.doc/GUID-2553C86E-7981-4F79-
+      B9FC-A6CECA52F6CC.html Additional Information: Notes: Verify the NTP firewall
+      ports are open. It is recommended to synchronize the ESXi clock with a time
+      server that is located on the management network rather than directly with a
+      time server on a public network. This time server can then synchronize with a
+      public source through a strictly controlled network connection with a
+      firewall.
+
+  - rule_id: tciem.vmware_esxi.l1_host_should_deactivate_ssh
+    title: "(L1) Host should deactivate SSH"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.1'
+    cis_section: '3'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To disable SSH, perform the following: 1. From the vSphere Web Client, select
+      the host. 2. Select Configure then expand System and select Services. 3. Click
+      on SSH then click Edit Startup Policy. 4. Set the Startup Policy is set to
+      Start and Stop Manually. 5. Click OK. 6. While ESXi Shell is still selected
+      click Stop. Alternately, use the following PowerCLI command: # Set SSH to
+      start manually rather than automatically for all hosts Get-VMHost | Get-
+      VMHostService | Where { $_.key -eq 'TSM-SSH' } | Set- VMHostService -Policy
+      Off References: 1. https://docs.vmware.com/en/VMware-
+      vSphere/7.0/com.vmware.vsphere.security.doc/GUID-12E27BF3-3769-4665-
+      8769-DA76C2BC9FFE.html
+
+  - rule_id: tciem.vmware_esxi.l1_host_must_deactivate_the_esxi_shell
+    title: "(L1) Host must deactivate the ESXi shell"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.2'
+    cis_section: '3'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To disable the ESXi shell, perform the following: 1. From the vSphere Web
+      Client, select the host. 2. Select Configure then expand System and select
+      Services. 3. Click on ESXi Shell then click Edit Startup Policy. 4. Set the
+      Startup Policy is set to Start and Stop Manually. 5. Click on OK. Alternately,
+      use the following PowerCLI command: # Set the ESXi shell to start manually
+      rather than automatically for all hosts Get-VMHost | Get-VMHostService | Where
+      { $_.key -eq 'TSM' } | Set- VMHostService -Policy Off References: 1.
+      https://docs.vmware.com/en/VMware-
+      vSphere/7.0/com.vmware.vsphere.security.doc/GUID-B5144CE9-F8BB-494D-
+      8F5D-0D5621D65DAE.html 2. https://docs.vmware.com/en/VMware-
+      vSphere/7.0/com.vmware.vsphere.security.doc/GUID-DFA67697-232E-4F7D- 860F-
+      96C0819570A8.html?hWord=N4IghgNiBcIKIDswCMIFMAEBBAxjtAzgRgC4D2p
+      AFpnAMoAaAlhrdRFAL5A
+
+  - rule_id: tciem.vmware_esxi.l1_host_must_automatically_terminate_idle_shells
+    title: "(L1) Host must automatically terminate idle shells"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.8'
+    cis_section: '3'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To set the timeout to the desired value, perform the following from the
+      vSphere web client: 1. From the vSphere Web Client, select the host. 2. Click
+      Configure then expand System. 3. Select Advanced System Settings then click
+      Edit. 4. Enter ESXiShellInteractiveTimeOut in the filter. 5. Set the value for
+      this parameter is set to the appropriate value (300 seconds or less). 6. Click
+      OK. Note: A value of 0 disables the ESXi ShellInteractiveTimeOut. Alternately,
+      use the following PowerCLI command: # Set Remove
+      UserVars.ESXiShellInteractiveTimeOut to 300 on all hosts Get-VMHost | Get-
+      AdvancedSetting -Name 'UserVars.ESXiShellInteractiveTimeOut' | Set-
+      AdvancedSetting -Value '300' References: 1. http://kb.vmware.com/kb/2004746
+      Additional Information: It is recommended to set the ESXiShellTimeOut together
+      with ESXiShellInteractiveTimeOut.
+
+  - rule_id: tciem.vmware_esxi.l1_host_must_lock_an_account_after_a_specified
+    title: "(L1) Host must lock an account after a specified number of failed login attempts"
+    severity: high
+    mitre_technique: T1110
+    mitre_tactic: credential_access
+    cis_control: '3.12'
+    cis_section: '3'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: authentication_failure
+      threshold: 5
+      window_seconds: 300
+      group_by: [source_ip, username]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To set the maximum failed login attempts correctly, perform the following
+      steps: 1. From the vSphere Web Client, select the host. 2. Click Configure
+      then expand System. 3. Select Advanced System Settings then click Edit. 4.
+      Enter Security.AccountLockFailures in the filter. 5. Set the value for this
+      parameter to 5. Alternately, use the following PowerCLI command: Get-VMHost |
+      Get-AdvancedSetting -Name Security.AccountLockFailures | Set- AdvancedSetting
+      -Value 5 References: 1. https://code.vmware.com/apis/196/vsphere#https://vdc-
+      repo.vmware.com/vmwb- repository/dcr-
+      public/6b586ed2-655c-49d9-9029-bc416323cb22/fa0b429a-a695-
+      4c11-b7d2-2cbc284049dc/doc/vim.option.OptionManager.html 2.
+      https://www.cisecurity.org/white-papers/cis-password-policy-guide/
+
+  - rule_id: tciem.vmware_esxi.l1_host_must_unlock_accounts_after_a_specified
+    title: "(L1) Host must unlock accounts after a specified timeout period"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.13'
+    cis_section: '3'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To set the account lockout to 15 minutes, perform the following: 1. From the
+      vSphere Web Client, select the host. 2. Click Configure then expand System. 3.
+      Select Advanced System Settings then click Edit. 4. Enter
+      Security.AccountUnlockTime in the filter. 5. Set the value for this parameter
+      to 900. Alternately, use the following PowerCLI command: Get-VMHost | Get-
+      AdvancedSetting -Name Security.AccountUnlockTime | Set- AdvancedSetting -Value
+      900 References: 1. https://code.vmware.com/apis/1067/vsphere 2.
+      https://www.cisecurity.org/white-papers/cis-password-policy-guide/
+
+  - rule_id: tciem.vmware_esxi.l1_host_must_enable_normal_lockdown_mode
+    title: "(L1) Host must enable normal lockdown mode"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '3.20'
+    cis_section: '3'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To enable lockdown mode, perform the following from the vSphere web client: 1.
+      From the vSphere Web Client, select the host. 2. Select Configure then expand
+      System and select Security Profile. 3. Across from Lockdown Mode click on
+      Edit. 4. Click the radio button for Normal. 5. Click OK. Alternately, run the
+      following PowerCLI command: # Enable lockdown mode for each host Get-VMHost |
+      Foreach { $_.EnterLockdownMode() } References: 1.
+      https://docs.vmware.com/en/VMware-vSphere/8.0/vsphere-security/GUID-
+      88B24613-E8F9-40D2-B838-225F5FF480FF.html
+
+  - rule_id: tciem.vmware_esxi.l2_host_should_enable_strict_lockdown_mode
+    title: "(L2) Host should enable strict lockdown mode"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.21'
+    cis_section: '3'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To enable lockdown mode, perform the following from the vSphere web client: 1.
+      From the vSphere Web Client, select the host. 2. Select Configure then expand
+      System and select Security Profile. 3. Across from Lockdown Mode click on
+      Edit. 4. Click the radio button for Strict. 5. Click OK. Alternately, run the
+      following PowerCLI command: # Enable lockdown mode for each host Get-VMHost |
+      Foreach { $_.EnterLockdownMode() } References: 1.
+      https://docs.vmware.com/en/VMware-
+      vSphere/7.0/com.vmware.vsphere.security.doc/GUID-88B24613-E8F9-40D2-
+      B838-225F5FF480FF.html
+
+  - rule_id: tciem.vmware_esxi.l1_ensure_a_non_root_user_account_exists_for
+    title: "(L1) Ensure a non-root user account exists for local admin access"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.1'
+    cis_section: '4'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To create one or more named user accounts (local ESXi user accounts), perform
+      the following using the vSphere client (not the vSphere web client) for each
+      ESXi host: 1. Connect directly to the ESXi host using the vSphere Client. 2.
+      Login as root. 3. Select Manage, then select the Security & Users tab. 4.
+      Select Users then click Add user to add a new user. 5. Once added now select
+      the Host, then select Actions followed by Permissions. 6. Assign the
+      Administrator role to the user. Notes: 1. Even if you add your ESXi host to an
+      Active Directory domain, it is still recommended to add at least one local
+      user account to ensure admins can still login in the event the host ever
+      becomes isolated and unable to access Active Directory. 2. Adding local user
+      accounts can be automated using Host Profiles. References: 1.
+      https://docs.vmware.com/en/VMware-
+      vSphere/7.0/com.vmware.vsphere.hostclient.doc/GUID-0898677F-CE98-41FB-
+      A488-29DF6210CF5D.html
+
+  - rule_id: tciem.vmware_esxi.l1_ensure_the_maximum_failed_login_attempts_is
+    title: "(L1) Ensure the maximum failed login attempts is set to 5"
+    severity: high
+    mitre_technique: T1110
+    mitre_tactic: credential_access
+    cis_control: '4.3'
+    cis_section: '4'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: authentication_failure
+      threshold: 5
+      window_seconds: 300
+      group_by: [source_ip, username]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To set the maximum failed login attempts correctly, perform the following
+      steps: 1. From the vSphere Web Client, select the host. 2. Click Configure
+      then expand System. 3. Select Advanced System Settings then click Edit. 4.
+      Enter Security.AccountLockFailures in the filter. 5. Set the value for this
+      parameter to 5. Alternately, use the following PowerCLI command: Get-VMHost |
+      Get-AdvancedSetting -Name Security.AccountLockFailures | Set- AdvancedSetting
+      -Value 5 References: 1. https://code.vmware.com/apis/196/vsphere#https://vdc-
+      repo.vmware.com/vmwb- repository/dcr-
+      public/6b586ed2-655c-49d9-9029-bc416323cb22/fa0b429a-a695-
+      4c11-b7d2-2cbc284049dc/doc/vim.option.OptionManager.html 2.
+      https://www.cisecurity.org/white-papers/cis-password-policy-guide/
+
+  - rule_id: tciem.vmware_esxi.l1_ensure_account_lockout_is_set_to_15_minutes
+    title: "(L1) Ensure account lockout is set to 15 minutes"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.4'
+    cis_section: '4'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To set the account lockout to 15 minutes, perform the following: 1. From the
+      vSphere Web Client, select the host. 2. Click Configure then expand System. 3.
+      Select Advanced System Settings then click Edit. 4. Enter
+      Security.AccountUnlockTime in the filter. 5. Set the value for this parameter
+      to 900. Alternately, use the following PowerCLI command: Get-VMHost | Get-
+      AdvancedSetting -Name Security.AccountUnlockTime | Set- AdvancedSetting -Value
+      900 References: 1. https://code.vmware.com/apis/1067/vsphere 2.
+      https://www.cisecurity.org/white-papers/cis-password-policy-guide/
+
+  - rule_id: tciem.vmware_esxi.l1_host_must_restrict_access_to_a_default_or
+    title: "(L1) Host must restrict access to a default or native VLAN on standard virtual switches"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.9'
+    cis_section: '5'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To stop using the native VLAN ID for port groups, perform the following: 1.
+      From the vSphere Web Client, select the host. 2. Click Configure then expand
+      Networking. 3. Select Virtual switches. 4. Expand the Standard vSwitch. 5.
+      View the topology diagram of the switch, which shows the various port groups
+      associated with that switch. 6. For each port group on the vSwitch, verify and
+      record the VLAN IDs used. 7. If a VLAN ID change is needed, click the name of
+      the port group in the topology diagram of the virtual switch. 8. Click the
+      Edit settings option. 9. In the Properties section, enter an appropriate name
+      in the Network label field. 10. In the VLAN ID dropdown select or type a new
+      VLAN. 11. Click OK. References: 1. https://docs.vmware.com/en/VMware-
+      vSphere/7.0/com.vmware.vsphere.networking.doc/GUID-3A9D9911-3632-4B81-
+      9D2E-A2F9F2D01180.html
+
+  - rule_id: tciem.vmware_esxi.l1_ensure_ssh_is_disabled
+    title: "(L1) Ensure SSH is disabled"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.3'
+    cis_section: '5'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To disable SSH, perform the following: 1. From the vSphere Web Client, select
+      the host. 2. Select Configure then expand System and select Services. 3. Click
+      on SSH then click Edit Startup Policy. 4. Set the Startup Policy is set to
+      Start and Stop Manually. 5. Click OK. 6. While ESXi Shell is still selected
+      click Stop. Alternately, use the following PowerCLI command: # Set SSH to
+      start manually rather than automatically for all hosts Get-VMHost | Get-
+      VMHostService | Where { $_.key -eq 'TSM-SSH' } | Set- VMHostService -Policy
+      Off References: 1. https://docs.vmware.com/en/VMware-
+      vSphere/7.0/com.vmware.vsphere.security.doc/GUID-12E27BF3-3769-4665-
+      8769-DA76C2BC9FFE.html
+
+  - rule_id: tciem.vmware_esxi.l1_ensure_normal_lockdown_mode_is_enabled
+    title: "(L1) Ensure Normal Lockdown mode is enabled"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.5'
+    cis_section: '5'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To enable lockdown mode, perform the following from the vSphere web client: 1.
+      From the vSphere Web Client, select the host. 2. Select Configure then expand
+      System and select Security Profile. 3. Across from Lockdown Mode click on
+      Edit. 4. Click the radio button for Normal. 5. Click OK. Alternately, run the
+      following PowerCLI command: # Enable lockdown mode for each host (Get-VMHost |
+      Get-View).EnterLockdownMode() References: 1.
+      https://docs.vmware.com/en/VMware-
+      vSphere/7.0/com.vmware.vsphere.security.doc/GUID-88B24613-E8F9-40D2-
+      B838-225F5FF480FF.html
+
+  - rule_id: tciem.vmware_esxi.l2_ensure_strict_lockdown_mode_is_enabled
+    title: "(L2) Ensure Strict Lockdown mode is enabled"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '5.6'
+    cis_section: '5'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To enable lockdown mode, perform the following from the vSphere web client: 1.
+      From the vSphere Web Client, select the host. 2. Select Configure then expand
+      System and select Security Profile. 3. Across from Lockdown Mode click on
+      Edit. 4. Click the radio button for Strict. 5. Click OK. Alternately, run the
+      following PowerCLI command: # Enable lockdown mode for each host Get-VMHost |
+      Foreach { $_.EnterLockdownMode() } References: 1.
+      https://docs.vmware.com/en/VMware-
+      vSphere/7.0/com.vmware.vsphere.security.doc/GUID-88B24613-E8F9-40D2-
+      B838-225F5FF480FF.html
+
+  - rule_id: tciem.vmware_esxi.l2_virtual_machines_should_deactivate_3d_graphics
+    title: "(L2) Virtual machines should deactivate 3D graphics features when not required"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '7.4'
+    cis_section: '7'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      The following PowerCLI command may be used: Get-VM -Name $VM | Get-
+      AdvancedSetting mks.enable3d | Set-AdvancedSetting - Value FALSE Default
+      Value: Depends on VM Hardware version and guest OS selection.
+
+  - rule_id: tciem.vmware_esxi.l1_virtual_machines_must_limit_pci_pcie_device
+    title: "(L1) Virtual machines must limit PCI/PCIe device passthrough functionality"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '7.7'
+    cis_section: '7'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      The following PowerCLI command can be used: # Add the setting to all VMs Get-
+      VM | New-AdvancedSetting -Name 'pciPassthru*.present' -value '' References: 1.
+      https://docs.vmware.com/en/VMware-
+      vSphere/7.0/com.vmware.vsphere.security.doc/GUID-E5CFB1FB-9216-4C1D-
+      B49A-81AAAC414025.html
+
+  - rule_id: tciem.vmware_esxi.l1_ensure_unauthorized_modification_and
+    title: "(L1) Ensure unauthorized modification and disconnection of devices is disabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '7.8'
+    cis_section: '7'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To prevent unauthorized device modifications and disconnections, run the
+      following PowerCLI command: # Add the setting to all VMs Get-VM | New-
+      AdvancedSetting -Name 'isolation.device.edit.disable' -value $true References:
+      1. https://docs.vmware.com/en/VMware-
+      vSphere/7.0/com.vmware.vsphere.security.doc/GUID-F88A5FED-552B-44F9-
+      A168-C62D9306DBD6.html
+
+  - rule_id: tciem.vmware_esxi.l1_virtual_machines_must_prevent_unauthorized
+    title: "(L1) Virtual machines must prevent unauthorized connection of devices"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '7.9'
+    cis_section: '7'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To prevent unauthorized device connections, run the following PowerCLI
+      command: # Add the setting to all VMs Get-VM | New-AdvancedSetting -Name
+      'isolation.device.connectable.disable' - value $true References: 1.
+      https://docs.vmware.com/en/VMware-
+      vSphere/7.0/com.vmware.vsphere.security.doc/GUID-F88A5FED-552B-44F9-
+      A168-C62D9306DBD6.html
+
+  - rule_id: tciem.vmware_esxi.l1_virtual_machines_must_deactivate_console_copy
+    title: "(L1) Virtual machines must deactivate console copy operations"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '7.18'
+    cis_section: '7'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To set this configuration utilize the vSphere interface as follows: 1. Select
+      the VM then select Actions followed by Edit Settings. 2. Click on the VM
+      Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Click on
+      ADD CONFIGURATION PARAMS then input isolation.tools.copy.disable with a value
+      of TRUE. 5. Click OK, then OK again. To explicitly disable VM console copy
+      operations, run the following PowerCLI command: # Add the setting to all VMs
+      Get-VM | New-AdvancedSetting -Name 'isolation.tools.copy.disable' -value $true
+      Default Value: Disabled References: 1. https://docs.vmware.com/en/VMware-
+      vSphere/7.0/com.vmware.vsphere.security.doc/GUID-367D02C1-B71F-4AC3-
+      AA05-85033136A667.html 2. https://docs.vmware.com/en/VMware-
+      vSphere/7.0/com.vmware.vsphere.security.doc/GUID-52188148-C579-4F6A-
+      8335-CFBCE0DD2167.html
+
+  - rule_id: tciem.vmware_esxi.l1_virtual_machines_must_deactivate_console_paste
+    title: "(L1) Virtual machines must deactivate console paste operations"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '7.19'
+    cis_section: '7'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To set this configuration utilize the vSphere interface as follows: 1. Select
+      the VM then select Actions followed by Edit Settings. 2. Click on the VM
+      Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Click on
+      ADD CONFIGURATION PARAMS then input isolation.tools.paste.disable with a value
+      of TRUE. 5. Click OK, then OK again. To explicitly disable VM console paste
+      operations, run the following PowerCLI command: # Add the setting to all VMs
+      Get-VM | New-AdvancedSetting -Name 'isolation.tools.paste.disable' -value
+      $true Default Value: Disabled References: 1.
+      https://docs.vmware.com/en/VMware-
+      Tools/10.3.0/com.vmware.vsphere.vmwaretools.doc/GUID-685722FA-9009- 439C-9142-
+      18A9E7C592EA.html?hWord=N4IghgNiBcIMoFMDGBXATgSwC4E8AEAwgPYB
+      2AzhgCYJphYall4BmRahpzGA5uhidzwA1ALIB3MGgR4AKkSIQyIAL5A 2.
+      https://docs.vmware.com/en/VMware-
+      vSphere/7.0/com.vmware.vsphere.security.doc/GUID-367D02C1-B71F-4AC3-
+      AA05-85033136A667.html
+
+  - rule_id: tciem.vmware_esxi.l1_virtual_machines_should_deactivate_3d_graphics
+    title: "(L1) Virtual machines should deactivate 3D graphics features when not required"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '7.4'
+    cis_section: '7'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      The following PowerCLI command may be used: Get-VM -Name $VM | Get-
+      AdvancedSetting mks.enable3d | Set-AdvancedSetting - Value FALSE Default
+      Value: Depends on VM Hardware version and guest OS selection.
+
+  - rule_id: tciem.vmware_esxi.l1_ensure_unauthorized_modification_and_2
+    title: "(L1) Ensure unauthorized modification and disconnection of devices is disabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '8.2.6'
+    cis_section: '8'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To prevent unauthorized device modifications and disconnections, run the
+      following PowerCLI command: # Add the setting to all VMs Get-VM | New-
+      AdvancedSetting -Name 'isolation.device.edit.disable' -value $true References:
+      1. https://docs.vmware.com/en/VMware-
+      vSphere/7.0/com.vmware.vsphere.security.doc/GUID-F88A5FED-552B-44F9-
+      A168-C62D9306DBD6.html
+
+  - rule_id: tciem.vmware_esxi.l1_ensure_unauthorized_connection_of_devices_is
+    title: "(L1) Ensure unauthorized connection of devices is disabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '8.2.7'
+    cis_section: '8'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To prevent unauthorized device connections, run the following PowerCLI
+      command: # Add the setting to all VMs Get-VM | New-AdvancedSetting -Name
+      'isolation.device.connectable.disable' - value $true References: 1.
+      https://docs.vmware.com/en/VMware-
+      vSphere/7.0/com.vmware.vsphere.security.doc/GUID-F88A5FED-552B-44F9-
+      A168-C62D9306DBD6.html
+
+  - rule_id: tciem.vmware_esxi.l2_ensure_autologon_is_disabled
+    title: "(L2) Ensure Autologon is disabled"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '8.4.2'
+    cis_section: '8'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To set this configuration utilize the vSphere interface as follows: 1. Select
+      the VM then select Actions followed by Edit Settings. 2. Click on the VM
+      Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Click on
+      ADD CONFIGURATION PARAMS then input isolation.tools.ghi.autologon.disable with
+      a value of TRUE. 5. Click OK, then OK again. Alternatively you may run the
+      following PowerCLI command: # Add the setting to all VMs Get-VM | New-
+      AdvancedSetting -Name 'isolation.tools.ghi.autologon.disable' - value $true
+      References: 1. https://docs.vmware.com/en/VMware-
+      vSphere/7.0/com.vmware.vsphere.security.doc/GUID-60E83710-8295-41A2-
+      9C9D-83DEBB6872C2.html
+
+  - rule_id: tciem.vmware_esxi.l2_ensure_hardware_based_3d_acceleration_is
+    title: "(L2) Ensure hardware-based 3D acceleration is disabled and mks.enable3d is set to 'False'"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '8.5.2'
+    cis_section: '8'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To set this configuration utilize the vSphere interface as follows: 1. Select
+      the VM then select Actions followed by Edit Settings. 2. Click on the VM
+      Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Click on
+      ADD CONFIGURATION PARAMS then input mks.enable3d with a value of FALSE. 5.
+      Click OK, then OK again. To disable hardware-based 3D acceleration, run the
+      following PowerCLI command: # Add the setting to all VMs Get-VM | New-
+      AdvancedSetting -Name 'mks.enable3d' -value $false References: 1.
+      https://docs.vmware.com/en/VMware-
+      vSphere/7.0/com.vmware.vsphere.security.doc/GUID-15D965F3-05E3-4E59-
+      9F08-B305FDE672DD.html
+
+  - rule_id: tciem.vmware_esxi.l1_ensure_virtual_disk_wiping_is_disabled
+    title: "(L1) Ensure virtual disk wiping is disabled"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '8.6.3'
+    cis_section: '8'
+    log_source: "syslog, /var/log/vmkernel.log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To set this configuration utilize the vSphere interface as follows: 1. Select
+      the VM then select Actions followed by Edit Settings. 2. Click on the VM
+      Options tab then expand Advanced. 3. Click on EDIT CONFIGURATION. 4. Click on
+      ADD CONFIGURATION PARAMS then input isolation.tools.diskWiper.disable with a
+      value of TRUE. 5. Click OK, then OK again. To disable virtual disk wiping, run
+      the following PowerCLI command: # Add the setting to all VMs Get-VM | New-
+      AdvancedSetting -Name 'isolation.tools.diskWiper.disable' -value $true
+      References: 1. https://docs.vmware.com/en/VMware-
+      vSphere/7.0/com.vmware.vsphere.security.doc/GUID-9610FE65-3A78-4982-
+      8C28-5B34FEB264B6.html 2. https://docs.vmware.com/en/VMware-
+      Tools/10.3.0/com.vmware.vsphere.vmwaretools.doc/GUID-685722FA-9009-
+      439C-9142-18A9E7C592EA.html
+

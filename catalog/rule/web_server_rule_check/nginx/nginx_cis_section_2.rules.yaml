@@ -1,0 +1,225 @@
+tech_type: nginx
+category: web_server
+cis_benchmark: CIS NGINX v2.1.0
+cis_section: '2'
+
+rules:
+
+  - rule_id: nginx.cis.2.http_webdav_module_is_not_installed
+    title: "Ensure HTTP WebDAV module is not installed"
+    severity: medium
+    automation_type: automated
+    cis_control: '2.1.2'
+    cis_section: '2'
+    profile_applicability: "Level 2"
+    scope: nginx.section_2.http_webdav_module_is_not_installed
+    assertion:
+      field: version
+      operator: equals
+      expected: "true"
+    remediation: >
+      To remove the http_dav_module, recompile nginx from source without the --with-
+      http_dav_module flag. Default Value: The HTTP WebDAV module is not installed
+      by default when installing from source. It does come by default when installed
+      using dnf. References: 1. http://nginx.org/en/docs/configure.html 2.
+      https://tools.ietf.org/html/rfc4918 Additional Information: NGINX does not
+      support the removal of modules using the dnf method of installation. In order
+      to remove modules from NGINX, you will need to compile from source.
+    compliance:
+      - cis_nginx_v2_1_0_2_1_2
+
+  - rule_id: nginx.cis.2.modules_with_gzip_functionality_are_disabled
+    title: "Ensure modules with gzip functionality are disabled"
+    severity: medium
+    automation_type: automated
+    cis_control: '2.1.3'
+    cis_section: '2'
+    profile_applicability: "Level 2"
+    scope: nginx.section_2.modules_with_gzip_functionality_are_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      In order to disable the http_gzip_module and the http_gzip_static_module,
+      NGINX must be recompiled from source. This can be accomplished using the below
+      command in the folder you used during your original compilation. This must be
+      done without the --with- http_gzip_static_module or --with-http_gzip_module
+      configuration directives. ./configure --without-http_gzip_module --without-
+      http_gzip_static_module Default Value: The http_gzip_module is enabled by
+      default in the source build, and the http_gzip_static_module is not. Only the
+      http_gzip_static_module is enabled by default in the dnf package. References:
+      1. http://nginx.org/en/docs/configure.html 2.
+      http://nginx.org/en/docs/configure.html 3.
+      http://nginx.org/en/docs/http/ngx_http_gzip_module.html 4.
+      http://nginx.org/en/docs/http/ngx_http_gzip_static_module.html Additional
+      Information: NGINX does not support the removal of modules using the yum
+      method of installation. In order to remove modules from NGINX, you will need
+      to compile from source.
+    compliance:
+      - cis_nginx_v2_1_0_2_1_3
+
+  - rule_id: nginx.cis.2.autoindex_module_is_disabled
+    title: "Ensure the autoindex module is disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '2.1.4'
+    cis_section: '2'
+    profile_applicability: "Level 1"
+    scope: nginx.section_2.autoindex_module_is_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Perform the following to disable the autoindex module: 1. Search the NGINX
+      configuration files (nginx.conf and any included configuration files) to find
+      autoindex directives. egrep -i '^\s*autoindex\s+' /etc/nginx/nginx.conf egrep
+      -i '^\s*autoindex\s+' /etc/nginx/conf.d/* 2. Set the value for all autoindex
+      directives to off, or remove those directives. Default Value: This module is
+      not enabled by default. References: 1.
+      http://nginx.org/en/docs/http/ngx_http_autoindex_module.html
+    compliance:
+      - cis_nginx_v2_1_0_2_1_4
+
+  - rule_id: nginx.cis.2.nginx_directories_and_files_are_owned_by_root
+    title: "Ensure NGINX directories and files are owned by root"
+    severity: high
+    automation_type: automated
+    cis_control: '2.3.1'
+    cis_section: '2'
+    profile_applicability: "Level 1"
+    scope: nginx.section_2.nginx_directories_and_files_are_owned_by_root
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to ensure ownership and group ownership is set to
+      root: chown -R root:root /etc/nginx Default Value: The default ownership and
+      group for nginx is root.
+    compliance:
+      - cis_nginx_v2_1_0_2_3_1
+
+  - rule_id: nginx.cis.2.nginx_process_id_pid_file_is_secured
+    title: "Ensure the NGINX process ID (PID) file is secured"
+    severity: high
+    automation_type: automated
+    cis_control: '2.3.3'
+    cis_section: '2'
+    profile_applicability: "Level 1"
+    scope: nginx.section_2.nginx_process_id_pid_file_is_secured
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      If the PID file is not owned by root, issue this command: chown root:root
+      /var/run/nginx.pid If the PID file has permissions greater than 644, issue
+      this command: chmod u-x,go-wx /var/run/nginx.pid Default Value: The PID file
+      is owned by root and has permissions 644 by default when building using dnf.
+    compliance:
+      - cis_nginx_v2_1_0_2_3_3
+
+  - rule_id: nginx.cis.2.keepalive_timeout_is_10_seconds_or_less_but_not_0
+    title: "Ensure keepalive_timeout is 10 seconds or less, but not 0"
+    severity: high
+    automation_type: automated
+    cis_control: '2.4.3'
+    cis_section: '2'
+    profile_applicability: "Level 1"
+    scope: nginx.section_2.keepalive_timeout_is_10_seconds_or_less_but_not_0
+    assertion:
+      field: value
+      operator: equals
+      expected: "10"
+    remediation: >
+      Find the HTTP or server block of your nginx configuration, and add the
+      keepalive_timeout directive. Set it to 10 seconds or less, but not 0. This
+      example command sets it to 10 seconds: keepalive_timeout 10; Default Value: By
+      default, this timeout is dictated by the user agent and varies. It is not set
+      on the server side by default. References: 1.
+      http://nginx.org/en/docs/http/ngx_http_core_module.html#keepalive_timeout
+    compliance:
+      - cis_nginx_v2_1_0_2_4_3
+
+  - rule_id: nginx.cis.2.send_timeout_is_set_to_10_seconds_or_less_but_not
+    title: "Ensure send_timeout is set to 10 seconds or less, but not 0"
+    severity: high
+    automation_type: automated
+    cis_control: '2.4.4'
+    cis_section: '2'
+    profile_applicability: "Level 1"
+    scope: nginx.section_2.send_timeout_is_set_to_10_seconds_or_less_but_not
+    assertion:
+      field: value
+      operator: equals
+      expected: "10"
+    remediation: >
+      Find the HTTP or server block of your nginx configuration, and add the
+      send_timeout directive. Set it to 10 seconds or less, but not 0. send_timeout
+      10; Default Value: send_timeout 60s; References: 1.
+      https://www.owasp.org/index.php/SCG_WS_nginx 2.
+      http://nginx.org/en/docs/http/ngx_http_core_module.html#send_timeout
+    compliance:
+      - cis_nginx_v2_1_0_2_4_4
+
+  - rule_id: nginx.cis.2.server_tokens_directive_is_set_to_off
+    title: "Ensure server_tokens directive is set to `off`"
+    severity: high
+    automation_type: automated
+    cis_control: '2.5.1'
+    cis_section: '2'
+    profile_applicability: "Level 1"
+    scope: nginx.section_2.server_tokens_directive_is_set_to_off
+    assertion:
+      field: version
+      operator: equals
+      expected: "off"
+    remediation: >
+      To disable the server_tokens directive, set it to off inside of every server
+      block in your nginx.conf or in the http block: server { ... server_tokens off;
+      ... } Default Value: The default value of server_tokens is on.
+    compliance:
+      - cis_nginx_v2_1_0_2_5_1
+
+  - rule_id: nginx.cis.2.default_error_and_index_html_pages_do_not
+    title: "Ensure default error and index.html pages do not reference NGINX"
+    severity: high
+    automation_type: automated
+    cis_control: '2.5.2'
+    cis_section: '2'
+    profile_applicability: "Level 1"
+    scope: nginx.section_2.default_error_and_index_html_pages_do_not
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Edit /usr/share/nginx/html/index.html and usr/share/nginx/html/50x.html and
+      remove any lines that reference NGINX.
+    compliance:
+      - cis_nginx_v2_1_0_2_5_2
+
+  - rule_id: nginx.cis.2.nginx_reverse_proxy_does_not_enable_information
+    title: "Ensure the NGINX reverse proxy does not enable information disclosure"
+    severity: high
+    automation_type: automated
+    cis_control: '2.5.4'
+    cis_section: '2'
+    profile_applicability: "Level 1"
+    scope: nginx.section_2.nginx_reverse_proxy_does_not_enable_information
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Implement the below directives as part of your location block. Edit
+      /etc/nginx/nginx.conf and add the following: location /docs { ....
+      proxy_hide_header X-Powered-By; proxy_hide_header Server; .... } Default
+      Value: This is not implemented by default. References: 1.
+      http://nginx.org/en/docs/http/ngx_http_proxy_module.html
+    compliance:
+      - cis_nginx_v2_1_0_2_5_4
+
+

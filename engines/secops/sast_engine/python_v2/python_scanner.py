@@ -79,9 +79,10 @@ def load_rule_metadata(folder="python_docs"):
                         if isinstance(data, dict) and "rule_id" in data:
                             rules_meta[data["rule_id"]] = data
                 except Exception as e:
+                    logger.warning("python_scanner: skipping malformed rule file %s: %s", file_path, e)
                     continue
     except Exception as e:
-        pass
+        logger.warning("python_scanner: failed to load rules from %s: %s", folder_path, e)
     return rules_meta
 
 # Step 4: Define base rule class
@@ -170,6 +171,9 @@ def scan_file(py_file, rules):
                     if check.get('type') == 'custom_function':
                         custom_function_name = check.get('function')
                         break
+            # Also check root-level custom_function key (used by security rules)
+            if not custom_function_name:
+                custom_function_name = rule.logic.get('custom_function')
 
             custom_function = rule._get_custom_function(custom_function_name)
             if custom_function:

@@ -1,0 +1,358 @@
+"""BFF view: /ai-security page (AI Security Posture Management / AI-SPM).
+
+Fetches data from the AI Security engine's /ui-data endpoint and transforms
+it into the shape expected by the frontend dashboard.
+
+Modules covered: Model Security, Endpoint Security, Prompt Security,
+Data Pipeline, AI Governance, Access Control.
+"""
+
+from typing import Optional, Dict, List
+
+from fastapi import APIRouter, Query, Request
+
+from ._auth import resolve_tenant_id
+from ._shared import fetch_many, safe_get, BFFMeta
+from .schemas.ai_security import AISecurityResponse
+from ._transforms import apply_global_filters
+from ._page_context import ai_security_page_context, ai_security_filter_schema
+
+router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
+
+# Module key → display name mapping
+MODULE_DISPLAY: Dict[str, str] = {
+    "model_security": "Model Security",
+    "endpoint_security": "Endpoint Security",
+    "prompt_security": "Prompt Security",
+    "data_pipeline": "Data Pipeline",
+    "ai_governance": "AI Governance",
+    "access_control": "Access Control",
+}
+
+SEV_SORT = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+
+
+def _severity_sort_key(item: dict) -> int:
+    """Return sort order for severity (critical first)."""
+    return SEV_SORT.get((item.get("severity") or "medium").lower(), 3)
+
+
+def _build_modules(by_module: dict) -> List[dict]:
+    """Transform engine by_module summary into frontend module cards."""
+    modules = []
+    for key, display_name in MODULE_DISPLAY.items():
+        mod = by_module.get(key, {})
+        if isinstance(mod, dict):
+            modules.append({
+                "name": display_name,
+                "key": key,
+                "score": mod.get("score", 0),
+                "findings": mod.get("findings", 0),
+                "critical": mod.get("critical", 0),
+            })
+        elif isinstance(mod, int):
+            # Engine returned just a count per module
+            modules.append({
+                "name": display_name,
+                "key": key,
+                "score": 0,
+                "findings": mod,
+                "critical": 0,
+            })
+    return modules
+
+
+def _normalize_ai_finding(f: dict) -> dict:
+    """Normalize an AI security finding into UI-ready shape."""
+    severity = (f.get("severity") or "medium").lower()
+    frameworks = f.get("frameworks") or f.get("compliance_frameworks") or []
+    if isinstance(frameworks, str):
+        frameworks = [frameworks]
+    account_id = f.get("account_id") or f.get("account", "")
+    return {
+        "id":              str(f.get("finding_id") or f.get("id") or ""),
+        "finding_id":      str(f.get("finding_id") or f.get("id") or ""),
+        "severity":        severity,
+        "rule_id":         f.get("rule_id", ""),
+        "title":           f.get("title") or f.get("rule_name", ""),
+        "resource_uid":    f.get("resource_uid") or f.get("resource_arn", ""),
+        "resource_type":   f.get("resource_type", ""),
+        "service":         f.get("service") or f.get("resource_type", ""),
+        "category":        f.get("category") or f.get("module", ""),
+        "posture_category": f.get("posture_category") or f.get("category") or f.get("module", ""),
+        "security_domain": f.get("security_domain") or f.get("category") or f.get("module", ""),
+        "status":          (f.get("status") or "FAIL").upper(),
+        "frameworks":      frameworks,
+        "provider":        (f.get("provider") or "").upper(),
+        "account_id":      account_id,
+        "account":         account_id,
+        "region":          f.get("region", ""),
+        "description":     f.get("description", ""),
+        "remediation":     f.get("remediation", ""),
+        "risk_score":      f.get("risk_score") or f.get("risk", 0),
+    }
+
+
+def _normalize_inventory_row(r: dict) -> dict:
+    """Normalize an AI/ML resource inventory item."""
+    return {
+        "resource_uid": r.get("resource_uid") or r.get("resource_id", ""),
+        "name": r.get("name") or (r.get("resource_uid") or "").rsplit("/", 1)[-1],
+        "service": r.get("service") or r.get("resource_type", ""),
+        "type": r.get("type") or r.get("resource_type", ""),
+        "region": r.get("region", ""),
+        "public": r.get("public") or r.get("public_access", False),
+        "guardrails": r.get("guardrails", False),
+        "risk_score": r.get("risk_score", 0),
+        "provider": (r.get("provider") or "").upper(),
+        "account": r.get("account_id") or r.get("account", ""),
+    }
+
+
+def _normalize_shadow_ai_item(item: dict) -> dict:
+    """Normalize a shadow AI detection item."""
+    return {
+        "service": item.get("service", ""),
+        "operation": item.get("operation", ""),
+        "actor": item.get("actor") or item.get("principal", ""),
+        "calls": item.get("calls") or item.get("count", 0),
+        "last_seen": item.get("last_seen") or item.get("last_seen_at", ""),
+    }
+
+
+@router.get("/ai-security", response_model=AISecurityResponse, response_model_exclude_none=False)
+async def view_ai_security(
+    request: Request,
+    provider: Optional[str] = Query(None),
+    account: Optional[str] = Query(None),
+    region: Optional[str] = Query(None),
+    csp: Optional[str] = Query(None),
+    scan_id: str = Query("latest"),
+):
+    """Single endpoint returning everything the AI Security page needs."""
+
+    tenant_id = resolve_tenant_id(request)
+    effective_csp = csp or (provider.lower() if provider else "aws")
+
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+    meta = BFFMeta("ai_security")
+
+    results = await fetch_many([
+        ("ai_security", "/api/v1/ai-security/ui-data", {
+            "tenant_id": tenant_id,
+            "csp": effective_csp,
+            "scan_id": scan_id,
+        }),
+    ], auth_headers=fwd_headers)
+
+    data = results[0]
+    meta.record_engine("ai_security", "/api/v1/ai-security/ui-data", data)
+    if not isinstance(data, dict):
+        data = {}
+
+    summary = safe_get(data, "summary", {})
+    # Engine returns critical_findings/high_findings etc., not by_severity dict
+    by_severity = safe_get(summary, "by_severity", {})
+    if not by_severity:
+        by_severity = {
+            "critical": summary.get("critical_findings", 0),
+            "high": summary.get("high_findings", 0),
+            "medium": summary.get("medium_findings", 0),
+            "low": summary.get("low_findings", 0),
+        }
+    by_module = safe_get(summary, "by_module", {})
+
+    # Engine returns module_breakdown as a list, not a dict in summary.
+    # Convert list [{module, total, pass, fail, score}, ...] → dict for _build_modules
+    if not by_module:
+        raw_module_breakdown = safe_get(data, "module_breakdown", [])
+        if isinstance(raw_module_breakdown, list):
+            for mb in raw_module_breakdown:
+                key = mb.get("module", "")
+                by_module[key] = {
+                    "score": mb.get("score", 0),
+                    "findings": mb.get("total", mb.get("fail", 0)),
+                    "critical": mb.get("critical", 0),
+                }
+
+    # ── Findings ──
+    raw_findings = safe_get(data, "findings", [])
+    findings = [_normalize_ai_finding(f) for f in raw_findings]
+    findings = apply_global_filters(findings, provider, account, region)
+    findings.sort(key=_severity_sort_key)
+
+    # ── Inventory (ML/AI resources) ──
+    raw_inventory = safe_get(data, "inventory", [])
+    inventory_rows = [_normalize_inventory_row(r) for r in raw_inventory]
+    inventory_rows = apply_global_filters(inventory_rows, provider, account, region)
+
+    # ── Shadow AI ──
+    # Engine may return shadow_ai as a list or dict with items key
+    raw_shadow = safe_get(data, "shadow_ai", [])
+    if isinstance(raw_shadow, list):
+        raw_shadow = {"items": raw_shadow, "count": len(raw_shadow)}
+    shadow_items = [_normalize_shadow_ai_item(s) for s in safe_get(raw_shadow, "items", [])]
+    shadow_count = safe_get(raw_shadow, "count", None)
+    if shadow_count is None:
+        shadow_count = len(shadow_items)
+
+    # ── Modules ──
+    modules = _build_modules(by_module)
+
+    # ── Top failing rules ──
+    raw_top_rules = safe_get(data, "top_failing_rules", [])
+    top_failing_rules = [
+        {
+            "rule_id": r.get("rule_id", ""),
+            "title": r.get("title") or r.get("rule_name", ""),
+            "count": r.get("count") or r.get("total", 0),
+            "severity": (r.get("severity") or "medium").lower(),
+        }
+        for r in raw_top_rules
+    ]
+
+    # ── KPIs ──
+    total_findings = safe_get(summary, "total_findings", None)
+    if total_findings is None:
+        total_findings = len(findings)
+
+    total_ml_resources = safe_get(summary, "total_ml_resources", None)
+    if total_ml_resources is None:
+        total_ml_resources = len(inventory_rows)
+
+    risk_score = safe_get(summary, "risk_score", 0)
+    posture_score = safe_get(summary, "posture_score", 0)
+
+    critical = by_severity.get("critical", 0)
+    high = by_severity.get("high", 0)
+    medium = by_severity.get("medium", 0)
+    low = by_severity.get("low", 0)
+
+    # Recount from filtered findings if scope filters are active
+    if provider or account or region:
+        total_findings = len(findings)
+        total_ml_resources = len(inventory_rows)
+        critical = sum(1 for f in findings if f["severity"] == "critical")
+        high = sum(1 for f in findings if f["severity"] == "high")
+        medium = sum(1 for f in findings if f["severity"] == "medium")
+        low = sum(1 for f in findings if f["severity"] == "low")
+
+    # Coverage metrics
+    coverage = safe_get(summary, "coverage", {})
+
+    # ── Page context ──
+    page_ctx = ai_security_page_context(summary)
+    page_ctx["tabs"] = [
+        {"id": "overview", "label": "Overview", "count": total_findings},
+        {"id": "inventory", "label": "AI Inventory", "count": total_ml_resources},
+        {"id": "findings", "label": "Findings", "count": total_findings},
+        {"id": "shadow_ai", "label": "Shadow AI", "count": shadow_count},
+    ]
+
+    # -- Scan trend with chart dataKeys ----------------------------------------
+    raw_trend = safe_get(data, "scan_trend", [])
+    color_map = {'critical': '#ef4444', 'high': '#f97316', 'medium': '#eab308', 'low': '#3b82f6'}
+    scan_trend = []
+    for pt in raw_trend:
+        sev_pt = pt.get("by_severity") or {}
+        total_pt = pt.get("total_findings") or pt.get("total", 0)
+        scan_trend.append({
+            "date":     pt.get("scan_date") or pt.get("date", ""),
+            "critical": sev_pt.get("critical", pt.get("critical", 0)),
+            "high":     sev_pt.get("high",     pt.get("high",     0)),
+            "medium":   sev_pt.get("medium",   pt.get("medium",   0)),
+            "low":      sev_pt.get("low",      pt.get("low",      0)),
+            "passRate": pt.get("pass_rate") or pt.get("passRate", 0),
+            "total":    total_pt,
+        })
+
+    first_pt  = scan_trend[0]  if scan_trend else {}
+    last_pt   = scan_trend[-1] if scan_trend else {}
+    first_obj = {k: first_pt.get(k, 0) for k in ("date", "critical", "high", "total")}
+    last_obj  = {k: last_pt.get(k, 0)  for k in ("date", "critical", "high", "total")}
+
+    # -- Donut slices ----------------------------------------------------------
+    donut_slices = [
+        {"name": sev.title(), "value": by_severity.get(sev, 0), "color": color_map[sev]}
+        for sev in ("critical", "high", "medium", "low")
+        if by_severity.get(sev, 0) > 0
+    ]
+
+    # -- Active module scores (modules with pass/fail) -------------------------
+    active_module_scores = [
+        {
+            "key":   m["key"],
+            "label": m["name"],
+            "score": m.get("score", 0),
+            "pass":  (m.get("score") or 0) >= 70,
+        }
+        for m in modules
+    ]
+
+    # -- DB domain breakdown --------------------------------------------------
+    domain_breakdown = safe_get(data, "domain_breakdown", [])
+
+    # -- Coverage items array (UI expects list with label + pct per item) ------
+    _coverage_labels = {
+        "vpc_isolation_pct":      "VPC Isolation",
+        "encryption_rest_pct":    "Encryption at Rest",
+        "encryption_transit_pct": "Encryption in Transit",
+        "model_card_pct":         "Model Cards",
+        "monitoring_pct":         "Monitoring",
+        "guardrails_pct":         "Guardrails",
+    }
+    coverage_items = [
+        {"key": k, "label": label, "pct": coverage.get(k, 0)}
+        for k, label in _coverage_labels.items()
+    ]
+
+    return {
+        "pageContext": page_ctx,
+        "filterSchema": ai_security_filter_schema(list(MODULE_DISPLAY.keys())),
+        "kpiGroups": [
+            {
+                "title": "AI Risk",
+                "items": [
+                    {"label": "Critical",       "value": critical},
+                    {"label": "High",           "value": high},
+                    {"label": "Medium",         "value": medium},
+                    {"label": "Risk Score",     "value": risk_score,    "suffix": "/100"},
+                    {"label": "Total Findings", "value": total_findings},
+                ],
+            },
+            {
+                "title": "AI Posture",
+                "items": [
+                    {"label": "Posture Score",  "value": posture_score, "suffix": "/100"},
+                    {"label": "ML Resources",   "value": total_ml_resources},
+                    {"label": "Shadow AI",      "value": shadow_count},
+                    {"label": "Guardrails",     "value": coverage.get("guardrails_pct", 0), "suffix": "%"},
+                    {"label": "Modules",        "value": len(modules)},
+                ],
+            },
+        ],
+        "modules":            modules,
+        "activeModuleScores": active_module_scores,
+        "coverage": {
+            "vpc_isolation_pct":      coverage.get("vpc_isolation_pct",      0),
+            "encryption_rest_pct":    coverage.get("encryption_rest_pct",    0),
+            "encryption_transit_pct": coverage.get("encryption_transit_pct", 0),
+            "model_card_pct":         coverage.get("model_card_pct",         0),
+            "monitoring_pct":         coverage.get("monitoring_pct",         0),
+            "guardrails_pct":         coverage.get("guardrails_pct",         0),
+        },
+        "coverageItems": coverage_items,
+        "inventory":       inventory_rows,
+        "shadowAi":        {"count": shadow_count, "items": shadow_items},
+        "findings":        findings,
+        "topFailingRules": top_failing_rules,
+        "scanTrend":          scan_trend,
+        "activeScanTrend":    scan_trend,
+        "first":              first_obj,
+        "last":               last_obj,
+        "donutSlices":        donut_slices,
+        "domainBreakdown":    domain_breakdown,
+        "db":                 domain_breakdown,
+        "_meta":              meta.to_dict(),
+    }

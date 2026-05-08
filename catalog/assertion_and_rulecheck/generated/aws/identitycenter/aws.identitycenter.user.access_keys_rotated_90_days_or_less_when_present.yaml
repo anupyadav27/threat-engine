@@ -1,0 +1,16 @@
+version: '1.0'
+rule_id: aws.identitycenter.user.access_keys_rotated_90_days_or_less_when_present
+for_each: aws.identitycenter.list_users
+severity: MEDIUM
+conditions:
+  all:
+  - var: item.AccessKeys
+    op: exists
+  - var: item.AccessKeys[].CreateDate
+    op: not_empty
+  - var: item.AccessKeys[].Status
+    op: equals
+    value: Active
+  - var: item.AccessKeys[].key_age_days
+    op: lte
+    value: '90'

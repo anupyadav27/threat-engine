@@ -1,0 +1,72 @@
+# discoveries_only_check: 4 kept / 33 removed from 37 total
+# generated_from: step6_route53.discovery.yaml
+# purpose: only discoveries needed by route53.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: route53
+services:
+  client: route53
+  module: boto3.client
+discovery:
+- discovery_id: aws.route53.list_health_checks
+  calls:
+  - action: list_health_checks
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.HealthChecks }}'
+    item:
+      Id: '{{ item.Id }}'
+      CallerReference: '{{ item.CallerReference }}'
+      CloudWatchAlarmConfiguration: '{{ item.CloudWatchAlarmConfiguration }}'
+      Enabled: '{{ item.Enabled }}'
+      HealthCheckConfig: '{{ item.HealthCheckConfig }}'
+      HealthCheckVersion: '{{ item.HealthCheckVersion }}'
+      LinkedService: '{{ item.LinkedService }}'
+- discovery_id: aws.route53.list_hosted_zones
+  calls:
+  - action: list_hosted_zones
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.HostedZones }}'
+    item:
+      Id: '{{ item.Id }}'
+      Name: '{{ item.Name }}'
+      CallerReference: '{{ item.CallerReference }}'
+      Config: '{{ item.Config }}'
+      Features: '{{ item.Features }}'
+      LinkedService: '{{ item.LinkedService }}'
+      ResourceRecordSetCount: '{{ item.ResourceRecordSetCount }}'
+- discovery_id: aws.route53.list_query_logging_configs
+  calls:
+  - action: list_query_logging_configs
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.QueryLoggingConfigs }}'
+    item:
+      CloudWatchLogsLogGroupArn: '{{ item.CloudWatchLogsLogGroupArn }}'
+      Id: '{{ item.Id }}'
+      HostedZoneId: '{{ item.HostedZoneId }}'
+- discovery_id: aws.route53.list_traffic_policy_instances
+  calls:
+  - action: list_traffic_policy_instances
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.TrafficPolicyInstances }}'
+    item:
+      Id: '{{ item.Id }}'
+      Name: '{{ item.Name }}'
+      State: '{{ item.State }}'
+      HostedZoneId: '{{ item.HostedZoneId }}'
+      Message: '{{ item.Message }}'
+      TTL: '{{ item.TTL }}'
+      TrafficPolicyId: '{{ item.TrafficPolicyId }}'
+      TrafficPolicyType: '{{ item.TrafficPolicyType }}'
+      TrafficPolicyVersion: '{{ item.TrafficPolicyVersion }}'

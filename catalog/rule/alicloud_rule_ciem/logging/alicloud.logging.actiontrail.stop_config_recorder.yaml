@@ -1,0 +1,76 @@
+rule_id: alicloud.logging.actiontrail.stop_config_recorder
+service: logging
+provider: alicloud
+check_type: log
+severity: critical
+title: 'AliCloud Config: Configuration Recorder Stopped'
+description: The AliCloud Config configuration recorder was stopped. This disables
+  continuous compliance monitoring and resource configuration tracking.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1562
+risk_score: 90
+resource: alicloud_config_recorder
+source: alicloud_ciem_generator
+is_active: true
+domain: logging_monitoring_and_alerting
+action_category: modify
+log_source_type: alicloud_actiontrail
+posture_category: threat_posture
+threat_tags:
+- T1562
+- defense_evasion
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '1.1'
+  - '1.2'
+  - '1.3'
+  nist_800_53_r5:
+  - AU-2
+  - AU-6
+  - AU-12
+  - SI-4
+  pci_dss_v4:
+  - '10.1'
+  - '10.2'
+  - '10.3'
+  iso_27001_2022:
+  - A.8.15
+  - A.8.16
+  - A.5.28
+remediation: '1. Re-enable Config recording immediately.
+
+  2. Investigate the actor — unauthorized stops should be treated as security incidents.
+
+  3. Restrict Config recorder management to security operations roles.'
+references:
+- https://attack.mitre.org/techniques/T1562/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: config
+    - field: operation
+      op: equals
+      value: StopConfigurationRecorder
+version: '1.0'

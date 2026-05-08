@@ -3,7 +3,7 @@ SCA Router — Software Composition Analysis (SBOM + dependency vulnerability sc
 
 Mounts the sca_sbom_engine FastAPI sub-application under /api/v1/secops/sca.
 The SBOM engine is a complete async service with its own:
-  - asyncpg connection pool (to threat_engine_vulnerability DB)
+  - asyncpg connection pool (to threat_engine_secops DB)
   - CycloneDX 1.5 SBOM generation
   - Vulnerability enrichment (osv_advisory + cves tables)
   - VEX statement management

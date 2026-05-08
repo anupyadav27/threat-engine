@@ -1,0 +1,213 @@
+version: '1.0'
+provider: azure
+service: streamanalytics
+services:
+  client: streamanalytics
+  module: azure.mgmt.streamanalytics
+discovery:
+- discovery_id: azure.streamanalytics.clusters.list_by_resource_group
+  calls:
+  - action: clusters.list_by_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.streamanalytics.clusters.list_by_subscription
+  calls:
+  - action: clusters.list_by_subscription
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.streamanalytics.streamingjobs.list
+  calls:
+  - action: streamingjobs.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.streamanalytics.streamingjobs.list_by_resource_group
+  calls:
+  - action: streamingjobs.list_by_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.streamanalytics.clusters.list_streaming_jobs
+  for_each: azure.streamanalytics.clusters.list_by_subscription
+  calls:
+  - action: clusters.list_streaming_jobs
+    save_as: response
+    on_error: continue
+    params:
+      cluster_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.streamanalytics.functions.list_by_streaming_job
+  for_each: azure.streamanalytics.streamingjobs.list
+  calls:
+  - action: functions.list_by_streaming_job
+    save_as: response
+    on_error: continue
+    params:
+      job_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.streamanalytics.inputs.list_by_streaming_job
+  for_each: azure.streamanalytics.streamingjobs.list
+  calls:
+  - action: inputs.list_by_streaming_job
+    save_as: response
+    on_error: continue
+    params:
+      job_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.streamanalytics.outputs.list_by_streaming_job
+  for_each: azure.streamanalytics.streamingjobs.list
+  calls:
+  - action: outputs.list_by_streaming_job
+    save_as: response
+    on_error: continue
+    params:
+      job_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.streamanalytics.privateendpoints.list_by_cluster
+  for_each: azure.streamanalytics.clusters.list_by_subscription
+  calls:
+  - action: privateendpoints.list_by_cluster
+    save_as: response
+    on_error: continue
+    params:
+      cluster_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.streamanalytics.list
+  calls:
+  - action: list
+    save_as: list_response
+  emit:
+    items_for: '{{ list_response.value }}'
+    as: item
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'

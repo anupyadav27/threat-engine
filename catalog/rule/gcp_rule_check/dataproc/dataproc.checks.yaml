@@ -1,0 +1,157 @@
+version: '1.0'
+provider: gcp
+service: dataproc
+checks:
+- rule_id: gcp.dataproc.cluster.cluster_admin_access_least_privilege
+  for_each: gcp.dataproc.projects.regions.clusters.list
+  severity: HIGH
+  conditions:
+    var: item.labels.cluster_admin_access
+    op: not_equals
+    value: full
+- rule_id: gcp.dataproc.cluster.cluster_encryption_at_rest_cmek
+  for_each: gcp.dataproc.projects.regions.clusters.list
+  severity: HIGH
+  conditions:
+    var: item.encryptionConfig
+    op: exists
+    value: null
+- rule_id: gcp.dataproc.cluster.cluster_private_networking_enforced
+  for_each: gcp.dataproc.projects.regions.clusters.list
+  severity: HIGH
+  conditions:
+    var: item.config.gceClusterConfig.subnetworkUri
+    op: exists
+    value: null
+- rule_id: gcp.dataproc.cluster.cluster_tls_min_1_2_enforced
+  for_each: gcp.dataproc.projects.regions.clusters.list
+  severity: HIGH
+  conditions:
+    var: item.encryptionConfig.keyStorageType
+    op: exists
+    value: null
+- rule_id: gcp.dataproc.cluster.dev_endpoint_encrypted
+  for_each: gcp.dataproc.projects.regions.clusters.list
+  severity: HIGH
+  conditions:
+    var: item.encryptionConfig.endpoint
+    op: exists
+    value: null
+- rule_id: gcp.dataproc.cluster.dev_endpoint_no_public_access
+  for_each: gcp.dataproc.projects.regions.clusters.list
+  severity: HIGH
+  conditions:
+    var: item.encryptionConfig.endpoint
+    op: exists
+    value: null
+- rule_id: gcp.dataproc.cluster.dev_endpoint_role_least_privilege
+  for_each: gcp.dataproc.projects.regions.clusters.list
+  severity: HIGH
+  conditions:
+    var: item.encryptionConfig.endpoint
+    op: exists
+    value: null
+- rule_id: gcp.dataproc.cluster.subnet_group_private_subnets_only
+  for_each: gcp.dataproc.projects.regions.clusters.list
+  severity: MEDIUM
+  conditions:
+    var: item.encryptionConfig.keyStorageType
+    op: exists
+    value: null
+- rule_id: gcp.dataproc.job.job_logs_and_metrics_enabled
+  for_each: gcp.dataproc.projects.regions.jobs.list
+  severity: HIGH
+  conditions:
+    var: item.parameters
+    op: exists
+    value: null
+- rule_id: gcp.dataproc.job.job_network_private_only
+  for_each: gcp.dataproc.projects.regions.jobs.list
+  severity: HIGH
+  conditions:
+    var: item.placement.networkUri
+    op: not_contains
+    value: global/networks/default
+- rule_id: gcp.dataproc.job.job_role_least_privilege
+  for_each: gcp.dataproc.projects.regions.jobs.list
+  severity: HIGH
+  conditions:
+    var: item.jobs[].role
+    op: in
+    value:
+    - roles/dataproc.editor
+    - roles/dataproc.worker
+- rule_id: gcp.dataproc.job.job_script_location_private_and_encrypted
+  for_each: gcp.dataproc.projects.regions.jobs.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.encryptionConfig
+      op: exists
+      value: null
+    - var: item.encryptionConfig.keyStorageType
+      op: exists
+      value: null
+- rule_id: gcp.dataproc.job.ml_transform_logs_enabled
+  for_each: gcp.dataproc.projects.regions.jobs.list
+  severity: HIGH
+  conditions:
+    var: item.parameters.loggingConfig.driverLogLevels.ML_TRANSFORM
+    op: exists
+    value: null
+- rule_id: gcp.dataproc.job.ml_transform_network_private_only
+  for_each: gcp.dataproc.projects.regions.jobs.list
+  severity: HIGH
+  conditions:
+    var: item.placement.networkUri
+    op: contains
+    value: global/networks/default
+- rule_id: gcp.dataproc.job.ml_transform_role_least_privilege
+  for_each: gcp.dataproc.projects.regions.jobs.list
+  severity: HIGH
+  conditions:
+    var: item.parameters
+    op: exists
+    value: null
+- rule_id: gcp.dataproc.job.trigger_event_sources_restricted
+  for_each: gcp.dataproc.projects.regions.jobs.list
+  severity: HIGH
+  conditions:
+    var: item.triggerEventSources
+    op: not_exists
+    value: null
+- rule_id: gcp.dataproc.job.trigger_logs_enabled
+  for_each: gcp.dataproc.projects.regions.jobs.list
+  severity: HIGH
+  conditions:
+    var: item.triggerLogsEnabled
+    op: is_true
+    value: null
+- rule_id: gcp.dataproc.job.trigger_targets_least_privilege
+  for_each: gcp.dataproc.projects.regions.jobs.list
+  severity: HIGH
+  conditions:
+    var: item.parameters
+    op: exists
+    value: null
+- rule_id: gcp.dataproc.workflow.workflow_cross_account_trusts_restricted
+  for_each: gcp.dataproc.projects.regions.workflowTemplates.list
+  severity: HIGH
+  conditions:
+    var: item.encryptionConfig.keyStorageType
+    op: exists
+    value: null
+- rule_id: gcp.dataproc.workflow.workflow_execution_role_least_privilege
+  for_each: gcp.dataproc.projects.regions.workflowTemplates.list
+  severity: HIGH
+  conditions:
+    var: item.encryptionConfig.keyStorageType
+    op: exists
+    value: null
+- rule_id: gcp.dataproc.workflow.workflow_kms_encryption_enabled
+  for_each: gcp.dataproc.projects.regions.workflowTemplates.list
+  severity: HIGH
+  conditions:
+    var: item.encryptionConfig
+    op: exists
+    value: null

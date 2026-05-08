@@ -1,0 +1,1655 @@
+tech_type: rhel
+category: linux
+cis_benchmark: CIS Red Hat Enterprise Linux 9 v2.0.0
+cis_section: '4'
+
+rules:
+
+  - rule_id: rhel.cis.4.nftables_is_installed
+    title: "Ensure nftables is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '4.1.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.nftables_is_installed
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to install nftables # dnf install nftables
+      References: 1. NIST SP 800-53 Rev. 5: CA-9
+    compliance:
+      - cis_rhel_9_v2_0_0_4_1_1
+
+  - rule_id: rhel.cis.4.a_single_firewall_configuration_utility_is_in_use
+    title: "Ensure a single firewall configuration utility is in use"
+    severity: high
+    automation_type: automated
+    cis_control: '4.1.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.a_single_firewall_configuration_utility_is_in_use
+    assertion:
+      field: port
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following script to ensure that a single firewall utility is in use on
+      the system: #!/usr/bin/env bash { l_fwd_status='' l_nft_status=''
+      l_fwutil_status='' # Determine FirewallD utility Status rpm -q firewalld >
+      /dev/null 2>&1 && l_fwd_status='$(systemctl is-enabled
+      firewalld.service):$(systemctl is-active firewalld.service)' # Determine
+      NFTables utility Status rpm -q nftables > /dev/null 2>&1 &&
+      l_nft_status='$(systemctl is-enabled nftables.service):$(systemctl is-active
+      nftables.service)' l_fwutil_status='$l_fwd_status:$l_nft_status' case
+      $l_fwutil_status in
+      enabled:active:masked:inactive|enabled:active:disabled:inactive) echo -e '\n -
+      FirewallD utility is in use, enabled and active\n - NFTables utility is
+      correctly disabled or masked and inactive\n - no remediation required' ;;
+      masked:inactive:enabled:active|disabled:inactive:enabled:active) echo -e '\n -
+      NFTables utility is in use, enabled and active\n - FirewallD utility is
+      correctly disabled or masked and inactive\n - no remediation required' ;;
+      enabled:active:enabled:active) echo -e '\n - Both FirewallD and NFTables
+      utilities are enabled and active\n - stopping and masking NFTables utility'
+      systemctl stop nftables && systemctl --now mask nftables ;;
+      enabled:*:enabled:*) echo -e '\n - Both FirewallD and NFTables utilities are
+      enabled\n - remediating' if [ '$(awk -F: '{print $2}' <<< '$l_fwutil_status')'
+      = 'active' ] && [ '$(awk -F: '{print $4}' <<< '$l_fwutil_status')' =
+      'inactive' ]; then echo ' - masking NFTables utility' systemctl stop nftables
+      && systemctl --now mask nftables elif [ '$(awk -F: '{print $4}' <<<
+      '$l_fwutil_status')' = 'active' ] && [ '$(awk -F: '{print $2}' <<<
+      '$l_fwutil_status')' = 'inactive' ]; then echo ' - masking FirewallD utility'
+      systemctl stop firewalld && systemctl --now mask firewalld fi ;;
+      *:active:*:active) echo -e '\n - Both FirewallD and NFTables utilities are
+      active\n - remediating' if [ '$(awk -F: '{print $1}' <<< '$l_fwutil_status')'
+      = 'enabled' ] && [ '$(awk -F: '{print $3}' <<< '$l_fwutil_status')' !=
+      'enabled' ]; then echo ' - stopping and masking NFTables utility' systemctl
+      stop nftables && systemctl --now mask nftables elif [ '$(awk -F: '{print $3}'
+      <<< '$l_fwutil_status')' = 'enabled' ] && [ '$(awk -F: '{print $1}' <<<
+      '$l_fwutil_status')' != 'enabled' ]; then echo ' - stopping and masking
+      FirewallD utility' systemctl stop firewalld && systemctl --now mask firewalld
+      fi ;; :enabled:active) echo -e '\n - NFTables utility is in use, enabled, and
+      active\n - FirewallD package is not installed\n - no remediation required' ;;
+      :) echo -e '\n - Neither FirewallD or NFTables is installed.\n - remediating\n
+      - installing NFTables' echo -e '\n - Configure only ONE firewall either
+      NFTables OR Firewalld and follow the according subsection to complete this
+      remediation process' dnf -q install nftables ;; *:*:) echo -e '\n - NFTables
+      package is not installed on the system\n - remediating\n - installing
+      NFTables' echo -e '\n - Configure only ONE firewall either NFTables OR
+      Firewalld and follow the according subsection to complete this remediation
+      process' dnf -q install nftables ;; *) echo -e '\n - Unable to determine
+      firewall state' echo -e '\n - MANUAL REMEDIATION REQUIRED: Configure only ONE
+      firewall either NFTables OR Firewalld' ;; esac } References: 1.
+      https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/9/html-
+      single/configuring_firewalls_and_packet_filters/index
+    compliance:
+      - cis_rhel_9_v2_0_0_4_1_2
+
+  - rule_id: rhel.cis.4.firewalld_loopback_traffic_is_configured
+    title: "Ensure firewalld loopback traffic is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.firewalld_loopback_traffic_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      Run the following script to implement the loopback rules: #!/usr/bin/env bash
+      { l_hbfw='' if systemctl is-enabled firewalld.service | grep -q 'enabled';
+      then echo -e '\n - FirewallD is in use on the system' && l_hbfw='fwd' elif
+      systemctl is-enabled nftables.service 2>/dev/null | grep -q 'enabled'; then
+      echo -e '\n - nftables is in use on the system \n - Recommendation is NA \n -
+      Remediation Complete' && l_hbfw='nft' fi if [ '$l_hbfw' = 'fwd' ]; then
+      l_ipsaddr='$(nft list ruleset | awk
+      '/filter_IN_public_deny|hook\s+input\s+/,/\}\s*(#.*)?$/' | grep -P --
+      'ip\h+saddr')' if ! nft list ruleset | awk '/hook\s+input\s+/,/\}\s*(#.*)?$/'
+      | grep -Pq -- '\H+\h+'lo'\h+accept'; then echo -e '\n - Enabling input to
+      accept for loopback address' firewall-cmd --permanent --zone=trusted --add-
+      interface=lo firewall-cmd --reload else echo -e '\n - firewalld input
+      correctly set to accept for loopback address' if ! grep -Pq --
+      'ip\h+saddr\h+127\.0\.0\.0\/8\h+(counter\h+packets\h+\d+\h+bytes\h+\d+\h+)?drop'
+      <<< '$l_ipsaddr' && ! grep -Pq --
+      'ip\h+daddr\h+\!\=\h+127\.0\.0\.1\h+ip\h+saddr\h+127\.0\.0\.1\h+drop' <<<
+      '$l_ipsaddr'; then echo -e '\n - Setting IPv4 network traffic from loopback
+      address to drop' firewall-cmd --permanent --add-rich-rule='rule family=ipv4
+      source address='127.0.0.1' destination not address='127.0.0.1' drop' firewall-
+      cmd --permanent --zone=trusted --add-rich-rule='rule family=ipv4 source
+      address='127.0.0.1' destination not address='127.0.0.1' drop' firewall-cmd
+      --reload else echo -e '\n - firewalld correctly set IPv4 network traffic from
+      loopback address to drop' fi if grep -Pq -- '^\h*0\h*$'
+      /sys/module/ipv6/parameters/disable; then l_ip6saddr='$(nft list ruleset | awk
+      '/filter_IN_public_deny|hook input/,/}/' | grep 'ip6 saddr')' if ! grep -Pq
+      'ip6\h+saddr\h+::1\h+(counter\h+packets\h+\d+\h+bytes\h+\d+\h+)?drop' <<<
+      '$l_ip6saddr' && ! grep -Pq --
+      'ip6\h+daddr\h+\!=\h+::1\h+ip6\h+saddr\h+::1\h+drop' <<< '$l_ip6saddr'; then
+      echo -e '\n - Setting IPv6 network traffic from loopback address to drop'
+      firewall-cmd --permanent --add-rich-rule='rule family=ipv6 source
+      address='::1' destination not address='::1' drop' firewall-cmd --permanent
+      --zone=trusted --add-rich-rule='rule family=ipv6 source address='::1'
+      destination not address='::1' drop' firewall-cmd --reload else echo -e '\n -
+      firewalld correctly set IPv6 network traffic from loopback address to drop' fi
+      fi fi fi } References: 1. NIST SP 800-53 Rev. 5: CA-9 2.
+      https://access.redhat.com/documentation/en-
+      us/red_hat_enterprise_linux/9/pdf/configuring_firewalls_and_packet_filters/red_h
+      at_enterprise_linux-9-configuring_firewalls_and_packet_filters-en-us.pdf
+    compliance:
+      - cis_rhel_9_v2_0_0_4_2_2
+
+  - rule_id: rhel.cis.4.nftables_base_chains_exist
+    title: "Ensure nftables base chains exist"
+    severity: high
+    automation_type: automated
+    cis_control: '4.3.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.nftables_base_chains_exist
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      - IF - NFTables utility is in use on your system: Run the following command to
+      create the base chains: # nft create chain inet <table name> <base chain name>
+      { type filter hook <(input|forward|output)> priority 0 \; } Example: # nft
+      create chain inet filter input { type filter hook input priority 0 \; } # nft
+      create chain inet filter forward { type filter hook forward priority 0 \; } #
+      nft create chain inet filter output { type filter hook output priority 0 \; }
+      Note: use the add command if the create command returns an error due to the
+      chain already existing. References: 1. NIST SP 800-53 Rev. 5: CA-9 2.
+      https://www.netfilter.org/projects/nftables/manpage.html 3.
+      https://access.redhat.com/documentation/en-
+      us/red_hat_enterprise_linux/9/pdf/configuring_firewalls_and_packet_filters/red_h
+      at_enterprise_linux-9-configuring_firewalls_and_packet_filters-en-us.pdf
+    compliance:
+      - cis_rhel_9_v2_0_0_4_3_1
+
+  - rule_id: rhel.cis.4.nftables_default_deny_firewall_policy
+    title: "Ensure nftables default deny firewall policy"
+    severity: high
+    automation_type: automated
+    cis_control: '4.3.3'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.nftables_default_deny_firewall_policy
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      - IF - NFTables utility is in use on your system: Run the following command
+      for the base chains with the input, forward, and output hooks to implement a
+      default DROP policy: # nft chain <table family> <table name> <chain name> {
+      policy drop \; } Example: # nft chain inet filter input { policy drop \; } #
+      nft chain inet filter forward { policy drop \; } Default Value: accept
+      References: 1. Manual Page nft 2. NIST SP 800-53 Rev. 5: CA-9 3.
+      https://access.redhat.com/documentation/en-
+      us/red_hat_enterprise_linux/9/pdf/configuring_firewalls_and_packet_filters/red_h
+      at_enterprise_linux-9-configuring_firewalls_and_packet_filters-en-us.pdf
+    compliance:
+      - cis_rhel_9_v2_0_0_4_3_3
+
+  - rule_id: rhel.cis.4.nftables_loopback_traffic_is_configured
+    title: "Ensure nftables loopback traffic is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.3.4'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.nftables_loopback_traffic_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      Run the following script to implement the loopback rules: #!/usr/bin/env bash
+      { l_hbfw='' if systemctl is-enabled firewalld.service 2>/dev/null | grep -q
+      'enabled'; then echo -e '\n - FirewallD is in use on the system\n -
+      Recommendation is NA \n - Remediation Complete' && l_hbfw='fwd' elif systemctl
+      is-enabled nftables.service | grep -q 'enabled'; then l_hbfw='nft' fi if [
+      '$l_hbfw' = 'nft' ]; then l_ipsaddr='$(nft list ruleset | awk
+      '/filter_IN_public_deny|hook\s+input\s+/,/\}\s*(#.*)?$/' | grep -P --
+      'ip\h+saddr')' if ! nft list ruleset | awk '/hook\s+input\s+/,/\}\s*(#.*)?$/'
+      | grep -Pq -- '\H+\h+'lo'\h+accept'; then echo -e '\n - Enabling input to
+      accept for loopback address' nft add rule inet filter input iif lo accept else
+      echo -e '\n -nftables input correctly configured to accept for loopback
+      address' fi if ! grep -Pq --
+      'ip\h+saddr\h+127\.0\.0\.0\/8\h+(counter\h+packets\h+\d+\h+bytes\h+\d+\h+)?dr
+      op' <<< '$l_ipsaddr' && ! grep -Pq --
+      'ip\h+daddr\h+\!\=\h+127\.0\.0\.1\h+ip\h+saddr\h+127\.0\.0\.1\h+drop' <<<
+      '$l_ipsaddr'; then echo -e '\n - Setting IPv4 network traffic from loopback
+      address to drop' nft add rule inet filter input ip saddr 127.0.0.0/8 counter
+      drop else echo -e '\n -nftables correctly configured IPv4 network traffic from
+      loopback address to drop' fi if grep -Pq -- '^\h*0\h*$'
+      /sys/module/ipv6/parameters/disable; then l_ip6saddr='$(nft list ruleset | awk
+      '/filter_IN_public_deny|hook input/,/}/' | grep 'ip6 saddr')' if ! grep -Pq
+      'ip6\h+saddr\h+::1\h+(counter\h+packets\h+\d+\h+bytes\h+\d+\h+)?drop' <<<
+      '$l_ip6saddr' && ! grep -Pq --
+      'ip6\h+daddr\h+\!=\h+::1\h+ip6\h+saddr\h+::1\h+drop' <<< '$l_ip6saddr'; then
+      echo -e '\n - Setting IPv6 network traffic from loopback address to drop' nft
+      add rule inet filter input ip6 saddr ::1 counter drop else echo -e '\n -
+      nftables IPv6 network traffic from loopback address to drop' fi fi fi }
+      References: 1. NIST SP 800-53 Rev. 5: CA-9 2.
+      https://access.redhat.com/documentation/en-
+      us/red_hat_enterprise_linux/9/pdf/configuring_firewalls_and_packet_filters/red_h
+      at_enterprise_linux-9-configuring_firewalls_and_packet_filters-en-us.pdf
+    compliance:
+      - cis_rhel_9_v2_0_0_4_3_4
+
+  - rule_id: rhel.cis.4.cron_daemon_is_enabled_and_active
+    title: "Ensure cron daemon is enabled and active"
+    severity: high
+    automation_type: automated
+    cis_control: '4.1.1.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.cron_daemon_is_enabled_and_active
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "on"
+    remediation: >
+      - IF - cron is installed on the system: Run the following commands to unmask,
+      enable, and start crond: # systemctl unmask crond # systemctl --now enable
+      crond References: 1. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5 MITRE
+      ATT&CK Mappings: Techniques / Sub- techniques Tactics Mitigations T1562,
+      T1562.001 TA0005 M1018
+    compliance:
+      - cis_rhel_8_v3_0_0_4_1_1_1
+
+  - rule_id: rhel.cis.4.at_is_restricted_to_authorized_users
+    title: "Ensure at is restricted to authorized users"
+    severity: high
+    automation_type: automated
+    cis_control: '4.1.2.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.at_is_restricted_to_authorized_users
+    assertion:
+      field: row_count
+      operator: exists
+      expected: "on"
+    remediation: >
+      -IF- at is installed on the system: Run the following script to: •
+      /etc/at.allow: o Create the file if it doesn't exist o Change owner or user
+      root o If group daemon exists, change to group daemon, else change group to
+      root o Change mode to 640 or more restrictive • -IF- /etc/at.deny exists: o
+      Change owner or user root o If group daemon exists, change to group daemon,
+      else change group to root o Change mode to 640 or more restrictive
+      #!/usr/bin/env bash { grep -Pq -- '^daemon\b' /etc/group && l_group='daemon'
+      || l_group='root' [ ! -e '/etc/at.allow' ] && touch /etc/at.allow chown
+      root:'$l_group' /etc/at.allow chmod u-x,g-wx,o-rwx /etc/at.allow [ -e
+      '/etc/at.deny' ] && chown root:'$l_group' /etc/at.deny [ -e '/etc/at.deny' ]
+      && chmod u-x,g-wx,o-rwx /etc/at.deny } References: 1. NIST SP 800-53 Rev. 5:
+      AC-3. MP-2
+    compliance:
+      - cis_rhel_8_v3_0_0_4_1_2_1
+
+  - rule_id: rhel.cis.4.permissions_on_etc_ssh_sshd_config_are_configured
+    title: "Ensure permissions on /etc/ssh/sshd_config are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.permissions_on_etc_ssh_sshd_config_are_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following script to set ownership and permissions on
+      /etc/ssh/sshd_config and files ending in .conf in the /etc/ssh/sshd_config.d
+      directory: #!/usr/bin/env bash { chmod u-x,og-rwx /etc/ssh/sshd_config chown
+      root:root /etc/ssh/sshd_config while IFS= read -r -d $'\0' l_file; do if [ -e
+      '$l_file' ]; then chmod u-x,og-rwx '$l_file' chown root:root '$l_file' fi done
+      < <(find /etc/ssh/sshd_config.d -type f -print0) } References: 1. NIST SP
+      800-53 Rev. 5: AC-3. MP-2
+    compliance:
+      - cis_rhel_8_v3_0_0_4_2_1
+
+  - rule_id: rhel.cis.4.permissions_on_ssh_private_host_key_files_are
+    title: "Ensure permissions on SSH private host key files are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.permissions_on_ssh_private_host_key_files_are
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      Run the following script to set mode, ownership, and group on the private SSH
+      host key files: #!/usr/bin/env bash { l_output='' l_output2='' l_skgn='$(grep
+      -Po -- '^(ssh_keys|_?ssh)\b' /etc/group)' # Group designated to own openSSH
+      keys l_skgid='$(awk -F: '($1 == '''$l_skgn'''){print $3}' /etc/group)' # Get
+      gid of group if [ -n '$l_skgid' ]; then l_agroup='(root|$l_skgn)' &&
+      l_sgroup='$l_skgn' && l_mfix='u-x,g-wx,o-rwx' else l_agroup='root' &&
+      l_sgroup='root' && l_mfix='u-x,go-rwx' fi unset a_skarr && a_skarr=() # Clear
+      and initialize array if [ -d /etc/ssh ]; then while IFS= read -r -d $'\0'
+      l_file; do # Loop to populate array if grep -Pq
+      ':\h+OpenSSH\h+private\h+key\b' <<< '$(file '$l_file')'; then
+      a_skarr+=('$(stat -Lc '%n^%#a^%U^%G^%g' '$l_file')') fi done < <(find -L
+      /etc/ssh -xdev -type f -print0) while IFS='^' read -r l_file l_mode l_owner
+      l_group l_gid; do l_out2='' [ '$l_gid' = '$l_skgid' ] && l_pmask='0137' ||
+      l_pmask='0177' l_maxperm='$( printf '%o' $(( 0777 & ~$l_pmask )) )' if [ $((
+      $l_mode & $l_pmask )) -gt 0 ]; then l_out2='$l_out2\n - Mode: \'$l_mode\'
+      should be mode: \'$l_maxperm\' or more restrictive\n - Revoking excess
+      permissions' chmod '$l_mfix' '$l_file' fi if [ '$l_owner' != 'root' ]; then
+      l_out2='$l_out2\n - Owned by: \'$l_owner\' should be owned by \'root\'\n -
+      Changing ownership to \'root\'' chown root '$l_file' fi if [[ ! '$l_group' =~
+      $l_agroup ]]; then l_out2='$l_out2\n - Owned by group \'$l_group\' should be
+      group owned by: \'${l_agroup//|/ or }\'\n - Changing group ownership to
+      \'$l_sgroup\'' chgrp '$l_sgroup' '$l_file' fi [ -n '$l_out2' ] &&
+      l_output2='$l_output2\n - File: \'$l_file\'$l_out2' done <<< '$(printf '%s\n'
+      '${a_skarr[@]}')' else l_output=' - openSSH keys not found on the system' fi
+      unset a_skarr if [ -z '$l_output2' ]; then echo -e '\n- No access changes
+      required\n' else echo -e '\n- Remediation results:\n$l_output2\n' fi }
+      References: 1. NIST SP 800-53 Rev. 5: AC-3. MP-2
+    compliance:
+      - cis_rhel_8_v3_0_0_4_2_2
+
+  - rule_id: rhel.cis.4.permissions_on_ssh_public_host_key_files_are
+    title: "Ensure permissions on SSH public host key files are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.3'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.permissions_on_ssh_public_host_key_files_are
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      Run the following script to set mode, ownership, and group on the public SSH
+      host key files: #!/usr/bin/env bash { l_output='' l_output2='' l_skgn='$(grep
+      -Po -- '^(ssh_keys|_?ssh)\b' /etc/group)' # Group designated to own openSSH
+      keys l_skgid='$(awk -F: '($1 == '''$l_skgn'''){print $3}' /etc/group)' # Get
+      gid of group l_mfix='u-x,go-wx' unset a_skarr && a_skarr=() # Clear and
+      initialize array if [ -d /etc/ssh ]; then while IFS= read -r -d $'\0' l_file;
+      do # Loop to populate array if grep -Pq ':\h+OpenSSH\h+(\H+\h+)public\h+key\b'
+      <<< '$(file '$l_file')'; then a_skarr+=('$(stat -Lc '%n^%#a^%U^%G^%g'
+      '$l_file')') fi done < <(find -L /etc/ssh -xdev -type f -print0) while IFS='^'
+      read -r l_file l_mode l_owner l_group l_gid; do l_out2='' l_pmask='0133'
+      l_maxperm='$( printf '%o' $(( 0777 & ~$l_pmask )) )' if [ $(( $l_mode &
+      $l_pmask )) -gt 0 ]; then l_out2='$l_out2\n - Mode: \'$l_mode\' should be
+      mode: \'$l_maxperm\' or more restrictive\n - Revoking excess permissions'
+      chmod '$l_mfix' '$l_file' fi if [ '$l_owner' != 'root' ]; then
+      l_out2='$l_out2\n - Owned by: \'$l_owner\' should be owned by \'root\'\n -
+      Changing ownership to \'root\'' chown root '$l_file' fi if [[ ! '$l_group' =~
+      $l_agroup ]]; then l_out2='$l_out2\n - Owned by group \'$l_group\' should be
+      group owned by: \'${l_agroup//|/ or }\'\n - Changing group ownership to
+      \'$l_sgroup\'' chgrp '$l_sgroup' '$l_file' fi [ -n '$l_out2' ] &&
+      l_output2='$l_output2\n - File: \'$l_file\'$l_out2' done <<< '$(printf '%s\n'
+      '${a_skarr[@]}')' else l_output=' - openSSH keys not found on the system' fi
+      unset a_skarr if [ -z '$l_output2' ]; then echo -e '\n- No access changes
+      required\n' else echo -e '\n- Remediation results:\n$l_output2\n' fi } Default
+      Value: 644 0/root 0/root References: 1. NIST SP 800-53 Rev. 5: AC-3. MP-2
+    compliance:
+      - cis_rhel_8_v3_0_0_4_2_3
+
+  - rule_id: rhel.cis.4.sshd_banner_is_configured
+    title: "Ensure sshd Banner is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.5'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.sshd_banner_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the parameter above any Include
+      entries as follows: Banner /etc/issue.net Note: First occurrence of a option
+      takes precedence, Match set statements withstanding. If Include locations are
+      enabled, used, and order of precedence is understood in your environment, the
+      entry may be created in a file in Include location. References: 1. NIST SP
+      800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5 MITRE ATT&CK Mappings: Techniques
+      / Sub- techniques Tactics Mitigations TA0001, TA0007 M1035
+    compliance:
+      - cis_rhel_8_v3_0_0_4_2_5
+
+  - rule_id: rhel.cis.4.sshd_ciphers_are_configured
+    title: "Ensure sshd Ciphers are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.6'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.sshd_ciphers_are_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file and add/modify the Ciphers line to contain
+      a comma separated list of the site unapproved (weak) Ciphers preceded with a -
+      above any Include entries: Example: Ciphers -3des-
+      cbc,aes128-cbc,aes192-cbc,aes256-cbc,rijndael- cbc@lysator.liu.se Note: First
+      occurrence of an option takes precedence. If Include locations are enabled,
+      used, and order of precedence is understood in your environment, the entry may
+      be created in a file in Include location. Default Value: Ciphers
+      chacha20-poly1305@openssh.com,aes128-ctr,aes192-ctr,aes256-ctr,aes128-
+      gcm@openssh.com,aes256-gcm@openssh.com References: 1.
+      https://nvd.nist.gov/vuln/detail/CVE-2016-2183 2.
+      https://www.openssh.com/txt/cbc.adv 3.
+      https://nvd.nist.gov/vuln/detail/CVE-2008-5161 4.
+      https://www.openssh.com/txt/cbc.adv 5. SSHD_CONFIG(5) 6. NIST SP 800-53 Rev.
+      5: SC-8
+    compliance:
+      - cis_rhel_8_v3_0_0_4_2_6
+
+  - rule_id: rhel.cis.4.sshd_clientaliveinterval_and_clientalivecountmax
+    title: "Ensure sshd ClientAliveInterval and ClientAliveCountMax are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.7'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.sshd_clientaliveinterval_and_clientalivecountmax
+    assertion:
+      field: row_count
+      operator: exists
+      expected: "true"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the parameters above any Include
+      entries according to site policy. Example: ClientAliveInterval 15
+      ClientAliveCountMax 3 Note: First occurrence of a option takes precedence,
+      Match set statements withstanding. If Include locations are enabled, used, and
+      order of precedence is understood in your environment, the entry may be
+      created in a file in Include location. Default Value: ClientAliveInterval 0
+      ClientAliveCountMax 3 References: 1. https://man.openbsd.org/sshd_config 2.
+      NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5 Additional Information:
+      https://bugzilla.redhat.com/show_bug.cgi?id=1873547
+      https://github.com/openssh/openssh-portable/blob/V_8_9/serverloop.c#L137 MITRE
+      ATT&CK Mappings: Techniques / Sub- techniques Tactics Mitigations T1078,
+      T1078.001, T1078.002, T1078.003 TA0001 M1026
+    compliance:
+      - cis_rhel_8_v3_0_0_4_2_7
+
+  - rule_id: rhel.cis.4.sshd_disableforwarding_is_enabled
+    title: "Ensure sshd DisableForwarding is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.8'
+    cis_section: '4'
+    profile_applicability: "Level 1 + Level 2"
+    scope: rhel.section_4.sshd_disableforwarding_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "yes"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the parameter above any Include
+      entries as follows: DisableForwarding yes Note: First occurrence of a option
+      takes precedence, Match set statements withstanding. If Include locations are
+      enabled, used, and order of precedence is understood in your environment, the
+      entry may be created in a file in Include location. References: 1.
+      sshd_config(5) 2. NIST SP 800-53 Rev. 5: CM-7
+    compliance:
+      - cis_rhel_8_v3_0_0_4_2_8
+
+  - rule_id: rhel.cis.4.sshd_hostbasedauthentication_is_disabled
+    title: "Ensure sshd HostbasedAuthentication is disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.9'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.sshd_hostbasedauthentication_is_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the parameter above any Include
+      entries as follows: HostbasedAuthentication no Note: First occurrence of a
+      option takes precedence, Match set statements withstanding. If Include
+      locations are enabled, used, and order of precedence is understood in your
+      environment, the entry may be created in a file in Include location. Default
+      Value: HostbasedAuthentication no References: 1. SSHD_CONFIG(5) 2. NIST SP
+      800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5 MITRE ATT&CK Mappings: Techniques
+      / Sub- techniques Tactics Mitigations T1078, T1078.001, T1078.003 TA0001 M1042
+    compliance:
+      - cis_rhel_8_v3_0_0_4_2_9
+
+  - rule_id: rhel.cis.4.sshd_ignorerhosts_is_enabled
+    title: "Ensure sshd IgnoreRhosts is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.10'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.sshd_ignorerhosts_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "yes"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the parameter above any Include
+      entries as follows: IgnoreRhosts yes Note: First occurrence of a option takes
+      precedence, Match set statements withstanding. If Include locations are
+      enabled, used, and order of precedence is understood in your environment, the
+      entry may be created in a file in Include location. Default Value:
+      IgnoreRhosts yes References: 1. SSHD_CONFIG(5) 2. NIST SP 800-53 Rev. 5:
+      CM-1,CM-2, CM-6, CM-7, IA-5
+    compliance:
+      - cis_rhel_8_v3_0_0_4_2_10
+
+  - rule_id: rhel.cis.4.sshd_kexalgorithms_is_configured
+    title: "Ensure sshd KexAlgorithms is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.11'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.sshd_kexalgorithms_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file and add/modify the KexAlgorithms line to
+      contain a comma separated list of the site unapproved (weak) KexAlgorithms
+      preceded with a - above any Include entries: Example: KexAlgorithms -diffie-
+      hellman-group1-sha1,diffie-hellman-group14-sha1,diffie- hellman-group-
+      exchange-sha1 Note: First occurrence of an option takes precedence. If Include
+      locations are enabled, used, and order of precedence is understood in your
+      environment, the entry may be created in a file in Include location. Default
+      Value: KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-
+      nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group-exchange-
+      sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,diffie-
+      hellman- group14-sha256 References: 1. NIST SP 800-53 Rev. 5: SC-8
+    compliance:
+      - cis_rhel_8_v3_0_0_4_2_11
+
+  - rule_id: rhel.cis.4.sshd_loglevel_is_configured
+    title: "Ensure sshd LogLevel is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.13'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.sshd_loglevel_is_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the parameter above any Include
+      entries as follows: LogLevel VERBOSE -OR- LogLevel INFO Note: First occurrence
+      of a option takes precedence, Match set statements withstanding. If Include
+      locations are enabled, used, and order of precedence is understood in your
+      environment, the entry may be created in a file in Include location. Default
+      Value: LogLevel INFO References: 1. https://www.ssh.com/ssh/sshd_config/ 2.
+      NIST SP 800-53 Rev. 5: AU-3, AU-12, SI-5
+    compliance:
+      - cis_rhel_8_v3_0_0_4_2_13
+
+  - rule_id: rhel.cis.4.sshd_macs_are_configured
+    title: "Ensure sshd MACs are configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.14'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.sshd_macs_are_configured
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file and add/modify the MACs line to contain a
+      comma separated list of the site unapproved (weak) MACs preceded with a -
+      above any Include entries: Example: MACs -hmac-md5,hmac-md5-96,hmac-
+      ripemd160,hmac-sha1-96,umac- 64@openssh.com,hmac-md5-etm@openssh.com,hmac-
+      md5-96-etm@openssh.com,hmac- ripemd160-etm@openssh.com,hmac-
+      sha1-96-etm@openssh.com,umac-64- etm@openssh.com Note: • First occurrence of
+      an option takes precedence. If Include locations are enabled, used, and order
+      of precedence is understood in your environment, the entry may be created in a
+      file in Include location. • The default is handled system-wide by crypto-
+      policies(7). Information about defaults, how to modify the defaults and how to
+      customize existing policies with sub-policies are present in manual page
+      update-crypto-policies(8) Default Value: MACs
+      umac-64-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-256-
+      etm@openssh.com,hmac-sha2-512-etm@openssh.com,hmac-sha1-
+      etm@openssh.com,umac-64@openssh.com,umac-128@openssh.com,hmac-sha2- 256,hmac-
+      sha2-512,hmac-sha1 References: 1. More information on SSH downgrade attacks
+      can be found here: http://www.mitls.org/pages/attacks/SLOTH 2. SSHD_CONFIG(5)
+      3. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5
+    compliance:
+      - cis_rhel_8_v3_0_0_4_2_14
+
+  - rule_id: rhel.cis.4.sshd_maxsessions_is_configured
+    title: "Ensure sshd MaxSessions is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.16'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.sshd_maxsessions_is_configured
+    assertion:
+      field: row_count
+      operator: lte
+      expected: "true"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the parameter above any Include
+      entries as follows: MaxSessions 10 Note: First occurrence of a option takes
+      precedence, Match set statements withstanding. If Include locations are
+      enabled, used, and order of precedence is understood in your environment, the
+      entry may be created in a file in Include location. Default Value: MaxSessions
+      10 References: 1. SSHD_CONFIG(5) 2. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6,
+      CM-7, IA-5 MITRE ATT&CK Mappings: Techniques / Sub- techniques Tactics
+      Mitigations T1499, T1499.002 TA0040
+    compliance:
+      - cis_rhel_8_v3_0_0_4_2_16
+
+  - rule_id: rhel.cis.4.sshd_maxstartups_is_configured
+    title: "Ensure sshd MaxStartups is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.17'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.sshd_maxstartups_is_configured
+    assertion:
+      field: row_count
+      operator: lte
+      expected: "true"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the parameter above any Include
+      entries as follows: MaxStartups 10:30:60 Note: First occurrence of a option
+      takes precedence. If Include locations are enabled, used, and order of
+      precedence is understood in your environment, the entry may be created in a
+      file in Include location. Default Value: MaxStartups 10:30:100 References: 1.
+      SSHD_CONFIG(5) 2. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6, CM-7, IA-5
+    compliance:
+      - cis_rhel_8_v3_0_0_4_2_17
+
+  - rule_id: rhel.cis.4.sshd_permituserenvironment_is_disabled
+    title: "Ensure sshd PermitUserEnvironment is disabled"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.20'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.sshd_permituserenvironment_is_disabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the parameter above any Include
+      entries as follows: PermitUserEnvironment no Note: First occurrence of a
+      option takes precedence. If Include locations are enabled, used, and order of
+      precedence is understood in your environment, the entry may be created in a
+      file in Include location. Default Value: PermitUserEnvironment no References:
+      1. SSHD_CONFIG(5) 2. NIST SP 800-53 Rev. 5: CM-1,CM-2, CM-6, CM-7, IA-5 MITRE
+      ATT&CK Mappings: Techniques / Sub- techniques Tactics Mitigations T1021 TA0008
+      M1042
+    compliance:
+      - cis_rhel_8_v3_0_0_4_2_20
+
+  - rule_id: rhel.cis.4.sshd_usepam_is_enabled
+    title: "Ensure sshd UsePAM is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.21'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.sshd_usepam_is_enabled
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "yes"
+    remediation: >
+      Edit the /etc/ssh/sshd_config file to set the parameter above any Include
+      entries as follows: UsePAM yes Note: First occurrence of a option takes
+      precedence. If Include locations are enabled, used, and order of precedence is
+      understood in your environment, the entry may be created in a file in Include
+      location. References: 1. SSHD_CONFIG(5) 2. NIST SP 800-53 Rev. 5: CM-1, CM-2,
+      CM-6, CM-7, IA-5
+    compliance:
+      - cis_rhel_8_v3_0_0_4_2_21
+
+  - rule_id: rhel.cis.4.sshd_crypto_policy_is_not_set
+    title: "Ensure sshd crypto_policy is not set"
+    severity: high
+    automation_type: automated
+    cis_control: '4.2.22'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.sshd_crypto_policy_is_not_set
+    assertion:
+      field: value
+      operator: equals
+      expected: "no"
+    remediation: >
+      Run the following commands: # sed -ri 's/^\s*(CRYPTO_POLICY\s*=.*)$/# \1/'
+      /etc/sysconfig/sshd # systemctl reload sshd References: 1. NIST SP 800-53 Rev.
+      5: SC-8, IA-5, AC-17
+    compliance:
+      - cis_rhel_8_v3_0_0_4_2_22
+
+  - rule_id: rhel.cis.4.latest_version_of_pam_is_installed
+    title: "Ensure latest version of pam is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.1.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.latest_version_of_pam_is_installed
+    assertion:
+      field: version
+      operator: equals
+      expected: "on"
+    remediation: >
+      - IF - the version of PAM on the system is less that version pam-1.3.1-25: Run
+      the following command to update to the latest version of PAM: # dnf upgrade
+      pam
+    compliance:
+      - cis_rhel_8_v3_0_0_4_4_1_1
+
+  - rule_id: rhel.cis.4.latest_version_of_authselect_is_installed
+    title: "Ensure latest version of authselect is installed"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.1.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.latest_version_of_authselect_is_installed
+    assertion:
+      field: version
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following command to install authselect: # dnf install authselect - IF
+      - the version of authselect on the system is less that version
+      authselect-1.2.6-1: Run the following command to update to the latest version
+      of authselect: # dnf upgrade authselect 4.4.2 Configure authselect Authselect
+      is a utility that simplifies the configuration of user authentication.
+      Authselect offers ready-made profiles that can be universally used with all
+      modern identity management systems Authselect makes testing and
+      troubleshooting easy because it only modifies files in these directories: •
+      /etc/nsswitch.conf • /etc/pam.d/* files • /etc/dconf/db/distro.d/* files You
+      can create and deploy a custom profile by customizing one of the default
+      profiles, the sssd, winbind, or the nis profile. This is particularly useful
+      if Modifying a ready-made authselect profile is not enough for your needs.
+      When you deploy a custom profile, the profile is applied to every user logging
+      into the given host. This would be the recommended method, so that the
+      existing profiles can remain unmodified. Profile Directories - Profiles can be
+      found in one of three directories: • /usr/share/authselect/default - Read-only
+      directory containing profiles shipped together with authselect. •
+      /usr/share/authselect/vendor - Read-only directory for vendor-specific
+      profiles that can override the ones in default directory. •
+      /etc/authselect/custom - Place for administrator-defined profiles. Profile
+      Files - Each profile consists of one or more of these files which provide a
+      mandatory profile description and describe the changes that are done to the
+      system: • README - Description of the profile. The first line must be a name
+      of the profile. • system-auth - PAM stack that is included from nearly all
+      individual service configuration files. • password-auth, smartcard-auth,
+      fingerprint-auth - These PAM stacks are for applications which handle
+      authentication from different types of devices via simultaneously running
+      individual conversations instead of one aggregate conversation. • postlogin -
+      The purpose of this PAM stack is to provide a common place for all PAM modules
+      which should be called after the stack configured in system-auth or the other
+      common PAM configuration files. It is included from all individual service
+      configuration files that provide login service with shell or file access.
+      Note: the modules in the postlogin configuration file are executed regardless
+      of the success or failure of the modules in the system-auth configuration
+      file. • nsswitch.conf - Name Service Switch configuration file. Only maps
+      relevant to the profile must be set. Maps that are not specified by the
+      profile are included from /etc/authselect/user-nsswitch.conf. • dconf-db -
+      Changes to dconf database. The main uses case of this file is to set changes
+      for gnome login screen in order to enable or disable smartcard and fingerprint
+      authentication. • dconf-locks - This file define locks on values set in dconf
+      database. Conditional lines - Each of these files serves as a template. A
+      template is a plain text file with optional usage of several operators that
+      can be used to provide some optional profile features. • {continue if
+      'feature'} - Immediately stop processing of the file unless 'feature' is
+      defined (the rest of the file content will be removed). If 'feature' is
+      defined, the whole line with this operator will be removed and the rest of the
+      template will be processed. • {stop if 'feature'} - Opposite of 'continue if'.
+      Immediately stop processing of the file if 'feature' is defined (the rest of
+      the file content will be removed). If 'feature' is not defined, the whole line
+      with this operator will be removed and the rest of the template will be
+      processed. • {include if 'feature'} - Include the line where this operator is
+      placed only if 'feature' is defined. • {exclude if 'feature'} - Opposite to
+      'include-if'. Include the line where this operator is placed only if 'feature'
+      is not defined. • {imply 'implied-feature' if 'feature'} - Enable feature
+      'implied-feature' if feature 'feature' is enabled. The whole line with this
+      operator is removed, thus it is not possible to add anything else around this
+      operator at the same line. • {if 'feature':true|false} - If 'feature' is
+      defined, replace this operator with string 'true', otherwise with string
+      'false'. • {if 'feature':true} - If 'feature' is defined, replace this
+      operator with string 'true', otherwise with an empty string. Example of
+      creating a custom authselect profile called custom-profile # authselect
+      create-profile custom-profile -b sssd --symlink-meta WARNING: Do not use
+      authselect if: • your host is part of Linux Identity Management. Joining your
+      host to an IdM domain with the ipa-client-install command automatically
+      configures SSSD authentication on your host. • Your host is part of Active
+      Directory via SSSD. Calling the realm join command to join your host to an
+      Active Directory domain automatically configures SSSD authentication on your
+      host. • It is not recommended to change the authselect profiles configured by
+      ipa-client- install or realm join. If you need to modify them, display the
+      current settings before making any modifications, so you can revert back to
+      them if necessary
+    compliance:
+      - cis_rhel_8_v3_0_0_4_4_1_2
+
+  - rule_id: rhel.cis.4.active_authselect_profile_includes_pam_modules
+    title: "Ensure active authselect profile includes pam modules"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.2.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.active_authselect_profile_includes_pam_modules
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Perform the following to create a custom authselect profile, with the modules
+      covered in this Benchmark correctly included in the custom profile template
+      files Run the following command to create a custom authselect profile: #
+      authselect create-profile <custom-profile name> <options> Example: #
+      authselect create-profile custom-profile -b sssd Run the following command to
+      select a custom authselect profile: # authselect select custom/<CUSTOM PROFILE
+      NAME> {with-<OPTIONS>} {--force} Example: # authselect select custom/custom-
+      profile --backup=PAM_CONFIG_BACKUP --force Note: • The PAM and authselect
+      packages must be versions pam-1.3.1-25 and authselect-1.2.6-1 or newer • The
+      example is based on a custom profile built (copied) from the the SSSD default
+      authselect profile. • The example does not include the symlink option for the
+      PAM or Metadata files. This is due to the fact that by linking the PAM files
+      future updates to authselect may overwrite local site customizations to the
+      custom profile • The --backup=PAM_CONFIG_BACKUP option will create a backup of
+      the current config. The backup will be stored at
+      /var/lib/authselect/backups/PAM_CONFIG_BACKUP • The --force option will force
+      the overwrite of the existing files and automatically backup system files
+      before writing any change unless the --nobackup option is set. o On a new
+      system where authselect has not been configured. In this case, the --force
+      option will force the selected authselect profile to be active and overwrite
+      the existing files with files generated from the selected authselect profile's
+      templates o On an existing system with a custom configuration. The --force
+      option may be used, but ensure that you note the backup location included as
+      your custom files will be overwritten. This will allow you to review the
+      changes and add any necessary customizations to the template files for the
+      authselect profile. After updating the templates, run the command authselect
+      apply-changes to add these custom entries to the files in /etc/pam.d/ - IF -
+      you receive an error ending with a message similar to: [error] Refusing to
+      activate profile unless those changes are removed or overwrite is requested.
+      Some unexpected changes to the configuration were detected. Use 'select'
+      command instead. This error is caused when the previous configuration was not
+      created by authselect but by other tool or by manual changes and the --force
+      option will be required to enable the authselect profile. References: 1.
+      authselect(8) Additional Information: with the option --base-on=BASE-ID or
+      -b=BASE-ID the new profile will be based on a profile named BASE-ID. The base
+      profile location is determined with these steps: 1. If BASE-ID starts with
+      prefix custom/ it is a custom profile. 2. Try if BASE-ID is found in vendor
+      profiles. 3. Try if BASE-ID is found in default profiles. 4. Return an error.
+      The authselect option --force or -f will cause authselect to write changes
+      even if the previous configuration was not created by authselect but by other
+      tool or by manual changes. This option will automatically backup system files
+      before writing any change unless the --nobackup option is set. Example:
+      authselect select custom/custom-profile with-pwhistory with-faillock without-
+      nullok --backup=PAM_CONFIG_BACKUP --force
+    compliance:
+      - cis_rhel_8_v3_0_0_4_4_2_1
+
+  - rule_id: rhel.cis.4.pam_faillock_module_is_enabled
+    title: "Ensure pam_faillock module is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.2.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.pam_faillock_module_is_enabled
+    assertion:
+      field: row_count
+      operator: exists
+      expected: "true"
+    remediation: >
+      Run the following script to verify the pam_faillock.so lines exist in the
+      profile templates: #!/usr/bin/env bash { l_module_name='faillock'
+      l_pam_profile='$(head -1 /etc/authselect/authselect.conf)' if grep -Pq --
+      '^custom\/' <<< '$l_pam_profile'; then
+      l_pam_profile_path='/etc/authselect/$l_pam_profile' else
+      l_pam_profile_path='/usr/share/authselect/default/$l_pam_profile' fi grep -P
+      -- '\bpam_$l_module_name\.so\b' '$l_pam_profile_path'/{password,system}-auth }
+      Example Output with a custom profile named 'custom-profile':
+      /etc/authselect/custom/custom-profile/password-auth:auth required
+      pam_faillock.so preauth silent {include if 'with-faillock'}
+      /etc/authselect/custom/custom-profile/password-auth:auth required
+      pam_faillock.so authfail {include if 'with-faillock'}
+      /etc/authselect/custom/custom-profile/password-auth:account required
+      pam_faillock.so {include if 'with-faillock'} /etc/authselect/custom/custom-
+      profile/system-auth:auth required pam_faillock.so preauth silent {include if
+      'with-faillock'} /etc/authselect/custom/custom-profile/system-auth:auth
+      required pam_faillock.so authfail {include if 'with-faillock'}
+      /etc/authselect/custom/custom-profile/system-auth:account required
+      pam_faillock.so {include if 'with-faillock'} Note: The lines may not include
+      {include if 'with-faillock'} - IF - the lines shown above are not returned,
+      refer to the Recommendation 'Ensure active authselect profile includes pam
+      modules' to update the authselect profile template files to include the
+      pam_faillock entries before continuing this remediation. - IF - the lines
+      include {include if 'with-faillock'}, run the following command to enable the
+      authselect with-faillock feature and update the files in /etc/pam.d to include
+      pam_faillock.so: # authselect enable-feature with-faillock - IF - any of the
+      pam_faillock lines exist without {include if 'with-faillock'}, run the
+      following command to update the files in /etc/pam.d to include
+      pam_faillock.so: # authselect apply-changes References: 1. faillock(8) - Linux
+      man page 2. pam_faillock(8) - Linux man page 3. NIST SP 800-53 Rev. 5: CM-1,
+      CM-2, CM-6, CM-7, IA-5
+    compliance:
+      - cis_rhel_8_v3_0_0_4_4_2_2
+
+  - rule_id: rhel.cis.4.pam_pwquality_module_is_enabled
+    title: "Ensure pam_pwquality module is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.2.3'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.pam_pwquality_module_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Review the authselect profile templates: Run the following script to verify
+      the pam_pwquality.so lines exist in the active profile templates:
+      #!/usr/bin/env bash { l_module_name='pwquality' l_pam_profile='$(head -1
+      /etc/authselect/authselect.conf)' if grep -Pq -- '^custom\/' <<<
+      '$l_pam_profile'; then l_pam_profile_path='/etc/authselect/$l_pam_profile'
+      else l_pam_profile_path='/usr/share/authselect/default/$l_pam_profile' fi grep
+      -P -- '\bpam_$l_module_name\.so\b'
+      '$l_pam_profile_path'/{password,system}-auth } Example Output with a custom
+      profile named 'custom-profile': /etc/authselect/custom/custom-
+      profile/password-auth:password requisite pam_pwquality.so local_users_only
+      {include if 'with-pwquality'} /etc/authselect/custom/custom-profile/system-
+      auth:password requisite pam_pwquality.so local_users_only {include if 'with-
+      pwquality'} Note: The lines may not include {include if 'with-pwquality'} - IF
+      - the lines shown above are not returned, refer to the Recommendation 'Ensure
+      active authselect profile includes pam modules' to update the authselect
+      profile template files to include the pam_pwquality entries before continuing
+      this remediation. - IF - any of the pam_pwquality lines include {include if
+      'with-pwquality'}, run the following command to enable the authselect with-
+      pwquality feature and update the files in /etc/pam.d to include
+      `pam_pwquality: # authselect enable-feature with-pwquality - IF - any of the
+      pam_pwquality lines exist without {include if 'with-pwquality'}, run the
+      following command to update the files in /etc/pam.d to include
+      pam_pwquality.so: # authselect apply-changes References: 1. NIST SP 800-53
+      Rev. 5: IA-5(1)
+    compliance:
+      - cis_rhel_8_v3_0_0_4_4_2_3
+
+  - rule_id: rhel.cis.4.pam_pwhistory_module_is_enabled
+    title: "Ensure pam_pwhistory module is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.2.4'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.pam_pwhistory_module_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following script to verify the pam_pwhistory.so lines exist in the
+      profile templates: #!/usr/bin/env bash { l_module_name='pwhistory'
+      l_pam_profile='$(head -1 /etc/authselect/authselect.conf)' if grep -Pq --
+      '^custom\/' <<< '$l_pam_profile'; then
+      l_pam_profile_path='/etc/authselect/$l_pam_profile' else
+      l_pam_profile_path='/usr/share/authselect/default/$l_pam_profile' fi grep -P
+      -- '\bpam_$l_module_name\.so\b' '$l_pam_profile_path'/{password,system}-auth }
+      Example Output with a custom profile named 'custom-profile':
+      /etc/authselect/custom/custom-profile/password-auth:password required
+      pam_pwhistory.so use_authtok {include if 'with-pwhistory'}
+      /etc/authselect/custom/custom-profile/system-auth:password required
+      pam_pwhistory.so use_authtok {include if 'with-pwhistory'} Note: The lines may
+      not include {include if 'with-pwhistory'} - IF - the lines shown above are not
+      returned, refer to the Recommendation 'Ensure active authselect profile
+      includes pam modules' to update the authselect profile template files to
+      include the pam_pwhistory entries before continuing this remediation. - IF -
+      the lines include {include if 'with-pwhistory'}, run the following command to
+      enable the authselect with-pwhistory feature and update the files in
+      /etc/pam.d to include pam_faillock.so: # authselect enable-feature with-
+      pwhistory - IF - any of the pam_pwhistory lines exist without {include if
+      'with-pwhistory'}, run the following command to update the files in /etc/pam.d
+      to include pam_pwhistory.so: # authselect apply-changes References: 1. NIST SP
+      800-53 Rev. 5: IA-5(1)
+    compliance:
+      - cis_rhel_8_v3_0_0_4_4_2_4
+
+  - rule_id: rhel.cis.4.pam_unix_module_is_enabled
+    title: "Ensure pam_unix module is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.2.5'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.pam_unix_module_is_enabled
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following script to verify the pam_unix.so lines exist in the profile
+      templates: #!/usr/bin/env bash { l_module_name='unix' l_pam_profile='$(head -1
+      /etc/authselect/authselect.conf)' if grep -Pq -- '^custom\/' <<<
+      '$l_pam_profile'; then l_pam_profile_path='/etc/authselect/$l_pam_profile'
+      else l_pam_profile_path='/usr/share/authselect/default/$l_pam_profile' fi grep
+      -P -- '\bpam_$l_module_name\.so\b'
+      '$l_pam_profile_path'/{password,system}-auth } Example Output with a custom
+      profile named 'custom-profile': /etc/authselect/custom/custom-
+      profile/password-auth:auth sufficient pam_unix.so {if not 'without-
+      nullok':nullok} /etc/authselect/custom/custom-profile/password-auth:account
+      required pam_unix.so /etc/authselect/custom/custom-profile/password-
+      auth:password sufficient pam_unix.so sha512 shadow {if not 'without-
+      nullok':nullok} use_authtok remember=5 /etc/authselect/custom/custom-
+      profile/password-auth:session required pam_unix.so
+      /etc/authselect/custom/custom-profile/system-auth:auth sufficient pam_unix.so
+      {if not 'without-nullok':nullok} /etc/authselect/custom/custom-profile/system-
+      auth:account required pam_unix.so /etc/authselect/custom/custom-
+      profile/system-auth:password sufficient pam_unix.so sha512 shadow {if not
+      'without-nullok':nullok} use_authtok /etc/authselect/custom/custom-
+      profile/system-auth:session required pam_unix.so - IF - the lines shown above
+      are not returned, refer to the Recommendation 'Ensure active authselect
+      profile includes pam modules' to update the authselect profile template files
+      to include the pam_unix entries before continuing this remediation. Note:
+      Arguments following pam_unix.so may be different than the example output
+      References: 1. NIST SP 800-53 Rev. 5: IA-5(1) MITRE ATT&CK Mappings:
+      Techniques / Sub- techniques Tactics Mitigations T1110, T1110.001, T1110.002,
+      T1110.003, T1178.001, T1178.002, T1178.003, T1178.004 TA0006 M1027 4.4.3
+      Configure pluggable module arguments Pluggable Authentication Modules (PAM)
+      uses arguments to pass information to a pluggable module during authentication
+      for a particular module type. These arguments allow the PAM configuration
+      files for particular programs to use a common PAM module but in different
+      ways. Invalid arguments are ignored and do not otherwise affect the success or
+      failure of the PAM module. When an invalid argument is passed, an error is
+      usually written to /var/log/messages file. However, since the reporting method
+      is controlled by the PAM module, the module must be written correctly to log
+      the error to this file. 4.4.3.1 Configure pam_faillock module faillock.conf
+      provides a way to configure the default settings for locking the user after
+      multiple failed authentication attempts. This file is read by the pam_faillock
+      module and is the preferred method over configuring pam_faillock directly. The
+      file has a very simple name = value format with possible comments starting
+      with # character. The whitespace at the beginning of line, end of line, and
+      around the = sign is ignored. Options: • <dir=/path/to/tally-directory> - The
+      directory where the user files with the failure records are kept. The default
+      is /var/run/faillock. Note: These files will disappear after reboot on systems
+      configured with directory /var/run/faillock mounted on virtual memory. • audit
+      - Will log the user name into the system log if the user is not found. •
+      silent - Don't print informative messages to the user. Please note that when
+      this option is not used there will be difference in the authentication
+      behavior for users which exist on the system and non-existing users. •
+      no_log_info - Don't log informative messages via syslog(3). • local_users_only
+      - Only track failed user authentications attempts for local users in
+      /etc/passwd and ignore centralized (AD, IdM, LDAP, etc.) users. The
+      faillock(8) command will also no longer track user failed authentication
+      attempts. Enabling this option will prevent a double-lockout scenario where a
+      user is locked out locally and in the centralized mechanism. • nodelay - Don't
+      enforce a delay after authentication failures. • deny=<n> - Deny access if the
+      number of consecutive authentication failures for this user during the recent
+      interval exceeds . The default is 3. • fail_interval=n - The length of the
+      interval during which the consecutive authentication failures must happen for
+      the user account lock out is n seconds. The default is 900 (15 minutes). •
+      unlock_time=n - The access will be re-enabled after n seconds after the lock
+      out. The value 0 has the same meaning as value never - the access will not be
+      re- enabled without resetting the faillock entries by the faillock(8) command.
+      The default is 600 (10 minutes). Note that the default directory that
+      pam_faillock uses is usually cleared on system boot so the access will be also
+      re-enabled after system reboot. If that is undesirable a different tally
+      directory must be set with the dir option. Also note that it is usually
+      undesirable to permanently lock out users as they can become easily a target
+      of denial of service attack unless the usernames are random and kept secret to
+      potential attackers. • even_deny_root - Root account can become locked as well
+      as regular accounts. • root_unlock_time=n - This option implies even_deny_root
+      option. Allow access after n seconds to root account after the account is
+      locked. In case the option is not specified the value is the same as of the
+      unlock_time option. • admin_group=name - If a group name is specified with
+      this option, members of the group will be handled by this module the same as
+      the root account (the options even_deny_root and root_unlock_time will apply
+      to them. By default the option is not set. Example /etc/security/faillock.conf
+      file: deny=5 unlock_time=900 even_deny_root
+    compliance:
+      - cis_rhel_8_v3_0_0_4_4_2_5
+
+  - rule_id: rhel.cis.4.password_number_of_changed_characters_is
+    title: "Ensure password number of changed characters is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.3.2.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.password_number_of_changed_characters_is
+    assertion:
+      field: row_count
+      operator: not_equals
+      expected: "true"
+    remediation: >
+      Edit or add the following line in /etc/security/pwquality.conf to a value of 2
+      or more and meets local site policy: difok = 2 Create or modify a file ending
+      in .conf in the /etc/security/pwquality.conf.d/ directory or the file
+      /etc/security/pwquality.conf and add or modify the following line to set difok
+      to 2 or more. Ensure setting conforms to local site policy: Example: # sed -ri
+      's/^\s*difok\s*=/# &/' /etc/security/pwquality.conf # printf '\n%s' 'difok =
+      2' >> /etc/security/pwquality.conf.d/50-pwdifok.conf Run the following script
+      to remove setting difok on the pam_pwquality.so module in the PAM files:
+      #!/usr/bin/env bash { for l_pam_file in system-auth password-auth; do
+      l_authselect_file='/etc/authselect/$(head -1 /etc/authselect/authselect.conf |
+      grep 'custom/')/$l_pam_file' sed -ri
+      's/(^\s*password\s+(requisite|required|sufficient)\s+pam_pwquality\.so.*)(\s+
+      difok\s*=\s*\S+)(.*$)/\1\4/' '$l_authselect_file' done authselect apply-
+      changes } Default Value: difok = 1 References: 1. NIST SP 800-53 Rev. 5: IA-5
+    compliance:
+      - cis_rhel_8_v3_0_0_4_4_3_2_1
+
+  - rule_id: rhel.cis.4.password_length_is_configured
+    title: "Ensure password length is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.3.2.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.password_length_is_configured
+    assertion:
+      field: enabled
+      operator: gte
+      expected: "false"
+    remediation: >
+      Create or modify a file ending in .conf in the /etc/security/pwquality.conf.d/
+      directory or the file /etc/security/pwquality.conf and add or modify the
+      following line to set password length of 14 or more characters. Ensure that
+      password length conforms to local site policy: Example: # sed -ri
+      's/^\s*minlen\s*=/# &/' /etc/security/pwquality.conf # printf '\n%s' 'minlen =
+      14' >> /etc/security/pwquality.conf.d/50- pwlength.conf Run the following
+      script to remove setting minlen on the pam_pwquality.so module in the PAM
+      files: #!/usr/bin/env bash { for l_pam_file in system-auth password-auth; do
+      l_authselect_file='/etc/authselect/$(head -1 /etc/authselect/authselect.conf |
+      grep 'custom/')/$l_pam_file' sed -ri
+      's/(^\s*password\s+(requisite|required|sufficient)\s+pam_pwquality\.so.*)(\s+
+      minlen\s*=\s*[0-9]+)(.*$)/\1\4/' '$l_authselect_file' done authselect apply-
+      changes } Default Value: minlen = 8 References: 1. pam_pwquality(8) 2. NIST SP
+      800-53 Rev. 5: IA-5
+    compliance:
+      - cis_rhel_8_v3_0_0_4_4_3_2_2
+
+  - rule_id: rhel.cis.4.password_same_consecutive_characters_is_configured
+    title: "Ensure password same consecutive characters is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.3.2.4'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.password_same_consecutive_characters_is_configured
+    assertion:
+      field: row_count
+      operator: lte
+      expected: "true"
+    remediation: >
+      Create or modify a file ending in .conf in the /etc/security/pwquality.conf.d/
+      directory or the file /etc/security/pwquality.conf and add or modify the
+      following line to set maxrepeat to 3 or less and not 0. Ensure setting
+      conforms to local site policy: Example: # sed -ri 's/^\s*maxrepeat\s*=/# &/'
+      /etc/security/pwquality.conf # printf '\n%s' 'maxrepeat = 3' >>
+      /etc/security/pwquality.conf.d/50- pwrepeat.conf Run the following script to
+      remove setting maxrepeat on the pam_pwquality.so module in the PAM files:
+      #!/usr/bin/env bash { for l_pam_file in system-auth password-auth; do
+      l_authselect_file='/etc/authselect/$(head -1 /etc/authselect/authselect.conf |
+      grep 'custom/')/$l_pam_file' sed -ri
+      's/(^\s*password\s+(requisite|required|sufficient)\s+pam_pwquality\.so.*)(\s+
+      maxrepeat\s*=\s*\S+)(.*$)/\1\4/' '$l_authselect_file' done authselect apply-
+      changes } Default Value: maxrepeat = 0 References: 1. NIST SP 800-53 Rev. 5:
+      IA-5
+    compliance:
+      - cis_rhel_8_v3_0_0_4_4_3_2_4
+
+  - rule_id: rhel.cis.4.password_maximum_sequential_characters_is
+    title: "Ensure password maximum sequential characters is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.3.2.5'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.password_maximum_sequential_characters_is
+    assertion:
+      field: enabled
+      operator: lte
+      expected: "false"
+    remediation: >
+      Create or modify a file ending in .conf in the /etc/security/pwquality.conf.d/
+      directory or the file /etc/security/pwquality.conf and add or modify the
+      following line to set maxsequence to 3 or less and not 0. Ensure setting
+      conforms to local site policy: Example: # sed -ri 's/^\s*maxsequence\s*=/# &/'
+      /etc/security/pwquality.conf # printf '\n%s' 'maxsequence = 3' >>
+      /etc/security/pwquality.conf.d/50- pwmaxsequence.conf Run the following script
+      to remove setting maxsequence on the pam_pwquality.so module in the PAM files:
+      #!/usr/bin/env bash { for l_pam_file in system-auth password-auth; do
+      l_authselect_file='/etc/authselect/$(head -1 /etc/authselect/authselect.conf |
+      grep 'custom/')/$l_pam_file' sed -ri
+      's/(^\s*password\s+(requisite|required|sufficient)\s+pam_pwquality\.so.*)(\s+
+      maxsequence\s*=\s*\S+)(.*$)/\1\4/' '$l_authselect_file' done authselect apply-
+      changes } Default Value: maxsequence = 0 References: 1. NIST SP 800-53 Rev. 5:
+      IA-5
+    compliance:
+      - cis_rhel_8_v3_0_0_4_4_3_2_5
+
+  - rule_id: rhel.cis.4.password_dictionary_check_is_enabled
+    title: "Ensure password dictionary check is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.3.2.6'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.password_dictionary_check_is_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Edit any file ending in .conf in the /etc/security/pwquality.conf.d/ directory
+      and/or the file /etc/security/pwquality.conf and comment out or remove any
+      instance of dictcheck = 0: Example: # sed -ri 's/^\s*dictcheck\s*=/# &/'
+      /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf Run the
+      following script to remove setting dictcheck on the pam_pwquality.so module in
+      the PAM files: #!/usr/bin/env bash { for l_pam_file in system-auth password-
+      auth; do l_authselect_file='/etc/authselect/$(head -1
+      /etc/authselect/authselect.conf | grep 'custom/')/$l_pam_file' sed -ri
+      's/(^\s*password\s+(requisite|required|sufficient)\s+pam_pwquality\.so.*)(\s+
+      dictcheck\s*=\s*\S+)(.*$)/\1\4/' '$l_authselect_file' done authselect apply-
+      changes } Default Value: dictcheck = 1 References: 1. NIST SP 800-53 Rev. 5:
+      IA-5
+    compliance:
+      - cis_rhel_8_v3_0_0_4_4_3_2_6
+
+  - rule_id: rhel.cis.4.password_quality_is_enforced_for_the_root_user
+    title: "Ensure password quality is enforced for the root user"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.3.2.7'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.password_quality_is_enforced_for_the_root_user
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Edit or add the following line in a *.conf file in
+      /etc/security/pwquality.conf.d or in /etc/security/pwquality.conf: Example:
+      printf '\n%s\n' 'enforce_for_root' >> /etc/security/pwquality.conf.d/50-
+      pwroot.conf Default Value: disabled References: 1. NIST SP 800-53 Rev. 5: IA-5
+    compliance:
+      - cis_rhel_8_v3_0_0_4_4_3_2_7
+
+  - rule_id: rhel.cis.4.password_history_remember_is_configured
+    title: "Ensure password history remember is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.3.3.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.password_history_remember_is_configured
+    assertion:
+      field: row_count
+      operator: exists
+      expected: "on"
+    remediation: >
+      Edit or add the following line in /etc/security/pwhistory.conf: remember = 24
+      Run the following script to remove the remember argument from the
+      pam_pwhistory.so module in /etc/pam.d/system-auth and /etc/pam.d/password-
+      auth: #!/usr/bin/env bash { for l_pam_file in system-auth password-auth; do
+      l_authselect_file='/etc/authselect/$(head -1 /etc/authselect/authselect.conf |
+      grep 'custom/')/$l_pam_file' sed -ri
+      's/(^\s*password\s+(requisite|required|sufficient)\s+pam_pwhistory\.so.*)(\s+
+      remember\s*=\s*\S+)(.*$)/\1\4/' '$l_authselect_file' done authselect apply-
+      changes } References: 1. NIST SP 800-53 Rev. 5: IA-5(1)
+    compliance:
+      - cis_rhel_8_v3_0_0_4_4_3_3_1
+
+  - rule_id: rhel.cis.4.password_history_is_enforced_for_the_root_user
+    title: "Ensure password history is enforced for the root user"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.3.3.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.password_history_is_enforced_for_the_root_user
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Edit or add the following line in /etc/security/pwhistory.conf:
+      enforce_for_root Default Value: disabled References: 1. NIST SP 800-53 Rev. 5:
+      IA-5
+    compliance:
+      - cis_rhel_8_v3_0_0_4_4_3_3_2
+
+  - rule_id: rhel.cis.4.pam_pwhistory_includes_use_authtok
+    title: "Ensure pam_pwhistory includes use_authtok"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.3.3.3'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.pam_pwhistory_includes_use_authtok
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following script to verify the active authselect profile includes
+      use_authtok on the password stack's pam_pwhistory.so module lines:
+      #!/usr/bin/env bash { l_pam_profile='$(head -1
+      /etc/authselect/authselect.conf)' if grep -Pq -- '^custom\/' <<<
+      '$l_pam_profile'; then l_pam_profile_path='/etc/authselect/$l_pam_profile'
+      else l_pam_profile_path='/usr/share/authselect/default/$l_pam_profile' fi grep
+      -P --
+      '^\h*password\h+(requisite|required|sufficient)\h+pam_pwhistory\.so\h+([^#\n\r]+\h+)?use_authtok\
+      b' '$l_pam_profile_path'/{password,system}-auth } Example output:
+      /etc/authselect/custom/custom-profile/password-auth:password required
+      pam_pwhistory.so use_authtok /etc/authselect/custom/custom-profile/system-
+      auth:password required pam_pwhistory.so use_authtok - IF - the output does not
+      include use_authtok, run the following script: #!/usr/bin/env bash {
+      l_pam_profile='$(head -1 /etc/authselect/authselect.conf)' if grep -Pq --
+      '^custom\/' <<< '$l_pam_profile'; then
+      l_pam_profile_path='/etc/authselect/$l_pam_profile' else
+      l_pam_profile_path='/usr/share/authselect/default/$l_pam_profile' fi for
+      l_authselect_file in '$l_pam_profile_path'/password-auth
+      '$l_pam_profile_path'/system- auth; do if grep -Pq
+      '^\h*password\h+([^#\n\r]+)\h+pam_pwhistory\.so\h+([^#\n\r]+\h+)?use_authtok\b'
+      '$l_authselect_file'; then echo '- \'use_authtok\' is already set' else echo
+      '- \'use_authtok\' is not set. Updating template' sed -ri
+      's/(^\s*password\s+(requisite|required|sufficient)\s+pam_pwhistory\.so\s+.*)$/&
+      use_authtok/g' '$l_authselect_file' fi done } Run the following command to
+      update the password-auth and system-auth files in /etc/pam.d to include the
+      use_authtok argument on the password stack's pam_pwhistory.so lines: #
+      authselect apply-changes References: 1. NIST SP 800-53 Rev. 5: IA-5
+    compliance:
+      - cis_rhel_8_v3_0_0_4_4_3_3_3
+
+  - rule_id: rhel.cis.4.pam_unix_does_not_include_remember
+    title: "Ensure pam_unix does not include remember"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.3.4.2'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.pam_unix_does_not_include_remember
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following script to verify the active authselect profile doesn't
+      include the remember argument on the pam_unix.so module lines: #!/usr/bin/env
+      bash { l_pam_profile='$(head -1 /etc/authselect/authselect.conf)' if grep -Pq
+      -- '^custom\/' <<< '$l_pam_profile'; then
+      l_pam_profile_path='/etc/authselect/$l_pam_profile' else
+      l_pam_profile_path='/usr/share/authselect/default/$l_pam_profile' fi grep -P
+      -- '^\h*password\h+([^#\n\r]+\h+)pam_unix\.so\b'
+      '$l_pam_profile_path'/{password,system}-auth } Output should be similar to:
+      /etc/authselect/custom/custom-profile/password-auth:password sufficient
+      pam_unix.so sha512 shadow {if not 'without-nullok':nullok} use_authtok
+      /etc/authselect/custom/custom-profile/system-auth:password sufficient
+      pam_unix.so sha512 shadow {if not 'without-nullok':nullok} use_authtok - IF -
+      any line includes remember=, run the following script to remove the remember=
+      from the pam_unix.so lines in the active authselect profile password-auth and
+      system-auth` templates: #!/usr/bin/env bash { l_pam_profile='$(head -1
+      /etc/authselect/authselect.conf)' if grep -Pq -- '^custom\/' <<<
+      '$l_pam_profile'; then l_pam_profile_path='/etc/authselect/$l_pam_profile'
+      else l_pam_profile_path='/usr/share/authselect/default/$l_pam_profile' fi for
+      l_authselect_file in '$l_pam_profile_path'/password-auth
+      '$l_pam_profile_path'/system-auth; do sed -ri
+      's/(^\s*password\s+(requisite|required|sufficient)\s+pam_unix\.so\s+.*)(remem
+      ber=[1-9][0-9]*)(\s*.*)$/\1\4/g' '$l_authselect_file' done } Run the following
+      command to update the password-auth and system-authfiles in/etc/pam.d to
+      include pam_unix.so without the remember argument: # authselect apply-changes
+    compliance:
+      - cis_rhel_8_v3_0_0_4_4_3_4_2
+
+  - rule_id: rhel.cis.4.pam_unix_includes_a_strong_password_hashing
+    title: "Ensure pam_unix includes a strong password hashing algorithm"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.3.4.3'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.pam_unix_includes_a_strong_password_hashing
+    assertion:
+      field: length
+      operator: equals
+      expected: "on"
+    remediation: >
+      Note: • If yescrypt becomes available in a future release, this would also be
+      acceptable. It is highly recommended that the chosen hashing algorithm is
+      consistent across /etc/libuser.conf, /etc/login.defs, /etc/pam.d/password-
+      auth, and /etc/pam.d/system-auth. • This only effects local users and
+      passwords created after updating the files to use sha512 or yescrypt. If it is
+      determined that the password algorithm being used is not sha512 or yescrypt,
+      once it is changed, it is recommended that all user ID's be immediately
+      expired and forced to change their passwords on next login. Run the following
+      script to verify the active authselect profile includes a strong password
+      hashing algorithm on the password stack's pam_unix.so module lines:
+      #!/usr/bin/env bash { l_pam_profile='$(head -1
+      /etc/authselect/authselect.conf)' if grep -Pq -- '^custom\/' <<<
+      '$l_pam_profile'; then l_pam_profile_path='/etc/authselect/$l_pam_profile'
+      else l_pam_profile_path='/usr/share/authselect/default/$l_pam_profile' fi grep
+      -P --
+      '^\h*password\h+(requisite|required|sufficient)\h+pam_unix\.so\h+([^#\n\r]+\h
+      +)?(sha512|yescrypt)\b' '$l_pam_profile_path'/{password,system}-auth } Example
+      output: /etc/authselect/custom/custom-profile/password-auth:password
+      sufficient pam_unix.so sha512 shadow {if not 'without-nullok':nullok}
+      use_authtok /etc/authselect/custom/custom-profile/system-auth:password
+      sufficient pam_unix.so sha512 shadow {if not 'without-nullok':nullok}
+      use_authtok - IF - the output does not include either sha512 - OR - yescrypt,
+      or includes a different hashing algorithm, run the following script:
+      #!/usr/bin/env bash { l_pam_profile='$(head -1
+      /etc/authselect/authselect.conf)' if grep -Pq -- '^custom\/' <<<
+      '$l_pam_profile'; then l_pam_profile_path='/etc/authselect/$l_pam_profile'
+      else l_pam_profile_path='/usr/share/authselect/default/$l_pam_profile' fi for
+      l_authselect_file in '$l_pam_profile_path'/password-auth
+      '$l_pam_profile_path'/system- auth; do if grep -Pq
+      '^\h*password\h+()\h+pam_unix\.so\h+([^#\n\r]+\h+)?(sha512|yescrypt)\b'
+      '$l_authselect_file'; then echo '- A strong password hashing algorithm is
+      correctly set' elif grep -Pq
+      '^\h*password\h+()\h+pam_unix\.so\h+([^#\n\r]+\h+)?(md5|bigcrypt|sha256|blowfish)\b'
+      '$l_authselect_file'; then echo '- A weak password hashing algorithm is set,
+      updating to \'sha512\'' sed -ri
+      's/(^\s*password\s+(requisite|required|sufficient)\s+pam_unix\.so\s+.*)(md5|bigcrypt|sha256|blowf
+      ish)(\s*.*)$/\1\4 sha512/g' '$l_authselect_file' else echo 'No password
+      hashing algorithm is set, updating to \'sha512\'' sed -ri
+      's/(^\s*password\s+(requisite|required|sufficient)\s+pam_unix\.so\s+.*)$/&
+      sha512/g' '$l_authselect_file' fi done } Run the following command to update
+      the password-auth and system-auth files in /etc/pam.d to include pam_unix.so
+      with a strong password hashing algorithm argument: # authselect apply-changes
+      References: 1. NIST SP 800-53 Rev. 5: IA-5 Additional Information: Additional
+      module options may be set, recommendation only covers those listed here. The
+      following command may be used to expire all non-system user ID's immediately
+      and force them to change their passwords on next login. Any system accounts
+      that need to be expired should be carefully done separately by the system
+      administrator to prevent any potential problems. # awk -F: '( $3<''$(awk
+      '/^\s*UID_MIN/{print $2}' /etc/login.defs)'' && $1 != 'nfsnobody' ) { print $1
+      }' /etc/passwd | xargs -n 1 chage -d 0
+    compliance:
+      - cis_rhel_8_v3_0_0_4_4_3_4_3
+
+  - rule_id: rhel.cis.4.pam_unix_includes_use_authtok
+    title: "Ensure pam_unix includes use_authtok"
+    severity: high
+    automation_type: automated
+    cis_control: '4.4.3.4.4'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.pam_unix_includes_use_authtok
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following script to verify the active authselect profile includes
+      use_authtok on the password stack's pam_unix.so module lines: #!/usr/bin/env
+      bash { l_pam_profile='$(head -1 /etc/authselect/authselect.conf)' if grep -Pq
+      -- '^custom\/' <<< '$l_pam_profile'; then
+      l_pam_profile_path='/etc/authselect/$l_pam_profile' else
+      l_pam_profile_path='/usr/share/authselect/default/$l_pam_profile' fi grep -P
+      --
+      '^\h*password\h+(requisite|required|sufficient)\h+pam_unix\.so\h+([^#\n\r]+\h+)?use_authtok\b'
+      '$l_pam_profile_path'/{password,system}-auth } Example output:
+      /etc/authselect/custom/custom-profile/password-auth:password sufficient
+      pam_unix.so sha512 shadow {if not 'without-nullok':nullok} use_authtok
+      /etc/authselect/custom/custom-profile/system-auth:password sufficient
+      pam_unix.so sha512 shadow {if not 'without-nullok':nullok} use_authtok - IF -
+      the output does not include use_authtok, run the following script:
+      #!/usr/bin/env bash { l_pam_profile='$(head -1
+      /etc/authselect/authselect.conf)' if grep -Pq -- '^custom\/' <<<
+      '$l_pam_profile'; then l_pam_profile_path='/etc/authselect/$l_pam_profile'
+      else l_pam_profile_path='/usr/share/authselect/default/$l_pam_profile' fi for
+      l_authselect_file in '$l_pam_profile_path'/password-auth
+      '$l_pam_profile_path'/system- auth; do if grep -Pq
+      '^\h*password\h+([^#\n\r]+)\h+pam_unix\.so\h+([^#\n\r]+\h+)?use_authtok\b'
+      '$l_authselect_file'; then echo '- \'use_authtok\' is already set' else echo
+      '- \'use_authtok\' is not set. Updating template' sed -ri
+      's/(^\s*password\s+(requisite|required|sufficient)\s+pam_unix\.so\s+.*)$/&
+      use_authtok/g' '$l_authselect_file' fi done } Run the following command to
+      update the password-auth and system-auth files in /etc/pam.d to include the
+      use_authtok argument on the password stack's pam_unix.so lines: # authselect
+      apply-changes References: 1. NIST SP 800-53 Rev. 5: IA-5
+    compliance:
+      - cis_rhel_8_v3_0_0_4_4_3_4_4
+
+  - rule_id: rhel.cis.4.strong_password_hashing_algorithm_is_configured
+    title: "Ensure strong password hashing algorithm is configured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.5.1.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.strong_password_hashing_algorithm_is_configured
+    assertion:
+      field: length
+      operator: exists
+      expected: "true"
+    remediation: >
+      Note: If yescrypt becomes available in a future release, this would also be
+      acceptable. It is highly recommended that the chosen hashing algorithm is
+      consistent across /etc/libuser.conf, /etc/login.defs, /etc/pam.d/password-
+      auth, and /etc/pam.d/system-auth. Set password hashing algorithm to sha512.
+      Edit /etc/libuser.conf and edit or add the following line: crypt_style =
+      sha512 Edit /etc/login.defs and edit or add the following line: ENCRYPT_METHOD
+      SHA512 Note: This only effects local users and passwords created after
+      updating the files to use sha512 or yescrypt. If it is determined that the
+      password algorithm being used is not sha512 or yescrypt, once it is changed,
+      it is recommended that all group passwords be updated to use the stronger
+      hashing algorithm. References: 1. NIST SP 800-53 Rev. 5: IA-5 Additional
+      Information: Additional module options may be set, recommendation only covers
+      those listed here. The following command may be used to expire all non-system
+      user ID's immediately and force them to change their passwords on next login.
+      Any system accounts that need to be expired should be carefully done
+      separately by the system administrator to prevent any potential problems. #
+      awk -F: '( $3<''$(awk '/^\s*UID_MIN/{print $2}' /etc/login.defs)'' && $1 !=
+      'nfsnobody' ) { print $1 }' /etc/passwd | xargs -n 1 chage -d 0
+    compliance:
+      - cis_rhel_8_v3_0_0_4_5_1_1
+
+  - rule_id: rhel.cis.4.inactive_password_lock_is_30_days_or_less
+    title: "Ensure inactive password lock is 30 days or less"
+    severity: high
+    automation_type: automated
+    cis_control: '4.5.1.4'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.inactive_password_lock_is_30_days_or_less
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "false"
+    remediation: >
+      Run the following command to set the default password inactivity period to 30
+      days: # useradd -D -f 30 Modify user parameters for all users with a password
+      set to match: # chage --inactive 30 <user> Default Value: INACTIVE=-1
+      Additional Information: A value of -1 would disable this setting.
+    compliance:
+      - cis_rhel_8_v3_0_0_4_5_1_4
+
+  - rule_id: rhel.cis.4.all_users_last_password_change_date_is_in_the_past
+    title: "Ensure all users last password change date is in the past"
+    severity: high
+    automation_type: automated
+    cis_control: '4.5.1.5'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.all_users_last_password_change_date_is_in_the_past
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Investigate any users with a password change date in the future and correct
+      them. Locking the account, expiring the password, or resetting the password
+      manually may be appropriate.
+    compliance:
+      - cis_rhel_8_v3_0_0_4_5_1_5
+
+  - rule_id: rhel.cis.4.default_group_for_the_root_account_is_gid_0
+    title: "Ensure default group for the root account is GID 0"
+    severity: high
+    automation_type: automated
+    cis_control: '4.5.2.1'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.default_group_for_the_root_account_is_gid_0
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "true"
+    remediation: >
+      Run the following command to set the root user's default group ID to 0: #
+      usermod -g 0 root References: 1. NIST SP 800-53 Rev. 5: CM-1, CM-2, CM-6,
+      CM-7, IA-5
+    compliance:
+      - cis_rhel_8_v3_0_0_4_5_2_1
+
+  - rule_id: rhel.cis.4.system_accounts_are_secured
+    title: "Ensure system accounts are secured"
+    severity: high
+    automation_type: automated
+    cis_control: '4.5.2.3'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: rhel.section_4.system_accounts_are_secured
+    assertion:
+      field: row_count
+      operator: equals
+      expected: "no"
+    remediation: >
+      System accounts Set the shell for any accounts returned by the audit to
+      nologin: # usermod -s $(command -v nologin) <user> Disabled accounts Lock any
+      non root accounts returned by the audit: # usermod -L <user> Large scale
+      changes The following command will set all system accounts to nologin: # awk
+      -F: '($1!~/^(root|halt|sync|shutdown|nfsnobody)$/ && ($3<''$(awk
+      '/^\s*UID_MIN/{print $2}' /etc/login.defs)'' || $3 == 65534)) { print $1 }'
+      /etc/passwd | while read user; do usermod -s $(command -v nologin) $user
+      >/dev/null; done The following command will automatically lock all accounts
+      that have their shell set to nologin: # awk -F: '/nologin/ {print $1}'
+      /etc/passwd | while read user; do usermod -L $user; done References: 1. NIST
+      SP 800-53 Rev. 5: AC-2(5), AC-3, AC-11, MP-2 Additional Information: The root,
+      sync, shutdown, and halt users are exempted from requiring a non-login shell.
+    compliance:
+      - cis_rhel_8_v3_0_0_4_5_2_3
+
+

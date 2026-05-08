@@ -1,0 +1,132 @@
+# ==========================================================
+# Discovery YAML — customerprofiles (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 3 | ops: 1 independent, 1 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: customerprofiles
+
+services:
+  client: customerprofiles
+  module: "boto3.client('customerprofiles')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: domain
+    identifier_op: aws.customerprofiles.list_domains
+    identifier_field: DomainName
+    item_var_path: item.DomainName
+    identifier_template: '{domainname}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.customerprofiles.list_domains  ──
+  - discovery_id: aws.customerprofiles.list_domains
+    calls:
+      - action: list_domains
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Items }}'
+      item:
+        AllowProfileCreation: '{{ item.AllowProfileCreation }}'
+        AppflowIntegration: '{{ item.AppflowIntegration }}'
+        AttributeDetails: '{{ item.AttributeDetails }}'
+        ClientToken: '{{ item.ClientToken }}'
+        CompletedAt: '{{ item.CompletedAt }}'
+        Conditions: '{{ item.Conditions }}'
+        ConfidenceScore: '{{ item.ConfidenceScore }}'
+        ConflictResolution: '{{ item.ConflictResolution }}'
+        Consolidation: '{{ item.Consolidation }}'
+        CreatedAt: '{{ item.CreatedAt }}'
+        DataExpiry: '{{ item.DataExpiry }}'
+        DeadLetterQueueUrl: '{{ item.DeadLetterQueueUrl }}'
+        DefaultEncryptionKey: '{{ item.DefaultEncryptionKey }}'
+        DefaultExpirationDays: '{{ item.DefaultExpirationDays }}'
+        Description: '{{ item.Description }}'
+        DestinationDetails: '{{ item.DestinationDetails }}'
+        DestinationSummary: '{{ item.DestinationSummary }}'
+        DestinationUri: '{{ item.DestinationUri }}'
+        DomainName: '{{ item.DomainName }}'
+        Enabled: '{{ item.Enabled }}'
+        EncryptionKey: '{{ item.EncryptionKey }}'
+        ErrorDescription: '{{ item.ErrorDescription }}'
+        EventStreamName: '{{ item.EventStreamName }}'
+        EventTriggerConditions: '{{ item.EventTriggerConditions }}'
+        EventTriggerDimensions: '{{ item.EventTriggerDimensions }}'
+        EventTriggerLimits: '{{ item.EventTriggerLimits }}'
+        EventTriggerNames: '{{ item.EventTriggerNames }}'
+        ExpirationDays: '{{ item.ExpirationDays }}'
+        Filter: '{{ item.Filter }}'
+        Groups: '{{ item.Groups }}'
+        Include: '{{ item.Include }}'
+        IsDefault: '{{ item.IsDefault }}'
+        IsUnstructured: '{{ item.IsUnstructured }}'
+        JobExpirationTime: '{{ item.JobExpirationTime }}'
+        LastUpdatedAt: '{{ item.LastUpdatedAt }}'
+        Layout: '{{ item.Layout }}'
+        LayoutType: '{{ item.LayoutType }}'
+        LogicalOperator: '{{ item.LogicalOperator }}'
+        MatchGenerationDate: '{{ item.MatchGenerationDate }}'
+        MaxAvailableProfileObjectCount: '{{ item.MaxAvailableProfileObjectCount }}'
+        MaxProfileObjectCount: '{{ item.MaxProfileObjectCount }}'
+        MeteringProfileCount: '{{ item.MeteringProfileCount }}'
+        Metrics: '{{ item.Metrics }}'
+        MinAllowedConfidenceScoreForMerging: '{{ item.MinAllowedConfidenceScoreForMerging }}'
+        NumberOfMatchesInSample: '{{ item.NumberOfMatchesInSample }}'
+        NumberOfProfilesInSample: '{{ item.NumberOfProfilesInSample }}'
+        NumberOfProfilesWillBeMerged: '{{ item.NumberOfProfilesWillBeMerged }}'
+        ObjectCount: '{{ item.ObjectCount }}'
+        ObjectTypeNames: '{{ item.ObjectTypeNames }}'
+        PotentialMatches: '{{ item.PotentialMatches }}'
+        ProfileCount: '{{ item.ProfileCount }}'
+        ProfileIds: '{{ item.ProfileIds }}'
+        Readiness: '{{ item.Readiness }}'
+        ResultsSummary: '{{ item.ResultsSummary }}'
+        RuleBasedMatching: '{{ item.RuleBasedMatching }}'
+        SegmentFilter: '{{ item.SegmentFilter }}'
+        SegmentGroups: '{{ item.SegmentGroups }}'
+        StartDate: '{{ item.StartDate }}'
+        State: '{{ item.State }}'
+        Statistic: '{{ item.Statistic }}'
+        Stats: '{{ item.Stats }}'
+        StatusCode: '{{ item.StatusCode }}'
+        StatusDescription: '{{ item.StatusDescription }}'
+        StatusReason: '{{ item.StatusReason }}'
+        StoppedSince: '{{ item.StoppedSince }}'
+        Tags: '{{ item.Tags }}'
+        TotalSize: '{{ item.TotalSize }}'
+        UniqueKey: '{{ item.UniqueKey }}'
+        UseHistoricalData: '{{ item.UseHistoricalData }}'
+        ValidUntil: '{{ item.ValidUntil }}'
+        Value: '{{ item.Value }}'
+        Version: '{{ item.Version }}'
+        WorkflowType: '{{ item.WorkflowType }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.customerprofiles.list_profile_object_types [dependent] ──
+  - discovery_id: aws.customerprofiles.list_profile_object_types
+    for_each: aws.customerprofiles.list_domains
+    calls:
+      - action: list_profile_object_types
+        params:
+          DomainName: "{{ item.DomainName }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Items }}'
+      item:
+        CreatedAt: '{{ item.CreatedAt }}'
+        Description: '{{ item.Description }}'
+        LastUpdatedAt: '{{ item.LastUpdatedAt }}'
+        MaxAvailableProfileObjectCount: '{{ item.MaxAvailableProfileObjectCount }}'
+        MaxProfileObjectCount: '{{ item.MaxProfileObjectCount }}'
+        ObjectTypeName: '{{ item.ObjectTypeName }}'
+        Tags: '{{ item.Tags }}'
+

@@ -1,0 +1,46 @@
+version: '1.0'
+provider: oci
+service: queue
+checks:
+- rule_id: oci.queue.queue.queue_auth_required
+  for_each: oci.queue.list_queues
+  severity: LOW
+  conditions:
+    var: item.visibility_in_seconds
+    op: exists
+    value: null
+- rule_id: oci.queue.queue.queue_cross_account_send_receive_restricted
+  for_each: oci.queue.list_queues
+  severity: LOW
+  conditions:
+    var: item.visibility_in_seconds
+    op: exists
+    value: null
+- rule_id: oci.queue.queue.queue_encryption_enabled
+  for_each: oci.queue.list_queues
+  severity: HIGH
+  conditions:
+    var: item.encryption
+    op: exists
+    value: null
+- rule_id: oci.queue.queue.queue_private_network_only_where_supported_enforced
+  for_each: oci.queue.list_queues
+  severity: MEDIUM
+  conditions:
+    var: item.visibility_in_seconds
+    op: exists
+    value: null
+- rule_id: oci.queue.queue.queues_public_access_blocked
+  for_each: oci.queue.list_queues
+  severity: CRITICAL
+  conditions:
+    var: item.lifecycle_state
+    op: not_equals
+    value: PUBLIC
+- rule_id: oci.queue.queue.queues_server_side_encryption_enabled
+  for_each: oci.queue.list_queues
+  severity: HIGH
+  conditions:
+    var: item.server_side_encryption
+    op: exists
+    value: null

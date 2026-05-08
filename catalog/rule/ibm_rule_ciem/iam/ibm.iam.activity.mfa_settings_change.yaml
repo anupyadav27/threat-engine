@@ -1,0 +1,51 @@
+rule_id: ibm.iam.activity.mfa_settings_change
+service: iam
+provider: ibm
+check_type: log
+severity: critical
+title: 'IBM IAM: MFA Settings Changed'
+description: Multi-factor authentication settings were modified for the IBM Cloud account. Disabling MFA removes a critical account takeover protection.
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+- initial_access
+mitre_techniques:
+- T1556
+risk_score: 93
+resource: ibm_iam_settings
+domain: logging_monitoring_and_alerting
+action_category: modify
+log_source_type: 
+posture_category: security_posture
+threat_tags:
+- T1556
+- defense_evasion
+- log_tampering
+- cloud_iam
+- identity
+risk_indicators:
+  actor_type: iam_user_or_role
+  action_type: write
+  target_type: iam_identity
+  blast_radius: account
+  stealth_risk: critical
+iam_security:
+  applicable: true
+  modules:
+  - mfa
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: Review and investigate this activity in the IBM Cloud Console and take corrective action.
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: ibm_activity
+    - field: operation
+      op: in
+      value:
+      - iam-identity.accountsettings.update
+      - iam-identity.mfaenrollment.update

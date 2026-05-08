@@ -1,0 +1,48 @@
+rule_id: gcp.compute.activity.set_metadata
+rule_type: ciem
+title: 'Compute: Instance Metadata Modified (Startup Script Injection)'
+scope: compute.activity
+domain: configuration_and_change_management
+subcategory: configuration
+severity: high
+service: compute
+resource: activity
+requirement: Set Metadata
+description: Instance metadata modified via setMetadata — adversaries inject startup
+  scripts to achieve persistent code execution on VMs without SSH access.
+rationale: 'Adversaries abuse cloud management services such as AWS Systems Manager
+  (Run Command), Azure VM RunCommand, or Automation Runbooks to execute commands within
+  virtual machines via installed agents — achieving remote code execution through
+  the cloud control plane without requiring network access to the instance. Detected
+  via: SSM RunCommand / Azure RunCommand API calls by unexpected users, command execution
+  outside maintenance windows, and service account-initiated script execution atypical
+  for admin tasks.'
+remediation: '1. Audit the compute instance or function for malicious startup scripts
+  or code.
+
+  2. Verify the workload image against a trusted artifact registry with Binary Authorization.
+
+  3. Apply Org Policy `compute.requireShieldedVm` for all new VM instances.
+
+  4. Enable Security Command Center threats for anomalous compute execution events.
+
+  5. Review service account permissions attached to the created instance or function.
+
+  '
+references:
+- https://attack.mitre.org/techniques/T1651/
+- https://cloud.google.com/compute/docs/metadata/overview
+compliance:
+- nist_800_171_r2_3_3_7
+- pci_dss_v4_0_1_10_6_1
+threat_category: execution
+mitre_tactics:
+- execution
+- persistence
+mitre_techniques:
+- T1651
+risk_score: 82
+action_category: execute
+source: default
+metadata_source: auto_generated
+generated_by: gcp_ciem_generator

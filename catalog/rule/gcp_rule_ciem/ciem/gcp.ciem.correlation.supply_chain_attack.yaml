@@ -1,0 +1,103 @@
+rule_id: gcp.ciem.correlation.supply_chain_attack
+service: ciem
+provider: gcp
+check_type: log_correlation
+severity: critical
+title: 'GCP: Supply Chain Attack — Function Update + IAM Policy Grant'
+description: 'Correlated supply chain attack: Cloud Function or Cloud Run service updated followed by IAM role grant — compromised workload acquiring persistent elevated permissions.'
+rationale: 'Adversaries add additional roles or permissions to adversary-controlled cloud accounts to maintain persistent access to a tenant. Attackers target Global Administrator, Owner, and Contributor roles — granting full control over subscription resources without deploying remote access tools. Detected via: IAM role attachment events, privilege grant events in Entra ID/Okta, and admin role assignment in Microsoft 365.'
+threat_category: supply_chain_compromise
+mitre_tactics:
+- execution
+- privilege_escalation
+mitre_techniques:
+- T1648
+- T1098.003
+risk_score: 94
+resource: cloud_function
+source: default
+is_active: true
+domain: configuration_and_change_management
+action_category: create
+posture_category: workload_posture
+threat_tags:
+- T1648
+- T1098.003
+- T1098
+- supply_chain
+- container_compromise
+- ciem_correlation
+- attack_chain
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: tenant_or_account
+  stealth_risk: medium
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_gcp_v2:
+  - 4.1
+  - 4.2
+  nist_800_53_r5:
+  - SA-12
+  - SI-3
+  - CM-7
+  pci_dss_v4:
+  - 6.3
+  - 12.8
+  iso_27001_2022:
+  - A.5.19
+  - A.5.20
+  - A.8.30
+detection_events:
+- Microsoft.Authorization/roleAssignments/write
+- 'iam:AttachUserPolicy'
+- 'iam:PutRolePolicy'
+- Add member to role (Entra ID audit)
+remediation: |
+  1. Audit the deployed function or container image for malicious dependencies.
+  2. Enable Binary Authorization to require signed images from trusted registries.
+  3. Restrict function/service deployment IAM roles to CI/CD service accounts only.
+  4. Scan all deployed packages using Artifact Registry vulnerability scanning.
+  5. Configure Org Policy to restrict allowed container registries for Cloud Run.
+references:
+- https://attack.mitre.org/techniques/T1648/
+- https://cloud.google.com/functions/docs/concepts/overview
+- https://cloud.google.com/run/docs/audit-logging
+check_config:
+  events:
+  - conditions:
+      all:
+      - field: source_type
+        op: equals
+        value: gcp_audit
+      - field: service
+        op: in
+        value:
+        - cloudfunctions.googleapis.com
+        - run.googleapis.com
+      - field: operation
+        op: in
+        value:
+        - UpdateFunction
+        - ReplaceService
+  - conditions:
+      all:
+      - field: source_type
+        op: equals
+        value: gcp_audit
+      - field: service
+        op: equals
+        value: cloudresourcemanager.googleapis.com
+      - field: operation
+        op: contains
+        value: SetIamPolicy
+  type: sequence
+  window_seconds: 300
+version: '1.0'

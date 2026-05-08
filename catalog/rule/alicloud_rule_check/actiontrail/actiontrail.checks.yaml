@@ -1,0 +1,39 @@
+version: '1.0'
+provider: alicloud
+service: actiontrail
+checks:
+- rule_id: alicloud.actiontrail.trail.enabled
+  for_each: alicloud.actiontrail.describe_trails
+  severity: HIGH
+  conditions:
+    var: item.Status
+    op: equals
+    value: Enable
+- rule_id: alicloud.actiontrail.trail.oss_bucket_configured
+  for_each: alicloud.actiontrail.describe_trails
+  severity: HIGH
+  conditions:
+    var: item.OssBucketName
+    op: not_empty
+    value: null
+- rule_id: alicloud.actiontrail.trail.organization_trail
+  for_each: alicloud.actiontrail.describe_trails
+  severity: MEDIUM
+  conditions:
+    var: item.IsOrganizationTrail
+    op: is_true
+    value: null
+- rule_id: alicloud.actiontrail.trail.sls_logging_configured
+  for_each: alicloud.actiontrail.describe_trails
+  severity: MEDIUM
+  conditions:
+    var: item.SlsProjectArn
+    op: not_empty
+    value: null
+- rule_id: alicloud.actiontrail.trail.name_defined
+  for_each: alicloud.actiontrail.describe_trails
+  severity: INFO
+  conditions:
+    var: item.Name
+    op: not_empty
+    value: null

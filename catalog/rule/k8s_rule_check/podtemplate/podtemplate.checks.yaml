@@ -1,0 +1,32 @@
+version: '1.0'
+provider: k8s
+service: podtemplate
+checks:
+- rule_id: k8s.podtemplate.container.host_network_disabled
+  for_each: k8s.pods.list
+  severity: HIGH
+  conditions:
+    var: item.spec.hostNetwork
+    op: is_false
+    value: null
+- rule_id: k8s.podtemplate.container.privileged_disabled
+  for_each: k8s.pods.list
+  severity: CRITICAL
+  conditions:
+    var: item.spec.containers[].securityContext.privileged
+    op: not_contains
+    value: true
+- rule_id: k8s.podtemplate.container.resource_limits_configured
+  for_each: k8s.podtemplate.list
+  severity: MEDIUM
+  conditions:
+    var: item.spec.template.spec.containers[].resources.limits
+    op: not_empty
+    value: null
+- rule_id: k8s.podtemplate.container.run_as_non_root_enabled
+  for_each: k8s.podtemplate.list_podtemplates
+  severity: HIGH
+  conditions:
+    var: item.spec.template.spec.containers[].securityContext.runAsNonRoot
+    op: is_true
+    value: null

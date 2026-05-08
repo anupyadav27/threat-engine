@@ -1,0 +1,47 @@
+version: '1.0'
+provider: azure
+service: resource
+checks:
+- rule_id: azure.resource.groups_group.governance_project_no_public_admin_roles
+  for_each: azure.resources.resources.resources_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.type
+      op: equals
+      value: Microsoft.Resources/resourceGroups
+    - var: item.tags.governance_project_no_public_admin_roles
+      op: exists
+      value: null
+- rule_id: azure.resource.groups_group.governance_project_required_guardrail_policies_attached
+  for_each: azure.resources.resources.resources_list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.tags.governance_project
+      op: exists
+      value: null
+    - var: item.tags.guardrail_policies_attached
+      op: equals
+      value: 'true'
+- rule_id: azure.resource.groups_group.governance_project_security_services_mandatory_enabled
+  for_each: azure.resources.resources.resources_list
+  severity: MEDIUM
+  conditions:
+    var: item.tags.governance_project_security_services_mandatory_enabled
+    op: exists
+    value: null
+- rule_id: azure.resource.manager.resource.lock.verification
+  for_each: azure.resources.resources.resources_list
+  severity: MEDIUM
+  conditions:
+    var: item.locks
+    op: exists
+    value: null
+- rule_id: azure.resource.sku.standard.enforcement
+  for_each: azure.resources.resources.resources_list
+  severity: MEDIUM
+  conditions:
+    var: item.sku.tier
+    op: equals
+    value: Standard

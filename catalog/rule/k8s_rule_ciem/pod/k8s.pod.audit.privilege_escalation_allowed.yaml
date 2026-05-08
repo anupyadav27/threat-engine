@@ -1,0 +1,84 @@
+rule_id: k8s.pod.audit.privilege_escalation_allowed
+service: pod
+provider: k8s
+check_type: log
+severity: high
+title: 'Pod: Privilege Escalation Not Restricted'
+description: Pod created without explicitly setting securityContext.allowPrivilegeEscalation=false. Without this control, a process inside the container may gain more privileges than its parent process via setuid/setgid binaries or Linux capabilities.
+rationale: 'Adversaries abuse Linux privilege escalation mechanisms within Kubernetes containers — including setuid/setgid binaries, Linux capabilities, and missing allowPrivilegeEscalation controls. Without explicit securityContext restrictions, a process inside a container can call execve() on a setuid binary to gain root (UID 0), directly enabling container escape chains (T1611). CIS Kubernetes Benchmark 5.2.5/5.2.6 require these controls to be explicitly set. Detected via: pods created without runAsNonRoot=true, pods created with allowPrivilegeEscalation unset or true, and setuid binary execution.'
+threat_category: privilege_escalation
+mitre_tactics:
+- privilege_escalation
+mitre_techniques:
+- T1548
+risk_score: 74
+resource: k8s_pod
+source: default
+is_active: true
+domain: identity_and_access_management
+action_category: privilege_escalation
+posture_category: iam_posture
+threat_tags:
+- T1548
+- cloud_iam
+- privilege_escalation
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: privilege_change
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - role_management
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_k8s_v1:
+  - 5.2.5
+  - 5.2.1
+  nist_800_53_r5:
+  - AC-3
+  - AC-6
+  - CM-6
+  pci_dss_v4:
+  - 7.1
+  - 7.2
+  iso_27001_2022:
+  - A.5.18
+  - A.8.2
+detection_events:
+- pods/create without securityContext.runAsNonRoot=true
+- pods/create with allowPrivilegeEscalation unset or true
+- pods/create with runAsUser=0
+- setuid binary execution inside container namespace
+remediation: |
+  1. Explicitly set securityContext.allowPrivilegeEscalation: false in every container spec.
+  2. Apply a Kyverno ClusterPolicy or OPA Gatekeeper constraint to enforce this cluster-wide.
+  3. Enable Pod Security Admission with 'restricted' profile, which enforces this field automatically.
+  4. Audit existing pods: `kubectl get pods -A -o jsonpath='{range .items[*].spec.containers[*]}{.name}{"\t"}{.securityContext.allowPrivilegeEscalation}{"\n"}{end}'`
+  5. Drop capabilities (securityContext.capabilities.drop: ["ALL"]) for additional hardening.
+references:
+- https://attack.mitre.org/techniques/T1548/
+- https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+- https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted
+- https://www.cisa.gov/sites/default/files/2022-03/kubernetes-hardening-guidance-1.2-508c.pdf
+check_config:
+  check_type: log
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: k8s_audit
+    - field: resource
+      op: equals
+      value: pods
+    - field: verb
+      op: equals
+      value: create
+    - field: allow_privilege_escalation
+      op: not_equals
+      value: false
+version: '1.0'

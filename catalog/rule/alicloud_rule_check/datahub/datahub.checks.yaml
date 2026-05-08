@@ -1,0 +1,72 @@
+version: '1.0'
+provider: alicloud
+service: datahub
+checks:
+- rule_id: alicloud.datahub.consumer.access_least_privilege
+  for_each: alicloud.datahub.list_consumers
+  severity: HIGH
+  conditions:
+    var: item.Permissions[].Action
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.datahub.consumer.auth_required
+  for_each: alicloud.datahub.list_consumers
+  severity: MEDIUM
+  conditions:
+    var: item.AuthRequired
+    op: is_true
+    value: null
+- rule_id: alicloud.datahub.stream.consumer_auth_required
+  for_each: alicloud.datahub.list_streams
+  severity: MEDIUM
+  conditions:
+    var: item.ConsumerAuthRequired
+    op: is_true
+    value: null
+- rule_id: alicloud.datahub.stream.data_retention_30_days_minimum
+  for_each: alicloud.datahub.list_streams
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.RetentionPeriod
+      op: gte
+      value: '30'
+- rule_id: alicloud.datahub.stream.encrypted
+  for_each: alicloud.datahub.list_streams
+  severity: HIGH
+  conditions:
+    var: item.Encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.datahub.stream.encryption_at_rest_enabled
+  for_each: alicloud.datahub.list_streams
+  severity: HIGH
+  conditions:
+    var: item.EncryptionAtRest
+    op: is_true
+    value: null
+- rule_id: alicloud.datahub.stream.encryption_enabled
+  for_each: alicloud.datahub.list_streams
+  severity: HIGH
+  conditions:
+    var: item.EncryptionEnabled
+    op: is_true
+    value: null
+- rule_id: alicloud.datahub.stream.least_privilege
+  for_each: alicloud.datahub.list_streams
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Permissions[].Action
+      op: not_contains
+      value: '*'
+    - var: item.Permissions[].Principal
+      op: not_contains
+      value: '*'
+- rule_id: alicloud.datahub.stream.private_network_only_where_supported
+  for_each: alicloud.datahub.list_streams
+  severity: MEDIUM
+  conditions:
+    var: item.Network
+    op: equals
+    value: PRIVATE

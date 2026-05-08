@@ -157,6 +157,13 @@ class ThreatDBReader:
         """
         return scan_run_id
 
+    def _resolve_resolved_id(self, conn, tenant_id: str, scan_run_id: str) -> Optional[str]:
+        """
+        Resolve scan_run_id for threat_findings queries.
+        All engines share the same scan_run_id — returns it directly.
+        """
+        return scan_run_id
+
     def load_threat_report_summary(self, tenant_id: str, scan_run_id: str) -> Optional[Dict[str, Any]]:
         """
         Load threat report summary from threat_report table.

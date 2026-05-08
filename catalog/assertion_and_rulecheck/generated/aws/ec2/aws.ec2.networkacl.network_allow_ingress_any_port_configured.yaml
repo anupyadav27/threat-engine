@@ -1,0 +1,23 @@
+version: '1.0'
+rule_id: aws.ec2.networkacl.network_allow_ingress_any_port_configured
+for_each: aws.ec2.describe_network_acls
+severity: HIGH
+conditions:
+  all:
+  - var: item.NetworkAcls[].Entries[]
+    op: not_empty
+  - any:
+    - var: item.NetworkAcls[].Entries[].Egress
+      op: is_true
+    - all:
+      - var: item.NetworkAcls[].Entries[].Egress
+        op: is_false
+      - var: item.NetworkAcls[].Entries[].CidrBlock
+        op: not_equals
+        value: 0.0.0.0/0
+      - var: item.NetworkAcls[].Entries[].Ipv6CidrBlock
+        op: not_equals
+        value: ::/0
+fixture_validated: false
+fixture_note: 'PASS fixture returned FAIL — wrong field or operator (pass_fixture keys: [''Associations'', ''Entries'', ''IsDefault'',
+  ''NetworkAclId'', ''NetworkAcls'', ''Tags'', ''VpcId''])'

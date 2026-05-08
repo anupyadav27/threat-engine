@@ -1,0 +1,256 @@
+version: '1.0'
+provider: gcp
+service: orgpolicy
+services:
+  client: orgpolicy
+  module: googleapiclient.discovery.build('orgpolicy', 'v2')
+anchors:
+  project_id: null
+  org_id: null
+  folder_id: null
+  location: null
+  zone: null
+  region: null
+checks: []
+discovery:
+- discovery_id: gcp.orgpolicy.folders.constraints.list
+  calls:
+  - action: folders.constraints.list
+    params: {}
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.constraints }}'
+    item:
+      booleanConstraint: '{{ item.booleanConstraint }}'
+      constraintDefault: '{{ item.constraintDefault }}'
+      description: '{{ item.description }}'
+      displayName: '{{ item.displayName }}'
+      equivalentConstraint: '{{ item.equivalentConstraint }}'
+      listConstraint: '{{ item.listConstraint }}'
+      name: '{{ item.name }}'
+      supportsDryRun: '{{ item.supportsDryRun }}'
+      supportsSimulation: '{{ item.supportsSimulation }}'
+- discovery_id: gcp.orgpolicy.folders.policies.list
+  calls:
+  - action: folders.policies.list
+    params: {}
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.policies }}'
+    item:
+      alternate: '{{ item.alternate }}'
+      dryRunSpec: '{{ item.dryRunSpec }}'
+      name: '{{ item.name }}'
+      spec: '{{ item.spec }}'
+- discovery_id: gcp.orgpolicy.organizations.constraints.list
+  calls:
+  - action: organizations.constraints.list
+    params: {}
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.constraints }}'
+    item:
+      booleanConstraint: '{{ item.booleanConstraint }}'
+      constraintDefault: '{{ item.constraintDefault }}'
+      description: '{{ item.description }}'
+      displayName: '{{ item.displayName }}'
+      equivalentConstraint: '{{ item.equivalentConstraint }}'
+      listConstraint: '{{ item.listConstraint }}'
+      name: '{{ item.name }}'
+      supportsDryRun: '{{ item.supportsDryRun }}'
+      supportsSimulation: '{{ item.supportsSimulation }}'
+- discovery_id: gcp.orgpolicy.organizations.customConstraints.list
+  calls:
+  - action: organizations.customConstraints.list
+    params: {}
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.customConstraints }}'
+    item:
+      actionType: '{{ item.actionType }}'
+      condition: '{{ item.condition }}'
+      description: '{{ item.description }}'
+      displayName: '{{ item.displayName }}'
+      methodTypes: '{{ item.methodTypes }}'
+      name: '{{ item.name }}'
+      resourceTypes: '{{ item.resourceTypes }}'
+      updateTime: '{{ item.updateTime }}'
+- discovery_id: gcp.orgpolicy.organizations.policies.list
+  calls:
+  - action: organizations.policies.list
+    params: {}
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.policies }}'
+    item:
+      alternate: '{{ item.alternate }}'
+      dryRunSpec: '{{ item.dryRunSpec }}'
+      name: '{{ item.name }}'
+      spec: '{{ item.spec }}'
+- discovery_id: gcp.orgpolicy.projects.constraints.list
+  calls:
+  - action: projects.constraints.list
+    params: {}
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.constraints }}'
+    item:
+      booleanConstraint: '{{ item.booleanConstraint }}'
+      constraintDefault: '{{ item.constraintDefault }}'
+      description: '{{ item.description }}'
+      displayName: '{{ item.displayName }}'
+      equivalentConstraint: '{{ item.equivalentConstraint }}'
+      listConstraint: '{{ item.listConstraint }}'
+      name: '{{ item.name }}'
+      supportsDryRun: '{{ item.supportsDryRun }}'
+      supportsSimulation: '{{ item.supportsSimulation }}'
+- discovery_id: gcp.orgpolicy.projects.policies.list
+  calls:
+  - action: projects.policies.list
+    params: {}
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.policies }}'
+    item:
+      alternate: '{{ item.alternate }}'
+      dryRunSpec: '{{ item.dryRunSpec }}'
+      name: '{{ item.name }}'
+      spec: '{{ item.spec }}'
+- discovery_id: gcp.orgpolicy.folders.policies.get
+  for_each: gcp.orgpolicy.organizations.policies.list
+  calls:
+  - action: folders.policies.get
+    params:
+      name: '{{ item.name }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      alternate: '{{ response.alternate }}'
+      dryRunSpec: '{{ response.dryRunSpec }}'
+      name: '{{ response.name }}'
+      spec: '{{ response.spec }}'
+- discovery_id: gcp.orgpolicy.folders.policies.getEffectivePolicy
+  for_each: gcp.orgpolicy.organizations.policies.list
+  calls:
+  - action: folders.policies.getEffectivePolicy
+    params:
+      name: '{{ item.name }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      alternate: '{{ response.alternate }}'
+      dryRunSpec: '{{ response.dryRunSpec }}'
+      name: '{{ response.name }}'
+      spec: '{{ response.spec }}'
+- discovery_id: gcp.orgpolicy.organizations.customConstraints.get
+  for_each: gcp.orgpolicy.organizations.customConstraints.list
+  calls:
+  - action: organizations.customConstraints.get
+    params:
+      name: '{{ item.name }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      actionType: '{{ response.actionType }}'
+      condition: '{{ response.condition }}'
+      description: '{{ response.description }}'
+      displayName: '{{ response.displayName }}'
+      methodTypes: '{{ response.methodTypes }}'
+      name: '{{ response.name }}'
+      resourceTypes: '{{ response.resourceTypes }}'
+      updateTime: '{{ response.updateTime }}'
+- discovery_id: gcp.orgpolicy.organizations.policies.get
+  for_each: gcp.orgpolicy.organizations.policies.list
+  calls:
+  - action: organizations.policies.get
+    params:
+      name: '{{ item.name }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      alternate: '{{ response.alternate }}'
+      dryRunSpec: '{{ response.dryRunSpec }}'
+      name: '{{ response.name }}'
+      spec: '{{ response.spec }}'
+- discovery_id: gcp.orgpolicy.organizations.policies.getEffectivePolicy
+  for_each: gcp.orgpolicy.organizations.policies.list
+  calls:
+  - action: organizations.policies.getEffectivePolicy
+    params:
+      name: '{{ item.name }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      alternate: '{{ response.alternate }}'
+      dryRunSpec: '{{ response.dryRunSpec }}'
+      name: '{{ response.name }}'
+      spec: '{{ response.spec }}'
+- discovery_id: gcp.orgpolicy.projects.policies.get
+  for_each: gcp.orgpolicy.organizations.policies.list
+  calls:
+  - action: projects.policies.get
+    params:
+      name: '{{ item.name }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      alternate: '{{ response.alternate }}'
+      dryRunSpec: '{{ response.dryRunSpec }}'
+      name: '{{ response.name }}'
+      spec: '{{ response.spec }}'
+- discovery_id: gcp.orgpolicy.projects.policies.getEffectivePolicy
+  for_each: gcp.orgpolicy.organizations.policies.list
+  calls:
+  - action: projects.policies.getEffectivePolicy
+    params:
+      name: '{{ item.name }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      alternate: '{{ response.alternate }}'
+      dryRunSpec: '{{ response.dryRunSpec }}'
+      name: '{{ response.name }}'
+      spec: '{{ response.spec }}'
+- discovery_id: gcp.orgpolicy.list_policies
+  calls:
+  - action: projects.policies.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      name: '{{ item.name }}'
+      spec: '{{ item.spec }}'
+      dryRunSpec: '{{ item.dryRunSpec }}'
+      alternate: '{{ item.alternate }}'
+      etag: '{{ item.etag }}'
+      kind: '{{ item.kind }}'

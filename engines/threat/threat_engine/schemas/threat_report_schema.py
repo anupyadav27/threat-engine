@@ -33,6 +33,7 @@ class Cloud(str, Enum):
 
 
 class ThreatType(str, Enum):
+    # Original types
     EXPOSURE = "exposure"
     IDENTITY = "identity"
     LATERAL_MOVEMENT = "lateral_movement"
@@ -44,6 +45,16 @@ class ThreatType(str, Enum):
     COMPLIANCE_VIOLATION = "compliance_violation"
     CONFIGURATION_DRIFT = "configuration_drift"
     CHECK_STATUS_DRIFT = "check_status_drift"
+    # MITRE ATT&CK tactic-aligned types (from rule_metadata.threat_category)
+    IMPACT = "impact"
+    INITIAL_ACCESS = "initial_access"
+    DEFENSE_EVASION = "defense_evasion"
+    CREDENTIAL_ACCESS = "credential_access"
+    PERSISTENCE = "persistence"
+    EXECUTION = "execution"
+    DISCOVERY = "discovery"
+    COLLECTION = "collection"
+    EXFILTRATION = "exfiltration"
 
 
 class Severity(str, Enum):
@@ -161,6 +172,14 @@ class Threat(BaseModel):
     mitre_techniques: Optional[List[str]] = Field(default_factory=list, description="MITRE ATT&CK technique IDs")
     mitre_tactics: Optional[List[str]] = Field(default_factory=list, description="MITRE ATT&CK tactic names")
     risk_score: Optional[int] = Field(None, description="Aggregated risk score (0-100)")
+    # Contributing rules (multi-rule grouping)
+    rule_id: Optional[str] = Field(None, description="Primary rule_id (first in group)")
+    contributing_rules: Optional[List[str]] = Field(default_factory=list, description="All rule_ids in this threat group")
+    finding_count: Optional[int] = Field(None, description="Number of contributing findings")
+    resource_type: Optional[str] = Field(None, description="Resource type of affected asset")
+    account_id: Optional[str] = Field(None, description="Account ID")
+    region: Optional[str] = Field(None, description="Region")
+    source: Optional[str] = Field(default="check", description="Finding source: check or ciem")
 
 
 class ThreatAnalysisResult(BaseModel):

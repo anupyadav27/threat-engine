@@ -1,0 +1,47 @@
+version: '1.0'
+provider: azure
+service: entrad
+discovery:
+- discovery_id: azure.entrad.get_password_policy
+  calls:
+  - action: password_policies.get
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+    item:
+      BannedPasswordList: '{{ item.BannedPasswordList }}'
+      enableBannedPasswordCheck: '{{ item.enableBannedPasswordCheck }}'
+      lockoutDuration: '{{ item.lockoutDuration }}'
+      lockoutThreshold: '{{ item.lockoutThreshold }}'
+- discovery_id: azure.entrad.list_devices
+  calls:
+  - action: devices.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      id: '{{ item.id }}'
+      displayName: '{{ item.displayName }}'
+      operatingSystem: '{{ item.operatingSystem }}'
+      trustType: '{{ item.trustType }}'
+      MFAEnabled: '{{ item.MFAEnabled }}'
+      complianceState: '{{ item.complianceState }}'
+      isManaged: '{{ item.isManaged }}'
+- discovery_id: azure.entrad.list_global_admin_roles
+  calls:
+  - action: global_admin_roles.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      id: '{{ item.id }}'
+      displayName: '{{ item.displayName }}'
+      IsGlobalAdmin: '{{ item.IsGlobalAdmin }}'
+      isEnabled: '{{ item.isEnabled }}'
+      members: '{{ item.members }}'

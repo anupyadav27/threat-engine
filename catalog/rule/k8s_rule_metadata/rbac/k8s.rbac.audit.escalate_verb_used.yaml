@@ -1,0 +1,54 @@
+rule_id: k8s.rbac.audit.escalate_verb_used
+rule_type: ciem
+title: 'RBAC: escalate Verb Used'
+scope: rbac.audit
+domain: container_and_kubernetes_security
+subcategory: container_security
+severity: critical
+service: rbac
+resource: audit
+requirement: Escalate Verb Used
+description: Request with verb=escalate detected — allows a principal to create roles
+  with more permissions than they currently hold; bypasses RBAC privilege boundaries.
+rationale: 'Adversaries abuse Linux privilege escalation mechanisms within Kubernetes
+  containers — including setuid/setgid binaries, Linux capabilities, and missing allowPrivilegeEscalation
+  controls. Without explicit securityContext restrictions, a process inside a container
+  can call execve() on a setuid binary to gain root (UID 0), directly enabling container
+  escape chains (T1611). CIS Kubernetes Benchmark 5.2.5/5.2.6 require these controls
+  to be explicitly set. Detected via: pods created without runAsNonRoot=true, pods
+  created with allowPrivilegeEscalation unset or true, and setuid binary execution.'
+remediation: '1. Immediately delete the unauthorized ClusterRoleBinding or RoleBinding.
+
+  2. Audit all cluster-admin bindings: `kubectl get clusterrolebindings -o wide |
+  grep cluster-admin`
+
+  3. Enable OPA Gatekeeper or Kyverno policy to prevent cluster-admin binding creation
+  by non-admins.
+
+  4. Use just-in-time (JIT) access for privileged Kubernetes operations.
+
+  5. Configure Falco rules to alert on ClusterRoleBinding creation outside CI/CD service
+  accounts.
+
+  '
+references:
+- https://attack.mitre.org/techniques/T1548/
+- https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation
+compliance:
+- canada_pbmm_moderate_CCCS_IR_6_1
+- canada_pbmm_moderate_CCCS_RA_5_2
+- canada_pbmm_moderate_CCCS_SI_3_1
+- canada_pbmm_moderate_CCCS_SI_3_7
+- canada_pbmm_moderate_CCCS_SI_4_23
+- cis_azure_8.1.16
+- pci_dss_v4_0_1_6_3_1
+threat_category: privilege_escalation
+mitre_tactics:
+- privilege_escalation
+mitre_techniques:
+- T1548
+risk_score: 95
+action_category: privilege_escalation
+source: default
+metadata_source: auto_generated
+generated_by: k8s_ciem_generator

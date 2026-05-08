@@ -1,0 +1,253 @@
+version: '1.0'
+provider: gcp
+service: storage
+checks:
+- rule_id: gcp.storage.bucket.bucket_access_logging_enabled
+  for_each: gcp.storage.buckets.list
+  severity: HIGH
+  conditions:
+    var: item.logging
+    op: exists
+    value: null
+- rule_id: gcp.storage.bucket.bucket_block_public_access_enabled
+  for_each: gcp.storage.buckets.list
+  severity: HIGH
+  conditions:
+    var: item.acl
+    op: not_exists
+    value: null
+- rule_id: gcp.storage.bucket.bucket_cmk_cmek_configured
+  for_each: gcp.storage.buckets.list
+  severity: CRITICAL
+  conditions:
+    var: item.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.storage.bucket.bucket_encryption_at_rest_enabled
+  for_each: gcp.storage.buckets.list
+  severity: HIGH
+  conditions:
+    var: item.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.storage.bucket.bucket_policy_denies_public_and_insecure
+  for_each: gcp.storage.buckets.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.acl
+      op: not_contains
+      value: allUsers
+    - var: item.acl
+      op: not_contains
+      value: allAuthenticatedUsers
+- rule_id: gcp.storage.bucket.bucket_require_tls_in_transit
+  for_each: gcp.storage.buckets.list
+  severity: HIGH
+  conditions:
+    var: item.iamConfiguration.uniformBucketLevelAccess.enabled
+    op: is_true
+    value: null
+- rule_id: gcp.storage.bucket.bucket_versioning_enabled
+  for_each: gcp.storage.buckets.list
+  severity: HIGH
+  conditions:
+    var: item.versioning.enabled
+    op: is_true
+    value: null
+- rule_id: gcp.storage.bucket.documentation_access_rbac_least_privilege
+  for_each: gcp.storage.buckets.list
+  severity: HIGH
+  conditions:
+    var: item.acl
+    op: exists
+    value: null
+- rule_id: gcp.storage.bucket.documentation_storage_encrypted_and_private
+  for_each: gcp.storage.buckets.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.kmsKeyName
+      op: exists
+      value: null
+    - var: item.acl
+      op: not_contains
+      value: allUsers
+    - var: item.acl
+      op: not_contains
+      value: allAuthenticatedUsers
+- rule_id: gcp.storage.bucket.fileshare_encryption_at_rest_enabled
+  for_each: gcp.storage.buckets.list
+  severity: HIGH
+  conditions:
+    var: item.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.storage.bucket.fileshare_kms_key_policy_least_privilege
+  for_each: gcp.storage.buckets.list
+  severity: HIGH
+  conditions:
+    var: item.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.storage.bucket.fileshare_private_network_only
+  for_each: gcp.storage.buckets.list
+  severity: HIGH
+  conditions:
+    var: item.acl
+    op: exists
+    value: null
+- rule_id: gcp.storage.bucket.fileshare_snapshots_enabled
+  for_each: gcp.storage.buckets.list
+  severity: HIGH
+  conditions:
+    var: item.fileshare_snapshots_enabled
+    op: is_true
+    value: null
+- rule_id: gcp.storage.lifecycle.lifecycle_expiration_rules_defined
+  for_each: gcp.storage.buckets.list
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle.rule[].condition.age
+    op: exists
+    value: null
+- rule_id: gcp.storage.lifecycle.lifecycle_immutable_retention_locked_where_required
+  for_each: gcp.storage.buckets.list
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle.rule[].condition.isLive
+    op: is_true
+    value: null
+- rule_id: gcp.storage.lifecycle.lifecycle_versioning_enabled_where_supported
+  for_each: gcp.storage.buckets.list
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle.rule[].action.type
+    op: in
+    value:
+    - Delete
+    - SetStorageClass
+- rule_id: gcp.storage.notification.bucket_notification_cross_account_destinations_restricted
+  for_each: gcp.storage.notifications.list
+  severity: HIGH
+  conditions:
+    var: item.topic
+    op: not_contains
+    value: projects/
+- rule_id: gcp.storage.notification.bucket_notification_destination_encrypted
+  for_each: gcp.storage.notifications.list
+  severity: HIGH
+  conditions:
+    var: item.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.storage.notification.bucket_notification_destination_least_privilege
+  for_each: gcp.storage.notifications.list
+  severity: HIGH
+  conditions:
+    var: item.topic
+    op: exists
+    value: null
+- rule_id: gcp.storage.object.object_encrypted_at_rest
+  for_each: gcp.storage.objects.list
+  severity: HIGH
+  conditions:
+    var: item.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.storage.object.object_not_publicly_readable
+  for_each: gcp.storage.objects.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.acl
+      op: not_contains
+      value: allUsers
+    - var: item.acl
+      op: not_contains
+      value: allAuthenticatedUsers
+- rule_id: gcp.storage.object.object_object_lock_or_immutability_enabled_where_supported
+  for_each: gcp.storage.objects.list
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.eventBasedHold
+      op: is_true
+      value: null
+    - var: item.hardDeleteTime
+      op: exists
+      value: null
+- rule_id: gcp.storage.policy.bucket_policy_deny_insecure_transport
+  for_each: gcp.storage.buckets.list
+  severity: HIGH
+  conditions:
+    var: item.iamConfiguration.uniformBucketLevelAccess.enabled
+    op: is_true
+    value: null
+- rule_id: gcp.storage.policy.bucket_policy_deny_unencrypted_puts
+  for_each: gcp.storage.buckets.list
+  severity: HIGH
+  conditions:
+    var: item.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.storage.policy.bucket_policy_no_public_principals
+  for_each: gcp.storage.buckets.list
+  severity: HIGH
+  conditions:
+    var: item.acl
+    op: not_contains
+    value: allUsers
+- rule_id: gcp.storage.policy.bucket_policy_no_wildcards_on_actions_or_principals
+  for_each: gcp.storage.buckets.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.acl[].entity
+      op: not_contains
+      value: allUsers
+    - var: item.acl[].entity
+      op: not_contains
+      value: allAuthenticatedUsers
+- rule_id: gcp.storage.retention.retention_enforced_on_sensitive_datasets
+  for_each: gcp.storage.buckets.list
+  severity: MEDIUM
+  conditions:
+    var: item.retentionPolicy.isLocked
+    op: is_true
+    value: null
+- rule_id: gcp.storage.retention.retention_policies_defined
+  for_each: gcp.storage.buckets.list
+  severity: MEDIUM
+  conditions:
+    var: item.retentionPolicy
+    op: exists
+    value: null
+- rule_id: gcp.storage.retention.retention_protected_from_public_override
+  for_each: gcp.storage.buckets.list
+  severity: HIGH
+  conditions:
+    var: item.acl
+    op: exists
+    value: null
+- rule_id: gcp.storage.snapshot.snapshot_cross_region_copy_encrypted
+  for_each: gcp.storage.objects.list
+  severity: HIGH
+  conditions:
+    var: item.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.storage.snapshot.snapshot_encrypted
+  for_each: gcp.storage.objects.list
+  severity: HIGH
+  conditions:
+    var: item.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.storage.snapshot.snapshot_not_public
+  for_each: gcp.storage.objects.list
+  severity: HIGH
+  conditions:
+    var: item.acl[].entity
+    op: not_contains
+    value: allUsers

@@ -1,0 +1,82 @@
+rule_id: aws.network.flow_log.ssh_from_internet
+service: network
+provider: aws
+check_type: log
+severity: high
+title: 'Network: Ssh From Internet'
+description: SSH access from internet to EC2 instance — remote shell exposed to public internet.
+rationale: SSH access to cloud instances enables lateral movement and interactive control; compromise may spread via SSH key reuse across multiple instances.
+threat_category: initial_access
+mitre_tactics:
+- initial_access
+mitre_techniques:
+- T1021.004
+risk_score: 75
+resource: vpc
+source: ciem_rule_generator
+is_active: true
+domain: network_security_and_connectivity
+action_category: create
+log_source_type: cloudtrail
+posture_category: threat_posture
+threat_tags:
+- T1021.004
+- T1021
+- network_security
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: network_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.14
+  - 2.1
+  cis_azure_v2:
+  - 1.2
+  - 2.1
+  nist_800_53_r5:
+  - AC-17
+  - IA-2
+  - SI-3
+  pci_dss_v4:
+  - 8.3
+  - 11.5
+  iso_27001_2022:
+  - A.8.5
+  - A.9.4
+remediation: |
+  1. Use EC2 Instance Connect / Azure Bastion instead of static SSH keys.
+  2. Restrict SSH access via security groups to known management IPs only.
+  3. Use AWS Systems Manager / Azure Bastion to eliminate direct SSH exposure.
+references:
+- https://attack.mitre.org/techniques/T1021/004/
+- https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-connect-methods.html
+check_config:
+  conditions:
+    all:
+    - field: network.dst_port
+      op: equals
+      value: 22
+    - field: network.src_ip
+      op: not_starts_with
+      value:
+      - '10.'
+      - 172.16.
+      - 172.17.
+      - 172.18.
+      - 172.19.
+      - '172.2'
+      - 172.30.
+      - 172.31.
+      - 192.168.
+  for_each: log_events
+  log_source_type: cloudtrail
+  type: log
+version: '1.0'

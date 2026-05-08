@@ -1,0 +1,90 @@
+rule_id: oci.loadbalancer.chain.ssl_cipher_update_and_listener_modify
+service: loadbalancer
+provider: oci
+check_type: log
+severity: medium
+title: Detect security list modifications allowing plaintext protocols and chained
+  actions updating SSL ciphers then modifying listeners to potentially disab
+description: Detects chained actions modifying SSL ciphers and listeners, a specific
+  behavioral pattern.
+rationale: Monitoring this activity is essential for detecting adversary defense evasion
+  against OCI resources. Unauthorized or unexpected API calls may indicate account
+  compromise, privilege escalation, or an active attack chain.
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1562
+risk_score: 60
+resource: oci_loadbalancer_resource
+source: csv_generated
+is_active: true
+domain: data_protection_and_privacy
+action_category: modify
+log_source_type: oci_audit_log
+posture_category: threat_posture
+threat_tags:
+- T1562
+- defense_evasion
+- ciem_detection
+- attack_chain
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: high
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_oci:
+  - 5.4.5
+remediation: '1. Immediately investigate the principal that performed this action
+  — treat as potentially compromised.
+
+  2. Restore any disabled/deleted security controls (logging, agents, scanning).
+
+  3. Review the full session context for lateral movement or data exfiltration following
+  this action.
+
+  4. Restrict the ability to disable security tools to break-glass roles with MFA
+  enforcement.
+
+  5. Add SCPs/Organization Policies to prevent non-authorized disablement of security
+  controls.'
+references:
+- https://attack.mitre.org/techniques/T1562/
+- https://docs.oracle.com/en-us/iaas/Content/Identity/
+check_config:
+  events:
+  - conditions:
+      all:
+      - field: source_type
+        op: equals
+        value: oci_audit_log
+      - field: service
+        op: equals
+        value: loadbalancer
+      - field: operation
+        op: equals
+        value: com.oraclecloud.loadbalancer.UpdateLoadBalancer
+  - conditions:
+      all:
+      - field: source_type
+        op: equals
+        value: oci_audit_log
+      - field: service
+        op: equals
+        value: loadbalancer
+      - field: operation
+        op: in
+        value:
+        - com.oraclecloud.loadbalancer.UpdateListener
+        - com.oraclecloud.loadbalancer.CreateListener
+        - com.oraclecloud.loadbalancer.UpdateSSLCipherSuite
+  type: sequence
+  window_seconds: 600
+  version: '1.0'

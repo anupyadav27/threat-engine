@@ -1,0 +1,186 @@
+version: '1.0'
+provider: gcp
+service: sql
+discovery:
+- discovery_id: gcp.sql.instances.list
+  calls:
+  - action: instances.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      name: '{{ item.name }}'
+      databaseVersion: '{{ item.databaseVersion }}'
+      state: '{{ item.state }}'
+      settings: '{{ item.settings }}'
+      ipAddresses: '{{ item.ipAddresses }}'
+      serverCaCert: '{{ item.serverCaCert }}'
+      backupConfiguration: '{{ item.backupConfiguration }}'
+      maintenanceWindow: '{{ item.maintenanceWindow }}'
+      labels: '{{ item.labels }}'
+      region: '{{ item.region }}'
+- discovery_id: gcp.sql.list_database_instances
+  calls:
+  - action: instances.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      name: '{{ item.name }}'
+      databaseVersion: '{{ item.databaseVersion }}'
+      state: '{{ item.state }}'
+      settings: '{{ item.settings }}'
+      ipAddresses: '{{ item.ipAddresses }}'
+      serverCaCert: '{{ item.serverCaCert }}'
+      backupConfiguration: '{{ item.backupConfiguration }}'
+      maintenanceWindow: '{{ item.maintenanceWindow }}'
+      labels: '{{ item.labels }}'
+      region: '{{ item.region }}'
+- discovery_id: gcp.sql.list_instances
+  calls:
+  - action: instances.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      name: '{{ item.name }}'
+      databaseVersion: '{{ item.databaseVersion }}'
+      state: '{{ item.state }}'
+      settings: '{{ item.settings }}'
+      ipAddresses: '{{ item.ipAddresses }}'
+      serverCaCert: '{{ item.serverCaCert }}'
+      backupConfiguration: '{{ item.backupConfiguration }}'
+      maintenanceWindow: '{{ item.maintenanceWindow }}'
+      labels: '{{ item.labels }}'
+      region: '{{ item.region }}'
+- discovery_id: gcp.sqladmin.instances.list
+  calls:
+  - action: instances.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      warnings[]: '{{ item.warnings[] }}'
+- discovery_id: gcp.sql.list_users
+  calls:
+  - action: users.list
+    save_as: response
+    on_error: continue
+    params:
+      instance: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      name: '{{ item.name }}'
+      host: '{{ item.host }}'
+      etag: '{{ item.etag }}'
+      type: '{{ item.type }}'
+      sqlserverUserDetails: '{{ item.sqlserverUserDetails }}'
+      project: '{{ item.project }}'
+      instance: '{{ item.instance }}'
+  for_each: gcp.sql.list_instances
+- discovery_id: gcp.sqladmin.operations.list
+  calls:
+  - action: operations.list
+    params: {}
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      name: '{{ item.name }}'
+      status: '{{ item.status }}'
+      acquireSsrsLeaseContext: '{{ item.acquireSsrsLeaseContext }}'
+      apiWarning: '{{ item.apiWarning }}'
+      backupContext: '{{ item.backupContext }}'
+      endTime: '{{ item.endTime }}'
+      error: '{{ item.error }}'
+      exportContext: '{{ item.exportContext }}'
+      importContext: '{{ item.importContext }}'
+      insertTime: '{{ item.insertTime }}'
+      operationType: '{{ item.operationType }}'
+      preCheckMajorVersionUpgradeContext: '{{ item.preCheckMajorVersionUpgradeContext
+        }}'
+      selfLink: '{{ item.selfLink }}'
+      startTime: '{{ item.startTime }}'
+      subOperationType: '{{ item.subOperationType }}'
+      targetId: '{{ item.targetId }}'
+      targetLink: '{{ item.targetLink }}'
+      targetProject: '{{ item.targetProject }}'
+      user: '{{ item.user }}'
+- discovery_id: gcp.sqladmin.Backups.ListBackups
+  calls:
+  - action: Backups.ListBackups
+    params: {}
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.backups }}'
+    item:
+      name: '{{ item.name }}'
+      state: '{{ item.state }}'
+      description: '{{ item.description }}'
+      backupInterval: '{{ item.backupInterval }}'
+      backupKind: '{{ item.backupKind }}'
+      backupRun: '{{ item.backupRun }}'
+      databaseVersion: '{{ item.databaseVersion }}'
+      error: '{{ item.error }}'
+      expiryTime: '{{ item.expiryTime }}'
+      instance: '{{ item.instance }}'
+      instanceDeletionTime: '{{ item.instanceDeletionTime }}'
+      instanceSettings: '{{ item.instanceSettings }}'
+      kmsKey: '{{ item.kmsKey }}'
+      kmsKeyVersion: '{{ item.kmsKeyVersion }}'
+      location: '{{ item.location }}'
+      maxChargeableBytes: '{{ item.maxChargeableBytes }}'
+      satisfiesPzi: '{{ item.satisfiesPzi }}'
+      satisfiesPzs: '{{ item.satisfiesPzs }}'
+      selfLink: '{{ item.selfLink }}'
+      timeZone: '{{ item.timeZone }}'
+- discovery_id: gcp.sqladmin.flags.list
+  calls:
+  - action: flags.list
+    params: {}
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      name: '{{ item.name }}'
+      allowedIntValues: '{{ item.allowedIntValues }}'
+      allowedStringValues: '{{ item.allowedStringValues }}'
+      appliesTo: '{{ item.appliesTo }}'
+      flagScope: '{{ item.flagScope }}'
+      inBeta: '{{ item.inBeta }}'
+      maxValue: '{{ item.maxValue }}'
+      minValue: '{{ item.minValue }}'
+      recommendedIntValue: '{{ item.recommendedIntValue }}'
+      recommendedStringValue: '{{ item.recommendedStringValue }}'
+      requiresRestart: '{{ item.requiresRestart }}'
+      type: '{{ item.type }}'
+- discovery_id: gcp.sqladmin.tiers.list
+  calls:
+  - action: tiers.list
+    params: {}
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      DiskQuota: '{{ item.DiskQuota }}'
+      RAM: '{{ item.RAM }}'
+      region: '{{ item.region }}'
+      tier: '{{ item.tier }}'

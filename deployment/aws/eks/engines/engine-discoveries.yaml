@@ -25,7 +25,7 @@ spec:
       serviceAccountName: engine-sa
       containers:
       - name: engine-discoveries
-        image: yadavanup84/engine-discoveries:v-std-cols
+        image: yadavanup84/engine-discoveries:v-disc-auth
         imagePullPolicy: Always
         ports:
         - containerPort: 8001
@@ -81,13 +81,20 @@ spec:
               key: ONBOARDING_DB_PASSWORD
         - name: ORCHESTRATION_ENABLED
           value: "true"
+        - name: DISCOVERY_SCANNER_IMAGE
+          value: "yadavanup84/engine-discoveries:v-disc-net5"
+        volumeMounts:
+        - name: output
+          mountPath: /output
+        - name: input
+          mountPath: /input
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "100m"
-          limits:
-            memory: "512Mi"
+            memory: "1Gi"
             cpu: "500m"
+          limits:
+            memory: "3500Mi"
+            cpu: "1500m"
         livenessProbe:
           httpGet:
             path: /api/v1/health/live
@@ -105,7 +112,11 @@ spec:
           timeoutSeconds: 5
           failureThreshold: 6
 
-      # No sidecar needed — discoveries writes directly to DB
+      volumes:
+      - name: output
+        emptyDir: {}
+      - name: input
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

@@ -1,0 +1,49 @@
+rule_id: k8s.pod.audit.hostpath_sensitive_mount
+rule_type: ciem
+title: 'Pod: Sensitive HostPath Volume Mounted'
+scope: pod.audit
+domain: container_and_kubernetes_security
+subcategory: container_security
+severity: critical
+service: pod
+resource: audit
+requirement: Hostpath Sensitive Mount
+description: Pod created with hostPath volume mounting sensitive node paths (/, /etc,
+  /proc, /var/run/docker.sock) — direct access to node filesystem, enabling container
+  escape.
+rationale: 'Adversaries escape container or virtualized environment isolation to gain
+  access to the underlying host, circumventing container security boundaries to access
+  other containerized resources or the node''s credentials. Requires privileged container,
+  hostPath mounts, or kernel exploit. Detected via: hostPath mounts to /proc or /sys,
+  privileged container launches, unshare/keyctl/mount syscalls from container processes,
+  and process execution outside container namespaces.'
+remediation: '1. Immediately delete the unauthorized ClusterRoleBinding or RoleBinding.
+
+  2. Audit all cluster-admin bindings: `kubectl get clusterrolebindings -o wide |
+  grep cluster-admin`
+
+  3. Enable OPA Gatekeeper or Kyverno policy to prevent cluster-admin binding creation
+  by non-admins.
+
+  4. Use just-in-time (JIT) access for privileged Kubernetes operations.
+
+  5. Configure Falco rules to alert on ClusterRoleBinding creation outside CI/CD service
+  accounts.
+
+  '
+references:
+- https://attack.mitre.org/techniques/T1611/
+- https://kubernetes.io/docs/concepts/security/pod-security-standards/
+- https://www.cisa.gov/sites/default/files/2022-03/kubernetes-hardening-guidance-1.2-508c.pdf
+compliance:
+- cis_gcp_5.7.2
+threat_category: privilege_escalation
+mitre_tactics:
+- privilege_escalation
+mitre_techniques:
+- T1611
+risk_score: 93
+action_category: privilege_escalation
+source: default
+metadata_source: auto_generated
+generated_by: k8s_ciem_generator

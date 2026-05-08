@@ -11,10 +11,13 @@ total_findings, recent_scans from orchestration, and scan_stats KPIs.
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
-from ._shared import fetch_many, safe_get
+from ._auth import resolve_tenant_id
+from ._shared import fetch_many, safe_get, BFFMeta
+from .schemas.scans import ScansResponse
 from ._transforms import _safe_upper
+from ._page_context import scans_page_context
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
@@ -61,24 +64,32 @@ def _cron_to_frequency(cron):
     return cron
 
 
-@router.get("/scans")
+@router.get("/scans", response_model=ScansResponse, response_model_exclude_none=False)
 async def view_scans(
-    tenant_id: str = Query(...),
+    request: Request,
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=200),
 ):
     """Scan history, scheduled scans, and coverage -- built from onboarding/ui-data."""
 
+    tenant_id = resolve_tenant_id(request)
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+    meta = BFFMeta("scans")
+
     results = await fetch_many([
         ("onboarding", "/api/v1/cloud-accounts", {"tenant_id": tenant_id}),
-    ])
+        ("onboarding", "/api/v1/scan-runs", {"tenant_id": tenant_id, "limit": str(limit)}),
+    ], auth_headers=fwd_headers)
 
     onboarding_data = results[0]
+    scan_runs_resp = results[1]
+    meta.record_engine("onboarding", "/api/v1/cloud-accounts", onboarding_data)
+    meta.record_engine("onboarding", "/api/v1/scan-runs", scan_runs_resp)
 
     raw_accounts = safe_get(onboarding_data, "accounts", []) if isinstance(onboarding_data, dict) else []
     scan_stats = safe_get(onboarding_data, "scan_stats", {}) if isinstance(onboarding_data, dict) else {}
-    recent_scans = safe_get(onboarding_data, "recent_scans", []) if isinstance(onboarding_data, dict) else []
 
     # Apply scope filters
     if provider:
@@ -87,9 +98,59 @@ async def view_scans(
     if account:
         raw_accounts = [a for a in raw_accounts if a.get("account_id") == account or a.get("account_name") == account]
 
-    # Build scan history rows from cloud accounts
+    # ── Build scans from scan_runs (primary source) ──
+    orch_rows = (scan_runs_resp or {}).get("scan_runs", [])
     scans = []
-    for i, a in enumerate(raw_accounts):
+    for i, row in enumerate(orch_rows):
+        prov = _safe_upper(row.get("provider") or "aws")
+        acct_id = row.get("account_id", "")
+        started = row.get("started_at") or row.get("created_at")
+        completed = row.get("completed_at")
+        started_dt = _parse_iso(str(started)) if started else None
+        completed_dt = _parse_iso(str(completed)) if completed else None
+
+        dur_seconds = None
+        if started_dt and completed_dt:
+            dur_seconds = max(0, (completed_dt - started_dt).total_seconds())
+
+        status = (row.get("overall_status") or "completed").lower()
+        engines_req = row.get("engines_requested") or []
+        engines_done = row.get("engines_completed") or []
+        summary = row.get("results_summary") or {}
+        if isinstance(summary, str):
+            try:
+                import json as _j
+                summary = _j.loads(summary)
+            except Exception:
+                summary = {}
+
+        scans.append({
+            "id": i + 1,
+            "scan_id": row.get("scan_run_id", ""),
+            "scan_run_id": row.get("scan_run_id", ""),
+            "scan_name": f"{prov} - {acct_id}",
+            "scan_type": row.get("scan_type") or "Full",
+            "provider": prov,
+            "account_id": acct_id,
+            "account_name": acct_id,
+            "status": status,
+            "started_at": str(started) if started else None,
+            "completed_at": str(completed) if completed else None,
+            "duration": _duration_str(dur_seconds),
+            "duration_seconds": dur_seconds,
+            "resources_scanned": summary.get("total_resources", 0) or 0,
+            "total_findings": summary.get("total_findings", 0) or 0,
+            "critical_findings": summary.get("critical_findings", 0) or 0,
+            "high_findings": summary.get("high_findings", 0) or 0,
+            "trigger_type": row.get("trigger_type") or "manual",
+            "triggered_by": row.get("trigger_type") or "manual",
+            "engines_requested": engines_req if isinstance(engines_req, list) else [],
+            "engines_completed": engines_done if isinstance(engines_done, list) else [],
+        })
+
+    # Fallback: build from cloud_accounts if no orchestration data
+    if not scans:
+      for i, a in enumerate(raw_accounts):
         acct_id = a.get("account_id", "")
         acct_name = a.get("account_name") or acct_id
         prov = _safe_upper(a.get("provider") or a.get("csp"))
@@ -151,14 +212,31 @@ async def view_scans(
         })
 
     # Distribute findings severity across scans using account-level total_findings
-    # Use aggregate totals from scan_stats for overall severity distribution
+    # Prefer actual severity counts from results_summary; fall back to estimates
     total_findings_all = sum(s["total_findings"] for s in scans) or 0
     if total_findings_all > 0 and scans:
-        for s in scans:
-            weight = s["total_findings"] / total_findings_all if total_findings_all > 0 else 1 / len(scans)
-            # Estimate severity split (conservative: ~10% critical, ~20% high)
-            s["critical_findings"] = round(s["total_findings"] * 0.10)
-            s["high_findings"] = round(s["total_findings"] * 0.20)
+        for idx, s in enumerate(scans):
+            # Try to read actual severity counts from the orchestration row's results_summary
+            row_summary = {}
+            if idx < len(orch_rows):
+                row_summary = orch_rows[idx].get("results_summary") or {}
+                if isinstance(row_summary, str):
+                    try:
+                        import json as _j2
+                        row_summary = _j2.loads(row_summary)
+                    except Exception:
+                        row_summary = {}
+
+            summary_critical = row_summary.get("critical_findings") or row_summary.get("critical")
+            summary_high = row_summary.get("high_findings") or row_summary.get("high")
+
+            if summary_critical is not None or summary_high is not None:
+                s["critical_findings"] = int(summary_critical or 0)
+                s["high_findings"] = int(summary_high or 0)
+            else:
+                # Estimate severity split (conservative: ~10% critical, ~20% high)
+                s["critical_findings"] = round(s["total_findings"] * 0.10)
+                s["high_findings"] = round(s["total_findings"] * 0.20)
 
     # Build scheduled scans from embedded schedule data
     scheduled = []
@@ -200,7 +278,8 @@ async def view_scans(
         success_count = a.get("schedule_success_count", 0) or 0
         failure_count = a.get("schedule_failure_count", 0) or 0
         cb["total"] += max(run_count, 1)
-        cb["completed"] += success_count or (1 if (a.get("last_scan_status") or "").lower() in ("completed", "active", "validated") else 0)
+        scan_status = (a.get("last_scan_status") or a.get("account_status") or a.get("account_onboarding_status") or "").lower()
+        cb["completed"] += success_count or (1 if scan_status in ("completed", "active", "validated") else 0)
         cb["failed"] += failure_count
         cb["resources"] += a.get("total_resources", 0) or 0
         cb["findings"] += a.get("total_findings", 0) or 0
@@ -221,20 +300,67 @@ async def view_scans(
     total_success = sum(cb["completed"] for cb in coverage_by_provider.values()) or completed_count
     success_rate = round((total_success / total_runs * 100), 1) if total_runs > 0 else 0
 
+    page_ctx = scans_page_context()
+    page_ctx["tabs"] = [
+        {"id": "history", "label": "Scan History", "count": len(scans)},
+        {"id": "scheduled", "label": "Scheduled", "count": len(scheduled)},
+        {"id": "coverage", "label": "Coverage", "count": len(coverage_by_provider)},
+    ]
+
+    # Ensure scans have overall_status and engine_statuses fields
+    for s in scans:
+        s.setdefault("overall_status", s.get("status", "completed"))
+        s.setdefault("engine_statuses", {})
+        s.setdefault("account_name",   s.get("account_id", ""))
+
+    # Build accounts list for RunNow modal
+    accounts_list = [
+        {
+            "accountId":  a.get("account_id", ""),
+            "account_id": a.get("account_id", ""),
+            "accountName": a.get("account_name") or a.get("account_id", ""),
+            "account_name": a.get("account_name") or a.get("account_id", ""),
+            "provider": _safe_upper(a.get("provider") or a.get("csp") or ""),
+        }
+        for a in raw_accounts
+    ]
+
+    stats = {
+        "total":     scan_stats.get("total_scans") or total_scans,
+        "completed": completed_count,
+        "running":   running_count,
+        "failed":    failed_count,
+    }
+
     return {
-        "kpi": {
-            "totalScans": scan_stats.get("total_scans") or total_scans,
-            "completed": completed_count,
-            "failed": failed_count,
-            "running": running_count,
-            "totalResources": total_resources,
-            "totalFindings": total_findings_sum,
-            "criticalFindings": critical_total,
-            "avgDurationSeconds": avg_duration,
-            "successRate": success_rate,
-        },
-        "scans": scans[:limit],
-        "scheduled": scheduled,
+        "pageContext": page_ctx,
+        "kpiGroups": [
+            {
+                "title": "Scan Status",
+                "items": [
+                    {"label": "Total Scans", "value": stats["total"]},
+                    {"label": "Completed", "value": completed_count},
+                    {"label": "Running", "value": running_count},
+                    {"label": "Failed", "value": failed_count},
+                ],
+            },
+            {
+                "title": "Scan Metrics",
+                "items": [
+                    {"label": "Resources Scanned", "value": total_resources},
+                    {"label": "Total Findings", "value": total_findings_sum},
+                    {"label": "Success Rate", "value": success_rate, "suffix": "%"},
+                    {"label": "Avg Duration", "value": _duration_str(avg_duration)},
+                ],
+            },
+        ],
+        "scans":             scans[:limit],
+        "runs":              scans[:limit],
+        "scheduled":         scheduled,
+        "schedules":         scheduled,
+        "accounts":          accounts_list,
         "coverageByProvider": coverage_by_provider,
-        "total": scan_stats.get("total_scans") or total_scans,
+        "stats":             stats,
+        "total":             stats["total"],
+        "_meta":             meta.to_dict(),
     }

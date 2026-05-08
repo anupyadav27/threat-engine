@@ -1,0 +1,77 @@
+rule_id: azure.compute.activity_log.vm_reimage
+service: compute
+provider: azure
+check_type: log
+severity: high
+title: 'Compute: Vm Reimage'
+description: Virtual machine reimaged — OS disk replaced, may destroy forensic evidence.
+rationale: 'Adversaries destroy data and files on cloud storage or databases at scale to interrupt availability, render services inoperable, or destroy evidence. Cloud data destruction is often irreversible without backups. Detected via: bulk S3 object deletion via elevated IAM credentials, EC2/EBS/snapshot mass deletion events, storage account deletion with soft-delete disabled, and database cluster deletion without final snapshot.'
+threat_category: impact
+mitre_tactics:
+- impact
+mitre_techniques:
+- T1485
+risk_score: 70
+resource: azure_vm
+source: default
+is_active: true
+domain: compute_and_workload_security
+action_category: modify
+log_source_type: activity_log
+posture_category: workload_posture
+threat_tags:
+- T1485
+- impact
+- availability
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: compute_instance
+  blast_radius: resource_group
+  stealth_risk: low
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 2.6
+  - 3.1
+  cis_azure_v2:
+  - 7.5
+  - 5.1
+  nist_800_53_r5:
+  - CP-9
+  - CP-10
+  - SI-12
+  - IR-4
+  pci_dss_v4:
+  - 12.3
+  - 3.4
+  iso_27001_2022:
+  - A.5.29
+  - A.8.13
+detection_events:
+- 's3:DeleteObject (bulk)'
+- 's3:DeleteBucket'
+- 'ec2:TerminateInstances (mass)'
+- Microsoft.Storage/storageAccounts/delete
+- 'rds:DeleteDBCluster without SkipFinalSnapshot=false'
+remediation: |
+  1. Immediately quarantine the actor's credentials and halt further destructive operations.
+  2. Initiate incident response and activate backup/recovery procedures.
+  3. Enable S3 Object Lock / Azure Blob immutable storage to protect backups.
+  4. Require MFA for bucket/storage account deletion operations.
+references:
+- https://attack.mitre.org/techniques/T1485/
+- https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html
+- https://learn.microsoft.com/en-us/azure/storage/blobs/immutable-storage-overview
+check_config:
+  conditions:
+    all:
+    - field: operation
+      op: equals
+      value: Microsoft.Compute/virtualMachines/reimage/action
+  log_source_type: activity_log
+version: '1.0'

@@ -1,0 +1,102 @@
+version: '1.0'
+provider: k8s
+service: ingress
+checks:
+- rule_id: k8s.ingress.certificate.expiration_check
+  for_each: k8s.ingress.list_ingresses
+  severity: LOW
+  conditions:
+    var: item.spec.tls[].secretName
+    op: exists
+    value: null
+- rule_id: k8s.ingress.controller.ssl_protocols_check
+  for_each: k8s.ingress.list_ingresses
+  severity: HIGH
+  conditions:
+    var: item.spec.tls[].spec.ssl_protocols
+    op: contains
+    value: TLSv1.2
+- rule_id: k8s.ingress.controller.tls_enforced
+  for_each: k8s.ingress.list_ingresses
+  severity: HIGH
+  conditions:
+    var: item.spec.tls[]
+    op: exists
+    value: null
+- rule_id: k8s.ingress.controller.waf_enabled
+  for_each: k8s.ingress.list_ingresses
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations.nginx\.ingress\.kubernetes\.io/waf-policy
+    op: exists
+    value: null
+- rule_id: k8s.ingress.dos.protection_enabled
+  for_each: k8s.ingress.list_ingresses
+  severity: LOW
+  conditions:
+    var: item.annotations['nginx.ingress.kubernetes.io/limit-connections']
+    op: exists
+    value: null
+- rule_id: k8s.ingress.ingress.certificate_expiration_configured
+  for_each: k8s.ingress.list
+  severity: HIGH
+  conditions:
+    var: item.spec.tls[].secretName
+    op: not_empty
+    value: null
+- rule_id: k8s.ingress.ingress.dos_protection_enabled
+  for_each: k8s.ingress.list_ingresses
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations['nginx.ingress.kubernetes.io/limit-connections']
+    op: exists
+    value: null
+- rule_id: k8s.ingress.ingress.tls_enforced
+  for_each: k8s.ingress.list_ingresses
+  severity: HIGH
+  conditions:
+    var: item.spec.tls
+    op: exists
+    value: null
+- rule_id: k8s.ingress.no.public_access
+  for_each: k8s.ingress.list_ingresses
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.spec.rules[].host
+      op: exists
+      value: null
+    - var: item.spec.rules[].http.paths[].backend.service.port.number
+      op: exists
+      value: null
+    - var: item.spec.rules[].http.paths[].backend.service.port.number
+      op: not_equals
+      value: 80
+    - var: item.spec.rules[].http.paths[].backend.service.port.number
+      op: not_equals
+      value: 443
+- rule_id: k8s.ingress.tls.certificate_expiration_check
+  for_each: k8s.ingress.list_ingresses
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.spec.tls[].secretName
+      op: exists
+      value: null
+    - var: item.metadata.annotations.cert-manager\.io/issuer
+      op: exists
+      value: null
+- rule_id: k8s.ingress.tls.enabled
+  for_each: k8s.ingress.list_ingresses
+  severity: LOW
+  conditions:
+    var: item.spec.tls
+    op: exists
+    value: null
+- rule_id: k8s.ingress.tls.enforced
+  for_each: k8s.ingress.list_ingresses
+  severity: LOW
+  conditions:
+    var: item.spec.tls
+    op: exists
+    value: null

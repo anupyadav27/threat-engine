@@ -1,0 +1,1286 @@
+version: '1.0'
+provider: azure
+service: purview
+checks:
+- rule_id: azure.purview.audit_log.logs_centralized_and_encrypted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.eventHubNamespaceResourceId
+      op: exists
+      value: null
+    - var: item.properties.eventHubNamespaceResourceId
+      op: not_equals
+      value: ''
+- rule_id: azure.purview.audit_log.retention_days_minimum
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.publicNetworkAccess
+      op: equals
+      value: Enabled
+    - var: item.properties.auditLogRetentionDays
+      op: gte
+      value: '90'
+- rule_id: azure.purview.breach_detection.alert_destinations
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.managedResources.eventHubNamespace
+      op: exists
+      value: null
+    - var: item.properties.managedResources.storageAccount
+      op: exists
+      value: null
+- rule_id: azure.purview.breach_detection.integrations_authenticated
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: gt
+    value: 0
+- rule_id: azure.purview.catalog.data_catalog_audit_logging_enabled
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.catalog
+    op: exists
+    value: null
+- rule_id: azure.purview.catalog.data_catalog_cross_account_sharing_restricted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.publicNetworkAccess
+    op: equals
+    value: Disabled
+- rule_id: azure.purview.catalog.data_catalog_metadata_encryption_enabled
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.catalog.encryption.keyVaultProperties
+    op: exists
+    value: null
+- rule_id: azure.purview.catalog.data_catalog_rbac_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.catalog
+      op: exists
+      value: null
+    - var: item.properties.catalog.roleAssignments[].roleDefinitionId
+      op: not_contains
+      value: owner
+    - var: item.properties.catalog.roleAssignments[].roleDefinitionId
+      op: not_contains
+      value: contributor
+- rule_id: azure.purview.catalog.data_governance_change_audit_logging_enabled
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: gte
+    value: 1
+- rule_id: azure.purview.catalog.data_governance_cross_account_sharing_review_required
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.catalog
+      op: exists
+      value: null
+    - var: item.properties.catalog.dataGovernanceCrossAccountSharingReviewRequired
+      op: is_true
+      value: null
+- rule_id: azure.purview.catalog.data_governance_update_rbac_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.dataGovernanceUpdateRbacLeastPrivilegeEnabled
+      op: is_true
+      value: null
+- rule_id: azure.purview.catalog.lineage_audit_logging_enabled
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.catalog.lineageSettings.enableLineageLogging
+      op: exists
+      value: null
+    - var: item.properties.catalog.lineageSettings.enableLineageLogging
+      op: is_true
+      value: null
+- rule_id: azure.purview.catalog.lineage_cross_account_sharing_restricted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.catalog.lineageSettings.lineageAccessControlMode
+    op: equals
+    value: Restricted
+- rule_id: azure.purview.catalog.lineage_rbac_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.catalog.lineageRoleAssignments[].role
+      op: not_in
+      value:
+      - Purview Data Curator
+      - Purview Data Source Administrator
+    - var: item.properties.catalog.lineageRoleAssignments[].role
+      op: in
+      value:
+      - Purview Data Reader
+- rule_id: azure.purview.catalog.lineage_store_encrypted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.catalog.lineageStoreEncrypted
+    op: is_true
+    value: null
+- rule_id: azure.purview.classification.data_governance_auto_classification_enabled_where_supported
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.features.cloudConnectors.enabled
+    op: is_true
+    value: null
+- rule_id: azure.purview.classification.data_governance_policy_blocks_public_for_sensitive
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: gte
+    value: 1
+- rule_id: azure.purview.classification.data_governance_required_sensitivity_tags_present
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: gt
+    value: 0
+- rule_id: azure.purview.classifier.data_catalog_definition_version_pinned
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: gte
+    value: 1
+- rule_id: azure.purview.classifier.data_catalog_rbac_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: lte
+    value: 2
+- rule_id: azure.purview.classifier.data_catalog_source_trusted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: gte
+    value: 1
+- rule_id: azure.purview.classifier.lineage_definition_version_pinned
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: gte
+    value: 1
+- rule_id: azure.purview.classifier.lineage_rbac_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: gte
+    value: 1
+- rule_id: azure.purview.classifier.lineage_source_trusted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.lineageSourceTrusted
+    op: is_true
+    value: null
+- rule_id: azure.purview.compliance.data_governance_access_rbac_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.publicNetworkAccess
+      op: equals
+      value: Disabled
+    - var: item.identity.type
+      op: equals
+      value: SystemAssigned
+- rule_id: azure.purview.compliance.data_governance_export_destinations_private
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.publicNetworkAccess
+      op: equals
+      value: Disabled
+    - var: item.properties.managedResources.publicNetworkAccess
+      op: equals
+      value: Disabled
+- rule_id: azure.purview.compliance.data_governance_reports_storage_encrypted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.storageAccount.encryption.keySource
+    op: exists
+    value: null
+- rule_id: azure.purview.connection.data_catalog_credentials_in_secrets_manager
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.catalog
+      op: exists
+      value: null
+    - var: item.properties.catalog.credentials
+      op: exists
+      value: null
+    - var: item.properties.catalog.credentials.managedIdentity
+      op: exists
+      value: null
+    - var: item.properties.catalog.credentials.managedIdentity.type
+      op: equals
+      value: SystemAssigned
+- rule_id: azure.purview.connection.data_catalog_private_networking_enforced
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.publicNetworkAccess
+      op: equals
+      value: Disabled
+- rule_id: azure.purview.connection.data_catalog_role_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: lte
+    value: 2
+- rule_id: azure.purview.connection.data_catalog_tls_required
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.publicNetworkAccess
+    op: equals
+    value: Disabled
+- rule_id: azure.purview.connection.lineage_credentials_in_secrets_manager
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: gte
+    value: 1
+- rule_id: azure.purview.connection.lineage_private_networking_enforced
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.publicNetworkAccess
+      op: equals
+      value: Disabled
+    - var: item.properties.managedResources.publicNetworkAccess
+      op: equals
+      value: Disabled
+- rule_id: azure.purview.connection.lineage_role_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: gte
+    value: 1
+- rule_id: azure.purview.connection.lineage_tls_required
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.publicNetworkAccess
+      op: equals
+      value: Disabled
+    - var: item.minimum_tls_version
+      op: in
+      value:
+      - '1.2'
+      - '1.3'
+- rule_id: azure.purview.data_masking.execution_roles_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: equals
+    value: 2
+- rule_id: azure.purview.data_masking.policies_present_for_sensitive_fields
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.dataMaskingPolicies
+    op: not_empty
+    value: null
+- rule_id: azure.purview.data_policy.execution_roles_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.accountStatus
+      op: exists
+      value: null
+    - var: item.properties.accountStatus.state
+      op: equals
+      value: Succeeded
+- rule_id: azure.purview.data_policy.workflow_storage_encrypted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryption.byok
+    op: exists
+    value: null
+- rule_id: azure.purview.data_quality.data_catalog_logs_enabled
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: gte
+    value: 1
+- rule_id: azure.purview.data_quality.data_catalog_output_location_private_and_encrypted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.catalog
+      op: exists
+      value: null
+    - var: item.properties.catalog.encryption
+      op: exists
+      value: null
+    - var: item.properties.catalog.encryption.keyVaultProperties
+      op: exists
+      value: null
+    - var: item.properties.catalog.privateEndpointConnections
+      op: not_empty
+      value: null
+- rule_id: azure.purview.data_quality.data_catalog_role_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.catalog
+      op: exists
+      value: null
+    - var: item.properties.catalog.roleAssignments[].roleDefinitionId
+      op: not_contains
+      value: owner
+    - var: item.properties.catalog.roleAssignments[].roleDefinitionId
+      op: not_contains
+      value: contributor
+- rule_id: azure.purview.data_quality.data_governance_quality_jobs_role_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.dataGovernanceQualityJobsRole
+      op: exists
+      value: null
+    - var: item.properties.dataGovernanceQualityJobsRole
+      op: equals
+      value: LeastPrivilege
+- rule_id: azure.purview.data_quality.data_governance_quality_logs_enabled
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.dataGovernanceQualityLogsEnabled
+    op: is_true
+    value: null
+- rule_id: azure.purview.data_quality.data_governance_quality_outputs_encrypted_and_private
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.publicNetworkAccess
+      op: equals
+      value: Disabled
+    - var: item.properties.managedResources.storageAccount
+      op: exists
+      value: null
+- rule_id: azure.purview.data_quality.lineage_logs_enabled
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.features.cloudConnectors.lineageLogsEnabled
+    op: is_true
+    value: null
+- rule_id: azure.purview.data_quality.lineage_output_location_private_and_encrypted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.publicNetworkAccess
+      op: equals
+      value: Disabled
+    - var: item.properties.managedResources.storageAccount
+      op: exists
+      value: null
+- rule_id: azure.purview.data_quality.lineage_role_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.lineageRole
+      op: exists
+      value: null
+    - var: item.properties.lineageRole
+      op: equals
+      value: LeastPrivilege
+- rule_id: azure.purview.data_quality_rule.data_quality_recommendation_access_rbac_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.publicNetworkAccess
+      op: equals
+      value: Disabled
+    - var: item.identity.type
+      op: equals
+      value: SystemAssigned
+- rule_id: azure.purview.data_quality_rule.data_quality_recommendation_outputs_encrypted_and_private
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.publicNetworkAccess
+      op: equals
+      value: Disabled
+    - var: item.properties.managedResources.storageAccount
+      op: exists
+      value: null
+- rule_id: azure.purview.data_quality_rule.data_quality_recommendation_run_execution_role_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: gte
+    value: 1
+- rule_id: azure.purview.data_quality_rule.data_quality_recommendation_run_logs_enabled
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.dataQualityRecommendationRunLogsEnabled
+    op: is_true
+    value: null
+- rule_id: azure.purview.data_quality_rule.data_quality_recommendation_run_metadata_logging_enabled
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: gte
+    value: 1
+- rule_id: azure.purview.data_quality_rule.data_quality_recommendation_run_output_encrypted_private
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.managedResources.storageAccount
+      op: exists
+      value: null
+    - var: item.properties.managedResources.eventHubNamespace
+      op: exists
+      value: null
+- rule_id: azure.purview.data_quality_rule.definition_version_pinned
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: gte
+    value: 1
+- rule_id: azure.purview.data_quality_rule.parameters_no_plaintext_secrets
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.managedResources.storageAccount
+      op: exists
+      value: null
+    - var: item.properties.managedResources.eventHubNamespace
+      op: exists
+      value: null
+- rule_id: azure.purview.data_quality_rule.source_trusted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: gte
+    value: 1
+- rule_id: azure.purview.data_quality_ruleset.encrypted_at_rest
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryptionAtRest
+    op: exists
+    value: null
+- rule_id: azure.purview.data_quality_ruleset.rbac_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.publicNetworkAccess
+      op: equals
+      value: Disabled
+    - var: item.identity.type
+      op: equals
+      value: SystemAssigned
+- rule_id: azure.purview.data_quality_ruleset.version_immutable
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: gte
+    value: 1
+- rule_id: azure.purview.database.data_catalog_cross_account_sharing_restricted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.publicNetworkAccess
+    op: equals
+    value: Disabled
+- rule_id: azure.purview.database.data_catalog_encrypted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryption
+    op: exists
+    value: null
+- rule_id: azure.purview.database.data_catalog_policy_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.publicNetworkAccess
+      op: equals
+      value: Disabled
+    - var: item.identity.type
+      op: equals
+      value: SystemAssigned
+- rule_id: azure.purview.database.lineage_cross_account_sharing_restricted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.features.cloudConnectors.lineageCrossAccountSharing
+    op: is_false
+    value: null
+- rule_id: azure.purview.database.lineage_encrypted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.lineageConfiguration.lineageEncrypted
+    op: is_true
+    value: null
+- rule_id: azure.purview.database.lineage_policy_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.lineagePolicy
+    op: exists
+    value: null
+- rule_id: azure.purview.governance.data_policy_admin_change_audit_logging_enabled
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.policy.dataPolicyAdminChangeAuditLoggingEnabled
+    op: is_true
+    value: null
+- rule_id: azure.purview.governance.data_policy_admin_mfa_required
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.dataPolicyAdminMfaRequired
+    op: is_true
+    value: null
+- rule_id: azure.purview.governance.data_policy_admin_rbac_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.accountStatus.admin
+      op: exists
+      value: null
+    - var: item.properties.accountStatus.admin[].role
+      op: in
+      value:
+      - Data Policy Admin
+- rule_id: azure.purview.job.data_catalog_logs_and_metrics_enabled
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.monitoringSettings.dataCatalogLogs.enabled
+      op: is_true
+      value: null
+    - var: item.properties.monitoringSettings.dataCatalogMetrics.enabled
+      op: is_true
+      value: null
+- rule_id: azure.purview.job.data_catalog_network_private_only
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.publicNetworkAccess
+    op: equals
+    value: Disabled
+- rule_id: azure.purview.job.data_catalog_role_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.catalog
+      op: exists
+      value: null
+    - var: item.properties.catalog.collections
+      op: exists
+      value: null
+    - var: item.properties.catalog.collections[].roleAssignments[].role
+      op: not_in
+      value:
+      - Data Source Admin
+      - Data Curator
+      - Data Reader
+      - Data Share Contributor
+      - Workflow Admin
+- rule_id: azure.purview.job.data_catalog_script_location_private_and_encrypted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.catalog
+      op: exists
+      value: null
+    - var: item.properties.catalog.encryption
+      op: exists
+      value: null
+    - var: item.properties.catalog.encryption.keyVaultProperties
+      op: exists
+      value: null
+    - var: item.properties.catalog.privateEndpointConnections
+      op: not_empty
+      value: null
+- rule_id: azure.purview.job.lineage_logs_and_metrics_enabled
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.metricsPublicNetworkAccess
+      op: equals
+      value: Enabled
+    - var: item.properties.lineagePublicNetworkAccess
+      op: equals
+      value: Enabled
+- rule_id: azure.purview.job.lineage_network_private_only
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.publicNetworkAccess
+      op: equals
+      value: Disabled
+    - var: item.properties.managedResources.publicNetworkAccess
+      op: equals
+      value: Disabled
+- rule_id: azure.purview.job.lineage_role_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.accountStatus
+      op: exists
+      value: null
+    - var: item.properties.accountStatus.state
+      op: equals
+      value: Succeeded
+- rule_id: azure.purview.job.lineage_script_location_private_and_encrypted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.managedResources.storageAccount
+      op: exists
+      value: null
+    - var: item.properties.managedResources.eventHubNamespace
+      op: exists
+      value: null
+- rule_id: azure.purview.lifecycle.data_governance_expiration_rules_defined
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: gt
+    value: 0
+- rule_id: azure.purview.lifecycle.data_governance_immutable_retention_locked_where_required
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.features.cloudConnectors.enabled
+      op: is_true
+      value: null
+    - var: item.properties.features.dataGovernance.immutableRetentionLocked
+      op: is_true
+      value: null
+- rule_id: azure.purview.lifecycle.data_governance_versioning_enabled_where_supported
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.features.cloudConnectors.enabled
+      op: is_true
+      value: null
+    - var: item.properties.features.cloudConnectors.versioningEnabled
+      op: is_true
+      value: null
+- rule_id: azure.purview.lineage.data_governance_access_rbac_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.publicNetworkAccess
+      op: equals
+      value: Disabled
+    - var: item.identity.type
+      op: equals
+      value: SystemAssigned
+- rule_id: azure.purview.lineage.data_governance_capture_enabled
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.lineage
+    op: exists
+    value: null
+- rule_id: azure.purview.lineage.data_governance_export_destination_encrypted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.lineageConfiguration.exportDestination.encryption
+    op: exists
+    value: null
+- rule_id: azure.purview.ml_transform.data_catalog_logs_enabled
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.catalog
+    op: exists
+    value: null
+- rule_id: azure.purview.ml_transform.data_catalog_network_private_only
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.publicNetworkAccess
+      op: equals
+      value: Disabled
+    - var: item.properties.managedResources.publicNetworkAccess
+      op: equals
+      value: Disabled
+- rule_id: azure.purview.ml_transform.data_catalog_role_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.catalog
+      op: exists
+      value: null
+    - var: item.properties.catalog.collections
+      op: exists
+      value: null
+    - var: item.properties.catalog.collections[].roles
+      op: not_contains
+      value: Data Source Admin
+    - var: item.properties.catalog.collections[].roles
+      op: not_contains
+      value: Data Curator
+- rule_id: azure.purview.ml_transform.lineage_logs_enabled
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.features.cloudConnectors.enabled
+      op: is_true
+      value: null
+    - var: item.properties.features.lineage.enabled
+      op: is_true
+      value: null
+- rule_id: azure.purview.ml_transform.lineage_network_private_only
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.publicNetworkAccess
+    op: equals
+    value: Disabled
+- rule_id: azure.purview.ml_transform.lineage_role_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.lineageRoleAssignment
+      op: exists
+      value: null
+    - var: item.properties.lineageRoleAssignment.role
+      op: equals
+      value: Reader
+- rule_id: azure.purview.partition.data_catalog_access_policies_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.publicNetworkAccess
+      op: equals
+      value: Disabled
+    - var: item.properties.managedResources.publicNetworkAccess
+      op: equals
+      value: Disabled
+- rule_id: azure.purview.partition.data_catalog_catalog_encrypted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.catalog.encryption
+    op: exists
+    value: null
+- rule_id: azure.purview.partition.lineage_access_policies_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.publicNetworkAccess
+      op: equals
+      value: Disabled
+    - var: item.properties.managedResources.publicNetworkAccess
+      op: equals
+      value: Disabled
+- rule_id: azure.purview.partition.lineage_catalog_encrypted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.catalog.encryption.lineageEncryption
+    op: exists
+    value: null
+- rule_id: azure.purview.registry.data_catalog_cross_account_sharing_restricted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: lte
+    value: 1
+- rule_id: azure.purview.registry.data_catalog_metadata_encryption_enabled
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.managedResources.storageAccount
+    op: exists
+    value: null
+- rule_id: azure.purview.registry.data_catalog_rbac_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: lte
+    value: 2
+- rule_id: azure.purview.registry.lineage_cross_account_sharing_restricted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.publicNetworkAccess
+    op: equals
+    value: Disabled
+- rule_id: azure.purview.registry.lineage_metadata_encryption_enabled
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.features.lineageEncryptionEnabled
+    op: is_true
+    value: null
+- rule_id: azure.purview.registry.lineage_rbac_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.lineageRoleAssignmentEnabled
+      op: exists
+      value: null
+    - var: item.properties.lineageRoleAssignmentEnabled
+      op: is_true
+      value: null
+- rule_id: azure.purview.retention_policy.data_governance_retention_enforced_on_sensitive_datasets
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.dataGovernanceRetentionPolicy.enforcedOnSensitiveDatasets
+      op: is_true
+      value: null
+- rule_id: azure.purview.retention_policy.data_governance_retention_policies_defined
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: gt
+    value: 0
+- rule_id: azure.purview.retention_policy.data_governance_retention_protected_from_public_override
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.features.dataGovernanceRetention.protectedFromPublicOverride
+      op: is_true
+      value: null
+- rule_id: azure.purview.rule.lineage_definition_version_pinned
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.lineageDefinitionVersion
+    op: exists
+    value: null
+- rule_id: azure.purview.rule.lineage_rbac_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.lineageRoleAssignmentEnabled
+      op: exists
+      value: null
+    - var: item.properties.lineageRoleAssignmentEnabled
+      op: is_false
+      value: null
+- rule_id: azure.purview.rule.lineage_source_trusted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: gte
+    value: 1
+- rule_id: azure.purview.ruleset.data_catalog_encrypted_at_rest
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryption.encryptionAtRest
+    op: exists
+    value: null
+- rule_id: azure.purview.ruleset.data_catalog_rbac_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.catalog
+      op: exists
+      value: null
+    - var: item.properties.catalog.collections
+      op: exists
+      value: null
+    - var: item.properties.catalog.collections[].permissions
+      op: not_contains
+      value: DataCurator
+- rule_id: azure.purview.ruleset.data_catalog_version_pinned
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: gte
+    value: 1
+- rule_id: azure.purview.ruleset.lineage_encrypted_at_rest
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryption.encryptionAtRest
+    op: exists
+    value: null
+- rule_id: azure.purview.ruleset.lineage_rbac_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.lineageRoleAssignmentEnabled
+      op: exists
+      value: null
+    - var: item.properties.lineageRoleAssignmentEnabled
+      op: is_false
+      value: null
+- rule_id: azure.purview.ruleset.lineage_version_pinned
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.purviewAccountSku.capacity
+    op: exists
+    value: null
+- rule_id: azure.purview.scan.data_catalog_crawler_logs_enabled
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.catalog
+      op: exists
+      value: null
+    - var: item.properties.catalog.scan
+      op: exists
+      value: null
+    - var: item.properties.catalog.scan.dataCatalogCrawlerLogsEnabled
+      op: is_true
+      value: null
+- rule_id: azure.purview.scan.data_catalog_crawler_network_private_only
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.publicNetworkAccess
+    op: equals
+    value: Disabled
+- rule_id: azure.purview.scan.data_catalog_crawler_role_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: gte
+    value: 1
+- rule_id: azure.purview.scan.data_catalog_crawler_scope_restricted_to_allowlist
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: equals
+    value: 2
+- rule_id: azure.purview.scan.lineage_crawler_logs_enabled
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.features.lineageCrawlerLogsEnabled
+    op: is_true
+    value: null
+- rule_id: azure.purview.scan.lineage_crawler_network_private_only
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.managedResources.publicNetworkAccess
+    op: equals
+    value: Disabled
+- rule_id: azure.purview.scan.lineage_crawler_role_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.scan.lineageCrawlerRoleAssignment
+      op: exists
+      value: null
+    - var: item.properties.scan.lineageCrawlerRoleAssignment.roleDefinitionId
+      op: equals
+      value: /providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c
+- rule_id: azure.purview.scan.lineage_crawler_scope_restricted_to_allowlist
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: equals
+    value: 2
+- rule_id: azure.purview.schema.data_catalog_encrypted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.catalog.encryption.keyVaultProperties.keyName
+    op: exists
+    value: null
+- rule_id: azure.purview.schema.data_catalog_rbac_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: lte
+    value: 2
+- rule_id: azure.purview.schema.data_catalog_version_immutability_enforced
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.catalog.versioning
+      op: exists
+      value: null
+    - var: item.properties.catalog.versioning.immutabilityEnabled
+      op: is_true
+      value: null
+- rule_id: azure.purview.schema.lineage_encrypted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.lineageConfiguration.lineageEncryption
+      op: exists
+      value: null
+    - var: item.properties.lineageConfiguration.lineageEncryption.enabled
+      op: is_true
+      value: null
+- rule_id: azure.purview.schema.lineage_rbac_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.lineageRole
+      op: exists
+      value: null
+    - var: item.properties.lineageRole
+      op: equals
+      value: Reader
+- rule_id: azure.purview.schema.lineage_version_immutability_enforced
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.features.cloudConnectors.version
+      op: exists
+      value: null
+    - var: item.properties.features.lineageVersionImmutability.enabled
+      op: is_true
+      value: null
+- rule_id: azure.purview.table.data_catalog_access_policies_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: lte
+    value: 2
+- rule_id: azure.purview.table.data_catalog_encrypted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryption.keyVaultProperties
+    op: exists
+    value: null
+- rule_id: azure.purview.table.data_catalog_public_sharing_disabled
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.publicNetworkAccess
+    op: equals
+    value: Disabled
+- rule_id: azure.purview.table.lineage_access_policies_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.lineageAccessPolicies[].accessPolicyId
+      op: exists
+      value: null
+    - var: item.properties.lineageAccessPolicies[].permissions[]
+      op: not_contains
+      value: '*'
+- rule_id: azure.purview.table.lineage_encrypted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.lineageConfiguration.lineageEncrypted
+    op: is_true
+    value: null
+- rule_id: azure.purview.table.lineage_public_sharing_disabled
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.publicNetworkAccess
+    op: not_equals
+    value: Enabled
+- rule_id: azure.purview.trigger.data_catalog_event_sources_restricted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.eventHubNamespaceResourceId
+    op: exists
+    value: null
+- rule_id: azure.purview.trigger.data_catalog_logs_enabled
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.catalog
+      op: exists
+      value: null
+    - var: item.properties.catalog.logging
+      op: exists
+      value: null
+    - var: item.properties.catalog.logging.enabled
+      op: is_true
+      value: null
+- rule_id: azure.purview.trigger.data_catalog_targets_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: equals
+    value: 2
+- rule_id: azure.purview.trigger.lineage_event_sources_restricted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.eventHubNamespaceResourceId
+    op: exists
+    value: null
+- rule_id: azure.purview.trigger.lineage_logs_enabled
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.features.lineageLogsEnabled
+    op: is_true
+    value: null
+- rule_id: azure.purview.trigger.lineage_targets_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.lineageTargets
+      op: exists
+      value: null
+    - var: item.properties.lineageTargets[].permissions
+      op: not_contains
+      value: '*'
+- rule_id: azure.purview.workflow.data_catalog_cross_account_trusts_restricted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: lte
+    value: 1
+- rule_id: azure.purview.workflow.data_catalog_execution_role_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: gte
+    value: 1
+- rule_id: azure.purview.workflow.data_catalog_kms_encryption_enabled
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryption.kekIdentity
+    op: exists
+    value: null
+- rule_id: azure.purview.workflow.lineage_cross_account_trusts_restricted
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.count
+    op: lt
+    value: 3
+- rule_id: azure.purview.workflow.lineage_execution_role_least_privilege
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.workflowExecutionRole
+      op: exists
+      value: null
+    - var: item.properties.workflowExecutionRole
+      op: not_equals
+      value: Owner
+- rule_id: azure.purview.workflow.lineage_kms_encryption_enabled
+  for_each: azure.purview.accounts.list_by_subscription
+  severity: MEDIUM
+  conditions:
+    var: item.properties.managedResources.storageAccount
+    op: exists
+    value: null

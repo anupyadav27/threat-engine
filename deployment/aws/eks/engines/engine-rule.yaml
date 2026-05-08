@@ -20,7 +20,7 @@ spec:
       serviceAccountName: engine-sa
       containers:
       - name: engine-rule
-        image: yadavanup84/threat-engine-yaml-rule-builder:latest
+        image: yadavanup84/threat-engine-yaml-rule-builder:v-ui-data
         imagePullPolicy: Always
         ports:
         - containerPort: 8000
@@ -75,42 +75,6 @@ spec:
           initialDelaySeconds: 10
           periodSeconds: 10
           failureThreshold: 3
-
-      - name: s3-sync
-        image: amazon/aws-cli:latest
-        command: ["/bin/sh", "-c"]
-        args:
-          - |
-            while true; do
-              if [ -d "/output" ] && [ "$(ls -A /output 2>/dev/null)" ]; then
-                aws s3 sync /output "s3://${S3_BUCKET}/engine_output/${ENGINE_NAME}/" \
-                  --region ${AWS_REGION} --exclude "*.tmp" --exclude "*.lock" --delete 2>/dev/null
-              fi
-              sleep 30
-            done
-        env:
-        - name: S3_BUCKET
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-bucket
-        - name: AWS_REGION
-          valueFrom:
-            configMapKeyRef:
-              name: s3-mount-config
-              key: s3-region
-        - name: ENGINE_NAME
-          value: "rule"
-        volumeMounts:
-        - name: output
-          mountPath: /output
-        resources:
-          requests:
-            memory: "64Mi"
-            cpu: "25m"
-          limits:
-            memory: "128Mi"
-            cpu: "100m"
 
       volumes:
       - name: output

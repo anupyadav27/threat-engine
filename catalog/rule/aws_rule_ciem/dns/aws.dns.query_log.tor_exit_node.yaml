@@ -1,0 +1,68 @@
+rule_id: aws.dns.query_log.tor_exit_node
+service: dns
+provider: aws
+check_type: log
+severity: high
+title: 'Route53: Tor Exit Node'
+description: Tor exit node DNS query — connection via anonymizing network detected.
+rationale: Multi-hop proxies (Tor, cloud relays) make it difficult to trace the origin of attacks while maintaining C2 communications to compromised cloud workloads.
+threat_category: initial_access
+mitre_tactics:
+- initial_access
+mitre_techniques:
+- T1090.003
+risk_score: 78
+resource: route53_zone
+source: default
+is_active: true
+domain: threat_detection
+action_category: create
+log_source_type: 
+posture_category: threat_posture
+threat_tags:
+- T1090.003
+- T1090
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.14
+  - 2.1
+  cis_azure_v2:
+  - 1.2
+  - 2.1
+  nist_800_53_r5:
+  - AC-17
+  - IA-2
+  - SI-3
+  pci_dss_v4:
+  - 8.3
+  - 11.5
+  iso_27001_2022:
+  - A.8.5
+  - A.9.4
+remediation: |
+  1. Block Tor exit node IPs via security group deny rules.
+  2. Enable VPC endpoint policies to restrict outbound traffic destinations.
+  3. Use cloud-native threat intelligence feeds to block known proxy infrastructure.
+references:
+- https://attack.mitre.org/techniques/T1090/003/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: dns
+    - field: operation
+      op: contains
+      value: torproject
+version: '1.0'

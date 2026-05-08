@@ -8,7 +8,7 @@ import sys
 import os
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 import uuid
 import json
@@ -22,8 +22,16 @@ from engine_common.middleware import RequestLoggingMiddleware, CorrelationIDMidd
 from engine_common.storage_paths import get_project_root
 from engine_common.orchestration import get_orchestration_metadata
 from engine_common.job_creator import create_engine_job
+from engine_common.db_connections import get_compliance_conn
 
 logger = setup_logger(__name__, engine_name="engine-compliance")
+
+# ── Auth imports (engine_auth is COPY shared/auth/ ./engine_auth/ in Dockerfile) ──
+try:
+    from engine_auth.fastapi.middleware import AuthMiddleware as _AuthMiddleware
+    _AUTH_AVAILABLE = True
+except ImportError:
+    _AUTH_AVAILABLE = False
 
 # ── Scanner Job config ───────────────────────────────────────────────────────
 SCANNER_IMAGE = os.getenv("COMPLIANCE_SCANNER_IMAGE", "yadavanup84/threat-engine-compliance-engine:v-job")
@@ -86,6 +94,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# AuthMiddleware validates access_token / X-Auth-Context for every non-health path
+if _AUTH_AVAILABLE:
+    app.add_middleware(_AuthMiddleware)
+
 # In-memory storage for reports (use Redis/DB in production)
 reports = {}
 
@@ -100,16 +112,9 @@ trend_tracker = TrendTracker()
 report_storage = ReportStorage()
 
 
-# DEPRECATED: All engines now use the same scan_run_id. No per-engine scan ID
-# columns exist in scan_orchestration. This function simply returns scan_run_id.
-def get_check_scan_id_from_orchestration(scan_run_id: str) -> Optional[str]:
-    """Return scan_run_id directly — all engines share the same ID."""
-    return scan_run_id
-
-
 class GenerateReportRequest(BaseModel):
     """Request to generate compliance report."""
-    scan_id: Optional[str] = None  # Direct check_scan_id (ad-hoc mode)
+    scan_id: Optional[str] = None  # Direct scan_run_id (ad-hoc mode)
     scan_run_id: Optional[str] = None  # Pipeline scan_run_id (pipeline mode)
     csp: str  # aws, azure, gcp, alicloud, oci, ibm
     frameworks: Optional[List[str]] = None  # Optional: filter specific frameworks
@@ -132,6 +137,23 @@ class ScanResultsInput(BaseModel):
     scan_results: Dict[str, Any]
     csp: str
     frameworks: Optional[List[str]] = None
+
+
+# ── Response models (STORY-ENG-PYDANTIC-COVERAGE) ──────────────────────────
+
+
+class _ComplianceBase(BaseModel):
+    """Lenient base — passes engine-native fields through unchanged."""
+
+    model_config = {"extra": "allow"}
+
+
+class HealthResponse(BaseModel):
+    status: str
+
+
+class ComplianceLenientResponse(_ComplianceBase):
+    """Catch-all for endpoints whose shape is heterogeneous JSONB."""
 
 
 def save_report_to_s3(report: Dict[str, Any], csp: str) -> None:
@@ -438,24 +460,24 @@ async def generate_compliance_report(
     start_time = time.time()
     report_id = str(uuid.uuid4())
 
-    # Determine which check_scan_id to use
-    # Priority: direct scan_id > scan_run_id (all engines share the same ID)
-    check_query_scan_id = None
+    # Determine which scan_run_id to use
+    # Priority: direct scan_id (ad-hoc) > scan_run_id (pipeline)
+    resolved_scan_run_id = None
 
     if request.scan_id:
         # MODE 1: Direct scan_id provided (ad-hoc testing)
-        check_query_scan_id = request.scan_id
-        logger.info(f"Using direct check_scan_id: {check_query_scan_id}")
+        resolved_scan_run_id = request.scan_id
+        logger.info(f"Using direct scan_run_id: {resolved_scan_run_id}")
     elif request.scan_run_id:
         # MODE 2: Pipeline mode - scan_run_id is the same across all engines
-        check_query_scan_id = request.scan_run_id
+        resolved_scan_run_id = request.scan_run_id
     else:
         raise HTTPException(status_code=400, detail="Either scan_id or scan_run_id must be provided")
 
-    with LogContext(scan_run_id=check_query_scan_id):
+    with LogContext(scan_run_id=resolved_scan_run_id):
         logger.info("Generating compliance report", extra={
             "extra_fields": {
-                "check_scan_id": check_query_scan_id,
+                "scan_run_id": resolved_scan_run_id,
                 "csp": request.csp,
                 "frameworks": request.frameworks,
                 "report_id": report_id
@@ -465,7 +487,7 @@ async def generate_compliance_report(
         try:
             # Load scan results
             logger.info("Loading scan results")
-            scan_results = load_scan_results_from_s3(check_query_scan_id, request.csp)
+            scan_results = load_scan_results_from_s3(resolved_scan_run_id, request.csp)
 
             # Generate executive dashboard
             dashboard = executive_dashboard.generate(
@@ -491,7 +513,7 @@ async def generate_compliance_report(
             # Store report
             report = {
                 'report_id': report_id,
-                'scan_id': check_query_scan_id,  # Use resolved check_scan_id
+                'scan_id': resolved_scan_run_id,  # Use resolved check_scan_id
                 'csp': request.csp,
                 'generated_at': datetime.now(timezone.utc).isoformat() + 'Z',
                 'executive_dashboard': dashboard,
@@ -879,10 +901,33 @@ async def generate_compliance_report_from_check_db(
 
         background_tasks.add_task(save_report_to_s3, report, request.csp)
 
+        # Return lightweight summary (full report saved to DB + S3 + local JSON)
+        summary = dashboard.get("summary", {})
+        # Aggregate passed/failed across all framework reports
+        total_passed = sum(
+            fw.get("controls_passed", 0) for fw in dashboard.get("frameworks", [])
+            if isinstance(fw, dict)
+        )
+        total_failed = sum(
+            fw.get("controls_failed", 0) for fw in dashboard.get("frameworks", [])
+            if isinstance(fw, dict)
+        )
+        total_controls = sum(
+            fw.get("total_controls", 0) for fw in dashboard.get("frameworks", [])
+            if isinstance(fw, dict)
+        )
         return {
             "report_id": report_id,
             "status": "completed",
-            "compliance_report": report,
+            "scan_run_id": scan_results.get("scan_id"),
+            "tenant_id": request.tenant_id,
+            "csp": request.csp,
+            "total_controls": total_controls,
+            "controls_passed": total_passed,
+            "controls_failed": total_failed,
+            "compliance_score": summary.get("overall_compliance_score", 0),
+            "frameworks": len(framework_reports),
+            "compliance_scan_id": compliance_scan_id if 'compliance_scan_id' in dir() else None,
         }
 
     except HTTPException:
@@ -1080,18 +1125,6 @@ async def get_resource_drilldown(
         )
 
 
-def _get_compliance_conn():
-    """Get psycopg2 connection to compliance DB for status queries."""
-    return psycopg2.connect(
-        host=os.getenv("COMPLIANCE_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("COMPLIANCE_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("COMPLIANCE_DB_NAME", "threat_engine_compliance"),
-        user=os.getenv("COMPLIANCE_DB_USER", os.getenv("DB_USER", "postgres")),
-        password=os.getenv("COMPLIANCE_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        sslmode=os.getenv("DB_SSLMODE", "prefer"),
-    )
-
-
 @app.post("/api/v1/scan")
 async def generate_enterprise_report(request: GenerateEnterpriseReportRequest):
     """
@@ -1119,26 +1152,24 @@ async def generate_enterprise_report(request: GenerateEnterpriseReportRequest):
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
 
-        # All engines use the same scan_run_id — no per-engine column lookup needed
-        check_scan_id = scan_run_id
-
+        # All engines use the same scan_run_id — no per-engine IDs needed
         csp = (metadata.get("provider_type") or metadata.get("provider", "aws")).lower()
         tenant_id = metadata.get("tenant_id", "default-tenant")
-        logger.info(f"Pipeline mode: scan_run_id={scan_run_id} check={check_scan_id} csp={csp}")
+        logger.info(f"Pipeline mode: scan_run_id={scan_run_id} csp={csp}")
     else:
         # Ad-hoc: scan_run_id is required for Job-based execution
         raise HTTPException(status_code=400, detail="scan_run_id is required for Job-based execution")
 
     # Pre-create compliance_report row in DB (so status endpoint works immediately)
     try:
-        conn = _get_compliance_conn()
+        conn = get_compliance_conn()
         with conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO compliance_report
                    (scan_run_id, tenant_id, provider, check_scan_id, status, completed_at, metadata)
                    VALUES (%s, %s, %s, %s, 'running', NOW(), %s)
                    ON CONFLICT (scan_run_id) DO UPDATE SET status = 'running'""",
-                (compliance_scan_id, tenant_id, csp, check_scan_id,
+                (compliance_scan_id, tenant_id, csp, scan_run_id,
                  json.dumps({"scan_run_id": scan_run_id, "mode": "job"})),
             )
         conn.commit()
@@ -1176,10 +1207,10 @@ async def get_compliance_status(compliance_scan_id: str):
     """Get compliance scan status from compliance_report DB table."""
     from psycopg2.extras import RealDictCursor
     try:
-        conn = _get_compliance_conn()
+        conn = get_compliance_conn()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
-                "SELECT scan_run_id, status, provider, check_scan_id, completed_at, metadata "
+                "SELECT scan_run_id, status, provider, check_scan_id, completed_at "
                 "FROM compliance_report WHERE scan_run_id = %s",
                 (compliance_scan_id,),
             )
@@ -1345,7 +1376,7 @@ async def get_account_compliance(
         )
 
 
-@app.get("/api/v1/compliance/trends")
+@app.get("/api/v1/compliance/trends", response_model=ComplianceLenientResponse, response_model_exclude_none=False)
 async def get_compliance_trends(
     csp: str = Query(...),
     account_id: Optional[str] = Query(None),
@@ -1446,7 +1477,7 @@ async def get_control_detail(
         )
 
 
-@app.get("/api/v1/compliance/reports")
+@app.get("/api/v1/compliance/reports", response_model=ComplianceLenientResponse, response_model_exclude_none=False)
 async def list_reports(
     tenant_id: Optional[str] = Query(None),
     csp: Optional[str] = Query(None),
@@ -1569,7 +1600,7 @@ async def delete_report(report_id: str):
     }
 
 
-@app.get("/api/v1/compliance/frameworks")
+@app.get("/api/v1/compliance/frameworks", response_model=ComplianceLenientResponse, response_model_exclude_none=False)
 async def list_frameworks(
     csp: str = Query(...),
     scan_id: Optional[str] = Query(None)
@@ -2078,13 +2109,13 @@ async def simple_health():
     return {"status": "ok"}
 
 
-@app.get("/api/v1/health/live")
+@app.get("/api/v1/health/live", response_model=HealthResponse)
 async def liveness():
     """Kubernetes liveness probe — returns 200 if process is alive."""
     return {"status": "alive"}
 
 
-@app.get("/api/v1/health/ready")
+@app.get("/api/v1/health/ready", response_model=HealthResponse)
 async def readiness():
     """Kubernetes readiness probe — DB ping."""
     try:
@@ -2103,7 +2134,7 @@ async def readiness():
         return JSONResponse(status_code=503, content={"status": "not ready", "error": str(e)})
 
 
-@app.get("/api/v1/health")
+@app.get("/api/v1/health", response_model=ComplianceLenientResponse, response_model_exclude_none=False)
 async def health_check():
     """Health check endpoint."""
     import time
@@ -2130,7 +2161,7 @@ async def health_check():
 # NEW DB-DRIVEN ENDPOINTS FOR UI
 # ============================================================================
 
-@app.get("/api/v1/compliance/dashboard")
+@app.get("/api/v1/compliance/dashboard", response_model=ComplianceLenientResponse, response_model_exclude_none=False)
 async def get_compliance_dashboard(
     tenant_id: str = Query(...),
     scan_id: Optional[str] = Query("latest")
@@ -2438,50 +2469,97 @@ except ImportError as e:
 async def get_compliance_findings_for_resource(
     resource_uid: str,
     tenant_id: str = Query(...),
+    scan_run_id: Optional[str] = Query(None),
     limit: int = Query(200, ge=1, le=1000),
 ):
     """
     Return compliance findings for a specific resource.
 
-    Used by the BFF layer to enrich asset detail views with
-    per-resource framework compliance status.
-    Matches on both resource_uid and resource_arn to handle format differences.
+    Used by the BFF layer to enrich asset detail views with per-resource
+    framework compliance status.
+
+    Resolution order for account_id (needed to find findings across tenant variants):
+    1. Parse ARN using shared/common/arn.py — works for regional resources (EC2, RDS, etc.)
+    2. If ARN has no account_id (S3, IAM, CloudFront — global services), look it up
+       from scan_orchestration via scan_run_id when provided.
+    3. Query: resource_uid = %s AND (tenant_id = %s OR account_id = %s)
+       where account_id is stored on compliance_findings from the write path.
     """
     try:
-        conn = _get_compliance_db_connection()
+        conn = get_compliance_conn()
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Database unavailable: {e}")
 
     try:
         from psycopg2.extras import RealDictCursor
+        import sys, os as _os
+        # Use the shared ARN parser — handles global services (S3, IAM, CloudFront, etc.)
+        # that have no account_id embedded in the ARN.
+        try:
+            _shared = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", "..", "..", "..", "shared")
+            if _shared not in sys.path:
+                sys.path.insert(0, _shared)
+            from common.arn import parse_arn
+            parsed = parse_arn(resource_uid)
+            arn_account_id = parsed.account_id if (parsed and parsed.account_id) else None
+        except Exception:
+            # Fallback to naive split if shared module unavailable
+            _parts = resource_uid.split(":")
+            arn_account_id = _parts[4] if len(_parts) > 4 and _parts[4] else None
+
+        # For global-service ARNs (S3, IAM, etc.) where account_id is empty in the ARN,
+        # look it up from scan_orchestration using the provided scan_run_id.
+        if not arn_account_id and scan_run_id:
+            try:
+                meta = get_orchestration_metadata(scan_run_id)
+                arn_account_id = meta.get("account_id") or None
+            except Exception:
+                pass
+
+        # Build the WHERE clause: match by tenant_id OR account_id column.
+        # account_id column is populated from scan metadata since the write-path fix.
+        # Older findings with account_id as tenant_id are also caught by tenant_id = arn_account_id.
+        _ORDER = """
+            ORDER BY
+                CASE LOWER(COALESCE(severity, 'medium'))
+                    WHEN 'critical' THEN 1 WHEN 'high' THEN 2
+                    WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5
+                END,
+                compliance_framework, control_id
+            LIMIT %s
+        """
+        _COLS = """
+            SELECT compliance_framework, control_id, control_name,
+                   severity, status, rule_id, category, last_seen_at,
+                   finding_data
+            FROM compliance_findings
+            WHERE resource_uid = %s
+        """
 
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("""
-                SELECT
-                    compliance_framework,
-                    control_id,
-                    control_name,
-                    severity,
-                    status,
-                    rule_id,
-                    category,
-                    last_seen_at
-                FROM compliance_findings
-                WHERE (resource_uid = %s OR resource_arn = %s)
-                  AND tenant_id = %s
-                ORDER BY
-                    CASE LOWER(COALESCE(severity, 'medium'))
-                        WHEN 'critical' THEN 1 WHEN 'high' THEN 2
-                        WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5
-                    END,
-                    compliance_framework, control_id
-                LIMIT %s
-            """, (resource_uid, resource_uid, tenant_id, limit))
+            if arn_account_id and arn_account_id != tenant_id:
+                # Match tenant_id OR account_id column OR legacy (account stored as tenant_id)
+                cur.execute(
+                    _COLS + "  AND (tenant_id = %s OR account_id = %s OR tenant_id = %s)" + _ORDER,
+                    (resource_uid, tenant_id, arn_account_id, arn_account_id, limit),
+                )
+            else:
+                cur.execute(
+                    _COLS + "  AND tenant_id = %s" + _ORDER,
+                    (resource_uid, tenant_id, limit),
+                )
             rows = cur.fetchall()
 
         findings = []
         for r in rows:
             last_seen = r.get("last_seen_at")
+            fd = r.get("finding_data") or {}
+            if isinstance(fd, str):
+                try:
+                    fd = json.loads(fd)
+                except Exception:
+                    fd = {}
+            check_data = fd.get("check") or {}
             findings.append({
                 "framework": r.get("compliance_framework") or "",
                 "control_id": r.get("control_id") or "",
@@ -2491,6 +2569,10 @@ async def get_compliance_findings_for_resource(
                 "rule_id": r.get("rule_id") or "",
                 "category": r.get("category") or "",
                 "last_seen": last_seen.isoformat() if last_seen else None,
+                "remediation": fd.get("remediation") or check_data.get("remediation") or None,
+                "description": check_data.get("description") or fd.get("control_title") or None,
+                "rationale": check_data.get("rationale") or None,
+                "resource": check_data.get("resource") or None,
             })
 
         return {
@@ -2501,6 +2583,243 @@ async def get_compliance_findings_for_resource(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to query compliance findings: {e}")
+    finally:
+        conn.close()
+
+
+@app.get("/api/v1/compliance/findings/by-control")
+async def get_findings_by_control(
+    control_id: str = Query(...),
+    framework: str = Query(...),
+    tenant_id: str = Query(...),
+    limit: int = Query(50, ge=1, le=500),
+):
+    """Return individual compliance findings for a specific control + framework.
+
+    Used by the UI popup to show full details when clicking a row in the
+    Failing Controls table or asset compliance tab.
+    """
+    try:
+        conn = get_compliance_conn()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Database unavailable: {e}")
+
+    try:
+        from psycopg2.extras import RealDictCursor
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT finding_id, scan_run_id, rule_id, category,
+                       severity, confidence, status,
+                       resource_uid, resource_type, resource_id, region,
+                       compliance_framework, control_id, control_name,
+                       first_seen_at, last_seen_at, finding_data,
+                       account_id
+                FROM compliance_findings
+                WHERE tenant_id = %s
+                  AND COALESCE(NULLIF(control_id, ''), finding_data->>'control_id', rule_id) = %s
+                  AND COALESCE(NULLIF(compliance_framework, ''), finding_data->>'framework', '') = %s
+                ORDER BY severity, resource_uid
+                LIMIT %s
+            """, (tenant_id, control_id, framework, limit))
+            rows = cur.fetchall()
+
+        findings = []
+        for r in rows:
+            fd = r.get("finding_data") or {}
+            if isinstance(fd, str):
+                fd = json.loads(fd)
+            check = fd.get("check") or {}
+            evidence = check.get("evidence") or {}
+            resource = check.get("resource") or {}
+            control = check.get("control") or {}
+            first_seen = r.get("first_seen_at")
+            last_seen = r.get("last_seen_at")
+            findings.append({
+                "finding_id": str(r.get("finding_id", "")),
+                "rule_id": r.get("rule_id") or "",
+                "category": r.get("category") or check.get("service") or "",
+                "severity": (r.get("severity") or "medium").lower(),
+                "confidence": (r.get("confidence") or "medium").lower(),
+                "status": r.get("status") or "open",
+                "framework": r.get("compliance_framework") or "",
+                "control_id": r.get("control_id") or "",
+                "control_name": r.get("control_name") or control.get("control_title") or "",
+                "control_description": control.get("control_description") or None,
+                "resource_uid": r.get("resource_uid") or resource.get("uid") or "",
+                "resource_type": r.get("resource_type") or resource.get("type") or "",
+                "resource_arn": resource.get("arn") or r.get("resource_uid") or "",
+                "region": r.get("region") or check.get("region") or "",
+                "account_id": r.get("account_id") or "",
+                "first_seen": first_seen.isoformat() if first_seen else None,
+                "last_seen": last_seen.isoformat() if last_seen else None,
+                "checked_fields": evidence.get("checked_fields") or [],
+                "actual_values": (evidence.get("finding_data") or {}).get("actual_values") or {},
+                "remediation": fd.get("remediation") or check.get("remediation") or None,
+                "check_result": check.get("check_result") or r.get("status") or "",
+            })
+
+        return {
+            "control_id": control_id,
+            "framework": framework,
+            "total": len(findings),
+            "findings": findings,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to query findings: {e}")
+    finally:
+        conn.close()
+
+
+@app.get("/api/v1/compliance/findings/framework/{framework_name:path}")
+async def get_framework_findings_grouped(
+    framework_name: str,
+    tenant_id: str = Query(...),
+    scan_run_id: Optional[str] = Query(None),
+    limit: int = Query(2000, ge=1, le=5000),
+):
+    """
+    Return compliance findings for a framework grouped by control_id.
+
+    Used by the framework detail page (Wiz-like drill-down).
+    Returns controls with pass/fail counts and per-control resource lists.
+    Resolves account_id the same way as the resource findings endpoint.
+    """
+    try:
+        conn = get_compliance_conn()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Database unavailable: {e}")
+
+    try:
+        from psycopg2.extras import RealDictCursor
+
+        # Resolve account_id for tenant matching
+        account_id = None
+        if scan_run_id:
+            try:
+                meta = get_orchestration_metadata(scan_run_id)
+                account_id = meta.get("account_id") or None
+            except Exception:
+                pass
+
+        # Fuzzy framework name mapping: URL slugs → DB values
+        # e.g. "cis-aws-2.0" → "CIS", "nist-800-53" → "NIST_800-53"
+        _FW_MAP = {
+            "cis": "CIS", "cis-aws": "CIS", "cis-aws-2.0": "CIS", "cis-aws-2": "CIS",
+            "nist": "NIST_800-53", "nist-800-53": "NIST_800-53", "nist800-53": "NIST_800-53",
+            "nist-800-53-r5": "NIST_800-53", "nist-csf": "NIST_800-53",
+            "soc2": "SOC2", "soc-2": "SOC2", "soc2-type-ii": "SOC2", "soc-2-type-ii": "SOC2",
+            "pci": "PCI-DSS", "pci-dss": "PCI-DSS", "pci-dss-4.0": "PCI-DSS", "pci-dss-4": "PCI-DSS",
+            "hipaa": "HIPAA",
+            "iso27001": "ISO27001", "iso-27001": "ISO27001", "iso-27001-2022": "ISO27001",
+            "gdpr": "GDPR",
+            "fedramp": "FedRAMP", "fed-ramp": "FedRAMP",
+            "canada-pbmm": "CANADA_PBMM",
+            "nist-800-171": "NIST_800-171",
+        }
+        db_framework = _FW_MAP.get(framework_name.lower(), framework_name)
+
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            if account_id:
+                cur.execute("""
+                    SELECT control_id, control_name, rule_id, severity, status,
+                           resource_uid, resource_type, region, finding_data, last_seen_at,
+                           compliance_framework
+                    FROM compliance_findings
+                    WHERE (UPPER(compliance_framework) = UPPER(%s)
+                           OR compliance_framework ILIKE %s)
+                      AND (tenant_id = %s OR account_id = %s OR tenant_id = %s)
+                    ORDER BY control_id, severity, last_seen_at DESC
+                    LIMIT %s
+                """, (db_framework, f"%{db_framework}%", tenant_id, account_id, account_id, limit))
+            else:
+                cur.execute("""
+                    SELECT control_id, control_name, rule_id, severity, status,
+                           resource_uid, resource_type, region, finding_data, last_seen_at,
+                           compliance_framework
+                    FROM compliance_findings
+                    WHERE (UPPER(compliance_framework) = UPPER(%s)
+                           OR compliance_framework ILIKE %s)
+                      AND tenant_id = %s
+                    ORDER BY control_id, severity, last_seen_at DESC
+                    LIMIT %s
+                """, (db_framework, f"%{db_framework}%", tenant_id, limit))
+            rows = cur.fetchall()
+
+        # Group by control_id
+        from collections import defaultdict
+        controls_map: dict = {}
+        severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+        actual_framework = db_framework
+
+        for r in rows:
+            cid = r["control_id"] or "unknown"
+            if r.get("compliance_framework"):
+                actual_framework = r["compliance_framework"]
+
+            if cid not in controls_map:
+                controls_map[cid] = {
+                    "control_id": cid,
+                    "control_name": r.get("control_name") or cid,
+                    "severity": r.get("severity") or "medium",
+                    "rule_id": r.get("rule_id") or "",
+                    "status": "pass",
+                    "passed": 0,
+                    "failed": 0,
+                    "resources": [],
+                }
+            entry = controls_map[cid]
+
+            # Aggregate severity to worst
+            if severity_order.get(r.get("severity", "medium"), 2) < severity_order.get(entry["severity"], 2):
+                entry["severity"] = r["severity"]
+
+            s = (r.get("status") or "").lower()
+            is_fail = s in ("fail", "open", "failed")
+            if is_fail:
+                entry["failed"] += 1
+                entry["status"] = "fail"
+                uid = r.get("resource_uid") or ""
+                if uid and len(entry["resources"]) < 20:
+                    last_seen = r.get("last_seen_at")
+                    entry["resources"].append({
+                        "resource_uid": uid,
+                        "resource_type": r.get("resource_type") or "",
+                        "region": r.get("region") or "",
+                        "severity": r.get("severity") or "medium",
+                        "last_seen": last_seen.isoformat() if last_seen else None,
+                    })
+            else:
+                entry["passed"] += 1
+
+        controls = list(controls_map.values())
+        controls.sort(key=lambda c: (severity_order.get(c["severity"], 2), c["control_id"]))
+
+        fail_count = sum(1 for c in controls if c["status"] == "fail")
+        pass_count = len(controls) - fail_count
+        total_resources = sum(c["failed"] for c in controls)
+        score = round(pass_count / len(controls) * 100) if controls else 0
+
+        return {
+            "framework": actual_framework,
+            "framework_slug": framework_name,
+            "tenant_id": tenant_id,
+            "summary": {
+                "score": score,
+                "total_controls": len(controls),
+                "passed_controls": pass_count,
+                "failed_controls": fail_count,
+                "total_resources_affected": total_resources,
+                "critical_controls": sum(1 for c in controls if c["severity"] == "critical" and c["status"] == "fail"),
+                "high_controls": sum(1 for c in controls if c["severity"] == "high" and c["status"] == "fail"),
+            },
+            "controls": controls,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get framework findings: {e}")
     finally:
         conn.close()
 

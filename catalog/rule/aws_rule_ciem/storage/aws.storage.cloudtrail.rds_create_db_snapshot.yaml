@@ -1,0 +1,90 @@
+rule_id: aws.storage.cloudtrail.rds_create_db_snapshot
+service: storage
+provider: aws
+check_type: log
+severity: medium
+title: 'Storage: RDS Create Db Snapshot'
+description: RDS database snapshot created — point-in-time copy of database made.
+rationale: 'Adversaries access data from cloud object storage (S3, Azure Blob, GCS) which may be misconfigured with overly permissive policies exposing PII, medical records, financial data, or credentials. Bulk download followed by external transfer indicates active data theft. Detected via: unusual object access patterns from new IAM users or roles, OAuth token grants to external apps preceding high-volume downloads, and GetObject events from anomalous IPs or user agents.'
+threat_category: collection
+mitre_tactics:
+- collection
+mitre_techniques:
+- T1530
+risk_score: 50
+resource: storage_resource
+source: default
+is_active: true
+domain: data_protection_and_privacy
+action_category: create
+posture_category: data_security_posture
+threat_tags:
+- T1530
+- data_collection
+- sensitive_data
+- storage_access
+- data
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: storage_account
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - data_access_governance
+  - database_security
+  - backup_and_recovery
+  categories:
+  - sensitive_data_access
+  - unauthorized_access
+  priority: medium
+  impact:
+    pci: PCI DSS Requirement 3.1 — Minimize cardholder data storage
+    gdpr: GDPR Article 25 — Data protection by design; minimize data exposure
+    hipaa: §164.312(a)(1) — Access controls on data repositories containing ePHI
+compliance_frameworks:
+  cis_aws_v3:
+  - 2.1
+  - 2.7
+  cis_azure_v2:
+  - 3.1
+  - 5.1
+  nist_800_53_r5:
+  - AC-4
+  - AC-3
+  - AU-12
+  pci_dss_v4:
+  - 3.2
+  - 7.1
+  iso_27001_2022:
+  - A.8.12
+  - A.8.3
+detection_events:
+- 's3:GetObject (high volume from single principal)'
+- Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read
+- ListObjects followed by bulk GetObject
+- Storage access from external/anonymous IP
+remediation: |
+  1. Enable server-side access logging for all storage buckets and containers.
+  2. Alert on high-volume GetObject/BlobRead operations by single principals.
+  3. Apply bucket policies to restrict GetObject to authorized principals only.
+  4. Enable Macie / Defender for Storage for sensitive data detection and alerting.
+references:
+- https://attack.mitre.org/techniques/T1530/
+- https://docs.aws.amazon.com/AmazonS3/latest/userguide/logging-with-S3.html
+- https://learn.microsoft.com/en-us/azure/storage/common/storage-analytics-logging
+check_config:
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: rds
+    - field: operation
+      op: equals
+      value: CreateDBSnapshot
+version: '1.0'

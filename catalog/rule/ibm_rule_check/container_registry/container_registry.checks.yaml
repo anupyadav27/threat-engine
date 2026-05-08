@@ -1,0 +1,40 @@
+# Auto-generated: check rules for IBM container_registry from test-rulecheck_python_code
+version: '1.0'
+provider: ibm
+service: container_registry
+checks:
+- rule_id: ibm.container_registry.image.content_trust_signed
+  for_each: ibm.container_registry.list_images
+  severity: HIGH
+  conditions:
+    var: item.ContentTrust
+    op: is_true
+- rule_id: ibm.container_registry.image.no_critical_vulnerabilities
+  for_each: ibm.container_registry.list_images
+  severity: CRITICAL
+  conditions:
+    var: item.Vulnerabilities[].Severity
+    op: not_contains
+    value: critical
+- rule_id: ibm.container_registry.image.not_stale
+  for_each: ibm.container_registry.list_images
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.CreatedAt
+      op: exists
+    - var: item.CreatedAt
+      op: gte
+      value: now-30d
+- rule_id: ibm.container_registry.namespace.not_publicly_accessible
+  for_each: ibm.container_registry.list_namespaces
+  severity: CRITICAL
+  conditions:
+    var: item.Public
+    op: is_false
+- rule_id: ibm.container_registry.namespace.resource_group_assigned
+  for_each: ibm.container_registry.list_namespaces
+  severity: LOW
+  conditions:
+    var: item.resource_group_id
+    op: exists

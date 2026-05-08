@@ -1,0 +1,121 @@
+version: '1.0'
+provider: alicloud
+service: dms
+checks:
+- rule_id: alicloud.dms.classification.auto_discovery_enabled
+  for_each: alicloud.dms.classification
+  severity: MEDIUM
+  conditions:
+    var: item.auto_discovery_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.dms.classification.classifier_rbac_least_privilege
+  for_each: alicloud.dms.classification
+  severity: HIGH
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.dms.classification.classifier_source_trusted
+  for_each: alicloud.dms.classification
+  severity: MEDIUM
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.dms.classification.sensitive_data_alerts_configured
+  for_each: alicloud.dms.classification
+  severity: MEDIUM
+  conditions:
+    var: item.sensitive_data_alerts_configured
+    op: is_true
+    value: null
+- rule_id: alicloud.dms.classification_data.classification_policy_blocks_public_for_sensitive
+  for_each: alicloud.dms.classification_data
+  severity: HIGH
+  conditions:
+    var: item.internet_facing
+    op: is_false
+    value: null
+- rule_id: alicloud.dms.compliance_pack_data.compliance_access_rbac_least_privilege
+  for_each: alicloud.dms.compliance_pack_data
+  severity: HIGH
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.dms.compliance_pack_data.compliance_export_destinations_private
+  for_each: alicloud.dms.compliance_pack_data
+  severity: MEDIUM
+  conditions:
+    var: item.internet_facing
+    op: is_false
+    value: null
+- rule_id: alicloud.dms.compliance_pack_data.compliance_reports_storage_encrypted
+  for_each: alicloud.dms.compliance_pack_data
+  severity: HIGH
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.dms.data_masking.masking_execution_roles_least_privilege
+  for_each: alicloud.dms.data_masking
+  severity: HIGH
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.dms.data_masking.masking_policies_present_for_sensitive_fields
+  for_each: alicloud.dms.data_masking
+  severity: MEDIUM
+  conditions:
+    var: item.id
+    op: exists
+    value: null
+- rule_id: alicloud.dms.desensitization.anonymization_jobs_private_networking
+  for_each: alicloud.dms.data_masking
+  severity: MEDIUM
+  conditions:
+    var: item.public_ip_address
+    op: not_exists
+    value: null
+- rule_id: alicloud.dms.desensitization.anonymization_outputs_encrypted
+  for_each: alicloud.dms.data_masking
+  severity: HIGH
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.dms.endpoint.redis_in_transit_encryption_enforced
+  for_each: alicloud.dms.classification_data
+  severity: HIGH
+  conditions:
+    var: item.ssl_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.dms.instance.multi_az_deployment
+  for_each: alicloud.dms.classification
+  severity: MEDIUM
+  conditions:
+    var: item.multi_az_deployment
+    op: is_true
+    value: null
+- rule_id: alicloud.dms.replication_instance.source_logging_enabled_90_day_retention
+  for_each: alicloud.dms.classification
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.logging_enabled
+      op: is_true
+      value: null
+- rule_id: alicloud.dms.replication_instance.target_logging_enabled_90_day_retention
+  for_each: alicloud.dms.classification
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.logging_enabled
+      op: is_true
+      value: null
+    - var: item.retention_days
+      op: gte
+      value: 90

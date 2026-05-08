@@ -1,0 +1,316 @@
+version: '1.0'
+provider: aws
+service: apigateway
+checks:
+- rule_id: aws.apigateway.apikey.key_expiration_required
+  for_each: aws.apigateway.get_api_keys
+  severity: MEDIUM
+  conditions:
+    var: item.enabled
+    op: is_true
+    value: null
+- rule_id: aws.apigateway.authorizer.api_token_audience_restricted
+  for_each: aws.apigateway.get_authorizers
+  severity: MEDIUM
+  conditions:
+    var: item.providerARNs
+    op: exists
+    value: null
+- rule_id: aws.apigateway.authorizer.cache_ttl_configured
+  for_each: aws.apigateway.get_authorizers
+  severity: MEDIUM
+  conditions:
+    var: item.authorizerResultTtlInSeconds
+    op: exists
+    value: null
+- rule_id: aws.apigateway.authorizer.tls_min_1_2_enforced
+  for_each: aws.apigateway.get_domain_names
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Version
+      op: exists
+      value: null
+    - var: item.Version
+      op: gte
+      value: '1.2'
+- rule_id: aws.apigateway.certificate.certificate_enabled
+  for_each: aws.apigateway.get_domain_names
+  severity: MEDIUM
+  conditions:
+    var: item.certificateArn
+    op: exists
+    value: null
+- rule_id: aws.apigateway.requestvalidator.api_parameters_validation_enabled
+  for_each: aws.apigateway.get_request_validators
+  severity: MEDIUM
+  conditions:
+    var: item.validateRequestParameters
+    op: is_true
+    value: null
+- rule_id: aws.apigateway.requestvalidator.api_request_schema_validation_enabled
+  for_each: aws.apigateway.get_request_validators
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.validateRequestBody
+      op: is_true
+      value: null
+    - var: item.validateRequestParameters
+      op: is_true
+      value: null
+- rule_id: aws.apigateway.resource.api_gateway_https_required
+  for_each: aws.apigateway.get_method
+  severity: MEDIUM
+  conditions:
+    var: item.httpMethod
+    op: exists
+    value: null
+- rule_id: aws.apigateway.resource.api_resource_attached_enabled
+  for_each: aws.apigateway.get_method
+  severity: MEDIUM
+  conditions:
+    var: item.apiKeyRequired
+    op: is_true
+    value: null
+- rule_id: aws.apigateway.resource.authorization_enabled
+  for_each: aws.apigateway.get_method
+  severity: MEDIUM
+  conditions:
+    var: item.authorizationType
+    op: exists
+    value: null
+- rule_id: aws.apigateway.resource.restapi_cache_encrypted
+  for_each: aws.apigateway.get_domain_names
+  severity: HIGH
+  conditions:
+    var: item.Statement
+    op: exists
+    value: null
+- rule_id: aws.apigateway.resource.restapi_logging_enabled
+  for_each: aws.apigateway.get_rest_apis
+  severity: MEDIUM
+  conditions:
+    var: item.loggingConfiguration.logLevel
+    op: exists
+    value: null
+- rule_id: aws.apigateway.restapi.authn_required
+  for_each: aws.apigateway.get_method
+  severity: MEDIUM
+  conditions:
+    var: item.apiKeyRequired
+    op: is_true
+    value: null
+- rule_id: aws.apigateway.restapi.authz_policies_enforced
+  for_each: aws.apigateway.get_method
+  severity: MEDIUM
+  conditions:
+    var: item.authorizationType
+    op: not_equals
+    value: NONE
+- rule_id: aws.apigateway.restapi.logging_enabled
+  for_each: aws.apigateway.get_rest_apis
+  severity: LOW
+  conditions:
+    var: item.LoggingEnabled
+    op: is_true
+    value: null
+- rule_id: aws.apigateway.restapi.private_networking_enforced
+  for_each: aws.apigateway.get_domain_names
+  severity: HIGH
+  conditions:
+    var: item.endpointConfiguration.types
+    op: contains
+    value: PRIVATE
+- rule_id: aws.apigateway.restapi.public_access_restricted
+  for_each: aws.apigateway.get_method
+  severity: HIGH
+  conditions:
+    var: item.apiKeyRequired
+    op: is_true
+    value: null
+- rule_id: aws.apigateway.restapi.tracing_enabled
+  for_each: aws.apigateway.get_rest_apis
+  severity: MEDIUM
+  conditions:
+    var: item.tracingEnabled
+    op: is_true
+    value: null
+- rule_id: aws.apigateway.restapi.waf_enabled
+  for_each: aws.apigateway.get_rest_apis
+  severity: MEDIUM
+  conditions:
+    var: item.wafConfiguration.enabled
+    op: is_true
+    value: null
+- rule_id: aws.apigateway.stage.api_access_log_fields_identity_configured
+  for_each: aws.apigateway.get_rest_apis
+  severity: MEDIUM
+  conditions:
+    var: item.apiKeySource
+    op: exists
+    value: null
+- rule_id: aws.apigateway.stage.api_access_log_sink_configured
+  for_each: aws.apigateway.get_rest_apis
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.stages[].accessLogSettings
+      op: exists
+      value: null
+- rule_id: aws.apigateway.stage.api_access_logging_enabled
+  for_each: aws.apigateway.get_rest_apis
+  severity: HIGH
+  conditions:
+    var: item.stages[].accessLogSettings
+    op: exists
+    value: null
+- rule_id: aws.apigateway.stage.logging_enabled
+  for_each: aws.apigateway.get_rest_apis
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.stages[].accessLogSettings
+      op: exists
+      value: null
+- rule_id: aws.apigateway.stage.throttling_enabled
+  for_each: aws.apigateway.get_method
+  severity: MEDIUM
+  conditions:
+    var: item.apiKeyRequired
+    op: is_true
+    value: null
+- rule_id: aws.apigateway.stage.usage_plan_for_api_keys_required
+  for_each: aws.apigateway.get_api_keys
+  severity: MEDIUM
+  conditions:
+    var: item.stageKeys
+    op: not_empty
+    value: null
+- rule_id: aws.apigateway.throttle.api_quota_limit_configured
+  for_each: aws.apigateway.get_method
+  severity: MEDIUM
+  conditions:
+    var: item.apiKeyRequired
+    op: is_true
+    value: null
+- rule_id: aws.apigateway.throttle.api_stage_burst_limit_configured
+  for_each: aws.apigateway.get_method
+  severity: MEDIUM
+  conditions:
+    var: item.methodIntegration.throttlingBurstLimit
+    op: exists
+    value: null
+- rule_id: aws.apigateway.throttle.api_stage_overrides_bounded
+  for_each: aws.apigateway.get_method
+  severity: MEDIUM
+  conditions:
+    var: item.apiKeyRequired
+    op: is_true
+    value: null
+- rule_id: aws.apigateway.throttle.api_stage_rate_limit_configured
+  for_each: aws.apigateway.get_method
+  severity: MEDIUM
+  conditions:
+    var: item.apiKeyRequired
+    op: is_true
+    value: null
+- rule_id: aws.apigateway.throttle.api_usage_plan_for_keys_required
+  for_each: aws.apigateway.get_api_keys
+  severity: MEDIUM
+  conditions:
+    var: item.stageKeys
+    op: exists
+    value: null
+- rule_id: aws.apigateway.usageplan.api_keys_required
+  for_each: aws.apigateway.get_method
+  severity: MEDIUM
+  conditions:
+    var: item.apiKeyRequired
+    op: is_true
+    value: null
+- rule_id: aws.apigateway.usageplan.api_quota_limit_configured
+  for_each: aws.apigateway.get_usage_plans
+  severity: MEDIUM
+  conditions:
+    var: item.quota.limit
+    op: exists
+    value: null
+- rule_id: aws.apigateway.usageplan.api_quota_limits_configured
+  for_each: aws.apigateway.get_usage_plans
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.quota.limit
+      op: exists
+      value: null
+    - var: item.quota.period
+      op: exists
+      value: null
+- rule_id: aws.apigateway.usageplan.api_rate_limits_configured
+  for_each: aws.apigateway.get_usage_plans
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.throttle.burstLimit
+      op: exists
+      value: null
+    - var: item.throttle.rateLimit
+      op: exists
+      value: null
+- rule_id: aws.apigateway.usageplan.api_stage_burst_limit_configured
+  for_each: aws.apigateway.get_usage_plans
+  severity: MEDIUM
+  conditions:
+    var: item.apiStages[].throttle.burstLimit
+    op: exists
+    value: null
+- rule_id: aws.apigateway.usageplan.api_stage_rate_limit_configured
+  for_each: aws.apigateway.get_usage_plans
+  severity: MEDIUM
+  conditions:
+    var: item.apiStages[].throttle.rateLimit
+    op: exists
+    value: null
+- rule_id: aws.apigateway.usageplan.api_stage_throttle_overrides_bounded
+  for_each: aws.apigateway.get_usage_plans
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.apiStages[].throttle
+      op: exists
+      value: null
+    - var: item.apiStages[].throttle.burstLimit
+      op: lte
+      value: 5000
+    - var: item.apiStages[].throttle.rateLimit
+      op: lte
+      value: 10000
+- rule_id: aws.apigateway.v2api.authn_required
+  for_each: aws.apigateway.get_method
+  severity: MEDIUM
+  conditions:
+    var: item.apiKeyRequired
+    op: is_true
+    value: null
+- rule_id: aws.apigateway.v2api.authz_policies_enforced
+  for_each: aws.apigateway.get_method
+  severity: MEDIUM
+  conditions:
+    var: item.authorizationType
+    op: not_equals
+    value: NONE
+- rule_id: aws.apigateway.v2api.private_networking_enforced
+  for_each: aws.apigateway.get_domain_names
+  severity: HIGH
+  conditions:
+    var: item.endpointConfiguration.types[]
+    op: contains
+    value: PRIVATE
+- rule_id: aws.apigateway.v2api.waf_enabled
+  for_each: aws.apigateway.get_domain_names
+  severity: MEDIUM
+  conditions:
+    var: item.Statement
+    op: exists
+    value: null

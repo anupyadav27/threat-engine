@@ -6,13 +6,20 @@ Provides endpoints for IAM posture queries and report generation.
 
 import sys
 import os
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Dict, List, Optional, Any
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 from engine_common.logger import setup_logger
+
+# ── Auth imports (engine_auth is COPY shared/auth/ ./engine_auth/ in Dockerfile) ──
+try:
+    from engine_auth.fastapi.middleware import AuthMiddleware
+    _AUTH_AVAILABLE = True
+except ImportError:
+    _AUTH_AVAILABLE = False
 from engine_common.telemetry import configure_telemetry
 from engine_common.middleware import RequestLoggingMiddleware, CorrelationIDMiddleware
 from engine_common.orchestration import get_orchestration_metadata
@@ -24,8 +31,18 @@ from .reporter.iam_reporter import IAMReporter
 from .storage.report_storage import ReportStorage
 
 import json
+from contextlib import contextmanager
 
 logger = setup_logger(__name__, engine_name="engine-iam")
+
+# ── Auth dependencies ────────────────────────────────────────────────────────
+try:
+    from engine_auth.fastapi.dependencies import require_permission
+    from engine_auth.core.models import AuthContext
+    _AUTH_DEPS_AVAILABLE = True
+except ImportError:
+    _AUTH_DEPS_AVAILABLE = False
+    AuthContext = None  # type: ignore[assignment,misc]
 
 # ── Scanner Job config ───────────────────────────────────────────────────────
 SCANNER_IMAGE = os.getenv("IAM_SCANNER_IMAGE", "yadavanup84/engine-iam:v-job")
@@ -50,6 +67,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# AuthMiddleware validates access_token / X-Auth-Context for every non-health path
+if _AUTH_AVAILABLE:
+    app.add_middleware(AuthMiddleware)
 
 threat_db_reader = ThreatDBReader()
 finding_enricher = FindingEnricher()
@@ -158,12 +179,10 @@ async def generate_report(request: ScanRequest):
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
 
-        # All engines share the same scan_run_id
-        threat_scan_id = orch_id
-
+        # All engines share the same scan_run_id — no per-engine IDs needed
         tenant_id = metadata.get("tenant_id") or request.tenant_id
         csp = (metadata.get("provider") or metadata.get("provider_type", "aws")).lower()
-        logger.info(f"Pipeline mode: scan_run_id={orch_id} threat={threat_scan_id} csp={csp}")
+        logger.info(f"Pipeline mode: scan_run_id={orch_id} csp={csp}")
     else:
         # Ad-hoc: scan_run_id is required for Job-based execution
         raise HTTPException(status_code=400, detail="scan_run_id is required for Job-based execution")
@@ -177,7 +196,7 @@ async def generate_report(request: ScanRequest):
                    (scan_run_id, tenant_id, provider, threat_scan_id, status, generated_at, metadata)
                    VALUES (%s, %s, %s, %s, 'running', NOW(), %s)
                    ON CONFLICT (scan_run_id) DO UPDATE SET status = 'running'""",
-                (iam_scan_id, tenant_id, csp, threat_scan_id,
+                (iam_scan_id, tenant_id, csp, orch_id,
                  json.dumps({"scan_run_id": orch_id, "mode": "job"})),
             )
         conn.commit()
@@ -414,6 +433,146 @@ async def get_resource_iam_findings(
     except Exception as e:
         logger.error(f"Error getting resource IAM findings: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Findings-by-resource models ───────────────────────────────────────────────
+
+class FindingItem(BaseModel):
+    """Single IAM finding row returned by the asset-context endpoint."""
+
+    finding_id: str
+    title: str
+    severity: str
+    status: str
+    rule_id: Optional[str] = None
+    resource_uid: str
+    resource_type: Optional[str] = None
+    account_id: Optional[str] = None
+    region: Optional[str] = None
+    provider: Optional[str] = None
+    first_seen_at: str
+    last_seen_at: str
+
+
+class FindingsByResourceResponse(BaseModel):
+    """Response for GET /api/v1/iam-security/findings?resource_uid=..."""
+
+    findings: List[FindingItem]
+    total: int
+    resource_uid: str
+    scan_run_id: str
+
+
+# ── IAM table constant ────────────────────────────────────────────────────────
+_IAM_TABLE = "iam_findings"
+_IAM_TITLE_EXPR = "COALESCE(finding_data->>'title', finding_data->>'recommendation', rule_id)"
+
+
+@app.get("/api/v1/iam-security/findings/by-resource", response_model=FindingsByResourceResponse)
+async def get_iam_findings_by_resource(
+    resource_uid: str = Query(..., description="Full resource ARN or UID"),
+    scan_run_id: str = Query("latest"),
+    limit: int = Query(50, ge=1, le=100),
+    status: Optional[str] = Query(None),
+    auth: Any = Depends(
+        require_permission("iam:read") if _AUTH_DEPS_AVAILABLE else (lambda: None)
+    ),
+):
+    """Return IAM findings for a specific resource_uid — used by gateway asset-context aggregator.
+
+    Args:
+        resource_uid: Full resource ARN or UID to filter findings by.
+        scan_run_id: Scan run UUID, or 'latest' to resolve automatically.
+        limit: Maximum number of findings to return (1-100).
+        status: Optional status filter (FAIL | PASS | WARN).
+        auth: Injected AuthContext from require_permission dependency.
+
+    Returns:
+        FindingsByResourceResponse with findings list, total count, and resolved scan_run_id.
+    """
+    scoped_tenant = (
+        getattr(auth, "engine_tenant_id", None)
+        or getattr(auth, "tenant_id", None)
+        or "default-tenant"
+    )
+
+    status_clause = "AND status = %(status)s" if status else ""
+    params: Dict[str, Any] = {
+        "tenant_id": scoped_tenant,
+        "resource_uid": resource_uid,
+        "status": status,
+        "limit": limit,
+    }
+
+    try:
+        conn = _get_iam_conn()
+        with conn.cursor() as cur:
+            # Step 1: resolve scan_run_id
+            cur.execute(f"""
+                SELECT scan_run_id FROM {_IAM_TABLE}
+                WHERE tenant_id = %(tenant_id)s
+                  AND resource_uid = %(resource_uid)s
+                  {status_clause}
+                ORDER BY last_seen_at DESC LIMIT 1
+            """, params)
+            row = cur.fetchone()
+            if not row:
+                conn.close()
+                return FindingsByResourceResponse(
+                    findings=[], total=0,
+                    resource_uid=resource_uid, scan_run_id=scan_run_id,
+                )
+            resolved_scan = row[0]
+            params["resolved_scan"] = resolved_scan
+
+            # Step 2: total count
+            cur.execute(f"""
+                SELECT COUNT(*) FROM {_IAM_TABLE}
+                WHERE tenant_id = %(tenant_id)s
+                  AND resource_uid = %(resource_uid)s
+                  AND scan_run_id = %(resolved_scan)s
+                  {status_clause}
+            """, params)
+            total = cur.fetchone()[0]
+
+            # Step 3: top N findings sorted by severity
+            cur.execute(f"""
+                SELECT finding_id,
+                       {_IAM_TITLE_EXPR} AS title,
+                       severity, status,
+                       rule_id, resource_uid, resource_type,
+                       account_id, region, provider,
+                       first_seen_at, last_seen_at
+                FROM {_IAM_TABLE}
+                WHERE tenant_id = %(tenant_id)s
+                  AND resource_uid = %(resource_uid)s
+                  AND scan_run_id = %(resolved_scan)s
+                  {status_clause}
+                ORDER BY
+                    CASE severity
+                        WHEN 'critical' THEN 4 WHEN 'high' THEN 3
+                        WHEN 'medium'   THEN 2 WHEN 'low'  THEN 1 ELSE 0
+                    END DESC,
+                    last_seen_at DESC
+                LIMIT %(limit)s
+            """, params)
+            cols = [d[0] for d in cur.description]
+            findings = [
+                FindingItem(**{k: (str(v) if v is not None else v) if k in ("first_seen_at", "last_seen_at") else v
+                               for k, v in dict(zip(cols, r)).items()})
+                for r in cur.fetchall()
+            ]
+        conn.close()
+    except Exception as exc:
+        logger.error(f"Error in get_iam_findings_by_resource: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    return FindingsByResourceResponse(
+        findings=findings,
+        total=total,
+        resource_uid=resource_uid,
+        scan_run_id=resolved_scan,
+    )
 
 
 # ── Standard route aliases ─────────────────────────────────────────────────────

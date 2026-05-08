@@ -1,0 +1,75 @@
+rule_id: gcp.iam.audit.require_mfa_for_cloud_console
+service: iam
+provider: gcp
+check_type: log
+severity: medium
+title: 'PARTIAL: gcp.iam.audit.require_mfa_for_cloud_console ||| verifies MFA policy
+  exists for console but cannot verify session termination for external mai'
+description: Checks if an MFA policy exists for the cloud console (static configuration).
+rationale: Monitoring this activity is essential for detecting adversary defense evasion
+  against GCP resources. Unauthorized or unexpected API calls may indicate account
+  compromise, privilege escalation, or an active attack chain.
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1562
+risk_score: 60
+resource: cloud_iam_principal
+source: csv_generated
+is_active: true
+domain: identity_and_access_management
+action_category: audit_activity
+log_source_type: gcp_audit_log
+posture_category: threat_posture
+threat_tags:
+- T1562
+- defense_evasion
+- ciem_detection
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: read
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  nist_800_171:
+  - 3.7.5
+remediation: '1. Immediately investigate the principal that performed this action
+  — treat as potentially compromised.
+
+  2. Restore any disabled/deleted security controls (logging, agents, scanning).
+
+  3. Review the full session context for lateral movement or data exfiltration following
+  this action.
+
+  4. Restrict the ability to disable security tools to break-glass roles with MFA
+  enforcement.
+
+  5. Add SCPs/Organization Policies to prevent non-authorized disablement of security
+  controls.'
+references:
+- https://attack.mitre.org/techniques/T1562/
+- https://cloud.google.com/iam/docs/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit_log
+    - field: service
+      op: equals
+      value: iam.googleapis.com
+    - field: operation
+      op: in
+      value:
+      - iam.googleapis.com/admin/setOrgPolicy
+      - iam.googleapis.com/admin/setPolicy
+      - iam.googleapis.com/admin/updateRole
+  type: log
+  version: '1.0'

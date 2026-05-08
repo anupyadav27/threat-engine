@@ -1,0 +1,66 @@
+rule_id: aws.rds.audit_log.connection_closed
+service: rds
+provider: aws
+check_type: log
+severity: low
+title: 'RDS: Connection Closed'
+description: RDS database connection closed — routine session termination.
+rationale: 'Network service scanning maps the cloud environment''s attack surface; early detection of reconnaissance activity can preempt follow-on attacks.'
+threat_category: discovery
+mitre_tactics:
+- discovery
+mitre_techniques:
+- T1046
+risk_score: 20
+resource: rds_instance
+source: default
+is_active: true
+domain: data_protection_and_privacy
+action_category: create
+log_source_type: 
+posture_category: threat_posture
+threat_tags:
+- T1046
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: database
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - database_security
+  categories:
+  - sensitive_data_access
+  priority: low
+  impact:
+    pci: PCI DSS Requirement 7 — Restrict access to cardholder data by business need
+    gdpr: GDPR Article 25 — Data protection by design and by default
+    hipaa: §164.312(a)(1) — Access control for ePHI data systems
+  sensitive_data_context: |
+  Unauthorized discovery on rds resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks: {}
+remediation: |
+  1. Investigate the source IP and principal performing the scan.
+  2. Apply NSG/security group rules to limit service scan visibility.
+  3. Enable VPC Flow Logs / NSG Flow Logs to detect scanning patterns.
+  4. Block or throttle API calls from suspicious scan sources.
+references:
+- https://attack.mitre.org/techniques/T1046/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: rds_audit
+    - field: operation
+      op: equals
+      value: CONNECT
+version: '1.0'

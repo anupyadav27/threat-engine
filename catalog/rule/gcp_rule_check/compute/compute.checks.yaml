@@ -1,0 +1,1761 @@
+version: '1.0'
+provider: gcp
+service: compute
+checks:
+- rule_id: gcp.compute.access_control.access_control_no_permit_all
+  for_each: gcp.compute.list_firewalls
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.direction
+      op: equals
+      value: INGRESS
+    - var: item.allowed[].ports[]
+      op: not_contains
+      value: 0-65535
+    - var: item.sourceRanges[]
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: gcp.compute.access_control.access_control_policies_present
+  for_each: gcp.compute.firewalls.list
+  severity: HIGH
+  conditions:
+    var: item
+    op: not_empty
+    value: null
+- rule_id: gcp.compute.access_control.access_control_policy_store_encrypted
+  for_each: gcp.compute.list_instances
+  severity: HIGH
+  conditions:
+    var: item.disks[].diskEncryptionKey.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.compute.address.ip_set_cidrs_valid_and_minimized
+  for_each: gcp.compute.list_addresses
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.IpCidrRange
+      op: exists
+      value: null
+    - var: item.IpCidrRange
+      op: not_equals
+      value: 0.0.0.0/0
+    - var: item.IpCidrRange
+      op: not_contains
+      value: ::/0
+- rule_id: gcp.compute.address.ip_set_cross_account_sharing_restricted
+  for_each: gcp.compute.addresses.list
+  severity: MEDIUM
+  conditions:
+    var: item.users[].split(':')[0]
+    op: not_contains
+    value: allAuthenticatedUsers
+- rule_id: gcp.compute.address.ip_set_not_empty
+  for_each: gcp.compute.list_addresses
+  severity: MEDIUM
+  conditions:
+    var: item.Address
+    op: not_empty
+    value: null
+- rule_id: gcp.compute.address.ip_set_used_by_at_least_one_rule
+  for_each: gcp.compute.list_addresses
+  severity: MEDIUM
+  conditions:
+    var: item.usedBy
+    op: not_empty
+    value: null
+- rule_id: gcp.compute.anomaly_detection.anomaly_destinations_encrypted
+  for_each: gcp.compute.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.disks[].diskEncryptionKey.kmsKeyName
+      op: exists
+      value: null
+    - var: item.networkInterfaces[].accessConfigs[].natIP
+      op: not_exists
+      value: null
+- rule_id: gcp.compute.anomaly_detection.anomaly_detectors_enabled
+  for_each: gcp.compute.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Labels['anomaly-detection-enabled']
+      op: exists
+      value: null
+    - var: item.Labels['anomaly-detection-enabled']
+      op: equals
+      value: 'true'
+- rule_id: gcp.compute.automation.automation_artifacts_encrypted_and_private
+  for_each: gcp.compute.automation.list_automation_artifacts
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.encryption
+      op: exists
+      value: null
+    - var: item.encryption.encryption_type
+      op: equals
+      value: CUSTOMER_MANAGED
+    - var: item.visibility
+      op: not_equals
+      value: PUBLIC
+- rule_id: gcp.compute.automation.automation_execution_roles_least_privilege
+  for_each: gcp.compute.automation.list_automations
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.automationExecutionRoles[].role
+      op: in
+      value:
+      - roles/compute.automationExecutionUser
+      - roles/compute.automationExecutionViewer
+- rule_id: gcp.compute.automation.automation_remediation_roles_least_privilege
+  for_each: gcp.compute.automation.list_automations
+  severity: HIGH
+  conditions:
+    var: item.remediationRoles[].permissions
+    op: not_contains
+    value: '*'
+- rule_id: gcp.compute.automation.dr_automation_change_audit_logging_enabled
+  for_each: gcp.compute.automation.list_automations
+  severity: HIGH
+  conditions:
+    var: item.changeAuditLoggingEnabled
+    op: is_true
+    value: null
+- rule_id: gcp.compute.automation.netsec_automation_change_audit_logging_enabled
+  for_each: gcp.compute.automation.list_netsec_automations
+  severity: HIGH
+  conditions:
+    var: item.changeAuditLoggingEnabled
+    op: is_true
+    value: null
+- rule_id: gcp.compute.backend_service.cdn_access_logging_enabled
+  for_each: gcp.compute.backend_services.list
+  severity: MEDIUM
+  conditions:
+    var: item.cdnPolicy.enableLogging
+    op: is_true
+    value: null
+- rule_id: gcp.compute.backend_service.cdn_cache_key_excludes_sensitive_headers
+  for_each: gcp.compute.list_backend_services
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.cdnPolicy.cacheKeyPolicy.includeHttpHeaders[]
+      op: not_contains
+      value: Authorization
+    - var: item.cdnPolicy.cacheKeyPolicy.includeHttpHeaders[]
+      op: not_contains
+      value: Cookie
+    - var: item.cdnPolicy.cacheKeyPolicy.includeHttpHeaders[]
+      op: not_contains
+      value: Proxy-Authorization
+- rule_id: gcp.compute.backend_service.cdn_cache_key_minimal_query_and_cookie_variants
+  for_each: gcp.compute.list_backend_services
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.CdnPolicy.CacheKeyPolicy.IncludeHost
+      op: is_true
+      value: null
+    - var: item.CdnPolicy.CacheKeyPolicy.IncludeProtocol
+      op: is_true
+      value: null
+    - var: item.CdnPolicy.CacheKeyPolicy.IncludeQueryString
+      op: is_true
+      value: null
+    - var: item.CdnPolicy.CacheKeyPolicy.QueryStringWhitelist
+      op: exists
+      value: null
+    - var: item.CdnPolicy.CacheKeyPolicy.QueryStringBlacklist
+      op: not_exists
+      value: null
+    - var: item.CdnPolicy.CacheKeyPolicy.IncludeHttpHeaders
+      op: exists
+      value: null
+    - var: item.CdnPolicy.CacheKeyPolicy.IncludeHttpHeaders[].header_name
+      op: contains
+      value: Cookie
+- rule_id: gcp.compute.backend_service.cdn_hsts_enabled
+  for_each: gcp.compute.list_backend_services
+  severity: MEDIUM
+  conditions:
+    var: item.CdnPolicy.SecurityPolicy.IncludeHost
+    op: exists
+    value: null
+- rule_id: gcp.compute.backend_service.cdn_https_only_viewer_protocol
+  for_each: gcp.compute.list_backend_services
+  severity: MEDIUM
+  conditions:
+    var: item.CdnPolicy.SignedUrlKeyNames[]
+    op: not_exists
+    value: null
+- rule_id: gcp.compute.backend_service.cdn_origin_access_restricted
+  for_each: gcp.compute.backend_services.list
+  severity: MEDIUM
+  conditions:
+    var: item.cdnPolicy.signedUrlKeyNames[]
+    op: not_contains
+    value: '*'
+- rule_id: gcp.compute.backend_service.cdn_signed_urls_or_headers_required_for_private_content
+  for_each: gcp.compute.list_backend_services
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.CdnPolicy
+      op: exists
+      value: null
+    - any:
+      - var: item.CdnPolicy.SignedUrlKeyNames
+        op: not_empty
+        value: null
+      - var: item.CdnPolicy.SignedUrlCacheMaxAgeSec
+        op: exists
+        value: null
+- rule_id: gcp.compute.backend_service.cdn_tls_min_1_2_enforced
+  for_each: gcp.compute.backend_services.list
+  severity: HIGH
+  conditions:
+    var: item.cdnPolicy.signedUrlCacheMaxAgeSec
+    op: exists
+    value: null
+- rule_id: gcp.compute.backend_service.cdn_valid_trusted_certificate_attached
+  for_each: gcp.compute.list_backend_services
+  severity: MEDIUM
+  conditions:
+    var: item.CdnPolicy.SignedUrlKeyNames[]
+    op: not_empty
+    value: null
+- rule_id: gcp.compute.backend_service.cdn_waf_web_acl_attached
+  for_each: gcp.compute.list_backend_services
+  severity: MEDIUM
+  conditions:
+    var: item.CdnPolicy.WebAclId
+    op: exists
+    value: null
+- rule_id: gcp.compute.backend_service.tg_health_checks_tls_where_supported
+  for_each: gcp.compute.backend_services.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.protocol
+      op: in
+      value:
+      - HTTPS
+      - SSL
+      - TCP
+    - var: item.healthChecks
+      op: not_empty
+      value: null
+- rule_id: gcp.compute.backend_service.tg_targets_in_private_subnets
+  for_each: gcp.compute.list_backend_services
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.backends[].group
+      op: exists
+      value: null
+    - var: item.backends[].group
+      op: not_contains
+      value: https://www.googleapis.com/compute/v1/projects/
+- rule_id: gcp.compute.dedicated_host.dedicated_host_host_sharing_restricted
+  for_each: gcp.compute.dedicated_hosts.list
+  severity: HIGH
+  conditions:
+    var: item.hostSharingPolicy
+    op: equals
+    value: RESTRICTED
+- rule_id: gcp.compute.dedicated_host.dedicated_host_instance_auto_placement_controlled
+  for_each: gcp.compute.list_dedicated_hosts
+  severity: HIGH
+  conditions:
+    var: item.autoPlacement
+    op: equals
+    value: NONE
+- rule_id: gcp.compute.disk.disk_cmk_cmek_configured
+  for_each: gcp.compute.disks.list
+  severity: CRITICAL
+  conditions:
+    var: item.diskEncryptionKey.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.compute.disk.disk_encryption_at_rest_enabled
+  for_each: gcp.compute.list_disks
+  severity: HIGH
+  conditions:
+    var: item.diskEncryptionKey.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.compute.disk.disk_snapshots_encrypted
+  for_each: gcp.compute.list_disks
+  severity: HIGH
+  conditions:
+    var: item.DiskEncryptionKey
+    op: exists
+    value: null
+- rule_id: gcp.compute.disk.disk_snapshots_not_public
+  for_each: gcp.compute.list_disks
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.iamPolicy.bindings[].members[]
+      op: not_contains
+      value: allUsers
+    - var: item.iamPolicy.bindings[].members[]
+      op: not_contains
+      value: allAuthenticatedUsers
+- rule_id: gcp.compute.disk.replication_auth_roles_least_privilege
+  for_each: gcp.compute.list_disks
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.guestOsFeatures[].type
+      op: contains
+      value: GVNIC
+    - var: item.guestOsFeatures[].type
+      op: not_contains
+      value: VIRTIO_SCSI_MULTIQUEUE
+- rule_id: gcp.compute.disk.replication_cross_region_replication_encrypted
+  for_each: gcp.compute.disks.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.replicaZones
+      op: exists
+      value: null
+    - var: item.diskEncryptionKey.kmsKeyName
+      op: exists
+      value: null
+- rule_id: gcp.compute.disk.replication_encryption_in_transit_tls_required
+  for_each: gcp.compute.disks.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.replicaZones
+      op: exists
+      value: null
+    - var: item.diskEncryptionKey.kmsKeyName
+      op: exists
+      value: null
+- rule_id: gcp.compute.disk.replication_lag_monitoring_alerts_enabled
+  for_each: gcp.compute.list_disks
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.ReplicationLagMonitoringAlertPolicy
+      op: exists
+      value: null
+    - var: item.ReplicationLagMonitoringAlertPolicy.Enabled
+      op: is_true
+      value: null
+- rule_id: gcp.compute.disk.volume_cmk_cmek_configured
+  for_each: gcp.compute.disks.list
+  severity: CRITICAL
+  conditions:
+    var: item.diskEncryptionKey.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.compute.disk.volume_encryption_at_rest_enabled
+  for_each: gcp.compute.disks.list
+  severity: HIGH
+  conditions:
+    var: item.diskEncryptionKey.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.compute.disk.volume_snapshots_encrypted
+  for_each: gcp.compute.list_disks
+  severity: HIGH
+  conditions:
+    var: item.diskEncryptionKey.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.compute.encryption.encryption_mtls_required_for_internal_services_where_supported
+  for_each: gcp.compute.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.ShieldedInstanceConfig.EnableIntegrityMonitoring
+      op: is_true
+      value: null
+    - var: item.ShieldedInstanceConfig.EnableVtpm
+      op: is_true
+      value: null
+- rule_id: gcp.compute.encryption.encryption_tls_min_1_2_enforced
+  for_each: gcp.compute.ssl_policies.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.minTlsVersion
+      op: exists
+      value: null
+    - var: item.minTlsVersion
+      op: in
+      value:
+      - TLS_1_2
+      - TLS_1_3
+- rule_id: gcp.compute.firewall.firewall_logging_enabled
+  for_each: gcp.compute.firewalls.list
+  severity: HIGH
+  conditions:
+    var: item.logConfig.enable
+    op: is_true
+    value: null
+- rule_id: gcp.compute.firewall.firewall_no_permit_any_any
+  for_each: gcp.compute.firewall.list_firewalls
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.allowed[].ports[]
+      op: not_contains
+      value: 0-65535
+    - var: item.allowed[].IPProtocol
+      op: not_contains
+      value: all
+- rule_id: gcp.compute.firewall.firewall_rule_groups_attached
+  for_each: gcp.compute.firewall.list_firewalls
+  severity: HIGH
+  conditions:
+    var: item.targetTags
+    op: exists
+    value: null
+- rule_id: gcp.compute.firewall.nacl_egress_restricted
+  for_each: gcp.compute.firewalls.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.direction
+      op: equals
+      value: EGRESS
+    - var: item.allowed[].IPProtocol
+      op: not_contains
+      value: all
+    - var: item.destinationRanges[]
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: gcp.compute.firewall.nacl_no_allow_all_rules
+  for_each: gcp.compute.firewalls.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.allowed
+      op: not_empty
+      value: null
+    - var: item.allowed[].ports
+      op: not_contains
+      value: 0-65535
+    - var: item.allowed[].IPProtocol
+      op: not_equals
+      value: all
+- rule_id: gcp.compute.firewall.net_sg_egress_restricted
+  for_each: gcp.compute.firewalls.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.direction
+      op: equals
+      value: EGRESS
+    - var: item.allowed[].IPProtocol
+      op: not_contains
+      value: all
+    - var: item.destinationRanges[]
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: gcp.compute.firewall.net_sg_no_0_0_0_0_ingress
+  for_each: gcp.compute.firewall.list_firewalls
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.allowed[].ports[]
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.sourceRanges[]
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: gcp.compute.firewall.net_sg_only_required_ports_open
+  for_each: gcp.compute.list_firewalls
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.allowed[].ports[]
+      op: in
+      value:
+      - '80'
+      - '443'
+      - '22'
+- rule_id: gcp.compute.firewall.sg_egress_egress_restricted
+  for_each: gcp.compute.firewalls.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.direction
+      op: equals
+      value: EGRESS
+    - var: item.allowed[].IPProtocol
+      op: not_contains
+      value: all
+    - var: item.destinationRanges[]
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: gcp.compute.firewall.sg_ingress_no_0_0_0_0
+  for_each: gcp.compute.list_firewalls
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.direction
+      op: equals
+      value: INGRESS
+    - var: item.allowed[].ports[]
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: gcp.compute.firewall.sg_ingress_only_required_ports
+  for_each: gcp.compute.list_firewalls
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.allowed[].ports[]
+      op: not_in
+      value:
+      - 0-65535
+    - var: item.direction
+      op: equals
+      value: INGRESS
+- rule_id: gcp.compute.firewall.warehouse_sg_egress_restricted
+  for_each: gcp.compute.firewalls.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.direction
+      op: equals
+      value: EGRESS
+    - var: item.allowed[].IPProtocol
+      op: not_contains
+      value: all
+    - var: item.destinationRanges[]
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: gcp.compute.firewall.warehouse_sg_no_0_0_0_0_ingress
+  for_each: gcp.compute.firewall.list_firewalls
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.allowed[].ports[]
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.sourceRanges[]
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: gcp.compute.firewall.warehouse_sg_only_required_ports_open
+  for_each: gcp.compute.firewall.list_firewalls
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.allowed[].ports[]
+      op: not_contains
+      value: 0-65535
+    - var: item.direction
+      op: equals
+      value: INGRESS
+    - var: item.disabled
+      op: is_false
+      value: null
+- rule_id: gcp.compute.forwarding_rule.listener_cipher_policy_secure
+  for_each: gcp.compute.list_forwarding_rules
+  severity: HIGH
+  conditions:
+    var: item.ListenerCipherPolicy
+    op: exists
+    value: null
+- rule_id: gcp.compute.forwarding_rule.listener_tls_min_1_2
+  for_each: gcp.compute.forwarding_rules.list
+  severity: HIGH
+  conditions:
+    var: item.TlsSettings.minTlsVersion
+    op: in
+    value:
+    - TLS_1_2
+    - TLS_1_3
+- rule_id: gcp.compute.global_address.endpoint_policy_least_privilege
+  for_each: gcp.compute.list_global_addresses
+  severity: HIGH
+  conditions:
+    var: item.endpointPolicy
+    op: not_exists
+    value: null
+- rule_id: gcp.compute.global_address.endpoint_private_dns_enabled_where_supported
+  for_each: gcp.compute.list_global_addresses
+  severity: HIGH
+  conditions:
+    var: item.PrivateEndpoint.PrivateEndpointNetwork
+    op: exists
+    value: null
+- rule_id: gcp.compute.health_check.health_check_alerts_configured
+  for_each: gcp.compute.health_checks.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.alertPolicies
+      op: not_empty
+      value: null
+    - var: item.alertPolicies[].enabled
+      op: is_true
+      value: null
+- rule_id: gcp.compute.health_check.health_check_https_or_tls_used
+  for_each: gcp.compute.health_checks.list
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.type
+      op: equals
+      value: HTTPS
+    - var: item.type
+      op: equals
+      value: SSL
+- rule_id: gcp.compute.health_check.health_check_no_plaintext_credentials_in_url
+  for_each: gcp.compute.list_health_checks
+  severity: HIGH
+  conditions:
+    var: item.HttpHealthCheck.Host
+    op: not_contains
+    value:
+    - 'user:'
+    - 'pass:'
+    - 'password:'
+    - 'secret:'
+    - 'key:'
+    - 'token:'
+    - 'credential:'
+- rule_id: gcp.compute.image.image_approved_image_allowlist_enforced
+  for_each: gcp.compute.images.list
+  severity: HIGH
+  conditions:
+    var: item.deprecated.state
+    op: not_equals
+    value: DEPRECATED
+- rule_id: gcp.compute.image.image_encrypted_cmek
+  for_each: gcp.compute.images.list
+  severity: HIGH
+  conditions:
+    var: item.diskEncryptionKey.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.compute.image.image_image_signed_and_verified
+  for_each: gcp.compute.images.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.signatures[].publicKeyId
+      op: exists
+      value: null
+    - var: item.signatures[].verificationStatus
+      op: equals
+      value: VERIFIED
+- rule_id: gcp.compute.image.image_not_publicly_shared
+  for_each: gcp.compute.images.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.iamPolicy.bindings[].members[]
+      op: not_contains
+      value: allUsers
+    - var: item.iamPolicy.bindings[].members[]
+      op: not_contains
+      value: allAuthenticatedUsers
+- rule_id: gcp.compute.image.image_vuln_scanned_no_critical
+  for_each: gcp.compute.images.list
+  severity: HIGH
+  conditions:
+    var: item.vulnerabilityScanResults[].severity
+    op: not_contains
+    value: CRITICAL
+- rule_id: gcp.compute.instance.instance_disk_encrypted
+  for_each: gcp.compute.list_instances
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.disks[].diskEncryptionKey
+      op: exists
+      value: null
+- rule_id: gcp.compute.instance.instance_no_public_ip_unless_required
+  for_each: gcp.compute.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.networkInterfaces[].accessConfigs
+      op: is_empty
+      value: null
+    - var: item.networkInterfaces[].ipv6AccessConfigs
+      op: is_empty
+      value: null
+- rule_id: gcp.compute.instance.instance_ssh_password_auth_disabled
+  for_each: gcp.compute.instances.list
+  severity: MEDIUM
+  conditions:
+    var: item.metadata.items[?(@.key == 'enable-oslogin')].value
+    op: contains
+    value: 'TRUE'
+- rule_id: gcp.compute.instance.testing_execution_roles_least_privilege
+  for_each: gcp.compute.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.serviceAccounts[].scopes[]
+      op: not_contains
+      value: https://www.googleapis.com/auth/cloud-platform
+    - var: item.serviceAccounts[].scopes[]
+      op: not_contains
+      value: https://www.googleapis.com/auth/compute
+- rule_id: gcp.compute.instance.testing_logs_enabled
+  for_each: gcp.compute.list_instances
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.metadata.items[].key
+      op: contains
+      value: enable-oslogin
+    - var: item.metadata.items[?(@.key == 'enable-oslogin')].value
+      op: equals
+      value: 'TRUE'
+- rule_id: gcp.compute.instance.testing_results_storage_encrypted_and_private
+  for_each: gcp.compute.list_instances
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.disks[].diskEncryptionKey.kmsKeyName
+      op: exists
+      value: null
+    - var: item.networkInterfaces[].accessConfigs[].natIP
+      op: not_exists
+      value: null
+- rule_id: gcp.compute.instance.vm_data_volumes_encrypted_cmek
+  for_each: gcp.compute.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.disks[].diskEncryptionKey.kmsKeyName
+      op: exists
+      value: null
+- rule_id: gcp.compute.instance.vm_imds_hardened
+  for_each: gcp.compute.list_instances
+  severity: HIGH
+  conditions:
+    var: item.Metadata.Items[].Key
+    op: not_contains
+    value: enable-oslogin
+- rule_id: gcp.compute.instance.vm_no_public_ip_assigned
+  for_each: gcp.compute.list_instances
+  severity: HIGH
+  conditions:
+    var: item.networkInterfaces[].accessConfigs[].natIP
+    op: not_exists
+    value: null
+- rule_id: gcp.compute.instance.vm_root_volume_encrypted_cmek
+  for_each: gcp.compute.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.disks[].diskEncryptionKey.kmsKeyName
+      op: exists
+      value: null
+- rule_id: gcp.compute.instance.vm_secure_boot_enabled
+  for_each: gcp.compute.list_instances
+  severity: HIGH
+  conditions:
+    var: item.ShieldedInstanceConfig.EnableSecureBoot
+    op: is_true
+    value: null
+- rule_id: gcp.compute.instance.vm_security_group_inbound_restricted
+  for_each: gcp.compute.instances.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.networkInterfaces[].accessConfigs[].natIP
+      op: is_empty
+      value: null
+    - var: item.networkInterfaces[].ipv6AccessConfigs[].externalIpv6
+      op: is_empty
+      value: null
+- rule_id: gcp.compute.instance.vm_serial_console_access_restricted
+  for_each: gcp.compute.instances.list
+  severity: HIGH
+  conditions:
+    var: item.metadata.items[?(@.key == 'serial-port-enable')].value
+    op: not_contains
+    value: 'true'
+- rule_id: gcp.compute.instance.vm_ssh_key_based_auth_required
+  for_each: gcp.compute.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.metadata.items[].key
+      op: contains
+      value: block-project-ssh-keys
+    - var: item.metadata.items[?(@.key == 'block-project-ssh-keys')].value
+      op: equals
+      value: 'true'
+- rule_id: gcp.compute.instance.vm_ssh_password_auth_disabled
+  for_each: gcp.compute.instances.list
+  severity: HIGH
+  conditions:
+    var: item.metadata.items[?(@.key == 'enable-oslogin')].value
+    op: contains
+    value: 'TRUE'
+- rule_id: gcp.compute.instance.vm_user_data_no_secrets
+  for_each: gcp.compute.instances.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.metadata.items[].key
+      op: not_contains
+      value: user-data
+    - var: item.metadata.items[].value
+      op: not_contains
+      value: password
+    - var: item.metadata.items[].value
+      op: not_contains
+      value: secret
+    - var: item.metadata.items[].value
+      op: not_contains
+      value: key
+- rule_id: gcp.compute.instance.vm_vtpm_enabled
+  for_each: gcp.compute.list_instances
+  severity: HIGH
+  conditions:
+    var: item.ShieldedInstanceConfig.EnableVtpm
+    op: is_true
+    value: null
+- rule_id: gcp.compute.instance_group.instance_group_instance_profile_least_privilege
+  for_each: gcp.compute.instance_groups.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.instances[].serviceAccounts[].scopes[]
+      op: not_contains
+      value: https://www.googleapis.com/auth/cloud-platform
+- rule_id: gcp.compute.instance_group.instance_group_no_public_ip_assigned
+  for_each: gcp.compute.instance_groups.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.instances[].networkInterfaces[].accessConfigs[].natIP
+      op: not_exists
+      value: null
+- rule_id: gcp.compute.instance_group.instance_group_uses_approved_launch_template
+  for_each: gcp.compute.instance_groups.list
+  severity: HIGH
+  conditions:
+    var: item.instanceTemplate
+    op: exists
+    value: null
+- rule_id: gcp.compute.instance_group.instance_group_volumes_encrypted
+  for_each: gcp.compute.instance_groups.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.instances[].disks[].diskEncryptionKey.kmsKeyName
+      op: exists
+      value: null
+- rule_id: gcp.compute.instance_template.launch_template_imds_hardened
+  for_each: gcp.compute.instance_templates.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.properties.metadata.items[].key
+      op: contains
+      value: block-project-ssh-keys
+    - var: item.properties.metadata.items[?(@.key=='block-project-ssh-keys')].value
+      op: equals
+      value: 'true'
+- rule_id: gcp.compute.instance_template.launch_template_instance_profile_least_privilege
+  for_each: gcp.compute.instance_templates.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.properties.serviceAccounts[].scopes[]
+      op: not_contains
+      value: https://www.googleapis.com/auth/cloud-platform
+    - var: item.properties.serviceAccounts[].scopes[]
+      op: not_contains
+      value: cloud-platform
+- rule_id: gcp.compute.instance_template.launch_template_no_public_ip_default
+  for_each: gcp.compute.instance_templates.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.properties.networkInterfaces[].accessConfigs[].natIP
+      op: not_exists
+      value: null
+    - var: item.properties.networkInterfaces[].accessConfigs[].type
+      op: not_equals
+      value: ONE_TO_ONE_NAT
+- rule_id: gcp.compute.instance_template.launch_template_root_volume_encrypted_by_default
+  for_each: gcp.compute.instance_templates.list
+  severity: HIGH
+  conditions:
+    var: item.properties.disks[].diskEncryptionKey
+    op: exists
+    value: null
+- rule_id: gcp.compute.instance_template.launch_template_security_groups_restrictive
+  for_each: gcp.compute.instanceTemplates.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.properties.networkInterfaces[].accessConfigs[].natIP
+      op: not_exists
+      value: null
+    - var: item.properties.networkInterfaces[].ipv6AccessConfigs[].externalIpv6
+      op: not_exists
+      value: null
+- rule_id: gcp.compute.instance_template.launch_template_user_data_no_secrets
+  for_each: gcp.compute.instance_templates.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.properties.metadata.items[].key
+      op: not_contains
+      value: user-data
+    - var: item.properties.metadata.items[].key
+      op: not_contains
+      value: user_data
+- rule_id: gcp.compute.isolation.isolation_automated_isolation_supported
+  for_each: gcp.compute.instances.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.scheduling.onHostMaintenance
+      op: equals
+      value: MIGRATE
+    - var: item.scheduling.automaticRestart
+      op: is_true
+      value: null
+- rule_id: gcp.compute.isolation.isolation_quarantine_network_defined
+  for_each: gcp.compute.networks.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.subnetworks
+      op: not_empty
+      value: null
+    - var: item.subnetworks[].privateIpGoogleAccess
+      op: is_true
+      value: null
+- rule_id: gcp.compute.job.dr_job_logs_enabled
+  for_each: gcp.compute.list_instances
+  severity: MEDIUM
+  conditions:
+    var: item.Metadata.items[?(@.key == 'enable-oslogin')].value
+    op: not_contains
+    value: 'TRUE'
+- rule_id: gcp.compute.job.dr_job_network_private_only
+  for_each: gcp.compute.list_instances
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.networkInterfaces[].accessConfigs
+      op: is_empty
+      value: null
+    - var: item.networkInterfaces[].ipv6AccessConfigs
+      op: is_empty
+      value: null
+- rule_id: gcp.compute.job.dr_job_roles_least_privilege
+  for_each: gcp.compute.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.serviceAccounts[].scopes
+      op: not_contains
+      value: https://www.googleapis.com/auth/cloud-platform
+    - var: item.serviceAccounts[].scopes
+      op: not_contains
+      value: https://www.googleapis.com/auth/compute
+- rule_id: gcp.compute.micro_segmentation.microseg_endpoint_policies_applied
+  for_each: gcp.compute.list_endpoint_policies
+  severity: HIGH
+  conditions:
+    var: item.name
+    op: exists
+    value: null
+- rule_id: gcp.compute.micro_segmentation.microseg_identity_aware_policies_enabled
+  for_each: gcp.compute.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.tags.items
+      op: exists
+      value: null
+    - var: item.tags.items
+      op: not_empty
+      value: null
+- rule_id: gcp.compute.monitoring.monitoring_alerts_for_anomalies_configured
+  for_each: gcp.compute.instances.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.metadata.labels.alerting_enabled
+      op: equals
+      value: 'true'
+    - var: item.metadata.labels.alerting_rules
+      op: not_empty
+      value: null
+- rule_id: gcp.compute.monitoring.monitoring_flow_logs_enabled
+  for_each: gcp.compute.list_instances
+  severity: HIGH
+  conditions:
+    var: item.Metadata.Items[].Key
+    op: contains
+    value: enable-flow-logs
+- rule_id: gcp.compute.network.vpc_dns_hostnames_and_support_configured
+  for_each: gcp.compute.networks.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.enableUlaInternalIpv6
+      op: is_false
+      value: null
+    - var: item.dnsConfig.enableInboundForwarding
+      op: is_true
+      value: null
+    - var: item.dnsConfig.allowForwardingOnlyForRdnsZones
+      op: is_false
+      value: null
+- rule_id: gcp.compute.network.vpc_flow_logs_enabled
+  for_each: gcp.compute.list_subnetworks
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.EnableFlowLogs
+      op: is_true
+      value: null
+    - var: item.LogConfig.AggregationInterval
+      op: exists
+      value: null
+    - var: item.LogConfig.FlowSampling
+      op: exists
+      value: null
+    - var: item.LogConfig.Metadata
+      op: exists
+      value: null
+- rule_id: gcp.compute.network.vpc_route_tables_no_unintended_internet_paths
+  for_each: gcp.compute.list_route_tables
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.routes[].destRange
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.routes[].destRange
+      op: not_contains
+      value: ::/0
+- rule_id: gcp.compute.network_interface.eni_security_groups_present
+  for_each: gcp.compute.network_interfaces.list
+  severity: HIGH
+  conditions:
+    var: item.security_groups
+    op: not_empty
+    value: null
+- rule_id: gcp.compute.network_interface.eni_security_groups_restrictive
+  for_each: gcp.compute.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.networkInterfaces[].accessConfigs[].natIP
+      op: not_exists
+      value: null
+    - var: item.networkInterfaces[].ipv6AccessConfigs[].externalIpv6
+      op: not_exists
+      value: null
+- rule_id: gcp.compute.plan.dr_plan_approvals_required_for_changes
+  for_each: gcp.compute.list_instances
+  severity: MEDIUM
+  conditions:
+    var: item.labels.dr_plan_approval_required
+    op: exists
+    value: null
+- rule_id: gcp.compute.plan.dr_plan_change_audit_logging_enabled
+  for_each: gcp.compute.plan.list_dr_plans
+  severity: HIGH
+  conditions:
+    var: item.auditLoggingEnabled
+    op: is_true
+    value: null
+- rule_id: gcp.compute.plan.dr_plan_storage_encrypted_and_private
+  for_each: gcp.compute.instances.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.disks[].diskEncryptionKey.kmsKeyName
+      op: exists
+      value: null
+    - var: item.networkInterfaces[].accessConfigs[].natIP
+      op: not_exists
+      value: null
+- rule_id: gcp.compute.preemptible_instance.spot_instance_instance_profile_least_privilege
+  for_each: gcp.compute.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.scheduling.preemptible
+      op: is_true
+      value: null
+    - var: item.serviceAccounts[].scopes
+      op: not_contains
+      value: https://www.googleapis.com/auth/cloud-platform
+- rule_id: gcp.compute.preemptible_instance.spot_instance_no_public_ip_assigned
+  for_each: gcp.compute.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.scheduling.preemptible
+      op: is_true
+      value: null
+    - var: item.networkInterfaces[].accessConfigs[].natIP
+      op: not_exists
+      value: null
+- rule_id: gcp.compute.preemptible_instance.spot_instance_uses_approved_launch_template
+  for_each: gcp.compute.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.scheduling.preemptible
+      op: is_false
+      value: null
+    - var: item.scheduling.provisioningModel
+      op: not_equals
+      value: SPOT
+- rule_id: gcp.compute.recovery_instance.recovery_instance_private_network_only
+  for_each: gcp.compute.list_instances
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.networkInterfaces[].accessConfigs
+      op: is_empty
+      value: null
+    - var: item.networkInterfaces[].ipv6AccessConfigs
+      op: is_empty
+      value: null
+- rule_id: gcp.compute.recovery_instance.recovery_instance_security_groups_restrictive
+  for_each: gcp.compute.list_instances
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.networkInterfaces[].accessConfigs[].natIP
+      op: not_exists
+      value: null
+    - var: item.tags.items
+      op: not_contains
+      value: public
+- rule_id: gcp.compute.recovery_instance.recovery_instance_volumes_encrypted
+  for_each: gcp.compute.list_instances
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.disks[].diskEncryptionKey.kmsKeyName
+      op: exists
+      value: null
+- rule_id: gcp.compute.reservation.reservation_approval_workflow_required
+  for_each: gcp.compute.list_reservations
+  severity: LOW
+  conditions:
+    var: item.Status
+    op: equals
+    value: APPROVED
+- rule_id: gcp.compute.reservation.reservation_billing_admins_mfa_required
+  for_each: gcp.compute.list_reservations
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.specificReservation
+      op: exists
+      value: null
+    - var: item.specificReservation.assignedReservations[].assignedUsers[].mfaEnabled
+      op: is_true
+      value: null
+- rule_id: gcp.compute.reservation.reservation_purchase_permissions_restricted
+  for_each: gcp.compute.reservations.list
+  severity: LOW
+  conditions:
+    var: item.specificReservation.assignedReservations[].assignedWith[].principals
+    op: not_contains
+    value: allUsers
+- rule_id: gcp.compute.route.route_table_no_0_0_0_0_from_private_subnets
+  for_each: gcp.compute.list_routes
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.destRange
+      op: not_equals
+      value: 0.0.0.0/0
+    - var: item.network
+      op: contains
+      value: /networks/
+- rule_id: gcp.compute.route.route_table_vpc_endpoints_used_for_saas_where_supported
+  for_each: gcp.compute.list_routes
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.nextHopGateway
+      op: equals
+      value: https://www.googleapis.com/compute/v1/projects/gcp-sa-<service>.global/gateways/default-internet-gateway
+    - var: item.nextHopGateway
+      op: contains
+      value: global/gateways/default-internet-gateway
+- rule_id: gcp.compute.security_policy.waf_block_actions_not_count_only
+  for_each: gcp.compute.list_security_policies
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.rules[].action
+      op: not_contains
+      value: allow
+    - var: item.rules[].action
+      op: not_contains
+      value: redirect
+- rule_id: gcp.compute.security_policy.waf_ip_rate_limit_rules_configured_where_supported
+  for_each: gcp.compute.security_policies.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.rules[].action
+      op: contains
+      value: throttle
+    - var: item.rules[].match.config.srcIpRanges
+      op: not_empty
+      value: null
+- rule_id: gcp.compute.security_policy.waf_logging_enabled
+  for_each: gcp.compute.security_policies.list
+  severity: MEDIUM
+  conditions:
+    var: item.logConfig.enable
+    op: is_true
+    value: null
+- rule_id: gcp.compute.security_policy.waf_managed_rule_sets_enabled
+  for_each: gcp.compute.list_security_policies
+  severity: MEDIUM
+  conditions:
+    var: item.managedRules
+    op: exists
+    value: null
+- rule_id: gcp.compute.security_policy.waf_web_acl_attached_to_cdn
+  for_each: gcp.compute.list_security_policies
+  severity: MEDIUM
+  conditions:
+    var: item.WebAclId
+    op: exists
+    value: null
+- rule_id: gcp.compute.segmentation.segmentation_default_deny_between_tiers
+  for_each: gcp.compute.list_firewalls
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.direction
+      op: equals
+      value: INGRESS
+    - var: item.allowed[].ports[]
+      op: not_contains
+      value: 0-65535
+    - var: item.sourceRanges[]
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: gcp.compute.segmentation.segmentation_exception_approvals_required
+  for_each: gcp.compute.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.labels.segmentation_exception_approved
+      op: exists
+      value: null
+    - var: item.labels.segmentation_exception_approved
+      op: equals
+      value: 'true'
+- rule_id: gcp.compute.segmentation.segmentation_tier_to_tier_policies_defined
+  for_each: gcp.compute.firewalls.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.allowed[].ports
+      op: not_empty
+      value: null
+    - var: item.sourceRanges
+      op: not_empty
+      value: null
+- rule_id: gcp.compute.snapshot.backup_destination_private_only
+  for_each: gcp.compute.list_snapshots
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.storageLocations
+      op: exists
+      value: null
+    - var: item.storageLocations[]
+      op: not_contains
+      value: us
+    - var: item.storageLocations[]
+      op: not_contains
+      value: eu
+    - var: item.storageLocations[]
+      op: not_contains
+      value: asia
+- rule_id: gcp.compute.snapshot.backup_encrypted_at_rest_cmek
+  for_each: gcp.compute.list_snapshots
+  severity: MEDIUM
+  conditions:
+    var: item.snapshotEncryptionKey.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.compute.snapshot.backup_immutable_or_worm_enabled_where_supported
+  for_each: gcp.compute.list_snapshots
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.snapshotEncryptionKey.kmsKeyName
+      op: exists
+      value: null
+    - var: item.storageLocations
+      op: contains
+      value: eu
+- rule_id: gcp.compute.snapshot.backup_schedule_defined_min_frequency
+  for_each: gcp.compute.snapshots.list
+  severity: MEDIUM
+  conditions:
+    var: item.snapshotSchedulePolicy.schedule.dailySchedule.daysInCycle
+    op: exists
+    value: null
+- rule_id: gcp.compute.snapshot.restore_cross_account_restore_blocked_by_policy
+  for_each: gcp.compute.list_snapshots
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.labels
+      op: exists
+      value: null
+    - var: item.labels.restrictCrossAccountRestore
+      op: equals
+      value: 'true'
+- rule_id: gcp.compute.snapshot.restore_from_encrypted_backups_only
+  for_each: gcp.compute.list_snapshots
+  severity: MEDIUM
+  conditions:
+    var: item.snapshotEncryptionKey.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.compute.snapshot.restore_logs_and_artifacts_encrypted
+  for_each: gcp.compute.list_snapshots
+  severity: MEDIUM
+  conditions:
+    var: item.snapshotEncryptionKey.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.compute.snapshot.restore_roles_least_privilege
+  for_each: gcp.compute.list_snapshots
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.iam_policy.bindings[].role
+      op: not_in
+      value:
+      - roles/compute.storageAdmin
+      - roles/owner
+      - roles/editor
+    - var: item.iam_policy.bindings[].members[].contains
+      op: not_contains
+      value: allUsers
+    - var: item.iam_policy.bindings[].members[].contains
+      op: not_contains
+      value: allAuthenticatedUsers
+- rule_id: gcp.compute.source_server.dr_source_agent_to_service_tls_required
+  for_each: gcp.compute.instances.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.metadata.items[].key
+      op: contains
+      value: source-server-agent-tls-required
+    - var: item.metadata.items[?(@.key=='source-server-agent-tls-required')].value
+      op: equals
+      value: 'true'
+- rule_id: gcp.compute.source_server.dr_source_encryption_at_rest_cmek_where_supported
+  for_each: gcp.compute.list_instances
+  severity: HIGH
+  conditions:
+    var: item.disks[].diskEncryptionKey.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.compute.source_server.dr_source_min_telemtry_required_no_pii
+  for_each: gcp.compute.list_instances
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.labels.dr_source
+      op: exists
+      value: null
+    - var: item.labels.dr_source
+      op: not_equals
+      value: 'true'
+    - var: item.labels.telemetry
+      op: exists
+      value: null
+    - var: item.labels.telemetry
+      op: not_equals
+      value: full
+    - var: item.labels.pii
+      op: exists
+      value: null
+    - var: item.labels.pii
+      op: is_false
+      value: null
+- rule_id: gcp.compute.ssh_key.key_pair_disable_unused_keys
+  for_each: gcp.compute.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.metadata.items[].key
+      op: contains
+      value: ssh-keys
+    - var: item.metadata.items[?(@.key == 'ssh-keys')].value
+      op: is_empty
+      value: null
+- rule_id: gcp.compute.ssh_key.key_pair_max_age_days
+  for_each: gcp.compute.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.metadata.items[].key
+      op: contains
+      value: ssh-keys
+    - var: item.metadata.items[].value
+      op: not_empty
+      value: null
+- rule_id: gcp.compute.subnetwork.subnet_group_private_subnets_only
+  for_each: gcp.compute.list_subnetworks
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Purpose
+      op: equals
+      value: PRIVATE
+    - var: item.Ipv6AccessType
+      op: not_equals
+      value: EXTERNAL
+- rule_id: gcp.compute.subnetwork.subnet_private_subnets_no_igw_route
+  for_each: gcp.compute.list_subnetworks
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.routes[].nextHopGateway
+      op: not_contains
+      value: default-internet-gateway
+- rule_id: gcp.compute.subnetwork.subnet_public_subnets_use_nacl_restrictions
+  for_each: gcp.compute.list_subnetworks
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.privateIpGoogleAccess
+      op: is_true
+      value: null
+    - var: item.logConfig.enable
+      op: is_false
+      value: null
+- rule_id: gcp.compute.subnetwork.subnet_route_table_association_present
+  for_each: gcp.compute.subnetwork.list
+  severity: HIGH
+  conditions:
+    var: item.routeTable
+    op: exists
+    value: null
+- rule_id: gcp.compute.traffic_analysis.traffic_analysis_alert_destinations_configured
+  for_each: gcp.compute.traffic_analysis.alert_destinations.list
+  severity: HIGH
+  conditions:
+    var: item.destinations
+    op: not_empty
+    value: null
+- rule_id: gcp.compute.traffic_analysis.traffic_analysis_ids_ips_enabled_where_supported
+  for_each: gcp.compute.instances.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.shieldedInstanceConfig.enableIntegrityMonitoring
+      op: is_true
+      value: null
+    - var: item.shieldedInstanceConfig.enableVtpm
+      op: is_true
+      value: null
+- rule_id: gcp.compute.url_map.cache_policy_allowlists_minimal_query_headers_cookies
+  for_each: gcp.compute.list_url_maps
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.CacheKeyPolicy.IncludeQueryString
+      op: is_false
+      value: null
+    - var: item.CacheKeyPolicy.IncludeHttpHeaders
+      op: is_false
+      value: null
+    - var: item.CacheKeyPolicy.IncludeNamedCookies
+      op: is_false
+      value: null
+- rule_id: gcp.compute.url_map.cache_policy_no_sensitive_headers_cached
+  for_each: gcp.compute.list_url_maps
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.cacheKeyPolicy
+      op: exists
+      value: null
+    - var: item.cacheKeyPolicy.includeHttpHeaders[]
+      op: not_contains
+      value: Authorization
+    - var: item.cacheKeyPolicy.includeHttpHeaders[]
+      op: not_contains
+      value: Cookie
+- rule_id: gcp.compute.url_map.cache_policy_respects_cache_control_no_store_private
+  for_each: gcp.compute.list_url_maps
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.CacheKeyPolicy
+      op: exists
+      value: null
+    - var: item.CacheKeyPolicy.IncludeHttpHeader
+      op: contains
+      value: Cache-Control
+    - var: item.CacheKeyPolicy.QueryStringWhitelist
+      op: contains
+      value: no-store
+    - var: item.CacheKeyPolicy.QueryStringWhitelist
+      op: contains
+      value: private
+- rule_id: gcp.compute.url_map.lb_access_logs_enabled
+  for_each: gcp.compute.list_url_maps
+  severity: HIGH
+  conditions:
+    var: item.logConfig.enable
+    op: is_true
+    value: null
+- rule_id: gcp.compute.url_map.lb_listener_tls_min_1_2
+  for_each: gcp.compute.url_maps.list
+  severity: HIGH
+  conditions:
+    var: item.sslPolicy.minTlsVersion
+    op: in
+    value:
+    - TLS_1_2
+    - TLS_1_3
+- rule_id: gcp.compute.url_map.lb_valid_certificate_attached
+  for_each: gcp.compute.list_url_maps
+  severity: HIGH
+  conditions:
+    var: item.DefaultService
+    op: exists
+    value: null
+- rule_id: gcp.compute.url_map.lb_waf_attached_where_supported
+  for_each: gcp.compute.list_url_maps
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.DefaultService
+      op: exists
+      value: null
+    - var: item.DefaultService
+      op: contains
+      value: global/securityPolicies/
+- rule_id: gcp.compute.url_map.origin_request_policy_forward_cookies_minimal
+  for_each: gcp.compute.list_url_maps
+  severity: MEDIUM
+  conditions:
+    var: item.originRequestPolicy
+    op: exists
+    value: null
+- rule_id: gcp.compute.url_map.origin_request_policy_forward_headers_minimal
+  for_each: gcp.compute.list_url_maps
+  severity: MEDIUM
+  conditions:
+    var: item.OriginRequestPolicy.ForwardHeaders
+    op: equals
+    value: MINIMAL
+- rule_id: gcp.compute.url_map.origin_request_policy_forward_querystrings_minimal
+  for_each: gcp.compute.list_url_maps
+  severity: MEDIUM
+  conditions:
+    var: item.OriginRequestPolicy.ForwardQueryStrings
+    op: is_true
+    value: null
+- rule_id: gcp.compute.url_map.origin_request_policy_no_secret_headers_forwarded
+  for_each: gcp.compute.list_url_maps
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.originRequestPolicy
+      op: exists
+      value: null
+    - var: item.originRequestPolicy.headersConfig.headers[].headerName
+      op: not_contains
+      value: Authorization
+    - var: item.originRequestPolicy.headersConfig.headers[].headerName
+      op: not_contains
+      value: Cookie
+- rule_id: gcp.compute.url_map.regex_set_no_overly_broad_patterns
+  for_each: gcp.compute.list_url_maps
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.pathMatchers[].pathRules[].paths[]
+      op: not_contains
+      value: '*'
+    - var: item.pathMatchers[].pathRules[].paths[]
+      op: not_contains
+      value: '?'
+    - var: item.pathMatchers[].pathRules[].paths[]
+      op: not_contains
+      value: ..
+- rule_id: gcp.compute.url_map.regex_set_not_empty
+  for_each: gcp.compute.list_url_maps
+  severity: MEDIUM
+  conditions:
+    var: item.pathMatchers[].pathRules[].routeAction.urlRewrite.pathPrefixRewrite
+    op: not_empty
+    value: null
+- rule_id: gcp.compute.url_map.regex_set_used_by_at_least_one_rule
+  for_each: gcp.compute.list_url_maps
+  severity: MEDIUM
+  conditions:
+    var: item.pathMatchers[].pathRules[].routeAction.urlRewrite.pathPrefixRewrite
+    op: exists
+    value: null
+- rule_id: gcp.compute.url_map.rule_group_no_permit_all_rule
+  for_each: gcp.compute.url_maps.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.defaultService
+      op: exists
+      value: null
+    - var: item.hostRules
+      op: not_exists
+      value: null
+    - var: item.pathMatchers
+      op: not_exists
+      value: null
+- rule_id: gcp.compute.url_map.rule_group_references_only_approved_managed_sets_where_used
+  for_each: gcp.compute.list_url_maps
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.defaultService
+      op: exists
+      value: null
+    - var: item.hostRules[].pathMatcher
+      op: exists
+      value: null
+    - var: item.pathMatchers[].defaultService
+      op: exists
+      value: null
+    - any:
+      - var: item.defaultService
+        op: contains
+        value: global/backendServices/
+      - var: item.hostRules[].pathMatcher
+        op: not_exists
+        value: null
+      - var: item.pathMatchers[].defaultService
+        op: contains
+        value: global/backendServices/
+- rule_id: gcp.compute.url_map.rule_group_unique_priorities
+  for_each: gcp.compute.list_url_maps
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.rules[].priority
+      op: not_contains
+      value: null
+- rule_id: gcp.compute.url_map.rule_group_visibility_config_enabled
+  for_each: gcp.compute.list_url_maps
+  severity: MEDIUM
+  conditions:
+    var: item.DefaultUrlRedirect.UrlRedirect.HttpsRedirect
+    op: is_true
+    value: null
+- rule_id: gcp.compute.url_map.rule_has_effective_action_not_count_only
+  for_each: gcp.compute.list_url_maps
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.defaultUrlRedirect
+      op: exists
+      value: null
+    - var: item.defaultUrlRedirect.redirectResponseCode
+      op: exists
+      value: null
+    - var: item.defaultUrlRedirect.httpsRedirect
+      op: is_true
+      value: null
+- rule_id: gcp.compute.url_map.rule_priority_unique_within_web_acl
+  for_each: gcp.compute.list_url_maps
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.rules[].priority
+      op: not_contains
+      value: null
+- rule_id: gcp.compute.url_map.rule_references_valid_ip_or_regex_sets_only
+  for_each: gcp.compute.list_url_maps
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.hostRules[].pathMatcher
+      op: exists
+      value: null
+    - var: item.pathMatchers[].defaultService
+      op: exists
+      value: null
+    - var: item.pathMatchers[].defaultService
+      op: not_contains
+      value: invalid
+    - var: item.pathMatchers[].pathRules[].service
+      op: not_contains
+      value: invalid
+- rule_id: gcp.compute.vpn_tunnel.cgw_ip_addresses_valid_and_owned
+  for_each: gcp.compute.list_vpn_tunnels
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.customerGatewayIpAddresses[]
+      op: not_contains
+      value: 0.0.0.0
+    - var: item.customerGatewayIpAddresses[]
+      op: not_contains
+      value: '::'
+- rule_id: gcp.compute.vpn_tunnel.cgw_no_public_management_interfaces_exposed
+  for_each: gcp.compute.list_vpn_tunnels
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.customerGateway
+      op: exists
+      value: null
+    - var: item.customerGateway.managementInterfaces[].publicIpAddress
+      op: not_exists
+      value: null
+- rule_id: gcp.compute.vpn_tunnel.vpn_ike_phase_encryption_strong
+  for_each: gcp.compute.list_vpn_tunnels
+  severity: HIGH
+  conditions:
+    var: item.ikeVersion
+    op: equals
+    value: 2
+- rule_id: gcp.compute.vpn_tunnel.vpn_pre_shared_keys_rotation_policy_defined
+  for_each: gcp.compute.vpn_tunnel.list
+  severity: HIGH
+  conditions:
+    var: item.preSharedKeyRotationPolicy
+    op: exists
+    value: null
+- rule_id: gcp.compute.vpn_tunnel.vpn_tunnel_health_monitoring_enabled
+  for_each: gcp.compute.list_vpn_tunnels
+  severity: HIGH
+  conditions:
+    var: item.healthCheck
+    op: exists
+    value: null

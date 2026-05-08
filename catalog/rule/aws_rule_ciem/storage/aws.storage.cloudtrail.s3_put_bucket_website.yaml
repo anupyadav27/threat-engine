@@ -1,0 +1,85 @@
+rule_id: aws.storage.cloudtrail.s3_put_bucket_website
+service: storage
+provider: aws
+check_type: log
+severity: medium
+title: 'Storage: S3 Put Bucket Website'
+description: S3 bucket configured as static website — public HTTP endpoint added to bucket.
+rationale: Public-facing application exploitation can provide initial foothold in cloud environments; early detection limits attacker dwell time significantly.
+threat_category: execution
+mitre_tactics:
+- initial_access
+mitre_techniques:
+- T1190
+risk_score: 55
+resource: storage_resource
+source: default
+is_active: true
+domain: data_protection_and_privacy
+action_category: create
+log_source_type: 
+posture_category: workload_posture
+threat_tags:
+- T1190
+- remote_execution
+- cloud_exec
+- storage_access
+- data
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: storage_account
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - data_access_governance
+  categories:
+  - sensitive_data_access
+  priority: medium
+  impact:
+    pci: PCI DSS Requirement 3.1 — Minimize cardholder data storage
+    gdpr: GDPR Article 25 — Data protection by design; minimize data exposure
+    hipaa: §164.312(a)(1) — Access controls on data repositories containing ePHI
+  sensitive_data_context: |
+  Unauthorized execution on storage resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks:
+  cis_aws_v3:
+  - 3.1
+  - 5.1
+  cis_azure_v2:
+  - 5.1
+  - 6.1
+  nist_800_53_r5:
+  - CM-7
+  - SI-3
+  - AU-12
+  pci_dss_v4:
+  - 6.3
+  - 10.2
+  iso_27001_2022:
+  - A.8.19
+  - A.8.8
+remediation: |
+  1. Apply WAF rules to detect and block exploitation attempts.
+  2. Enable vulnerability scanning for all public-facing services.
+  3. Apply security patches promptly for all known CVEs.
+references:
+- https://attack.mitre.org/techniques/T1190/
+check_config:
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: s3
+    - field: operation
+      op: equals
+      value: PutBucketWebsite
+version: '1.0'

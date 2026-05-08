@@ -1,0 +1,198 @@
+version: '1.0'
+provider: oci
+service: data_flow
+checks:
+- rule_id: oci.data_flow.application.ai_services_training_job_inter_container_enabled
+  for_each: oci.data_flow.list_runs
+  severity: MEDIUM
+  conditions:
+    var: item.ai_services_training_job_inter_container_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_flow.application.ai_services_training_job_network_isolation_enabled
+  for_each: oci.data_flow.list_runs
+  severity: MEDIUM
+  conditions:
+    var: item.network_configuration.is_private_endpoint
+    op: is_true
+    value: null
+- rule_id: oci.data_flow.application.ai_services_training_job_output_encryption_enabled
+  for_each: oci.data_flow.list_runs
+  severity: HIGH
+  conditions:
+    var: item.ai_services_training_job_output_encryption_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_flow.application.ai_services_training_job_volume_encryption_enabled
+  for_each: oci.data_flow.list_runs
+  severity: HIGH
+  conditions:
+    var: item.ai_services_training_job_volume_encryption_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_flow.application.ai_services_training_job_vpc_configured
+  for_each: oci.data_flow.list_runs
+  severity: MEDIUM
+  conditions:
+    var: item.network_configuration.vcn_id
+    op: exists
+    value: null
+- rule_id: oci.data_flow.application.cluster_admin_access_least_privilege_required
+  for_each: oci.data_flow.list_runs
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.data_flow.application.cluster_encryption_cmek_enabled
+  for_each: oci.data_flow.list_runs
+  severity: HIGH
+  conditions:
+    var: item.cluster_encryption_cmek_enabled
+    op: is_true
+    value: null
+- rule_id: oci.data_flow.application.cluster_private_networking_enforced
+  for_each: oci.data_flow.list_runs
+  severity: MEDIUM
+  conditions:
+    var: item.network_config.subnet_id
+    op: exists
+    value: null
+- rule_id: oci.data_flow.application.cluster_tls_min_1_2_enforced
+  for_each: oci.data_flow.list_runs
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.cluster_tls_min_version
+      op: exists
+      value: null
+    - var: item.cluster_tls_min_version
+      op: in
+      value:
+      - '1.2'
+      - '1.3'
+- rule_id: oci.data_flow.application.job_logs_and_metrics_enabled
+  for_each: oci.data_flow.list_runs
+  severity: LOW
+  conditions:
+    var: item.logs_bucket_uri
+    op: exists
+    value: null
+- rule_id: oci.data_flow.application.job_network_private_only_enforced
+  for_each: oci.data_flow.list_runs
+  severity: MEDIUM
+  conditions:
+    var: item.network_configuration.network_type
+    op: equals
+    value: PRIVATE
+- rule_id: oci.data_flow.application.job_role_least_privilege_required
+  for_each: oci.data_flow.list_runs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.data_flow.application.job_script_location_private_and_encrypted
+  for_each: oci.data_flow.list_runs
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.script_location
+      op: exists
+      value: null
+    - var: item.script_location.is_private
+      op: is_true
+      value: null
+    - var: item.script_location.encryption_key_id
+      op: exists
+      value: null
+- rule_id: oci.data_flow.application.ml_transform_logs_enabled
+  for_each: oci.data_flow.list_runs
+  severity: LOW
+  conditions:
+    all:
+    - var: item.application_log_config.enableLogging
+      op: is_true
+      value: null
+    - var: item.application_log_config.logGroupId
+      op: exists
+      value: null
+    - var: item.application_log_config.logId
+      op: exists
+      value: null
+- rule_id: oci.data_flow.application.ml_transform_network_private_only_enforced
+  for_each: oci.data_flow.list_runs
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.network_configuration.network_type
+      op: equals
+      value: VCN
+    - var: item.network_configuration.subnet_id
+      op: exists
+      value: null
+- rule_id: oci.data_flow.application.ml_transform_role_least_privilege_required
+  for_each: oci.data_flow.list_runs
+  severity: HIGH
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.data_flow.application.streaming_security_analytics_checkpoints_and_outputs_encrypted
+  for_each: oci.data_flow.list_runs
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.data_flow.application.streaming_security_analytics_network_private_only_enforced
+  for_each: oci.data_flow.list_runs
+  severity: MEDIUM
+  conditions:
+    var: item.freeform_tags.Environment
+    op: equals
+    value: production
+- rule_id: oci.data_flow.application.streaming_security_analytics_role_least_privilege_required
+  for_each: oci.data_flow.list_runs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.freeform_tags.Environment
+      op: equals
+      value: production
+- rule_id: oci.data_flow.application.training_pipeline_private_networking_enforced
+  for_each: oci.data_flow.list_runs
+  severity: MEDIUM
+  conditions:
+    var: item.network_configuration
+    op: exists
+    value: null
+- rule_id: oci.data_flow.application.training_pipeline_secrets_from_vault_only
+  for_each: oci.data_flow.list_runs
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.parameters.secrets[].vaultSecretId
+      op: exists
+      value: null
+    - var: item.parameters.secrets[].value
+      op: not_exists
+      value: null

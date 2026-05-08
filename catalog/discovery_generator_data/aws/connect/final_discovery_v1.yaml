@@ -1,0 +1,48 @@
+# ==========================================================
+# Discovery YAML — connect (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 1 | ops: 1 independent, 0 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: connect
+
+services:
+  client: connect
+  module: "boto3.client('connect')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: instance
+    identifier_op: aws.connect.describe_instance
+    identifier_field: ReplicationConfiguration
+    item_var_path: item.ReplicationConfiguration
+    identifier_template: '{replicationconfiguration}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.connect.describe_instance  ──
+  - discovery_id: aws.connect.describe_instance
+    calls:
+      - action: describe_instance
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        IdentityManagementType: '{{ item.IdentityManagementType }}'
+        InboundCallsEnabled: '{{ item.InboundCallsEnabled }}'
+        Instance: '{{ item.Instance }}'
+        InstanceAccessUrl: '{{ item.InstanceAccessUrl }}'
+        InstanceAlias: '{{ item.InstanceAlias }}'
+        InstanceStatus: '{{ item.InstanceStatus }}'
+        OutboundCallsEnabled: '{{ item.OutboundCallsEnabled }}'
+        ReplicationConfiguration: '{{ item.ReplicationConfiguration }}'
+        ServiceRole: '{{ item.ServiceRole }}'
+        StatusReason: '{{ item.StatusReason }}'
+        item: '{{ item }}'
+

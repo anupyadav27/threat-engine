@@ -1,0 +1,129 @@
+# Discovery YAML — deploymentmanager (Azure)
+# Generated: 2026-04-15T10:39:30Z
+# Source: step1b_operation_registry.json (qualified ops + dependency chains)
+# Actions use {category}.{method} format for SDK method resolution
+version: '1.0'
+provider: azure
+service: deploymentmanager
+services:
+  client: deploymentmanager
+  module: azure.mgmt.deploymentmanager
+discovery:
+  # ── artifactsources.list [root] ──
+  - discovery_id: azure.deploymentmanager.artifactsources.list
+    calls:
+      - action: artifactsources.list
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        location: '{{ item.location }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+        artifacts: '{{ item.artifacts }}'
+        deployment_mode: '{{ item.deployment_mode }}'
+        target_resource_group: '{{ item.target_resource_group }}'
+  # ── rollouts.list [root] ──
+  - discovery_id: azure.deploymentmanager.rollouts.list
+    calls:
+      - action: rollouts.list
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        location: '{{ item.location }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+        artifacts: '{{ item.artifacts }}'
+        deployment_mode: '{{ item.deployment_mode }}'
+        target_resource_group: '{{ item.target_resource_group }}'
+  # ── servicetopologies.list [root] ──
+  - discovery_id: azure.deploymentmanager.servicetopologies.list
+    calls:
+      - action: servicetopologies.list
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        location: '{{ item.location }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+        artifacts: '{{ item.artifacts }}'
+        deployment_mode: '{{ item.deployment_mode }}'
+        target_resource_group: '{{ item.target_resource_group }}'
+  # ── steps.list [root] ──
+  - discovery_id: azure.deploymentmanager.steps.list
+    calls:
+      - action: steps.list
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        location: '{{ item.location }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+        artifacts: '{{ item.artifacts }}'
+        deployment_mode: '{{ item.deployment_mode }}'
+        target_resource_group: '{{ item.target_resource_group }}'
+  # ════════════════════════════════════════
+  # Dependent operations (for_each + params)
+  # ════════════════════════════════════════
+  # ── services.list [dependent] ──
+  - discovery_id: azure.deploymentmanager.services.list
+    for_each: azure.deploymentmanager.servicetopologies.list
+    calls:
+      - action: services.list
+        save_as: response
+        on_error: continue
+        params:
+          service_topology_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        location: '{{ item.location }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+        artifacts: '{{ item.artifacts }}'
+        deployment_mode: '{{ item.deployment_mode }}'
+        target_resource_group: '{{ item.target_resource_group }}'
+  # ── serviceunits.list [dependent] ──
+  - discovery_id: azure.deploymentmanager.serviceunits.list
+    for_each: azure.deploymentmanager.servicetopologies.list
+    calls:
+      - action: serviceunits.list
+        save_as: response
+        on_error: continue
+        params:
+          service_topology_name: '{{ item.name }}'
+          service_name: '{{ item.name }}'
+    emit:
+      as: item
+      items_for: '{{ response.value }}'
+      item:
+        type: '{{ item.type }}'
+        location: '{{ item.location }}'
+        name: '{{ item.name }}'
+        id: '{{ item.id }}'
+        tags: '{{ item.tags }}'
+        artifacts: '{{ item.artifacts }}'
+        deployment_mode: '{{ item.deployment_mode }}'
+        target_resource_group: '{{ item.target_resource_group }}'

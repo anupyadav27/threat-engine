@@ -1,0 +1,84 @@
+rule_id: aws.storage.cloudtrail.rds_modify_db_instance_public
+service: storage
+provider: aws
+check_type: log
+severity: critical
+title: 'Storage: RDS Modify Db Instance Public'
+description: RDS instance modified to be publicly accessible — database exposed to internet.
+rationale: Public-facing application exploitation can provide initial foothold in cloud environments; early detection limits attacker dwell time significantly.
+threat_category: initial_access
+mitre_tactics:
+- initial_access
+mitre_techniques:
+- T1190
+risk_score: 88
+resource: storage_resource
+source: default
+is_active: true
+domain: data_protection_and_privacy
+action_category: modify
+log_source_type: 
+posture_category: threat_posture
+threat_tags:
+- T1190
+- storage_access
+- data
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: storage_account
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - data_access_governance
+  - database_security
+  categories:
+  - sensitive_data_access
+  priority: critical
+  impact:
+    pci: PCI DSS Requirement 3.1 — Minimize cardholder data storage
+    gdpr: GDPR Article 25 — Data protection by design; minimize data exposure
+    hipaa: §164.312(a)(1) — Access controls on data repositories containing ePHI
+  sensitive_data_context: |
+  Unauthorized initial access on storage resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.14
+  - 2.1
+  cis_azure_v2:
+  - 1.2
+  - 2.1
+  nist_800_53_r5:
+  - AC-17
+  - IA-2
+  - SI-3
+  pci_dss_v4:
+  - 8.3
+  - 11.5
+  iso_27001_2022:
+  - A.8.5
+  - A.9.4
+remediation: |
+  1. Apply WAF rules to detect and block exploitation attempts.
+  2. Enable vulnerability scanning for all public-facing services.
+  3. Apply security patches promptly for all known CVEs.
+references:
+- https://attack.mitre.org/techniques/T1190/
+check_config:
+  conditions:
+    all:
+    - field: service
+      op: equals
+      value: rds
+    - field: operation
+      op: equals
+      value: ModifyDBInstance
+version: '1.0'

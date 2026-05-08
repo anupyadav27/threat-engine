@@ -1,0 +1,129 @@
+version: '1.0'
+provider: azure
+service: rbac
+checks:
+- rule_id: azure.rbac.role.resource.lock.check
+  for_each: azure.authorization.roleassignments.list
+  severity: MEDIUM
+  conditions:
+    var: item.Properties.roleDefinitionId
+    op: not_in
+    value:
+    - /subscriptions/*/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c
+    - /subscriptions/*/providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635
+- rule_id: azure.rbac.role_definition.identity_access_role_attached_policies_not_admin_star
+  for_each: azure.authorization.roledefinitions.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.type
+      op: equals
+      value: CustomRole
+    - var: item.properties.permissions[].actions
+      op: not_contains
+      value: '*'
+    - var: item.properties.permissions[].actions
+      op: not_contains
+      value: Microsoft.Authorization/*
+- rule_id: azure.rbac.role_definition.identity_access_role_max_session_duration_reasonable
+  for_each: azure.authorization.roledefinitions.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.maxSessionDurationInHours
+    op: lt
+    value: 24
+- rule_id: azure.rbac.role_definition.identity_access_role_no_inline_policies
+  for_each: azure.authorization.roledefinitions.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.roleName
+      op: contains
+      value: Identity
+    - var: item.properties.permissions[].actions
+      op: not_contains
+      value: Microsoft.Authorization/roleAssignments/write
+- rule_id: azure.rbac.role_definition.identity_access_role_session_duration_reasonable_where_applicable
+  for_each: azure.authorization.roledefinitions.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.type
+      op: equals
+      value: CustomRole
+    - var: item.properties.maxSessionDurationInHours
+      op: exists
+      value: null
+    - var: item.properties.maxSessionDurationInHours
+      op: lte
+      value: 8
+- rule_id: azure.rbac.role_definition.identity_access_role_trust_principals_allowlist_only
+  for_each: azure.authorization.roledefinitions.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.roleName
+      op: equals
+      value: Managed Identity Operator
+    - var: item.properties.assignableScopes
+      op: contains
+      value: /subscriptions/00000000-0000-0000-0000-000000000000
+    - var: item.properties.permissions[].actions
+      op: not_contains
+      value: '*'
+    - var: item.properties.permissions[].actions
+      op: contains
+      value: Microsoft.ManagedIdentity/userAssignedIdentities/*/assign/action
+- rule_id: azure.rbac.role_definition.identity_access_role_trust_requires_external_id_or_audience_condition_where_supported
+  for_each: azure.authorization.roledefinitions.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.roleName
+      op: contains
+      value: Identity
+    - any:
+      - var: item.properties.trustedExternalTenants[].tenantId
+        op: exists
+        value: null
+      - var: item.properties.conditions[].audience
+        op: exists
+        value: null
+- rule_id: azure.rbac.serverless_provisioned_concurrency.serverless_prov_conc_execution_role_least_privilege
+  for_each: azure.authorization.roleassignments.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.roleDefinitionId
+      op: in
+      value:
+      - /providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c
+    - var: item.properties.scope
+      op: contains
+      value: /providers/Microsoft.Web/serverfarms/
+- rule_id: azure.rbac.vulnerability_automation.vuln_automation_execution_roles_least_privilege
+  for_each: azure.authorization.roleassignments.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.roleDefinitionName
+      op: in
+      value:
+      - Security Reader
+      - Reader
+    - var: item.properties.scope
+      op: contains
+      value: /providers/Microsoft.Security/securityContacts/
+- rule_id: azure.rbac.vulnerability_maintenance.vuln_maintenance_execution_roles_least_privilege
+  for_each: azure.authorization.roleassignments.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Properties.RoleDefinitionId
+      op: not_in
+      value:
+      - /subscriptions/{subscriptionId}/providers/Microsoft.Authorization/roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635
+      - /subscriptions/{subscriptionId}/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c
+    - var: item.Properties.PrincipalType
+      op: not_equals
+      value: ServicePrincipal

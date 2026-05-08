@@ -21,7 +21,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
 from engine_common.logger import setup_logger
 from engine_common.orchestration import get_orchestration_metadata
-from engine_common.retention import cleanup_old_scans
 
 from inventory_engine.api.orchestrator import ScanOrchestrator
 from inventory_engine.database.connection.database_config import get_database_config
@@ -172,11 +171,13 @@ def main():
             f"{result.get('total_relationships', 0)} relationships in {duration:.1f}s"
         )
 
-        # 7. Retention cleanup (keep last 5 scans per tenant)
+        # Retention: archive old scans to S3, keep last 5 in DB
         try:
-            cleanup_old_scans("inventory", tenant_id, keep=5)
-        except Exception as e:
-            logger.warning(f"Retention cleanup failed: {e}")
+            from engine_common.retention import run_retention
+            run_retention("inventory", scan_run_id)
+        except Exception as _ret_err:
+            logger.warning("Retention cleanup skipped: %s", _ret_err)
+
 
     except Exception as e:
         logger.error(f"Inventory scan FAILED: {e}", exc_info=True)

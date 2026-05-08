@@ -329,8 +329,8 @@ class EngineOrchestrator:
             results["orchestration_completed_at"] = datetime.now(timezone.utc).isoformat()
             try:
                 mark_orchestration_complete(scan_run_id, status="failed")
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.warning("Failed to mark orchestration %s as failed: %s", scan_run_id, _e)
             return results
 
         # ── Stage 2: Threat ──────────────────────────────────────────────

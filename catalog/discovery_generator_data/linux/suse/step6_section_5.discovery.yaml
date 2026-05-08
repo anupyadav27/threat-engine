@@ -1,0 +1,751 @@
+version: '1.0'
+provider: linux
+engine: suse
+category: section_5
+cis_section: '5'
+description: >
+  suse CIS Section 5 — sshd Ciphers are configured
+
+discovery:
+
+  - discovery_id: suse.section_5.sshd_ciphers_are_configured
+    description: Ensure sshd Ciphers are configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify none of the \u0027weak\u0027 ciphers are being used: # sshd -T | grep -Pi -- \u0027^ciphers\\h+\\\u0027?([^#\\n\\r]+,)?((3des|blowfish|cast128|aes(128|192|256))- cbc|arcfour(128|256)?|rijndael-cbc@lysator\\.liu\\.se|chacha20- poly1305@openssh\\.com)\\b\u0027 - IF - a line is returned, review the list of ciphers. If the line includes chacha20- poly1305@openssh.com, review CVE-2023-48795 and verify the system has been patched. No ciphers in the list below should be returned as they\u0027re considered \u0027weak\u0027: 3des-cbc aes128-cbc aes192-cbc aes256-cbc"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_ciphers_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.sshd_kexalgorithms_is_configured
+    description: Ensure sshd KexAlgorithms is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify none of the \u0027weak\u0027 Key Exchange algorithms are being used: # sshd -T | grep -Pi -- \u0027kexalgorithms\\h+([^#\\n\\r]+,)?(diffie-hellman-group1- sha1|diffie-hellman-group14-sha1|diffie-hellman-group-exchange-sha1)\\b\u0027 Nothing should be returned. - IF - A line is returned, review the list of Key Exchange Algorithms. The following are considered \u0027weak\u0027 Key Exchange Algorithms, and should not be used: diffie-hellman-group1-sha1 diffie-hellman-group14-sha1 diffie-hellman-group-exchange-sha1"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_kexalgorithms_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.sshd_macs_are_configured
+    description: Ensure sshd MACs are configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify none of the \u0027weak\u0027 MACs are being used: # sshd -T | grep -Pi -- \u0027macs\\h+([^#\\n\\r]+,)?(hmac-md5|hmac-md5-96|hmac- ripemd160|hmac-sha1-96|umac-64@openssh\\.com|hmac-md5-etm@openssh\\.com|hmac- md5-96-etm@openssh\\.com|hmac-ripemd160-etm@openssh\\.com|hmac-sha1-96- etm@openssh\\.com|umac-64-etm@openssh\\.com|umac-128-etm@openssh\\.com)\\b\u0027 Nothing should be returned Note: Review CVE-2023-48795 and verify the system has been patched. If the system has not been patched, review the use of the Encrypt Then Mac (etm) MACs. The following are considered \u0027weak\u0027 MACs, and should not be used: hmac-md5 hmac-md5-96 hmac-ripemd160 hmac-sha1-96 umac-64@openssh.com hmac-md5-etm@openssh.com hmac-md5-96-etm@openssh.com hmac-ripemd160-etm@openssh.com hmac-sha1-96-etm@openssh.com umac-64-etm@openssh.com umac-128-etm@openssh.com"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_macs_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.sshd_banner_is_configured
+    description: Ensure sshd Banner is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify Banner is set: # sshd -T | grep -Pi -- \u0027^banner\\h+\\/\\H+\u0027 Example: banner /etc/issue.net - IF - Match set statements are used in your environment, specify the connection parameters to use for the -T extended test mode and run the audit to verify the setting is not incorrectly configured in a match block Example additional audit needed for a match block for the user sshuser: # sshd -T -C user=sshuser | grep -Pi -- \u0027^banner\\h+\\/\\H+\u0027 Note: If provided, any Match directives in the configuration file that would apply are applied before the configuration is written to standard output. The connection parameters are supplied as keyword=value pairs and may be supplied in any order, either with multiple -C options or as a comma-separated list. The keywords are addr (source address), user (user), host (resolved source host name), laddr (local address), lport (local port number), and rdomain (routing domain). Run the following command and verify that the contents or the file being called by the Banner argument match site policy: # [ -e \u0027$(sshd -T | awk \u0027$1 == \u0027banner\u0027 {print $2}\u0027)\u0027 ] \u0026\u0026 cat \u0027$(sshd -T | awk \u0027$1 == \u0027banner\u0027 {print $2}\u0027)\u0027 Run the following command and verify no results are returned: # grep -Psi -- \u0027(\\\\\\v|\\\\\\r|\\\\\\m|\\\\\\s|\\b$(grep \u0027^ID=\u0027 /etc/os-release | cut - d= -f2 | sed -e \u0027s/\u0027//g\u0027)\\b)\u0027 \u0027$(sshd -T | awk \u0027$1 == \u0027banner\u0027 {print $2}\u0027)\u0027"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_banner_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.sshd_clientaliveinterval_and_clientalivecountmax
+    description: Ensure sshd ClientAliveInterval and ClientAliveCountMax are configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify ClientAliveInterval and ClientAliveCountMax are greater than zero: # sshd -T | grep -Pi -- \u0027(clientaliveinterval|clientalivecountmax)\u0027 Example Output: clientaliveinterval 15 clientalivecountmax 3 - IF - Match set statements are used in your environment, specify the connection parameters to use for the -T extended test mode and run the audit to verify the setting is not incorrectly configured in a match block Example additional audit needed for a match block for the user sshuser: # sshd -T -C user=sshuser | grep -Pi -- \u0027(clientaliveinterval|clientalivecountmax)\u0027 Note: If provided, any Match directives in the configuration file that would apply are applied before the configuration is written to standard output. The connection parameters are supplied as keyword=value pairs and may be supplied in any order, either with multiple -C options or as a comma-separated list. The keywords are addr (source address), user (user), host (resolved source host name), laddr (local address), lport (local port number), and rdomain (routing domain)."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_clientaliveinterval_and_clientalivecountmax
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.sshd_disableforwarding_is_enabled
+    description: Ensure sshd DisableForwarding is enabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify DisableForwarding is set to yes: # sshd -T | grep disableforwarding disableforwarding yes"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_disableforwarding_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.sshd_gssapiauthentication_is_disabled
+    description: Ensure sshd GSSAPIAuthentication is disabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify GSSAPIAuthentication is set to no: # sshd -T | grep gssapiauthentication gssapiauthentication no - IF - Match set statements are used in your environment, specify the connection parameters to use for the -T extended test mode and run the audit to verify the setting is not incorrectly configured in a match block Example additional audit needed for a match block for the user sshuser: # sshd -T -C user=sshuser | grep gssapiauthentication Note: If provided, any Match directives in the configuration file that would apply are applied before the configuration is written to standard output. The connection parameters are supplied as keyword=value pairs and may be supplied in any order, either with multiple -C options or as a comma-separated list. The keywords are addr (source address), user (user), host (resolved source host name), laddr (local address), lport (local port number), and rdomain (routing domain)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_gssapiauthentication_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.sshd_hostbasedauthentication_is_disabled
+    description: Ensure sshd HostbasedAuthentication is disabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify HostbasedAuthentication is set to no: # sshd -T | grep hostbasedauthentication hostbasedauthentication no - IF - Match set statements are used in your environment, specify the connection parameters to use for the -T extended test mode and run the audit to verify the setting is not incorrectly configured in a match block Example additional audit needed for a match block for the user sshuser: # sshd -T -C user=sshuser | grep hostbasedauthentication Note: If provided, any Match directives in the configuration file that would apply are applied before the configuration is written to standard output. The connection parameters are supplied as keyword=value pairs and may be supplied in any order, either with multiple -C options or as a comma-separated list. The keywords are addr (source address), user (user), host (resolved source host name), laddr (local address), lport (local port number), and rdomain (routing domain)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_hostbasedauthentication_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.sshd_ignorerhosts_is_enabled
+    description: Ensure sshd IgnoreRhosts is enabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify IgnoreRhosts is set to yes: # sshd -T | grep ignorerhosts ignorerhosts yes - IF - Match set statements are used in your environment, specify the connection parameters to use for the -T extended test mode and run the audit to verify the setting is not incorrectly configured in a match block Example additional audit needed for a match block for the user sshuser: # sshd -T -C user=sshuser | grep ignorerhosts Note: If provided, any Match directives in the configuration file that would apply are applied before the configuration is written to standard output. The connection parameters are supplied as keyword=value pairs and may be supplied in any order, either with multiple -C options or as a comma-separated list. The keywords are addr (source address), user (user), host (resolved source host name), laddr (local address), lport (local port number), and rdomain (routing domain)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_ignorerhosts_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.sshd_loglevel_is_configured
+    description: Ensure sshd LogLevel is configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that output matches loglevel VERBOSE or loglevel INFO: # sshd -T | grep loglevel loglevel VERBOSE - OR - loglevel INFO - IF - Match set statements are used in your environment, specify the connection parameters to use for the -T extended test mode and run the audit to verify the setting is not incorrectly configured in a match block Example additional audit needed for a match block for the user sshuser: # sshd -T -C user=sshuser | grep loglevel Note: If provided, any Match directives in the configuration file that would apply are applied before the configuration is written to standard output. The connection parameters are supplied as keyword=value pairs and may be supplied in any order, either with multiple -C options or as a comma-separated list. The keywords are addr (source address), user (user), host (resolved source host name), laddr (local address), lport (local port number), and rdomain (routing domain)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_loglevel_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.sshd_maxstartups_is_configured
+    description: Ensure sshd MaxStartups is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify MaxStartups is 10:30:60 or more restrictive: # sshd -T | awk \u0027$1 ~ /^\\s*maxstartups/{split($2, a, \u0027:\u0027);{if(a[1] \u003e 10 || a[2] \u003e 30 || a[3] \u003e 60) print $0}}\u0027 Nothing should be returned"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_maxstartups_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.sshd_maxsessions_is_configured
+    description: Ensure sshd MaxSessions is configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that MaxSessions is 10 or less: # sshd -T | grep maxsessions maxsessions 10 Run the following command and verify the output: grep -Psi -- \u0027^\\h*MaxSessions\\h+\\\u0027?(1[1-9]|[2-9][0-9]|[1-9][0-9][0-9]+)\\b\u0027 /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf Nothing should be returned - IF - Match set statements are used in your environment, specify the connection parameters to use for the -T extended test mode and run the audit to verify the setting is not incorrectly configured in a match block Example additional audit needed for a match block for the user sshuser: # sshd -T -C user=sshuser | grep maxsessions Note: If provided, any Match directives in the configuration file that would apply are applied before the configuration is written to standard output. The connection parameters are supplied as keyword=value pairs and may be supplied in any order, either with multiple -C options or as a comma-separated list. The keywords are addr (source address), user (user), host (resolved source host name), laddr (local address), lport (local port number), and rdomain (routing domain)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_maxsessions_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.sshd_permituserenvironment_is_disabled
+    description: Ensure sshd PermitUserEnvironment is disabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify PermitUserEnvironment is set to no: # sshd -T | grep permituserenvironment permituserenvironment no"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_permituserenvironment_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.sshd_usepam_is_enabled
+    description: Ensure sshd UsePAM is enabled
+    calls:
+      - action: run_command
+        command: "Run the following command to verify UsePAM is set to yes: # sshd -T | grep usepam usepam yes"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sshd_usepam_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.latest_version_of_pam_is_installed
+    description: Ensure latest version of pam is installed
+    calls:
+      - action: run_command
+        command: "Run the following command to verify the version of PAM on the system: # rpm -q pam pam-\u003cversion\u003e"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: latest_version_of_pam_is_installed
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.password_dictionary_check_is_enabled
+    description: Ensure password dictionary check is enabled
+    calls:
+      - action: run_command
+        command: "Verify that the dictcheck option is enabled: IF the pwquality configuration file(s) are used, run the following script to verify that the dictcheck option is not set to 0 (disabled) in a pwquality configuration file: #!/usr/bin/env bash { if grep -qs \u0027^.+$\u0027 /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf; then if grep -Psi -- \u0027^\\h*dictcheck\\h*=\\h*0\\b\u0027 /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf; then printf \u0027\\n%s\\n\u0027 \u0027 ** FAIL **\u0027 \\ \u0027pam_pwquality configuration file exists and dictcheck is disabled\u0027 else printf \u0027\\n%s\\n\u0027 \u0027 ** PASS **\u0027 \\ \u0027pam_pwquality configuration file exists and dictcheck is not disabled\u0027 fi else printf \u0027\\n%s\\n\u0027 \u0027 ** FAIL **\u0027 \\ \u0027pam_pwquality configuration file does not exist\u0027 fi } Note: \u2022 Settings observe an order of precedence: o module arguments override the settings in the /etc/security/pwquality.conf configuration file o settings in the /etc/security/pwquality.conf configuration file override settings in a .conf file in the /etc/security/pwquality.conf.d/ directory o settings in a .conf file in the /etc/security/pwquality.conf.d/ directory are read in canonical order, with last read file containing the setting taking precedence \u2022 It is recommended that settings be configured in a .conf file in the /etc/security/pwquality.conf.d/ directory for clarity, convenience, and durability. - OR - If the pam-config tool has been used to configure the global PAM configuration files, run the following command to verify the pam_cracklib.so is in use which enables dictcheck automatically: # grep -Psi -- \u0027pam_cracklib.so\u0027 /etc/pam.d/common-password{,-pc} Example Output : /etc/pam.d/common-password:password requisite pam_cracklib.so enforce_for_root difok=2 minlen=14 /etc/pam.d/common-password-pc:password requisite pam_cracklib.so enforce_for_root difok=2 minlen=14"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_dictionary_check_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.password_number_of_changed_characters_is
+    description: Ensure password number of changed characters is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that the difok option is set to 2 or more and follows local site policy: # grep -Psi -- \u0027^\\h*difok\\h*=\\h*([2-9]|[1-9][0-9]+)\\b\u0027 /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf Example output : /etc/security/pwquality.conf.d/50-pwdifok.conf:difok = 2 Notes: \u2022 Settings should be configured in only one location for clarity \u2022 Settings observe an order of precedence: o module arguments override the settings in the /etc/security/pwquality.conf configuration file o settings in the /etc/security/pwquality.conf configuration file override settings in a .conf file in the /etc/security/pwquality.conf.d/ directory o settings in a .conf file in the /etc/security/pwquality.conf.d/ directory are read in canonical order, with last read file containing the setting taking precedence \u2022 It is recommended that settings be configured in a .conf file in the /etc/security/pwquality.conf.d/ directory for clarity, convenience, and durability. - OR/IF - the pam-config tool has been used to configure the global PAM configuration files. Run the following command to verify that the difok option is set to 2 or more and follows local site policy: # pam-config --query --cracklib --cracklib-difok password: difok=2 Note: If there is no output then the pam-config tool has not been used to configure the cracklib pam module. Remediation should be done by editing a .conf file in the /etc/security/pwquality.conf.d/ directory or the/etc/security/pwquality.conf file."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_number_of_changed_characters_is
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.password_length_is_configured
+    description: Ensure password length is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that password length is 14 or more characters, and conforms to local site policy: # grep -Psi -- \u0027^\\h*minlen\\h*=\\h*(1[4-9]|[2-9][0-9]|[1-9][0-9]{2,})\\b\u0027 /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf Example output : /etc/security/pwquality.conf.d/50-pwlength.conf:minlen = 14 Verify returned value(s) are no less than 14 characters and meet local site policy. Notes: \u2022 Settings should be configured in only one location for clarity \u2022 Settings observe an order of precedence: o module arguments override the settings in the /etc/security/pwquality.conf configuration file o settings in the /etc/security/pwquality.conf configuration file override settings in a .conf file in the /etc/security/pwquality.conf.d/ directory o settings in a .conf file in the /etc/security/pwquality.conf.d/ directory are read in canonical order, with last read file containing the setting taking precedence \u2022 It is recommended that settings be configured in a .conf file in the /etc/security/pwquality.conf.d/ directory for clarity, convenience, and durability. - OR/IF - the pam-config tool has been used to configure the global PAM configuration files. Run the following command to verify that password length is 14 or more characters, and conforms to local site policy: # pam-config --query --cracklib --cracklib-minlen Example output: password: difok=2 minlen = 14 Note: If there is no output then the pam-config tool has not been used to configure the cracklib pam module. Remediation should be done by editing a .conf file in the /etc/security/pwquality.conf.d/ directory or the/etc/security/pwquality.conf file."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_length_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.password_complexity_is_configured
+    description: Ensure password complexity is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that complexity conforms to local site policy: # grep -Psi -- \u0027^\\h*(minclass|[dulo]credit)\\b\u0027 /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf Example output: /etc/security/pwquality.conf.d/50-pwcomplexity.conf:minclass = 4 -- AND/OR -- /etc/security/pwquality.conf.d/50-pwcomplexity.conf:dcredit = -1 /etc/security/pwquality.conf.d/50-pwcomplexity.conf:ucredit = -1 /etc/security/pwquality.conf.d/50-pwcomplexity.conf:ocredit = -1 /etc/security/pwquality.conf.d/50-pwcomplexity.conf:lcredit = -1 Notes: \u2022 Settings should be configured in only one location for clarity \u2022 Settings observe an order of precedence: o module arguments override the settings in the /etc/security/pwquality.conf configuration file o settings in the /etc/security/pwquality.conf configuration file override settings in a .conf file in the /etc/security/pwquality.conf.d/ directory o settings in a .conf file in the /etc/security/pwquality.conf.d/ directory are read in canonical order, with last read file containing the setting taking precedence \u2022 It is recommended that settings be configured in a .conf file in the /etc/security/pwquality.conf.d/ directory for clarity, convenience, and durability. - OR/IF - the pam-config tool has been used to configure the global PAM configuration files. Run the following command to verify that complexity conforms to local site policy: # pam-config --query --cracklib Example outputs: password: difok=2 minlen=14 minclass = 4 -- AND/OR -- password: difok=2 minlen=14 minclass=4 dcredit=-1 ucredit=-1 ocredit=-1 lcredit=-1 Note: If there is no output then the pam-config tool has not been used to configure the cracklib pam module. Remediation should be done by editing a .conf file in the /etc/security/pwquality.conf.d/ directory or the/etc/security/pwquality.conf file."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_complexity_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.password_same_consecutive_characters_is_configured
+    description: Ensure password same consecutive characters is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that the maxrepeat option is set to 3 or less, not 0, and follows local site policy: # grep -Psi -- \u0027^\\h*maxrepeat\\h*=\\h*[1-3]\\b\u0027 /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf Example output: /etc/security/pwquality.conf.d/50-pwrepeat.conf:maxrepeat = 3 Notes: \u2022 Settings should be configured in only one location for clarity \u2022 Settings observe an order of precedence: o module arguments override the settings in the /etc/security/pwquality.conf configuration file o settings in the /etc/security/pwquality.conf configuration file override settings in a .conf file in the /etc/security/pwquality.conf.d/ directory o settings in a .conf file in the /etc/security/pwquality.conf.d/ directory are read in canonical order, with last read file containing the setting taking precedence \u2022 It is recommended that settings be configured in a .conf file in the /etc/security/pwquality.conf.d/ directory for clarity, convenience, and durability. - OR/IF - the pam-config tool has been used to configure the global PAM configuration files. Run the following command to verify that the maxrepeat option is set to 3 or less, not 0, and follows local site policy: # pam-config --query --cracklib --cracklib-maxrepeat Example output: password: difok=2 minlen=14 minclass=4 maxrepeat = 3 Note: If there is no output then the pam-config tool has not been used to configure the cracklib pam module. Remediation should be done by editing a .conf file in the /etc/security/pwquality.conf.d/ directory or the/etc/security/pwquality.conf file."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_same_consecutive_characters_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.password_maximum_sequential_characters_is
+    description: Ensure password maximum sequential characters is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that the maxsequence option is set to 3 or less, not 0, and follows local site policy: # grep -Psi -- \u0027^\\h*maxsequence\\h*=\\h*[1-3]\\b\u0027 /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf Example output: /etc/security/pwquality.conf.d/50-pwmaxsequence.conf:maxsequence = 3 Note: \u2022 Settings should be configured in only one location for clarity \u2022 Settings observe an order of precedence: o module arguments override the settings in the /etc/security/pwquality.conf configuration file o settings in the /etc/security/pwquality.conf configuration file override settings in a .conf file in the /etc/security/pwquality.conf.d/ directory o settings in a .conf file in the /etc/security/pwquality.conf.d/ directory are read in canonical order, with last read file containing the setting taking precedence \u2022 It is recommended that settings be configured in a .conf file in the /etc/security/pwquality.conf.d/ directory for clarity, convenience, and durability. - OR/IF - the pam-config tool has been used to configure the global PAM configuration files. Run the following command to verify that the maxsequence option is set to 3 or less, not 0, and follows local site policy: # pam-config --query --cracklib --cracklib-maxsequence Example output: password: difok=2 minlen=14 minclass=4 maxrepeat=3 maxsequence = 3 Note: If there is no output then the pam-config tool has not been used to configure the cracklib pam module. Remediation should be done by editing a .conf file in the /etc/security/pwquality.conf.d/ directory or the/etc/security/pwquality.conf file."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_maximum_sequential_characters_is
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.password_quality_is_enforced_for_the_root_user
+    description: Ensure password quality is enforced for the root user
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that the enforce_for_root option is enabled in a pwquality configuration file: # grep -Psi -- \u0027^\\h*enforce_for_root\\b\u0027 /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf Example output: /etc/security/pwquality.conf.d/50-pwroot.conf:enforce_for_root Notes: \u2022 Settings observe an order of precedence: o module arguments override the settings in the /etc/security/pwquality.conf configuration file o settings in the /etc/security/pwquality.conf configuration file override settings in a .conf file in the /etc/security/pwquality.conf.d/ directory o settings in a .conf file in the /etc/security/pwquality.conf.d/ directory are read in canonical order, with last read file containing the setting taking precedence \u2022 It is recommended that settings be configured in a .conf file in the /etc/security/pwquality.conf.d/ directory for clarity, convenience, and durability. - OR/IF - the pam-config tool has been used to configure the global PAM configuration files. Run the following command to verify that the enforce_for_root option is enabled: # pam-config --query --cracklib --cracklib-enforce_for_root Example output: password: enforce_for_root difok=2 minlen=14 minclass=4 maxrepeat=3 maxsequence=3 Note: If there is no output then the pam-config tool has not been used to configure the cracklib pam module. Remediation should be done by editing a .conf file in the /etc/security/pwquality.conf.d/ directory or the/etc/security/pwquality.conf file."
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_quality_is_enforced_for_the_root_user
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.password_history_remember_is_configured
+    description: Ensure password history remember is configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that the remember option is set to 24 or more and meets local site policy: # pam-config --query --pwhistory --pwhistory-remember password: remember = 24"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_history_remember_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.password_history_is_enforced_for_the_root_user
+    description: Ensure password history is enforced for the root user
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that the enforce_for_root: # pam-config --query --pwhistory --pwhistory-enforce_for_root password: enforce_for_root remember=24"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_history_is_enforced_for_the_root_user
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.pam_pwhistory_includes_use_authtok
+    description: Ensure pam_pwhistory includes use_authtok
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that use_authtok is set on the pam_pwhistory.so module lines in the password stack: # grep -P -- \u0027^\\h*password\\h+([^#\\n\\r]+)\\h+pam_pwhistory\\.so\\h+([^#\\n\\r]+\\h+)?use_authtok\\ b\u0027 /etc/pam.d/* Output should be similar to: /etc/pam.d/common-password:password required pam_pwhistory.so use_authtok /etc/pam.d/common-password-pc:password required pam_pwhistory.so use_authtok Verify that the lines include use_authtok"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: pam_pwhistory_includes_use_authtok
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.pam_unix_does_not_include_remember
+    description: Ensure pam_unix does not include remember
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that the remember argument is not set on the pam_unix.so module: # grep -Pi \u0027^\\h*password\\h+([^#\\n\\r]+\\h+)?pam_unix\\.so\\b\u0027 /etc/pam.d/* Output should be similar to: /etc/pam.d/common-password:password required pam_unix.so use_authtok shadow sha512 /etc/pam.d/common-password-pc:password required pam_unix.so use_authtok shadow sha512 /etc/pam.d/common-password.pam-config-backup:password required pam_unix.so use_authtok Verify that all lines returned by the command do not include remember="
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: pam_unix_does_not_include_remember
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.pam_unix_includes_a_strong_password_hashing
+    description: Ensure pam_unix includes a strong password hashing algorithm
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: pam_unix_includes_a_strong_password_hashing
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.pam_unix_includes_use_authtok
+    description: Ensure pam_unix includes use_authtok
+    calls:
+      - action: run_command
+        command: "Run the following command to verify that use_authtok is set on the pam_unix.so module lines in the password stack: # grep -P -- \u0027^\\h*password\\h+([^#\\n\\r]+)\\h+pam_unix\\.so\\h+([^#\\n\\r]+\\h+)?use_authtok\\b\u0027 /etc/pam.d/common* Output should be similar to: /etc/pam.d/common-password:password required pam_unix.so use_authtok shadow sha512 try_first_pass /etc/pam.d/common-password-pc:password required pam_unix.so use_authtok shadow sha512 try_first_pass Verify that the lines include use_authtok"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: pam_unix_includes_use_authtok
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.strong_password_hashing_algorithm_is_configured
+    description: Ensure strong password hashing algorithm is configured
+    calls:
+      - action: run_command
+        command: "Run the following command to verify the hashing algorithm is sha512 or yescrypt in /etc/login.defs: # grep -Pi -- \u0027^\\h*ENCRYPT_METHOD\\h+(SHA512|yescrypt)\\b\u0027 /etc/login.defs Example output: ENCRYPT_METHOD SHA512 - OR - ENCRYPT_METHOD YESCRYPT"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: strong_password_hashing_algorithm_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.inactive_password_lock_is_configured
+    description: Ensure inactive password lock is configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify INACTIVE conforms to site policy (no more than 45 days): # useradd -D | grep INACTIVE INACTIVE=45 Verify all users with a password have Password inactive no more than 45 days after password expires Verify all users with a password have Password inactive no more than 45 days after password expires: Run the following command and Review list of users and INACTIVE to verify that all users INACTIVE conforms to site policy (no more than 45 days): # awk -F: \u0027($2~/^\\$.+\\$/) {if($7 \u003e 45 || $7 \u003c 0)print \u0027User: \u0027 $1 \u0027 INACTIVE: \u0027 $7 \u0027Days\u0027}\u0027 /etc/shadow Nothing should be returned"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: inactive_password_lock_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.all_users_last_password_change_date_is_in_the_past
+    description: Ensure all users last password change date is in the past
+    calls:
+      - action: run_command
+        command: "Run the following script and verify nothing is returned: #!/usr/bin/env bash { while IFS= read -r l_user; do l_change=$(date -d \u0027$(chage --list $l_user | grep \u0027^Last password change\u0027 | cut -d: -f2 | grep -v \u0027never$\u0027)\u0027 +%s) if [[ \u0027$l_change\u0027 -gt \u0027$(date +%s)\u0027 ]]; then echo \u0027User: \\\u0027$l_user\\\u0027 last password change was \\\u0027$(chage --list $l_user | grep \u0027^Last password change\u0027 | cut -d: -f2)\\\u0027\u0027 fi done \u003c \u003c(awk -F: \u0027$2~/^\\$.+\\$/{print $1}\u0027 /etc/shadow) }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: all_users_last_password_change_date_is_in_the_past
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.root_is_the_only_gid_0_account
+    description: Ensure root is the only GID 0 account
+    calls:
+      - action: run_command
+        command: "Run the following command to verify the root user\u0027s primary GID is 0, and no other user\u0027s have GID 0 as their primary GID: # awk -F: \u0027($1 !~ /^(sync|shutdown|halt|operator)/ \u0026\u0026 $4==\u00270\u0027) {print $1\u0027:\u0027$4}\u0027 /etc/passwd root:0 Note: User\u0027s: sync, shutdown, halt, and operator are excluded from the check for other user\u0027s with GID 0"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: root_is_the_only_gid_0_account
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.group_root_is_the_only_gid_0_group
+    description: Ensure group root is the only GID 0 group
+    calls:
+      - action: run_command
+        command: "Run the following command to verify no group other than root is assigned GID 0: # awk -F: \u0027$3==\u00270\u0027{print $1\u0027:\u0027$3}\u0027 /etc/group root:0"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: group_root_is_the_only_gid_0_group
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.root_path_integrity
+    description: Ensure root path integrity
+    calls:
+      - action: run_command
+        command: "Run the following script to verify root\u0027s path does not include: \u2022 Locations that are not directories \u2022 An empty directory (::) \u2022 A trailing (:) \u2022 Current working directory (.) \u2022 Non root owned directories \u2022 Directories that less restrictive than mode 0755 #!/usr/bin/env bash { l_output2=\u0027\u0027 l_pmask=\u00270022\u0027 l_maxperm=\u0027$( printf \u0027%o\u0027 $(( 0777 \u0026 ~$l_pmask )) )\u0027 l_root_path=\u0027$(sudo -Hiu root env | grep \u0027^PATH\u0027 | cut -d= -f2)\u0027 unset a_path_loc \u0026\u0026 IFS=\u0027:\u0027 read -ra a_path_loc \u003c\u003c\u003c \u0027$l_root_path\u0027 grep -q \u0027::\u0027 \u003c\u003c\u003c \u0027$l_root_path\u0027 \u0026\u0026 l_output2=\u0027$l_output2\\n - root\u0027s path contains a empty directory (::)\u0027 grep -Pq \u0027:\\h*$\u0027 \u003c\u003c\u003c \u0027$l_root_path\u0027 \u0026\u0026 l_output2=\u0027$l_output2\\n - root\u0027s path contains a trailing (:)\u0027 grep -Pq \u0027(\\h+|:)\\.(:|\\h*$)\u0027 \u003c\u003c\u003c \u0027$l_root_path\u0027 \u0026\u0026 l_output2=\u0027$l_output2\\n - root\u0027s path contains current working directory (.)\u0027 while read -r l_path; do if [ -d \u0027$l_path\u0027 ]; then while read -r l_fmode l_fown; do [ \u0027$l_fown\u0027 != \u0027root\u0027 ] \u0026\u0026 l_output2=\u0027$l_output2\\n - Directory: \\\u0027$l_path\\\u0027 is owned by: \\\u0027$l_fown\\\u0027 should be owned by \\\u0027root\\\u0027\u0027 [ $(( $l_fmode \u0026 $l_pmask )) -gt 0 ] \u0026\u0026 l_output2=\u0027$l_output2\\n - Directory: \\\u0027$l_path\\\u0027 is mode: \\\u0027$l_fmode\\\u0027 and should be mode: \\\u0027$l_maxperm\\\u0027 or more restrictive\u0027 done \u003c\u003c\u003c \u0027$(stat -Lc \u0027%#a %U\u0027 \u0027$l_path\u0027)\u0027 else l_output2=\u0027$l_output2\\n - \\\u0027$l_path\\\u0027 is not a directory\u0027 fi done \u003c\u003c\u003c \u0027$(printf \u0027%s\\n\u0027 \u0027${a_path_loc[@]}\u0027)\u0027 if [ -z \u0027$l_output2\u0027 ]; then echo -e \u0027\\n- Audit Result:\\n *** PASS ***\\n - Root\u0027s path is correctly configured\\n\u0027 else echo -e \u0027\\n- Audit Result:\\n ** FAIL **\\n - * Reasons for audit failure * :\\n$l_output2\\n\u0027 fi }"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: root_path_integrity
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.cron_daemon_is_enabled_and_running
+    description: Ensure cron daemon is enabled and running
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: cron_daemon_is_enabled_and_running
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.permissions_on_etc_ssh_sshd_config_are_configured
+    description: Ensure permissions on /etc/ssh/sshd_config are configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify Uid and Gid are both 0/root and Access does not grant permissions to group or other: # stat /etc/ssh/sshd_config Access: (0600/-rw-------) Uid: ( 0/ root) Gid: ( 0/ root)"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: permissions_on_etc_ssh_sshd_config_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.permissions_on_ssh_private_host_key_files_are
+    description: Ensure permissions on SSH private host key files are configured
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: permissions_on_ssh_private_host_key_files_are
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.permissions_on_ssh_public_host_key_files_are
+    description: Ensure permissions on SSH public host key files are configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify Access does not grant write or execute permissions to group or other for all returned files: # find /etc/ssh -xdev -type f -name \u0027ssh_host_*_key.pub\u0027 -exec stat {} \\; Example Output: File: \u2018/etc/ssh/ssh_host_rsa_key.pub\u2019 Size: 382 Blocks: 8 IO Block: 4096 regular file Device: ca01h/51713d Inode: 8631758 Links: 1 Access: (0644/-rw-r--r--) Uid: ( 0/ root) Gid: ( 0/ root) Access: 2018-10-22 18:24:56.861750616 +0000 Modify: 2018-10-22 18:24:56.861750616 +0000 Change: 2018-10-22 18:24:56.881750616 +0000 Birth: - File: \u2018/etc/ssh/ssh_host_ecdsa_key.pub\u2019 Size: 162 Blocks: 8 IO Block: 4096 regular file Device: ca01h/51713d Inode: 8631761 Links: 1 Access: (0644/-rw-r--r--) Uid: ( 0/ root) Gid: ( 0/ root) Access: 2018-10-22 18:24:56.897750616 +0000 Modify: 2018-10-22 18:24:56.897750616 +0000 Change: 2018-10-22 18:24:56.917750616 +0000 Birth: - File: \u2018/etc/ssh/ssh_host_ed25519_key.pub\u2019 Size: 82 Blocks: 8 IO Block: 4096 regular file Device: ca01h/51713d Inode: 8631763 Links: 1 Access: (0644/-rw-r--r--) Uid: ( 0/ root) Gid: ( 0/ root) Access: 2018-10-22 18:24:56.945750616 +0000 Modify: 2018-10-22 18:24:56.945750616 +0000 Change: 2018-10-22 18:24:56.961750616 +0000 Birth: -"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: permissions_on_ssh_public_host_key_files_are
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.ssh_x11_forwarding_is_disabled
+    description: Ensure SSH X11 forwarding is disabled
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that output matches: # sshd -T | grep -i x11forwarding x11forwarding no"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ssh_x11_forwarding_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.ssh_ignorerhosts_is_enabled
+    description: Ensure SSH IgnoreRhosts is enabled
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that output matches: # sshd -T | grep ignorerhosts ignorerhosts yes"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ssh_ignorerhosts_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.ssh_hostbasedauthentication_is_disabled
+    description: Ensure SSH HostbasedAuthentication is disabled
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that output matches: # sshd -T | grep hostbasedauthentication hostbasedauthentication no"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ssh_hostbasedauthentication_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.ssh_permituserenvironment_is_disabled
+    description: Ensure SSH PermitUserEnvironment is disabled
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that output matches: # sshd -T | grep permituserenvironment permituserenvironment no"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ssh_permituserenvironment_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.only_strong_ciphers_are_used
+    description: Ensure only strong Ciphers are used
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that output does not contain any of the listed weak ciphers # sshd -T | grep ciphers Weak Ciphers: 3des-cbc aes128-cbc aes192-cbc aes256-cbc"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: only_strong_ciphers_are_used
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.only_strong_mac_algorithms_are_used
+    description: Ensure only strong MAC algorithms are used
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that output does not contain any of the listed weak MAC algorithms: # sshd -T | grep -i \u0027MACs\u0027 Weak MAC algorithms: hmac-md5 hmac-md5-96 hmac-ripemd160 hmac-sha1 hmac-sha1-96 umac-64@openssh.com umac-128@openssh.com hmac-md5-etm@openssh.com hmac-md5-96-etm@openssh.com hmac-ripemd160-etm@openssh.com hmac-sha1-etm@openssh.com hmac-sha1-96-etm@openssh.com umac-64-etm@openssh.com umac-128-etm@openssh.com"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: only_strong_mac_algorithms_are_used
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.only_strong_key_exchange_algorithms_are_used
+    description: Ensure only strong Key Exchange algorithms are used
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that output does not contain any of the listed weak Key Exchange algorithms # sshd -T | grep kexalgorithms Weak Key Exchange Algorithms: diffie-hellman-group1-sha1 diffie-hellman-group14-sha1 diffie-hellman-group-exchange-sha1"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: only_strong_key_exchange_algorithms_are_used
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.ssh_idle_timeout_interval_is_configured
+    description: Ensure SSH Idle Timeout Interval is configured
+    calls:
+      - action: run_command
+        command: "Run the following commands and verify ClientAliveInterval is between 1 and 300: # sshd -T | grep clientaliveinterval clientaliveinterval 300 Run the following command and verify ClientAliveCountMax is between 1 and 3: # sshd -T | grep clientalivecountmax clientalivecountmax 3"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ssh_idle_timeout_interval_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.ssh_warning_banner_is_configured
+    description: Ensure SSH warning banner is configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that output matches: # sshd -T | grep banner banner /etc/issue.net"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ssh_warning_banner_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.ssh_pam_is_enabled
+    description: Ensure SSH PAM is enabled
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that output matches: # sshd -T | grep -i usepam usepam yes"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ssh_pam_is_enabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.ssh_allowtcpforwarding_is_disabled
+    description: Ensure SSH AllowTcpForwarding is disabled
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that output matches: # sshd -T | grep -i allowtcpforwarding allowtcpforwarding no"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ssh_allowtcpforwarding_is_disabled
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.ssh_maxstartups_is_configured
+    description: Ensure SSH MaxStartups is configured
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that output MaxStartups is 10:30:60 or matches site policy: # sshd -T | grep -i maxstartups maxstartups 10:30:60"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ssh_maxstartups_is_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.ssh_maxsessions_is_limited
+    description: Ensure SSH MaxSessions is limited
+    calls:
+      - action: run_command
+        command: "Run the following command and verify that output MaxSessions is 10 or less, or matches site policy: # sshd -T | grep -i maxsessions maxsessions 10"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: ssh_maxsessions_is_limited
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.password_creation_requirements_are_configured
+    description: Ensure password creation requirements are configured
+    calls:
+      - action: run_command
+        command: "Verify password creation requirements conform to organization policy. Run the following command to verify the minimum password length is at least 14 characters minlen=14: # grep -P \u0027^\\s*password\\s+(requisite|required)\\s+pam_cracklib.so\\s+([^#]+\\s+)*minlen=(1 [4-9]|[1-9][0-9]+)\\b\u0027 /etc/pam.d/common-password password requisite pam_cracklib.so retry=3 minlen=14 dcredit=-1 ucredit=-1 lcredit=-1 ocredit=-1 Run the following command to verify the required password complexity - dcredit=-1 ucredit=-1 ocredit=-1 lcredit=-1: # grep -P \u0027^\\s*password\\s+(?:requisite|required)\\s+pam_cracklib\\.so\\s+(?:[^#]+\\s+)*(?:( ?!\\2|\\3|\\4))(dcredit=-[1-9]|ucredit=-[1-9]|ocredit=-[1-9]|lcredit=-[1- 9])\\s+(?:[^#]+\\s+)*(?:(?!\\1|\\3|\\4))(dcredit=-[1-9]|ucredit=-[1-9]|ocredit=- [1-9]|lcredit=-[1-9])\\s+(?:[^#]+\\s+)*(?:(?!\\1|\\2|\\4))(dcredit=-[1- 9]|ucredit=-[1-9]|ocredit=-[1-9]|lcredit=-[1- 9])\\s+(?:[^#]+\\s+)*(?!\\1|\\2|\\3)(dcredit=-[1-9]|ucredit=-[1-9]|ocredit=-[1- 9]|lcredit=-[1-9])\u0027 /etc/pam.d/common-password password requisite pam_cracklib.so retry=3 minlen=14 dcredit=-1 ucredit=-1 lcredit=-1 ocredit=-1"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_creation_requirements_are_configured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.password_reuse_is_limited
+    description: Ensure password reuse is limited
+    calls:
+      - action: run_command
+        command: "Run the following command to verify remembered password history follows local site policy, not to be less than 5: # grep -P \u0027^\\s*password\\s+(requisite|required)\\s+pam_pwhistory\\.so\\s+([^#]+\\s+)*remembe r=([5-9]|[1-9][0-9]+)\\b\u0027 /etc/pam.d/common-password password required pam_pwhistory.so remember=5"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_reuse_is_limited
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.inactive_password_lock_is_30_days_or_less
+    description: Ensure inactive password lock is 30 days or less
+    calls:
+      - action: run_command
+        command: "Run the following command and verify INACTIVE conforms to sire policy (no more than 30 days): # useradd -D | grep INACTIVE INACTIVE=30 Verify all users with a password have Password inactive no more than 30 days after password expires: Run the following command and Review list of users and INACTIVE to verify that all users\u0027 INACTIVE conforms to site policy (no more than 30 days): # grep -E ^[^:]+:[^\\!*] /etc/shadow | cut -d: -f1,7 \u003cuser\u003e:\u003cINACTIVE\u003e"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: inactive_password_lock_is_30_days_or_less
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.system_accounts_are_secured
+    description: Ensure system accounts are secured
+    calls:
+      - action: run_command
+        command: "Run the following commands and verify no results are returned: # awk -F: \u0027($1!=\u0027root\u0027 \u0026\u0026 $1!=\u0027sync\u0027 \u0026\u0026 $1!=\u0027shutdown\u0027 \u0026\u0026 $1!=\u0027halt\u0027 \u0026\u0026 $1!~/^\\+/ \u0026\u0026 $3\u003c\u0027\u0027$(awk \u0027/^\\s*UID_MIN/{print $2}\u0027 /etc/login.defs)\u0027\u0027 \u0026\u0026 $7!=\u0027\u0027\u0027$(which nologin)\u0027\u0027\u0027 \u0026\u0026 $7!=\u0027/bin/false\u0027) {print}\u0027 /etc/passwd # awk -F: \u0027($1!=\u0027root\u0027 \u0026\u0026 $1!~/^\\+/ \u0026\u0026 $3\u003c\u0027\u0027$(awk \u0027/^\\s*UID_MIN/{print $2}\u0027 /etc/login.defs)\u0027\u0027) {print $1}\u0027 /etc/passwd | xargs -I \u0027{}\u0027 passwd -S \u0027{}\u0027 | awk \u0027($2!=\u0027L\u0027 \u0026\u0026 $2!=\u0027LK\u0027) {print $1}\u0027"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: system_accounts_are_secured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.default_group_for_the_root_account_is_gid_0
+    description: Ensure default group for the root account is GID 0
+    calls:
+      - action: run_command
+        command: "Run the following command and verify the result is 0 : # grep \u0027^root:\u0027 /etc/passwd | cut -f4 -d: 0"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: default_group_for_the_root_account_is_gid_0
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: suse.section_5.default_user_shell_timeout_is_900_seconds_or_less
+    description: Ensure default user shell timeout is 900 seconds or less
+    calls:
+      - action: run_command
+        command: "Run the following commands and verify all TMOUT lines returned are 900 or less and at least one exists in each file. # grep \u0027^TMOUT\u0027 /etc/bashrc TMOUT=600 # grep \u0027^TMOUT\u0027 /etc/profile TMOUT=600"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: default_user_shell_timeout_is_900_seconds_or_less
+        value: "{{ result.stdout }}"
+        expected: ""
+

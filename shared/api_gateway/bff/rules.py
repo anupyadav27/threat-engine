@@ -4,21 +4,32 @@ Single call to rule engine /ui-data (was 4 separate calls).
 """
 
 from typing import Optional, Dict
+import logging
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
-from ._shared import fetch_many, safe_get
+from ._auth import resolve_tenant_id
+from ._shared import fetch_many, safe_get, BFFMeta
+from .schemas.rules import RulesResponse
 from ._transforms import normalize_rule
+from ._page_context import rules_page_context, rules_filter_schema
+
+logger = logging.getLogger("api-gateway.bff")
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
 
-@router.get("/rules")
+@router.get("/rules", response_model=RulesResponse, response_model_exclude_none=False)
 async def view_rules(
-    tenant_id: str = Query(...),
+    request: Request,
     provider: Optional[str] = Query(None),
 ):
     """Single endpoint returning everything the rules page needs."""
+
+    tenant_id = resolve_tenant_id(request)
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+    meta = BFFMeta("rules")
 
     params: Dict[str, str] = {"tenant_id": tenant_id, "limit": "500"}
     if provider:
@@ -26,20 +37,21 @@ async def view_rules(
 
     results = await fetch_many([
         ("rule", "/api/v1/rules/ui-data", params),
-    ])
+    ], auth_headers=fwd_headers)
 
-    data = results[0] or {}
+    data = results[0]
+    meta.record_engine("rule", "/api/v1/rules/ui-data", data)
+    data = data or {}
 
-    # Normalize rules
+    # Normalize rules from rule engine
     raw_rules = safe_get(data, "rules", [])
     rules = [normalize_rule(r) for r in raw_rules]
 
     # Filter by provider if specified
-    if provider:
+    if provider and raw_rules:
         p = provider.upper()
         rules = [r for r in rules if r.get("provider") == p or not r.get("provider")]
 
-    # Engine statistics (pre-computed by /ui-data)
     engine_stats = safe_get(data, "statistics", {})
     raw_templates = safe_get(data, "templates", [])
     # Normalize template fields: engine uses template_id, UI expects id
@@ -82,22 +94,54 @@ async def view_rules(
         for fw in fws:
             by_framework[fw] = by_framework.get(fw, 0) + 1
 
+    page_ctx = rules_page_context()
+    page_ctx["tabs"] = [
+        {"id": "rules", "label": "Rules", "count": total},
+        {"id": "templates", "label": "Templates", "count": len(templates)},
+    ]
+
     return {
-        "kpi": {
-            "totalRules": engine_stats.get("total") or engine_stats.get("total_rules") or total,
-            "activeRules": active,
-            "builtInRules": built_in,
-            "customRules": engine_stats.get("custom_rules_count") or custom,
-            "bySeverity": by_severity,
-            "byProvider": engine_stats.get("by_provider") or by_provider,
-            "byService": engine_stats.get("by_service") or dict(
-                sorted(by_service.items(), key=lambda x: x[1], reverse=True)[:15]
-            ),
-            "byFramework": dict(sorted(by_framework.items(), key=lambda x: x[1], reverse=True)),
-            "providers": len(by_provider),
-        },
+        "pageContext": page_ctx,
+        "filterSchema": rules_filter_schema(),
+        "kpiGroups": [
+            {
+                "title": "Rule Catalog",
+                "items": [
+                    {"label": "Total Rules", "value": engine_stats.get("total") or total},
+                    {"label": "Active", "value": active},
+                    {"label": "Built-in", "value": built_in},
+                    {"label": "Custom", "value": engine_stats.get("custom_rules_count") or custom},
+                ],
+            },
+            {
+                "title": "Coverage",
+                "items": [
+                    {"label": "Providers", "value": len(by_provider)},
+                    {"label": "Services", "value": len(by_service)},
+                    {"label": "Frameworks", "value": len(by_framework)},
+                    {"label": "Templates", "value": len(templates)},
+                ],
+            },
+        ],
         "rules": rules,
         "statistics": engine_stats,
         "templates": templates,
         "providerStatus": provider_status,
+        # Legacy kpi object for UI KPI cards
+        "kpi": {
+            "totalRules": engine_stats.get("total") or total,
+            "total_rules": engine_stats.get("total") or total,
+            "activeRules": active,
+            "active_rules": active,
+            "builtInRules": built_in,
+            "built_in_rules": built_in,
+            "customRules": custom,
+            "custom_rules": custom,
+            "providers": len(by_provider),
+            "byProvider": by_provider,
+            "bySeverity": by_severity,
+            "byService": by_service,
+            "byFramework": by_framework,
+        },
+        "_meta": meta.to_dict(),
     }

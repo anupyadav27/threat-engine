@@ -55,7 +55,8 @@ class RiskEvaluator:
         model_config = self._load_model_config(tenant_id)
 
         # 2. Load transformed findings from Stage 1
-        findings = self._load_transformed_findings(scan_id)
+        # AC-S2: tenant_id filter enforced inside _load_transformed_findings
+        findings = self._load_transformed_findings(scan_id, tenant_id)
         logger.info("Loaded %d transformed findings for evaluation", len(findings))
 
         if not findings:
@@ -64,10 +65,44 @@ class RiskEvaluator:
 
         # 3. Compute FAIR scenario for each finding
         from engines.risk.models.fair_model import compute_scenario
+        from engines.risk.blast_radius.neo4j_traversal import compute_blast_radius_batch
+
+        # Deduplicate resource UIDs to avoid N Neo4j round-trips for identical assets
+        # Many findings share the same resource (e.g. 50 check rules all fail on one RDS instance)
+        unique_uids: list = list({
+            (finding.get("asset_arn") or finding.get("asset_id") or "")
+            for finding in findings
+        })
+        logger.info("Computing blast radius for %d unique resource UIDs (%d total findings)",
+                    len(unique_uids), len(findings))
+
+        # Batch Neo4j queries with a single driver (reused across all UIDs)
+        # AC-S1: all Cypher uses $param syntax; AC-S3: credentials never logged
+        blast_radius_cache: Dict[str, Dict[str, Any]] = compute_blast_radius_batch(unique_uids)
 
         scenarios: List[Dict[str, Any]] = []
         for finding in findings:
             scenario = compute_scenario(finding, model_config)
+
+            # Neo4j blast radius — ONLY place in the platform that sets non-zero score
+            # Falls back to 0 if Neo4j is unreachable or graph is empty (AC-S7: 0-100 clamp)
+            resource_uid = finding.get("asset_arn") or finding.get("asset_id") or ""
+            br = blast_radius_cache.get(resource_uid, {"blast_radius_score": 0, "sample_targets": []})
+
+            # AC-S7: clamp to 0-100 before storing
+            blast_score = max(0, min(100, int(br.get("blast_radius_score") or 0)))
+            scenario["blast_radius_score"] = blast_score
+            scenario["blast_radius_sample"] = br.get("sample_targets", [])
+
+            # Populate attack_path from blast radius sample_targets (AC-F9)
+            # Prepend the source resource so the path has at least 2 entries
+            sample_targets = br.get("sample_targets") or []
+            if sample_targets:
+                attack_path = [resource_uid] + list(sample_targets[:9])
+            else:
+                attack_path = [resource_uid] if resource_uid else []
+            scenario["attack_path"] = attack_path
+
             scenarios.append(scenario)
 
         # 4. Write scenarios to risk_scenarios
@@ -136,8 +171,18 @@ class RiskEvaluator:
 
         return config
 
-    def _load_transformed_findings(self, scan_id: str) -> List[Dict[str, Any]]:
-        """Load all transformed findings for this risk scan."""
+    def _load_transformed_findings(self, scan_id: str, tenant_id: str = "") -> List[Dict[str, Any]]:
+        """Load all transformed findings for this risk scan.
+
+        AC-S2: query always includes tenant_id filter to prevent cross-tenant leakage.
+
+        Args:
+            scan_id: The risk_scan_id UUID.
+            tenant_id: Tenant identifier — mandatory for row-level isolation.
+
+        Returns:
+            List of transformed finding dicts for FAIR evaluation.
+        """
         findings: List[Dict[str, Any]] = []
         cursor = self._risk_conn.cursor()
         try:
@@ -152,7 +197,8 @@ class RiskEvaluator:
                     account_id, region, csp
                 FROM risk_input_transformed
                 WHERE risk_scan_id = %s::uuid
-            """, (scan_id,))
+                  AND tenant_id = %s
+            """, (scan_id, tenant_id))
 
             for row in cursor.fetchall():
                 findings.append({

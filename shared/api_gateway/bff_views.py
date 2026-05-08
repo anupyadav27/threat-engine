@@ -28,6 +28,7 @@ SECOPS_URL = os.getenv("SECOPS_ENGINE_URL", "http://engine-secops:8000")
 RISK_URL = os.getenv("RISK_ENGINE_URL", "http://engine-risk:8009")
 ONBOARDING_URL = os.getenv("ONBOARDING_ENGINE_URL", "http://engine-onboarding:8008")
 RULE_URL = os.getenv("RULE_ENGINE_URL", "http://engine-rule:8000")
+CIEM_URL = os.getenv("CIEM_ENGINE_URL", "http://engine-ciem")
 
 # Timeout for inter-service calls (seconds)
 ENGINE_TIMEOUT = float(os.getenv("BFF_ENGINE_TIMEOUT", "15"))
@@ -790,4 +791,51 @@ async def view_dashboard(
         "recentScans": scans_data.get("scans", scans_data.get("data", [])),
         # Toxic combinations from threat engine
         "toxicCombinations": toxic_data.get("toxic_combinations", toxic_data.get("data", [])),
+    }
+
+
+# ── CIEM VIEW ──────────────────────────────────────────────────────
+
+@router.get("/ciem")
+async def view_ciem(
+    tenant_id: str = Query(...),
+    scan_run_id: Optional[str] = Query(None),
+):
+    """
+    BFF view for /ciem page.
+
+    Aggregates: dashboard, identities, top rules, log sources.
+    """
+    import asyncio
+
+    qs_base = f"tenant_id={tenant_id}"
+    if scan_run_id:
+        qs_base += f"&scan_run_id={scan_run_id}"
+
+    dashboard_url = f"{CIEM_URL}/api/v1/ciem/dashboard?{qs_base}"
+    identities_url = f"{CIEM_URL}/api/v1/ciem/identities?{qs_base}&limit=20"
+    top_rules_url = f"{CIEM_URL}/api/v1/ciem/top-rules?{qs_base}&limit=15"
+    sources_url = f"{CIEM_URL}/api/v1/log-collection/sources?{qs_base}"
+    stats_url = f"{CIEM_URL}/api/v1/log-collection/stats?{qs_base}"
+
+    dashboard, identities, top_rules, sources, stats = await asyncio.gather(
+        _fetch(dashboard_url),
+        _fetch(identities_url),
+        _fetch(top_rules_url),
+        _fetch(sources_url),
+        _fetch(stats_url),
+    )
+
+    return {
+        "dashboard": dashboard.get("summary", {}),
+        "severityBreakdown": dashboard.get("by_severity", []),
+        "engineBreakdown": dashboard.get("by_engine", []),
+        "ruleSourceBreakdown": dashboard.get("by_rule_source", []),
+        "categoryBreakdown": dashboard.get("by_category", []),
+        "topCritical": dashboard.get("top_critical", []),
+        "identities": identities.get("identities", []),
+        "topRules": top_rules.get("rules", []),
+        "logSources": sources.get("sources", []),
+        "eventStats": stats.get("summary", {}),
+        "eventsBySource": stats.get("by_source", []),
     }

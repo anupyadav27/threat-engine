@@ -1,0 +1,105 @@
+version: '1.0'
+provider: azure
+service: power
+checks:
+- rule_id: azure.power.bi_dashboard.data_analytics_dashboard_export_controls_enabled
+  for_each: azure.power.bi_dashboard.list_dashboards
+  severity: MEDIUM
+  conditions:
+    var: item.ExportControlsEnabled
+    op: is_true
+    value: null
+- rule_id: azure.power.bi_dashboard.data_analytics_dashboard_public_embeds_disabled
+  for_each: azure.power.bi_dashboards.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.isPublic
+    op: is_false
+    value: null
+- rule_id: azure.power.bi_dashboard.data_analytics_dashboard_sharing_restricted_to_org
+  for_each: azure.power.bi_dashboards.list
+  severity: MEDIUM
+  conditions:
+    var: item.SharingSettings.ExternalSharingEnabled
+    op: is_false
+    value: null
+- rule_id: azure.power.bi_dashboard.data_analytics_dashboard_sso_required
+  for_each: azure.power.bi_dashboard.list_dashboards
+  severity: MEDIUM
+  conditions:
+    var: item.SingleSignOnEnabled
+    op: is_true
+    value: null
+- rule_id: azure.power.bi_dataset.data_analytics_dataset_access_policies_least_privilege
+  for_each: azure.power.bi.list_datasets
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.configuredBy
+      op: not_equals
+      value: AllUsers
+    - var: item.properties.users[].identifier
+      op: not_contains
+      value: AllUsers
+- rule_id: azure.power.bi_dataset.data_analytics_dataset_encrypted_at_rest_cmek
+  for_each: azure.power.bi.list_datasets
+  severity: MEDIUM
+  conditions:
+    var: item.Encryption
+    op: exists
+    value: null
+- rule_id: azure.power.bi_dataset.data_analytics_dataset_public_sharing_disabled
+  for_each: azure.power.bi.datasets.list
+  severity: MEDIUM
+  conditions:
+    var: item.isPublic
+    op: is_false
+    value: null
+- rule_id: azure.power.bi_dataset.data_analytics_dataset_row_level_security_enabled
+  for_each: azure.power.bi_dataset.list_datasets
+  severity: MEDIUM
+  conditions:
+    var: item.RowLevelSecurityEnabled
+    op: is_true
+    value: null
+- rule_id: azure.power.bi_user.data_analytics_user_roles_minimal
+  for_each: azure.power.bi.list_users
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Roles
+      op: exists
+      value: null
+    - var: item.Roles[]
+      op: not_in
+      value:
+      - Data Analyst
+      - Power BI Administrator
+- rule_id: azure.power.bi_user.data_analytics_user_sso_required
+  for_each: azure.power.bi.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.SSORequired
+    op: is_true
+    value: null
+- rule_id: azure.power.bi_workspace.data_analytics_group_external_group_sharing_restricted
+  for_each: azure.power.bi_workspaces.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.dataAnalyticsGroupExternalGroupSharingEnabled
+    op: is_false
+    value: null
+- rule_id: azure.power.bi_workspace.data_analytics_group_roles_minimal
+  for_each: azure.power.bi.list_workspaces
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.DataAnalyticsGroupRoles
+      op: exists
+      value: null
+    - var: item.DataAnalyticsGroupRoles[].Role
+      op: not_contains
+      value: Admin
+    - var: item.DataAnalyticsGroupRoles[].Role
+      op: not_contains
+      value: Member

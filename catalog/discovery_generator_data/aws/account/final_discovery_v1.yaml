@@ -1,0 +1,72 @@
+# ==========================================================
+# Discovery YAML — account (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 5 | ops: 2 independent, 0 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: account
+
+services:
+  client: account
+  module: "boto3.client('account')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: get_alternate_contact
+    identifier_op: aws.account.get_alternate_contact
+    identifier_field: Name
+    item_var_path: item.Name
+    identifier_template: '{name}'
+  - resource_type: get_contact_information
+    identifier_op: aws.account.get_contact_information
+    identifier_field: CompanyName
+    item_var_path: item.CompanyName
+    identifier_template: '{companyname}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.account.get_alternate_contact  ──
+  - discovery_id: aws.account.get_alternate_contact
+    calls:
+      - action: get_alternate_contact
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        AlternateContactType: '{{ item.AlternateContactType }}'
+        EmailAddress: '{{ item.EmailAddress }}'
+        Name: '{{ item.Name }}'
+        PhoneNumber: '{{ item.PhoneNumber }}'
+        Title: '{{ item.Title }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.account.get_contact_information  ──
+  - discovery_id: aws.account.get_contact_information
+    calls:
+      - action: get_contact_information
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        AddressLine1: '{{ item.AddressLine1 }}'
+        AddressLine2: '{{ item.AddressLine2 }}'
+        AddressLine3: '{{ item.AddressLine3 }}'
+        City: '{{ item.City }}'
+        CompanyName: '{{ item.CompanyName }}'
+        ContactInformation: '{{ item.ContactInformation }}'
+        CountryCode: '{{ item.CountryCode }}'
+        DistrictOrCounty: '{{ item.DistrictOrCounty }}'
+        FullName: '{{ item.FullName }}'
+        PhoneNumber: '{{ item.PhoneNumber }}'
+        PostalCode: '{{ item.PostalCode }}'
+        StateOrRegion: '{{ item.StateOrRegion }}'
+        WebsiteUrl: '{{ item.WebsiteUrl }}'
+

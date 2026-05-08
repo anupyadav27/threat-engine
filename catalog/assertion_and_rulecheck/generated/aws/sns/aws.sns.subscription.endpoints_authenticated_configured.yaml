@@ -1,0 +1,27 @@
+version: '1.0'
+rule_id: aws.sns.subscription.endpoints_authenticated_configured
+for_each: aws.sns.list_subscriptions
+severity: MEDIUM
+conditions:
+  all:
+  - var: item.Protocol
+    op: in
+    value:
+    - HTTPS
+    - email
+    - email-json
+    - sms
+    - sqs
+    - application
+    - lambda
+    - firehose
+  - any:
+    - var: item.Protocol
+      op: not_equals
+      value: HTTPS
+    - var: item.Endpoint
+      op: contains
+      value: https://
+fixture_validated: false
+fixture_note: 'PASS fixture returned FAIL — wrong field or operator (pass_fixture keys: [''Endpoint'', ''Owner'', ''Protocol'',
+  ''SubscriptionArn'', ''TopicArn''])'

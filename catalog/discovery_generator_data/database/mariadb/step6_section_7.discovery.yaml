@@ -1,0 +1,95 @@
+version: '1.0'
+provider: database
+engine: mariadb
+category: section_7
+cis_section: '7'
+description: >
+  mariadb CIS Section 7 — Disable use of the mysql_old_password plugin
+
+discovery:
+
+  - discovery_id: mariadb.section_7.disable_use_of_the_mysql_old_password_plugin
+    description: Disable use of the mysql_old_password plugin
+    calls:
+
+
+      - action: query_setting
+        query: "SHOW VARIABLES LIKE 'old_passwords';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: disable_use_of_the_mysql_old_password_plugin
+        setting_name: "old_passwords"
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: mariadb.section_7.passwords_are_not_stored_in_the_global
+    description: Ensure Passwords are Not Stored in the Global Configuration
+    calls:
+
+
+      - action: query_setting
+        query: "SHOW VARIABLES LIKE 'passwords_are_not_stored_in_the_global';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: passwords_are_not_stored_in_the_global
+        setting_name: "passwords_are_not_stored_in_the_global"
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: mariadb.section_7.strong_authentication_is_utilized_for_all_accounts
+    description: Ensure strong authentication is utilized for all accounts
+    calls:
+
+
+      - action: query_table
+        query: "SELECT User,host FROM mysql.user WHERE (plugin IN('mysql_native_password', 'mysql_old_password','') AND NOT (User = 'root' AND authentication_string = 'invalid') AND NOT (User = 'mysql' and authentication_string = 'invalid'));"
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        check: strong_authentication_is_utilized_for_all_accounts
+        value: "{{ item.value }}"
+        expected: ""
+
+
+  - discovery_id: mariadb.section_7.password_complexity_policies_are_in_place
+    description: Ensure Password Complexity Policies are in Place
+    calls:
+
+
+      - action: query_setting
+        query: "SHOW VARIABLES LIKE '%pass%';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_complexity_policies_are_in_place
+        setting_name: "%pass%"
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: mariadb.section_7.no_anonymous_accounts_exist
+    description: Ensure No Anonymous Accounts Exist
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT user,host FROM mysql.user WHERE user = '';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: no_anonymous_accounts_exist
+        setting_name: "no_anonymous_accounts_exist"
+        value: "{{ result.value }}"
+        expected: ""
+
+

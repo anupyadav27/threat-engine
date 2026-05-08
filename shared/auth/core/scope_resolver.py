@@ -82,28 +82,27 @@ def resolve_scope(user) -> dict:
     tenant_ids = [s.scope_id for s in scopes if s.scope_type == "tenant"]
     account_ids = [s.scope_id for s in scopes if s.scope_type == "account"]
 
-    # Org-level roles: resolve tenants from org's tenants
+    # Org-level roles: resolve tenants from all tenants in the org (customer_id)
     if role.scope_level == "organization" and org_ids:
         try:
             from tenant_management.models import Tenants
             org_tenant_ids = list(
-                Tenants.objects.filter(organization_id__in=org_ids)
+                Tenants.objects.filter(customer_id__in=org_ids)
                 .values_list("id", flat=True)
             )
-            # Merge explicit tenant scopes with org-resolved tenants
             tenant_ids = list(set(tenant_ids + org_tenant_ids))
         except (ImportError, Exception):
             pass
 
-    # Tenant-level roles: resolve accounts from tenant's accounts
-    # (accounts are in the onboarding DB — we resolve what we can)
-    # For now, tenant_admin gets access to all accounts under their tenants
-    # via scope check on tenant_id (account → tenant FK in onboarding DB)
+    if not org_ids:
+        org_ids = []
+    if not tenant_ids:
+        tenant_ids = []
 
     return {
-        "org_ids": org_ids or None if role.scope_level in ("platform",) else (org_ids or []),
-        "tenant_ids": tenant_ids or None if role.scope_level in ("platform",) else (tenant_ids or []),
-        "account_ids": account_ids or None if role.scope_level in ("platform", "organization", "tenant") else (account_ids or []),
+        "org_ids": org_ids,
+        "tenant_ids": tenant_ids,
+        "account_ids": None if role.scope_level in ("platform", "organization", "tenant") else (account_ids or []),
     }
 
 

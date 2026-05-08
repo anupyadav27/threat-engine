@@ -1,0 +1,49 @@
+rule_id: oci.networking.audit.vcn_change
+service: networking
+provider: oci
+check_type: log
+severity: medium
+title: 'OCI Networking: VCN Created or Deleted'
+description: A Virtual Cloud Network was created or deleted. Unauthorized VCN changes can reshape network topology to enable lateral movement.
+threat_category: lateral_movement
+mitre_tactics:
+- lateral_movement
+mitre_techniques:
+- T1599
+risk_score: 65
+resource: oci_core_vcn
+domain: network_security_and_connectivity
+action_category: modify
+log_source_type: 
+posture_category: network_posture
+threat_tags:
+- T1599
+- lateral_movement
+- cloud_pivot
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: Review and investigate this activity in the OCI Console and take corrective action.
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.networking
+    - field: operation
+      op: in
+      value:
+      - CreateVcn
+      - DeleteVcn

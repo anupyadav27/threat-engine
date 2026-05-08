@@ -1,0 +1,57 @@
+version: '1.0'
+provider: aws
+service: codebuild
+discovery:
+- calls:
+  - action: list_projects
+    on_error: continue
+    save_as: response
+  discovery_id: aws.codebuild.list_projects
+  emit:
+    as: item
+    items_for: '{{ response.projects }}'
+    item:
+      nextToken: '{{ response.nextToken }}'
+- calls:
+  - action: batch_get_projects
+    on_error: continue
+    params:
+      names:
+      - '{{ item }}'
+    save_as: response
+  discovery_id: aws.codebuild.batch_get_projects
+  emit:
+    as: item
+    item:
+      arn: '{{ item.arn }}'
+      artifacts: '{{ item.artifacts }}'
+      cache: '{{ item.cache }}'
+      created: '{{ item.created }}'
+      description: '{{ item.description }}'
+      encryptionKey: '{{ item.encryptionKey }}'
+      environment: '{{ item.environment }}'
+      lastModified: '{{ item.lastModified }}'
+      logsConfig: '{{ item.logsConfig }}'
+      name: '{{ item.name }}'
+      projectVisibility: '{{ item.projectVisibility }}'
+      secondaryArtifacts: '{{ item.secondaryArtifacts }}'
+      serviceRole: '{{ item.serviceRole }}'
+      source: '{{ item.source }}'
+      tags: '{{ item.tags }}'
+      timeoutInMinutes: '{{ item.timeoutInMinutes }}'
+      vpcConfig: '{{ item.vpcConfig }}'
+    items_for: '{{ response.projects }}'
+  for_each: aws.codebuild.list_projects
+- calls:
+  - action: list_source_credentials
+    on_error: continue
+    save_as: response
+  discovery_id: aws.codebuild.list_source_credentials
+  emit:
+    as: item
+    item:
+      arn: '{{ item.arn }}'
+      authType: '{{ item.authType }}'
+      resource: '{{ item.resource }}'
+      serverType: '{{ item.serverType }}'
+    items_for: '{{ response.sourceCredentialsInfos }}'

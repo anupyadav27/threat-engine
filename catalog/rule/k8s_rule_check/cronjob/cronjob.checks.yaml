@@ -1,0 +1,39 @@
+version: '1.0'
+provider: k8s
+service: cronjob
+checks:
+- rule_id: k8s.cronjob.container.host_network_disabled
+  for_each: k8s.cronjobs.list
+  severity: HIGH
+  conditions:
+    var: item.spec.jobTemplate.spec.template.spec.hostNetwork
+    op: is_false
+    value: null
+- rule_id: k8s.cronjob.container.privileged_disabled
+  for_each: k8s.cronjobs.list
+  severity: CRITICAL
+  conditions:
+    var: item.spec.jobTemplate.spec.template.spec.containers[].securityContext.privileged
+    op: not_equals
+    value: true
+- rule_id: k8s.cronjob.container.resource_limits_configured
+  for_each: k8s.cronjob.list
+  severity: MEDIUM
+  conditions:
+    var: item.spec.jobTemplate.spec.template.spec.containers[].resources.limits
+    op: not_empty
+    value: null
+- rule_id: k8s.cronjob.container.run_as_non_root_enabled
+  for_each: k8s.cronjob.list_cronjobs
+  severity: HIGH
+  conditions:
+    var: item.spec.jobTemplate.spec.template.spec.containers[].securityContext.runAsNonRoot
+    op: is_true
+    value: null
+- rule_id: k8s.cronjob.spec.concurrency_policy_configured
+  for_each: k8s.cronjob.list
+  severity: LOW
+  conditions:
+    var: item.spec.concurrencyPolicy
+    op: exists
+    value: null

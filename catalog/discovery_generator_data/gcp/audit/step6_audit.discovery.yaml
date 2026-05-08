@@ -1,0 +1,128 @@
+version: '1.0'
+provider: gcp
+service: audit
+discovery:
+- discovery_id: gcp.accesscontextmanager.list_access_policies
+  calls:
+  - action: accessPolicies.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      name: '{{ item.name }}'
+      parent: '{{ item.parent }}'
+      title: '{{ item.title }}'
+      etag: '{{ item.etag }}'
+      createTime: '{{ item.createTime }}'
+      updateTime: '{{ item.updateTime }}'
+      scopes: '{{ item.scopes }}'
+- discovery_id: gcp.audit.get_audit_config
+  calls:
+  - action: billingAccounts.sinks.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+    item:
+      name: '{{ item.name }}'
+      destination: '{{ item.destination }}'
+      filter: '{{ item.filter }}'
+      description: '{{ item.description }}'
+      disabled: '{{ item.disabled }}'
+      includeChildren: '{{ item.includeChildren }}'
+      createTime: '{{ item.createTime }}'
+      updateTime: '{{ item.updateTime }}'
+- discovery_id: gcp.audit.list_log_entries
+  calls:
+  - action: entries.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      logName: '{{ item.logName }}'
+      resource: '{{ item.resource }}'
+      timestamp: '{{ item.timestamp }}'
+      severity: '{{ item.severity }}'
+      labels: '{{ item.labels }}'
+      operation: '{{ item.operation }}'
+      trace: '{{ item.trace }}'
+      insertId: '{{ item.insertId }}'
+      jsonPayload: '{{ item.jsonPayload }}'
+      textPayload: '{{ item.textPayload }}'
+      protoPayload: '{{ item.protoPayload }}'
+- discovery_id: gcp.cloudsql.list_instances
+  calls:
+  - action: instances.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      name: '{{ item.name }}'
+      databaseVersion: '{{ item.databaseVersion }}'
+      state: '{{ item.state }}'
+      settings: '{{ item.settings }}'
+      ipAddresses: '{{ item.ipAddresses }}'
+      serverCaCert: '{{ item.serverCaCert }}'
+      backupConfiguration: '{{ item.backupConfiguration }}'
+      maintenanceWindow: '{{ item.maintenanceWindow }}'
+      labels: '{{ item.labels }}'
+      region: '{{ item.region }}'
+- discovery_id: gcp.container.list_clusters
+  calls:
+  - action: projects.locations.clusters.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      name: '{{ item.name }}'
+      status: '{{ item.status }}'
+      networkPolicy: '{{ item.networkPolicy }}'
+      addonsConfig: '{{ item.addonsConfig }}'
+      nodeConfig: '{{ item.nodeConfig }}'
+      masterAuth: '{{ item.masterAuth }}'
+      network: '{{ item.network }}'
+      subnetwork: '{{ item.subnetwork }}'
+      loggingService: '{{ item.loggingService }}'
+      monitoringService: '{{ item.monitoringService }}'
+      privateClusterConfig: '{{ item.privateClusterConfig }}'
+      shieldedNodes: '{{ item.shieldedNodes }}'
+      workloadIdentityConfig: '{{ item.workloadIdentityConfig }}'
+      binaryAuthorization: '{{ item.binaryAuthorization }}'
+- discovery_id: gcp.iam.get_iam_policy
+  calls:
+  - action: projects.getIamPolicy
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+    item:
+      bindings: '{{ item.bindings }}'
+      etag: '{{ item.etag }}'
+      version: '{{ item.version }}'
+      auditConfigs: '{{ item.auditConfigs }}'
+- discovery_id: gcp.iam.list_service_accounts
+  calls:
+  - action: projects.serviceAccounts.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      name: '{{ item.name }}'
+      email: '{{ item.email }}'
+      displayName: '{{ item.displayName }}'
+      disabled: '{{ item.disabled }}'
+      oauth2ClientId: '{{ item.oauth2ClientId }}'
+      projectId: '{{ item.projectId }}'
+      description: '{{ item.description }}'

@@ -1,0 +1,76 @@
+rule_id: alicloud.objectstorage.actiontrail.delete_bucket_logging
+service: objectstorage
+provider: alicloud
+check_type: log
+severity: high
+title: 'AliCloud OSS: Bucket Access Logging Disabled'
+description: Access logging for an OSS bucket was disabled. This removes forensic
+  evidence of data access, helping adversaries cover exfiltration activity.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1070
+risk_score: 80
+resource: alicloud_oss_bucket
+source: alicloud_ciem_generator
+is_active: true
+domain: logging_monitoring_and_alerting
+action_category: delete
+log_source_type: alicloud_actiontrail
+posture_category: logging_posture
+threat_tags:
+- T1070
+- defense_evasion
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '1.1'
+  - '1.2'
+  - '1.3'
+  nist_800_53_r5:
+  - AU-2
+  - AU-6
+  - AU-12
+  - SI-4
+  pci_dss_v4:
+  - '10.1'
+  - '10.2'
+  - '10.3'
+  iso_27001_2022:
+  - A.8.15
+  - A.8.16
+  - A.5.28
+remediation: '1. Re-enable bucket access logging immediately.
+
+  2. Investigate what was accessed while logging was off.
+
+  3. Alert on logging configuration changes on sensitive buckets.'
+references:
+- https://attack.mitre.org/techniques/T1070/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: oss
+    - field: operation
+      op: equals
+      value: DeleteBucketLogging
+version: '1.0'

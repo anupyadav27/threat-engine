@@ -1,0 +1,133 @@
+{
+  "service": "ds-data",
+  "seed_from_list": [
+    "DistinguishedName",
+    "EmailAddress",
+    "Enabled",
+    "GivenName",
+    "GroupScope",
+    "GroupType",
+    "MemberType",
+    "OtherAttributes",
+    "SAMAccountName",
+    "SID",
+    "Surname",
+    "UserPrincipalName"
+  ],
+  "enriched_from_get_describe": [
+    "DirectoryId",
+    "DistinguishedName",
+    "EmailAddress",
+    "Enabled",
+    "GivenName",
+    "GroupScope",
+    "GroupType",
+    "OtherAttributes",
+    "Realm",
+    "SAMAccountName",
+    "SID",
+    "Surname",
+    "UserPrincipalName"
+  ],
+  "fields": {
+    "MemberType": {
+      "field_name": "MemberType",
+      "dependency_index_entity": "ds-data.member_member_type",
+      "operations": [
+        "ListGroupMembers"
+      ],
+      "main_output_field": "Members",
+      "operators": [
+        "equals",
+        "not_equals",
+        "contains",
+        "in"
+      ],
+      "possible_values": [
+        "USER",
+        "GROUP",
+        "COMPUTER"
+      ],
+      "enum": true,
+      "type": "string",
+      "discovery_id": "aws.ds-data.list_group_members",
+      "for_each": null,
+      "consumes": [],
+      "produces": [
+        "ds-data.member_member_type"
+      ]
+    }
+  },
+  "field_mappings": {},
+  "source": {
+    "operation_registry": "services/ds-data/operation_registry.json",
+    "read_ops_rule": "operation name startswith List/Get/Describe/Search/Lookup",
+    "excluded_keys": [
+      "nextToken",
+      "maxResults"
+    ]
+  },
+  "param_source_map": {
+    "DirectoryId": {
+      "entity": "ds-data.member_member_type",
+      "emit_field": "MemberType",
+      "producing_op": "ListGroupMembers",
+      "discovery_id": "aws.ds-data.list_group_members",
+      "items_path": "response.Members",
+      "note": "When dependent op needs 'DirectoryId' param, use for_each=aws.ds-data.list_group_members and set DirectoryId='{{ item.MemberType }}'"
+    }
+  },
+  "response_emit_map": {
+    "DescribeGroup": {
+      "emit_style": "flat",
+      "response_fields": [
+        "DirectoryId",
+        "DistinguishedName",
+        "GroupScope",
+        "GroupType",
+        "Realm",
+        "SAMAccountName",
+        "SID"
+      ],
+      "field_type": "scalar",
+      "note": "Flat emit \u2014 access top-level response fields directly"
+    },
+    "DescribeUser": {
+      "emit_style": "flat",
+      "response_fields": [
+        "DirectoryId",
+        "DistinguishedName",
+        "EmailAddress",
+        "Enabled",
+        "GivenName",
+        "Realm",
+        "SAMAccountName",
+        "SID",
+        "Surname",
+        "UserPrincipalName"
+      ],
+      "field_type": "scalar",
+      "note": "Flat emit \u2014 access top-level response fields directly"
+    },
+    "ListGroupMembers": {
+      "emit_style": "list",
+      "items_path": "response.Members",
+      "list_field": "Members"
+    },
+    "ListGroups": {
+      "emit_style": "list",
+      "items_path": "response.Groups",
+      "list_field": "Groups"
+    },
+    "ListGroupsForMember": {
+      "emit_style": "list",
+      "items_path": "response.Groups",
+      "list_field": "Groups"
+    },
+    "ListUsers": {
+      "emit_style": "list",
+      "items_path": "response.Users",
+      "list_field": "Users"
+    }
+  }
+}

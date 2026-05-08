@@ -1,0 +1,95 @@
+version: '1.0'
+provider: database
+engine: sql_server
+category: section_7
+cis_section: '7'
+description: >
+  sql_server CIS Section 7 — 'Symmetric Key encryption algorithm' is set to 'AES_128' or higher in non-system databases
+
+discovery:
+
+  - discovery_id: sql_server.section_7.symmetric_key_encryption_algorithm_is_set_to_aes
+    description: Ensure 'Symmetric Key encryption algorithm' is set to 'AES_128' or higher in non-system databases
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT db_name() AS Database_Name, name AS Key_Name FROM sys.symmetric_keys WHERE algorithm_desc NOT IN ('AES_128','AES_192','AES_256') AND db_id() > 4;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: symmetric_key_encryption_algorithm_is_set_to_aes
+        setting_name: symmetric_key_encryption_algorithm_is_set_to_aes
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: sql_server.section_7.asymmetric_key_size_is_set_to_greater_than_or
+    description: Ensure Asymmetric Key Size is set to 'greater than or equal to 2048' in non-system databases
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT db_name() AS Database_Name, name AS Key_Name FROM sys.asymmetric_keys WHERE key_length < 2048 AND db_id() > 4;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: asymmetric_key_size_is_set_to_greater_than_or
+        setting_name: asymmetric_key_size_is_set_to_greater_than_or
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: sql_server.section_7.database_backups_are_encrypted
+    description: Ensure Database Backups are Encrypted
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT b.key_algorithm, b.encryptor_type, d.is_encrypted, b.database_name, b.server_name, b.backup_finish_date FROM msdb.dbo.backupset b inner join sys.databases d on b.database_name = d.name where b.key_algorithm IS NULL AND b.encryptor_type IS NULL AND d.is_encrypted = 0;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: database_backups_are_encrypted
+        setting_name: database_backups_are_encrypted
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: sql_server.section_7.network_encryption_is_configured_and_enabled
+    description: Ensure Network Encryption is Configured and Enabled
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT DISTINCT encrypt_option FROM sys.dm_exec_connections c WHERE net_transport <> 'Shared memory' AND c.endpoint_id NOT IN ( SELECT endpoint_id FROM sys.database_mirroring_endpoints WHERE encryption_algorithm IS NOT NULL );"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: network_encryption_is_configured_and_enabled
+        setting_name: network_encryption_is_configured_and_enabled
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: sql_server.section_7.databases_are_encrypted_with_tde
+    description: Ensure Databases are Encrypted with TDE
+    calls:
+
+
+      - action: query_setting
+        query: "SHOW VARIABLES LIKE 'databases_are_encrypted_with_tde';"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: databases_are_encrypted_with_tde
+        setting_name: databases_are_encrypted_with_tde
+        value: "{{ result.value }}"
+        expected: ""
+
+

@@ -1,0 +1,180 @@
+version: '1.0'
+provider: azure
+service: network
+checks:
+# ═══════════════════════════════════════════
+# NSGs — azure.network.networksecuritygroups.list_all
+# Fields: id, name, type, location, tags, provisioning_state, etag,
+#         custom_rules, managed_rules, policy_settings, resource_state,
+#         application_gateways, http_listeners, path_based_rules
+# ═══════════════════════════════════════════
+- rule_id: azure.network.nsg.custom_rules_configured
+  for_each: azure.network.networksecuritygroups.list_all
+  conditions:
+    var: item.custom_rules
+    op: not_empty
+
+- rule_id: azure.network.nsg.provisioning_succeeded
+  for_each: azure.network.networksecuritygroups.list_all
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.network.nsg.tags_configured
+  for_each: azure.network.networksecuritygroups.list_all
+  conditions:
+    var: item.tags
+    op: not_empty
+
+# ═══════════════════════════════════════════
+# Virtual Networks — azure.network.virtualnetworks.list_all
+# Fields: same set as NSGs (generic network resource set)
+# Note: VNet-specific fields (address_space, subnets, peerings, ddos_protection)
+#       are inside the properties blob on full get operations
+# ═══════════════════════════════════════════
+- rule_id: azure.network.vnet.provisioning_succeeded
+  for_each: azure.network.virtualnetworks.list_all
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.network.vnet.tags_configured
+  for_each: azure.network.virtualnetworks.list_all
+  conditions:
+    var: item.tags
+    op: not_empty
+
+# ═══════════════════════════════════════════
+# WAF Policies — azure.network.webapplicationfirewallpolicies.list_all
+# Fields: id, name, type, location, tags, provisioning_state,
+#         custom_rules, managed_rules, policy_settings, resource_state
+# ═══════════════════════════════════════════
+- rule_id: azure.network.waf.custom_rules_configured
+  for_each: azure.network.webapplicationfirewallpolicies.list_all
+  conditions:
+    var: item.custom_rules
+    op: not_empty
+
+- rule_id: azure.network.waf.managed_rules_configured
+  for_each: azure.network.webapplicationfirewallpolicies.list_all
+  conditions:
+    var: item.managed_rules
+    op: not_empty
+
+- rule_id: azure.network.waf.policy_settings_configured
+  for_each: azure.network.webapplicationfirewallpolicies.list_all
+  conditions:
+    var: item.policy_settings
+    op: not_empty
+
+- rule_id: azure.network.waf.provisioning_succeeded
+  for_each: azure.network.webapplicationfirewallpolicies.list_all
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.network.waf.tags_configured
+  for_each: azure.network.webapplicationfirewallpolicies.list_all
+  conditions:
+    var: item.tags
+    op: not_empty
+
+# ═══════════════════════════════════════════
+# Application Gateways — azure.network.applicationgateways.list_all
+# Fields: same generic set
+# ═══════════════════════════════════════════
+- rule_id: azure.network.appgw.provisioning_succeeded
+  for_each: azure.network.applicationgateways.list_all
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.network.appgw.tags_configured
+  for_each: azure.network.applicationgateways.list_all
+  conditions:
+    var: item.tags
+    op: not_empty
+
+# ═══════════════════════════════════════════
+# Firewalls — azure.network.azurefirewalls.list_all
+# ═══════════════════════════════════════════
+- rule_id: azure.network.firewall.provisioning_succeeded
+  for_each: azure.network.azurefirewalls.list_all
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.network.firewall.tags_configured
+  for_each: azure.network.azurefirewalls.list_all
+  conditions:
+    var: item.tags
+    op: not_empty
+
+# ═══════════════════════════════════════════
+# Load Balancers — azure.network.loadbalancers.list_all
+# ═══════════════════════════════════════════
+- rule_id: azure.network.lb.provisioning_succeeded
+  for_each: azure.network.loadbalancers.list_all
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.network.lb.tags_configured
+  for_each: azure.network.loadbalancers.list_all
+  conditions:
+    var: item.tags
+    op: not_empty
+
+# ═══════════════════════════════════════════
+# Public IPs — azure.network.publicipaddresses.list_all
+# ═══════════════════════════════════════════
+- rule_id: azure.network.public_ip.provisioning_succeeded
+  for_each: azure.network.publicipaddresses.list_all
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.network.public_ip.tags_configured
+  for_each: azure.network.publicipaddresses.list_all
+  conditions:
+    var: item.tags
+    op: not_empty
+
+# ═══════════════════════════════════════════
+# DDoS Protection Plans — azure.network.ddosprotectionplans.list_by_resource_group
+# ═══════════════════════════════════════════
+- rule_id: azure.network.ddos.provisioning_succeeded
+  for_each: azure.network.ddosprotectionplans.list_by_resource_group
+  conditions:
+    var: item.provisioning_state
+    op: equals
+    value: Succeeded
+
+- rule_id: azure.network.ddos.tags_configured
+  for_each: azure.network.ddosprotectionplans.list_by_resource_group
+  conditions:
+    var: item.tags
+    op: not_empty
+
+# ═══════════════════════════════════════════
+# SSL Predefined Policies — azure.network.applicationgateways.list_available_ssl_predefined_policies
+# Fields: name, id, cipher_suites, min_protocol_version
+# ═══════════════════════════════════════════
+- rule_id: azure.network.ssl_policy.cipher_suites_configured
+  for_each: azure.network.applicationgateways.list_available_ssl_predefined_policies
+  conditions:
+    var: item.cipher_suites
+    op: not_empty
+
+- rule_id: azure.network.ssl_policy.min_protocol_version_set
+  for_each: azure.network.applicationgateways.list_available_ssl_predefined_policies
+  conditions:
+    var: item.min_protocol_version
+    op: not_empty

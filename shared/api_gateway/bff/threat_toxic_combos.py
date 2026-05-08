@@ -7,9 +7,11 @@ resources with multiple overlapping threats. Orca-style view.
 from collections import defaultdict
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
-from ._shared import fetch_many, safe_get
+from ._auth import resolve_tenant_id
+from ._shared import fetch_many, safe_get, BFFMeta
+from .schemas.threat_toxic_combos import ThreatToxicCombosResponse
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
@@ -41,9 +43,9 @@ def _build_cooccurrence_matrix(combos: List[dict]) -> dict:
     return {"categories": categories, "data": data}
 
 
-@router.get("/threats/toxic-combinations")
+@router.get("/threats/toxic-combinations", response_model=ThreatToxicCombosResponse, response_model_exclude_none=False)
 async def view_threat_toxic_combos(
-    tenant_id: str = Query(...),
+    request: Request,
     scan_run_id: Optional[str] = Query(None),
     min_threats: int = Query(2, ge=2),
 ):
@@ -52,6 +54,11 @@ async def view_threat_toxic_combos(
     Reads from PostgreSQL: groups threat_detections by resource_uid
     to find resources with 2+ overlapping threats.
     """
+
+    tenant_id = resolve_tenant_id(request)
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+    meta = BFFMeta("threat_toxic_combos")
 
     params: Dict[str, str] = {
         "tenant_id": tenant_id,
@@ -63,9 +70,10 @@ async def view_threat_toxic_combos(
 
     results = await fetch_many([
         ("threat", "/api/v1/threat/analysis/toxic-combinations", params),
-    ])
+    ], auth_headers=fwd_headers)
 
     raw = results[0]
+    meta.record_engine("threat", "/api/v1/threat/analysis/toxic-combinations", raw)
     if not isinstance(raw, dict):
         raw = {}
 
@@ -119,4 +127,5 @@ async def view_threat_toxic_combos(
         },
         "toxicCombinations": combos,
         "coOccurrenceMatrix": matrix,
+        "_meta": meta.to_dict(),
     }

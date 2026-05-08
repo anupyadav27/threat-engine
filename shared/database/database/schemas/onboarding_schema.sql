@@ -2,16 +2,14 @@
 -- Onboarding Engine Database Schema
 -- ============================================================================
 -- Database: threat_engine_onboarding
--- Purpose: Single-table account management (customer → tenant → account → schedule)
---          and cross-engine scan orchestration state
--- Used by: engine_onboarding
+-- Updated:  2026-04-06 (migration 004 — normalized design)
 --
--- RDS actual tables (as of 2026-02-20):
---   cloud_accounts     - Flat denormalized table replacing tenants/providers/accounts/schedules
---   scan_orchestration - Cross-engine orchestration (single source of truth)
---
--- NOTE: Previous multi-table design (tenants/providers/accounts/schedules/executions/
---       scan_results) was replaced by the flat cloud_accounts design.
+-- Tables:
+--   tenants           — customer workspaces (extracted from cloud_accounts)
+--   cloud_accounts    — one row per cloud account (AWS/Azure/GCP etc.)
+--   schedules         — scan schedules (separate table, multiple per account)
+--   scan_runs         — every scan execution (renamed from scan_orchestration)
+--   account_hierarchy — AWS Org tree (written by discovery engine, read-only here)
 -- ============================================================================
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -21,10 +19,8 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 -- TRIGGER FUNCTION
 -- ============================================================================
 
-CREATE OR REPLACE FUNCTION public.update_updated_at_column()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
     NEW.updated_at = NOW();
     RETURN NEW;
@@ -32,250 +28,250 @@ END;
 $$;
 
 -- ============================================================================
--- CLOUD ACCOUNTS TABLE
+-- TENANTS
 -- ============================================================================
--- Single table for all cloud account management.
--- Denormalizes: customer → tenant → account → schedule hierarchy into one row.
--- One row per cloud account (e.g. one AWS account ID).
+-- Customer workspaces. One customer can have multiple tenants.
+-- tenant_id is VARCHAR (not UUID) to match legacy data already in cloud_accounts.
 
-CREATE TABLE IF NOT EXISTS cloud_accounts (
-    -- Primary key: cloud account identifier (AWS account ID, Azure subscription ID, etc.)
-    account_id          VARCHAR(255)    NOT NULL,
-
-    -- Customer (UI user identity from Auth0/Cognito)
-    customer_id         VARCHAR(255)    NOT NULL,
-    customer_email      VARCHAR(255)    NOT NULL,
-    customer_name       VARCHAR(255),
-    customer_organization VARCHAR(255),
-
-    -- Tenant (workspace/organization identifier)
+CREATE TABLE IF NOT EXISTS tenants (
     tenant_id           VARCHAR(255)    NOT NULL,
+    customer_id         VARCHAR(255)    NOT NULL,
     tenant_name         VARCHAR(255)    NOT NULL,
     tenant_description  TEXT,
+    status              VARCHAR(50)     NOT NULL DEFAULT 'active',   -- active | inactive | deleted
+    created_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
 
-    -- Account
-    account_name        VARCHAR(255)    NOT NULL,
-    account_number      VARCHAR(255),
-    account_hierarchy_name VARCHAR(255),
-    provider            VARCHAR(50)     NOT NULL,  -- aws, azure, gcp, oci, alicloud, ibm, k8s
-
-    -- Credentials
-    credential_type     VARCHAR(50)     NOT NULL,  -- iam_role or access_key
-    credential_ref      VARCHAR(255)    NOT NULL,  -- IAM role ARN OR Secrets Manager path
-
-    -- Account status
-    account_status              VARCHAR(50)     NOT NULL DEFAULT 'pending',
-    account_onboarding_status   VARCHAR(50)     NOT NULL DEFAULT 'pending',
-    account_onboarding_id       VARCHAR(255),
-    account_last_validated_at   TIMESTAMP WITH TIME ZONE,
-
-    -- Schedule (embedded, auto-generated when account is validated)
-    schedule_id                     VARCHAR(255),
-    schedule_name                   VARCHAR(255),
-    schedule_cron_expression        VARCHAR(255),   -- e.g. "0 2 * * *"
-    schedule_timezone               VARCHAR(50)     DEFAULT 'UTC',
-    schedule_include_services       JSONB,          -- null = all services
-    schedule_include_regions        JSONB,          -- null = all regions
-    schedule_exclude_services       JSONB,
-    schedule_exclude_regions        JSONB,
-    schedule_engines_requested      JSONB           DEFAULT '["discovery", "check", "inventory", "threat", "compliance", "iam", "datasec"]'::jsonb,
-    schedule_enabled                BOOLEAN         DEFAULT true,
-    schedule_status                 VARCHAR(50)     DEFAULT 'active',
-    schedule_next_run_at            TIMESTAMP WITH TIME ZONE,
-    schedule_last_run_at            TIMESTAMP WITH TIME ZONE,
-    schedule_run_count              INTEGER         DEFAULT 0,
-    schedule_success_count          INTEGER         DEFAULT 0,
-    schedule_failure_count          INTEGER         DEFAULT 0,
-    schedule_notify_on_success      BOOLEAN         DEFAULT false,
-    schedule_notify_on_failure      BOOLEAN         DEFAULT true,
-    schedule_notification_emails    JSONB,
-
-    -- Credential validation
-    credential_validation_status    VARCHAR(50)     DEFAULT 'pending',
-    credential_validation_message   TEXT,
-    credential_validated_at         TIMESTAMP WITH TIME ZONE,
-    credential_validation_errors    JSONB           DEFAULT '[]'::jsonb,
-
-    -- Timestamps
-    created_at  TIMESTAMP WITH TIME ZONE    DEFAULT NOW(),
-    updated_at  TIMESTAMP WITH TIME ZONE    DEFAULT NOW(),
-
-    CONSTRAINT cloud_accounts_pkey PRIMARY KEY (account_id),
-    CONSTRAINT unique_customer_tenant_account UNIQUE (customer_id, tenant_id, account_name)
+    CONSTRAINT tenants_pkey             PRIMARY KEY (tenant_id),
+    CONSTRAINT uq_customer_tenant_name  UNIQUE (customer_id, tenant_name)
 );
 
-COMMENT ON TABLE cloud_accounts IS 'Single table for all cloud account management: customer → tenant → account → schedule hierarchy';
-COMMENT ON COLUMN cloud_accounts.account_id IS 'Primary key: Cloud account identifier (AWS account ID, Azure subscription ID, etc.)';
-COMMENT ON COLUMN cloud_accounts.customer_id IS 'UI user identity from Auth0/Cognito';
-COMMENT ON COLUMN cloud_accounts.tenant_id IS 'Workspace/organization identifier';
-COMMENT ON COLUMN cloud_accounts.credential_type IS 'Authentication method: iam_role or access_key';
-COMMENT ON COLUMN cloud_accounts.credential_ref IS 'IAM role ARN (if iam_role) or Secrets Manager path (if access_key)';
-COMMENT ON COLUMN cloud_accounts.schedule_id IS 'Auto-generated when account is validated';
-COMMENT ON COLUMN cloud_accounts.schedule_cron_expression IS 'Cron expression for scan schedule (default: 0 2 * * *)';
-COMMENT ON COLUMN cloud_accounts.schedule_include_services IS 'JSONB array of services to scan (null = all)';
-COMMENT ON COLUMN cloud_accounts.schedule_include_regions IS 'JSONB array of regions to scan (null = all)';
-COMMENT ON COLUMN cloud_accounts.schedule_engines_requested IS 'JSONB array of engines to run (default: all engines)';
+CREATE INDEX IF NOT EXISTS idx_tenants_customer_id  ON tenants(customer_id);
+CREATE INDEX IF NOT EXISTS idx_tenants_status       ON tenants(status);
+
+CREATE TRIGGER tenants_updated_at
+    BEFORE UPDATE ON tenants
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================================
--- INDEXES - cloud_accounts
+-- CLOUD ACCOUNTS
 -- ============================================================================
+-- One row per cloud account. No schedule data embedded here — see schedules table.
+-- Credentials are stored in AWS Secrets Manager; credential_ref is the path.
 
-CREATE INDEX IF NOT EXISTS idx_cloud_accounts_customer
-    ON cloud_accounts(customer_id);
+CREATE TABLE IF NOT EXISTS cloud_accounts (
+    -- Identity
+    account_id                  VARCHAR(255)    NOT NULL,
+    customer_id                 VARCHAR(255)    NOT NULL,
+    tenant_id                   VARCHAR(255)    NOT NULL,
 
-CREATE INDEX IF NOT EXISTS idx_cloud_accounts_tenant
-    ON cloud_accounts(tenant_id);
+    -- Account metadata
+    account_name                VARCHAR(255)    NOT NULL,
+    account_number              VARCHAR(255),               -- provider-detected ID (AWS acct, Azure sub, GCP proj)
+    account_hierarchy_name      VARCHAR(255),               -- display path in org tree
+    provider                    VARCHAR(50)     NOT NULL,   -- aws | azure | gcp | oci | alicloud | ibm | k8s
 
-CREATE INDEX IF NOT EXISTS idx_cloud_accounts_customer_tenant
-    ON cloud_accounts(customer_id, tenant_id);
+    -- Credentials
+    credential_type             VARCHAR(50)     NOT NULL,   -- iam_role | access_key | service_principal | service_account | api_key | kubeconfig
+    credential_ref              VARCHAR(500)    NOT NULL,   -- Secrets Manager path OR IAM role ARN
 
-CREATE INDEX IF NOT EXISTS idx_cloud_accounts_customer_email
-    ON cloud_accounts(customer_email);
+    -- Lifecycle
+    account_status              VARCHAR(50)     NOT NULL DEFAULT 'pending',      -- pending | active | inactive | deleted
+    account_onboarding_status   VARCHAR(50)     NOT NULL DEFAULT 'pending',      -- pending | deployed | validated
+    account_onboarding_id       VARCHAR(255),                                    -- CloudFormation stack ID etc.
+    account_last_validated_at   TIMESTAMPTZ,
 
-CREATE INDEX IF NOT EXISTS idx_cloud_accounts_tenant_name
-    ON cloud_accounts(tenant_name);
+    -- Credential validation
+    credential_validation_status    VARCHAR(50)     DEFAULT 'pending',           -- pending | valid | invalid | expired
+    credential_validation_message   TEXT,
+    credential_validated_at         TIMESTAMPTZ,
+    credential_validation_errors    JSONB           DEFAULT '[]'::jsonb,
 
-CREATE INDEX IF NOT EXISTS idx_cloud_accounts_account_name
-    ON cloud_accounts(account_name);
+    -- CIEM log source config
+    log_sources                 JSONB           DEFAULT '{}'::jsonb,
 
-CREATE INDEX IF NOT EXISTS idx_cloud_accounts_provider
-    ON cloud_accounts(provider);
+    -- Scan tracking (updated after each scan_run completes)
+    last_scan_at                TIMESTAMPTZ,
 
-CREATE INDEX IF NOT EXISTS idx_cloud_accounts_status
-    ON cloud_accounts(account_status, account_onboarding_status);
+    -- Timestamps
+    created_at                  TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    updated_at                  TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
 
-CREATE INDEX IF NOT EXISTS idx_cloud_accounts_credential_type
-    ON cloud_accounts(credential_type);
+    CONSTRAINT cloud_accounts_pkey          PRIMARY KEY (account_id),
+    CONSTRAINT cloud_accounts_tenant_fk     FOREIGN KEY (tenant_id)
+        REFERENCES tenants(tenant_id) ON DELETE RESTRICT,
+    CONSTRAINT unique_customer_tenant_account
+        UNIQUE (customer_id, tenant_id, account_name)
+);
 
-CREATE INDEX IF NOT EXISTS idx_cloud_accounts_credential_validation
-    ON cloud_accounts(credential_validation_status);
+CREATE INDEX IF NOT EXISTS idx_cloud_accounts_customer        ON cloud_accounts(customer_id);
+CREATE INDEX IF NOT EXISTS idx_cloud_accounts_tenant          ON cloud_accounts(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cloud_accounts_customer_tenant ON cloud_accounts(customer_id, tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cloud_accounts_provider        ON cloud_accounts(provider);
+CREATE INDEX IF NOT EXISTS idx_cloud_accounts_status          ON cloud_accounts(account_status, account_onboarding_status);
+CREATE INDEX IF NOT EXISTS idx_cloud_accounts_credential_val  ON cloud_accounts(credential_validation_status);
 
-CREATE INDEX IF NOT EXISTS idx_cloud_accounts_schedule_id
-    ON cloud_accounts(schedule_id) WHERE schedule_id IS NOT NULL;
-
-CREATE INDEX IF NOT EXISTS idx_cloud_accounts_schedule_status
-    ON cloud_accounts(schedule_status);
-
-CREATE INDEX IF NOT EXISTS idx_cloud_accounts_schedule_enabled
-    ON cloud_accounts(schedule_enabled, schedule_next_run_at) WHERE schedule_enabled = true;
-
-CREATE INDEX IF NOT EXISTS idx_cloud_accounts_services_gin
-    ON cloud_accounts USING gin(schedule_include_services);
-
-CREATE INDEX IF NOT EXISTS idx_cloud_accounts_regions_gin
-    ON cloud_accounts USING gin(schedule_include_regions);
-
-CREATE INDEX IF NOT EXISTS idx_cloud_accounts_engines_gin
-    ON cloud_accounts USING gin(schedule_engines_requested);
+CREATE TRIGGER cloud_accounts_updated_at
+    BEFORE UPDATE ON cloud_accounts
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================================
--- CROSS-ENGINE ORCHESTRATION
+-- SCHEDULES
 -- ============================================================================
--- Single source of truth for all engine scan IDs and orchestration state.
--- Each engine reads this table using orchestration_id to know what to do.
--- Engines write back their own scan ID when they start.
+-- Scan schedules. Multiple schedules per account allowed.
+-- Scheduler polls: WHERE enabled = true AND next_run_at <= NOW()
 
-CREATE TABLE IF NOT EXISTS scan_orchestration (
-    -- Primary identifier
-    orchestration_id    UUID            NOT NULL DEFAULT uuid_generate_v4(),
-
-    -- Tenant & Customer
+CREATE TABLE IF NOT EXISTS schedules (
+    schedule_id         UUID            NOT NULL DEFAULT uuid_generate_v4(),
+    account_id          VARCHAR(255)    NOT NULL,
     tenant_id           VARCHAR(255)    NOT NULL,
-    customer_id         VARCHAR(255),
+    customer_id         VARCHAR(255)    NOT NULL,
+    schedule_name       VARCHAR(255),
+
+    -- Timing
+    cron_expression     VARCHAR(255)    NOT NULL DEFAULT '0 2 * * 0',   -- e.g. "0 2 * * 0" = Sunday 02:00
+    timezone            VARCHAR(50)     NOT NULL DEFAULT 'UTC',
+    enabled             BOOLEAN         NOT NULL DEFAULT true,
+
+    -- Scan scope (null = all)
+    include_regions     JSONB,                              -- ["us-east-1","ap-south-1"] or null
+    include_services    JSONB,                              -- ["ec2","s3","iam"] or null
+    exclude_services    JSONB,                              -- ["cloudwatch"] or null
+    engines_requested   JSONB           NOT NULL DEFAULT
+        '["discovery","check","inventory","threat","compliance","iam","datasec"]'::jsonb,
+
+    -- Execution counters
+    next_run_at         TIMESTAMPTZ,
+    last_run_at         TIMESTAMPTZ,
+    run_count           INTEGER         NOT NULL DEFAULT 0,
+    success_count       INTEGER         NOT NULL DEFAULT 0,
+    failure_count       INTEGER         NOT NULL DEFAULT 0,
+
+    -- Notifications
+    notify_on_success   BOOLEAN         NOT NULL DEFAULT false,
+    notify_on_failure   BOOLEAN         NOT NULL DEFAULT true,
+    notification_emails JSONB,
+
+    -- Timestamps
+    created_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT schedules_pkey       PRIMARY KEY (schedule_id),
+    CONSTRAINT schedules_account_fk FOREIGN KEY (account_id)
+        REFERENCES cloud_accounts(account_id) ON DELETE CASCADE,
+    CONSTRAINT schedules_tenant_fk  FOREIGN KEY (tenant_id)
+        REFERENCES tenants(tenant_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_schedules_account_id ON schedules(account_id);
+CREATE INDEX IF NOT EXISTS idx_schedules_tenant_id  ON schedules(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_schedules_customer_id ON schedules(customer_id);
+CREATE INDEX IF NOT EXISTS idx_schedules_due        ON schedules(enabled, next_run_at)
+    WHERE enabled = true;
+CREATE INDEX IF NOT EXISTS idx_schedules_engines    ON schedules USING gin(engines_requested);
+
+CREATE TRIGGER schedules_updated_at
+    BEFORE UPDATE ON schedules
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================================================
+-- SCAN RUNS
+-- ============================================================================
+-- Every scan execution — scheduled or manual.
+-- Renamed from: scan_orchestration
+-- scan_run_id is the single identifier passed to ALL engines.
+--
+-- engine_statuses tracks per-engine progress:
+-- {
+--   "discovery":  {"status": "completed", "findings": 120, "duration_seconds": 45},
+--   "check":      {"status": "running"},
+--   "inventory":  {"status": "pending"},
+--   ...
+-- }
+
+CREATE TABLE IF NOT EXISTS scan_runs (
+    scan_run_id         UUID            NOT NULL DEFAULT uuid_generate_v4(),
+
+    -- Ownership
+    customer_id         VARCHAR(255)    NOT NULL,
+    tenant_id           VARCHAR(255)    NOT NULL,
+    account_id          VARCHAR(255),                       -- FK; SET NULL if account deleted
+
+    -- Schedule link (null = manual / API trigger)
+    schedule_id         VARCHAR(255),                       -- legacy VARCHAR reference
+    schedule_uuid       UUID,                               -- FK to schedules.schedule_id
+
+    -- Cloud provider context (copied from cloud_accounts at scan time)
+    provider            VARCHAR(50)     NOT NULL,
+    credential_type     VARCHAR(50)     NOT NULL,
+    credential_ref      VARCHAR(500)    NOT NULL,
 
     -- Scan metadata
     scan_name           VARCHAR(255),
-    scan_type           VARCHAR(50)     NOT NULL DEFAULT 'full',        -- full, partial, test
-    trigger_type        VARCHAR(50)     NOT NULL DEFAULT 'scheduled',   -- scheduled, manual, api
+    scan_type           VARCHAR(50)     NOT NULL DEFAULT 'full',         -- full | partial
+    trigger_type        VARCHAR(50)     NOT NULL DEFAULT 'scheduled',    -- scheduled | manual | api
+
+    -- Scan scope
+    include_regions     JSONB,
+    include_services    JSONB,
+    exclude_services    JSONB,
 
     -- Engine tracking
-    engines_requested   JSONB           NOT NULL DEFAULT '["discovery", "check", "inventory", "threat", "compliance", "iam", "datasec"]'::jsonb,
+    engines_requested   JSONB           NOT NULL,
     engines_completed   JSONB           DEFAULT '[]'::jsonb,
-    overall_status      VARCHAR(50)     NOT NULL DEFAULT 'pending',     -- pending, running, completed, failed
+    engine_statuses     JSONB           DEFAULT '{}'::jsonb,             -- per-engine status map
+
+    -- Overall status
+    overall_status      VARCHAR(50)     NOT NULL DEFAULT 'pending',      -- pending | running | completed | failed | cancelled
 
     -- Timestamps
-    started_at          TIMESTAMP WITH TIME ZONE    NOT NULL DEFAULT NOW(),
-    completed_at        TIMESTAMP WITH TIME ZONE,
-    created_at          TIMESTAMP WITH TIME ZONE    DEFAULT NOW(),
-
-    -- Scan configuration
-    provider            VARCHAR(50)     NOT NULL,           -- aws, azure, gcp, oci, alicloud, ibm, k8s
-    hierarchy_id        VARCHAR(255)    NOT NULL,           -- Account/Subscription/Project ID
-    account_id          VARCHAR(255)    NOT NULL,           -- Cloud account identifier
-
-    -- Scan scope (JSONB arrays; null = all)
-    include_services    JSONB,                              -- ["s3", "ec2", "iam"] or null = all
-    include_regions     JSONB,                              -- ["us-east-1", "ap-south-1"] or null = all
-    exclude_services    JSONB,                              -- ["cloudwatch"] or null = none
-    exclude_regions     JSONB,                              -- ["ap-northeast-1"] or null = none
-
-    -- ENGINE SCAN IDs (each engine writes its own when it starts)
-    discovery_scan_id   VARCHAR(255),
-    check_scan_id       VARCHAR(255),
-    inventory_scan_id   VARCHAR(255),
-    threat_scan_id      VARCHAR(255),
-    compliance_scan_id  VARCHAR(255),
-    iam_scan_id         VARCHAR(255),
-    datasec_scan_id     VARCHAR(255),
-
-    -- Credentials (copied from cloud_accounts at scan time)
-    credential_type     VARCHAR(50)     NOT NULL,   -- iam_role or access_key
-    credential_ref      VARCHAR(255)    NOT NULL,   -- IAM role ARN OR Secrets Manager path
-
-    -- Linking to schedule
-    execution_id        UUID,           -- links to execution tracking (if applicable)
-    schedule_id         VARCHAR(255),   -- links to cloud_accounts.schedule_id
+    started_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    completed_at        TIMESTAMPTZ,
+    created_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
 
     -- Results
     results_summary     JSONB           DEFAULT '{}'::jsonb,
     error_details       JSONB           DEFAULT '{}'::jsonb,
 
-    CONSTRAINT scan_orchestration_pkey PRIMARY KEY (orchestration_id)
+    CONSTRAINT scan_runs_pkey           PRIMARY KEY (scan_run_id),
+    CONSTRAINT scan_runs_account_fk     FOREIGN KEY (account_id)
+        REFERENCES cloud_accounts(account_id) ON DELETE SET NULL,
+    CONSTRAINT scan_runs_schedule_fk    FOREIGN KEY (schedule_uuid)
+        REFERENCES schedules(schedule_id) ON DELETE SET NULL
 );
 
-COMMENT ON TABLE scan_orchestration IS 'Cross-engine orchestration: single source of truth for all engine scan IDs and state';
+CREATE INDEX IF NOT EXISTS idx_scan_runs_account_id     ON scan_runs(account_id);
+CREATE INDEX IF NOT EXISTS idx_scan_runs_customer_id    ON scan_runs(customer_id);
+CREATE INDEX IF NOT EXISTS idx_scan_runs_tenant_id      ON scan_runs(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_scan_runs_status         ON scan_runs(overall_status, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scan_runs_schedule       ON scan_runs(schedule_id);
+CREATE INDEX IF NOT EXISTS idx_scan_runs_schedule_uuid  ON scan_runs(schedule_uuid);
+CREATE INDEX IF NOT EXISTS idx_scan_runs_engine_statuses ON scan_runs USING gin(engine_statuses);
+CREATE INDEX IF NOT EXISTS idx_scan_runs_engines_req    ON scan_runs USING gin(engines_requested);
 
 -- ============================================================================
--- INDEXES - scan_orchestration
+-- ACCOUNT HIERARCHY  (written by discovery engine — read-only from onboarding)
 -- ============================================================================
 
-CREATE INDEX IF NOT EXISTS idx_orchestration_tenant
-    ON scan_orchestration(tenant_id);
+CREATE TABLE IF NOT EXISTS account_hierarchy (
+    id              BIGSERIAL       PRIMARY KEY,
+    tenant_id       VARCHAR(255),
+    customer_id     VARCHAR(255),
+    node_id         VARCHAR(255),
+    node_name       VARCHAR(255),
+    node_type       VARCHAR(255),   -- ROOT | OU | ACCOUNT
+    parent_node_id  VARCHAR(255),
+    hierarchy_path  TEXT,
+    depth           SMALLINT,
+    provider        VARCHAR(255),
+    provider_org_id VARCHAR(255),
+    status          VARCHAR(255),
+    metadata        JSONB,
+    discovered_at   TIMESTAMPTZ,
+    updated_at      TIMESTAMPTZ
+);
 
-CREATE INDEX IF NOT EXISTS idx_orchestration_status
-    ON scan_orchestration(overall_status, started_at DESC);
-
-CREATE INDEX IF NOT EXISTS idx_orchestration_execution
-    ON scan_orchestration(execution_id);
-
-CREATE INDEX IF NOT EXISTS idx_orchestration_schedule
-    ON scan_orchestration(schedule_id);
-
--- Engine scan ID lookups
-CREATE INDEX IF NOT EXISTS idx_orchestration_discovery
-    ON scan_orchestration(discovery_scan_id);
-
-CREATE INDEX IF NOT EXISTS idx_orchestration_check
-    ON scan_orchestration(check_scan_id);
-
-CREATE INDEX IF NOT EXISTS idx_orchestration_inventory
-    ON scan_orchestration(inventory_scan_id);
-
-CREATE INDEX IF NOT EXISTS idx_orchestration_threat
-    ON scan_orchestration(threat_scan_id);
-
-CREATE INDEX IF NOT EXISTS idx_orchestration_compliance
-    ON scan_orchestration(compliance_scan_id);
-
-CREATE INDEX IF NOT EXISTS idx_orchestration_iam
-    ON scan_orchestration(iam_scan_id);
-
-CREATE INDEX IF NOT EXISTS idx_orchestration_datasec
-    ON scan_orchestration(datasec_scan_id);
-
--- JSONB indexes
-CREATE INDEX IF NOT EXISTS idx_orchestration_engines_gin
-    ON scan_orchestration USING gin(engines_requested);
-
-CREATE INDEX IF NOT EXISTS idx_orchestration_results_gin
-    ON scan_orchestration USING gin(results_summary);
+CREATE INDEX IF NOT EXISTS idx_account_hierarchy_tenant   ON account_hierarchy(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_account_hierarchy_customer ON account_hierarchy(customer_id);
+CREATE INDEX IF NOT EXISTS idx_account_hierarchy_node     ON account_hierarchy(node_id);
+CREATE INDEX IF NOT EXISTS idx_account_hierarchy_parent   ON account_hierarchy(parent_node_id);

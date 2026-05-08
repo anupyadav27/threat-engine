@@ -1,0 +1,140 @@
+version: '1.0'
+provider: azure
+service: monitor
+checks:
+# ═══════════════════════════════════════════
+# Activity Log Alerts — azure.monitor.activitylogalerts.list_by_subscription_id
+# Fields: id, name, type, location, tags, actions, condition, description, enabled, scopes
+# CIS Azure requires specific activity log alerts for key operations
+# ═══════════════════════════════════════════
+- rule_id: azure.monitor.activity_log_alert.enabled
+  for_each: azure.monitor.activitylogalerts.list_by_subscription_id
+  conditions:
+    var: item.enabled
+    op: equals
+    value: 'true'
+
+- rule_id: azure.monitor.activity_log_alert.condition_configured
+  for_each: azure.monitor.activitylogalerts.list_by_subscription_id
+  conditions:
+    var: item.condition
+    op: not_empty
+
+- rule_id: azure.monitor.activity_log_alert.actions_configured
+  for_each: azure.monitor.activitylogalerts.list_by_subscription_id
+  conditions:
+    var: item.actions
+    op: not_empty
+
+- rule_id: azure.monitor.activity_log_alert.scopes_defined
+  for_each: azure.monitor.activitylogalerts.list_by_subscription_id
+  conditions:
+    var: item.scopes
+    op: not_empty
+
+- rule_id: azure.monitor.activity_log_alert.description_present
+  for_each: azure.monitor.activitylogalerts.list_by_subscription_id
+  conditions:
+    var: item.description
+    op: not_empty
+
+# ═══════════════════════════════════════════
+# Action Groups — azure.monitor.actiongroups.list_by_subscription_id
+# Fields: id, name, type, location, tags, actions, condition, description, enabled, scopes
+# ═══════════════════════════════════════════
+- rule_id: azure.monitor.action_group.enabled
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  conditions:
+    var: item.enabled
+    op: equals
+    value: 'true'
+
+- rule_id: azure.monitor.action_group.actions_configured
+  for_each: azure.monitor.actiongroups.list_by_subscription_id
+  conditions:
+    var: item.actions
+    op: not_empty
+
+# ═══════════════════════════════════════════
+# Metric Alerts — azure.monitor.metricalerts.list_by_subscription
+# Fields: (large set — 28+ fields) including criteria, actions, enabled,
+#         scopes, severity, evaluation_frequency, window_size
+# ═══════════════════════════════════════════
+- rule_id: azure.monitor.metric_alert.enabled
+  for_each: azure.monitor.metricalerts.list_by_subscription
+  conditions:
+    var: item.enabled
+    op: equals
+    value: 'true'
+
+- rule_id: azure.monitor.metric_alert.criteria_configured
+  for_each: azure.monitor.metricalerts.list_by_subscription
+  conditions:
+    var: item.criteria
+    op: not_empty
+
+- rule_id: azure.monitor.metric_alert.actions_configured
+  for_each: azure.monitor.metricalerts.list_by_subscription
+  conditions:
+    var: item.actions
+    op: not_empty
+
+- rule_id: azure.monitor.metric_alert.scopes_defined
+  for_each: azure.monitor.metricalerts.list_by_subscription
+  conditions:
+    var: item.scopes
+    op: not_empty
+
+# ═══════════════════════════════════════════
+# Scheduled Query Rules — azure.monitor.scheduledqueryrules.list_by_subscription
+# Fields: (28+ fields) including criteria, actions, enabled, scopes, severity
+# ═══════════════════════════════════════════
+- rule_id: azure.monitor.scheduled_query.enabled
+  for_each: azure.monitor.scheduledqueryrules.list_by_subscription
+  conditions:
+    var: item.enabled
+    op: equals
+    value: 'true'
+
+- rule_id: azure.monitor.scheduled_query.criteria_configured
+  for_each: azure.monitor.scheduledqueryrules.list_by_subscription
+  conditions:
+    var: item.criteria
+    op: not_empty
+
+- rule_id: azure.monitor.scheduled_query.actions_configured
+  for_each: azure.monitor.scheduledqueryrules.list_by_subscription
+  conditions:
+    var: item.actions
+    op: not_empty
+
+# ═══════════════════════════════════════════
+# Data Collection Rules — azure.monitor.datacollectionrules.list_by_subscription
+# Fields: (28+ fields) including kind, identity, description, system_data
+# ═══════════════════════════════════════════
+- rule_id: azure.monitor.data_collection_rule.identity_configured
+  for_each: azure.monitor.datacollectionrules.list_by_subscription
+  conditions:
+    var: item.identity
+    op: not_empty
+
+- rule_id: azure.monitor.data_collection_rule.tags_configured
+  for_each: azure.monitor.datacollectionrules.list_by_subscription
+  conditions:
+    var: item.tags
+    op: not_empty
+
+# ═══════════════════════════════════════════
+# Azure Monitor Workspaces — azure.monitor.azuremonitorworkspaces.list_by_subscription
+# ═══════════════════════════════════════════
+- rule_id: azure.monitor.workspace.identity_configured
+  for_each: azure.monitor.azuremonitorworkspaces.list_by_subscription
+  conditions:
+    var: item.identity
+    op: not_empty
+
+- rule_id: azure.monitor.workspace.tags_configured
+  for_each: azure.monitor.azuremonitorworkspaces.list_by_subscription
+  conditions:
+    var: item.tags
+    op: not_empty

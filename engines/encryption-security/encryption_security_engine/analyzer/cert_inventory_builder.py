@@ -1,0 +1,191 @@
+"""
+Certificate Inventory Builder.
+
+Aggregates ACM certificate data from discovery_findings into structured
+certificate inventory records for the encryption_cert_inventory table.
+"""
+
+import logging
+from typing import List, Dict, Any, Optional
+from datetime import datetime, timezone
+
+from dateutil import parser as dateparser
+
+logger = logging.getLogger(__name__)
+
+
+def build_cert_inventory(
+    acm_resources: List[Dict[str, Any]],
+    acm_pca_resources: Optional[List[Dict[str, Any]]] = None,
+) -> List[Dict[str, Any]]:
+    """Build certificate inventory from ACM discovery resources.
+
+    Args:
+        acm_resources: ACM discovery_findings rows.
+        acm_pca_resources: Optional ACM-PCA (Private CA) discovery rows.
+
+    Returns:
+        List of cert inventory dicts ready for save_cert_inventory().
+    """
+    cert_map = {}
+    now = datetime.now(timezone.utc)
+
+    for r in acm_resources:
+        emitted = r.get("emitted_fields") or {}
+        if not isinstance(emitted, dict):
+            continue
+
+        # Skip non-certificate ACM responses: get_account_configuration,
+        # list_certificates summary, etc. Only describe_certificate (and
+        # list_certificates entries) carry CertificateArn at top level.
+        # resource_type is set by the catalog `emit.item.resource_type`
+        # template — anything other than "certificate" is filtered out.
+        rtype = (r.get("resource_type") or "").lower()
+        if rtype and rtype != "certificate" and "cert" not in rtype:
+            continue
+
+        cert_arn = emitted.get("CertificateArn") or r.get("resource_uid", "")
+        # Reject placeholder/synthetic UIDs: catalog-flat output has real
+        # AWS ARNs like arn:aws:acm:<region>:<account>:certificate/<id>.
+        if not cert_arn or not str(cert_arn).startswith("arn:aws:acm:"):
+            continue
+        if cert_arn in cert_map:
+            _merge_cert_emitted(cert_map[cert_arn], emitted)
+            continue
+
+        not_after = _parse_date(emitted.get("NotAfter"))
+        not_before = _parse_date(emitted.get("NotBefore"))
+        days_until_expiry = (not_after - now).days if not_after else None
+
+        domain_name = emitted.get("DomainName", "")
+        san = emitted.get("SubjectAlternativeNames")
+        if isinstance(san, list):
+            san = [str(s) for s in san]
+        else:
+            san = None
+
+        is_wildcard = domain_name.startswith("*.") if domain_name else False
+        issuer = emitted.get("Issuer", "")
+        is_self_signed = ("self" in issuer.lower()) if issuer else False
+
+        entry = {
+            "cert_arn": cert_arn,
+            "domain_name": domain_name,
+            "subject_alternative_names": san,
+            "account_id": r.get("account_id", ""),
+            "provider": r.get("provider", "aws"),
+            "region": r.get("region", ""),
+            "cert_status": emitted.get("Status", "UNKNOWN"),
+            "cert_type": emitted.get("Type"),
+            "key_algorithm": emitted.get("KeyAlgorithm"),
+            "issuer": issuer,
+            "serial_number": emitted.get("Serial"),
+            "not_before": not_before,
+            "not_after": not_after,
+            "days_until_expiry": days_until_expiry,
+            "renewal_eligibility": emitted.get("RenewalEligibility"),
+            "in_use": emitted.get("InUse", False),
+            "is_wildcard": is_wildcard,
+            "is_self_signed": is_self_signed,
+            "chain_valid": None,  # Phase 3: cert chain validation
+            "tags": emitted.get("Tags") or {},
+            "raw_data": emitted,
+        }
+        cert_map[cert_arn] = entry
+
+    # Add Private CA certificates if available
+    if acm_pca_resources:
+        for r in acm_pca_resources:
+            emitted = r.get("emitted_fields") or {}
+            if not isinstance(emitted, dict):
+                continue
+            ca_arn = emitted.get("CertificateAuthorityArn") or r.get("resource_uid", "")
+            if not ca_arn or ca_arn in cert_map:
+                continue
+
+            entry = {
+                "cert_arn": ca_arn,
+                # Catalog flattens Subject.CommonName → top-level CommonName.
+                "domain_name": emitted.get("CommonName") or emitted.get("Subject", {}).get("CommonName", ""),
+                "subject_alternative_names": None,
+                "account_id": r.get("account_id", ""),
+                "provider": r.get("provider", "aws"),
+                "region": r.get("region", ""),
+                "cert_status": emitted.get("Status", "UNKNOWN"),
+                "cert_type": "PRIVATE_CA",
+                "key_algorithm": emitted.get("KeyStorageSecurityStandard"),
+                "issuer": "Private CA",
+                "serial_number": emitted.get("Serial"),
+                "not_before": _parse_date(emitted.get("NotBefore")),
+                "not_after": _parse_date(emitted.get("NotAfter")),
+                "days_until_expiry": None,
+                "renewal_eligibility": None,
+                "in_use": True,
+                "is_wildcard": False,
+                "is_self_signed": True,  # Root CAs are self-signed
+                "chain_valid": None,
+                "tags": emitted.get("Tags") or {},
+                "raw_data": emitted,
+            }
+            not_after = entry["not_after"]
+            if not_after:
+                entry["days_until_expiry"] = (not_after - now).days
+            cert_map[ca_arn] = entry
+
+    certs = list(cert_map.values())
+    logger.info(f"Built inventory for {len(certs)} certificates")
+    return certs
+
+
+def _merge_cert_emitted(entry: Dict, emitted: Dict):
+    """Merge additional emitted fields into existing cert entry.
+
+    Same bug class as key_inventory_builder: list_certificates lands first
+    with sparse fields, then describe_certificate's rich data fell into this
+    merge path which dropped most fields. Fill any missing target field
+    from the new emitted's value.
+    """
+    field_map = (
+        ("Status",              "cert_status"),
+        ("Type",                "cert_type"),
+        ("KeyAlgorithm",        "key_algorithm"),
+        ("SignatureAlgorithm",  "signature_algorithm"),
+        ("Serial",              "serial_number"),
+        ("RenewalEligibility",  "renewal_eligibility"),
+        ("InUse",               "in_use"),
+        ("DomainName",          "domain_name"),
+        ("Issuer",              "issuer"),
+    )
+    for src, tgt in field_map:
+        val = emitted.get(src)
+        if val is not None and entry.get(tgt) in (None, "", "UNKNOWN"):
+            entry[tgt] = val
+
+    if emitted.get("NotBefore") and not entry.get("not_before"):
+        entry["not_before"] = _parse_date(emitted["NotBefore"])
+    if emitted.get("NotAfter") and not entry.get("not_after"):
+        entry["not_after"] = _parse_date(emitted["NotAfter"])
+
+    san = emitted.get("SubjectAlternativeNames")
+    if san and not entry.get("subject_alternative_names"):
+        if isinstance(san, list):
+            entry["subject_alternative_names"] = [str(s) for s in san]
+
+    tags = emitted.get("Tags")
+    if isinstance(tags, dict) and tags:
+        existing_tags = entry.get("tags") or {}
+        if isinstance(existing_tags, dict):
+            existing_tags.update(tags)
+            entry["tags"] = existing_tags
+
+
+def _parse_date(val) -> Optional[datetime]:
+    """Parse a date string or return None."""
+    if not val:
+        return None
+    if isinstance(val, datetime):
+        return val
+    try:
+        return dateparser.parse(str(val))
+    except Exception:
+        return None

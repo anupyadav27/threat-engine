@@ -1,0 +1,637 @@
+version: '1.0'
+provider: k8s
+service: rbac
+checks:
+- rule_id: k8s.rbac.access.review_process
+  for_each: k8s.rbac.list_cluster_role
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/configuration-change-audit-enabled
+    op: is_true
+    value: null
+- rule_id: k8s.rbac.activity.monitoring_configured
+  for_each: k8s.rbac.list_cluster_role
+  severity: MEDIUM
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/configuration-change-monitoring
+    op: exists
+    value: null
+- rule_id: k8s.rbac.change.control_role_defined
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/change-control-role-defined
+    op: exists
+    value: null
+- rule_id: k8s.rbac.change.management_policy_configured
+  for_each: k8s.rbac.list_cluster_role
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.metadata.annotations.cspm.k8s.io/change-management-policy-configured
+      op: exists
+      value: null
+- rule_id: k8s.rbac.change.management_roles_defined
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/change-management-roles-defined
+    op: exists
+    value: null
+- rule_id: k8s.rbac.cluster.admin_role_access_review
+  for_each: k8s.rbac.list_cluster_role_binding
+  severity: HIGH
+  conditions:
+    var: item.roleRef.name
+    op: not_equals
+    value: cluster-admin
+- rule_id: k8s.rbac.cluster.admin_role_usage_check
+  for_each: k8s.rbac.list_cluster_role_binding
+  severity: HIGH
+  conditions:
+    var: item.roleRef.name
+    op: not_equals
+    value: cluster-admin
+- rule_id: k8s.rbac.clusterrolebinding.admin_bindings_audited_enforced
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/clusterrolebinding-admin-bindings-audited-enforced
+    op: exists
+    value: null
+- rule_id: k8s.rbac.configuration.change_audit_enabled
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/configuration-change-audit-enabled
+    op: is_true
+    value: null
+- rule_id: k8s.rbac.configuration.change_monitoring
+  for_each: k8s.rbac.list_cluster_role
+  severity: MEDIUM
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/configuration-change-monitoring
+    op: exists
+    value: null
+- rule_id: k8s.rbac.csr.approval_access_control_check
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.rules[].resources
+    op: not_contains
+    value: certificatesigningrequests/approval
+- rule_id: k8s.rbac.database.access_restricted
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.rules[].verbs
+    op: not_contains
+    value:
+    - create
+    - update
+    - patch
+    - delete
+- rule_id: k8s.rbac.default.service_account_audit
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/default-service-account-audit
+    op: exists
+    value: null
+- rule_id: k8s.rbac.impersonate.bind_escalate_permissions_check
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.rules[].verbs
+      op: not_contains
+      value: impersonate
+    - var: item.rules[].verbs
+      op: not_contains
+      value: bind
+- rule_id: k8s.rbac.inactive.service_account_disabled
+  for_each: k8s.rbac.list_cluster_role
+  severity: LOW
+  conditions:
+    var: item.automountServiceAccountToken
+    op: is_false
+    value: null
+- rule_id: k8s.rbac.inactive.user_cleanup
+  for_each: k8s.rbac.list_cluster_role_binding
+  severity: LOW
+  conditions:
+    var: item.roleRef.name
+    op: not_contains
+    value: system:unauthenticated
+- rule_id: k8s.rbac.incident.response_team_access_configured
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/incident-response-team-access-configured
+    op: exists
+    value: null
+- rule_id: k8s.rbac.least.privilege_enforcement
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/change-management-roles-defined
+    op: exists
+    value: null
+- rule_id: k8s.rbac.least.privilege_for_clearinghouse
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/change-management-policy-configured
+    op: exists
+    value: null
+- rule_id: k8s.rbac.log.access_restricted
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/configuration-change-audit-enabled
+    op: is_true
+    value: null
+- rule_id: k8s.rbac.minimal.privileges_assigned
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/change-management-roles-defined
+    op: exists
+    value: null
+- rule_id: k8s.rbac.no.anonymous_access
+  for_each: k8s.rbac.list_cluster_role_binding
+  severity: CRITICAL
+  conditions:
+    var: item.roleRef.name
+    op: not_equals
+    value: system:unauthenticated
+- rule_id: k8s.rbac.no.cluster_admin_binding
+  for_each: k8s.rbac.list_cluster_role_binding
+  severity: CRITICAL
+  conditions:
+    var: item.roleRef.name
+    op: not_equals
+    value: cluster-admin
+- rule_id: k8s.rbac.no.root_access_key
+  for_each: k8s.rbac.list_cluster_role
+  severity: CRITICAL
+  conditions:
+    var: item.metadata.name
+    op: not_equals
+    value: cluster-admin
+- rule_id: k8s.rbac.no.shared_service_accounts
+  for_each: k8s.rbac.list_role_for_all_namespaces
+  severity: LOW
+  conditions:
+    all:
+    - var: item.metadata.annotations.cspm.k8s.io/roles-no-wildcard-in-rules
+      op: exists
+      value: null
+    - var: item.rules.verbs
+      op: not_contains
+      value: '*'
+- rule_id: k8s.rbac.no.single_user_full_control
+  for_each: k8s.rbac.list_cluster_role_binding
+  severity: LOW
+  conditions:
+    var: item.roleRef.name
+    op: not_equals
+    value: cluster-admin
+- rule_id: k8s.rbac.nodes.proxy_access_check
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.rules[].resources
+      op: not_contains
+      value: nodes/proxy
+    - var: item.rules[].resources
+      op: not_contains
+      value: '*/proxy'
+- rule_id: k8s.rbac.oidc.authentication_configured
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/configuration-change-audit-enabled
+    op: is_true
+    value: null
+- rule_id: k8s.rbac.persistentvolume.creation_access_check
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.rules[].resources
+      op: contains
+      value: persistentvolumes
+    - var: item.rules[].verbs
+      op: contains
+      value: create
+- rule_id: k8s.rbac.pod.creation_access_check
+  for_each: k8s.rbac.list_role_for_all_namespaces
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.rules[].verbs
+      op: not_contains
+      value: create
+    - var: item.rules[].verbs
+      op: not_contains
+      value: '*'
+- rule_id: k8s.rbac.role.break_glass_controls_enabled
+  for_each: k8s.rbac.list_cluster_role
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/configuration-change-audit-enabled
+    op: is_true
+    value: null
+- rule_id: k8s.rbac.role.change_audit_enabled
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/configuration-change-audit-enabled
+    op: is_true
+    value: null
+- rule_id: k8s.rbac.role.least_privilege_enforced
+  for_each: k8s.rbac.list_role_for_all_namespaces
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.metadata.annotations.cspm.k8s.io/roles-no-wildcard-in-rules
+      op: exists
+      value: null
+    - var: item.rules[].verbs
+      op: not_contains
+      value: '*'
+- rule_id: k8s.rbac.role.review_scheduled
+  for_each: k8s.rbac.list_role_for_all_namespaces
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/configuration-change-audit-enabled
+    op: is_true
+    value: null
+- rule_id: k8s.rbac.role.wildcard_permissions_prohibited_enforced
+  for_each: k8s.rbac.list_role_for_all_namespaces
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.metadata.annotations.cspm.k8s.io/roles-no-wildcard-in-rules
+      op: exists
+      value: null
+    - var: item.rules[].verbs
+      op: not_contains
+      value: '*'
+    - var: item.rules[].apiGroups
+      op: not_contains
+      value: '*'
+    - var: item.rules[].resources
+      op: not_contains
+      value: '*'
+- rule_id: k8s.rbac.rolebinding.admission_controller_enforced
+  for_each: k8s.rbac.list_cluster_role
+  severity: MEDIUM
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/configuration-change-audit-enabled
+    op: is_true
+    value: null
+- rule_id: k8s.rbac.rolebinding.audit_enabled
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/configuration-change-audit-enabled
+    op: is_true
+    value: null
+- rule_id: k8s.rbac.rolebinding.least_privilege
+  for_each: k8s.rbac.list_role_for_all_namespaces
+  severity: HIGH
+  conditions:
+    var: item.rules[].verbs
+    op: not_contains
+    value: '*'
+- rule_id: k8s.rbac.rolebinding.rbac_enabled_enforced
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io.configuration-change-audit-enabled
+    op: is_true
+    value: null
+- rule_id: k8s.rbac.rolebinding.review
+  for_each: k8s.rbac.list_cluster_role_binding
+  severity: LOW
+  conditions:
+    var: item.roleRef.name
+    op: not_equals
+    value: cluster-admin
+- rule_id: k8s.rbac.rolebinding.scope_limited
+  for_each: k8s.rbac.list_cluster_role_binding
+  severity: LOW
+  conditions:
+    var: item.roleRef.name
+    op: not_contains
+    value: cluster-admin
+- rule_id: k8s.rbac.rolebinding.separation
+  for_each: k8s.rbac.list_cluster_role_binding
+  severity: LOW
+  conditions:
+    var: item.roleRef.name
+    op: not_equals
+    value: cluster-admin
+- rule_id: k8s.rbac.rolebinding.to_specific_namespaces
+  for_each: k8s.rbac.list_role_for_all_namespaces
+  severity: LOW
+  conditions:
+    var: item.rules[].verbs
+    op: not_contains
+    value: '*'
+- rule_id: k8s.rbac.roles.no_wildcard_in_rules
+  for_each: k8s.rbac.list_role_for_all_namespaces
+  severity: LOW
+  conditions:
+    all:
+    - var: item.rules[].verbs
+      op: not_contains
+      value: '*'
+    - var: item.rules[].apiGroups
+      op: not_contains
+      value: '*'
+    - var: item.rules[].resources
+      op: not_contains
+      value: '*'
+- rule_id: k8s.rbac.secret.auto_rotation_configured
+  for_each: k8s.rbac.list_cluster_role
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/configuration-change-audit-enabled
+    op: is_true
+    value: null
+- rule_id: k8s.rbac.secrets.access_review
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.rules[].resources
+      op: not_contains
+      value: secrets
+    - var: item.rules[].verbs
+      op: not_contains
+      value: create
+    - var: item.rules[].verbs
+      op: not_contains
+      value: update
+    - var: item.rules[].verbs
+      op: not_contains
+      value: patch
+    - var: item.rules[].verbs
+      op: not_contains
+      value: delete
+    - var: item.rules[].verbs
+      op: not_contains
+      value: deletecollection
+- rule_id: k8s.rbac.segregation.of_duties_enforced
+  for_each: k8s.rbac.list_cluster_role
+  severity: LOW
+  conditions:
+    all:
+    - var: item.metadata.annotations.cspm.k8s.io/change-management-roles-defined
+      op: exists
+      value: null
+    - var: item.metadata.annotations.cspm.k8s.io/change-management-policy-configured
+      op: exists
+      value: null
+- rule_id: k8s.rbac.serviceaccount.automount_disabled_enabled
+  for_each: k8s.rbac.list_cluster_role
+  severity: LOW
+  conditions:
+    var: item.automountServiceAccountToken
+    op: is_false
+    value: null
+- rule_id: k8s.rbac.serviceaccount.break_glass_access_controlled_enforced
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/change-management-policy-configured
+    op: exists
+    value: null
+- rule_id: k8s.rbac.serviceaccount.cert_auto_rotation_enabled
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/configuration-change-audit-enabled
+    op: is_true
+    value: null
+- rule_id: k8s.rbac.serviceaccount.certificate_auth_configured_enforced
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/configuration-change-audit-enabled
+    op: is_true
+    value: null
+- rule_id: k8s.rbac.serviceaccount.emergency_access_audit_enforced
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/configuration-change-audit-enabled
+    op: is_true
+    value: null
+- rule_id: k8s.rbac.serviceaccount.inactive_cleanup
+  for_each: k8s.rbac.list_cluster_role
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/configuration-change-audit-enabled
+    op: is_true
+    value: null
+- rule_id: k8s.rbac.serviceaccount.least_privilege
+  for_each: k8s.rbac.list_role_for_all_namespaces
+  severity: HIGH
+  conditions:
+    var: item.rules[].verbs
+    op: not_contains
+    value: '*'
+- rule_id: k8s.rbac.serviceaccount.management_review
+  for_each: k8s.rbac.list_cluster_role
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/change-management-policy-configured
+    op: exists
+    value: null
+- rule_id: k8s.rbac.serviceaccount.mfa_enforced
+  for_each: k8s.rbac.list_cluster_role
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/configuration-change-audit-enabled
+    op: is_true
+    value: null
+- rule_id: k8s.rbac.serviceaccount.privileges_restricted
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.rules[].verbs
+    op: not_contains
+    value: '*'
+- rule_id: k8s.rbac.serviceaccount.restricted_roles
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/change-management-roles-defined
+    op: exists
+    value: null
+- rule_id: k8s.rbac.serviceaccount.review_enabled
+  for_each: k8s.rbac.list_cluster_role
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/configuration-change-audit-enabled
+    op: is_true
+    value: null
+- rule_id: k8s.rbac.serviceaccount.scope_limited
+  for_each: k8s.rbac.list_cluster_role
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/change-management-roles-defined
+    op: exists
+    value: null
+- rule_id: k8s.rbac.serviceaccount.serviceaccount_token_automount_disabled
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.automountServiceAccountToken
+    op: is_false
+    value: null
+- rule_id: k8s.rbac.serviceaccount.token_auth_secure_enforced
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.automountServiceAccountToken
+    op: is_false
+    value: null
+- rule_id: k8s.rbac.serviceaccount.token_automount_disabled
+  for_each: k8s.rbac.list_cluster_role
+  severity: LOW
+  conditions:
+    var: item.automountServiceAccountToken
+    op: is_false
+    value: null
+- rule_id: k8s.rbac.serviceaccount.token_creation_access_check
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.rules[].verbs
+    op: not_contains
+    value: create
+- rule_id: k8s.rbac.serviceaccount.token_expiration_configured
+  for_each: k8s.rbac.list_cluster_role
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/serviceaccount-token-expiration-configured
+    op: exists
+    value: null
+- rule_id: k8s.rbac.serviceaccount.unique_identifiers
+  for_each: k8s.rbac.list_cluster_role
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/change-management-roles-defined
+    op: exists
+    value: null
+- rule_id: k8s.rbac.serviceaccount.unique_serviceaccount_enforced
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/default-service-account-audit
+    op: exists
+    value: null
+- rule_id: k8s.rbac.serviceaccount.usage_audited
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/default-service-account-audit
+    op: exists
+    value: null
+- rule_id: k8s.rbac.serviceaccount.usage_review
+  for_each: k8s.rbac.list_cluster_role
+  severity: LOW
+  conditions:
+    var: item.automountServiceAccountToken
+    op: is_false
+    value: null
+- rule_id: k8s.rbac.system.masters_group_usage_check
+  for_each: k8s.rbac.list_cluster_role_binding
+  severity: LOW
+  conditions:
+    var: item.roleRef.name
+    op: not_equals
+    value: cluster-admin
+- rule_id: k8s.rbac.unique.service_account_per_user
+  for_each: k8s.rbac.list_cluster_role_binding
+  severity: LOW
+  conditions:
+    var: item.roleRef.name
+    op: equals
+    value: unique-service-account-per-user
+- rule_id: k8s.rbac.unused.role_cleanup
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.metadata.annotations.cspm.k8s.io/change-management-roles-defined
+      op: exists
+      value: null
+    - var: item.metadata.annotations.cspm.k8s.io/change-control-role-defined
+      op: exists
+      value: null
+    - var: item.metadata.annotations.cspm.k8s.io/change-management-policy-configured
+      op: exists
+      value: null
+- rule_id: k8s.rbac.unused.service_account_cleanup
+  for_each: k8s.rbac.list_cluster_role
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/default-service-account-audit
+    op: exists
+    value: null
+- rule_id: k8s.rbac.user.access_review_policy_implemented
+  for_each: k8s.rbac.list_cluster_role
+  severity: MEDIUM
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/configuration-change-audit-enabled
+    op: is_true
+    value: null
+- rule_id: k8s.rbac.user.access_review_scheduled
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/configuration-change-audit-enabled
+    op: is_true
+    value: null
+- rule_id: k8s.rbac.user.action_audit_enabled
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/configuration-change-audit-enabled
+    op: is_true
+    value: null
+- rule_id: k8s.rbac.user.identity_audit_enabled
+  for_each: k8s.rbac.list_cluster_role
+  severity: HIGH
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/configuration-change-audit-enabled
+    op: is_true
+    value: null
+- rule_id: k8s.rbac.user.registration_authorization_review
+  for_each: k8s.rbac.list_cluster_role_binding
+  severity: HIGH
+  conditions:
+    var: item.roleRef.name
+    op: not_equals
+    value: system:controller:token-controller
+- rule_id: k8s.rbac.user.unique_identifiers
+  for_each: k8s.rbac.list_cluster_role_binding
+  severity: LOW
+  conditions:
+    var: item.roleRef.name
+    op: not_contains
+    value: 'system:'
+- rule_id: k8s.rbac.webhook.configuration_access_review
+  for_each: k8s.rbac.list_cluster_role_binding
+  severity: HIGH
+  conditions:
+    var: item.roleRef.name
+    op: not_equals
+    value: system:webhook

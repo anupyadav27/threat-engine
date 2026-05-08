@@ -1,0 +1,22 @@
+version: '1.0'
+provider: azure
+service: recoveryservices
+checks:
+- rule_id: azure.recoveryservices.vault.cross.subscription.restore.disabled
+  for_each: azure.recoveryservices.vaults.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.crossSubscriptionRestoreState
+      op: exists
+      value: null
+    - var: item.properties.crossSubscriptionRestoreState
+      op: equals
+      value: Disabled
+- rule_id: azure.recoveryservices.vault.encryption.at.rest.cmk.enabled
+  for_each: azure.recoveryservices.vaults.list_by_subscription_id
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryption.keyVaultProperties
+    op: exists
+    value: null

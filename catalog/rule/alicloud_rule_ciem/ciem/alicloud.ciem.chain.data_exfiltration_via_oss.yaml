@@ -1,0 +1,98 @@
+rule_id: alicloud.ciem.chain.data_exfiltration_via_oss
+service: ciem
+provider: alicloud
+check_type: log
+severity: critical
+title: 'AliCloud CIEM: OSS Bucket Made Public then Objects Accessed'
+description: 'Attack chain: OSS bucket ACL was changed to public-read, followed by
+  mass object access — indicating deliberate data staging for exfiltration.'
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: data_exfiltration
+mitre_tactics:
+- collection
+- exfiltration
+mitre_techniques:
+- T1530
+risk_score: 97
+resource: alicloud_oss_bucket
+source: alicloud_ciem_generator
+is_active: true
+domain: data_protection_and_privacy
+action_category: modify
+log_source_type: alicloud_actiontrail
+posture_category: data_security_posture
+threat_tags:
+- T1530
+- collection
+- exfiltration
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '5.1'
+  - '5.2'
+  nist_800_53_r5:
+  - SC-28
+  - AC-3
+  - AU-9
+  pci_dss_v4:
+  - '3.4'
+  - '3.5'
+  - '6.3'
+  iso_27001_2022:
+  - A.8.10
+  - A.8.24
+remediation: '1. Set bucket ACL back to private immediately.
+
+  2. Identify all objects accessed during the exposure window.
+
+  3. Notify data owners of potential PII/sensitive data exposure.
+
+  4. File a data breach notification if applicable.'
+references:
+- https://attack.mitre.org/techniques/T1530/
+check_config:
+  events:
+  - conditions:
+      all:
+      - field: source_type
+        op: equals
+        value: alicloud_actiontrail
+      - field: service
+        op: equals
+        value: oss
+      - field: operation
+        op: equals
+        value: PutBucketAcl
+      - field: request_params.x-oss-acl
+        op: in
+        value:
+        - public-read
+        - public-read-write
+  - conditions:
+      all:
+      - field: source_type
+        op: equals
+        value: alicloud_actiontrail
+      - field: service
+        op: equals
+        value: oss
+      - field: operation
+        op: in
+        value:
+        - GetObject
+        - ListObjects
+  type: sequence
+  window_seconds: 600
+version: '1.0'

@@ -1,0 +1,194 @@
+# POSTGRESQL — CIEM Detection Rules
+# Real-time authentication & access event analysis
+# Log source: pg_log, pg_audit
+
+tech_type: postgresql
+category: database
+log_source: pg_log, pg_audit
+
+rules:
+
+  - rule_id: tciem.postgresql.log_file_permissions_are_set_correctly
+    title: "Ensure the log file permissions are set correctly"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '3.1.6'
+    cis_section: '3'
+    log_source: "pg_log, pg_audit"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following SQL statement(s) to remediate this setting (with the
+      example assuming the desired value of 0600): postgres=# alter system set
+      log_file_mode = '0600'; ALTER SYSTEM postgres=# select pg_reload_conf();
+      pg_reload_conf ---------------- t (1 row) postgres=# show log_file_mode;
+      log_file_mode --------------- 0600 (1 row) Default Value: 0600 References: 1.
+      https://www.postgresql.org/docs/current/static/runtime-config-logging.html
+
+  - rule_id: tciem.postgresql.postgresql_audit_extension_pgaudit_is_enabled
+    title: "Ensure the PostgreSQL Audit Extension (pgAudit) is enabled"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '3.2'
+    cis_section: '3'
+    log_source: "pg_log, pg_audit"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To install and enable pgAudit, simply install the appropriate rpm from the
+      PGDG repo: # whoami root # dnf -y install pgaudit_17 [snip] Installed:
+      pgaudit_17-17.0-1PGDG.rhel9.x86_64 Complete! pgAudit is now installed and
+      ready to be configured. Next, we need to alter the postgresql.conf
+      configuration file to: • enable pgAudit as an extension in the
+      shared_preload_libraries parameter • indicate which classes of statements we
+      want to log via the pgaudit.log parameter and, finally, restart the PostgreSQL
+      service: # whoami root # vi ~postgres/17/data/postgresql.conf Find the
+      shared_preload_libraries entry, and add 'pgaudit' to it (preserving any
+      existing entries): shared_preload_libraries = 'pgaudit' OR
+      shared_preload_libraries = 'pgaudit,somethingelse' Now, add a new pgaudit-
+      specific entry at the end of the file: # for this example we are logging the
+      ddl and write operations pgaudit.log='ddl,write' Restart the PostgreSQL server
+      for changes to take affect: # whoami root # systemctl restart postgresql-17 #
+      systemctl status postgresql-17|grep 'ago$' Active: active (running) since
+      [date] 10s ago References: 1. https://www.pgaudit.org/ Additional Information:
+      pgAudit versions relate to PostgreSQL major versions; ensure you install the
+      pgAudit package that matches your PostgreSQL version.
+
+  - rule_id: tciem.postgresql.excessive_function_privileges_are_revoked
+    title: "Ensure excessive function privileges are revoked"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.5'
+    cis_section: '4'
+    log_source: "pg_log, pg_audit"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Where possible, revoke SECURITY DEFINER on PostgreSQL functions. To change a
+      SECURITY DEFINER function to SECURITY INVOKER, run the following SQL: # whoami
+      root # sudo -iu postgres # psql -c 'ALTER FUNCTION [functionname] SECURITY
+      INVOKER;' If it is not possible to revoke SECURITY DEFINER, ensure the
+      function can be executed by only the accounts that absolutely need such
+      functionality: postgres=# SELECT proname, proacl FROM pg_proc WHERE proname =
+      'delete_customer'; proname | proacl
+      -----------------+--------------------------------------------------------
+      delete_customer | {=X/postgres,postgres=X/postgres,appreader=X/postgres} (1
+      row) postgres=# REVOKE EXECUTE ON FUNCTION delete_customer(integer,boolean)
+      FROM appreader; REVOKE postgres=# SELECT proname, proacl FROM pg_proc WHERE
+      proname = 'delete_customer'; proname | proacl
+      -----------------+--------------------------------------------------------
+      delete_customer | {=X/postgres,postgres=X/postgres} (1 row) Based on the
+      output above, appreader=X/postgres no longer exists in the proacl column
+      results returned from the query and confirms appreader is no longer granted
+      execute privilege on the function. References: 1.
+      https://www.postgresql.org/docs/current/static/catalog-pg-proc.html 2.
+      https://www.postgresql.org/docs/current/static/sql-grant.html 3.
+      https://www.postgresql.org/docs/current/static/sql-revoke.html 4.
+      https://www.postgresql.org/docs/current/static/sql-createfunction.html
+
+  - rule_id: tciem.postgresql.set_user_extension_is_installed
+    title: "Ensure the set_user extension is installed"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.8'
+    cis_section: '4'
+    log_source: "pg_log, pg_audit"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      We will install the set_user extension: # whoami root # dnf -y install
+      set_user_17 [snip] Installed: set_user_17-4.1.0-1.rhel9.1.x86_64 Complete! Now
+      that set_user is installed, we need to tell PostgreSQL to load its library: #
+      whoami root # vi ~postgres/17/data/postgresql.conf Find the
+      shared_preload_libraries entry, and add 'set_user' to it (preserving any
+      existing entries): shared_preload_libraries = 'set_user' OR
+      shared_preload_libraries = 'set_user,pgaudit,somethingelse' Restart the
+      PostgreSQL server for changes to take effect: # systemctl restart
+      postgresql-17 # systemctl status postgresql-17|grep 'ago$' Active: active
+      (running) since [timestamp]; 1s ago And now, we can install the extension with
+      SQL: # su - postgres # psql postgres=# select * from pg_available_extensions
+      where name = 'set_user'; name | default_version | installed_version | comment
+      ---------+-----------------+-------------------+-----------------------------
+      set_user | 4.1.0 | | similar to SET ROLE but with | | | added logging (1 row)
+      postgres=# create extension set_user; CREATE EXTENSION postgres=# select *
+      from pg_available_extensions where name = 'set_user'; name | default_version |
+      installed_version | comment
+      ---------+-----------------+-------------------+-----------------------------
+      set_user | 4.1.0 | 4.1.0 | similar to SET ROLE but with | | | added logging (1
+      row) Now, we use GRANT to configure each DBA role to allow it to use the
+      set_user functions. In the example below, we will configure my db user doug.
+      (You would do this for each DBA's normal user role.) postgres=# grant execute
+      on function set_user(text) to doug; GRANT postgres=# grant execute on function
+      set_user_u(text) to doug; GRANT Connect to PostgreSQL as yourself and verify
+      it works as expected: # whoami psql # psql -U doug -d postgres -h 127.0.0.1
+      postgres=> select set_user('postgres'); ERROR: switching to superuser not
+      allowed HINT: Use 'set_user_u' to escalate. postgres=> select
+      set_user_u('postgres'); set_user_u ------------ OK (1 row) postgres=# select
+      current_user, session_user; current_user | session_user
+      --------------+-------------- postgres | doug (1 row) postgres=# select
+      reset_user(); reset_user ------------ OK (1 row) postgres=> select
+      current_user, session_user; current_user | session_user
+      --------------+-------------- doug | doug (1 row) Once all DBA's normal user
+      accounts have been GRANTed permission, revoke the ability to login as the
+      postgres (superuser) user: postgres=# ALTER USER postgres NOLOGIN; ALTER ROLE
+      Which results in: $ psql psql: FATAL: role 'postgres' is not permitted to log
+      in $ psql -U doug -d postgres -h 127.0.0.1 psql (1*.0) Revoke SUPERUSER and/or
+      LOGIN from any other roles that were previously identified: postgres=# ALTER
+      USER usera NOSUPERUSER; -- revoke superuser ALTER ROLE postgres=# ALTER USER
+      usera NOLOGIN; -- revoke login ALTER ROLE postgres=# ALTER USER usera
+      NOSUPERUSER NOLOGIN; -- revoke both at once ALTER ROLE Note that we show
+      dropping the privileges both individually and as one. Pick an appropriate
+      version based on your application/business needs. Remove any escalated
+      privileges on users granted indirectly that were previously identified using
+      the roletree view: postgres=# REVOKE name_of_granting_role FROM bob; -- an
+      example only REVOKE ROLE References: 1. https://github.com/pgaudit/set_user
+
+  - rule_id: tciem.postgresql.backend_runtime_parameters_are_configured
+    title: "Ensure 'backend' runtime parameters are configured correctly"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '6.2'
+    cis_section: '6'
+    log_source: "pg_log, pg_audit"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Once detected, the unauthorized/undesired change can be corrected by altering
+      the configuration file and executing a server restart. In the case where the
+      parameter has been specified on the command-line invocation of pg_ctl the
+      restart invocation is insufficient and an explicit stop and start must instead
+      be made. 1. Query the view pg_settings and compare with previous query outputs
+      for any changes. 2. Review configuration files postgresql.conf and
+      postgresql.auto.conf and compare them with previously archived file copies for
+      any changes. 3. Examine the process output and look for parameters that were
+      used at server startup: ps -few | grep -E -- '[p]ost.*-[D]' 4. Examine the
+      contents of $PGDATA/postmaster.opts References: 1.
+      https://www.postgresql.org/docs/current/static/view-pg-settings.html 2.
+      https://www.postgresql.org/docs/current/static/runtime-config.html
+

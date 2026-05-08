@@ -1,0 +1,152 @@
+version: '1.0'
+provider: aws
+service: timestream
+checks:
+- rule_id: aws.timestream.database.check_encryption_at_rest_enabled
+  for_each: aws.timestream-write.list_databases
+  severity: HIGH
+  conditions:
+    var: item.KmsKeyId
+    op: exists
+    value: null
+- rule_id: aws.timestream.database.deletion_protection_enabled
+  for_each: aws.timestream-write.list_databases
+  severity: MEDIUM
+  conditions:
+    var: item.DeletionProtectionEnabled
+    op: is_true
+    value: null
+- rule_id: aws.timestream.database.encryption_at_rest_enabled
+  for_each: aws.timestream-write.list_databases
+  severity: HIGH
+  conditions:
+    var: item.KmsKeyId
+    op: exists
+    value: null
+- rule_id: aws.timestream.database.iam_or_managed_identity_auth_enabled_if_supported
+  for_each: aws.timestream-write.list_databases
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.IamAuthenticationEnabled
+      op: is_true
+      value: null
+    - var: item.ManagedIdentityAuthEnabled
+      op: is_true
+      value: null
+- rule_id: aws.timestream.database.public_access_disabled
+  for_each: aws.timestream-write.list_databases
+  severity: HIGH
+  conditions:
+    var: item.PublicAccessEnabled
+    op: is_false
+    value: null
+- rule_id: aws.timestream.database.require_tls_in_transit_configured
+  for_each: aws.timestream-write.list_databases
+  severity: HIGH
+  conditions:
+    var: item.RequireTLSInTransit
+    op: is_true
+    value: null
+- rule_id: aws.timestream.resource.cloudtrail_management_and_data_logging_enabled
+  for_each: aws.timestream-write.list_databases
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.LoggingConfiguration.CloudWatchLogsLoggingEnabled
+      op: is_true
+      value: null
+    - var: item.LoggingConfiguration.S3LoggingEnabled
+      op: is_true
+      value: null
+- rule_id: aws.timestream.resource.cloudwatch_monitoring_and_alerting_enabled
+  for_each: aws.timestream-write.list_databases
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.MonitoringConfiguration.MonitoringEnabled
+      op: is_true
+      value: null
+    - var: item.MonitoringConfiguration.AlarmConfiguration.Alarms[].AlarmName
+      op: not_empty
+      value: null
+- rule_id: aws.timestream.resource.iam_fine_grained_access_control_enabled
+  for_each: aws.timestream-write.list_databases
+  severity: HIGH
+  conditions:
+    var: item.MagneticStoreWriteProperties.MagneticStoreRejectedDataLocation.S3Configuration.BucketName
+    op: exists
+    value: null
+- rule_id: aws.timestream.resource.security_configuration_compliance_configured
+  for_each: aws.timestream-write.list_databases
+  severity: MEDIUM
+  conditions:
+    var: item.KmsKeyId
+    op: exists
+    value: null
+- rule_id: aws.timestream.resource.timestream_ingestion_secure_protocol_configured
+  for_each: aws.timestream-write.list_databases
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.properties.ingestionSettings.secureIngestionEnabled
+      op: is_true
+      value: null
+    - var: item.properties.ingestionSettings.ingestionProtocol
+      op: in
+      value:
+      - HTTPS
+      - TLS
+- rule_id: aws.timestream.table.deletion_protection_enabled
+  for_each: aws.timestream-write.list_tables
+  severity: MEDIUM
+  conditions:
+    var: item.DeletionProtectionEnabled
+    op: is_true
+    value: null
+- rule_id: aws.timestream.table.encryption_at_rest_enabled
+  for_each: aws.timestream-write.list_tables
+  severity: HIGH
+  conditions:
+    var: item.EncryptionAtRestEnabled
+    op: is_true
+    value: null
+- rule_id: aws.timestream.table.iam_or_managed_identity_auth_enabled_if_supported
+  for_each: aws.timestream-write.list_tables
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.IAMAuthenticationEnabled
+      op: is_true
+      value: null
+    - var: item.ManagedIdentityAuthenticationEnabled
+      op: is_true
+      value: null
+- rule_id: aws.timestream.table.private_network_only_if_supported
+  for_each: aws.timestream-write.list_tables
+  severity: HIGH
+  conditions:
+    var: item.NetworkAccessConfiguration.VpcEndpointIds
+    op: not_empty
+    value: null
+- rule_id: aws.timestream.table.public_access_disabled
+  for_each: aws.timestream-write.describe_table
+  severity: HIGH
+  conditions:
+    var: item.PublicAccessEnabled
+    op: is_false
+    value: null
+- rule_id: aws.timestream.table.rbac_least_privilege
+  for_each: aws.timestream-write.list_tables
+  severity: HIGH
+  conditions:
+    var: item.Permissions[].Principal
+    op: not_contains
+    value: '*'
+- rule_id: aws.timestream.table.require_tls_in_transit_configured
+  for_each: aws.timestream-write.list_tables
+  severity: HIGH
+  conditions:
+    var: item.EnableSSL
+    op: is_true
+    value: null

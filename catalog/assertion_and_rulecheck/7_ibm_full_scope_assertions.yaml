@@ -1,0 +1,648 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# IBM SECURITY ASSERTIONS — Full Scope Catalog
+# ═══════════════════════════════════════════════════════════════════════════
+# Total Services: 11
+# Total Rules:    56
+# Note: These are CIEM/activity-based detection rules.
+#       python_client and check_client resolved to IBM SDK package names.
+# ═══════════════════════════════════════════════════════════════════════════
+
+ciem:
+  chain:
+  - assertion_id: ciem.chain.data_exfiltration_via_cos
+    domain: identity_and_access_management
+    rule_id: ibm.ciem.chain.data_exfiltration_via_cos
+    scope: ciem.chain.activity
+    severity: critical
+    title: 'IBM CIEM: Data Exfiltration via COS Bucket Public Access'
+    threat_category: data_exfiltration
+    implementable: SCAN_ABLE
+    classify_reason: default permissive
+    python_client: ibm_platform_services.activity_tracker
+    check_client: ibm_platform_services.activity_tracker
+  - assertion_id: ciem.chain.defense_evasion_log_destroy
+    domain: identity_and_access_management
+    rule_id: ibm.ciem.chain.defense_evasion_log_destroy
+    scope: ciem.chain.activity
+    severity: critical
+    title: 'IBM CIEM: Defense Evasion via Activity Tracker Deletion + MFA Disable'
+    threat_category: defense_evasion
+    implementable: SCAN_ABLE
+    classify_reason: default permissive
+    python_client: ibm_platform_services.activity_tracker
+    check_client: ibm_platform_services.activity_tracker
+  - assertion_id: ciem.chain.privilege_escalation_via_trusted_profile
+    domain: identity_and_access_management
+    rule_id: ibm.ciem.chain.privilege_escalation_via_trusted_profile
+    scope: ciem.chain.activity
+    severity: critical
+    title: 'IBM CIEM: Privilege Escalation via Trusted Profile + IAM Policy Change'
+    threat_category: privilege_escalation
+    implementable: SCAN_ABLE
+    classify_reason: contains scan hint 'privilege'
+    python_client: ibm_platform_services.activity_tracker
+    check_client: ibm_platform_services.activity_tracker
+cos:
+  activity:
+  - assertion_id: cos.activity.bucket_change
+    domain: storage_and_database_security
+    rule_id: ibm.cos.activity.bucket_change
+    scope: cos.activity.activity
+    severity: high
+    title: 'IBM COS: Object Storage Bucket Configuration Changed'
+    threat_category: data_exfiltration
+    implementable: SCAN_ABLE
+    classify_reason: contains scan hint 'bucket'
+    python_client: ibm_cos_sdk.s3
+    check_client: ibm_cos_sdk.s3
+  - assertion_id: cos.activity.bucket_created_public
+    domain: storage_and_database_security
+    rule_id: ibm.cos.activity.bucket_created_public
+    scope: cos.activity.activity
+    severity: critical
+    title: 'IBM COS: Object Storage Bucket Created with Public Access'
+    threat_category: data_exfiltration
+    implementable: EVENT
+    classify_reason: contains '_created'
+    python_client: ibm_cos_sdk.s3
+    check_client: ibm_cos_sdk.s3
+  - assertion_id: cos.activity.bucket_deleted
+    domain: storage_and_database_security
+    rule_id: ibm.cos.activity.bucket_deleted
+    scope: cos.activity.activity
+    severity: high
+    title: 'IBM COS: Object Storage Bucket Deleted'
+    threat_category: impact
+    implementable: EVENT
+    classify_reason: contains '_deleted'
+    python_client: ibm_cos_sdk.s3
+    check_client: ibm_cos_sdk.s3
+  - assertion_id: cos.activity.bucket_policy_change
+    domain: storage_and_database_security
+    rule_id: ibm.cos.activity.bucket_policy_change
+    scope: cos.activity.activity
+    severity: high
+    title: 'IBM COS: Object Storage Bucket Policy Changed'
+    threat_category: data_exfiltration
+    implementable: EVENT
+    classify_reason: contains '_policy_change'
+    python_client: ibm_cos_sdk.s3
+    check_client: ibm_cos_sdk.s3
+  - assertion_id: cos.activity.hmac_key_created
+    domain: storage_and_database_security
+    rule_id: ibm.cos.activity.hmac_key_created
+    scope: cos.activity.activity
+    severity: high
+    title: 'IBM COS: HMAC Key Created for Service Credential'
+    threat_category: credential_access
+    implementable: EVENT
+    classify_reason: contains '_created'
+    python_client: ibm_cos_sdk.s3
+    check_client: ibm_cos_sdk.s3
+db:
+  activity:
+  - assertion_id: db.activity.audit_config_change
+    domain: storage_and_database_security
+    rule_id: ibm.db.activity.audit_config_change
+    scope: db.activity.activity
+    severity: high
+    title: 'IBM DB Audit: Audit Configuration Changed'
+    threat_category: defense_evasion
+    implementable: SCAN_ABLE
+    classify_reason: default permissive
+    python_client: ibm_platform_services.cloud_databases
+    check_client: ibm_platform_services.cloud_databases
+  - assertion_id: db.activity.db_admin_activity
+    domain: storage_and_database_security
+    rule_id: ibm.db.activity.db_admin_activity
+    scope: db.activity.activity
+    severity: high
+    title: 'IBM DB Audit: Privileged Admin Activity'
+    threat_category: privilege_escalation
+    implementable: SCAN_ABLE
+    classify_reason: contains scan hint 'admin'
+    python_client: ibm_platform_services.cloud_databases
+    check_client: ibm_platform_services.cloud_databases
+  - assertion_id: db.activity.db_failed_login
+    domain: storage_and_database_security
+    rule_id: ibm.db.activity.db_failed_login
+    scope: db.activity.activity
+    severity: medium
+    title: 'IBM DB Audit: Failed Database Login'
+    threat_category: credential_access
+    implementable: EVENT
+    classify_reason: contains '_failed_login'
+    python_client: ibm_platform_services.cloud_databases
+    check_client: ibm_platform_services.cloud_databases
+  - assertion_id: db.activity.db_schema_change
+    domain: storage_and_database_security
+    rule_id: ibm.db.activity.db_schema_change
+    scope: db.activity.activity
+    severity: high
+    title: 'IBM DB Audit: DDL Schema Change'
+    threat_category: impact
+    implementable: SCAN_ABLE
+    classify_reason: default permissive
+    python_client: ibm_platform_services.cloud_databases
+    check_client: ibm_platform_services.cloud_databases
+  - assertion_id: db.activity.instance_deleted
+    domain: storage_and_database_security
+    rule_id: ibm.db.activity.instance_deleted
+    scope: db.activity.activity
+    severity: critical
+    title: 'IBM Databases: Service Instance Deleted'
+    threat_category: impact
+    implementable: EVENT
+    classify_reason: contains '_deleted'
+    python_client: ibm_platform_services.cloud_databases
+    check_client: ibm_platform_services.cloud_databases
+  - assertion_id: db.activity.user_management
+    domain: storage_and_database_security
+    rule_id: ibm.db.activity.user_management
+    scope: db.activity.activity
+    severity: high
+    title: 'IBM DB Audit: Database User Created or Privilege Granted'
+    threat_category: persistence
+    implementable: SCAN_ABLE
+    classify_reason: default permissive
+    python_client: ibm_platform_services.cloud_databases
+    check_client: ibm_platform_services.cloud_databases
+iam:
+  activity:
+  - assertion_id: iam.activity.access_group_change
+    domain: identity_and_access_management
+    rule_id: ibm.iam.activity.access_group_change
+    scope: iam.activity.activity
+    severity: high
+    title: 'IBM IAM: Access Group Modified'
+    threat_category: privilege_escalation
+    implementable: SCAN_ABLE
+    classify_reason: contains scan hint 'iam'
+    python_client: ibm_platform_services.iam_identity
+    check_client: ibm_platform_services.iam_identity
+  - assertion_id: iam.activity.account_settings_change
+    domain: identity_and_access_management
+    rule_id: ibm.iam.activity.account_settings_change
+    scope: iam.activity.activity
+    severity: high
+    title: 'IBM IAM: Account Settings Changed'
+    threat_category: defense_evasion
+    implementable: SCAN_ABLE
+    classify_reason: contains scan hint 'iam'
+    python_client: ibm_platform_services.iam_identity
+    check_client: ibm_platform_services.iam_identity
+  - assertion_id: iam.activity.api_key_created
+    domain: identity_and_access_management
+    rule_id: ibm.iam.activity.api_key_created
+    scope: iam.activity.activity
+    severity: high
+    title: 'IBM IAM: API Key Created'
+    threat_category: credential_access
+    implementable: EVENT
+    classify_reason: contains '_created'
+    python_client: ibm_platform_services.iam_identity
+    check_client: ibm_platform_services.iam_identity
+  - assertion_id: iam.activity.api_key_deleted
+    domain: identity_and_access_management
+    rule_id: ibm.iam.activity.api_key_deleted
+    scope: iam.activity.activity
+    severity: medium
+    title: 'IBM IAM: API Key Deleted'
+    threat_category: defense_evasion
+    implementable: EVENT
+    classify_reason: contains '_deleted'
+    python_client: ibm_platform_services.iam_identity
+    check_client: ibm_platform_services.iam_identity
+  - assertion_id: iam.activity.mfa_settings_change
+    domain: identity_and_access_management
+    rule_id: ibm.iam.activity.mfa_settings_change
+    scope: iam.activity.activity
+    severity: critical
+    title: 'IBM IAM: MFA Settings Changed'
+    threat_category: defense_evasion
+    implementable: SCAN_ABLE
+    classify_reason: contains scan hint 'mfa'
+    python_client: ibm_platform_services.iam_identity
+    check_client: ibm_platform_services.iam_identity
+  - assertion_id: iam.activity.policy_change
+    domain: identity_and_access_management
+    rule_id: ibm.iam.activity.policy_change
+    scope: iam.activity.activity
+    severity: critical
+    title: 'IBM IAM: IAM Policy Modified'
+    threat_category: privilege_escalation
+    implementable: EVENT
+    classify_reason: contains '_policy_change'
+    python_client: ibm_platform_services.iam_identity
+    check_client: ibm_platform_services.iam_identity
+  - assertion_id: iam.activity.policy_created
+    domain: identity_and_access_management
+    rule_id: ibm.iam.activity.policy_created
+    scope: iam.activity.activity
+    severity: critical
+    title: 'IBM IAM: IAM Policy Created'
+    threat_category: privilege_escalation
+    implementable: EVENT
+    classify_reason: contains '_created'
+    python_client: ibm_platform_services.iam_identity
+    check_client: ibm_platform_services.iam_identity
+  - assertion_id: iam.activity.service_id_created
+    domain: identity_and_access_management
+    rule_id: ibm.iam.activity.service_id_created
+    scope: iam.activity.activity
+    severity: high
+    title: 'IBM IAM: Service ID Created'
+    threat_category: persistence
+    implementable: EVENT
+    classify_reason: contains '_created'
+    python_client: ibm_platform_services.iam_identity
+    check_client: ibm_platform_services.iam_identity
+  - assertion_id: iam.activity.service_id_locked
+    domain: identity_and_access_management
+    rule_id: ibm.iam.activity.service_id_locked
+    scope: iam.activity.activity
+    severity: high
+    title: 'IBM IAM: Service ID Locked or Unlocked'
+    threat_category: defense_evasion
+    implementable: SCAN_ABLE
+    classify_reason: contains scan hint 'lock'
+    python_client: ibm_platform_services.iam_identity
+    check_client: ibm_platform_services.iam_identity
+  - assertion_id: iam.activity.trusted_profile_change
+    domain: identity_and_access_management
+    rule_id: ibm.iam.activity.trusted_profile_change
+    scope: iam.activity.activity
+    severity: critical
+    title: 'IBM IAM: Trusted Profile Modified'
+    threat_category: privilege_escalation
+    implementable: SCAN_ABLE
+    classify_reason: contains scan hint 'iam'
+    python_client: ibm_platform_services.iam_identity
+    check_client: ibm_platform_services.iam_identity
+iks:
+  activity:
+  - assertion_id: iks.activity.cluster_config_update
+    domain: network_and_infrastructure_security
+    rule_id: ibm.iks.activity.cluster_config_update
+    scope: iks.activity.activity
+    severity: high
+    title: 'IBM IKS: Cluster Configuration Updated'
+    threat_category: defense_evasion
+    implementable: SCAN_ABLE
+    classify_reason: default permissive
+    python_client: ibm_platform_services.containers
+    check_client: ibm_platform_services.containers
+  - assertion_id: iks.activity.cluster_deleted
+    domain: network_and_infrastructure_security
+    rule_id: ibm.iks.activity.cluster_deleted
+    scope: iks.activity.activity
+    severity: critical
+    title: 'IBM IKS: Kubernetes Cluster Deleted'
+    threat_category: impact
+    implementable: EVENT
+    classify_reason: contains '_deleted'
+    python_client: ibm_platform_services.containers
+    check_client: ibm_platform_services.containers
+  k8s_audit:
+  - assertion_id: iks.k8s_audit.daemonset_created
+    domain: network_and_infrastructure_security
+    rule_id: ibm.iks.k8s_audit.daemonset_created
+    scope: iks.k8s_audit.activity
+    severity: critical
+    title: 'IBM IKS: DaemonSet Created'
+    threat_category: persistence
+    implementable: EVENT
+    classify_reason: contains '_created'
+    python_client: kubernetes.client
+    check_client: kubernetes.client
+  - assertion_id: iks.k8s_audit.namespace_change
+    domain: network_and_infrastructure_security
+    rule_id: ibm.iks.k8s_audit.namespace_change
+    scope: iks.k8s_audit.activity
+    severity: medium
+    title: 'IBM IKS: Namespace Created or Deleted'
+    threat_category: defense_evasion
+    implementable: SCAN_ABLE
+    classify_reason: contains scan hint 'namespace'
+    python_client: kubernetes.client
+    check_client: kubernetes.client
+  - assertion_id: iks.k8s_audit.pod_exec
+    domain: network_and_infrastructure_security
+    rule_id: ibm.iks.k8s_audit.pod_exec
+    scope: iks.k8s_audit.activity
+    severity: high
+    title: 'IBM IKS: kubectl exec / attach into Pod'
+    threat_category: execution
+    implementable: SCAN_ABLE
+    classify_reason: default permissive
+    python_client: kubernetes.client
+    check_client: kubernetes.client
+  - assertion_id: iks.k8s_audit.privileged_pod
+    domain: network_and_infrastructure_security
+    rule_id: ibm.iks.k8s_audit.privileged_pod
+    scope: iks.k8s_audit.activity
+    severity: critical
+    title: 'IBM IKS: Privileged Pod Created'
+    threat_category: privilege_escalation
+    implementable: SCAN_ABLE
+    classify_reason: contains scan hint 'privilege'
+    python_client: kubernetes.client
+    check_client: kubernetes.client
+  - assertion_id: iks.k8s_audit.role_deleted
+    domain: network_and_infrastructure_security
+    rule_id: ibm.iks.k8s_audit.role_deleted
+    scope: iks.k8s_audit.activity
+    severity: high
+    title: 'IBM IKS: RBAC Role or ClusterRole Deleted'
+    threat_category: impact
+    implementable: EVENT
+    classify_reason: contains '_deleted'
+    python_client: kubernetes.client
+    check_client: kubernetes.client
+  - assertion_id: iks.k8s_audit.rolebinding_change
+    domain: network_and_infrastructure_security
+    rule_id: ibm.iks.k8s_audit.rolebinding_change
+    scope: iks.k8s_audit.activity
+    severity: critical
+    title: 'IBM IKS: RBAC RoleBinding Created or Modified'
+    threat_category: privilege_escalation
+    implementable: SCAN_ABLE
+    classify_reason: contains scan hint 'role'
+    python_client: kubernetes.client
+    check_client: kubernetes.client
+  - assertion_id: iks.k8s_audit.secret_accessed
+    domain: network_and_infrastructure_security
+    rule_id: ibm.iks.k8s_audit.secret_accessed
+    scope: iks.k8s_audit.activity
+    severity: high
+    title: 'IBM IKS: Kubernetes Secret Accessed'
+    threat_category: credential_access
+    implementable: SCAN_ABLE
+    classify_reason: default permissive
+    python_client: kubernetes.client
+    check_client: kubernetes.client
+  - assertion_id: iks.k8s_audit.secret_modified
+    domain: network_and_infrastructure_security
+    rule_id: ibm.iks.k8s_audit.secret_modified
+    scope: iks.k8s_audit.activity
+    severity: critical
+    title: 'IBM IKS: Kubernetes Secret Modified'
+    threat_category: persistence
+    implementable: EVENT
+    classify_reason: contains '_modified'
+    python_client: kubernetes.client
+    check_client: kubernetes.client
+  - assertion_id: iks.k8s_audit.webhook_change
+    domain: network_and_infrastructure_security
+    rule_id: ibm.iks.k8s_audit.webhook_change
+    scope: iks.k8s_audit.activity
+    severity: critical
+    title: 'IBM IKS: Admission Webhook Modified'
+    threat_category: persistence
+    implementable: SCAN_ABLE
+    classify_reason: default permissive
+    python_client: kubernetes.client
+    check_client: kubernetes.client
+kms:
+  activity:
+  - assertion_id: kms.activity.key_protect_key_accessed
+    domain: data_protection_and_privacy
+    rule_id: ibm.kms.activity.key_protect_key_accessed
+    scope: kms.activity.activity
+    severity: high
+    title: 'IBM Key Protect: Key Material Accessed'
+    threat_category: credential_access
+    implementable: SCAN_ABLE
+    classify_reason: contains scan hint 'kms'
+    python_client: ibm_platform_services.key_protect
+    check_client: ibm_platform_services.key_protect
+  - assertion_id: kms.activity.key_protect_key_delete
+    domain: data_protection_and_privacy
+    rule_id: ibm.kms.activity.key_protect_key_delete
+    scope: kms.activity.activity
+    severity: critical
+    title: 'IBM Key Protect: Encryption Key Deleted'
+    threat_category: impact
+    implementable: SCAN_ABLE
+    classify_reason: contains scan hint 'kms'
+    python_client: ibm_platform_services.key_protect
+    check_client: ibm_platform_services.key_protect
+  - assertion_id: kms.activity.key_protect_key_disable
+    domain: data_protection_and_privacy
+    rule_id: ibm.kms.activity.key_protect_key_disable
+    scope: kms.activity.activity
+    severity: high
+    title: 'IBM Key Protect: Encryption Key Disabled'
+    threat_category: impact
+    implementable: SCAN_ABLE
+    classify_reason: contains scan hint 'kms'
+    python_client: ibm_platform_services.key_protect
+    check_client: ibm_platform_services.key_protect
+logging:
+  activity:
+  - assertion_id: logging.activity.activity_tracker_delete
+    domain: logging_monitoring_and_alerting
+    rule_id: ibm.logging.activity.activity_tracker_delete
+    scope: logging.activity.activity
+    severity: critical
+    title: 'IBM Logging: Activity Tracker Instance Deleted'
+    threat_category: defense_evasion
+    implementable: SCAN_ABLE
+    classify_reason: contains scan hint 'logging'
+    python_client: ibm_platform_services.activity_tracker
+    check_client: ibm_platform_services.activity_tracker
+  - assertion_id: logging.activity.log_routing_changed
+    domain: logging_monitoring_and_alerting
+    rule_id: ibm.logging.activity.log_routing_changed
+    scope: logging.activity.activity
+    severity: high
+    title: 'IBM Logging: Activity Tracker Route or Target Changed'
+    threat_category: defense_evasion
+    implementable: EVENT
+    classify_reason: contains '_changed'
+    python_client: ibm_platform_services.activity_tracker
+    check_client: ibm_platform_services.activity_tracker
+scc:
+  audit:
+  - assertion_id: scc.audit.compliance_violation
+    domain: configuration_and_change_management
+    rule_id: ibm.scc.audit.compliance_violation
+    scope: scc.audit.activity
+    severity: high
+    title: 'IBM SCC: Compliance Profile Violation'
+    threat_category: initial_access
+    implementable: SCAN_ABLE
+    classify_reason: default permissive
+    python_client: ibm_platform_services.security_and_compliance_center_api
+    check_client: ibm_platform_services.security_and_compliance_center_api
+  - assertion_id: scc.audit.config_drift
+    domain: configuration_and_change_management
+    rule_id: ibm.scc.audit.config_drift
+    scope: scc.audit.activity
+    severity: medium
+    title: 'IBM SCC: Configuration Drift Detected'
+    threat_category: defense_evasion
+    implementable: SCAN_ABLE
+    classify_reason: default permissive
+    python_client: ibm_platform_services.security_and_compliance_center_api
+    check_client: ibm_platform_services.security_and_compliance_center_api
+  - assertion_id: scc.audit.critical_finding
+    domain: configuration_and_change_management
+    rule_id: ibm.scc.audit.critical_finding
+    scope: scc.audit.activity
+    severity: critical
+    title: 'IBM SCC: Critical Security Finding Detected'
+    threat_category: initial_access
+    implementable: SCAN_ABLE
+    classify_reason: contains scan hint 'finding'
+    python_client: ibm_platform_services.security_and_compliance_center_api
+    check_client: ibm_platform_services.security_and_compliance_center_api
+  - assertion_id: scc.audit.high_finding
+    domain: configuration_and_change_management
+    rule_id: ibm.scc.audit.high_finding
+    scope: scc.audit.activity
+    severity: high
+    title: 'IBM SCC: High-Severity Security Finding'
+    threat_category: initial_access
+    implementable: SCAN_ABLE
+    classify_reason: contains scan hint 'finding'
+    python_client: ibm_platform_services.security_and_compliance_center_api
+    check_client: ibm_platform_services.security_and_compliance_center_api
+  - assertion_id: scc.audit.policy_violation
+    domain: configuration_and_change_management
+    rule_id: ibm.scc.audit.policy_violation
+    scope: scc.audit.activity
+    severity: high
+    title: 'IBM SCC: Security Policy Violation'
+    threat_category: defense_evasion
+    implementable: SCAN_ABLE
+    classify_reason: contains scan hint 'policy'
+    python_client: ibm_platform_services.security_and_compliance_center_api
+    check_client: ibm_platform_services.security_and_compliance_center_api
+  - assertion_id: scc.audit.posture_degradation
+    domain: configuration_and_change_management
+    rule_id: ibm.scc.audit.posture_degradation
+    scope: scc.audit.activity
+    severity: high
+    title: 'IBM SCC: Security Posture Score Degraded'
+    threat_category: defense_evasion
+    implementable: SCAN_ABLE
+    classify_reason: default permissive
+    python_client: ibm_platform_services.security_and_compliance_center_api
+    check_client: ibm_platform_services.security_and_compliance_center_api
+secrets:
+  activity:
+  - assertion_id: secrets.activity.secrets_manager_change
+    domain: data_protection_and_privacy
+    rule_id: ibm.secrets.activity.secrets_manager_change
+    scope: secrets.activity.activity
+    severity: high
+    title: 'IBM Secrets Manager: Secret Deleted or Modified'
+    threat_category: impact
+    implementable: SCAN_ABLE
+    classify_reason: default permissive
+    python_client: ibm_platform_services.secrets_manager
+    check_client: ibm_platform_services.secrets_manager
+vpc:
+  activity:
+  - assertion_id: vpc.activity.floating_ip_change
+    domain: network_and_infrastructure_security
+    rule_id: ibm.vpc.activity.floating_ip_change
+    scope: vpc.activity.activity
+    severity: medium
+    title: 'IBM VPC: Floating IP Address Assigned'
+    threat_category: initial_access
+    implementable: SCAN_ABLE
+    classify_reason: contains scan hint 'vpc'
+    python_client: ibm_platform_services.vpc
+    check_client: ibm_platform_services.vpc
+  - assertion_id: vpc.activity.network_acl_change
+    domain: network_and_infrastructure_security
+    rule_id: ibm.vpc.activity.network_acl_change
+    scope: vpc.activity.activity
+    severity: high
+    title: 'IBM VPC: Network ACL Modified'
+    threat_category: defense_evasion
+    implementable: SCAN_ABLE
+    classify_reason: contains scan hint 'vpc'
+    python_client: ibm_platform_services.vpc
+    check_client: ibm_platform_services.vpc
+  - assertion_id: vpc.activity.public_gateway_change
+    domain: network_and_infrastructure_security
+    rule_id: ibm.vpc.activity.public_gateway_change
+    scope: vpc.activity.activity
+    severity: high
+    title: 'IBM VPC: Public Gateway Created or Deleted'
+    threat_category: defense_evasion
+    implementable: SCAN_ABLE
+    classify_reason: contains scan hint 'vpc'
+    python_client: ibm_platform_services.vpc
+    check_client: ibm_platform_services.vpc
+  - assertion_id: vpc.activity.security_group_rule_change
+    domain: network_and_infrastructure_security
+    rule_id: ibm.vpc.activity.security_group_rule_change
+    scope: vpc.activity.activity
+    severity: high
+    title: 'IBM VPC: Security Group Rule Modified'
+    threat_category: defense_evasion
+    implementable: SCAN_ABLE
+    classify_reason: contains scan hint 'vpc'
+    python_client: ibm_platform_services.vpc
+    check_client: ibm_platform_services.vpc
+  - assertion_id: vpc.activity.vpc_change
+    domain: network_and_infrastructure_security
+    rule_id: ibm.vpc.activity.vpc_change
+    scope: vpc.activity.activity
+    severity: medium
+    title: 'IBM VPC: VPC Created or Deleted'
+    threat_category: lateral_movement
+    implementable: SCAN_ABLE
+    classify_reason: contains scan hint 'vpc'
+    python_client: ibm_platform_services.vpc
+    check_client: ibm_platform_services.vpc
+vsi:
+  activity:
+  - assertion_id: vsi.activity.bare_metal_change
+    domain: configuration_and_change_management
+    rule_id: ibm.vsi.activity.bare_metal_change
+    scope: vsi.activity.activity
+    severity: high
+    title: 'IBM: Bare Metal Server Modified or Deleted'
+    threat_category: impact
+    implementable: SCAN_ABLE
+    classify_reason: default permissive
+    python_client: ibm_platform_services.vpc
+    check_client: ibm_platform_services.vpc
+  - assertion_id: vsi.activity.vsi_action
+    domain: configuration_and_change_management
+    rule_id: ibm.vsi.activity.vsi_action
+    scope: vsi.activity.activity
+    severity: medium
+    title: 'IBM VPC: Virtual Server Action Performed (Start/Stop/Reboot)'
+    threat_category: impact
+    implementable: SCAN_ABLE
+    classify_reason: default permissive
+    python_client: ibm_platform_services.vpc
+    check_client: ibm_platform_services.vpc
+  - assertion_id: vsi.activity.vsi_created
+    domain: configuration_and_change_management
+    rule_id: ibm.vsi.activity.vsi_created
+    scope: vsi.activity.activity
+    severity: medium
+    title: 'IBM VPC: Virtual Server Instance Created'
+    threat_category: execution
+    implementable: EVENT
+    classify_reason: contains '_created'
+    python_client: ibm_platform_services.vpc
+    check_client: ibm_platform_services.vpc
+  - assertion_id: vsi.activity.vsi_deleted
+    domain: configuration_and_change_management
+    rule_id: ibm.vsi.activity.vsi_deleted
+    scope: vsi.activity.activity
+    severity: high
+    title: 'IBM VPC: Virtual Server Instance Deleted'
+    threat_category: impact
+    implementable: EVENT
+    classify_reason: contains '_deleted'
+    python_client: ibm_platform_services.vpc
+    check_client: ibm_platform_services.vpc

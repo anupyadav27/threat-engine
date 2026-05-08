@@ -1,0 +1,47 @@
+rule_id: gcp.storage.activity.set_iam_policy
+rule_type: ciem
+title: 'Storage: GCS Bucket IAM Policy Modified (Public Access)'
+scope: storage.activity
+domain: identity_and_access_management
+subcategory: access_control
+severity: critical
+service: storage
+resource: activity
+requirement: Set Iam Policy
+description: IAM policy modified on a GCS bucket — may grant allUsers or allAuthenticatedUsers
+  access, exposing data to the public internet.
+rationale: 'Adversaries access data from cloud object storage (S3, Azure Blob, GCS)
+  which may be misconfigured with overly permissive policies exposing PII, medical
+  records, financial data, or credentials. Bulk download followed by external transfer
+  indicates active data theft. Detected via: unusual object access patterns from new
+  IAM users or roles, OAuth token grants to external apps preceding high-volume downloads,
+  and GetObject events from anomalous IPs or user agents.'
+remediation: '1. Audit and revoke the IAM binding granting public or broad access
+  to the resource.
+
+  2. Enable VPC Service Controls to restrict data exfiltration to approved perimeters.
+
+  3. Configure DLP inspection on Cloud Storage and BigQuery for sensitive data.
+
+  4. Set up Cloud Monitoring alerts on bulk data read operations by unexpected principals.
+
+  5. Enable CMEK for storage and BigQuery to prevent data use without key access.
+
+  '
+references:
+- https://attack.mitre.org/techniques/T1530/
+- https://cloud.google.com/storage/docs/audit-logging
+- https://cloud.google.com/bigquery/docs/audit-logging
+compliance:
+- canada_pbmm_moderate_CCCS_AU_3_1
+- cis_gcp_2.10
+threat_category: data_exfiltration
+mitre_tactics:
+- exfiltration
+mitre_techniques:
+- T1530
+risk_score: 90
+action_category: exfiltration
+source: default
+metadata_source: auto_generated
+generated_by: gcp_ciem_generator

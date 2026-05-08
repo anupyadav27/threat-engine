@@ -1,0 +1,2763 @@
+version: '1.0'
+provider: azure
+service: billing
+services:
+  client: billing
+  module: azure.mgmt.billing
+discovery:
+- discovery_id: azure.billing.billingaccounts.list
+  calls:
+  - action: billingaccounts.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      canceled_by: '{{ item.canceled_by }}'
+      detailed_transfer_status: '{{ item.detailed_transfer_status }}'
+      expiration_time: '{{ item.expiration_time }}'
+      initiator_email_id: '{{ item.initiator_email_id }}'
+      recipient_email_id: '{{ item.recipient_email_id }}'
+      system_data: '{{ item.system_data }}'
+      transfer_status: '{{ item.transfer_status }}'
+- discovery_id: azure.billing.billingrequests.list_by_user
+  calls:
+  - action: billingrequests.list_by_user
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      status: '{{ item.status }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      account_holder_name: '{{ item.account_holder_name }}'
+      display_name: '{{ item.display_name }}'
+      expiration: '{{ item.expiration }}'
+      family: '{{ item.family }}'
+      id_properties_id: '{{ item.id_properties_id }}'
+      last_four_digits: '{{ item.last_four_digits }}'
+      logos: '{{ item.logos }}'
+      payment_method_type: '{{ item.payment_method_type }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.invoices.list_by_billing_subscription
+  calls:
+  - action: invoices.list_by_billing_subscription
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.paymentmethods.list_by_user
+  calls:
+  - action: paymentmethods.list_by_user
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      status: '{{ item.status }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      account_holder_name: '{{ item.account_holder_name }}'
+      display_name: '{{ item.display_name }}'
+      expiration: '{{ item.expiration }}'
+      family: '{{ item.family }}'
+      id_properties_id: '{{ item.id_properties_id }}'
+      last_four_digits: '{{ item.last_four_digits }}'
+      logos: '{{ item.logos }}'
+      payment_method_type: '{{ item.payment_method_type }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.policies.get_by_subscription
+  calls:
+  - action: policies.get_by_subscription
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.recipienttransfers.list
+  calls:
+  - action: recipienttransfers.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      canceled_by: '{{ item.canceled_by }}'
+      detailed_transfer_status: '{{ item.detailed_transfer_status }}'
+      expiration_time: '{{ item.expiration_time }}'
+      initiator_email_id: '{{ item.initiator_email_id }}'
+      recipient_email_id: '{{ item.recipient_email_id }}'
+      system_data: '{{ item.system_data }}'
+      transfer_status: '{{ item.transfer_status }}'
+- discovery_id: azure.billing.agreements.list_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: agreements.list_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      applied_scope_properties: '{{ item.applied_scope_properties }}'
+      applied_scope_type: '{{ item.applied_scope_type }}'
+      benefit_start_time: '{{ item.benefit_start_time }}'
+      billing_account_id: '{{ item.billing_account_id }}'
+      billing_plan: '{{ item.billing_plan }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_scope_id: '{{ item.billing_scope_id }}'
+      commitment: '{{ item.commitment }}'
+      customer_id: '{{ item.customer_id }}'
+      display_name: '{{ item.display_name }}'
+      display_provisioning_state: '{{ item.display_provisioning_state }}'
+      effective_date_time: '{{ item.effective_date_time }}'
+      expiry_date_time: '{{ item.expiry_date_time }}'
+      extended_status_info: '{{ item.extended_status_info }}'
+      product_code: '{{ item.product_code }}'
+      purchase_date_time: '{{ item.purchase_date_time }}'
+      renew: '{{ item.renew }}'
+      renew_destination: '{{ item.renew_destination }}'
+      renew_properties: '{{ item.renew_properties }}'
+      renew_source: '{{ item.renew_source }}'
+      system_data: '{{ item.system_data }}'
+      term: '{{ item.term }}'
+      user_friendly_applied_scope_type: '{{ item.user_friendly_applied_scope_type
+        }}'
+      utilization: '{{ item.utilization }}'
+- discovery_id: azure.billing.associatedtenants.list_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: associatedtenants.list_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      applied_scope_properties: '{{ item.applied_scope_properties }}'
+      applied_scope_type: '{{ item.applied_scope_type }}'
+      benefit_start_time: '{{ item.benefit_start_time }}'
+      billing_account_id: '{{ item.billing_account_id }}'
+      billing_plan: '{{ item.billing_plan }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_scope_id: '{{ item.billing_scope_id }}'
+      commitment: '{{ item.commitment }}'
+      customer_id: '{{ item.customer_id }}'
+      display_name: '{{ item.display_name }}'
+      display_provisioning_state: '{{ item.display_provisioning_state }}'
+      effective_date_time: '{{ item.effective_date_time }}'
+      expiry_date_time: '{{ item.expiry_date_time }}'
+      extended_status_info: '{{ item.extended_status_info }}'
+      product_code: '{{ item.product_code }}'
+      purchase_date_time: '{{ item.purchase_date_time }}'
+      renew: '{{ item.renew }}'
+      renew_destination: '{{ item.renew_destination }}'
+      renew_properties: '{{ item.renew_properties }}'
+      renew_source: '{{ item.renew_source }}'
+      system_data: '{{ item.system_data }}'
+      term: '{{ item.term }}'
+      user_friendly_applied_scope_type: '{{ item.user_friendly_applied_scope_type
+        }}'
+      utilization: '{{ item.utilization }}'
+- discovery_id: azure.billing.availablebalances.get_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: availablebalances.get_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.availablebalances.get_by_billing_profile
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: availablebalances.get_by_billing_profile
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.billingaccounts.list_invoice_sections_by_create_subscription_permission
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingaccounts.list_invoice_sections_by_create_subscription_permission
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      billing_profile_display_name: '{{ item.billing_profile_display_name }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_profile_spending_limit: '{{ item.billing_profile_spending_limit }}'
+      billing_profile_status: '{{ item.billing_profile_status }}'
+      billing_profile_status_reason_code: '{{ item.billing_profile_status_reason_code
+        }}'
+      billing_profile_system_id: '{{ item.billing_profile_system_id }}'
+      enabled_azure_plans: '{{ item.enabled_azure_plans }}'
+      invoice_section_display_name: '{{ item.invoice_section_display_name }}'
+      invoice_section_id: '{{ item.invoice_section_id }}'
+      invoice_section_system_id: '{{ item.invoice_section_system_id }}'
+- discovery_id: azure.billing.billingpermissions.list_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingpermissions.list_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      applied_scope_properties: '{{ item.applied_scope_properties }}'
+      applied_scope_type: '{{ item.applied_scope_type }}'
+      benefit_start_time: '{{ item.benefit_start_time }}'
+      billing_account_id: '{{ item.billing_account_id }}'
+      billing_plan: '{{ item.billing_plan }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_scope_id: '{{ item.billing_scope_id }}'
+      commitment: '{{ item.commitment }}'
+      customer_id: '{{ item.customer_id }}'
+      display_name: '{{ item.display_name }}'
+      display_provisioning_state: '{{ item.display_provisioning_state }}'
+      effective_date_time: '{{ item.effective_date_time }}'
+      expiry_date_time: '{{ item.expiry_date_time }}'
+      extended_status_info: '{{ item.extended_status_info }}'
+      product_code: '{{ item.product_code }}'
+      purchase_date_time: '{{ item.purchase_date_time }}'
+      renew: '{{ item.renew }}'
+      renew_destination: '{{ item.renew_destination }}'
+      renew_properties: '{{ item.renew_properties }}'
+      renew_source: '{{ item.renew_source }}'
+      system_data: '{{ item.system_data }}'
+      term: '{{ item.term }}'
+      user_friendly_applied_scope_type: '{{ item.user_friendly_applied_scope_type
+        }}'
+      utilization: '{{ item.utilization }}'
+- discovery_id: azure.billing.billingpermissions.list_by_billing_profile
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingpermissions.list_by_billing_profile
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.billingpermissions.list_by_customer
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingpermissions.list_by_customer
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.billingpermissions.list_by_customer_at_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingpermissions.list_by_customer_at_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      status: '{{ item.status }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      auto_renew: '{{ item.auto_renew }}'
+      beneficiary: '{{ item.beneficiary }}'
+      beneficiary_tenant_id: '{{ item.beneficiary_tenant_id }}'
+      billing_frequency: '{{ item.billing_frequency }}'
+      billing_policies: '{{ item.billing_policies }}'
+      billing_profile_display_name: '{{ item.billing_profile_display_name }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_profile_name: '{{ item.billing_profile_name }}'
+      consumption_cost_center: '{{ item.consumption_cost_center }}'
+      customer_display_name: '{{ item.customer_display_name }}'
+      customer_id: '{{ item.customer_id }}'
+      customer_name: '{{ item.customer_name }}'
+      display_name: '{{ item.display_name }}'
+      enrollment_account_display_name: '{{ item.enrollment_account_display_name }}'
+      enrollment_account_id: '{{ item.enrollment_account_id }}'
+      enrollment_account_start_date: '{{ item.enrollment_account_start_date }}'
+      invoice_section_display_name: '{{ item.invoice_section_display_name }}'
+      invoice_section_id: '{{ item.invoice_section_id }}'
+      invoice_section_name: '{{ item.invoice_section_name }}'
+      last_month_charges: '{{ item.last_month_charges }}'
+      month_to_date_charges: '{{ item.month_to_date_charges }}'
+      next_billing_cycle_details: '{{ item.next_billing_cycle_details }}'
+      offer_id: '{{ item.offer_id }}'
+      operation_status: '{{ item.operation_status }}'
+      product_category: '{{ item.product_category }}'
+      product_type: '{{ item.product_type }}'
+      product_type_id: '{{ item.product_type_id }}'
+      provisioning_tenant_id: '{{ item.provisioning_tenant_id }}'
+      purchase_date: '{{ item.purchase_date }}'
+      quantity: '{{ item.quantity }}'
+      renewal_term_details: '{{ item.renewal_term_details }}'
+      reseller: '{{ item.reseller }}'
+      resource_uri: '{{ item.resource_uri }}'
+      sku_description: '{{ item.sku_description }}'
+      sku_id: '{{ item.sku_id }}'
+      subscription_enrollment_account_status: '{{ item.subscription_enrollment_account_status
+        }}'
+      subscription_id: '{{ item.subscription_id }}'
+      suspension_reason_details: '{{ item.suspension_reason_details }}'
+      suspension_reasons: '{{ item.suspension_reasons }}'
+      system_data: '{{ item.system_data }}'
+      system_overrides: '{{ item.system_overrides }}'
+      term_duration: '{{ item.term_duration }}'
+      term_end_date: '{{ item.term_end_date }}'
+      term_start_date: '{{ item.term_start_date }}'
+- discovery_id: azure.billing.billingpermissions.list_by_department
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingpermissions.list_by_department
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.billingpermissions.list_by_enrollment_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingpermissions.list_by_enrollment_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      status: '{{ item.status }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      auto_renew: '{{ item.auto_renew }}'
+      beneficiary: '{{ item.beneficiary }}'
+      beneficiary_tenant_id: '{{ item.beneficiary_tenant_id }}'
+      billing_frequency: '{{ item.billing_frequency }}'
+      billing_policies: '{{ item.billing_policies }}'
+      billing_profile_display_name: '{{ item.billing_profile_display_name }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_profile_name: '{{ item.billing_profile_name }}'
+      consumption_cost_center: '{{ item.consumption_cost_center }}'
+      customer_display_name: '{{ item.customer_display_name }}'
+      customer_id: '{{ item.customer_id }}'
+      customer_name: '{{ item.customer_name }}'
+      display_name: '{{ item.display_name }}'
+      enrollment_account_display_name: '{{ item.enrollment_account_display_name }}'
+      enrollment_account_id: '{{ item.enrollment_account_id }}'
+      enrollment_account_start_date: '{{ item.enrollment_account_start_date }}'
+      invoice_section_display_name: '{{ item.invoice_section_display_name }}'
+      invoice_section_id: '{{ item.invoice_section_id }}'
+      invoice_section_name: '{{ item.invoice_section_name }}'
+      last_month_charges: '{{ item.last_month_charges }}'
+      month_to_date_charges: '{{ item.month_to_date_charges }}'
+      next_billing_cycle_details: '{{ item.next_billing_cycle_details }}'
+      offer_id: '{{ item.offer_id }}'
+      operation_status: '{{ item.operation_status }}'
+      product_category: '{{ item.product_category }}'
+      product_type: '{{ item.product_type }}'
+      product_type_id: '{{ item.product_type_id }}'
+      provisioning_tenant_id: '{{ item.provisioning_tenant_id }}'
+      purchase_date: '{{ item.purchase_date }}'
+      quantity: '{{ item.quantity }}'
+      renewal_term_details: '{{ item.renewal_term_details }}'
+      reseller: '{{ item.reseller }}'
+      resource_uri: '{{ item.resource_uri }}'
+      sku_description: '{{ item.sku_description }}'
+      sku_id: '{{ item.sku_id }}'
+      subscription_enrollment_account_status: '{{ item.subscription_enrollment_account_status
+        }}'
+      subscription_id: '{{ item.subscription_id }}'
+      suspension_reason_details: '{{ item.suspension_reason_details }}'
+      suspension_reasons: '{{ item.suspension_reasons }}'
+      system_data: '{{ item.system_data }}'
+      system_overrides: '{{ item.system_overrides }}'
+      term_duration: '{{ item.term_duration }}'
+      term_end_date: '{{ item.term_end_date }}'
+      term_start_date: '{{ item.term_start_date }}'
+- discovery_id: azure.billing.billingpermissions.list_by_invoice_section
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingpermissions.list_by_invoice_section
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.billingprofiles.list_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingprofiles.list_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      applied_scope_properties: '{{ item.applied_scope_properties }}'
+      applied_scope_type: '{{ item.applied_scope_type }}'
+      benefit_start_time: '{{ item.benefit_start_time }}'
+      billing_account_id: '{{ item.billing_account_id }}'
+      billing_plan: '{{ item.billing_plan }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_scope_id: '{{ item.billing_scope_id }}'
+      commitment: '{{ item.commitment }}'
+      customer_id: '{{ item.customer_id }}'
+      display_name: '{{ item.display_name }}'
+      display_provisioning_state: '{{ item.display_provisioning_state }}'
+      effective_date_time: '{{ item.effective_date_time }}'
+      expiry_date_time: '{{ item.expiry_date_time }}'
+      extended_status_info: '{{ item.extended_status_info }}'
+      product_code: '{{ item.product_code }}'
+      purchase_date_time: '{{ item.purchase_date_time }}'
+      renew: '{{ item.renew }}'
+      renew_destination: '{{ item.renew_destination }}'
+      renew_properties: '{{ item.renew_properties }}'
+      renew_source: '{{ item.renew_source }}'
+      system_data: '{{ item.system_data }}'
+      term: '{{ item.term }}'
+      user_friendly_applied_scope_type: '{{ item.user_friendly_applied_scope_type
+        }}'
+      utilization: '{{ item.utilization }}'
+- discovery_id: azure.billing.billingrequests.list_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingrequests.list_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      applied_scope_properties: '{{ item.applied_scope_properties }}'
+      applied_scope_type: '{{ item.applied_scope_type }}'
+      benefit_start_time: '{{ item.benefit_start_time }}'
+      billing_account_id: '{{ item.billing_account_id }}'
+      billing_plan: '{{ item.billing_plan }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_scope_id: '{{ item.billing_scope_id }}'
+      commitment: '{{ item.commitment }}'
+      customer_id: '{{ item.customer_id }}'
+      display_name: '{{ item.display_name }}'
+      display_provisioning_state: '{{ item.display_provisioning_state }}'
+      effective_date_time: '{{ item.effective_date_time }}'
+      expiry_date_time: '{{ item.expiry_date_time }}'
+      extended_status_info: '{{ item.extended_status_info }}'
+      product_code: '{{ item.product_code }}'
+      purchase_date_time: '{{ item.purchase_date_time }}'
+      renew: '{{ item.renew }}'
+      renew_destination: '{{ item.renew_destination }}'
+      renew_properties: '{{ item.renew_properties }}'
+      renew_source: '{{ item.renew_source }}'
+      system_data: '{{ item.system_data }}'
+      term: '{{ item.term }}'
+      user_friendly_applied_scope_type: '{{ item.user_friendly_applied_scope_type
+        }}'
+      utilization: '{{ item.utilization }}'
+- discovery_id: azure.billing.billingrequests.list_by_billing_profile
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingrequests.list_by_billing_profile
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.billingrequests.list_by_customer
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingrequests.list_by_customer
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.billingrequests.list_by_invoice_section
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingrequests.list_by_invoice_section
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.billingroleassignments.get_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingroleassignments.get_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.billingroleassignments.get_by_billing_profile
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingroleassignments.get_by_billing_profile
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.billingroleassignments.get_by_customer
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingroleassignments.get_by_customer
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.billingroleassignments.get_by_department
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingroleassignments.get_by_department
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.billingroleassignments.get_by_enrollment_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingroleassignments.get_by_enrollment_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.billingroleassignments.get_by_invoice_section
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingroleassignments.get_by_invoice_section
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.billingroleassignments.list_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingroleassignments.list_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      applied_scope_properties: '{{ item.applied_scope_properties }}'
+      applied_scope_type: '{{ item.applied_scope_type }}'
+      benefit_start_time: '{{ item.benefit_start_time }}'
+      billing_account_id: '{{ item.billing_account_id }}'
+      billing_plan: '{{ item.billing_plan }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_scope_id: '{{ item.billing_scope_id }}'
+      commitment: '{{ item.commitment }}'
+      customer_id: '{{ item.customer_id }}'
+      display_name: '{{ item.display_name }}'
+      display_provisioning_state: '{{ item.display_provisioning_state }}'
+      effective_date_time: '{{ item.effective_date_time }}'
+      expiry_date_time: '{{ item.expiry_date_time }}'
+      extended_status_info: '{{ item.extended_status_info }}'
+      product_code: '{{ item.product_code }}'
+      purchase_date_time: '{{ item.purchase_date_time }}'
+      renew: '{{ item.renew }}'
+      renew_destination: '{{ item.renew_destination }}'
+      renew_properties: '{{ item.renew_properties }}'
+      renew_source: '{{ item.renew_source }}'
+      system_data: '{{ item.system_data }}'
+      term: '{{ item.term }}'
+      user_friendly_applied_scope_type: '{{ item.user_friendly_applied_scope_type
+        }}'
+      utilization: '{{ item.utilization }}'
+- discovery_id: azure.billing.billingroleassignments.list_by_billing_profile
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingroleassignments.list_by_billing_profile
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.billingroleassignments.list_by_customer
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingroleassignments.list_by_customer
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.billingroleassignments.list_by_department
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingroleassignments.list_by_department
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.billingroleassignments.list_by_enrollment_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingroleassignments.list_by_enrollment_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      status: '{{ item.status }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      auto_renew: '{{ item.auto_renew }}'
+      beneficiary: '{{ item.beneficiary }}'
+      beneficiary_tenant_id: '{{ item.beneficiary_tenant_id }}'
+      billing_frequency: '{{ item.billing_frequency }}'
+      billing_policies: '{{ item.billing_policies }}'
+      billing_profile_display_name: '{{ item.billing_profile_display_name }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_profile_name: '{{ item.billing_profile_name }}'
+      consumption_cost_center: '{{ item.consumption_cost_center }}'
+      customer_display_name: '{{ item.customer_display_name }}'
+      customer_id: '{{ item.customer_id }}'
+      customer_name: '{{ item.customer_name }}'
+      display_name: '{{ item.display_name }}'
+      enrollment_account_display_name: '{{ item.enrollment_account_display_name }}'
+      enrollment_account_id: '{{ item.enrollment_account_id }}'
+      enrollment_account_start_date: '{{ item.enrollment_account_start_date }}'
+      invoice_section_display_name: '{{ item.invoice_section_display_name }}'
+      invoice_section_id: '{{ item.invoice_section_id }}'
+      invoice_section_name: '{{ item.invoice_section_name }}'
+      last_month_charges: '{{ item.last_month_charges }}'
+      month_to_date_charges: '{{ item.month_to_date_charges }}'
+      next_billing_cycle_details: '{{ item.next_billing_cycle_details }}'
+      offer_id: '{{ item.offer_id }}'
+      operation_status: '{{ item.operation_status }}'
+      product_category: '{{ item.product_category }}'
+      product_type: '{{ item.product_type }}'
+      product_type_id: '{{ item.product_type_id }}'
+      provisioning_tenant_id: '{{ item.provisioning_tenant_id }}'
+      purchase_date: '{{ item.purchase_date }}'
+      quantity: '{{ item.quantity }}'
+      renewal_term_details: '{{ item.renewal_term_details }}'
+      reseller: '{{ item.reseller }}'
+      resource_uri: '{{ item.resource_uri }}'
+      sku_description: '{{ item.sku_description }}'
+      sku_id: '{{ item.sku_id }}'
+      subscription_enrollment_account_status: '{{ item.subscription_enrollment_account_status
+        }}'
+      subscription_id: '{{ item.subscription_id }}'
+      suspension_reason_details: '{{ item.suspension_reason_details }}'
+      suspension_reasons: '{{ item.suspension_reasons }}'
+      system_data: '{{ item.system_data }}'
+      system_overrides: '{{ item.system_overrides }}'
+      term_duration: '{{ item.term_duration }}'
+      term_end_date: '{{ item.term_end_date }}'
+      term_start_date: '{{ item.term_start_date }}'
+- discovery_id: azure.billing.billingroleassignments.list_by_invoice_section
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingroleassignments.list_by_invoice_section
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.billingroledefinition.get_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingroledefinition.get_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.billingroledefinition.get_by_billing_profile
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingroledefinition.get_by_billing_profile
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.billingroledefinition.get_by_customer
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingroledefinition.get_by_customer
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.billingroledefinition.get_by_department
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingroledefinition.get_by_department
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.billingroledefinition.get_by_enrollment_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingroledefinition.get_by_enrollment_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.billingroledefinition.get_by_invoice_section
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingroledefinition.get_by_invoice_section
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.billingroledefinition.list_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingroledefinition.list_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      applied_scope_properties: '{{ item.applied_scope_properties }}'
+      applied_scope_type: '{{ item.applied_scope_type }}'
+      benefit_start_time: '{{ item.benefit_start_time }}'
+      billing_account_id: '{{ item.billing_account_id }}'
+      billing_plan: '{{ item.billing_plan }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_scope_id: '{{ item.billing_scope_id }}'
+      commitment: '{{ item.commitment }}'
+      customer_id: '{{ item.customer_id }}'
+      display_name: '{{ item.display_name }}'
+      display_provisioning_state: '{{ item.display_provisioning_state }}'
+      effective_date_time: '{{ item.effective_date_time }}'
+      expiry_date_time: '{{ item.expiry_date_time }}'
+      extended_status_info: '{{ item.extended_status_info }}'
+      product_code: '{{ item.product_code }}'
+      purchase_date_time: '{{ item.purchase_date_time }}'
+      renew: '{{ item.renew }}'
+      renew_destination: '{{ item.renew_destination }}'
+      renew_properties: '{{ item.renew_properties }}'
+      renew_source: '{{ item.renew_source }}'
+      system_data: '{{ item.system_data }}'
+      term: '{{ item.term }}'
+      user_friendly_applied_scope_type: '{{ item.user_friendly_applied_scope_type
+        }}'
+      utilization: '{{ item.utilization }}'
+- discovery_id: azure.billing.billingroledefinition.list_by_billing_profile
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingroledefinition.list_by_billing_profile
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.billingroledefinition.list_by_customer
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingroledefinition.list_by_customer
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.billingroledefinition.list_by_department
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingroledefinition.list_by_department
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.billingroledefinition.list_by_enrollment_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingroledefinition.list_by_enrollment_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      status: '{{ item.status }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      auto_renew: '{{ item.auto_renew }}'
+      beneficiary: '{{ item.beneficiary }}'
+      beneficiary_tenant_id: '{{ item.beneficiary_tenant_id }}'
+      billing_frequency: '{{ item.billing_frequency }}'
+      billing_policies: '{{ item.billing_policies }}'
+      billing_profile_display_name: '{{ item.billing_profile_display_name }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_profile_name: '{{ item.billing_profile_name }}'
+      consumption_cost_center: '{{ item.consumption_cost_center }}'
+      customer_display_name: '{{ item.customer_display_name }}'
+      customer_id: '{{ item.customer_id }}'
+      customer_name: '{{ item.customer_name }}'
+      display_name: '{{ item.display_name }}'
+      enrollment_account_display_name: '{{ item.enrollment_account_display_name }}'
+      enrollment_account_id: '{{ item.enrollment_account_id }}'
+      enrollment_account_start_date: '{{ item.enrollment_account_start_date }}'
+      invoice_section_display_name: '{{ item.invoice_section_display_name }}'
+      invoice_section_id: '{{ item.invoice_section_id }}'
+      invoice_section_name: '{{ item.invoice_section_name }}'
+      last_month_charges: '{{ item.last_month_charges }}'
+      month_to_date_charges: '{{ item.month_to_date_charges }}'
+      next_billing_cycle_details: '{{ item.next_billing_cycle_details }}'
+      offer_id: '{{ item.offer_id }}'
+      operation_status: '{{ item.operation_status }}'
+      product_category: '{{ item.product_category }}'
+      product_type: '{{ item.product_type }}'
+      product_type_id: '{{ item.product_type_id }}'
+      provisioning_tenant_id: '{{ item.provisioning_tenant_id }}'
+      purchase_date: '{{ item.purchase_date }}'
+      quantity: '{{ item.quantity }}'
+      renewal_term_details: '{{ item.renewal_term_details }}'
+      reseller: '{{ item.reseller }}'
+      resource_uri: '{{ item.resource_uri }}'
+      sku_description: '{{ item.sku_description }}'
+      sku_id: '{{ item.sku_id }}'
+      subscription_enrollment_account_status: '{{ item.subscription_enrollment_account_status
+        }}'
+      subscription_id: '{{ item.subscription_id }}'
+      suspension_reason_details: '{{ item.suspension_reason_details }}'
+      suspension_reasons: '{{ item.suspension_reasons }}'
+      system_data: '{{ item.system_data }}'
+      system_overrides: '{{ item.system_overrides }}'
+      term_duration: '{{ item.term_duration }}'
+      term_end_date: '{{ item.term_end_date }}'
+      term_start_date: '{{ item.term_start_date }}'
+- discovery_id: azure.billing.billingroledefinition.list_by_invoice_section
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingroledefinition.list_by_invoice_section
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.billingsubscriptions.get_by_billing_profile
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingsubscriptions.get_by_billing_profile
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.billingsubscriptions.list_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingsubscriptions.list_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      applied_scope_properties: '{{ item.applied_scope_properties }}'
+      applied_scope_type: '{{ item.applied_scope_type }}'
+      benefit_start_time: '{{ item.benefit_start_time }}'
+      billing_account_id: '{{ item.billing_account_id }}'
+      billing_plan: '{{ item.billing_plan }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_scope_id: '{{ item.billing_scope_id }}'
+      commitment: '{{ item.commitment }}'
+      customer_id: '{{ item.customer_id }}'
+      display_name: '{{ item.display_name }}'
+      display_provisioning_state: '{{ item.display_provisioning_state }}'
+      effective_date_time: '{{ item.effective_date_time }}'
+      expiry_date_time: '{{ item.expiry_date_time }}'
+      extended_status_info: '{{ item.extended_status_info }}'
+      product_code: '{{ item.product_code }}'
+      purchase_date_time: '{{ item.purchase_date_time }}'
+      renew: '{{ item.renew }}'
+      renew_destination: '{{ item.renew_destination }}'
+      renew_properties: '{{ item.renew_properties }}'
+      renew_source: '{{ item.renew_source }}'
+      system_data: '{{ item.system_data }}'
+      term: '{{ item.term }}'
+      user_friendly_applied_scope_type: '{{ item.user_friendly_applied_scope_type
+        }}'
+      utilization: '{{ item.utilization }}'
+- discovery_id: azure.billing.billingsubscriptions.list_by_billing_profile
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingsubscriptions.list_by_billing_profile
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.billingsubscriptions.list_by_customer
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingsubscriptions.list_by_customer
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.billingsubscriptions.list_by_customer_at_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingsubscriptions.list_by_customer_at_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      status: '{{ item.status }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      auto_renew: '{{ item.auto_renew }}'
+      beneficiary: '{{ item.beneficiary }}'
+      beneficiary_tenant_id: '{{ item.beneficiary_tenant_id }}'
+      billing_frequency: '{{ item.billing_frequency }}'
+      billing_policies: '{{ item.billing_policies }}'
+      billing_profile_display_name: '{{ item.billing_profile_display_name }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_profile_name: '{{ item.billing_profile_name }}'
+      consumption_cost_center: '{{ item.consumption_cost_center }}'
+      customer_display_name: '{{ item.customer_display_name }}'
+      customer_id: '{{ item.customer_id }}'
+      customer_name: '{{ item.customer_name }}'
+      display_name: '{{ item.display_name }}'
+      enrollment_account_display_name: '{{ item.enrollment_account_display_name }}'
+      enrollment_account_id: '{{ item.enrollment_account_id }}'
+      enrollment_account_start_date: '{{ item.enrollment_account_start_date }}'
+      invoice_section_display_name: '{{ item.invoice_section_display_name }}'
+      invoice_section_id: '{{ item.invoice_section_id }}'
+      invoice_section_name: '{{ item.invoice_section_name }}'
+      last_month_charges: '{{ item.last_month_charges }}'
+      month_to_date_charges: '{{ item.month_to_date_charges }}'
+      next_billing_cycle_details: '{{ item.next_billing_cycle_details }}'
+      offer_id: '{{ item.offer_id }}'
+      operation_status: '{{ item.operation_status }}'
+      product_category: '{{ item.product_category }}'
+      product_type: '{{ item.product_type }}'
+      product_type_id: '{{ item.product_type_id }}'
+      provisioning_tenant_id: '{{ item.provisioning_tenant_id }}'
+      purchase_date: '{{ item.purchase_date }}'
+      quantity: '{{ item.quantity }}'
+      renewal_term_details: '{{ item.renewal_term_details }}'
+      reseller: '{{ item.reseller }}'
+      resource_uri: '{{ item.resource_uri }}'
+      sku_description: '{{ item.sku_description }}'
+      sku_id: '{{ item.sku_id }}'
+      subscription_enrollment_account_status: '{{ item.subscription_enrollment_account_status
+        }}'
+      subscription_id: '{{ item.subscription_id }}'
+      suspension_reason_details: '{{ item.suspension_reason_details }}'
+      suspension_reasons: '{{ item.suspension_reasons }}'
+      system_data: '{{ item.system_data }}'
+      system_overrides: '{{ item.system_overrides }}'
+      term_duration: '{{ item.term_duration }}'
+      term_end_date: '{{ item.term_end_date }}'
+      term_start_date: '{{ item.term_start_date }}'
+- discovery_id: azure.billing.billingsubscriptions.list_by_enrollment_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingsubscriptions.list_by_enrollment_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      status: '{{ item.status }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      auto_renew: '{{ item.auto_renew }}'
+      beneficiary: '{{ item.beneficiary }}'
+      beneficiary_tenant_id: '{{ item.beneficiary_tenant_id }}'
+      billing_frequency: '{{ item.billing_frequency }}'
+      billing_policies: '{{ item.billing_policies }}'
+      billing_profile_display_name: '{{ item.billing_profile_display_name }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_profile_name: '{{ item.billing_profile_name }}'
+      consumption_cost_center: '{{ item.consumption_cost_center }}'
+      customer_display_name: '{{ item.customer_display_name }}'
+      customer_id: '{{ item.customer_id }}'
+      customer_name: '{{ item.customer_name }}'
+      display_name: '{{ item.display_name }}'
+      enrollment_account_display_name: '{{ item.enrollment_account_display_name }}'
+      enrollment_account_id: '{{ item.enrollment_account_id }}'
+      enrollment_account_start_date: '{{ item.enrollment_account_start_date }}'
+      invoice_section_display_name: '{{ item.invoice_section_display_name }}'
+      invoice_section_id: '{{ item.invoice_section_id }}'
+      invoice_section_name: '{{ item.invoice_section_name }}'
+      last_month_charges: '{{ item.last_month_charges }}'
+      month_to_date_charges: '{{ item.month_to_date_charges }}'
+      next_billing_cycle_details: '{{ item.next_billing_cycle_details }}'
+      offer_id: '{{ item.offer_id }}'
+      operation_status: '{{ item.operation_status }}'
+      product_category: '{{ item.product_category }}'
+      product_type: '{{ item.product_type }}'
+      product_type_id: '{{ item.product_type_id }}'
+      provisioning_tenant_id: '{{ item.provisioning_tenant_id }}'
+      purchase_date: '{{ item.purchase_date }}'
+      quantity: '{{ item.quantity }}'
+      renewal_term_details: '{{ item.renewal_term_details }}'
+      reseller: '{{ item.reseller }}'
+      resource_uri: '{{ item.resource_uri }}'
+      sku_description: '{{ item.sku_description }}'
+      sku_id: '{{ item.sku_id }}'
+      subscription_enrollment_account_status: '{{ item.subscription_enrollment_account_status
+        }}'
+      subscription_id: '{{ item.subscription_id }}'
+      suspension_reason_details: '{{ item.suspension_reason_details }}'
+      suspension_reasons: '{{ item.suspension_reasons }}'
+      system_data: '{{ item.system_data }}'
+      system_overrides: '{{ item.system_overrides }}'
+      term_duration: '{{ item.term_duration }}'
+      term_end_date: '{{ item.term_end_date }}'
+      term_start_date: '{{ item.term_start_date }}'
+- discovery_id: azure.billing.billingsubscriptions.list_by_invoice_section
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingsubscriptions.list_by_invoice_section
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.billingsubscriptionsaliases.list_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: billingsubscriptionsaliases.list_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      applied_scope_properties: '{{ item.applied_scope_properties }}'
+      applied_scope_type: '{{ item.applied_scope_type }}'
+      benefit_start_time: '{{ item.benefit_start_time }}'
+      billing_account_id: '{{ item.billing_account_id }}'
+      billing_plan: '{{ item.billing_plan }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_scope_id: '{{ item.billing_scope_id }}'
+      commitment: '{{ item.commitment }}'
+      customer_id: '{{ item.customer_id }}'
+      display_name: '{{ item.display_name }}'
+      display_provisioning_state: '{{ item.display_provisioning_state }}'
+      effective_date_time: '{{ item.effective_date_time }}'
+      expiry_date_time: '{{ item.expiry_date_time }}'
+      extended_status_info: '{{ item.extended_status_info }}'
+      product_code: '{{ item.product_code }}'
+      purchase_date_time: '{{ item.purchase_date_time }}'
+      renew: '{{ item.renew }}'
+      renew_destination: '{{ item.renew_destination }}'
+      renew_properties: '{{ item.renew_properties }}'
+      renew_source: '{{ item.renew_source }}'
+      system_data: '{{ item.system_data }}'
+      term: '{{ item.term }}'
+      user_friendly_applied_scope_type: '{{ item.user_friendly_applied_scope_type
+        }}'
+      utilization: '{{ item.utilization }}'
+- discovery_id: azure.billing.customers.get_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: customers.get_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.customers.list_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: customers.list_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      applied_scope_properties: '{{ item.applied_scope_properties }}'
+      applied_scope_type: '{{ item.applied_scope_type }}'
+      benefit_start_time: '{{ item.benefit_start_time }}'
+      billing_account_id: '{{ item.billing_account_id }}'
+      billing_plan: '{{ item.billing_plan }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_scope_id: '{{ item.billing_scope_id }}'
+      commitment: '{{ item.commitment }}'
+      customer_id: '{{ item.customer_id }}'
+      display_name: '{{ item.display_name }}'
+      display_provisioning_state: '{{ item.display_provisioning_state }}'
+      effective_date_time: '{{ item.effective_date_time }}'
+      expiry_date_time: '{{ item.expiry_date_time }}'
+      extended_status_info: '{{ item.extended_status_info }}'
+      product_code: '{{ item.product_code }}'
+      purchase_date_time: '{{ item.purchase_date_time }}'
+      renew: '{{ item.renew }}'
+      renew_destination: '{{ item.renew_destination }}'
+      renew_properties: '{{ item.renew_properties }}'
+      renew_source: '{{ item.renew_source }}'
+      system_data: '{{ item.system_data }}'
+      term: '{{ item.term }}'
+      user_friendly_applied_scope_type: '{{ item.user_friendly_applied_scope_type
+        }}'
+      utilization: '{{ item.utilization }}'
+- discovery_id: azure.billing.customers.list_by_billing_profile
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: customers.list_by_billing_profile
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.departments.list_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: departments.list_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      applied_scope_properties: '{{ item.applied_scope_properties }}'
+      applied_scope_type: '{{ item.applied_scope_type }}'
+      benefit_start_time: '{{ item.benefit_start_time }}'
+      billing_account_id: '{{ item.billing_account_id }}'
+      billing_plan: '{{ item.billing_plan }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_scope_id: '{{ item.billing_scope_id }}'
+      commitment: '{{ item.commitment }}'
+      customer_id: '{{ item.customer_id }}'
+      display_name: '{{ item.display_name }}'
+      display_provisioning_state: '{{ item.display_provisioning_state }}'
+      effective_date_time: '{{ item.effective_date_time }}'
+      expiry_date_time: '{{ item.expiry_date_time }}'
+      extended_status_info: '{{ item.extended_status_info }}'
+      product_code: '{{ item.product_code }}'
+      purchase_date_time: '{{ item.purchase_date_time }}'
+      renew: '{{ item.renew }}'
+      renew_destination: '{{ item.renew_destination }}'
+      renew_properties: '{{ item.renew_properties }}'
+      renew_source: '{{ item.renew_source }}'
+      system_data: '{{ item.system_data }}'
+      term: '{{ item.term }}'
+      user_friendly_applied_scope_type: '{{ item.user_friendly_applied_scope_type
+        }}'
+      utilization: '{{ item.utilization }}'
+- discovery_id: azure.billing.enrollmentaccounts.get_by_department
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: enrollmentaccounts.get_by_department
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.enrollmentaccounts.list_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: enrollmentaccounts.list_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      applied_scope_properties: '{{ item.applied_scope_properties }}'
+      applied_scope_type: '{{ item.applied_scope_type }}'
+      benefit_start_time: '{{ item.benefit_start_time }}'
+      billing_account_id: '{{ item.billing_account_id }}'
+      billing_plan: '{{ item.billing_plan }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_scope_id: '{{ item.billing_scope_id }}'
+      commitment: '{{ item.commitment }}'
+      customer_id: '{{ item.customer_id }}'
+      display_name: '{{ item.display_name }}'
+      display_provisioning_state: '{{ item.display_provisioning_state }}'
+      effective_date_time: '{{ item.effective_date_time }}'
+      expiry_date_time: '{{ item.expiry_date_time }}'
+      extended_status_info: '{{ item.extended_status_info }}'
+      product_code: '{{ item.product_code }}'
+      purchase_date_time: '{{ item.purchase_date_time }}'
+      renew: '{{ item.renew }}'
+      renew_destination: '{{ item.renew_destination }}'
+      renew_properties: '{{ item.renew_properties }}'
+      renew_source: '{{ item.renew_source }}'
+      system_data: '{{ item.system_data }}'
+      term: '{{ item.term }}'
+      user_friendly_applied_scope_type: '{{ item.user_friendly_applied_scope_type
+        }}'
+      utilization: '{{ item.utilization }}'
+- discovery_id: azure.billing.enrollmentaccounts.list_by_department
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: enrollmentaccounts.list_by_department
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.invoices.get_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: invoices.get_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+      invoice_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.invoices.get_by_billing_subscription
+  for_each: azure.billing.invoices.list_by_billing_subscription
+  calls:
+  - action: invoices.get_by_billing_subscription
+    save_as: response
+    on_error: continue
+    params:
+      invoice_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.invoices.list_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: invoices.list_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      applied_scope_properties: '{{ item.applied_scope_properties }}'
+      applied_scope_type: '{{ item.applied_scope_type }}'
+      benefit_start_time: '{{ item.benefit_start_time }}'
+      billing_account_id: '{{ item.billing_account_id }}'
+      billing_plan: '{{ item.billing_plan }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_scope_id: '{{ item.billing_scope_id }}'
+      commitment: '{{ item.commitment }}'
+      customer_id: '{{ item.customer_id }}'
+      display_name: '{{ item.display_name }}'
+      display_provisioning_state: '{{ item.display_provisioning_state }}'
+      effective_date_time: '{{ item.effective_date_time }}'
+      expiry_date_time: '{{ item.expiry_date_time }}'
+      extended_status_info: '{{ item.extended_status_info }}'
+      product_code: '{{ item.product_code }}'
+      purchase_date_time: '{{ item.purchase_date_time }}'
+      renew: '{{ item.renew }}'
+      renew_destination: '{{ item.renew_destination }}'
+      renew_properties: '{{ item.renew_properties }}'
+      renew_source: '{{ item.renew_source }}'
+      system_data: '{{ item.system_data }}'
+      term: '{{ item.term }}'
+      user_friendly_applied_scope_type: '{{ item.user_friendly_applied_scope_type
+        }}'
+      utilization: '{{ item.utilization }}'
+- discovery_id: azure.billing.invoices.list_by_billing_profile
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: invoices.list_by_billing_profile
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.invoicesections.list_by_billing_profile
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: invoicesections.list_by_billing_profile
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.partnertransfers.list
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: partnertransfers.list
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      canceled_by: '{{ item.canceled_by }}'
+      detailed_transfer_status: '{{ item.detailed_transfer_status }}'
+      expiration_time: '{{ item.expiration_time }}'
+      initiator_email_id: '{{ item.initiator_email_id }}'
+      recipient_email_id: '{{ item.recipient_email_id }}'
+      system_data: '{{ item.system_data }}'
+      transfer_status: '{{ item.transfer_status }}'
+- discovery_id: azure.billing.paymentmethods.get_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: paymentmethods.get_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+      payment_method_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.paymentmethods.get_by_billing_profile
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: paymentmethods.get_by_billing_profile
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+      payment_method_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.paymentmethods.get_by_user
+  for_each: azure.billing.paymentmethods.list_by_user
+  calls:
+  - action: paymentmethods.get_by_user
+    save_as: response
+    on_error: continue
+    params:
+      payment_method_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.paymentmethods.list_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: paymentmethods.list_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      applied_scope_properties: '{{ item.applied_scope_properties }}'
+      applied_scope_type: '{{ item.applied_scope_type }}'
+      benefit_start_time: '{{ item.benefit_start_time }}'
+      billing_account_id: '{{ item.billing_account_id }}'
+      billing_plan: '{{ item.billing_plan }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_scope_id: '{{ item.billing_scope_id }}'
+      commitment: '{{ item.commitment }}'
+      customer_id: '{{ item.customer_id }}'
+      display_name: '{{ item.display_name }}'
+      display_provisioning_state: '{{ item.display_provisioning_state }}'
+      effective_date_time: '{{ item.effective_date_time }}'
+      expiry_date_time: '{{ item.expiry_date_time }}'
+      extended_status_info: '{{ item.extended_status_info }}'
+      product_code: '{{ item.product_code }}'
+      purchase_date_time: '{{ item.purchase_date_time }}'
+      renew: '{{ item.renew }}'
+      renew_destination: '{{ item.renew_destination }}'
+      renew_properties: '{{ item.renew_properties }}'
+      renew_source: '{{ item.renew_source }}'
+      system_data: '{{ item.system_data }}'
+      term: '{{ item.term }}'
+      user_friendly_applied_scope_type: '{{ item.user_friendly_applied_scope_type
+        }}'
+      utilization: '{{ item.utilization }}'
+- discovery_id: azure.billing.paymentmethods.list_by_billing_profile
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: paymentmethods.list_by_billing_profile
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.policies.get_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: policies.get_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.policies.get_by_billing_profile
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: policies.get_by_billing_profile
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.policies.get_by_customer
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: policies.get_by_customer
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.policies.get_by_customer_at_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: policies.get_by_customer_at_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.products.list_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: products.list_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      applied_scope_properties: '{{ item.applied_scope_properties }}'
+      applied_scope_type: '{{ item.applied_scope_type }}'
+      benefit_start_time: '{{ item.benefit_start_time }}'
+      billing_account_id: '{{ item.billing_account_id }}'
+      billing_plan: '{{ item.billing_plan }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_scope_id: '{{ item.billing_scope_id }}'
+      commitment: '{{ item.commitment }}'
+      customer_id: '{{ item.customer_id }}'
+      display_name: '{{ item.display_name }}'
+      display_provisioning_state: '{{ item.display_provisioning_state }}'
+      effective_date_time: '{{ item.effective_date_time }}'
+      expiry_date_time: '{{ item.expiry_date_time }}'
+      extended_status_info: '{{ item.extended_status_info }}'
+      product_code: '{{ item.product_code }}'
+      purchase_date_time: '{{ item.purchase_date_time }}'
+      renew: '{{ item.renew }}'
+      renew_destination: '{{ item.renew_destination }}'
+      renew_properties: '{{ item.renew_properties }}'
+      renew_source: '{{ item.renew_source }}'
+      system_data: '{{ item.system_data }}'
+      term: '{{ item.term }}'
+      user_friendly_applied_scope_type: '{{ item.user_friendly_applied_scope_type
+        }}'
+      utilization: '{{ item.utilization }}'
+- discovery_id: azure.billing.products.list_by_billing_profile
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: products.list_by_billing_profile
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.products.list_by_customer
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: products.list_by_customer
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.products.list_by_invoice_section
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: products.list_by_invoice_section
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.reservationorders.get_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: reservationorders.get_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+      reservation_order_id: '{{ item.id }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.reservationorders.list_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: reservationorders.list_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      applied_scope_properties: '{{ item.applied_scope_properties }}'
+      applied_scope_type: '{{ item.applied_scope_type }}'
+      benefit_start_time: '{{ item.benefit_start_time }}'
+      billing_account_id: '{{ item.billing_account_id }}'
+      billing_plan: '{{ item.billing_plan }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_scope_id: '{{ item.billing_scope_id }}'
+      commitment: '{{ item.commitment }}'
+      customer_id: '{{ item.customer_id }}'
+      display_name: '{{ item.display_name }}'
+      display_provisioning_state: '{{ item.display_provisioning_state }}'
+      effective_date_time: '{{ item.effective_date_time }}'
+      expiry_date_time: '{{ item.expiry_date_time }}'
+      extended_status_info: '{{ item.extended_status_info }}'
+      product_code: '{{ item.product_code }}'
+      purchase_date_time: '{{ item.purchase_date_time }}'
+      renew: '{{ item.renew }}'
+      renew_destination: '{{ item.renew_destination }}'
+      renew_properties: '{{ item.renew_properties }}'
+      renew_source: '{{ item.renew_source }}'
+      system_data: '{{ item.system_data }}'
+      term: '{{ item.term }}'
+      user_friendly_applied_scope_type: '{{ item.user_friendly_applied_scope_type
+        }}'
+      utilization: '{{ item.utilization }}'
+- discovery_id: azure.billing.reservations.get_by_reservation_order
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: reservations.get_by_reservation_order
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+      reservation_order_id: '{{ item.id }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.reservations.list_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: reservations.list_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      applied_scope_properties: '{{ item.applied_scope_properties }}'
+      applied_scope_type: '{{ item.applied_scope_type }}'
+      benefit_start_time: '{{ item.benefit_start_time }}'
+      billing_account_id: '{{ item.billing_account_id }}'
+      billing_plan: '{{ item.billing_plan }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_scope_id: '{{ item.billing_scope_id }}'
+      commitment: '{{ item.commitment }}'
+      customer_id: '{{ item.customer_id }}'
+      display_name: '{{ item.display_name }}'
+      display_provisioning_state: '{{ item.display_provisioning_state }}'
+      effective_date_time: '{{ item.effective_date_time }}'
+      expiry_date_time: '{{ item.expiry_date_time }}'
+      extended_status_info: '{{ item.extended_status_info }}'
+      product_code: '{{ item.product_code }}'
+      purchase_date_time: '{{ item.purchase_date_time }}'
+      renew: '{{ item.renew }}'
+      renew_destination: '{{ item.renew_destination }}'
+      renew_properties: '{{ item.renew_properties }}'
+      renew_source: '{{ item.renew_source }}'
+      system_data: '{{ item.system_data }}'
+      term: '{{ item.term }}'
+      user_friendly_applied_scope_type: '{{ item.user_friendly_applied_scope_type
+        }}'
+      utilization: '{{ item.utilization }}'
+- discovery_id: azure.billing.reservations.list_by_billing_profile
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: reservations.list_by_billing_profile
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.reservations.list_by_reservation_order
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: reservations.list_by_reservation_order
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+      reservation_order_id: '{{ item.id }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      aggregates: '{{ item.aggregates }}'
+      applied_scope_properties: '{{ item.applied_scope_properties }}'
+      applied_scope_type: '{{ item.applied_scope_type }}'
+      applied_scopes: '{{ item.applied_scopes }}'
+      archived: '{{ item.archived }}'
+      benefit_start_time: '{{ item.benefit_start_time }}'
+      billing_plan: '{{ item.billing_plan }}'
+      billing_scope_id: '{{ item.billing_scope_id }}'
+      capabilities: '{{ item.capabilities }}'
+      display_name: '{{ item.display_name }}'
+      display_provisioning_state: '{{ item.display_provisioning_state }}'
+      effective_date_time: '{{ item.effective_date_time }}'
+      etag: '{{ item.etag }}'
+      expiry_date: '{{ item.expiry_date }}'
+      expiry_date_time: '{{ item.expiry_date_time }}'
+      extended_status_info: '{{ item.extended_status_info }}'
+      instance_flexibility: '{{ item.instance_flexibility }}'
+      last_updated_date_time: '{{ item.last_updated_date_time }}'
+      merge_properties: '{{ item.merge_properties }}'
+      product_code: '{{ item.product_code }}'
+      provisioning_sub_state: '{{ item.provisioning_sub_state }}'
+      purchase_date: '{{ item.purchase_date }}'
+      purchase_date_time: '{{ item.purchase_date_time }}'
+      quantity: '{{ item.quantity }}'
+      renew: '{{ item.renew }}'
+      renew_destination: '{{ item.renew_destination }}'
+      renew_properties: '{{ item.renew_properties }}'
+      renew_source: '{{ item.renew_source }}'
+      reserved_resource_type: '{{ item.reserved_resource_type }}'
+      review_date_time: '{{ item.review_date_time }}'
+      sku_description: '{{ item.sku_description }}'
+      split_properties: '{{ item.split_properties }}'
+      swap_properties: '{{ item.swap_properties }}'
+      system_data: '{{ item.system_data }}'
+      term: '{{ item.term }}'
+      trend: '{{ item.trend }}'
+      user_friendly_applied_scope_type: '{{ item.user_friendly_applied_scope_type
+        }}'
+      user_friendly_renew_state: '{{ item.user_friendly_renew_state }}'
+- discovery_id: azure.billing.savingsplanorders.get_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: savingsplanorders.get_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+      savings_plan_order_id: '{{ item.id }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.savingsplanorders.list_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: savingsplanorders.list_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      applied_scope_properties: '{{ item.applied_scope_properties }}'
+      applied_scope_type: '{{ item.applied_scope_type }}'
+      benefit_start_time: '{{ item.benefit_start_time }}'
+      billing_account_id: '{{ item.billing_account_id }}'
+      billing_plan: '{{ item.billing_plan }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_scope_id: '{{ item.billing_scope_id }}'
+      commitment: '{{ item.commitment }}'
+      customer_id: '{{ item.customer_id }}'
+      display_name: '{{ item.display_name }}'
+      display_provisioning_state: '{{ item.display_provisioning_state }}'
+      effective_date_time: '{{ item.effective_date_time }}'
+      expiry_date_time: '{{ item.expiry_date_time }}'
+      extended_status_info: '{{ item.extended_status_info }}'
+      product_code: '{{ item.product_code }}'
+      purchase_date_time: '{{ item.purchase_date_time }}'
+      renew: '{{ item.renew }}'
+      renew_destination: '{{ item.renew_destination }}'
+      renew_properties: '{{ item.renew_properties }}'
+      renew_source: '{{ item.renew_source }}'
+      system_data: '{{ item.system_data }}'
+      term: '{{ item.term }}'
+      user_friendly_applied_scope_type: '{{ item.user_friendly_applied_scope_type
+        }}'
+      utilization: '{{ item.utilization }}'
+- discovery_id: azure.billing.savingsplans.get_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: savingsplans.get_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+      savings_plan_order_id: '{{ item.id }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.savingsplans.list_by_billing_account
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: savingsplans.list_by_billing_account
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      applied_scope_properties: '{{ item.applied_scope_properties }}'
+      applied_scope_type: '{{ item.applied_scope_type }}'
+      benefit_start_time: '{{ item.benefit_start_time }}'
+      billing_account_id: '{{ item.billing_account_id }}'
+      billing_plan: '{{ item.billing_plan }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_scope_id: '{{ item.billing_scope_id }}'
+      commitment: '{{ item.commitment }}'
+      customer_id: '{{ item.customer_id }}'
+      display_name: '{{ item.display_name }}'
+      display_provisioning_state: '{{ item.display_provisioning_state }}'
+      effective_date_time: '{{ item.effective_date_time }}'
+      expiry_date_time: '{{ item.expiry_date_time }}'
+      extended_status_info: '{{ item.extended_status_info }}'
+      product_code: '{{ item.product_code }}'
+      purchase_date_time: '{{ item.purchase_date_time }}'
+      renew: '{{ item.renew }}'
+      renew_destination: '{{ item.renew_destination }}'
+      renew_properties: '{{ item.renew_properties }}'
+      renew_source: '{{ item.renew_source }}'
+      system_data: '{{ item.system_data }}'
+      term: '{{ item.term }}'
+      user_friendly_applied_scope_type: '{{ item.user_friendly_applied_scope_type
+        }}'
+      utilization: '{{ item.utilization }}'
+- discovery_id: azure.billing.savingsplans.list_by_savings_plan_order
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: savingsplans.list_by_savings_plan_order
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+      savings_plan_order_id: '{{ item.id }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      applied_scope_properties: '{{ item.applied_scope_properties }}'
+      applied_scope_type: '{{ item.applied_scope_type }}'
+      benefit_start_time: '{{ item.benefit_start_time }}'
+      billing_account_id: '{{ item.billing_account_id }}'
+      billing_plan: '{{ item.billing_plan }}'
+      billing_profile_id: '{{ item.billing_profile_id }}'
+      billing_scope_id: '{{ item.billing_scope_id }}'
+      commitment: '{{ item.commitment }}'
+      customer_id: '{{ item.customer_id }}'
+      display_name: '{{ item.display_name }}'
+      display_provisioning_state: '{{ item.display_provisioning_state }}'
+      effective_date_time: '{{ item.effective_date_time }}'
+      expiry_date_time: '{{ item.expiry_date_time }}'
+      extended_status_info: '{{ item.extended_status_info }}'
+      product_code: '{{ item.product_code }}'
+      purchase_date_time: '{{ item.purchase_date_time }}'
+      renew: '{{ item.renew }}'
+      renew_destination: '{{ item.renew_destination }}'
+      renew_properties: '{{ item.renew_properties }}'
+      renew_source: '{{ item.renew_source }}'
+      system_data: '{{ item.system_data }}'
+      term: '{{ item.term }}'
+      user_friendly_applied_scope_type: '{{ item.user_friendly_applied_scope_type
+        }}'
+      utilization: '{{ item.utilization }}'
+- discovery_id: azure.billing.transactions.get_transaction_summary_by_invoice
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: transactions.get_transaction_summary_by_invoice
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+      invoice_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.billing.transactions.list_by_billing_profile
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: transactions.list_by_billing_profile
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+      type: '{{ item.type }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.transactions.list_by_customer
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: transactions.list_by_customer
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+      type: '{{ item.type }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.transactions.list_by_invoice
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: transactions.list_by_invoice
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+      invoice_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.transactions.list_by_invoice_section
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: transactions.list_by_invoice_section
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+      type: '{{ item.type }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.billing.transfers.list
+  for_each: azure.billing.billingaccounts.list
+  calls:
+  - action: transfers.list
+    save_as: response
+    on_error: continue
+    params:
+      billing_account_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      canceled_by: '{{ item.canceled_by }}'
+      detailed_transfer_status: '{{ item.detailed_transfer_status }}'
+      expiration_time: '{{ item.expiration_time }}'
+      initiator_email_id: '{{ item.initiator_email_id }}'
+      recipient_email_id: '{{ item.recipient_email_id }}'
+      system_data: '{{ item.system_data }}'
+      transfer_status: '{{ item.transfer_status }}'
+- discovery_id: azure.billing.recipient_transfers_list
+  calls:
+  - action: RecipientTransfers_List
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      id: '{{ item.id }}'
+      name: '{{ item.name }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      tags: '{{ item.tags }}'

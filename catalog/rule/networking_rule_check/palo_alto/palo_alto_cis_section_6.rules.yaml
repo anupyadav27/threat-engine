@@ -1,0 +1,589 @@
+tech_type: palo_alto
+category: networking
+cis_benchmark: CIS Palo Alto Networks 11 v1.1.0
+cis_section: '6'
+
+rules:
+
+  - rule_id: palo_alto.cis.6.antivirus_profiles_are_set_to_reset_both_on_all
+    title: "Ensure that antivirus profiles are set to reset-both on all decoders except 'imap' and 'pop3'"
+    severity: high
+    automation_type: automated
+    cis_control: '6.1'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: palo_alto.section_6.antivirus_profiles_are_set_to_reset_both_on_all
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Navigate to Objects > Security Profiles > Antivirus. Set antivirus profiles to
+      have all decoders set to reset-both for both Action and Wildfire Action. If
+      imap and pop3 are required in the organization, set the imap and pop3 decoders
+      to alert for both Action and Wildfire Action. Default Value: Not Configured
+      References: 1. “Threat Prevention Deployment Tech Note” -
+      https://live.paloaltonetworks.com/docs/DOC-3094 2. “PAN-OS Administrator's
+      Guide 11.1 (English) - Security Profiles” -
+      https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-admin/policy/security-
+      profiles 3. 'KB on reset-server, reset-client or silent drop' -
+      https://knowledgebase.paloaltonetworks.com/KCSArticleDetail?id=kA10g000000
+      ClTaCAK
+    compliance:
+      - cis_palo_alto_11_v1_1_0_6_1
+
+  - rule_id: palo_alto.cis.6.an_anti_spyware_profile_is_configured_to_block_on
+    title: "Ensure an anti-spyware profile is configured to block on all spyware severity levels, categories, and threats"
+    severity: high
+    automation_type: automated
+    cis_control: '6.3'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: palo_alto.section_6.an_anti_spyware_profile_is_configured_to_block_on
+    assertion:
+      field: value
+      operator: exists
+      expected: "on"
+    remediation: >
+      Navigate to Objects > Security Profiles > Anti-Spyware. Set a rule within the
+      anti-spyware profile that is configured to perform the reset-both on any
+      Severity level, any Category, and any Threat Name. Default Value: Two Anti-
+      Spyware Security Profiles are configured by default 'strict' and 'default'.
+      References: 1. 'PAN OS Administrator's Guide 11.1 (English) - Anti-Spyware
+      Profile' - https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-web-interface-
+      help/objects/objects-security-profiles-anti-spyware-profile
+    compliance:
+      - cis_palo_alto_11_v1_1_0_6_3
+
+  - rule_id: palo_alto.cis.6.dns_sinkholing_is_configured_on_all_anti_spyware
+    title: "Ensure DNS sinkholing is configured on all anti-spyware profiles in use"
+    severity: high
+    automation_type: automated
+    cis_control: '6.4'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: palo_alto.section_6.dns_sinkholing_is_configured_on_all_anti_spyware
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Navigate to Objects > Security Profiles > Anti-Spyware. Within the each anti-
+      spyware profile, under its DNS Policies tab, set the Signature Source List:
+      default-paloalto-dns should have as its Policy Action set to sinkhole If
+      licensed, the DNS Security should have as its Policy Action set to sinkhole
+      Verify the 'Sinkhole IPv4' IP address is correct. This should be set to
+      sinkhole.paloaltnetworks.com, or if an internal host is set then that host IP
+      or FQDN should be in that field Verify the 'Sinkhole IPv6' IP address is
+      correct. This should be set to IPv6 Loopback IP (::1), or if an internal DNS
+      Sinkhole host is set then that host IP or FQDN should be in that field
+      Navigate to Policies > Security Policies For each outbound security Policy, in
+      the Actions tab, set the Anti-Spyware setting to include the Spyware Profile
+      created, either explicitly or as a Group Profile Default Value: Not Configured
+      References: 1. “How to Deal with Conficker using DNS Sinkhole” -
+      https://live.paloaltonetworks.com/docs/DOC-6628 2. “Threat Prevention
+      Deployment Tech Note” - https://live.paloaltonetworks.com/docs/DOC-3094 3.
+      'PAN OS Administrator's Guide 11.1 (English) - Anti-Spyware Profile' -
+      https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-web-interface-
+      help/objects/objects-security-profiles-anti-spyware-profile
+    compliance:
+      - cis_palo_alto_11_v1_1_0_6_4
+
+  - rule_id: palo_alto.cis.6.a_secure_anti_spyware_profile_is_applied_to_all
+    title: "Ensure a secure anti-spyware profile is applied to all security policies permitting traffic to the Internet"
+    severity: high
+    automation_type: automated
+    cis_control: '6.5'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: palo_alto.section_6.a_secure_anti_spyware_profile_is_applied_to_all
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Navigate to Objects > Security Profiles > Anti-Spyware. Also navigate to
+      Policies > Security. Set one or more anti-spyware profiles to collectively
+      apply to all inside to outside traffic from any address to any address and any
+      application and service. Default Value: Not Configured References: 1. “Threat
+      Prevention Deployment Tech Note” -
+      https://live.paloaltonetworks.com/docs/DOC-3094 2. “PAN-OS Administrator's
+      Guide 9.0 (English) - Security Profiles” -
+      https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-admin/policy/security-
+      profiles
+    compliance:
+      - cis_palo_alto_11_v1_1_0_6_5
+
+  - rule_id: palo_alto.cis.6.a_vulnerability_protection_profile_is_set_to
+    title: "Ensure a Vulnerability Protection Profile is set to block attacks against critical and high vulnerabilities, and set to default on medium, low, and informational vulnerabilities"
+    severity: high
+    automation_type: automated
+    cis_control: '6.6'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: palo_alto.section_6.a_vulnerability_protection_profile_is_set_to
+    assertion:
+      field: length
+      operator: gte
+      expected: "on"
+    remediation: >
+      Navigate to Objects > Security Profiles > Vulnerability Protection. Set a
+      Vulnerability Protection Profile to block attacks against any critical or high
+      vulnerabilities (minimum), and to default on attacks against any medium, low,
+      or informational vulnerabilities. Default Value: Two Vulnerability Protection
+      Profiles are configured by default - 'strict' and 'default'. References: 1.
+      “Threat Prevention Deployment Tech Note” -
+      https://live.paloaltonetworks.com/docs/DOC-3094 2. “PAN-OS Administrator's
+      Guide 11.1 (English) - Security Profiles” -
+      https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-admin/policy/security-
+      profiles
+    compliance:
+      - cis_palo_alto_11_v1_1_0_6_6
+
+  - rule_id: palo_alto.cis.6.a_secure_vulnerability_protection_profile_is
+    title: "Ensure a secure Vulnerability Protection Profile is applied to all security rules allowing traffic"
+    severity: high
+    automation_type: automated
+    cis_control: '6.7'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: palo_alto.section_6.a_secure_vulnerability_protection_profile_is
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Navigate to Policies > Security. For each Policy, under the Actions tab,
+      select Vulnerability Protection. Set it to use either the 'Strict' or the
+      'Default' profile, or a custom profile that complies with the organization's
+      policies, legal and regulatory requirements. Default Value: Not Configured
+      References: 1. “Threat Prevention Deployment Tech Note” -
+      https://live.paloaltonetworks.com/docs/DOC-3094 2. “PAN-OS Administrator's
+      Guide 11.1 (English) - Security Policies” -
+      https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-admin/policy/security-
+      policy 3. “PAN-OS Administrator's Guide 11.1 (English) - Security Profiles” -
+      https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-admin/policy/security-
+      profiles
+    compliance:
+      - cis_palo_alto_11_v1_1_0_6_7
+
+  - rule_id: palo_alto.cis.6.pan_db_url_filtering_is_used
+    title: "Ensure that PAN-DB URL Filtering is used"
+    severity: high
+    automation_type: automated
+    cis_control: '6.8'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: palo_alto.section_6.pan_db_url_filtering_is_used
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Navigate to Device > Licenses. Click on PAN-DB URL Filtering. Set Active to
+      Yes. Default Value: Not Configured References: 1. “PAN-OS Administrator's
+      Guide 9.0 (English) - URL Filtering” - https://docs.paloaltonetworks.com/pan-
+      os/9-0/pan-os-admin/url-filtering.html 2. “PAN-OS Administrator's Guide 9.0
+      (English) - URL Filtering Best Practices' -
+      https://docs.paloaltonetworks.com/advanced-url-
+      filtering/administration/configuring-url-filtering/url-filtering-best-
+      practices
+    compliance:
+      - cis_palo_alto_11_v1_1_0_6_8
+
+  - rule_id: palo_alto.cis.6.url_filtering_uses_the_action_of_block_or
+    title: "Ensure that URL Filtering uses the action of “block” or “override” on the URL categories"
+    severity: high
+    automation_type: automated
+    cis_control: '6.9'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: palo_alto.section_6.url_filtering_uses_the_action_of_block_or
+    assertion:
+      field: length
+      operator: gte
+      expected: "true"
+    remediation: >
+      Navigate to Objects > Security Profiles > URL Filtering. Set a URL filter so
+      that all URL categories designated by the organization are listed. Navigate to
+      the Actions tab. Set the action to Block. Default Value: Not Configured
+      References: 1. “PAN-OS Administrator's Guide 11.1 (English) - Security
+      Profiles” - https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-
+      admin/policy/security- profiles 2. “PAN-OS Administrator's Guide 9.0 (English)
+      - URL Filtering” - https://docs.paloaltonetworks.com/pan-os/9-0/pan-os-
+      admin/url-filtering.html 3. “PAN-OS Admin Guide 9.0 (English) - URL Filtering
+      Best Practices' - https://docs.paloaltonetworks.com/advanced-url-
+      filtering/administration/configuring-url-filtering/url-filtering-best-
+      practices
+    compliance:
+      - cis_palo_alto_11_v1_1_0_6_9
+
+  - rule_id: palo_alto.cis.6.all_http_header_logging_options_are_enabled
+    title: "Ensure all HTTP Header Logging options are enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '6.11'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: palo_alto.section_6.all_http_header_logging_options_are_enabled
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Navigate to Objects > Security Profiles > URL Filtering > URL Filtering
+      Profile > URL Filtering Settings. Set the following four settings: a. Log
+      container page only box is un-checked b. Check the User-Agent box c. Check the
+      Referer box d. Check the X-Forwarded-For box Default Value: Not Configured
+      References: 1. “PAN-OS Administrator's Guide 11.1 (English) - URL Filtering
+      Best Practices' - https://docs.paloaltonetworks.com/advanced-url-
+      filtering/administration/configuring-url-filtering/url-filtering-best-
+      practices
+    compliance:
+      - cis_palo_alto_11_v1_1_0_6_11
+
+  - rule_id: palo_alto.cis.6.secure_url_filtering_is_enabled_for_all_security
+    title: "Ensure secure URL filtering is enabled for all security policies allowing traffic to the Internet"
+    severity: high
+    automation_type: automated
+    cis_control: '6.12'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: palo_alto.section_6.secure_url_filtering_is_enabled_for_all_security
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      To Set URL Filtering: For each Security Profile that transits traffic to the
+      internet, navigate to Policies > Security > Security Profiles > [Policy Name]
+      > Actions. Set a URL Filtering profile that complies with the policies of the
+      organization is applied to all Security Policies that transit traffic to the
+      public internet. Default Value: Not Configured References: 1. “PAN-OS
+      Administrator's Guide 11.1 (English) - URL Filtering Best Practices' -
+      https://docs.paloaltonetworks.com/advanced-url-
+      filtering/administration/configuring-url-filtering/url-filtering-best-
+      practices
+    compliance:
+      - cis_palo_alto_11_v1_1_0_6_12
+
+  - rule_id: palo_alto.cis.6.alerting_after_a_threshold_of_credit_card_or
+    title: "Ensure alerting after a threshold of credit card or Social Security numbers is detected is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '6.13'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: palo_alto.section_6.alerting_after_a_threshold_of_credit_card_or
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Navigate to Objects > Custom Objects > Data Patterns. Create an appropriate
+      Data Pattern that accounts for sensitive information within your organization.
+      In most cases this will include Credit Card Numbers, and your jurisdiction's
+      equivalent of Social Insurance Numbers. In many cases these can simply be
+      picked from the list of Predefined Patterns. Navigate to Objects > Security
+      Profiles > Data Filtering. Create appropriate Data Filtering Profile, using
+      the created Data Patterns. Ensure that an Alert Threshold is set that
+      generates alerts appropriately. A typical starting value for Alert Threshold
+      is 20, but this should be adjusted after appropriate testing. Default Value:
+      Not Configured References: 1. “What are the Data Filtering Best Practices?” -
+      https://live.paloaltonetworks.com/docs/DOC-2513 2. “PAN-OS Administrator's
+      Guide 9.0 (English) - Setting up Data Filtering' -
+      https://docs.paloaltonetworks.com/pan-os/9-0/pan-os-admin/threat-
+      prevention/set-up-data-filtering.html#
+    compliance:
+      - cis_palo_alto_11_v1_1_0_6_13
+
+  - rule_id: palo_alto.cis.6.a_secure_data_filtering_profile_is_applied_to_all
+    title: "Ensure a secure Data Filtering profile is applied to all security policies allowing traffic to or from the Internet"
+    severity: high
+    automation_type: automated
+    cis_control: '6.14'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: palo_alto.section_6.a_secure_data_filtering_profile_is_applied_to_all
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Navigate to Objects > Custom Objects > Data Patterns. Add patterns to match
+      the various data that you wish to monitor or make blocking decisions on.
+      Navigate to Objects > Security Profiles > Data Filtering Add a Filtering
+      Profile that matches the data you wish to monitor, with appropriate values for
+      Alert Threshold (typically 20), Block Threshold (typically 0) and Log
+      Serverity Finally, apply the Filtering Profile to a Security Profile. Navigate
+      to Policies > Security. Edit all appropriate policies, and for each Policy
+      choose the Actions tab, and add the appropriate Data Filtering Policy (either
+      as an individual Profile or as part of a Group Profile) Default Value: Not
+      Configured References: 1. “PAN-OS Administrator's Guide 9.0 (English) -
+      Setting up Data Filtering' - https://docs.paloaltonetworks.com/pan-os/9-0/pan-
+      os-admin/threat- prevention/set-up-data-filtering.html#
+    compliance:
+      - cis_palo_alto_11_v1_1_0_6_14
+
+  - rule_id: palo_alto.cis.6.a_zone_protection_profile_with_an_enabled_syn
+    title: "Ensure that a Zone Protection Profile with an enabled SYN Flood Action of SYN Cookies is attached to all untrusted zones"
+    severity: high
+    automation_type: automated
+    cis_control: '6.15'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: palo_alto.section_6.a_zone_protection_profile_with_an_enabled_syn
+    assertion:
+      field: enabled
+      operator: lte
+      expected: "true"
+    remediation: >
+      From GUI: Navigate to Network > Network Profiles > Zone Protection > Zone
+      Protection Profile > Flood Protection tab. Check the SYN box. Set the Action
+      dropdown to SYN Cookies Set Alert to 20000 (or appropriate for org). Set
+      Activate to 25000 (50% of maximum for firewall model). Set Maximum to 1000000
+      (or appropriate for org) Navigate to Network > Zones. Open the zone facing any
+      untrusted network, if one does not exist create it. Set Zone Protection to the
+      Zone Protection Profile created. Default Value: Not Configured References: 1.
+      “Understanding DoS Protection” - https://live.paloaltonetworks.com/docs/DOC-
+      5078 2. 'Syn Cookie Operation” -
+      https://live.paloaltonetworks.com/docs/DOC-1542 3. “How to Determine if
+      Configured DoS Classify TCP SYN Cookie Alarm, Activate and Maximal Rate is
+      Triggered” - https://live.paloaltonetworks.com/docs/DOC- 6801 4. “Threat
+      Prevention Deployment Tech Note” -
+      https://live.paloaltonetworks.com/docs/DOC-3094 5. “What are the Differences
+      between DoS Protection and Zone Protection?” -
+      https://live.paloaltonetworks.com/docs/DOC-4501 6. “Application DDoS
+      Mitigation” - https://live.paloaltonetworks.com/docs/DOC-7158 7. PANOS 11.1
+      Admin Guide - Zone Protection . Flood Protection -
+      https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-web-interface-
+      help/network/network-network-profiles/network-network-profiles-zone-
+      protection/flood-protection
+    compliance:
+      - cis_palo_alto_11_v1_1_0_6_15
+
+  - rule_id: palo_alto.cis.6.a_zone_protection_profile_with_tuned_flood
+    title: "Ensure that a Zone Protection Profile with tuned Flood Protection settings enabled for all flood types is attached to all untrusted zones"
+    severity: medium
+    automation_type: automated
+    cis_control: '6.16'
+    cis_section: '6'
+    profile_applicability: "Level 2"
+    scope: palo_alto.section_6.a_zone_protection_profile_with_tuned_flood
+    assertion:
+      field: enabled
+      operator: lte
+      expected: "true"
+    remediation: >
+      In the GUI: Navigate to Network > Network Profiles > Zone Protection > Flood
+      Protection. Set all settings to 'enabled' with at least the default values.
+      Navigate to Network > Zones, select each untrusted zone in turn, and set the
+      Zone Protection Profile. Default Value: Not Configured References: 1.
+      “Understanding DoS Protection” - https://live.paloaltonetworks.com/docs/DOC-
+      5078 2. “Threat Prevention Deployment Tech Note” -
+      https://live.paloaltonetworks.com/docs/DOC-3094 3. “What are the Differences
+      between DoS Protection and Zone Protection?” -
+      https://live.paloaltonetworks.com/docs/DOC-4501 4. PANOS 11.1 Admin Guide -
+      Network Profiles / Zone Protection / Flood Protection -
+      https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-web-interface-
+      help/network/network-network-profiles/network-network-profiles-zone-
+      protection/flood-protection
+    compliance:
+      - cis_palo_alto_11_v1_1_0_6_16
+
+  - rule_id: palo_alto.cis.6.all_zones_have_zone_protection_profiles_with_all
+    title: "Ensure that all zones have Zone Protection Profiles with all Reconnaissance Protection settings enabled, tuned, and set to appropriate actions"
+    severity: high
+    automation_type: automated
+    cis_control: '6.17'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: palo_alto.section_6.all_zones_have_zone_protection_profiles_with_all
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Navigate to Network > Network Profiles > Zone Protection > Zone Protection
+      Profile > Reconnaissance Protection. Set TCP Port Scan to enabled, its Action
+      to block-ip, its Interval to 5, and its Threshold to 20. For block-ip, set the
+      'Track By' is set to source and 'Duration' is set to 600 seconds. Set Host
+      Sweep to enabled, its Action to block, its Interval to 10, and its Threshold
+      to 30. Set UDP Port Scan to enabled, its Action to alert, its Interval to 10,
+      and its Threshold to 20. Default Value: Not Configured References: 1. “Host
+      Sweep Triggering Method in Zone Protection Profile” -
+      https://live.paloaltonetworks.com/docs/DOC-8703 2. “Understanding DoS
+      Protection” - https://live.paloaltonetworks.com/docs/DOC- 5078 3. “Threat
+      Prevention Deployment Tech Note” -
+      https://live.paloaltonetworks.com/docs/DOC-3094 4. “What are the Differences
+      between DoS Protection and Zone Protection?” -
+      https://live.paloaltonetworks.com/docs/DOC-4501 5. PANOS 11.1 Admin Guide -
+      Network Profiles / Zone Protection / Reconnaissance Protection -
+      https://docs.paloaltonetworks.com/pan-os/11- 1/pan-os-web-interface-
+      help/network/network-network-profiles/network-network- profiles-zone-
+      protection/reconnaissance-protection
+    compliance:
+      - cis_palo_alto_11_v1_1_0_6_17
+
+  - rule_id: palo_alto.cis.6.all_zones_have_zone_protection_profiles_that_drop
+    title: "Ensure all zones have Zone Protection Profiles that drop specially crafted packets"
+    severity: high
+    automation_type: automated
+    cis_control: '6.18'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: palo_alto.section_6.all_zones_have_zone_protection_profiles_that_drop
+    assertion:
+      field: value
+      operator: exists
+      expected: "true"
+    remediation: >
+      Navigate to Network > Network Profiles > Zone Protection > Zone Protection
+      Profile > Packet Based Attack Protection > TCP/IP Drop. Set Spoofed IP address
+      to be checked. Set Mismatched overlapping TCP segment to be checked. Under IP
+      Option Drop, set Strict Source Routing, Loose Source Routing, and Malformed to
+      all be checked. Additional options may also be set if desired. Default Value:
+      Not Configured References: 1. “Understanding DoS Protection” -
+      https://live.paloaltonetworks.com/docs/DOC- 5078 2. “Threat Prevention
+      Deployment Tech Note” - https://live.paloaltonetworks.com/docs/DOC-3094 3.
+      “What are the Differences between DoS Protection and Zone Protection?” -
+      https://live.paloaltonetworks.com/docs/DOC-4501 4. PANOS 11.1 Admin Guide -
+      Network Profiles / Zone Protection / Packet Based Attack Protection -
+      https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-web- interface-
+      help/network/network-network-profiles/network-network-profiles-zone-
+      protection/packet-based-attack-protection
+    compliance:
+      - cis_palo_alto_11_v1_1_0_6_18
+
+  - rule_id: palo_alto.cis.6.user_credential_submission_uses_the_action_of
+    title: "Ensure that User Credential Submission uses the action of “block” or “continue” on the URL categories"
+    severity: high
+    automation_type: automated
+    cis_control: '6.19'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: palo_alto.section_6.user_credential_submission_uses_the_action_of
+    assertion:
+      field: value
+      operator: equals
+      expected: "on"
+    remediation: >
+      Navigate to Objects > Security Profiles > URL Filtering. Choose the Categories
+      tab. Set the User Credential Submitting action on all enabled URL categories
+      is either block or continue, as appropriate to your organization and the
+      category. Under the User Credential Detection tab set the User Credential
+      Detection value to a setting appropriate to your organization, any value
+      except Disabled. Set the Log Severity to a value appropriate to your
+      organization and your logging or SIEM solution. Default Value: Not Configured
+      References: 1. PAN OS 11.1 Admin Guide - URL Filtering / User Credential
+      Detection - https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-web-
+      interface- help/objects/objects-security-profiles-url-filtering/user-
+      credential-detection
+    compliance:
+      - cis_palo_alto_11_v1_1_0_6_19
+
+  - rule_id: palo_alto.cis.6.wildfire_inline_ml_on_antivirus_profiles_are_set
+    title: "Ensure that 'Wildfire Inline ML' on antivirus profiles are set to enable for all file types"
+    severity: high
+    automation_type: automated
+    cis_control: '6.21'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: palo_alto.section_6.wildfire_inline_ml_on_antivirus_profiles_are_set
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      Navigate to Objects > Security Profiles > Antivirus Go to Wildfire Inline ML
+      tab. Set enable (inherit per-protocol actions) for all Model on Action
+      Setting. Default Value: Not Configured References: 1. “PAN-OS Administrator's
+      Guide 11.1 (English) - Security Profiles” -
+      https://docs.paloaltonetworks.com/advanced-wildfire/administration/configure-
+      advanced-wildfire-analysis/enable-advanced-wildfire-inline-ml
+    compliance:
+      - cis_palo_alto_11_v1_1_0_6_21
+
+  - rule_id: palo_alto.cis.6.inline_cloud_analysis_on_vulnerability_protection
+    title: "Ensure that 'Inline Cloud Analysis' on Vulnerability Protection profiles are enabled if 'Advanced Threat Prevention' is available"
+    severity: high
+    automation_type: automated
+    cis_control: '6.22'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: palo_alto.section_6.inline_cloud_analysis_on_vulnerability_protection
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Navigate to Objects > Security Profiles > Vulnerability Protection Go to
+      Inline Cloud Analysis tab. Tick the checkbox for Enable cloud inline analysis.
+      Verify that all Model action is set as alert. Note that, firewall device
+      certificate is used to authenticate to the Advanced Threat Prevention inline
+      cloud analysis service. This step is required before 'Inline Cloud Analysis'
+      can be used. Refer to reference for detailed guide. Default Value: Not
+      Configured References: 1. “Configuring Vulnerability Protection Inline Cloud
+      Analysis Guide (English)” - https://docs.paloaltonetworks.com/pan-os/11-0/pan-
+      os-new-features/content- inspection-features/vuln-protection-inline-cloud-
+      analysis
+    compliance:
+      - cis_palo_alto_11_v1_1_0_6_22
+
+  - rule_id: palo_alto.cis.6.cloud_inline_categorization_on_url_filtering
+    title: "Ensure that 'Cloud Inline Categorization' on URL Filtering profiles are enabled if 'Advanced Threat Prevention' is available"
+    severity: high
+    automation_type: automated
+    cis_control: '6.23'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: palo_alto.section_6.cloud_inline_categorization_on_url_filtering
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Navigate to Objects > Security Profiles > URL Filtering Go to Inline
+      Categorization tab. Tick the checkbox for both Enable local inline
+      categorization and Enable cloud inline categorization. Note that: 1. Firewall
+      device certificate is used to authenticate to the Advanced Threat Prevention
+      inline cloud analysis service. This step is required before 'Inline Cloud
+      Analysis' can be used. Refer to reference for detailed guide. 2. 'Local Inline
+      Categorization' can be enabled with just the URL Filtering license (no
+      Advanced Threat Prevention is needed). Default Value: Not Configured
+      References: 1. “Configuring Cloud Inline Categorization for URL Filtering
+      Guide (English)” - https://docs.paloaltonetworks.com/pan-os/10-2/pan-os-new-
+      features/url-filtering- features/cloud-inline-categorization 2. “PAN-OS
+      Administrator's Guide 11.1 (English) - Inline Categorization” -
+      https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-web-interface-
+      help/objects/objects-security-profiles-url-filtering/inline-categorization
+    compliance:
+      - cis_palo_alto_11_v1_1_0_6_23
+
+  - rule_id: palo_alto.cis.6.inline_cloud_analysis_on_anti_spyware_profiles
+    title: "Ensure that 'Inline Cloud Analysis' on Anti-Spyware profiles are enabled if 'Advanced Threat Prevention' is available"
+    severity: high
+    automation_type: automated
+    cis_control: '6.24'
+    cis_section: '6'
+    profile_applicability: "Level 1"
+    scope: palo_alto.section_6.inline_cloud_analysis_on_anti_spyware_profiles
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "true"
+    remediation: >
+      Navigate to Objects > Security Profiles > Anti-Spyware Go to Inline Cloud
+      Analysis tab. Tick the checkbox for Enable cloud inline analysis. Verify that
+      all Model action is set as reset-both. Note that, firewall device certificate
+      is used to authenticate to the Advanced Threat Prevention inline cloud
+      analysis service. This step is required before Inline Cloud Analysis can be
+      used. Refer to reference for detailed guide. Default Value: Not Configured
+      References: 1. “Configuring Inline Cloud Analysis Guide (English)” -
+      https://docs.paloaltonetworks.com/advanced-threat-
+      prevention/administration/configure-threat-prevention/configure-inline-cloud-
+      analysis#idcf1fc426-b522-4e84-9098-ac82f2d784ae
+    compliance:
+      - cis_palo_alto_11_v1_1_0_6_24
+
+

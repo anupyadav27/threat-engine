@@ -1,0 +1,233 @@
+version: '1.0'
+provider: aws
+service: cloudfront
+checks:
+- rule_id: aws.cloudfront.cachepolicy.cache_allowlists_minimal_query_headers_cookies_configured
+  for_each: aws.cloudfront.get_cache_policy_config
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.ParametersInCacheKeyAndForwardedToOrigin.QueryStringsConfig.QueryStringBehavior
+      op: equals
+      value: none
+    - var: item.ParametersInCacheKeyAndForwardedToOrigin.HeadersConfig.HeaderBehavior
+      op: equals
+      value: none
+    - var: item.ParametersInCacheKeyAndForwardedToOrigin.CookiesConfig.CookieBehavior
+      op: equals
+      value: none
+- rule_id: aws.cloudfront.cachepolicy.no_sensitive_headers_cached_configured
+  for_each: aws.cloudfront.get_cache_policy_config
+  severity: MEDIUM
+  conditions:
+    var: item.ParametersInCacheKeyAndForwardedToOrigin.HeadersConfig.HeaderBehavior
+    op: not_equals
+    value: whitelist
+- rule_id: aws.cloudfront.cachepolicy.respects_cache_control_no_store_private_configured
+  for_each: aws.cloudfront.get_cache_policy_config
+  severity: HIGH
+  conditions:
+    var: item.ParametersInCacheKeyAndForwardedToOrigin.HeadersConfig.HeaderBehavior
+    op: equals
+    value: respectAllExceptCacheControl
+- rule_id: aws.cloudfront.distribution.access_logging_enabled
+  for_each: aws.cloudfront.get_distribution_config
+  severity: MEDIUM
+  conditions:
+    var: item.Logging
+    op: exists
+    value: null
+- rule_id: aws.cloudfront.distribution.cache_key_excludes_sensitive_headers_configured
+  for_each: aws.cloudfront.get_distribution_config
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.DefaultCacheBehavior.CachePolicyId
+      op: exists
+      value: null
+    - var: item.DefaultCacheBehavior.CachePolicyId
+      op: not_equals
+      value: 658327ea-f89d-4fab-a63d-7e88639e58f6
+- rule_id: aws.cloudfront.distribution.cache_key_minimal_query_and_cookie_variants_configured
+  for_each: aws.cloudfront.get_distribution_config
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.DefaultCacheBehavior.CachePolicyId
+      op: exists
+      value: null
+    - var: item.DefaultCacheBehavior.CachePolicyId
+      op: not_equals
+      value: 658327ea-f89d-4fab-a63d-7e88639e58f6
+- rule_id: aws.cloudfront.distribution.hsts_enabled
+  for_each: aws.cloudfront.get_distribution_config
+  severity: MEDIUM
+  conditions:
+    var: item.DefaultCacheBehavior.ResponseHeadersPolicyId
+    op: exists
+    value: null
+- rule_id: aws.cloudfront.distribution.https_only_viewer_protocol_configured
+  for_each: aws.cloudfront.get_distribution_config
+  severity: MEDIUM
+  conditions:
+    var: item.DefaultCacheBehavior.ViewerProtocolPolicy
+    op: equals
+    value: https-only
+- rule_id: aws.cloudfront.distribution.origin_access_restricted
+  for_each: aws.cloudfront.get_distribution_config
+  severity: MEDIUM
+  conditions:
+    var: item.Origins[].S3OriginConfig.OriginAccessIdentity
+    op: exists
+    value: null
+- rule_id: aws.cloudfront.distribution.signed_urls_headers_required_private_content
+  for_each: aws.cloudfront.get_distribution_config
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.DefaultCacheBehavior.TrustedSigners
+      op: exists
+      value: null
+    - var: item.DefaultCacheBehavior.TrustedKeyGroups
+      op: exists
+      value: null
+    - any:
+      - var: item.DefaultCacheBehavior.TrustedSigners.Enabled
+        op: is_true
+        value: null
+      - var: item.DefaultCacheBehavior.TrustedKeyGroups.Enabled
+        op: is_true
+        value: null
+- rule_id: aws.cloudfront.distribution.tls_min_1_2_enforced
+  for_each: aws.cloudfront.get_distribution_config
+  severity: HIGH
+  conditions:
+    var: item.ViewerCertificate.MinimumProtocolVersion
+    op: in
+    value:
+    - TLSv1.2_2021
+    - TLSv1.2_2019
+    - TLSv1.2_2018
+    - TLSv1.2
+- rule_id: aws.cloudfront.distribution.valid_trusted_certificate_enabled
+  for_each: aws.cloudfront.get_distribution_config
+  severity: MEDIUM
+  conditions:
+    var: item.ViewerCertificate.MinimumProtocolVersion
+    op: not_equals
+    value: SSLv3
+- rule_id: aws.cloudfront.distribution.waf_web_acl_enabled
+  for_each: aws.cloudfront.get_distribution_config
+  severity: MEDIUM
+  conditions:
+    var: item.DefaultCacheBehavior.WebACLId
+    op: exists
+    value: null
+- rule_id: aws.cloudfront.distributions.custom_ssl_certificate_configured
+  for_each: aws.cloudfront.get_distribution_config
+  severity: HIGH
+  conditions:
+    var: item.ViewerCertificate.CertificateSource
+    op: equals
+    value: acm
+- rule_id: aws.cloudfront.distributions.distribution_https_enabled
+  for_each: aws.cloudfront.get_distribution_config
+  severity: MEDIUM
+  conditions:
+    var: item.DefaultCacheBehavior.ViewerProtocolPolicy
+    op: not_equals
+    value: allow-all
+- rule_id: aws.cloudfront.distributions.logging_enabled
+  for_each: aws.cloudfront.get_distribution_config
+  severity: MEDIUM
+  conditions:
+    var: item.Logging
+    op: exists
+    value: null
+- rule_id: aws.cloudfront.distributions.using_deprecated_ssl_protocols_configured
+  for_each: aws.cloudfront.get_distribution_config
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.ViewerCertificate.MinimumProtocolVersion
+      op: exists
+      value: null
+    - var: item.ViewerCertificate.MinimumProtocolVersion
+      op: not_equals
+      value: SSLv3
+    - var: item.ViewerCertificate.MinimumProtocolVersion
+      op: not_equals
+      value: TLSv1
+    - var: item.ViewerCertificate.MinimumProtocolVersion
+      op: not_equals
+      value: TLSv1_2016
+    - var: item.ViewerCertificate.MinimumProtocolVersion
+      op: not_equals
+      value: TLSv1.1_2016
+- rule_id: aws.cloudfront.distributions_multiple_origin_failover_configured.distributions_origin_failover_configured
+  for_each: aws.cloudfront.get_distribution_config
+  severity: MEDIUM
+  conditions:
+    var: item.OriginGroups
+    op: not_empty
+    value: null
+- rule_id: aws.cloudfront.origin_request_policy.cloudfront_forward_cookies_minimal_configured
+  for_each: aws.cloudfront.get_origin_request_policy_config
+  severity: MEDIUM
+  conditions:
+    var: item.CookiesConfig.CookieBehavior
+    op: equals
+    value: none
+- rule_id: aws.cloudfront.origin_request_policy.cloudfront_forward_headers_minimal_configured
+  for_each: aws.cloudfront.get_origin_request_policy_config
+  severity: MEDIUM
+  conditions:
+    var: item.HeadersConfig
+    op: exists
+    value: null
+- rule_id: aws.cloudfront.origin_request_policy.cloudfront_forward_querystrings_minimal_configured
+  for_each: aws.cloudfront.get_origin_request_policy_config
+  severity: MEDIUM
+  conditions:
+    var: item.QueryStringsConfig
+    op: exists
+    value: null
+- rule_id: aws.cloudfront.origin_request_policy.cloudfront_no_secret_headers_forwarded_configured
+  for_each: aws.cloudfront.get_origin_request_policy_config
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.HeadersConfig.Headers.Items
+      op: not_contains
+      value: Authorization
+    - var: item.HeadersConfig.Headers.Items
+      op: not_contains
+      value: Proxy-Authorization
+- rule_id: aws.cloudfront.resource.cloudfront_https_required
+  for_each: aws.cloudfront.get_distribution_config
+  severity: MEDIUM
+  conditions:
+    var: item.DefaultCacheBehavior.ViewerProtocolPolicy
+    op: equals
+    value: https-only
+- rule_id: aws.cloudfront.resource.distributions_field_level_encryption_enabled
+  for_each: aws.cloudfront.get_distribution_config
+  severity: HIGH
+  conditions:
+    var: item.DefaultCacheBehavior.FieldLevelEncryptionConfig
+    op: exists
+    value: null
+- rule_id: aws.cloudfront.resource.distributions_logging_enabled
+  for_each: aws.cloudfront.get_distribution_config
+  severity: MEDIUM
+  conditions:
+    var: item.Logging
+    op: exists
+    value: null
+- rule_id: aws.cloudfront.resource.distributions_origin_traffic_encrypted
+  for_each: aws.cloudfront.get_distribution_config
+  severity: HIGH
+  conditions:
+    var: item.Origins[].CustomOriginConfig.OriginSslProtocols.Items[]
+    op: contains
+    value: TLSv1.2

@@ -1,0 +1,42 @@
+version: '1.0'
+provider: {{ category }}
+engine: {{ tech }}
+category: {{ section_slug }}
+cis_section: '{{ section }}'
+description: >
+  {{ tech }} CIS Section {{ section }} — {{ description }}
+
+discovery:
+{% for row in rows %}
+  - discovery_id: {{ row._discovery_id }}
+    description: {{ row.title | replace('"', "'") }}
+    calls:
+{% set slug_lower = row._check_slug | lower %}
+{% if 'container' in slug_lower %}
+      - action: docker_api_call
+        endpoint: /containers/json
+        save_as: result
+{% elif 'image' in slug_lower %}
+      - action: docker_api_call
+        endpoint: /images/json
+        save_as: result
+{% elif 'volume' in slug_lower %}
+      - action: docker_api_call
+        endpoint: /volumes
+        save_as: result
+{% elif 'network' in slug_lower %}
+      - action: docker_api_call
+        endpoint: /networks
+        save_as: result
+{% else %}
+      - action: docker_api_call
+        endpoint: /info
+        save_as: result
+{% endif %}
+    emit:
+      as: item
+      item:
+        check: {{ row._check_slug }}
+        value: "{{ '{{' }} result {{ '}}' }}"
+        expected: "{{ row._expected_value }}"
+{% endfor %}

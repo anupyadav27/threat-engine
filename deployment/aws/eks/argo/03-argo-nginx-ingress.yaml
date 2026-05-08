@@ -1,0 +1,33 @@
+# Route /argo/ through the nginx ingress ELB (same one as /ui/ and /cspm/)
+#
+# URL: http://a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com/argo/
+#
+# NO path rewrite — argo-server handles /argo/ itself via --basehref=/argo/
+# WebSocket proxy headers enable live log streaming in the UI.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argo-server-ingress
+  namespace: argo
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    # Strip /argo prefix before forwarding — argo-server serves assets at /
+    # /argo/main.xxx.js  →  argo-server /main.xxx.js
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - path: /argo(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: argo-server
+            port:
+              number: 2746

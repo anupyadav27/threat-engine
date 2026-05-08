@@ -1,0 +1,68 @@
+version: '1.0'
+provider: k8s
+service: namespace
+checks:
+- rule_id: k8s.namespace.dedicated.for_clearinghouse
+  for_each: k8s.namespace.list_namespaces
+  severity: LOW
+  conditions:
+    var: item.metadata.labels.clearinghouse
+    op: exists
+    value: null
+- rule_id: k8s.namespace.default.no_user_resources
+  for_each: k8s.namespace.list_namespaces
+  severity: LOW
+  conditions:
+    var: item.metadata.name
+    op: not_equals
+    value: default
+- rule_id: k8s.namespace.existence.and_management_check
+  for_each: k8s.namespace.list_namespaces
+  severity: LOW
+  conditions:
+    all:
+    - var: item.metadata.name
+      op: exists
+      value: null
+    - var: item.metadata.labels.managed-by
+      op: exists
+      value: null
+- rule_id: k8s.namespace.isolation.check
+  for_each: k8s.namespace.list_namespaces
+  severity: LOW
+  conditions:
+    all:
+    - var: item.metadata.labels
+      op: exists
+      value: null
+    - var: item.metadata.labels['pod-security.kubernetes.io/enforce']
+      op: exists
+      value: null
+    - var: item.metadata.labels['pod-security.kubernetes.io/enforce']
+      op: not_equals
+      value: privileged
+- rule_id: k8s.namespace.isolation.configured
+  for_each: k8s.namespace.list_namespaces
+  severity: LOW
+  conditions:
+    all:
+    - var: item.metadata.annotations."network.alpha.kubernetes.io/network-policy"
+      op: exists
+      value: null
+    - var: item.metadata.annotations."network.alpha.kubernetes.io/network-policy"
+      op: equals
+      value: '{"ingress": {"isolation": "DefaultDeny"}}'
+- rule_id: k8s.namespace.namespace.dedicated_for_clearinghouse_configured
+  for_each: k8s.namespace.list
+  severity: LOW
+  conditions:
+    var: item.metadata.labels.clearinghouse
+    op: exists
+    value: null
+- rule_id: k8s.namespace.namespace.resources_configured
+  for_each: k8s.namespace.list
+  severity: LOW
+  conditions:
+    var: item.spec.finalizers
+    op: not_empty
+    value: null

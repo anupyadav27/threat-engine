@@ -1,0 +1,361 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# SECURITY ASSERTIONS CATALOG — CSP-Agnostic (Complete)
+# ═══════════════════════════════════════════════════════════════════════════
+# 27 assertion categories covering ALL 807 AWS Config managed rules.
+# Each category is a security domain with specific checks underneath.
+# These are universal — same assertions apply to AWS, Azure, GCP.
+#
+# Source: 807 AWS Config rules, fully classified
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │ DATA PROTECTION                                                        │
+# └─────────────────────────────────────────────────────────────────────────┘
+
+encryption_at_rest:
+  count: 50
+  severity: high
+  description: Data is encrypted at rest using platform or customer-managed keys
+  checks:
+    - resource uses server-side encryption (SSE)
+    - KMS/Key Vault key is configured
+    - customer-managed key (CMK/CMEK) is used instead of platform default
+    - EBS/disk volumes are encrypted
+    - database storage is encrypted
+    - snapshots are encrypted
+    - log groups are encrypted
+    - artifact/build outputs are encrypted
+
+encryption_in_transit:
+  count: 56
+  severity: high
+  description: Data in transit is encrypted using TLS 1.2+ and HTTPS
+  checks:
+    - minimum TLS version is 1.2
+    - HTTPS is enforced (HTTP redirected or blocked)
+    - SSL/TLS certificate is valid and from ACM/trusted CA
+    - node-to-node encryption is enabled
+    - listener uses encrypted protocol
+    - target group health check uses HTTPS
+    - origin-to-CDN traffic is encrypted
+    - FTP is disabled (SFTP/FTPS only)
+    - SNI is enabled
+
+key_rotation_mgmt:
+  count: 4
+  severity: medium
+  description: Encryption keys are rotated and certificates are managed
+  checks:
+    - CMK automatic key rotation is enabled
+    - certificate expiration is monitored
+    - root CA is disabled when not in use
+    - KMS key is not scheduled for deletion
+
+secrets_management:
+  count: 6
+  severity: high
+  description: Secrets are stored securely and rotated
+  checks:
+    - secrets are in Secrets Manager (not env vars or code)
+    - automatic rotation is enabled
+    - rotation is succeeding on schedule
+    - unused secrets are identified
+    - build projects don't expose credentials in env vars
+
+versioning_lifecycle:
+  count: 10
+  severity: medium
+  description: Data versioning and lifecycle policies are configured
+  checks:
+    - object versioning is enabled
+    - lifecycle rules manage data retention
+    - data retention meets minimum requirements
+    - backup retention days are sufficient
+
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │ NETWORK SECURITY                                                       │
+# └─────────────────────────────────────────────────────────────────────────┘
+
+public_access_disabled:
+  count: 33
+  severity: high
+  description: Resources are not publicly accessible
+  checks:
+    - public access is explicitly blocked
+    - snapshots are not publicly restorable
+    - public read/write is prohibited
+    - account-level public access blocks are enabled
+    - public IP is not assigned
+
+private_networking:
+  count: 25
+  severity: high
+  description: Resources use private networking (VPC/VNet)
+  checks:
+    - resource is deployed in VPC/VNet
+    - VPC endpoints are used for AWS service access
+    - enhanced VPC routing is enabled
+    - internal scheme is used (not internet-facing)
+    - private subnets only (no IGW route)
+
+network_security_groups:
+  count: 13
+  severity: high
+  description: Network access rules restrict traffic appropriately
+  checks:
+    - no unrestricted SSH (port 22) from 0.0.0.0
+    - no unrestricted RDP (port 3389)
+    - common ports are restricted
+    - default security group blocks all traffic
+    - NACLs are not unused
+    - subnet does not auto-assign public IP
+
+vpn_connectivity:
+  count: 8
+  severity: medium
+  description: VPN connections are secure and redundant
+  checks:
+    - VPN uses IKEv2
+    - VPN connection logging is enabled
+    - two VPN tunnels are active
+    - VPC peering DNS resolution is configured
+
+waf_firewall:
+  count: 21
+  severity: high
+  description: Web application firewall is attached and configured
+  checks:
+    - WAF is associated with ALB/CloudFront/API Gateway
+    - WAF rule groups are not empty
+    - WAF logging is enabled
+    - HTTP desync protection is enabled
+    - invalid headers are dropped
+
+firewall_network:
+  count: 7
+  severity: high
+  description: Network firewall rules are configured
+  checks:
+    - firewall deletion protection is enabled
+    - firewall logging is enabled
+    - firewall policy rule groups are associated
+    - default actions are configured
+    - stateless rule groups are not empty
+
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │ IDENTITY & ACCESS MANAGEMENT                                           │
+# └─────────────────────────────────────────────────────────────────────────┘
+
+mfa_authentication:
+  count: 10
+  severity: critical
+  description: Multi-factor authentication is enforced
+  checks:
+    - MFA is enabled for IAM console users
+    - root account has MFA (hardware preferred)
+    - password policy meets complexity requirements
+    - advanced security is enabled (Cognito)
+    - unauthenticated access is blocked
+
+credential_hygiene:
+  count: 7
+  severity: high
+  description: Credentials are rotated and unused ones removed
+  checks:
+    - access keys are rotated within 90 days
+    - unused credentials are disabled
+    - users belong to groups (not direct policies)
+    - root access key does not exist
+    - IAM policies are in use (no orphans)
+
+least_privilege_rbac:
+  count: 14
+  severity: high
+  description: IAM policies follow least privilege
+  checks:
+    - no policies with admin access (Action *)
+    - no policies with full access (Resource *)
+    - no inline policies on users
+    - blocked KMS actions in customer policies
+    - S3 bucket policies restrict grantees
+    - ACLs are prohibited (policy-only access)
+    - EFS access points enforce user identity
+
+iam_auth_identity:
+  count: 31
+  severity: high
+  description: IAM/managed identity authentication is used
+  checks:
+    - IAM database authentication is enabled
+    - instance profile is attached
+    - IMDSv2 is required (token hop limit)
+    - OIDC provider is configured
+    - RBAC auth is enabled (ElastiCache, OpenSearch)
+    - managed identity is used instead of local auth
+    - token signing is enabled (IoT)
+
+default_admin_check:
+  count: 6
+  severity: medium
+  description: Default admin usernames are changed
+  checks:
+    - RDS default admin is not 'admin'
+    - Redshift default admin is changed
+    - Redshift default database name is changed
+
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │ LOGGING, MONITORING & ALERTING                                         │
+# └─────────────────────────────────────────────────────────────────────────┘
+
+logging_enabled:
+  count: 64
+  severity: high
+  description: Audit and access logging is enabled
+  checks:
+    - CloudTrail is enabled in all regions
+    - S3 access logging is enabled
+    - VPC flow logs are enabled
+    - API Gateway execution/access logging
+    - database audit logging (RDS, DocumentDB, Neptune)
+    - CloudWatch log integration
+    - WAF/firewall logging
+    - EKS cluster logging
+    - build/deployment logging (CodeBuild, CodeDeploy)
+    - log file validation is enabled
+
+monitoring_alerting:
+  count: 22
+  severity: medium
+  description: Monitoring and alerting is configured
+  checks:
+    - CloudWatch alarms have actions configured
+    - alarm actions are enabled
+    - detailed/enhanced monitoring is enabled
+    - X-Ray tracing is enabled
+    - event notifications are configured
+    - Container Insights is enabled
+    - health checks are configured
+
+threat_detection:
+  count: 18
+  severity: high
+  description: Threat detection services are enabled
+  checks:
+    - GuardDuty is enabled and centralized
+    - GuardDuty protections (S3, EKS, RDS, Lambda, EC2, ECS, malware)
+    - SecurityHub is enabled
+    - Inspector scanning is enabled (EC2, ECR, Lambda)
+    - Macie is enabled for sensitive data discovery
+    - findings are not unarchived/unresolved
+
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │ RESILIENCE & DISASTER RECOVERY                                         │
+# └─────────────────────────────────────────────────────────────────────────┘
+
+backup_recovery:
+  count: 58
+  severity: medium
+  description: Backup and recovery is configured
+  checks:
+    - resource is in a backup plan
+    - backup retention meets minimum
+    - last backup recovery point was created
+    - restore time target is met
+    - resources are in logically air-gapped vault
+    - automatic backups are enabled
+    - PITR (point-in-time recovery) is enabled
+    - cross-region replication is enabled
+    - copy tags to snapshots
+
+deletion_protection:
+  count: 11
+  severity: medium
+  description: Deletion protection prevents accidental removal
+  checks:
+    - deletion protection is enabled
+    - termination protection is enabled
+    - manual deletion of recovery points is disabled
+    - MFA delete is required
+    - object lock is enabled
+
+multi_az_resilience:
+  count: 22
+  severity: medium
+  description: Resources are deployed across multiple availability zones
+  checks:
+    - multi-AZ is enabled
+    - cross-zone load balancing is enabled
+    - auto-failover is enabled
+    - cross-region replication is configured
+    - standby replicas are enabled
+    - origin failover is configured
+
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │ CONTAINER & KUBERNETES SECURITY                                        │
+# └─────────────────────────────────────────────────────────────────────────┘
+
+container_hardening:
+  count: 16
+  severity: high
+  description: Container configurations follow security best practices
+  checks:
+    - containers run as non-privileged
+    - containers have read-only root filesystem
+    - task definitions run as non-root user
+    - PID mode is not host
+    - network mode is not host
+    - memory hard limits are set
+    - EFS encryption is enabled in task definitions
+    - container images are scanned
+    - image tag immutability is enabled
+    - lifecycle policies are configured
+    - private registry is required
+
+kubernetes_security:
+  count: 7
+  severity: high
+  description: Kubernetes cluster security is configured
+  checks:
+    - cluster logging is enabled
+    - secrets are encrypted
+    - API endpoint is not public
+    - supported Kubernetes version
+    - node group uses supported version
+    - Fargate profiles are configured
+
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │ CONFIGURATION & COMPLIANCE                                             │
+# └─────────────────────────────────────────────────────────────────────────┘
+
+configuration_compliance:
+  count: 128
+  severity: medium
+  description: Resources meet configuration baselines and best practices
+  checks:
+    - resource has description
+    - stack drift detection passes
+    - supported engine/platform version
+    - auto-upgrade minor versions enabled
+    - launch template is used (not launch config)
+    - CloudFront has default root object
+    - resources are using allowed AMIs
+    - workgroup configuration is enforced
+    - deployment type meets requirements
+
+patching_updates:
+  count: 9
+  severity: medium
+  description: Resources are patched and updated
+  checks:
+    - automatic minor version upgrade is enabled
+    - managed updates are enabled
+    - outdated instances are updated
+    - patch compliance status passes
+
+tagging:
+  count: 151
+  severity: low
+  description: Resources are tagged for inventory and governance
+  checks:
+    - required tags are present
+    - resource has tags (not untagged)

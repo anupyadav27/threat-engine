@@ -1,0 +1,145 @@
+# ============================================================
+# Discovery YAML — storage (final_discovery v1)
+# Generated: 2026-04-16T09:26:48Z
+# Source: gcp_master_field_catalog.csv
+# Check rules: 139 | ops in scope: 3 (1 independent, 2 dependent)
+# ============================================================
+version: '1.0'
+provider: gcp
+service: storage
+
+services:
+  client: storage
+  module: "googleapiclient.discovery.build('storage', 'v1')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: anywhereCaches
+    identifier_op: gcp.storage.buckets.list
+    identifier_field: items[].name
+    item_var_path: item.name
+    identifier_template: '{bucket}/anywhereCaches/{anywhereCacheId}'
+  - resource_type: unknown
+    identifier_op: gcp.storage.notifications.list
+    identifier_field: items[].selfLink
+    item_var_path: item.selfLink
+  - resource_type: unknown
+    identifier_op: gcp.storage.objects.list
+    identifier_field: items[].name
+    item_var_path: item.name
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── gcp.storage.buckets.list ──
+  - discovery_id: gcp.storage.buckets.list
+    calls:
+      - action: buckets.list
+        params:
+          project: '{{ project_id }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        acl: '{{ item.acl }}'
+        autoclass: '{{ item.autoclass }}'
+        billing: '{{ item.billing }}'
+        bindings: '{{ item.bindings }}'
+        cors: '{{ item.cors }}'
+        customPlacementConfig: '{{ item.customPlacementConfig }}'
+        defaultEventBasedHold: '{{ item.defaultEventBasedHold }}'
+        defaultObjectAcl: '{{ item.defaultObjectAcl }}'
+        encryption: '{{ item.encryption }}'
+        generation: '{{ item.generation }}'
+        hardDeleteTime: '{{ item.hardDeleteTime }}'
+        hierarchicalNamespace: '{{ item.hierarchicalNamespace }}'
+        iamConfiguration: '{{ item.iamConfiguration }}'
+        id: '{{ item.id }}'
+        ipFilter: '{{ item.ipFilter }}'
+        labels: '{{ item.labels }}'
+        lifecycle: '{{ item.lifecycle }}'
+        location: '{{ item.location }}'
+        locationType: '{{ item.locationType }}'
+        logging: '{{ item.logging }}'
+        metageneration: '{{ item.metageneration }}'
+        name: '{{ item.name }}'
+        objectRetention: '{{ item.objectRetention }}'
+        owner: '{{ item.owner }}'
+        projectNumber: '{{ item.projectNumber }}'
+        replication: '{{ item.replication }}'
+        retentionPolicy: '{{ item.retentionPolicy }}'
+        rpo: '{{ item.rpo }}'
+        satisfiesPZI: '{{ item.satisfiesPZI }}'
+        satisfiesPZS: '{{ item.satisfiesPZS }}'
+        selfLink: '{{ item.selfLink }}'
+        snapshotEncryptionKey: '{{ item.snapshotEncryptionKey }}'
+        softDeletePolicy: '{{ item.softDeletePolicy }}'
+        softDeleteTime: '{{ item.softDeleteTime }}'
+        storageClass: '{{ item.storageClass }}'
+        timeCreated: '{{ item.timeCreated }}'
+        updated: '{{ item.updated }}'
+        versioning: '{{ item.versioning }}'
+        website: '{{ item.website }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── gcp.storage.notifications.list [dependent] ──
+  - discovery_id: gcp.storage.notifications.list
+    for_each: gcp.storage.buckets.list
+    calls:
+      - action: notifications.list
+        params:
+          bucket: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        iamConfiguration: '{{ item.iamConfiguration }}'
+        items: '{{ response.items }}'
+        name: '{{ item.name }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── gcp.storage.objects.list [dependent] ──
+  - discovery_id: gcp.storage.objects.list
+    for_each: gcp.storage.buckets.list
+    calls:
+      - action: objects.list
+        params:
+          bucket: '{{ item.name }}'
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      item:
+        cacheControl: '{{ item.cacheControl }}'
+        contentDisposition: '{{ item.contentDisposition }}'
+        contentEncoding: '{{ item.contentEncoding }}'
+        contentLanguage: '{{ item.contentLanguage }}'
+        contentType: '{{ item.contentType }}'
+        crc32c: '{{ item.crc32c }}'
+        customerEncryption: '{{ item.customerEncryption }}'
+        etag: '{{ item.etag }}'
+        eventBasedHold: '{{ item.eventBasedHold }}'
+        generation: '{{ item.generation }}'
+        iamConfiguration: '{{ item.iamConfiguration }}'
+        items: '{{ response.items }}'
+        kmsKeyName: '{{ item.kmsKeyName }}'
+        md5Hash: '{{ item.md5Hash }}'
+        mediaLink: '{{ item.mediaLink }}'
+        metadata: '{{ item.metadata }}'
+        metageneration: '{{ item.metageneration }}'
+        retentionExpirationTime: '{{ item.retentionExpirationTime }}'
+        retentionPolicy: '{{ item.retentionPolicy }}'
+        selfLink: '{{ item.selfLink }}'
+        size: '{{ item.size }}'
+        storageClass: '{{ item.storageClass }}'
+        temporaryHold: '{{ item.temporaryHold }}'
+        timeCreated: '{{ item.timeCreated }}'
+        timeDeleted: '{{ item.timeDeleted }}'
+        timeStorageClassUpdated: '{{ item.timeStorageClassUpdated }}'
+        updated: '{{ item.updated }}'
+

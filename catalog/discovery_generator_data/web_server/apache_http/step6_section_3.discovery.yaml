@@ -1,0 +1,75 @@
+version: '1.0'
+provider: web_server
+engine: apache_http
+category: section_3
+cis_section: '3'
+description: >
+  apache_http CIS Section 3 — Apache User Account Is Locked
+
+discovery:
+
+  - discovery_id: apache_http.section_3.apache_user_account_is_locked
+    description: Ensure the Apache User Account Is Locked
+    calls:
+      - action: run_command
+        command: "Ensure the apache account is locked using the following: # passwd -S apache The results will be similar to the following: apache LK 2010-01-28 0 99999 7 -1 (Password locked.) - or - apache L 07/02/2012 -1 -1 -1 -1"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: apache_user_account_is_locked
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_3.apache_directories_and_files_are_owned_by_root
+    description: Ensure Apache Directories and Files Are Owned By Root
+    calls:
+      - action: run_command
+        command: "Identify files in the Apache directory that are not owned by root: # find $APACHE_PREFIX \\! -user root -ls"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: apache_directories_and_files_are_owned_by_root
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_3.group_is_set_correctly_on_apache_directories_and
+    description: Ensure the Group Is Set Correctly on Apache Directories and Files
+    calls:
+      - action: run_command
+        command: "Identify files in the Apache directories other than htdocs with a group other than root: # find $APACHE_PREFIX -path $APACHE_PREFIX/htdocs -prune -o \\! -group root - ls"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: group_is_set_correctly_on_apache_directories_and
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_3.pid_file_is_secured
+    description: Ensure the Pid File Is Secured
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: pid_file_is_secured
+        value: "{{ result.stdout }}"
+        expected: ""
+
+  - discovery_id: apache_http.section_3.scoreboard_file_is_secured
+    description: Ensure the ScoreBoard File Is Secured
+    calls:
+      - action: run_command
+        command: ""
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: scoreboard_file_is_secured
+        value: "{{ result.stdout }}"
+        expected: ""
+

@@ -1,0 +1,42 @@
+version: '1.0'
+provider: gcp
+service: cloudsql
+discovery:
+- discovery_id: gcp.cloudsql.list_instances
+  calls:
+  - action: instances.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      name: '{{ item.name }}'
+      databaseVersion: '{{ item.databaseVersion }}'
+      state: '{{ item.state }}'
+      settings: '{{ item.settings }}'
+      ipAddresses: '{{ item.ipAddresses }}'
+      serverCaCert: '{{ item.serverCaCert }}'
+      backupConfiguration: '{{ item.backupConfiguration }}'
+      maintenanceWindow: '{{ item.maintenanceWindow }}'
+      labels: '{{ item.labels }}'
+      region: '{{ item.region }}'
+- discovery_id: gcp.cloudsql.list_users
+  calls:
+  - action: users.list
+    save_as: response
+    on_error: continue
+    params:
+      instance: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.items }}'
+    item:
+      name: '{{ item.name }}'
+      host: '{{ item.host }}'
+      etag: '{{ item.etag }}'
+      type: '{{ item.type }}'
+      sqlserverUserDetails: '{{ item.sqlserverUserDetails }}'
+      project: '{{ item.project }}'
+      instance: '{{ item.instance }}'
+  for_each: gcp.cloudsql.list_instances

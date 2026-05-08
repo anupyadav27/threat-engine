@@ -1,0 +1,145 @@
+# ==========================================================
+# Discovery YAML — kms (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 26 | ops: 2 independent, 3 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: kms
+
+services:
+  client: kms
+  module: "boto3.client('kms')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: key
+    identifier_op: aws.kms.describe_key
+    identifier_field: Arn
+    item_var_path: item.Arn
+    identifier_template: '{arn}'
+  - resource_type: alias
+    identifier_op: aws.kms.list_aliases
+    identifier_field: AliasArn
+    item_var_path: item.AliasArn
+    identifier_template: '{aliasarn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.kms.list_aliases  ──
+  - discovery_id: aws.kms.list_aliases
+    calls:
+      - action: list_aliases
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Aliases }}'
+      item:
+        AliasArn: '{{ item.AliasArn }}'
+        AliasName: '{{ item.AliasName }}'
+        CreationDate: '{{ item.CreationDate }}'
+        LastUpdatedDate: '{{ item.LastUpdatedDate }}'
+        TargetKeyId: '{{ item.TargetKeyId }}'
+        Truncated: '{{ item.Truncated }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.kms.get_key_rotation_status  ──
+  - discovery_id: aws.kms.get_key_rotation_status
+    calls:
+      - action: get_key_rotation_status
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        KeyRotationEnabled: '{{ item.KeyRotationEnabled }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.kms.describe_key [dependent] ──
+  - discovery_id: aws.kms.describe_key
+    for_each: aws.kms.list_keys
+    calls:
+      - action: describe_key
+        params:
+          KeyId: "{{ item.KeyId }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        AWSAccountId: '{{ item.AWSAccountId }}'
+        Arn: '{{ item.Arn }}'
+        CloudHsmClusterId: '{{ item.CloudHsmClusterId }}'
+        CreationDate: '{{ item.CreationDate }}'
+        CurrentKeyMaterialId: '{{ item.CurrentKeyMaterialId }}'
+        CustomKeyStoreId: '{{ item.CustomKeyStoreId }}'
+        CustomerMasterKeySpec: '{{ item.CustomerMasterKeySpec }}'
+        DeletionDate: '{{ item.DeletionDate }}'
+        Description: '{{ item.Description }}'
+        Enabled: '{{ item.Enabled }}'
+        EncryptionAlgorithms: '{{ item.EncryptionAlgorithms }}'
+        ExpirationModel: '{{ item.ExpirationModel }}'
+        KeyAgreementAlgorithms: '{{ item.KeyAgreementAlgorithms }}'
+        KeyId: '{{ item.KeyId }}'
+        KeyManager: '{{ item.KeyManager }}'
+        KeySpec: '{{ item.KeySpec }}'
+        KeyState: '{{ item.KeyState }}'
+        KeyUsage: '{{ item.KeyUsage }}'
+        MacAlgorithms: '{{ item.MacAlgorithms }}'
+        MultiRegion: '{{ item.MultiRegion }}'
+        MultiRegionConfiguration: '{{ item.MultiRegionConfiguration }}'
+        Origin: '{{ item.Origin }}'
+        PendingDeletionWindowInDays: '{{ item.PendingDeletionWindowInDays }}'
+        SigningAlgorithms: '{{ item.SigningAlgorithms }}'
+        Tags: '{{ item.Tags }}'
+        ValidTo: '{{ item.ValidTo }}'
+        XksKeyConfiguration: '{{ item.XksKeyConfiguration }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.kms.get_key_policy [dependent] ──
+  - discovery_id: aws.kms.get_key_policy
+    for_each: aws.kms.list_keys
+    calls:
+      - action: get_key_policy
+        params:
+          KeyId: "{{ item.KeyId }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        Policy: '{{ item.Policy }}'
+        Statement: '{{ item.Statement }}'
+        Version: '{{ item.Version }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.kms.list_grants [dependent] ──
+  - discovery_id: aws.kms.list_grants
+    for_each: aws.kms.list_keys
+    calls:
+      - action: list_grants
+        params:
+          KeyId: "{{ item.KeyId }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Grants }}'
+      item:
+        Constraints: '{{ item.Constraints }}'
+        CreationDate: '{{ item.CreationDate }}'
+        GrantId: '{{ item.GrantId }}'
+        GranteePrincipal: '{{ item.GranteePrincipal }}'
+        IssuingAccount: '{{ item.IssuingAccount }}'
+        KeyId: '{{ item.KeyId }}'
+        Name: '{{ item.Name }}'
+        Operations: '{{ item.Operations }}'
+        RetiringPrincipal: '{{ item.RetiringPrincipal }}'
+

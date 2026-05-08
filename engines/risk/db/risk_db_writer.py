@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -88,11 +88,13 @@ class RiskDBWriter:
             "asset_criticality": row.get("asset_criticality", "medium"),
             "is_public": row.get("is_public", False),
             "data_sensitivity": row.get("data_sensitivity", "internal"),
-            "data_types": row.get("data_types", []),
+            # data_types and applicable_regulations are Postgres TEXT[] arrays.
+            # Pass raw Python lists — psycopg2 adapts them to ARRAY[].
+            "data_types": list(row.get("data_types") or []),
             "estimated_record_count": row.get("estimated_record_count", 0),
             "industry": row.get("industry"),
             "estimated_revenue": row.get("estimated_revenue"),
-            "applicable_regulations": row.get("applicable_regulations", []),
+            "applicable_regulations": list(row.get("applicable_regulations") or []),
             "epss_score": row.get("epss_score", 0.05),
             "cve_id": row.get("cve_id"),
             "exposure_factor": row.get("exposure_factor", 1.0),
@@ -107,13 +109,24 @@ class RiskDBWriter:
 
     def batch_insert_scenarios(self, rows: List[Dict[str, Any]], scan_id: str,
                                 tenant_id: str, scan_run_id: str) -> int:
-        """Insert FAIR model scenarios into risk_scenarios."""
+        """Insert FAIR model scenarios into risk_scenarios.
+
+        ENG-13 columns added:
+          finding_id          — sha256 deterministic ID (AC-S4)
+          fair_lef            — Loss Event Frequency
+          fair_lm             — Loss Magnitude
+          fair_risk_score     — LEF × LM (canonical FAIR score)
+          regulatory_flags    — JSONB list of applicable regulations incl. region-inferred
+          blast_radius_score  — 0-100 from Neo4j traversal (AC-S7: clamped before INSERT)
+          blast_radius_sample — JSONB list of up to 10 reachable resource UIDs
+          attack_path         — JSONB resource_uid chain (source → targets)
+        """
         if not rows:
             return 0
 
         sql = """
             INSERT INTO risk_scenarios (
-                scenario_id, risk_scan_id, tenant_id, scan_run_id,
+                scenario_id, finding_id, risk_scan_id, tenant_id, scan_run_id,
                 source_finding_id, source_engine,
                 asset_id, asset_type, asset_arn,
                 scenario_type,
@@ -124,9 +137,13 @@ class RiskDBWriter:
                 applicable_regulations,
                 total_exposure_min, total_exposure_max, total_exposure_likely,
                 risk_tier, calculation_model,
-                account_id, region, csp
+                account_id, region, csp,
+                blast_radius_score, blast_radius_sample,
+                regulatory_multiplier, regulatory_flags,
+                mitre_techniques, attack_path,
+                fair_lef, fair_lm, fair_risk_score
             ) VALUES (
-                %(scenario_id)s, %(risk_scan_id)s, %(tenant_id)s, %(scan_run_id)s,
+                %(scenario_id)s, %(finding_id)s, %(risk_scan_id)s, %(tenant_id)s, %(scan_run_id)s,
                 %(source_finding_id)s, %(source_engine)s,
                 %(asset_id)s, %(asset_type)s, %(asset_arn)s,
                 %(scenario_type)s,
@@ -137,8 +154,26 @@ class RiskDBWriter:
                 %(applicable_regulations)s,
                 %(total_exposure_min)s, %(total_exposure_max)s, %(total_exposure_likely)s,
                 %(risk_tier)s, %(calculation_model)s,
-                %(account_id)s, %(region)s, %(csp)s
+                %(account_id)s, %(region)s, %(csp)s,
+                %(blast_radius_score)s, %(blast_radius_sample)s,
+                %(regulatory_multiplier)s, %(regulatory_flags)s,
+                %(mitre_techniques)s, %(attack_path)s,
+                %(fair_lef)s, %(fair_lm)s, %(fair_risk_score)s
             )
+            ON CONFLICT (finding_id) DO UPDATE SET
+                blast_radius_score = EXCLUDED.blast_radius_score,
+                blast_radius_sample = EXCLUDED.blast_radius_sample,
+                regulatory_multiplier = EXCLUDED.regulatory_multiplier,
+                regulatory_flags = EXCLUDED.regulatory_flags,
+                mitre_techniques = EXCLUDED.mitre_techniques,
+                attack_path = EXCLUDED.attack_path,
+                fair_lef = EXCLUDED.fair_lef,
+                fair_lm = EXCLUDED.fair_lm,
+                fair_risk_score = EXCLUDED.fair_risk_score,
+                total_exposure_likely = EXCLUDED.total_exposure_likely,
+                risk_tier = EXCLUDED.risk_tier,
+                calculation_model = EXCLUDED.calculation_model,
+                scan_run_id = EXCLUDED.scan_run_id
         """
 
         count = 0
@@ -155,13 +190,25 @@ class RiskDBWriter:
 
     def _prepare_scenario_row(self, row: Dict[str, Any], scan_id: str,
                                tenant_id: str, scan_run_id: str) -> Dict[str, Any]:
-        """Prepare a scenario row for insertion."""
+        """Prepare a scenario row for insertion.
+
+        AC-S4: finding_id taken from scenario (already computed by compute_scenario).
+        AC-S7: blast_radius_score clamped to 0-100 here as final safeguard.
+        """
         calc_model = row.get("calculation_model", {})
         if isinstance(calc_model, dict):
             calc_model = json.dumps(calc_model)
 
+        def _jsonb_list(val) -> str:
+            """Serialize list/dict to JSON string for JSONB columns."""
+            if val is None:
+                return json.dumps([])
+            return json.dumps(val) if isinstance(val, (list, dict)) else val
+
         return {
             "scenario_id": str(uuid4()),
+            # AC-S4: deterministic finding_id from compute_scenario
+            "finding_id": row.get("finding_id") or str(uuid4()),
             "risk_scan_id": scan_id,
             "tenant_id": tenant_id,
             "scan_run_id": scan_run_id,
@@ -173,14 +220,18 @@ class RiskDBWriter:
             "scenario_type": row.get("scenario_type"),
             "data_records_at_risk": row.get("data_records_at_risk", 0),
             "data_sensitivity": row.get("data_sensitivity", "internal"),
-            "data_types": row.get("data_types", []),
+            # data_types is Postgres TEXT[] — pass raw list
+            "data_types": list(row.get("data_types") or []),
             "loss_event_frequency": row.get("loss_event_frequency", 0),
             "primary_loss_min": row.get("primary_loss_min", 0),
             "primary_loss_max": row.get("primary_loss_max", 0),
             "primary_loss_likely": row.get("primary_loss_likely", 0),
             "regulatory_fine_min": row.get("regulatory_fine_min", 0),
             "regulatory_fine_max": row.get("regulatory_fine_max", 0),
-            "applicable_regulations": row.get("applicable_regulations", []),
+            # applicable_regulations is a Postgres TEXT[] array (NOT jsonb).
+            # Pass the raw list — psycopg2 will adapt it. Wrapping in
+            # _jsonb_list() produces the string "[]" which Postgres rejects.
+            "applicable_regulations": list(row.get("applicable_regulations") or []),
             "total_exposure_min": row.get("total_exposure_min", 0),
             "total_exposure_max": row.get("total_exposure_max", 0),
             "total_exposure_likely": row.get("total_exposure_likely", 0),
@@ -189,6 +240,17 @@ class RiskDBWriter:
             "account_id": row.get("account_id"),
             "region": row.get("region"),
             "csp": row.get("csp", "aws"),
+            # AC-S7: clamp blast_radius_score to 0-100 before INSERT
+            "blast_radius_score": max(0, min(100, int(row.get("blast_radius_score") or 0))),
+            "blast_radius_sample": _jsonb_list(row.get("blast_radius_sample", [])),
+            "regulatory_multiplier": float(row.get("regulatory_multiplier") or 1.0),
+            # ENG-13: new FAIR + regulatory_flags columns
+            "regulatory_flags": _jsonb_list(row.get("regulatory_flags", [])),
+            "mitre_techniques": _jsonb_list(row.get("mitre_techniques", [])),
+            "attack_path": _jsonb_list(row.get("attack_path", [])),
+            "fair_lef": float(row.get("fair_lef") or row.get("loss_event_frequency") or 0),
+            "fair_lm": float(row.get("fair_lm") or row.get("primary_loss_likely") or 0),
+            "fair_risk_score": float(row.get("fair_risk_score") or 0),
         }
 
     # ------------------------------------------------------------------
@@ -359,7 +421,7 @@ class RiskDBWriter:
         try:
             cursor.execute(sql, {
                 "tenant_id": trend.get("tenant_id"),
-                "scan_date": trend.get("scan_date", datetime.utcnow().date()),
+                "scan_date": trend.get("scan_date", datetime.now(timezone.utc).date()),
                 "risk_scan_id": trend.get("risk_scan_id"),
                 "total_exposure_likely": trend.get("total_exposure_likely", 0),
                 "critical_scenarios": trend.get("critical_scenarios", 0),

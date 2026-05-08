@@ -1,0 +1,183 @@
+checks:
+- rule_id: alicloud.hbr.backup_plan.access_backup_admins_mfa_required
+  for_each: alicloud.hbr.DescribeBackupPlans
+  conditions:
+    all:
+    - var: item.mfa_enabled
+      op: equals
+    - var: item.backup_enabled
+      op: equals
+- rule_id: alicloud.hbr.backup_plan.access_backup_keys_access_least_privilege
+  for_each: alicloud.hbr.DescribeBackupPlans
+  conditions:
+    all:
+    - var: item.backup_enabled
+      op: equals
+    - var: item.permissions
+      op: not_contains
+- rule_id: alicloud.hbr.backup_plan.access_backup_vault_rbac_least_privilege
+  for_each: alicloud.hbr.DescribeBackupPlans
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.hbr.backup_plan.access_no_public_access_to_backup_vault
+  for_each: alicloud.hbr.DescribeBackupPlans
+  conditions:
+    all:
+    - var: item.public_ip_address
+      op: not_exists
+    - var: item.internet_facing
+      op: not_equals
+    - var: item.backup_enabled
+      op: equals
+    - var: item.permissions
+      op: not_contains
+- rule_id: alicloud.hbr.backup_plan.unprotected_assets_alerting_enabled
+  for_each: alicloud.hbr.DescribeBackupPlans
+  conditions:
+    all:
+    - var: item.logging_enabled
+      op: equals
+    - var: item.backup_enabled
+      op: equals
+- rule_id: alicloud.hbr.backup_recovery_job.monitoring_alert_rules_for_job_failures_configured
+  for_each: alicloud.hbr.backup_recovery_job
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.hbr.backup_recovery_job.monitoring_alert_rules_for_sla_breach_configured
+  for_each: alicloud.hbr.backup_recovery_job
+  conditions:
+    var: item.status
+    op: equals
+    value: Active
+- rule_id: alicloud.hbr.dr.backup_destination_private_only
+  for_each: alicloud.actiontrail.GetAccessKeyLastUsedResources
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.hbr.dr.backup_encrypted_at_rest_cmek
+  for_each: alicloud.actiontrail.GetAccessKeyLastUsedResources
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.kms_key_id
+      op: exists
+- rule_id: alicloud.hbr.dr.backup_immutable_or_worm_enabled_where_supported
+  for_each: alicloud.actiontrail.GetAccessKeyLastUsedResources
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.hbr.job.dr_job_logs_enabled
+  for_each: alicloud.hbr.backup_recovery_job
+  conditions:
+    all:
+    - var: item.logging_enabled
+      op: equals
+    - var: item.backup_enabled
+      op: equals
+- rule_id: alicloud.hbr.job.dr_job_network_private_only
+  for_each: alicloud.hbr.backup_recovery_job
+  conditions:
+    var: item.internet_facing
+    op: not_equals
+    value: 'true'
+- rule_id: alicloud.hbr.job.dr_job_roles_least_privilege
+  for_each: alicloud.hbr.backup_recovery_job
+  conditions:
+    all:
+    - var: item.backup_enabled
+      op: equals
+    - var: item.permissions
+      op: not_contains
+- rule_id: alicloud.hbr.replication.auth_roles_least_privilege
+  for_each: alicloud.hbr.replication
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.hbr.replication.cross_region_replication_encrypted
+  for_each: alicloud.hbr.replication
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.backup_enabled
+      op: equals
+- rule_id: alicloud.hbr.replication.encryption_in_transit_tls_required
+  for_each: alicloud.hbr.replication
+  conditions:
+    var: item.ssl_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.hbr.restore_job.cross_account_restore_blocked_by_policy
+  for_each: alicloud.hbr.restore_job
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.hbr.restore_job.from_encrypted_backups_only
+  for_each: alicloud.hbr.restore_job
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.hbr.restore_job.logs_and_artifacts_encrypted
+  for_each: alicloud.hbr.restore_job
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.hbr.restore_job.roles_least_privilege
+  for_each: alicloud.hbr.restore_job
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.hbr.vault.encryption_backup_storage_immutability_enabled
+  for_each: alicloud.hbr.vault
+  conditions:
+    var: item.backup_enabled
+    op: equals
+    value: 'true'
+- rule_id: alicloud.hbr.vault.encryption_cmk_cmek_key_configured
+  for_each: alicloud.hbr.vault
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.kms_key_id
+      op: exists
+    - var: item.backup_enabled
+      op: equals
+- rule_id: alicloud.hbr.vault.encryption_encryption_at_rest_enabled
+  for_each: alicloud.hbr.vault
+  conditions:
+    var: item.encrypted
+    op: equals
+    value: 'true'
+- rule_id: alicloud.hbr.vault.encryption_encryption_in_transit_tls_min_1_2
+  for_each: alicloud.hbr.vault
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.ssl_enabled
+      op: equals
+    - var: item.min_tls_version
+      op: gte
+    - var: item.backup_enabled
+      op: equals
+- rule_id: alicloud.hbr.vault.encryption_key_policy_least_privilege
+  for_each: alicloud.hbr.vault
+  conditions:
+    all:
+    - var: item.encrypted
+      op: equals
+    - var: item.permissions
+      op: not_contains

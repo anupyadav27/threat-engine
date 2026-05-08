@@ -1,0 +1,234 @@
+version: '1.0'
+provider: gcp
+service: security_command_center
+checks:
+- rule_id: gcp.security_command_center.automation.automation_change_audit_logging_enabled
+  for_each: gcp.logging.sinks.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.filter
+      op: contains
+      value: protoPayload.methodName="google.cloud.securitycenter.v1.Automation.UpdateAutomation"
+    - var: item.destination
+      op: exists
+      value: null
+- rule_id: gcp.security_command_center.automation.automation_execution_roles_least_privilege
+  for_each: gcp.security_command_center.automation.list_automations
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.automationExecutionRoles[].permissions[]
+      op: not_contains
+      value: '*'
+    - var: item.automationExecutionRoles[].permissions[]
+      op: not_contains
+      value: securitycenter.*
+- rule_id: gcp.security_command_center.finding.assessment_policy_store_encrypted
+  for_each: gcp.security_command_center.list_finding_sources
+  severity: HIGH
+  conditions:
+    var: item.EncryptionSpec
+    op: exists
+    value: null
+- rule_id: gcp.security_command_center.finding.assessment_roles_least_privilege
+  for_each: gcp.iam.list_roles
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.includedPermissions
+      op: not_contains
+      value: '*'
+    - var: item.includedPermissions
+      op: not_contains
+      value: admin
+    - var: item.includedPermissions
+      op: not_contains
+      value: owner
+- rule_id: gcp.security_command_center.finding.automation_artifacts_encrypted_and_private
+  for_each: gcp.security_command_center.list_findings
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.automationArtifacts.encryptionState
+      op: equals
+      value: ENCRYPTED
+    - var: item.automationArtifacts.visibility
+      op: equals
+      value: PRIVATE
+- rule_id: gcp.security_command_center.finding.automation_execution_roles_least_privilege
+  for_each: gcp.iam.list_roles
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.includedPermissions[]
+      op: not_contains
+      value: '*'
+    - var: item.includedPermissions[]
+      op: not_contains
+      value: iam.roles.*
+- rule_id: gcp.security_command_center.finding.breach_detection_alert_destinations_configured
+  for_each: gcp.security_command_center.list_sources
+  severity: HIGH
+  conditions:
+    var: item.alert_destinations
+    op: not_empty
+    value: null
+- rule_id: gcp.security_command_center.finding.breach_detection_integrations_authenticated
+  for_each: gcp.security_command_center.list_sources
+  severity: HIGH
+  conditions:
+    var: item.Authenticated
+    op: is_true
+    value: null
+- rule_id: gcp.security_command_center.finding.finding_alert_destinations_configured
+  for_each: gcp.security_command_center.list
+  severity: HIGH
+  conditions:
+    var: item.notificationConfigs
+    op: not_empty
+    value: null
+- rule_id: gcp.security_command_center.finding.finding_archival_export_encrypted
+  for_each: gcp.security_command_center.list_finding_archival_exports
+  severity: HIGH
+  conditions:
+    var: item.encryptionSpec.kmsKeyName
+    op: exists
+    value: null
+- rule_id: gcp.security_command_center.finding.response_access_rbac_least_privilege
+  for_each: gcp.iam.list_roles
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.includedPermissions
+      op: not_contains
+      value: securitycenter.findings.update
+    - var: item.includedPermissions
+      op: not_contains
+      value: securitycenter.findings.setMute
+    - var: item.includedPermissions
+      op: not_contains
+      value: securitycenter.findings.setState
+- rule_id: gcp.security_command_center.finding.response_storage_encrypted_and_private
+  for_each: gcp.security_command_center.list_findings
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.finding.sourceProperties.StorageEncryptionState
+      op: equals
+      value: ENCRYPTED
+    - var: item.finding.sourceProperties.PrivateAccessState
+      op: equals
+      value: PRIVATE
+- rule_id: gcp.security_command_center.finding.response_versioning_and_immutability_enabled
+  for_each: gcp.security_command_center.sources.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.config.responseConfig.versioningConfig
+      op: exists
+      value: null
+    - var: item.config.responseConfig.versioningConfig.enabled
+      op: is_true
+      value: null
+    - var: item.config.responseConfig.immutabilityConfig
+      op: exists
+      value: null
+    - var: item.config.responseConfig.immutabilityConfig.enabled
+      op: is_true
+      value: null
+- rule_id: gcp.security_command_center.finding.scan_agents_or_scanners_deployed
+  for_each: gcp.security_command_center.list_findings
+  severity: HIGH
+  conditions:
+    var: item.FindingClass
+    op: not_equals
+    value: SCAN
+- rule_id: gcp.security_command_center.finding.scan_results_export_destination_encrypted
+  for_each: gcp.security_command_center.list_sources
+  severity: HIGH
+  conditions:
+    var: item.ExportSettings[].EncryptionKeyName
+    op: exists
+    value: null
+- rule_id: gcp.security_command_center.finding.scan_scope_includes_all_asset_groups
+  for_each: gcp.security_command_center.organization_settings.get
+  severity: HIGH
+  conditions:
+    var: item.assetDiscoveryConfig.inclusionMode
+    op: equals
+    value: INCLUDE_ALL
+- rule_id: gcp.security_command_center.source.custom_identifier_source_trusted
+  for_each: gcp.security_command_center.list_sources
+  severity: HIGH
+  conditions:
+    var: item.CustomIdentifierSource
+    op: is_true
+    value: null
+- rule_id: gcp.security_command_center.source.custom_identifier_storage_encrypted
+  for_each: gcp.security_command_center.list_sources
+  severity: HIGH
+  conditions:
+    var: item.EncryptionState
+    op: equals
+    value: ENCRYPTED
+- rule_id: gcp.security_command_center.source.detector_enabled_in_all_regions
+  for_each: gcp.security_command_center.list_sources
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.detectorEnabled
+      op: is_true
+      value: null
+    - var: item.regions
+      op: length_gte
+      value: 1
+- rule_id: gcp.security_command_center.source.detector_finding_export_encrypted_destination
+  for_each: gcp.security_command_center.list_sources
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.StreamingConfig.Destination
+      op: exists
+      value: null
+    - var: item.StreamingConfig.Destination.PubsubDestination.Topic
+      op: exists
+      value: null
+    - var: item.StreamingConfig.Destination.PubsubDestination.Topic
+      op: contains
+      value: encrypted
+- rule_id: gcp.security_command_center.source.hub_auto_enroll_new_accounts
+  for_each: gcp.security_command_center.list_organization_sources
+  severity: HIGH
+  conditions:
+    var: item.OrganizationSettings.EnableAssetDiscovery
+    op: is_true
+    value: null
+- rule_id: gcp.security_command_center.source.hub_master_member_configured
+  for_each: gcp.security_command_center.source.list
+  severity: HIGH
+  conditions:
+    var: item.master_member
+    op: exists
+    value: null
+- rule_id: gcp.security_command_center.source.ip_set_sources_trusted
+  for_each: gcp.security_command_center.list_sources
+  severity: HIGH
+  conditions:
+    var: item.IPSetSources
+    op: exists
+    value: null
+- rule_id: gcp.security_command_center.source.ip_set_storage_encrypted
+  for_each: gcp.security_command_center.list_sources
+  severity: HIGH
+  conditions:
+    var: item.IPSetStorageEncrypted
+    op: is_true
+    value: null
+- rule_id: gcp.security_command_center.source.ip_set_used_by_detectors
+  for_each: gcp.security_command_center.list_sources
+  severity: HIGH
+  conditions:
+    var: item.SourceProperties.ipSetUsedByDetectors
+    op: exists
+    value: null

@@ -1,0 +1,141 @@
+# ==========================================================
+# Discovery YAML — elbv2 (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 27 | ops: 3 independent, 1 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: elbv2
+
+services:
+  client: elbv2
+  module: "boto3.client('elbv2')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: listener
+    identifier_op: aws.elbv2.describe_listeners
+    identifier_field: CertificateArn
+    item_var_path: item.CertificateArn
+    identifier_template: '{certificatearn}'
+  - resource_type: balancer
+    identifier_op: aws.elbv2.describe_load_balancers
+    identifier_field: LoadBalancerArn
+    item_var_path: item.LoadBalancerArn
+    identifier_template: '{loadbalancerarn}'
+  - resource_type: balancers
+    identifier_op: aws.elbv2.describe_target_groups
+    identifier_field: TargetGroupArn
+    item_var_path: item.TargetGroupArn
+    identifier_template: '{targetgrouparn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.elbv2.describe_listeners  ──
+  - discovery_id: aws.elbv2.describe_listeners
+    calls:
+      - action: describe_listeners
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Listeners }}'
+      item:
+        AlpnPolicy: '{{ item.AlpnPolicy }}'
+        CertificateArn: '{{ item.CertificateArn }}'
+        Certificates: '{{ item.Certificates }}'
+        DefaultActions: '{{ item.DefaultActions }}'
+        ListenerArn: '{{ item.ListenerArn }}'
+        Listeners: '{{ item.Listeners }}'
+        LoadBalancerArn: '{{ item.LoadBalancerArn }}'
+        MutualAuthentication: '{{ item.MutualAuthentication }}'
+        Port: '{{ item.Port }}'
+        Protocol: '{{ item.Protocol }}'
+        SslPolicy: '{{ item.SslPolicy }}'
+        Statement: '{{ item.Statement }}'
+        Tags: '{{ item.Tags }}'
+        Version: '{{ item.Version }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.elbv2.describe_load_balancers  ──
+  - discovery_id: aws.elbv2.describe_load_balancers
+    calls:
+      - action: describe_load_balancers
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.LoadBalancers }}'
+      item:
+        AvailabilityZones: '{{ item.AvailabilityZones }}'
+        CanonicalHostedZoneId: '{{ item.CanonicalHostedZoneId }}'
+        CreatedTime: '{{ item.CreatedTime }}'
+        CustomerOwnedIpv4Pool: '{{ item.CustomerOwnedIpv4Pool }}'
+        DNSName: '{{ item.DNSName }}'
+        EnablePrefixForIpv6SourceNat: '{{ item.EnablePrefixForIpv6SourceNat }}'
+        EnforceSecurityGroupInboundRulesOnPrivateLinkTraffic: '{{ item.EnforceSecurityGroupInboundRulesOnPrivateLinkTraffic }}'
+        IpAddressType: '{{ item.IpAddressType }}'
+        IpamPools: '{{ item.IpamPools }}'
+        LoadBalancerArn: '{{ item.LoadBalancerArn }}'
+        LoadBalancerName: '{{ item.LoadBalancerName }}'
+        LoadBalancers: '{{ item.LoadBalancers }}'
+        Scheme: '{{ item.Scheme }}'
+        SecurityGroups: '{{ item.SecurityGroups }}'
+        State: '{{ item.State }}'
+        Tags: '{{ item.Tags }}'
+        Type: '{{ item.Type }}'
+        VpcId: '{{ item.VpcId }}'
+        item: '{{ item }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.elbv2.describe_target_groups  ──
+  - discovery_id: aws.elbv2.describe_target_groups
+    calls:
+      - action: describe_target_groups
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.TargetGroups }}'
+      item:
+        HealthCheckEnabled: '{{ item.HealthCheckEnabled }}'
+        HealthCheckIntervalSeconds: '{{ item.HealthCheckIntervalSeconds }}'
+        HealthCheckPath: '{{ item.HealthCheckPath }}'
+        HealthCheckPort: '{{ item.HealthCheckPort }}'
+        HealthCheckProtocol: '{{ item.HealthCheckProtocol }}'
+        HealthCheckTimeoutSeconds: '{{ item.HealthCheckTimeoutSeconds }}'
+        HealthyThresholdCount: '{{ item.HealthyThresholdCount }}'
+        IpAddressType: '{{ item.IpAddressType }}'
+        LoadBalancerArns: '{{ item.LoadBalancerArns }}'
+        Matcher: '{{ item.Matcher }}'
+        Port: '{{ item.Port }}'
+        Protocol: '{{ item.Protocol }}'
+        ProtocolVersion: '{{ item.ProtocolVersion }}'
+        TargetControlPort: '{{ item.TargetControlPort }}'
+        TargetGroupArn: '{{ item.TargetGroupArn }}'
+        TargetGroupName: '{{ item.TargetGroupName }}'
+        TargetGroups: '{{ item.TargetGroups }}'
+        TargetType: '{{ item.TargetType }}'
+        UnhealthyThresholdCount: '{{ item.UnhealthyThresholdCount }}'
+        VpcId: '{{ item.VpcId }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.elbv2.describe_load_balancer_attributes [dependent] ──
+  - discovery_id: aws.elbv2.describe_load_balancer_attributes
+    for_each: aws.elbv2.describe_load_balancers
+    calls:
+      - action: describe_load_balancer_attributes
+        params:
+          LoadBalancerArn: "{{ item.LoadBalancerArn }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Attributes }}'
+      item:
+        Key: '{{ item.Key }}'
+        Value: '{{ item.Value }}'
+

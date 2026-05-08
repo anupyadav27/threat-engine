@@ -1,0 +1,29 @@
+version: '1.0'
+provider: oci
+service: ai_language
+checks:
+- rule_id: oci.ai_language.project.model_invocation_logging_enabled
+  for_each: oci.ai_language.list_work_request_logs
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.ai_language.project.model_invocation_logs_encryption_enabled
+  for_each: oci.ai_language.list_work_request_logs
+  severity: HIGH
+  conditions:
+    var: item.encryption
+    op: exists
+    value: null
+- rule_id: oci.ai_language.project.service_public_access_blocked
+  for_each: oci.ai_language.list_work_request_logs
+  severity: CRITICAL
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null

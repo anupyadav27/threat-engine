@@ -1,0 +1,50 @@
+rule_id: oci.networking.audit.route_table_change
+service: networking
+provider: oci
+check_type: log
+severity: high
+title: 'OCI Networking: Route Table Modified'
+description: A VCN route table was created, updated, or deleted. Malicious route table changes can redirect traffic through attacker-controlled gateways.
+threat_category: lateral_movement
+mitre_tactics:
+- lateral_movement
+mitre_techniques:
+- T1557
+risk_score: 80
+resource: oci_core_route_table
+domain: network_security_and_connectivity
+action_category: modify
+log_source_type: 
+posture_category: network_posture
+threat_tags:
+- T1557
+- lateral_movement
+- cloud_pivot
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: Review and investigate this activity in the OCI Console and take corrective action.
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.networking
+    - field: operation
+      op: in
+      value:
+      - CreateRouteTable
+      - UpdateRouteTable
+      - DeleteRouteTable

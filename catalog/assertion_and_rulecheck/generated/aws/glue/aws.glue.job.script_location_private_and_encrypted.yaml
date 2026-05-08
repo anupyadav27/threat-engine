@@ -1,0 +1,62 @@
+version: '1.0'
+rule_id: aws.glue.job.script_location_private_and_encrypted
+for_each: aws.glue.get_jobs
+severity: HIGH
+conditions:
+  all:
+  - var: item.Command.ScriptLocation
+    op: contains
+    value: s3://
+  - var: item.DefaultArguments.--enable-glue-datacatalog
+    op: not_equals
+    value: 'true'
+  - var: item.DefaultArguments.--enable-job-insights
+    op: not_equals
+    value: 'true'
+  - var: item.DefaultArguments.--enable-metrics
+    op: not_equals
+    value: 'true'
+  - var: item.DefaultArguments.--enable-spark-ui
+    op: not_equals
+    value: 'true'
+  - var: item.DefaultArguments.--job-bookmark-option
+    op: not_equals
+    value: job-bookmark-disable
+  - var: item.DefaultArguments.--job-language
+    op: not_equals
+    value: python
+  - var: item.DefaultArguments.--spark-event-logs-path
+    op: not_contains
+    value: s3://
+  - var: item.DefaultArguments.--temp-dir
+    op: not_contains
+    value: s3://
+  - var: item.ExecutionProperty.MaxConcurrentRuns
+    op: gte
+    value: 1
+  - var: item.GlueVersion
+    op: exists
+  - var: item.MaxCapacity
+    op: gte
+    value: 2
+  - var: item.MaxRetries
+    op: gte
+    value: 0
+  - var: item.Name
+    op: exists
+  - var: item.NotificationProperty.NotifyDelayAfter
+    op: gte
+    value: 1
+  - var: item.NumberOfWorkers
+    op: gte
+    value: 2
+  - var: item.Role
+    op: contains
+    value: 'arn:aws:iam::'
+  - var: item.SecurityConfiguration
+    op: exists
+  - var: item.Timeout
+    op: gte
+    value: 1
+  - var: item.WorkerType
+    op: exists

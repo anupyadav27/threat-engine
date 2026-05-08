@@ -1,0 +1,572 @@
+version: '1.0'
+provider: aws
+service: s3
+checks:
+- rule_id: aws.s3.account.level_public_access_blocks_configured
+  for_each: aws.s3.get_bucket_acl
+  severity: HIGH
+  conditions:
+    var: item.Grantee
+    op: not_exists
+    value: null
+- rule_id: aws.s3.bucket.access_logging_enabled
+  for_each: aws.s3.get_bucket_logging
+  severity: HIGH
+  conditions:
+    var: item.TargetBucket
+    op: exists
+    value: null
+- rule_id: aws.s3.bucket.backup_storage_immutability_enabled
+  for_each: aws.s3.get_bucket_lifecycle_configuration
+  severity: MEDIUM
+  conditions:
+    var: item[].Status
+    op: equals
+    value: Enabled
+- rule_id: aws.s3.bucket.block_public_access_configured
+  for_each: aws.s3.get_bucket_acl
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.Grantee
+      op: not_exists
+      value: null
+    - var: item.Grantee
+      op: is_empty
+      value: null
+- rule_id: aws.s3.bucket.block_public_access_enabled
+  for_each: aws.s3.get_bucket_acl
+  severity: HIGH
+  conditions:
+    var: item.Grantee
+    op: not_exists
+    value: null
+- rule_id: aws.s3.bucket.cmk_cmek_configured
+  for_each: aws.s3.get_bucket_encryption
+  severity: MEDIUM
+  conditions:
+    var: item.Rules[].ApplyServerSideEncryptionByDefault.SSEAlgorithm
+    op: exists
+    value: null
+- rule_id: aws.s3.bucket.cmk_cmek_key_configured
+  for_each: aws.s3.get_bucket_encryption
+  severity: MEDIUM
+  conditions:
+    var: item.Rules[].ApplyServerSideEncryptionByDefault.SSEAlgorithm
+    op: exists
+    value: null
+- rule_id: aws.s3.bucket.default_encryption_configured
+  for_each: aws.s3.get_bucket_encryption
+  severity: HIGH
+  conditions:
+    var: item.Rules
+    op: not_empty
+    value: null
+- rule_id: aws.s3.bucket.destination_private_only_configured
+  for_each: aws.s3.get_bucket_lifecycle_configuration
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.Rules[].Status
+      op: equals
+      value: Enabled
+    - var: item.Rules[].Status
+      op: exists
+      value: null
+- rule_id: aws.s3.bucket.encryption_at_rest_cmek_configured
+  for_each: aws.s3.get_bucket_encryption
+  severity: HIGH
+  conditions:
+    var: item.Rules[].ApplyServerSideEncryptionByDefault.SSEAlgorithm
+    op: exists
+    value: null
+- rule_id: aws.s3.bucket.encryption_at_rest_enabled
+  for_each: aws.s3.get_bucket_encryption
+  severity: MEDIUM
+  conditions:
+    var: item.Rules
+    op: exists
+    value: null
+- rule_id: aws.s3.bucket.encryption_enabled
+  for_each: aws.s3.get_bucket_encryption
+  severity: HIGH
+  conditions:
+    var: item.Rules
+    op: exists
+    value: null
+- rule_id: aws.s3.bucket.encryption_in_transit_tls_min_1_2_configured
+  for_each: aws.s3.get_bucket_encryption
+  severity: HIGH
+  conditions:
+    var: item.Rules[].ApplyServerSideEncryptionByDefault.SSEAlgorithm
+    op: in
+    value:
+    - AES256
+    - aws:kms
+- rule_id: aws.s3.bucket.immutability_or_object_lock_if_supported
+  for_each: aws.s3.get_bucket_lifecycle_configuration
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.Rules[].Status
+      op: equals
+      value: Enabled
+    - var: item.ObjectLockEnabled
+      op: is_true
+      value: null
+- rule_id: aws.s3.bucket.immutable_or_worm_enabled_if_supported
+  for_each: aws.s3.get_bucket_lifecycle_configuration
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.Rules[].Status
+      op: equals
+      value: Enabled
+    - var: item.Rules[].Status
+      op: equals
+      value: Enabled
+- rule_id: aws.s3.bucket.key_policy_least_privilege
+  for_each: aws.s3.get_bucket_policy
+  severity: HIGH
+  conditions:
+    var: item.Policy
+    op: exists
+    value: null
+- rule_id: aws.s3.bucket.key_rotation_enabled
+  for_each: aws.s3.get_bucket_lifecycle_configuration
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item[].Status
+      op: contains
+      value: Enabled
+    - var: item[].NoncurrentVersionExpiration.NoncurrentDays
+      op: exists
+      value: null
+- rule_id: aws.s3.bucket.kms_encryption_configured
+  for_each: aws.s3.get_bucket_encryption
+  severity: HIGH
+  conditions:
+    var: item.Rules[].ApplyServerSideEncryptionByDefault.SSEAlgorithm
+    op: exists
+    value: null
+- rule_id: aws.s3.bucket.lifecycle_enabled
+  for_each: aws.s3.get_bucket_lifecycle_configuration
+  severity: LOW
+  conditions:
+    var: item.Status
+    op: exists
+    value: null
+- rule_id: aws.s3.bucket.lifecycle_policy_configured
+  for_each: aws.s3.get_bucket_lifecycle_configuration
+  severity: HIGH
+  conditions:
+    var: item
+    op: not_empty
+    value: null
+- rule_id: aws.s3.bucket.metrics_enabled
+  for_each: aws.s3.get_bucket_lifecycle_configuration
+  severity: MEDIUM
+  conditions:
+    var: item[].Status
+    op: contains
+    value: Enabled
+- rule_id: aws.s3.bucket.object_level_write_logging_enabled
+  for_each: aws.s3.get_bucket_logging
+  severity: MEDIUM
+  conditions:
+    var: item.TargetBucket
+    op: exists
+    value: null
+- rule_id: aws.s3.bucket.object_versioning_configured
+  for_each: aws.s3.get_bucket_lifecycle_configuration
+  severity: LOW
+  conditions:
+    var: item.NoncurrentVersionExpiration
+    op: exists
+    value: null
+- rule_id: aws.s3.bucket.policy_denies_public_and_insecure_configured
+  for_each: aws.s3.get_bucket_policy
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Policy
+      op: not_empty
+      value: null
+    - var: item.Policy
+      op: contains
+      value: Deny
+    - var: item.Policy
+      op: contains
+      value: Principal":"*
+- rule_id: aws.s3.bucket.policy_public_write_access_configured
+  for_each: aws.s3.get_bucket_policy
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Policy
+      op: exists
+      value: null
+    - var: item.Policy
+      op: not_contains
+      value: s3:PutObject
+    - var: item.Policy
+      op: not_contains
+      value: s3:*
+    - var: item.Policy
+      op: not_contains
+      value: '"Effect":"Allow","Principal":"*"'
+- rule_id: aws.s3.bucket.public_access_configured
+  for_each: aws.s3.get_bucket_acl
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.Grantee
+      op: not_contains
+      value: AllUsers
+    - var: item.Grantee
+      op: not_contains
+      value: AuthenticatedUsers
+- rule_id: aws.s3.bucket.public_read_prohibited_configured
+  for_each: aws.s3.get_bucket_acl
+  severity: HIGH
+  conditions:
+    any:
+    - var: item.Grantee
+      op: not_exists
+      value: null
+    - all:
+      - var: item.Grantee
+        op: exists
+        value: null
+      - var: item.Grantee
+        op: not_equals
+        value: http://acs.amazonaws.com/groups/global/AllUsers
+      - var: item.Permission
+        op: not_equals
+        value: READ
+- rule_id: aws.s3.bucket.public_write_prohibited_configured
+  for_each: aws.s3.get_bucket_acl
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Grantee
+      op: exists
+      value: null
+    - var: item.Permission
+      op: not_equals
+      value: WRITE
+- rule_id: aws.s3.bucket.rbac_least_privilege
+  for_each: aws.s3.get_bucket_acl
+  severity: HIGH
+  conditions:
+    var: item.Grantee
+    op: not_contains
+    value: http://acs.amazonaws.com/groups/global/AllUsers
+- rule_id: aws.s3.bucket.replication_enabled
+  for_each: aws.s3.get_bucket_lifecycle_configuration
+  severity: MEDIUM
+  conditions:
+    var: item[].Status
+    op: contains
+    value: Enabled
+- rule_id: aws.s3.bucket.require_tls_in_transit_configured
+  for_each: aws.s3.get_bucket_policy
+  severity: HIGH
+  conditions:
+    var: item.Policy
+    op: contains
+    value: aws:SecureTransport
+- rule_id: aws.s3.bucket.retention_days_minimum
+  for_each: aws.s3.get_bucket_lifecycle_configuration
+  severity: LOW
+  conditions:
+    all:
+    - var: item.Expiration.Days
+      op: gte
+      value: '1'
+- rule_id: aws.s3.bucket.s3_encrypted_at_rest
+  for_each: aws.s3.get_bucket_encryption
+  severity: HIGH
+  conditions:
+    var: item.Rules
+    op: exists
+    value: null
+- rule_id: aws.s3.bucket.schedule_defined_min_frequency_configured
+  for_each: aws.s3.get_bucket_lifecycle_configuration
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item
+      op: not_empty
+      value: null
+    - var: item[].Status
+      op: equals
+      value: ACTIVE
+- rule_id: aws.s3.bucket.secure_transport_policy_configured
+  for_each: aws.s3.get_bucket_policy
+  severity: HIGH
+  conditions:
+    var: item.Policy
+    op: contains
+    value: '"aws:SecureTransport":"false"'
+- rule_id: aws.s3.bucket.server_access_logging_enabled
+  for_each: aws.s3.get_bucket_logging
+  severity: MEDIUM
+  conditions:
+    var: item.TargetBucket
+    op: exists
+    value: null
+- rule_id: aws.s3.bucket.storage_encrypted_and_private
+  for_each: aws.s3.get_bucket_encryption
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Rules[].ApplyServerSideEncryptionByDefault.SSEAlgorithm
+      op: exists
+      value: null
+    - var: item.Rules[].BucketKeyEnabled
+      op: is_true
+      value: null
+- rule_id: aws.s3.bucket.versioning_enabled
+  for_each: aws.s3.get_bucket_versioning
+  severity: LOW
+  conditions:
+    var: item.Status
+    op: equals
+    value: Enabled
+- rule_id: aws.s3.bucket_encryption.bucket_at_rest_cmek_enabled
+  for_each: aws.s3.get_bucket_encryption
+  severity: MEDIUM
+  conditions:
+    var: item.Rules[].ApplyServerSideEncryptionByDefault.SSEAlgorithm
+    op: equals
+    value: aws:kms
+- rule_id: aws.s3.bucket_encryption.in_transit_tls_min_1_2_configured
+  for_each: aws.s3.get_bucket_encryption
+  severity: HIGH
+  conditions:
+    var: item.Rules[].ApplyServerSideEncryptionByDefault.SSEAlgorithm
+    op: in
+    value:
+    - AES256
+    - aws:kms
+- rule_id: aws.s3.bucket_notification.bucket_cross_account_destinations_restricted
+  for_each: aws.s3.get_bucket_policy
+  severity: MEDIUM
+  conditions:
+    var: item.Policy
+    op: exists
+    value: null
+- rule_id: aws.s3.bucket_notification.bucket_destination_encrypted
+  for_each: aws.s3.get_bucket_encryption
+  severity: HIGH
+  conditions:
+    var: item.Rules[].ApplyServerSideEncryptionByDefault.SSEAlgorithm
+    op: exists
+    value: null
+- rule_id: aws.s3.bucket_notification.bucket_destination_least_privilege
+  for_each: aws.s3.get_bucket_policy
+  severity: HIGH
+  conditions:
+    var: item.Policy
+    op: not_contains
+    value: s3:PutBucketNotification
+- rule_id: aws.s3.bucketpolicy.bucket_deny_insecure_transport_configured
+  for_each: aws.s3.get_bucket_policy
+  severity: MEDIUM
+  conditions:
+    var: item.Policy
+    op: contains
+    value: aws:SecureTransport
+- rule_id: aws.s3.bucketpolicy.bucket_deny_unencrypted_puts
+  for_each: aws.s3.get_bucket_policy
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Policy
+      op: exists
+      value: null
+    - var: item.Policy.Statement[].Effect
+      op: contains
+      value: Deny
+    - var: item.Policy.Statement[].Action
+      op: contains
+      value: s3:PutObject
+    - var: item.Policy.Statement[].Condition.StringNotEquals.s3:x-amz-server-side-encryption
+      op: exists
+      value: null
+- rule_id: aws.s3.bucketpolicy.bucket_no_wildcards_on_actions_or_principals_configured
+  for_each: aws.s3.get_bucket_policy
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.Policy
+      op: exists
+      value: null
+    - var: item.Policy.Statement[].Action
+      op: not_contains
+      value: '*'
+    - var: item.Policy.Statement[].Principal
+      op: not_contains
+      value: '*'
+- rule_id: aws.s3.bucketpolicy.no_public_principals_configured
+  for_each: aws.s3.get_bucket_policy
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Policy
+      op: exists
+      value: null
+    - var: item.Policy.Statement[].Principal
+      op: not_contains
+      value: '*'
+- rule_id: aws.s3.intelligent_tiering.bucket_enforced_on_sensitive_datasets_configured
+  for_each: aws.s3.get_bucket_lifecycle_configuration
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item[].Status
+      op: contains
+      value: Enabled
+    - var: item[].Transitions[].StorageClass
+      op: contains
+      value: INTELLIGENT_TIERING
+- rule_id: aws.s3.intelligent_tiering.policies_configured
+  for_each: aws.s3.get_bucket_lifecycle_configuration
+  severity: MEDIUM
+  conditions:
+    var: item
+    op: not_empty
+    value: null
+- rule_id: aws.s3.intelligent_tiering.protected_from_public_override_configured
+  for_each: aws.s3.get_bucket_policy
+  severity: HIGH
+  conditions:
+    var: item.Policy
+    op: exists
+    value: null
+- rule_id: aws.s3.lifecycle_configuration.bucket_enforced_on_sensitive_datasets_configured
+  for_each: aws.s3.get_bucket_lifecycle_configuration
+  severity: MEDIUM
+  conditions:
+    var: item.Rules
+    op: not_empty
+    value: null
+- rule_id: aws.s3.lifecycle_configuration.certificate_expiration_rules_configured
+  for_each: aws.s3.get_bucket_lifecycle_configuration
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.Rules[].Filter.Prefix
+      op: contains
+      value: cert
+    - var: item.Rules[].Filter.Prefix
+      op: contains
+      value: pem
+    - var: item.Rules[].Filter.Prefix
+      op: contains
+      value: key
+- rule_id: aws.s3.lifecycle_configuration.immutable_retention_locked_where_required
+  for_each: aws.s3.get_bucket_lifecycle_configuration
+  severity: LOW
+  conditions:
+    var: item.Status
+    op: equals
+    value: ACTIVE
+- rule_id: aws.s3.lifecycle_configuration.policies_configured
+  for_each: aws.s3.get_bucket_lifecycle_configuration
+  severity: MEDIUM
+  conditions:
+    var: item
+    op: not_empty
+    value: null
+- rule_id: aws.s3.lifecycle_configuration.protected_from_public_override_configured
+  for_each: aws.s3.get_bucket_lifecycle_configuration
+  severity: HIGH
+  conditions:
+    var: item
+    op: not_empty
+    value: null
+- rule_id: aws.s3.lifecycle_configuration.versioning_enabled_if_supported
+  for_each: aws.s3.get_bucket_lifecycle_configuration
+  severity: LOW
+  conditions:
+    var: item.Status
+    op: equals
+    value: ACTIVE
+- rule_id: aws.s3.macie_classification_jobs_status.macie_classification_jobs_status_configured
+  for_each: aws.s3.get_bucket_lifecycle_configuration
+  severity: MEDIUM
+  conditions:
+    var: item.Rules[].Status
+    op: equals
+    value: ACTIVE
+- rule_id: aws.s3.object.encryption_at_rest_enabled
+  for_each: aws.s3.get_bucket_encryption
+  severity: MEDIUM
+  conditions:
+    var: item.Rules
+    op: exists
+    value: null
+- rule_id: aws.s3.object.lock_or_immutability_enabled_if_supported
+  for_each: aws.s3.get_bucket_lifecycle_configuration
+  severity: MEDIUM
+  conditions:
+    any:
+    - var: item.ObjectLockEnabled
+      op: is_true
+      value: null
+    - var: item.Rules[].NoncurrentVersionExpiration.NoncurrentDays
+      op: exists
+      value: null
+    - var: item.Rules[].Expiration.Days
+      op: exists
+      value: null
+- rule_id: aws.s3.object.not_publicly_readable_configured
+  for_each: aws.s3.get_bucket_acl
+  severity: HIGH
+  conditions:
+    all:
+    - any:
+      - var: item.Grantee
+        op: not_exists
+        value: null
+      - var: item.Grantee
+        op: is_empty
+        value: null
+    - any:
+      - var: item.Permission
+        op: not_exists
+        value: null
+      - var: item.Permission
+        op: is_empty
+        value: null
+- rule_id: aws.s3.replication.auth_roles_least_privilege
+  for_each: aws.s3.get_bucket_policy
+  severity: HIGH
+  conditions:
+    var: item.Policy
+    op: exists
+    value: null
+- rule_id: aws.s3.replication.encryption_in_transit_tls_required
+  for_each: aws.s3.get_bucket_replication
+  severity: HIGH
+  conditions:
+    var: item.ReplicationConfiguration.Rules[].Destination.EncryptionConfiguration.ReplicaKmsKeyID
+    op: exists
+    value: null
+- rule_id: aws.s3.replication.lag_monitoring_alerts_enabled
+  for_each: aws.s3.get_bucket_lifecycle_configuration
+  severity: MEDIUM
+  conditions:
+    var: item.Rules[].Status
+    op: contains
+    value: ACTIVE
+- rule_id: aws.s3.website_https_only.website_https_only_configured
+  for_each: aws.s3.get_bucket_policy
+  severity: MEDIUM
+  conditions:
+    var: item.Policy
+    op: not_empty
+    value: null

@@ -1,0 +1,177 @@
+tech_type: nginx
+category: web_server
+cis_benchmark: CIS NGINX v2.1.0
+cis_section: '4'
+
+rules:
+
+  - rule_id: nginx.cis.4.only_modern_tls_protocols_are_used
+    title: "Ensure only modern TLS protocols are used"
+    severity: high
+    automation_type: automated
+    cis_control: '4.1.4'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: nginx.section_4.only_modern_tls_protocols_are_used
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "on"
+    remediation: >
+      Run the following commands to change your ssl_protocols if they are already
+      configured. This remediation advice assumes your nginx configuration file does
+      not include server configuration outside of /etc/nginx/nginx.conf. You may
+      have to also inspect the include files in your nginx.conf to ensure this is
+      properly implemented. Web Server: sed -i 's/ssl_protocols[^;]*;/ssl_protocols
+      TLSv1.2 TLSv1.3;/' /etc/nginx/nginx.conf Proxy: sed -i
+      's/proxy_ssl_protocols[^;]*;/proxy_ssl_protocols TLSv1.2 TLSv1.3;/'
+      /etc/nginx/nginx.conf If your ssl_protocols are not already configured, this
+      can be accomplished manually by opening your web server or proxy server
+      configuration file and manually adding the directives. Web Server: server {
+      ssl_protocols TLSv1.2 TLSv1.3; } Proxy: location / { proxy_pass
+      cisecurity.org; proxy_ssl_protocols TLSv1.2 TLSv1.3; } Default Value: By
+      default, NGINX does not specify the TLS protocol and accepts all TLS versions,
+      except for TLS 1.3, which must be enabled by an administrator to take effect.
+      Defaults: ssl_protocols TLSv1.0 TLSv1.1 TLSv1.2 proxy_ssl_protocols TLSv1.0
+      TLSv1.1 TLSv1.2 References: 1. https://webkit.org/blog/8462/deprecation-of-
+      legacy-tls-1-0-and-1-1-versions/ 2.
+      https://www.cloudflare.com/learning/ssl/why-use-tls-1.3/ 3.
+      https://tools.ietf.org/html/rfc8446 Additional Information: Note: TLS
+      configuration should always be set to your organizational policy. This
+      recommendation is designed to meet best practices. Compatibility Note: TLS 1.3
+      will only be available if a version of OpenSSL greater than 1.1.0 is installed
+      on your server. You can check the version of OpenSSL you are using by
+      leveraging the following command: openssl version
+    compliance:
+      - cis_nginx_v2_1_0_4_1_4
+
+  - rule_id: nginx.cis.4.custom_diffie_hellman_parameters_are_used
+    title: "Ensure custom Diffie-Hellman parameters are used"
+    severity: high
+    automation_type: automated
+    cis_control: '4.1.6'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: nginx.section_4.custom_diffie_hellman_parameters_are_used
+    assertion:
+      field: value
+      operator: gte
+      expected: "true"
+    remediation: >
+      Generate strong DHE (Ephemeral Diffie-Hellman) parameters using the following
+      commands: mkdir /etc/nginx/ssl openssl dhparam -out /etc/nginx/ssl/dhparam.pem
+      2048 chmod 400 /etc/nginx/ssl/dhparam.pem Alter the server configuration to
+      use the new parameters: http { server { ssl_dhparam
+      /etc/nginx/ssl/dhparam.pem; } } References: 1.
+      https://weakdh.org/sysadmin.html
+    compliance:
+      - cis_nginx_v2_1_0_4_1_6
+
+  - rule_id: nginx.cis.4.online_certificate_status_protocol_ocsp_stapling
+    title: "Ensure Online Certificate Status Protocol (OCSP) stapling is enabled"
+    severity: high
+    automation_type: automated
+    cis_control: '4.1.7'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: nginx.section_4.online_certificate_status_protocol_ocsp_stapling
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "on"
+    remediation: >
+      Follow this procedure to enable OCSP validation: Step 1: Ensure your NGINX
+      server has access to your CA's OCSP server. Your CA's OCSP server may be found
+      on your CA's website and will vary depending on your CA vendor. Issue the
+      following command in order to check your connectivity to their site: curl -I
+      'insert certificate authority ocsp server here' If you get a 200 code
+      response, your server has access. Step 2: Enable OCSP on nginx. Implement the
+      ssl_stapling and ssl_stapling_verify directives. The directive ssl_stapling
+      enables OCSP stapling, and the directive ssl_stapling_verify enables
+      verification of the OCSP responses on nginx. server { ssl_stapling on;
+      ssl_stapling_verify on; } Default Value: OCSP stapling is not enabled by
+      default. References: 1. https://www.digicert.com/ssl-support/nginx-enable-
+      ocsp-stapling-on-server.htm
+    compliance:
+      - cis_nginx_v2_1_0_4_1_7
+
+  - rule_id: nginx.cis.4.upstream_server_traffic_is_authenticated_with_a
+    title: "Ensure upstream server traffic is authenticated with a client certificate"
+    severity: high
+    automation_type: automated
+    cis_control: '4.1.9'
+    cis_section: '4'
+    profile_applicability: "Level 1"
+    scope: nginx.section_4.upstream_server_traffic_is_authenticated_with_a
+    assertion:
+      field: value
+      operator: equals
+      expected: "true"
+    remediation: >
+      In order to implement this recommendation, you must create a client
+      certificate to be authenticated against and have it signed. Once you have a
+      signed certificate, place the certificate in a location of your choice. In the
+      below example, we use /etc/nginx/ssl/cert.pem. Implement the configuration as
+      part of the location block: proxy_ssl_certificate /etc/nginx/ssl/nginx.pem;
+      proxy_ssl_certificate_key /etc/nginx/ssl/nginx.key; Default Value: This is not
+      authenticated by default. References: 1. https://docs.nginx.com/nginx/admin-
+      guide/security-controls/securing-http-traffic- upstream/ 2.
+      http://www.staticshin.com/programming/proxy-ssl-cert-in-nginx.html 3.
+      http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_ssl_certificate
+      Additional Information: Your upstream server must also be configured to verify
+      the client certificate. If your upstream web server is an NGINX web server,
+      you may accomplish this by adding the client certificate into a file
+      referenced by the directive ssl_client_certificate. This should be part of
+      your server block. An example is below. ssl_client_certificate
+      /etc/nginx/ssl/ca.cert; ssl_verify_client on;
+    compliance:
+      - cis_nginx_v2_1_0_4_1_9
+
+  - rule_id: nginx.cis.4.session_resumption_is_disabled_to_enable_perfect
+    title: "Ensure session resumption is disabled to enable perfect forward security"
+    severity: medium
+    automation_type: automated
+    cis_control: '4.1.12'
+    cis_section: '4'
+    profile_applicability: "Level 2"
+    scope: nginx.section_4.session_resumption_is_disabled_to_enable_perfect
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "false"
+    remediation: >
+      Turn off the ssl_session_tickets directive as part of any server block in your
+      nginx configuration: ssl_session_tickets off; Default Value: Perfect forward
+      security is not enabled by default. References: 1.
+      https://www.imperialviolet.org/2013/06/27/botchingpfs.html 2.
+      https://scotthelme.co.uk/perfect-forward-secrecy/
+    compliance:
+      - cis_nginx_v2_1_0_4_1_12
+
+  - rule_id: nginx.cis.4.http_2_0_is_used
+    title: "Ensure HTTP/2.0 is used"
+    severity: medium
+    automation_type: automated
+    cis_control: '4.1.13'
+    cis_section: '4'
+    profile_applicability: "Level 2"
+    scope: nginx.section_4.http_2_0_is_used
+    assertion:
+      field: enabled
+      operator: equals
+      expected: "on"
+    remediation: >
+      Open the nginx server configuration file and configure all listening ports
+      with http2, similar to that of this example: server { listen 443 ssl http2; }
+      Default Value: By default, HTTP/1.1 is used. References: 1.
+      https://mozilla.github.io/server-side-tls/ssl-config-generator/ 2.
+      https://http2.github.io/ Additional Information: 1. HTTP/2.0 is not supported
+      for proxies at the time of the writing of this recommendation. 2. Versions of
+      NGINX prior to 1.17.2 are affected by several HTTP/2 vulnerabilities. More
+      information on these on these vulnerabilities can be found at:
+      https://www.nginx.com/blog/nginx-updates-mitigate-august-2019-http-2-
+      vulnerabilities/ and http://nginx.org/en/security_advisories.html
+    compliance:
+      - cis_nginx_v2_1_0_4_1_13
+
+

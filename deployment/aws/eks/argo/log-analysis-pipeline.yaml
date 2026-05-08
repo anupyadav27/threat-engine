@@ -1,0 +1,127 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: log-analysis-pipeline
+  namespace: threat-engine-engines
+  labels:
+    app: cspm-pipeline
+spec:
+  serviceAccountName: default
+  entrypoint: log-analysis
+
+  arguments:
+    parameters:
+    - name: scan-run-id
+      description: "Pipeline-wide UUID (reuse from CSPM scan or new)"
+    - name: tenant-id
+      description: "Tenant identifier"
+    - name: account-id
+      description: "Cloud account ID"
+    - name: provider
+      value: "aws"
+    - name: lookback-hours
+      value: "24"
+      description: "Hours of logs to collect (default 24)"
+    - name: max-events
+      value: "100000"
+      description: "Maximum events to collect per source"
+
+  podGC:
+    strategy: OnPodCompletion
+    deleteDelayDuration: "600s"
+
+  templates:
+
+  - name: log-analysis
+    dag:
+      tasks:
+      - name: log-collection
+        template: trigger-and-poll
+        arguments:
+          parameters:
+          - name: engine
+            value: log-collection
+          - name: trigger-url
+            value: "http://engine-log-collection/api/v1/scan"
+          - name: payload
+            value: |
+              {
+                "scan_run_id": "{{workflow.parameters.scan-run-id}}",
+                "tenant_id": "{{workflow.parameters.tenant-id}}",
+                "account_id": "{{workflow.parameters.account-id}}",
+                "provider": "{{workflow.parameters.provider}}",
+                "lookback_hours": {{workflow.parameters.lookback-hours}},
+                "max_events": {{workflow.parameters.max-events}}
+              }
+          - name: poll-url
+            value: "http://engine-log-collection/api/v1/log-collection/{{workflow.parameters.scan-run-id}}/status"
+          - name: timeout
+            value: "3600"
+
+      - name: mark-complete
+        dependencies: [log-collection]
+        template: update-status
+
+  # Trigger + Poll template (reuse from CSPM pipeline)
+  - name: trigger-and-poll
+    inputs:
+      parameters:
+      - name: engine
+      - name: trigger-url
+      - name: payload
+      - name: poll-url
+      - name: timeout
+        value: "1800"
+    timeout: "{{inputs.parameters.timeout}}s"
+    script:
+      image: python:3.11-slim
+      command: [python3]
+      envFrom:
+      - configMapRef:
+          name: threat-engine-db-config
+      - secretRef:
+          name: threat-engine-db-passwords
+          optional: true
+      source: |
+        import subprocess; subprocess.run(["pip", "install", "-q", "requests"], check=True)
+        import requests, time, json
+
+        ENGINE = "{{inputs.parameters.engine}}"
+        TRIGGER_URL = "{{inputs.parameters.trigger-url}}"
+        POLL_URL = "{{inputs.parameters.poll-url}}"
+        TIMEOUT = int("{{inputs.parameters.timeout}}")
+
+        print(f"=== Triggering {ENGINE} ===")
+        payload = json.loads('''{{inputs.parameters.payload}}''')
+        resp = requests.post(TRIGGER_URL, json=payload, timeout=60)
+        print(f"HTTP {resp.status_code}: {resp.text[:200]}")
+        if resp.status_code >= 400:
+            exit(1)
+
+        print(f"=== Polling {ENGINE} ===")
+        elapsed = 0
+        while elapsed < TIMEOUT:
+            time.sleep(15)
+            elapsed += 15
+            try:
+                sr = requests.get(POLL_URL, timeout=10)
+                status = sr.json().get("status", "unknown")
+            except:
+                status = "unknown"
+            if elapsed % 60 < 15:
+                print(f"[{ENGINE}] {elapsed}s status={status}")
+            if status == "completed":
+                print(f"=== {ENGINE} COMPLETED ===")
+                exit(0)
+            if status == "failed":
+                print(f"=== {ENGINE} FAILED ===")
+                exit(1)
+        print(f"=== {ENGINE} TIMEOUT ===")
+        exit(1)
+
+  - name: update-status
+    script:
+      image: python:3.11-slim
+      command: [python3]
+      source: |
+        print("Log analysis pipeline completed")

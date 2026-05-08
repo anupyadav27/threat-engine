@@ -1,0 +1,82 @@
+rule_id: gcp.orgpolicy.activity.create_policy
+service: orgpolicy
+provider: gcp
+check_type: log
+severity: high
+title: 'Org Policy: Custom Policy Created'
+description: Organization policy created — may override security-critical constraints such as public IP restrictions, service account key creation, or resource location policies.
+rationale: 'Adversaries modify or disable security tools to avoid detection of their activities — including killing security software processes, disabling GuardDuty detectors, deleting Microsoft Defender plans, or tampering with cloud monitoring agents. Once defenses are disabled, subsequent attack phases proceed without generating alerts. Detected via: security process/service termination, cloud monitoring agent disable API calls, and container admission controller tampering.'
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1562.001
+risk_score: 78
+resource: org_policy
+source: default
+is_active: true
+domain: logging_monitoring_and_alerting
+action_category: modify
+posture_category: security_posture
+threat_tags:
+- T1562.001
+- T1562
+- defense_evasion
+- log_tampering
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: critical
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_gcp_v2:
+  - 2.1
+  - 2.2
+  - 2.4
+  - 2.5
+  nist_800_53_r5:
+  - AU-2
+  - AU-6
+  - AU-12
+  - SI-4
+  pci_dss_v4:
+  - 10.1
+  - 10.2
+  - 10.3
+  iso_27001_2022:
+  - A.8.15
+  - A.8.16
+  - A.5.28
+detection_events:
+- 'guardduty:DeleteDetector'
+- 'securityhub:DisableSecurityHub'
+- Microsoft.Security/pricings/write (Standard → Free)
+- Set-MpPreference -DisableRealtimeMonitoring
+remediation: |
+  1. Immediately restore the deleted or modified logging/security configuration.
+  2. Apply Org Policy to prevent log sink deletion: `logging.restrictSinkCreation`.
+  3. Use Cloud Storage Bucket Lock on log export buckets to prevent deletion.
+  4. Configure out-of-band alerting via Pub/Sub → Cloud Functions for audit log changes.
+  5. Enable Security Command Center Premium for threat detection on defense evasion events.
+references:
+- https://attack.mitre.org/techniques/T1562/001/
+- https://cloud.google.com/security-command-center/docs/concepts-security-sources
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: orgpolicy.googleapis.com
+    - field: operation
+      op: contains
+      value: CreatePolicy
+version: '1.0'

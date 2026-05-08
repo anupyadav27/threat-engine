@@ -11,13 +11,8 @@ from psycopg2.pool import SimpleConnectionPool
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 from urllib.parse import urlparse
-import sys
 import logging
 
-# Import local database config
-_engine_path = os.path.join(os.path.dirname(__file__), "..", "..")
-sys.path.insert(0, _engine_path)
-from consolidated_services.database.config import get_database_config
 
 logger = logging.getLogger(__name__)
 
@@ -43,26 +38,23 @@ class DatabaseManager:
     def __init__(self, db_config: Optional[Dict] = None):
         """
         Initialize database connection for discoveries engine.
-        
+
         Args:
-            db_config: Optional override (for testing). Normally uses consolidated DB config.
+            db_config: Optional override (for testing). Normally reads env vars.
         """
-        # Get consolidated database config (required - no fallback)
-        try:
-            db_config_obj = get_database_config("discoveries")
-            # Convert to dict format for compatibility
-            self.db_config = {
-                "host": db_config_obj.host,
-                "port": db_config_obj.port,
-                "database": db_config_obj.database,
-                "user": db_config_obj.username,
-                "password": db_config_obj.password,
-            }
-            logger.info(f"Using consolidated discoveries database: {db_config_obj.database} on {db_config_obj.host}")
-        except Exception as e:
-            logger.error(f"Failed to get consolidated DB config: {e}")
-            raise RuntimeError("Consolidated database configuration is required. Cannot proceed without it.") from e
-        
+        self.db_config = {
+            "host": os.getenv("DISCOVERIES_DB_HOST", os.getenv("DB_HOST", "localhost")),
+            "port": int(os.getenv("DISCOVERIES_DB_PORT", os.getenv("DB_PORT", "5432"))),
+            "database": os.getenv("DISCOVERIES_DB_NAME", "threat_engine_discoveries"),
+            "user": os.getenv("DISCOVERIES_DB_USER", os.getenv("DB_USER", "postgres")),
+            "password": (
+                os.getenv("DISCOVERIES_DB_PASSWORD")
+                or os.getenv("DB_PASSWORD")
+                or ""
+            ),
+        }
+        logger.info(f"Using discoveries database: {self.db_config['database']} on {self.db_config['host']}")
+
         # Allow override for testing
         if db_config is not None:
             self.db_config.update(db_config)
@@ -79,7 +71,7 @@ class DatabaseManager:
         """Initialize connection pool.
 
         Pool sizing rationale:
-          - MAX_SERVICE_WORKERS (10) × MAX_REGION_WORKERS (5) = 50 concurrent scans
+          - MAX_CONCURRENT_TASKS (400) global semaphore, DB executor capped at 50 threads
           - Each scan calls store_discoveries_batch() via a DB executor thread
           - Plus a few extra for config reads and status updates
           - min=5  : keep a few warm connections to avoid cold-start latency
@@ -194,7 +186,37 @@ class DatabaseManager:
             conn.commit()
         finally:
             self._return_connection(conn)
-    
+
+    def update_scan_metadata(self, scan_id: str, metadata: Dict) -> None:
+        """
+        Merge extra key/value pairs into discovery_report.metadata JSONB.
+
+        Used to persist the timing report at the end of a scan so it can be
+        queried later without parsing pod logs.
+
+        Args:
+            scan_id:  The scan_run_id to update.
+            metadata: Dict to merge (uses jsonb || operator — existing keys kept,
+                      new/changed keys from metadata take precedence).
+        """
+        conn = self._get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE discovery_report
+                    SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+                    WHERE scan_run_id = %s
+                """, (json.dumps(metadata), scan_id))
+            conn.commit()
+        except Exception as e:
+            logger.warning(f"update_scan_metadata failed for {scan_id} (non-critical): {e}")
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+        finally:
+            self._return_connection(conn)
+
     # Discovery Storage
     def _calculate_config_hash(self, item: Dict) -> str:
         """Calculate SHA256 hash of configuration"""
@@ -298,13 +320,20 @@ class DatabaseManager:
                     resource_uid = item.get('resource_uid') or item.get('resource_arn')
                     resource_id = item.get('resource_id')
                     resource_type = item.get('resource_type')
+
                     config_hash = self._calculate_config_hash(item)
                     
                     # Check previous version from batch lookup
                     previous = previous_versions.get(resource_uid) if resource_uid else None
                     
                     raw_response_json = json.dumps(item.get('_raw_response', {}), default=json_serial)
-                    emitted_fields_json = json.dumps(item, default=json_serial)
+                    # DCAT-02-E: prefer rendered emit.item template if scanner attached it
+                    # (catalog-as-truth flat fields). Falls back to whole-item dump.
+                    rendered_emit = item.get('emitted_fields')
+                    if isinstance(rendered_emit, dict) and rendered_emit:
+                        emitted_fields_json = json.dumps(rendered_emit, default=json_serial)
+                    else:
+                        emitted_fields_json = json.dumps(item, default=json_serial)
                     history_resource_uid = resource_uid or f"account:{account_id}:{discovery_id}"
                     
                     if previous:
@@ -374,15 +403,50 @@ class DatabaseManager:
                 
                 # Execute UPDATE for unchanged resources
                 if discoveries_to_update:
+                    # DCAT-02-E: also refresh emitted_fields/raw_response so that
+                    # catalog changes propagate even when the resource config is
+                    # unchanged. The "unchanged" path now needs to update those
+                    # JSONB columns too — previously they stayed stale forever
+                    # after the first scan, masking catalog improvements.
+                    update_rows = []
+                    for tup in discoveries_to_update:
+                        s_scan_id, s_uid, s_did, s_cust, s_tenant, s_acct = tup
+                        # Find the matching item to pull fresh emitted_fields/raw
+                        match_item = None
+                        for it in items:
+                            if (it.get('resource_uid') or it.get('resource_arn')) == s_uid:
+                                match_item = it
+                                break
+                        if match_item is not None:
+                            _ef = match_item.get('emitted_fields')
+                            ef_json = (
+                                json.dumps(_ef, default=json_serial)
+                                if isinstance(_ef, dict) and _ef
+                                else json.dumps(match_item, default=json_serial)
+                            )
+                            rr_json = json.dumps(
+                                match_item.get('_raw_response', {}),
+                                default=json_serial,
+                            )
+                        else:
+                            ef_json = '{}'
+                            rr_json = '{}'
+                        update_rows.append((
+                            s_scan_id, ef_json, rr_json,
+                            s_uid, s_did, s_cust, s_tenant, s_acct,
+                        ))
                     cur.executemany("""
                         UPDATE discovery_findings
-                        SET scan_run_id = %s, first_seen_at = CURRENT_TIMESTAMP
+                        SET scan_run_id = %s,
+                            first_seen_at = CURRENT_TIMESTAMP,
+                            emitted_fields = %s::jsonb,
+                            raw_response = %s::jsonb
                         WHERE resource_uid = %s
                           AND discovery_id = %s
                           AND customer_id = %s
                           AND tenant_id = %s
                           AND account_id = %s
-                    """, discoveries_to_update)
+                    """, update_rows)
 
                 # Execute INSERT for new/modified resources
                 if discoveries_to_insert:
@@ -400,19 +464,41 @@ class DatabaseManager:
 
                 # History is non-critical — don't let it block findings
                 if history_batch:
+                    # DCAT-02 fix-A: discovery_history.discovery_scan_id is a
+                    # legacy NOT NULL column, replaced by scan_run_id but never
+                    # dropped. Pass scan_run_id as both — the table was silently
+                    # empty for non-AWS providers because the INSERT omitted
+                    # the legacy column and tripped NOT NULL on every row.
+                    history_rows = []
+                    for h in history_batch:
+                        # h is the original 15-tuple (customer_id, tenant_id,
+                        # provider, account_id, hierarchy_type, discovery_id,
+                        # resource_uid, scan_run_id, config_hash, raw_response,
+                        # emitted_fields, version, change_type, previous_hash,
+                        # diff_summary).  Extend with discovery_scan_id mirror
+                        # of scan_run_id (index 7).
+                        history_rows.append(h + (h[7],))
                     try:
                         cur.executemany("""
                             INSERT INTO discovery_history
                             (customer_id, tenant_id, provider, account_id, hierarchy_type,
                              discovery_id, resource_uid, scan_run_id, config_hash,
                              raw_response, emitted_fields, version, change_type,
-                             previous_hash, diff_summary)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        """, history_batch)
+                             previous_hash, diff_summary, discovery_scan_id)
+                            VALUES (COALESCE(%s, 'default'), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """, history_rows)
                         conn.commit()
                     except Exception as hist_err:
                         conn.rollback()
                         logger.warning(f"History insert failed (non-critical): {hist_err}")
+        except Exception:
+            # Roll back so the connection isn't returned to the pool in a
+            # dirty/aborted-transaction state.
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            raise
         finally:
             self._return_connection(conn)
         

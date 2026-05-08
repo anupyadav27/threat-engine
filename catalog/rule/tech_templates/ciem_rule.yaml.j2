@@ -1,0 +1,50 @@
+# {{ tech | upper }} — CIEM Detection Rules
+# Real-time authentication & access event analysis
+# Log source: {{ log_source }}
+
+tech_type: {{ tech }}
+category: {{ category }}
+log_source: {{ log_source }}
+
+rules:
+{% for row in rows %}
+  - rule_id: tciem.{{ tech }}.{{ row._ciem_slug }}
+    title: "{{ row.title | replace('"', "'") }}"
+    severity: {{ row.severity | lower }}
+    mitre_technique: {{ row._mitre_technique }}
+    mitre_tactic: {{ row._mitre_tactic }}
+    cis_control: '{{ row.control_id }}'
+    cis_section: '{{ row.section }}'
+    log_source: "{{ log_source }}"
+    detection:
+      event_type: {{ row._event_type }}
+      {% if row._event_type == "authentication_failure" -%}
+      threshold: 5
+      window_seconds: 300
+      group_by: [source_ip, username]
+      {% elif row._event_type == "privilege_change" -%}
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      {% elif row._event_type == "authentication_success" -%}
+      filters:
+        account_type: human
+      {% elif row._event_type == "configuration_change" -%}
+      filters:
+        change_type: security_relevant
+      {% elif row._event_type == "data_access" -%}
+      threshold: 1
+      filters:
+        data_classification: sensitive
+      {% elif row._event_type == "audit_event" -%}
+      filters:
+        change_type: security_relevant
+      {% else -%}
+      filters:
+        account_type: human
+      {% endif -%}
+    evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      {{ row.remediation_steps | default('') | wordwrap(78, break_long_words=False) | indent(6) }}
+{% endfor %}

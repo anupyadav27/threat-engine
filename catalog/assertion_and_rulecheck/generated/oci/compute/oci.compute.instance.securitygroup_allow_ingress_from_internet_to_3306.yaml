@@ -1,0 +1,22 @@
+version: '1.0'
+rule_id: oci.compute.instance.securitygroup_allow_ingress_from_internet_to_3306
+for_each: oci.compute.list_instances
+severity: LOW
+conditions:
+  all:
+  - var: item.status
+    op: equals
+    value: ACTIVE
+  - any:
+    - var: item.security_groups[].ingress_rules[].source
+      op: not_contains
+      value: 0.0.0.0/0
+    - var: item.security_groups[].ingress_rules[].source
+      op: not_contains
+      value: ::/0
+    - var: item.security_groups[].ingress_rules[].destination_port_range.max
+      op: not_equals
+      value: 3306
+    - var: item.security_groups[].ingress_rules[].destination_port_range.min
+      op: not_equals
+      value: 3306

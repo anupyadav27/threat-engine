@@ -1,0 +1,129 @@
+# ==========================================================
+# Discovery YAML — apigatewayv2 (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 16 | ops: 1 independent, 3 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: apigatewayv2
+
+services:
+  client: apigatewayv2
+  module: "boto3.client('apigatewayv2')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  []
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.apigatewayv2.get_integration  ──
+  - discovery_id: aws.apigatewayv2.get_integration
+    calls:
+      - action: get_integration
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        TlsConfig: '{{ item.TlsConfig }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.apigatewayv2.get_routes [dependent] ──
+  - discovery_id: aws.apigatewayv2.get_routes
+    for_each: aws.apigatewayv2.get_apis
+    calls:
+      - action: get_routes
+        params:
+          ApiId: "{{ item.ApiId }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Items }}'
+      item:
+        ApiGatewayManaged: '{{ item.ApiGatewayManaged }}'
+        ApiKeyRequired: '{{ item.ApiKeyRequired }}'
+        AuthorizationScopes: '{{ item.AuthorizationScopes }}'
+        AuthorizationType: '{{ item.AuthorizationType }}'
+        AuthorizerId: '{{ item.AuthorizerId }}'
+        ModelSelectionExpression: '{{ item.ModelSelectionExpression }}'
+        OperationName: '{{ item.OperationName }}'
+        RequestModels: '{{ item.RequestModels }}'
+        RequestParameters: '{{ item.RequestParameters }}'
+        RouteId: '{{ item.RouteId }}'
+        RouteKey: '{{ item.RouteKey }}'
+        RouteResponseSelectionExpression: '{{ item.RouteResponseSelectionExpression }}'
+        Target: '{{ item.Target }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.apigatewayv2.get_stage [dependent] ──
+  - discovery_id: aws.apigatewayv2.get_stage
+    for_each: aws.apigatewayv2.get_apis
+    calls:
+      - action: get_stage
+        params:
+          ApiId: "{{ item.ApiId }}"
+          StageName: "{{ item.StageName }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        AccessLogSettings: '{{ item.AccessLogSettings }}'
+        AccessLogSettings.DestinationArn: '{{ item.AccessLogSettings.DestinationArn }}'
+        AutoDeploy: '{{ item.AutoDeploy }}'
+        ClientCertificateId: '{{ item.ClientCertificateId }}'
+        DefaultRouteSettings: '{{ item.DefaultRouteSettings }}'
+        DeploymentId: '{{ item.DeploymentId }}'
+        Description: '{{ item.Description }}'
+        DestinationArn: '{{ item.DestinationArn }}'
+        Format: '{{ item.Format }}'
+        RouteSettings: '{{ item.RouteSettings }}'
+        StageName: '{{ item.StageName }}'
+        StageVariables: '{{ item.StageVariables }}'
+        Tags: '{{ item.Tags }}'
+        defaultRouteSettings.detailedMetricsEnabled: '{{ item.defaultRouteSettings.detailedMetricsEnabled }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.apigatewayv2.get_stages [dependent] ──
+  - discovery_id: aws.apigatewayv2.get_stages
+    for_each: aws.apigatewayv2.get_apis
+    calls:
+      - action: get_stages
+        params:
+          ApiId: "{{ item.ApiId }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Items }}'
+      item:
+        AccessLogSettings: '{{ item.AccessLogSettings }}'
+        AccessLogSettings.DestinationArn: '{{ item.AccessLogSettings.DestinationArn }}'
+        ApiGatewayManaged: '{{ item.ApiGatewayManaged }}'
+        AutoDeploy: '{{ item.AutoDeploy }}'
+        ClientCertificateId: '{{ item.ClientCertificateId }}'
+        CreatedDate: '{{ item.CreatedDate }}'
+        DataTraceEnabled: '{{ item.DataTraceEnabled }}'
+        DefaultRouteSettings: '{{ item.DefaultRouteSettings }}'
+        DefaultRouteSettings.BurstLimit: '{{ item.DefaultRouteSettings.BurstLimit }}'
+        DefaultRouteSettings.ThrottlingBurstLimit: '{{ item.DefaultRouteSettings.ThrottlingBurstLimit }}'
+        DeploymentId: '{{ item.DeploymentId }}'
+        Description: '{{ item.Description }}'
+        DetailedMetricsEnabled: '{{ item.DetailedMetricsEnabled }}'
+        LastDeploymentStatusMessage: '{{ item.LastDeploymentStatusMessage }}'
+        LastUpdatedDate: '{{ item.LastUpdatedDate }}'
+        LoggingLevel: '{{ item.LoggingLevel }}'
+        RouteSettings: '{{ item.RouteSettings }}'
+        StageName: '{{ item.StageName }}'
+        StageVariables: '{{ item.StageVariables }}'
+        Tags: '{{ item.Tags }}'
+        ThrottlingBurstLimit: '{{ item.ThrottlingBurstLimit }}'
+        ThrottlingRateLimit: '{{ item.ThrottlingRateLimit }}'
+

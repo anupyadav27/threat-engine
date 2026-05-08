@@ -1,0 +1,65 @@
+# discoveries_only_check: 2 kept / 5 removed from 7 total
+# generated_from: step6_elb.discovery.yaml
+# purpose: only discoveries needed by elb.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: elb
+services:
+  client: elb
+  module: boto3.client
+discovery:
+- discovery_id: aws.elb.describe_load_balancers
+  calls:
+  - action: describe_load_balancers
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.LoadBalancerDescriptions }}'
+    item:
+      SecurityGroups: '{{ item.SecurityGroups }}'
+      State: '{{ item.State }}'
+      VpcId: '{{ item.VpcId }}'
+      AccessLog: '{{ item.AccessLog }}'
+      AvailabilityZones: '{{ item.AvailabilityZones }}'
+      CanonicalHostedZoneId: '{{ item.CanonicalHostedZoneId }}'
+      CreatedTime: '{{ item.CreatedTime }}'
+      CustomerOwnedIpv4Pool: '{{ item.CustomerOwnedIpv4Pool }}'
+      DNSName: '{{ item.DNSName }}'
+      EnablePrefixForIpv6SourceNat: '{{ item.EnablePrefixForIpv6SourceNat }}'
+      EnforceSecurityGroupInboundRulesOnPrivateLinkTraffic: '{{ item.EnforceSecurityGroupInboundRulesOnPrivateLinkTraffic
+        }}'
+      IpAddressType: '{{ item.IpAddressType }}'
+      IpamPools: '{{ item.IpamPools }}'
+      LoadBalancerArn: '{{ item.LoadBalancerArn }}'
+      LoadBalancerAttributes: '{{ item.LoadBalancerAttributes }}'
+      LoadBalancerName: '{{ item.LoadBalancerName }}'
+      LoadBalancers: '{{ item.LoadBalancers }}'
+      Scheme: '{{ item.Scheme }}'
+      Type: '{{ item.Type }}'
+      ListenerDescriptions: '{{ item.ListenerDescriptions }}'
+      Policies: '{{ item.Policies }}'
+      BackendServerDescriptions: '{{ item.BackendServerDescriptions }}'
+      HealthCheck: '{{ item.HealthCheck }}'
+      SourceSecurityGroup: '{{ item.SourceSecurityGroup }}'
+      Subnets: '{{ item.Subnets }}'
+- discovery_id: aws.elb.describe_load_balancer_attributes
+  for_each: aws.elb.describe_load_balancers
+  calls:
+  - action: describe_load_balancer_attributes
+    params:
+      LoadBalancerName: '{{ item.LoadBalancerName }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      AccessLog: '{{ response.LoadBalancerAttributes.AccessLog }}'
+      Key: '{{ response.LoadBalancerAttributes.Key }}'
+      LoadBalancerAttributes: '{{ response.LoadBalancerAttributes.LoadBalancerAttributes
+        }}'
+      Value: '{{ response.LoadBalancerAttributes.Value }}'
+      AdditionalAttributes: '{{ response.LoadBalancerAttributes.AdditionalAttributes }}'
+      ConnectionDraining: '{{ response.LoadBalancerAttributes.ConnectionDraining }}'
+      ConnectionSettings: '{{ response.LoadBalancerAttributes.ConnectionSettings }}'
+      CrossZoneLoadBalancing: '{{ response.LoadBalancerAttributes.CrossZoneLoadBalancing }}'

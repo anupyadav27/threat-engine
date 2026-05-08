@@ -1,0 +1,36 @@
+version: '1.0'
+provider: aws
+service: acm-pca
+checks:
+- rule_id: aws.acm-pca.certificateauthority.cloudwatch_audit_logging
+  for_each: aws.acm-pca.list_certificate_authorities
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.RevocationConfiguration.CrlConfiguration.Enabled
+      op: is_true
+      value: null
+    - var: item.RevocationConfiguration.CrlConfiguration.ExpirationInDays
+      op: gte
+      value: 1
+    - var: item.RevocationConfiguration.CrlConfiguration.S3BucketName
+      op: exists
+      value: null
+- rule_id: aws.acm-pca.certificateauthority.enabled_and_active
+  for_each: aws.acm-pca.list_certificate_authorities
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Enabled
+      op: is_true
+      value: null
+    - var: item.Status
+      op: equals
+      value: ACTIVE
+- rule_id: aws.acm-pca.certificateauthority.revocation_configured
+  for_each: aws.acm-pca.list_certificate_authorities
+  severity: HIGH
+  conditions:
+    var: item.RevocationConfiguration
+    op: exists
+    value: null

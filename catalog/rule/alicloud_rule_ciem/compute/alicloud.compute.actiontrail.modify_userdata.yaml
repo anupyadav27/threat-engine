@@ -1,0 +1,76 @@
+rule_id: alicloud.compute.actiontrail.modify_userdata
+service: compute
+provider: alicloud
+check_type: log
+severity: critical
+title: 'AliCloud ECS: Instance User Data Modified'
+description: ECS instance user data was modified. User data runs as root on next boot
+  — adversaries inject malicious scripts for persistence or lateral movement.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: persistence
+mitre_tactics:
+- persistence
+- execution
+mitre_techniques:
+- T1059.004
+- T1546
+risk_score: 90
+resource: alicloud_ecs_instance
+source: alicloud_ciem_generator
+is_active: true
+domain: compute_and_workload_security
+action_category: modify
+log_source_type: alicloud_actiontrail
+posture_category: workload_posture
+threat_tags:
+- T1059.004
+- T1546
+- persistence
+- execution
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '8.1'
+  - '8.2'
+  nist_800_53_r5:
+  - CM-2
+  - CM-7
+  - SC-7
+  pci_dss_v4:
+  - '6.3'
+  - '6.4'
+  iso_27001_2022:
+  - A.8.9
+  - A.8.25
+remediation: '1. Audit the new user data content for malicious scripts.
+
+  2. Restrict ModifyInstanceAttribute to CI/CD service accounts.
+
+  3. Alert on user data modifications to production instances.'
+references:
+- https://attack.mitre.org/techniques/T1059/004/
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: alicloud_actiontrail
+    - field: service
+      op: equals
+      value: ecs
+    - field: operation
+      op: equals
+      value: ModifyInstanceAttribute
+version: '1.0'

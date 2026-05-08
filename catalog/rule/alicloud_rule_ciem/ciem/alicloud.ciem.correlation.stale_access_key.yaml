@@ -1,0 +1,73 @@
+rule_id: alicloud.ciem.correlation.stale_access_key
+service: ciem
+provider: alicloud
+check_type: log
+severity: high
+title: 'AliCloud CIEM: Access Key Used Past Rotation Deadline'
+description: An access key was used significantly past its rotation deadline — a persistence
+  indicator for stale credentials retained by an adversary.
+rationale: Monitoring this operation is essential for detecting adversary activity
+  targeting AliCloud resources. Unauthorized or unexpected API calls may indicate
+  account compromise, privilege escalation, or an active attack chain in progress.
+threat_category: persistence
+mitre_tactics:
+- credential_access
+mitre_techniques:
+- T1552.005
+risk_score: 72
+resource: alicloud_ram_access_key
+source: alicloud_ciem_generator
+is_active: true
+domain: identity_and_access_management
+action_category: audit_activity
+log_source_type: alicloud_actiontrail
+posture_category: iam_posture
+threat_tags:
+- T1552.005
+- credential_access
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: account
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  alicloud_sec_baseline:
+  - '2.1'
+  - '2.2'
+  - '2.3'
+  nist_800_53_r5:
+  - AC-2
+  - AC-3
+  - AC-6
+  - IA-2
+  - IA-5
+  pci_dss_v4:
+  - '7.1'
+  - '8.2'
+  - '10.2'
+  iso_27001_2022:
+  - A.5.18
+  - A.8.2
+  - A.9.2
+remediation: '1. Rotate all access keys older than 90 days.
+
+  2. Disable keys that haven''t been used in 45 days.
+
+  3. Enforce key rotation policy via IMS security settings.'
+references:
+- https://attack.mitre.org/techniques/T1552/005/
+check_config:
+  type: correlation
+  for_each: log_events
+  match_by: actor.principal
+  sequence:
+  - rule_id: alicloud.iam.actiontrail.create_access_key
+  time_window_minutes: 129600
+  min_events: 1
+version: '1.0'

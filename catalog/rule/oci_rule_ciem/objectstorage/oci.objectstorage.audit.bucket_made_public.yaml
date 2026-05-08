@@ -1,0 +1,68 @@
+rule_id: oci.objectstorage.audit.bucket_made_public
+service: objectstorage
+provider: oci
+check_type: log
+severity: critical
+title: 'OCI Object Storage: Bucket Made Publicly Accessible'
+description: 'An OCI Object Storage bucket''s public access setting was changed to ''ObjectRead'' or ''ObjectReadWithoutList''. Public buckets expose all stored objects to the internet.'
+threat_category: data_exfiltration
+mitre_tactics:
+- exfiltration
+mitre_techniques:
+- T1530
+risk_score: 97
+resource: oci_objectstorage_bucket
+domain: data_protection_and_privacy
+action_category: exfiltration
+log_source_type: 
+posture_category: data_security_posture
+threat_tags:
+- T1530
+- data_exfiltration
+- data_loss
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: data_transfer
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: high
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: true
+  modules:
+  - data_access_governance
+  - data_loss_prevention
+  categories:
+  - data_exfiltration
+  - unauthorized_access
+  priority: critical
+  impact:
+    pci: PCI DSS Requirement 3.1 — Minimize cardholder data storage
+    gdpr: GDPR Article 25 — Data protection by design; minimize data exposure
+    hipaa: §164.312(a)(1) — Access controls on data repositories containing ePHI
+  sensitive_data_context: |
+  Unauthorized data exfiltration on objectstorage resources must be detected to prevent:
+      - Data loss and regulatory compliance violations
+      - Unauthorized exposure of sensitive and personal data
+      - Violation of data residency and retention policies
+compliance_frameworks: {}
+remediation: Review and investigate this activity in the OCI Console and take corrective action.
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.objectstorage
+    - field: operation
+      op: equals
+      value: UpdateBucket
+    - field: request.publicAccessType
+      op: in
+      value:
+      - ObjectRead
+      - ObjectReadWithoutList

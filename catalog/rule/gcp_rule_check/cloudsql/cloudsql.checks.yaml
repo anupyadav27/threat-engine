@@ -1,0 +1,79 @@
+version: '1.0'
+provider: gcp
+service: cloudsql
+checks:
+- rule_id: gcp.cloudsql.alter_table
+  for_each: gcp.cloudsql.list_instances
+  severity: MEDIUM
+  conditions:
+    var: item.settings.databaseFlags[].name
+    op: not_contains
+    value: sql_alter_table
+- rule_id: gcp.cloudsql.bulk_export
+  for_each: gcp.cloudsql.list_instances
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.settings.backupConfiguration.binaryLogEnabled
+      op: is_false
+      value: null
+    - var: item.settings.ipConfiguration.authorizedNetworks[].value
+      op: not_contains
+      value: 0.0.0.0/0
+- rule_id: gcp.cloudsql.create_table
+  for_each: gcp.cloudsql.list_instances
+  severity: MEDIUM
+  conditions:
+    var: item.Settings.DatabaseFlags[].Name
+    op: not_contains
+    value: skip_table_locks
+- rule_id: gcp.cloudsql.drop_table
+  for_each: gcp.cloudsql.list_instances
+  severity: MEDIUM
+  conditions:
+    var: item.Settings.DatabaseFlags[].Name
+    op: not_contains
+    value: skip_table_ddl_drop_check
+- rule_id: gcp.cloudsql.grant_privileges
+  for_each: gcp.cloudsql.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.settings.databaseFlags[].name
+      op: contains
+      value: cloudsql.grant_privileges
+    - var: item.settings.databaseFlags[?(@.name == 'cloudsql.grant_privileges')].value
+      op: equals
+      value: 'on'
+- rule_id: gcp.cloudsql.revoke_privileges
+  for_each: gcp.cloudsql.list_instances
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.settings.databaseFlags[].name
+      op: not_contains
+      value: cloudsql.enable_privilege_separation
+    - var: item.settings.databaseFlags[].value
+      op: not_contains
+      value: 'off'
+- rule_id: gcp.cloudsql.root_login
+  for_each: gcp.cloudsql.list_instances
+  severity: HIGH
+  conditions:
+    var: item.settings.databaseFlags[].name
+    op: not_contains
+    value: cloudsql.enable_pgaudit
+- rule_id: gcp.cloudsql.user_create
+  for_each: gcp.cloudsql.list_instances
+  severity: MEDIUM
+  conditions:
+    var: item.settings.userOptions[].create
+    op: is_false
+    value: null
+- rule_id: gcp.cloudsql.user_delete
+  for_each: gcp.cloudsql.list_users
+  severity: MEDIUM
+  conditions:
+    var: item.UserType
+    op: not_equals
+    value: BUILT_IN

@@ -1,0 +1,67 @@
+# ==========================================================
+# Discovery YAML — controltower (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 8 | ops: 1 independent, 1 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: controltower
+
+services:
+  client: controltower
+  module: "boto3.client('controltower')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: enabled_control
+    identifier_op: aws.controltower.list_enabled_controls
+    identifier_field: arn
+    item_var_path: item.arn
+    identifier_template: '{arn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.controltower.list_enabled_controls  ──
+  - discovery_id: aws.controltower.list_enabled_controls
+    calls:
+      - action: list_enabled_controls
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.enabledControls }}'
+      item:
+        arn: '{{ item.arn }}'
+        controlIdentifier: '{{ item.controlIdentifier }}'
+        driftStatusSummary: '{{ item.driftStatusSummary }}'
+        parentIdentifier: '{{ item.parentIdentifier }}'
+        statusSummary: '{{ item.statusSummary }}'
+        targetIdentifier: '{{ item.targetIdentifier }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.controltower.get_enabled_control [dependent] ──
+  - discovery_id: aws.controltower.get_enabled_control
+    for_each: aws.controltower.list_control_operations
+    calls:
+      - action: get_enabled_control
+        params:
+          enabledControlIdentifier: "{{ item.enabledControlIdentifier }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        arn: '{{ item.arn }}'
+        controlIdentifier: '{{ item.controlIdentifier }}'
+        driftStatusSummary: '{{ item.driftStatusSummary }}'
+        enabledControlDetails: '{{ item.enabledControlDetails }}'
+        parameters: '{{ item.parameters }}'
+        parentIdentifier: '{{ item.parentIdentifier }}'
+        statusSummary: '{{ item.statusSummary }}'
+        targetIdentifier: '{{ item.targetIdentifier }}'
+        targetRegions: '{{ item.targetRegions }}'
+

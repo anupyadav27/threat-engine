@@ -1,28 +1,38 @@
-"""BFF view: /risk page.
+"""BFF view: /risk (Risk Quantification) page.
 
-Consolidates risk + threat into 2 BFF calls using /ui-data endpoints.
-Adds resilience: risk score derivation from threat data, synthetic trend, category defaults.
+Consolidates Risk Quantification Engine (FAIR model) + threat data into 2 BFF calls.
+Risk Quantification converts security findings into dollar-denominated exposure estimates.
+Domain-level "posture scores" (0-100 severity index) live in each engine.
+This page shows "financial risk exposure" — what the CFO/board cares about.
 """
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
-from ._shared import fetch_many, safe_get
+from ._auth import resolve_tenant_id
+from ._shared import fetch_many, safe_get, BFFMeta
+from .schemas.risk import RiskResponse
 from ._transforms import normalize_risk_scenario
+from ._page_context import risk_page_context
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
 
-@router.get("/risk")
+@router.get("/risk", response_model=RiskResponse, response_model_exclude_none=False)
 async def view_risk(
-    tenant_id: str = Query(...),
+    request: Request,
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
 ):
     """Single endpoint returning everything the risk page needs."""
+
+    tenant_id = resolve_tenant_id(request)
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+    meta = BFFMeta("risk")
 
     results = await fetch_many([
         ("risk", "/api/v1/risk/ui-data", {
@@ -33,9 +43,16 @@ async def view_risk(
             "scan_run_id": "latest",
             "limit": "1",
         }),
-    ])
+    ], auth_headers=fwd_headers)
 
     risk_data, threat_data = results
+
+    meta.record_engine("risk",   "/api/v1/risk/ui-data",    risk_data)
+    meta.record_engine("threat", "/api/v1/threat/ui-data",  threat_data)
+    if risk_data is None:
+        meta.warn("Risk engine returned no data — scores and scenarios will be zero")
+    if threat_data is None:
+        meta.warn("Threat engine returned no data — risk score fallback unavailable")
 
     # Safely handle None responses
     if not isinstance(risk_data, dict):
@@ -130,12 +147,18 @@ async def view_risk(
     if not mitigation_roadmap:
         for i, s in enumerate(scenarios[:10]):
             mitigation_roadmap.append({
-                "id": i + 1,
+                "id": f"MIT-{i+1:03d}",
+                "action": f"Mitigate: {s.get('scenario_name', '')}",
                 "scenario": s.get("scenario_name", ""),
-                "priority": "P1" if s.get("risk_rating") == "critical" else "P2" if s.get("risk_rating") == "high" else "P3",
-                "risk_reduction": round(s.get("expected_loss", 0) * 0.3),
-                "effort": "High" if s.get("probability", 0) > 0.7 else "Medium",
+                "current_risk": s.get("worst_case_loss", 0),
+                "target_risk": round(s.get("expected_loss", 0) * 0.3),
+                "cost": f"${round(s.get('expected_loss', 0) * 0.1):,}",
+                "priority": "Critical" if s.get("risk_rating") == "critical" else "High",
+                "risk_reduction": round((1 - 0.3) * 100),
+                "effort": "Medium",
                 "status": "planned",
+                "owner": "Security Team",
+                "due_date": (datetime.now() + timedelta(days=30*(i+1))).strftime("%Y-%m-%d"),
             })
 
     # Top risky assets from risk engine
@@ -160,18 +183,155 @@ async def view_risk(
     else:
         risk_level = "minimal"
 
+    page_ctx = risk_page_context({"risk_score": risk_score, "risk_level": risk_level})
+    page_ctx["tabs"] = [
+        {"id": "overview", "label": "Overview", "count": 0},
+        {"id": "scenarios", "label": "FAIR Scenarios", "count": len(scenarios)},
+        {"id": "register", "label": "Risk Register", "count": len(risk_register)},
+        {"id": "roadmap", "label": "Mitigation Roadmap", "count": len(mitigation_roadmap)},
+    ]
+
+    accepted = safe_get(risk_data, "accepted_risks") or safe_get(risk_data, "acceptedRisks", 0)
+    reduction = safe_get(risk_data, "risk_reduction") or safe_get(risk_data, "riskReduction", 0)
+
+    # ── activeScanTrend: trendData items with risk_score field ───────────────
+    active_scan_trend = []
+    for d in trend_data:
+        score = d.get("score") or d.get("risk_score") or 0
+        active_scan_trend.append({
+            "date": d.get("date", ""),
+            "risk_score": score,
+            "score": score,
+        })
+
+    first_pt  = active_scan_trend[0]  if active_scan_trend else {}
+    last_pt   = active_scan_trend[-1] if active_scan_trend else {}
+    first_obj = {"date": first_pt.get("date", ""), "risk_score": first_pt.get("risk_score", 0)}
+    last_obj  = {"date": last_pt.get("date",  ""), "risk_score": last_pt.get("risk_score",  0)}
+
+    # ── domainBreakdown: same as riskCategories with category field ──────────
+    domain_breakdown = [
+        {**c, "category": c.get("category", "")} for c in risk_categories
+    ]
+
+    # ── filterSchema: domain filter keys ────────────────────────────────────
+    filter_schema = [
+        {"key": "iam_security",        "label": "IAM Security",        "type": "boolean"},
+        {"key": "network_security",    "label": "Network Security",    "type": "boolean"},
+        {"key": "data_security",       "label": "Data Security",       "type": "boolean"},
+        {"key": "container_security",  "label": "Container Security",  "type": "boolean"},
+        {"key": "database_security",   "label": "Database Security",   "type": "boolean"},
+        {"key": "encryption",          "label": "Encryption",          "type": "boolean"},
+        {"key": "misconfig",           "label": "Misconfiguration",    "type": "boolean"},
+        {"key": "provider",            "label": "Provider",            "type": "enum",
+         "values": ["aws", "azure", "gcp", "oci"]},
+    ]
+
     return {
-        "riskScore": risk_score,
-        "riskLevel": risk_level,
-        "averageLoss": safe_get(risk_data, "average_loss") or safe_get(risk_data, "averageLoss", 0),
-        "acceptedRisks": safe_get(risk_data, "accepted_risks") or safe_get(risk_data, "acceptedRisks", 0),
-        "riskReduction": safe_get(risk_data, "risk_reduction") or safe_get(risk_data, "riskReduction", 0),
-        "complianceIndex": safe_get(risk_data, "compliance_index") or safe_get(risk_data, "complianceIndex", 0),
-        "criticalRisks": critical_risks,
-        "riskCategories": risk_categories,
-        "riskRegister": risk_register,
-        "scenarios": scenarios,
-        "trendData": trend_data,
-        "mitigationRoadmap": mitigation_roadmap,
-        "topAssets": top_assets,
+        "pageContext": page_ctx,
+        "kpiGroups": [
+            {
+                "title": "Financial Risk Exposure",
+                "items": [
+                    {"label": "Risk Exposure Score", "value": risk_score, "suffix": "/100"},
+                    {"label": "Exposure Level", "value": risk_level},
+                    {"label": "Critical Scenarios", "value": critical_risks},
+                    {"label": "Risk Domains", "value": len(risk_categories)},
+                ],
+            },
+            {
+                "title": "Risk Quantification",
+                "items": [
+                    {"label": "Accepted Risks", "value": accepted},
+                    {"label": "Risk Reduction", "value": reduction, "suffix": "%"},
+                    {"label": "FAIR Scenarios", "value": len(scenarios)},
+                    {"label": "Top Exposed Assets", "value": len(top_assets)},
+                ],
+            },
+        ],
+        "riskScore":          risk_score,
+        "riskLevel":          risk_level,
+        "riskCategories":     risk_categories,
+        "domainBreakdown":    domain_breakdown,
+        "riskRegister":       risk_register,
+        "scenarios":          scenarios,
+        "trendData":          trend_data,
+        "activeScanTrend":    active_scan_trend,
+        "first":              first_obj,
+        "last":               last_obj,
+        "mitigationRoadmap":  mitigation_roadmap,
+        "topAssets":          top_assets,
+        "filterSchema":       filter_schema,
+        "_meta":              meta.to_dict(),
     }
+
+
+# ── BFF wrappers for asset-list integration (Constitution §4.5 BFF-only rule) ──
+
+
+@router.get("/risk/blast-radius")
+async def view_risk_blast_radius(
+    request: Request,
+    limit: int = Query(50, ge=1, le=500),
+):
+    """Top-N assets ranked by blast-radius score, proxied via BFF.
+
+    Replaces the prior frontend direct call to /risk/api/v1/risk/blast-radius
+    (which 401s because the engine does not accept session cookies).
+    """
+    tenant_id = resolve_tenant_id(request)
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
+    # Risk engine caps limit at 50.
+    (raw,) = await fetch_many(
+        [("risk", "/api/v1/risk/assets/top", {"tenant_id": tenant_id, "limit": str(min(limit, 50))})],
+        auth_headers=fwd_headers,
+    )
+    if not isinstance(raw, dict):
+        raw = {}
+    items = raw.get("assets") or raw.get("items") or []
+    if not isinstance(items, list):
+        items = []
+    # Normalize field names so the FE can rely on a single shape regardless
+    # of how the underlying engine evolves.
+    norm = []
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        rscore = int(it.get("blast_radius_score") or it.get("risk_score") or 0)
+        cscore = int(it.get("compound_risk_score") or 0) or min(int(it.get("threat_count") or 0) * 25, 100)
+        norm.append({
+            **it,
+            "blast_radius_score": rscore,
+            "compound_risk_score": cscore,
+        })
+    return {"items": norm, "tenant_id": tenant_id}
+
+
+@router.get("/risk/compound-risk")
+async def view_risk_compound_risk(request: Request):
+    """Compound-risk scenarios proxied via BFF.
+
+    Returns an empty list with not_yet_available=true when the engine has not
+    surfaced compound-risk data (the endpoint is on the risk engine roadmap).
+    """
+    tenant_id = resolve_tenant_id(request)
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
+    (raw,) = await fetch_many(
+        [("risk", "/api/v1/risk/ui-data", {"tenant_id": tenant_id})],
+        auth_headers=fwd_headers,
+    )
+    if not isinstance(raw, dict):
+        raw = {}
+    scenarios = raw.get("compound_risk") or raw.get("compound_scenarios") or []
+    if not isinstance(scenarios, list):
+        scenarios = []
+    return {
+        "items": scenarios,
+        "tenant_id": tenant_id,
+        "not_yet_available": len(scenarios) == 0,
+    }
+

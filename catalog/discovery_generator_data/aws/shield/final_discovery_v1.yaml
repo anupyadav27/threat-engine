@@ -1,0 +1,83 @@
+# ==========================================================
+# Discovery YAML — shield (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 12 | ops: 3 independent, 0 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: shield
+
+services:
+  client: shield
+  module: "boto3.client('shield')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: subscription
+    identifier_op: aws.shield.describe_subscription
+    identifier_field: SubscriptionArn
+    item_var_path: item.SubscriptionArn
+    identifier_template: '{subscriptionarn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.shield.describe_drt_access  ──
+  - discovery_id: aws.shield.describe_drt_access
+    calls:
+      - action: describe_drt_access
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.LogBucketList }}'
+      item:
+        LogBucketList: '{{ item.LogBucketList }}'
+        RoleArn: '{{ item.RoleArn }}'
+        item: '{{ item }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.shield.describe_subscription  ──
+  - discovery_id: aws.shield.describe_subscription
+    calls:
+      - action: describe_subscription
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        AutoRenew: '{{ item.AutoRenew }}'
+        EndTime: '{{ item.EndTime }}'
+        Limits: '{{ item.Limits }}'
+        ProactiveEngagementStatus: '{{ item.ProactiveEngagementStatus }}'
+        StartTime: '{{ item.StartTime }}'
+        Subscription: '{{ item.Subscription }}'
+        Subscription.AutoRenew: '{{ item.Subscription.AutoRenew }}'
+        Subscription.SubscriptionLimits: '{{ item.Subscription.SubscriptionLimits }}'
+        Subscription.TimeCommitmentInSeconds: '{{ item.Subscription.TimeCommitmentInSeconds }}'
+        SubscriptionArn: '{{ item.SubscriptionArn }}'
+        SubscriptionLimits: '{{ item.SubscriptionLimits }}'
+        TimeCommitmentInSeconds: '{{ item.TimeCommitmentInSeconds }}'
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.shield.list_protections  ──
+  - discovery_id: aws.shield.list_protections
+    calls:
+      - action: list_protections
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Protections }}'
+      item:
+        ApplicationLayerAutomaticResponseConfiguration: '{{ item.ApplicationLayerAutomaticResponseConfiguration }}'
+        ApplicationLayerAutomaticResponseConfiguration.Action: '{{ item.ApplicationLayerAutomaticResponseConfiguration.Action }}'
+        HealthCheckIds: '{{ item.HealthCheckIds }}'
+        Id: '{{ item.Id }}'
+        Name: '{{ item.Name }}'
+        ProtectionArn: '{{ item.ProtectionArn }}'
+        ResourceArn: '{{ item.ResourceArn }}'
+

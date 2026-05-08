@@ -1,0 +1,20 @@
+version: '1.0'
+rule_id: aws.ses.email.destinations_access_least_privilege
+for_each: aws.ses.describe_active_receipt_rule_set
+severity: HIGH
+conditions:
+  all:
+  - var: item.Rules[].Actions[].S3Action.Policy
+    op: exists
+  - var: item.Rules[].Actions[].S3Action.Policy.Statement[].Effect
+    op: equals
+    value: Allow
+  - var: item.Rules[].Actions[].S3Action.Policy.Statement[].Principal
+    op: not_contains
+    value: '*'
+  - var: item.Rules[].Actions[].S3Action.Policy.Statement[].Action
+    op: not_contains
+    value: '*'
+fixture_validated: false
+fixture_note: 'PASS fixture returned FAIL — wrong field or operator (pass_fixture keys: [''Actions'', ''Enabled'', ''Metadata'',
+  ''Name'', ''Recipients'', ''Rules'', ''ScanEnabled'', ''Statement''])'

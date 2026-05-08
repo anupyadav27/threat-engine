@@ -1,0 +1,53 @@
+# ==========================================================
+# Discovery YAML — rum (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 2 | ops: 0 independent, 1 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: rum
+
+services:
+  client: rum
+  module: "boto3.client('rum')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  []
+
+checks: []
+
+discovery:
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.rum.get_app_monitor [dependent] ──
+  - discovery_id: aws.rum.get_app_monitor
+    for_each: aws.rum.list_app_monitors
+    calls:
+      - action: get_app_monitor
+        params:
+          Name: "{{ item.Name }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        AppMonitor: '{{ item.AppMonitor }}'
+        AppMonitorConfiguration: '{{ item.AppMonitorConfiguration }}'
+        Created: '{{ item.Created }}'
+        CustomEvents: '{{ item.CustomEvents }}'
+        CwLogEnabled: '{{ item.CwLogEnabled }}'
+        DataStorage: '{{ item.DataStorage }}'
+        DeobfuscationConfiguration: '{{ item.DeobfuscationConfiguration }}'
+        Domain: '{{ item.Domain }}'
+        DomainList: '{{ item.DomainList }}'
+        Enabled: '{{ item.Enabled }}'
+        Id: '{{ item.Id }}'
+        LastModified: '{{ item.LastModified }}'
+        Name: '{{ item.Name }}'
+        Platform: '{{ item.Platform }}'
+        State: '{{ item.State }}'
+        Status: '{{ item.Status }}'
+        Tags: '{{ item.Tags }}'
+

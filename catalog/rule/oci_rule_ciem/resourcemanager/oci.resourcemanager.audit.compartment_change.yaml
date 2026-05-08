@@ -1,0 +1,50 @@
+rule_id: oci.resourcemanager.audit.compartment_change
+service: resourcemanager
+provider: oci
+check_type: log
+severity: high
+title: 'OCI Tenancy: Compartment Created, Deleted, or Moved'
+description: An OCI compartment was created, deleted, or moved. Compartments are the primary access control boundary in OCI; unauthorized changes can expose resources.
+threat_category: defense_evasion
+mitre_tactics:
+- defense_evasion
+mitre_techniques:
+- T1562
+risk_score: 78
+resource: oci_identity_compartment
+domain: logging_monitoring_and_alerting
+action_category: modify
+log_source_type: 
+posture_category: security_posture
+threat_tags:
+- T1562
+- defense_evasion
+- log_tampering
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: critical
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks: {}
+remediation: Review and investigate this activity in the OCI Console and take corrective action.
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: oci_audit
+    - field: service
+      op: equals
+      value: com.oraclecloud.identitycontrolplane
+    - field: operation
+      op: in
+      value:
+      - CreateCompartment
+      - DeleteCompartment
+      - MoveCompartment

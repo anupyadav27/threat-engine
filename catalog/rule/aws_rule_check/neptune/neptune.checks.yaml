@@ -1,0 +1,176 @@
+version: '1.0'
+provider: aws
+service: neptune
+checks:
+- rule_id: aws.neptune.cluster.audit_logging_enabled
+  for_each: aws.neptune.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.EnabledCloudwatchLogsExports
+    op: contains
+    value: audit
+- rule_id: aws.neptune.cluster.cloudwatch_monitoring_alerting_enabled
+  for_each: aws.neptune.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.CloudwatchLogsExportConfiguration
+    op: exists
+    value: null
+- rule_id: aws.neptune.cluster.copy_tags_to_snapshots_configured
+  for_each: aws.neptune.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.CopyTagsToSnapshot
+    op: is_true
+    value: null
+- rule_id: aws.neptune.cluster.deletion_protection_enabled
+  for_each: aws.neptune.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.DeletionProtection
+    op: is_true
+    value: null
+- rule_id: aws.neptune.cluster.encryption_at_rest_cmek_configured
+  for_each: aws.neptune.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.KmsKeyId
+    op: exists
+    value: null
+- rule_id: aws.neptune.cluster.encryption_at_rest_enabled
+  for_each: aws.neptune.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.KmsKeyId
+    op: exists
+    value: null
+- rule_id: aws.neptune.cluster.encryption_in_transit_enforced
+  for_each: aws.neptune.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.StorageEncrypted
+    op: is_true
+    value: null
+- rule_id: aws.neptune.cluster.iam_db_authentication_enabled
+  for_each: aws.neptune.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.IAMDatabaseAuthenticationEnabled
+    op: is_true
+    value: null
+- rule_id: aws.neptune.cluster.iam_or_managed_identity_auth_enabled_if_supported
+  for_each: aws.neptune.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.IAMDatabaseAuthenticationEnabled
+    op: is_true
+    value: null
+- rule_id: aws.neptune.cluster.neptune_integration_cloudwatch_logs_configured
+  for_each: aws.neptune.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.CloudwatchLogsExportConfiguration
+    op: exists
+    value: null
+- rule_id: aws.neptune.cluster.neptune_minor_version_auto_upgrade_enabled
+  for_each: aws.neptune.describe_db_clusters
+  severity: LOW
+  conditions:
+    var: item.AutoMinorVersionUpgrade
+    op: is_true
+    value: null
+- rule_id: aws.neptune.cluster.neptune_multi_az_configured
+  for_each: aws.neptune.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.MultiAZ
+    op: is_true
+    value: null
+- rule_id: aws.neptune.cluster.neptune_storage_encrypted
+  for_each: aws.neptune.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.StorageEncrypted
+    op: is_true
+    value: null
+- rule_id: aws.neptune.cluster.network_security_audit_configured
+  for_each: aws.neptune.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.DBClusters[].NetworkSecurityGroups
+    op: not_empty
+    value: null
+- rule_id: aws.neptune.cluster.private_networking_enforced
+  for_each: aws.neptune.describe_db_clusters
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.DBSubnetGroup
+      op: exists
+      value: null
+    - var: item.DBSubnetGroup.VpcId
+      op: exists
+      value: null
+- rule_id: aws.neptune.cluster.public_access_disabled
+  for_each: aws.neptune.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.PubliclyAccessible
+    op: is_false
+    value: null
+- rule_id: aws.neptune.cluster.require_tls_in_transit_configured
+  for_each: aws.neptune.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.DBClusters[].StorageEncrypted
+    op: is_true
+    value: null
+- rule_id: aws.neptune.cluster.snapshot_encrypted
+  for_each: aws.neptune.describe_db_cluster_snapshots
+  severity: HIGH
+  conditions:
+    var: item.KmsKeyId
+    op: exists
+    value: null
+- rule_id: aws.neptune.instance.deletion_protection_enabled
+  for_each: aws.neptune.describe_db_instances
+  severity: MEDIUM
+  conditions:
+    var: item.DeletionProtection
+    op: is_true
+    value: null
+- rule_id: aws.neptune.instance.encryption_at_rest_enabled
+  for_each: aws.neptune.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.KmsKeyId
+    op: exists
+    value: null
+- rule_id: aws.neptune.instance.iam_or_managed_identity_auth_enabled_if_supported
+  for_each: aws.neptune.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.IAMDatabaseAuthenticationEnabled
+    op: is_true
+    value: null
+- rule_id: aws.neptune.instance.public_access_disabled
+  for_each: aws.neptune.describe_db_instances
+  severity: HIGH
+  conditions:
+    var: item.PubliclyAccessible
+    op: is_false
+    value: null
+- rule_id: aws.neptune.instance.require_tls_in_transit_configured
+  for_each: aws.neptune.describe_db_clusters
+  severity: HIGH
+  conditions:
+    var: item.CopyTagsToSnapshot
+    op: is_true
+    value: null
+- rule_id: aws.neptune.security_configuration_review.security_configuration_review_configured
+  for_each: aws.neptune.describe_db_clusters
+  severity: MEDIUM
+  conditions:
+    var: item.DBClusters
+    op: not_empty
+    value: null

@@ -1,0 +1,49 @@
+# ==========================================================
+# Discovery YAML — parameterstore (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 5 | ops: 1 independent, 0 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: parameterstore
+
+services:
+  client: parameterstore
+  module: "boto3.client('parameterstore')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  - resource_type: parameter
+    identifier_op: aws.ssm.describe_parameters
+    identifier_field: ARN
+    item_var_path: item.ARN
+    identifier_template: '{arn}'
+
+checks: []
+
+discovery:
+
+  # ════ INDEPENDENT (root) operations ════
+  # ── aws.ssm.describe_parameters  ──
+  - discovery_id: aws.ssm.describe_parameters
+    calls:
+      - action: describe_parameters
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.Parameters }}'
+      item:
+        ARN: '{{ item.ARN }}'
+        AllowedPattern: '{{ item.AllowedPattern }}'
+        DataType: '{{ item.DataType }}'
+        Description: '{{ item.Description }}'
+        KeyId: '{{ item.KeyId }}'
+        LastModifiedDate: '{{ item.LastModifiedDate }}'
+        LastModifiedUser: '{{ item.LastModifiedUser }}'
+        Name: '{{ item.Name }}'
+        Policies: '{{ item.Policies }}'
+        Tier: '{{ item.Tier }}'
+        Type: '{{ item.Type }}'
+        Version: '{{ item.Version }}'
+

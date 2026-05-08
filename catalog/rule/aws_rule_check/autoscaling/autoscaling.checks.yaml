@@ -1,0 +1,32 @@
+version: '1.0'
+provider: aws
+service: autoscaling
+checks:
+- rule_id: aws.autoscaling.group.auto_scaling_group_configured
+  for_each: aws.autoscaling.describe_auto_scaling_groups
+  severity: MEDIUM
+  conditions:
+    var: item.AutoScalingGroups
+    op: not_empty
+    value: null
+- rule_id: aws.autoscaling.group.autoscaling_capacity_rebalance_enabled
+  for_each: aws.autoscaling.describe_auto_scaling_groups
+  severity: MEDIUM
+  conditions:
+    var: item.CapacityRebalance
+    op: is_true
+    value: null
+- rule_id: aws.autoscaling.group.autoscaling_multiple_az_configured
+  for_each: aws.autoscaling.describe_auto_scaling_groups
+  severity: MEDIUM
+  conditions:
+    var: item.AvailabilityZones
+    op: length_gte
+    value: 2
+- rule_id: aws.autoscaling.group.security_check_health_check_enabled
+  for_each: aws.autoscaling.describe_auto_scaling_groups
+  severity: MEDIUM
+  conditions:
+    var: item.HealthCheckType
+    op: exists
+    value: null

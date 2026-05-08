@@ -2,56 +2,58 @@
 # Created via AWS CLI (managed node groups cannot be defined in K8s YAML)
 #
 # This file documents the node group configuration for reference.
-# To create/update:
-#   aws eks create-nodegroup \
-#     --cluster-name vulnerability-eks-cluster \
-#     --nodegroup-name vulnerability-spot-scanners \
-#     --scaling-config minSize=0,maxSize=20,desiredSize=0 \
-#     --instance-types t3.2xlarge m5.2xlarge c5.2xlarge m5a.2xlarge c5a.2xlarge \
-#     --ami-type AL2023_x86_64_STANDARD \
-#     --capacity-type SPOT \
-#     --subnets subnet-0eb3ec80f3c9cb1af subnet-fe709485 subnet-06cc90b4acc9aa656 \
-#     --node-role arn:aws:iam::588989875114:role/vulnerability-eks-cluster-node-role \
-#     --disk-size 30 \
-#     --labels workload-type=scan,node-type=spot \
-#     --taints "key=spot-scanner,value=true,effect=NO_SCHEDULE" \
-#     --tags "k8s.io/cluster-autoscaler/enabled=true,k8s.io/cluster-autoscaler/vulnerability-eks-cluster=owned,workload-type=scan" \
-#     --region ap-south-1
 #
-# To update maxSize (if node group already exists):
+# CURRENT (2xlarge — oversized, update to small/medium):
+#   Instance types: t3.2xlarge, m5.2xlarge, c5.2xlarge, m5a.2xlarge, c5a.2xlarge
+#
+# RECOMMENDED (right-sized for scanner Jobs using ~400MB RAM each):
 #   aws eks update-nodegroup-config \
 #     --cluster-name vulnerability-eks-cluster \
 #     --nodegroup-name vulnerability-spot-scanners \
 #     --scaling-config minSize=0,maxSize=20,desiredSize=0 \
 #     --region ap-south-1
 #
+#   Then delete and recreate with smaller instances:
+#   aws eks create-nodegroup \
+#     --cluster-name vulnerability-eks-cluster \
+#     --nodegroup-name vulnerability-spot-scanners-v2 \
+#     --scaling-config minSize=0,maxSize=20,desiredSize=0 \
+#     --instance-types t3.medium t3a.medium m5.large m5a.large c5a.large \
+#     --ami-type AL2023_x86_64_STANDARD \
+#     --capacity-type SPOT \
+#     --subnets subnet-0eb3ec80f3c9cb1af subnet-fe709485 subnet-06cc90b4acc9aa656 \
+#     --node-role arn:aws:iam::588989875114:role/vulnerability-eks-cluster-node-role \
+#     --disk-size 20 \
+#     --labels workload-type=scan,node-type=spot \
+#     --taints "key=spot-scanner,value=true,effect=NO_SCHEDULE" \
+#     --tags "k8s.io/cluster-autoscaler/enabled=true,k8s.io/cluster-autoscaler/vulnerability-eks-cluster=owned,workload-type=scan" \
+#     --region ap-south-1
+#
 # Node Group Properties:
-#   Name:           vulnerability-spot-scanners
+#   Name:           vulnerability-spot-scanners-v2
 #   Capacity:       SPOT
-#   Instance types: t3.2xlarge (8vCPU/32GB), m5.2xlarge (8vCPU/32GB),
-#                   c5.2xlarge (8vCPU/16GB), m5a.2xlarge, c5a.2xlarge
+#   Instance types: t3.medium (2vCPU/4GB), t3a.medium (2vCPU/4GB),
+#                   m5.large (2vCPU/8GB), m5a.large (2vCPU/8GB),
+#                   c5a.large (2vCPU/4GB)
 #   Min/Max:        0 / 20  (scales to zero when no scans running)
 #   Taint:          spot-scanner=true:NoSchedule
 #   Labels:         workload-type=scan, node-type=spot
-#   Tags:           k8s.io/cluster-autoscaler/enabled=true (for auto-discovery)
 #
-# Scaling math (parallel discovery):
-#   Each worker pod: 250m CPU request, 512Mi memory
-#   t3.2xlarge: 8 vCPU, 32GB → fits ~30 worker pods
-#   m5.2xlarge: 8 vCPU, 32GB → fits ~30 worker pods
-#   c5.2xlarge: 8 vCPU, 16GB → fits ~28 worker pods
+# Scanner Job sizing:
+#   CPU request/limit: 2 / 2
+#   Memory request/limit: 3Gi / 3.5Gi
+#   Actual usage: ~400 MB at 1000 concurrency
+#   One Job per spot node (1:1 mapping)
 #
-#   | Workers Needed | Nodes (approx) | Est. Time (414 svc × 18 regions) |
-#   |----------------|----------------|-----------------------------------|
-#   | 50             | 2 nodes        | ~30 min                           |
-#   | 100            | 3-4 nodes      | ~15 min                           |
-#   | 200            | 7 nodes        | ~5 min                            |
-#   | 500            | 17 nodes       | ~2 min                            |
+# Scaling math (multi-account parallel scans):
+#   Each scan Job: 2 vCPU, 3Gi → fits on t3.medium (4GB)
+#   1 scan per node, each scan takes ~7 minutes
+#   20 nodes → 20 accounts scanned simultaneously
+#
+# Cost (ap-south-1):
+#   t3.medium spot: ~$0.005/hr → 20 nodes × 10 min = $0.017 per full org scan
+#   vs c5a.2xlarge: ~$0.05/hr → 1 node × 60 min = $0.05 per single-account scan
 #
 # Cluster Autoscaler:
-#   scale-down-delay-after-add: 5m  (scale down 5 min after last pod finishes)
-#   scale-down-unneeded-time:   5m  (node removed after 5 min unused)
-#
-# IAM:
-#   Role:   ThreatEngineClusterAutoscalerRole  (IRSA)
-#   Policy: ThreatEngineClusterAutoscalerPolicy
+#   scale-down-delay-after-add: 5m
+#   scale-down-unneeded-time:   5m

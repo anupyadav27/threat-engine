@@ -1,0 +1,46 @@
+version: '1.0'
+provider: db
+engine: oracle
+category: logging
+cis_section: '5'
+description: Oracle CIS Section 5 — Auditing
+
+discovery:
+  - discovery_id: db.oracle.logging.unified_auditing
+    calls:
+      - action: query_table
+        query: "SELECT value FROM v$option WHERE parameter = 'Unified Auditing';"
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        setting_name: unified_auditing
+        value: "{{ item.VALUE }}"
+        expected: "TRUE"
+
+  - discovery_id: db.oracle.logging.audit_trail
+    calls:
+      - action: query_table
+        query: "SELECT value FROM v$parameter WHERE name = 'audit_trail';"
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        setting_name: audit_trail
+        value: "{{ item.VALUE }}"
+        expected_in: [DB, XML, OS, DB_EXTENDED, XML_EXTENDED]
+
+  - discovery_id: db.oracle.logging.audit_sys_operations
+    calls:
+      - action: query_table
+        query: "SELECT value FROM v$parameter WHERE name = 'audit_sys_operations';"
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        setting_name: audit_sys_operations
+        value: "{{ item.VALUE }}"
+        expected: "TRUE"

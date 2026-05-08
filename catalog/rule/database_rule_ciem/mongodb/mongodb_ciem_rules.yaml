@@ -1,0 +1,149 @@
+# MONGODB — CIEM Detection Rules
+# Real-time authentication & access event analysis
+# Log source: mongod.log
+
+tech_type: mongodb
+category: database
+log_source: mongod.log
+
+rules:
+
+  - rule_id: tciem.mongodb.authentication_is_configured
+    title: "Ensure Authentication is configured"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.1'
+    cis_section: '2'
+    log_source: "mongod.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      The authentication mechanism should be implemented before anyone accesses the
+      MongoDB Server. To enable the authentication mechanism: • Start the MongoDB
+      instance without authentication. mongod --port 27017 --dbpath /data/db1 Or
+      mongod.exe --port 27017 --dbpath db1 • Create the system user administrator,
+      ensuring that its password meets organizationally-defined password in terms of
+      length and complexity requirements as there is no in-place locking mechanism
+      for multiple failed login attempts against MongoDB. use admin db.createUser( {
+      user: 'MongoAdmin', pwd: 'password', roles: [ { role: 'root', db: 'admin' } ]
+      } ) • Open mongod.conf and change for authorization value to enabled:
+      security: authorization: 'enabled' • Restart the MongoDB instance service
+      mongod restart Default Value: By default, authorization is set to disable.
+      References: 1. https://www.mongodb.com/docs/v7.0/core/authentication/
+
+  - rule_id: tciem.mongodb.mongodb_does_not_bypass_authentication_via_the
+    title: "Ensure that MongoDB does not bypass authentication via the localhost exception"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.2'
+    cis_section: '2'
+    log_source: "mongod.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To disable local authentication on the MongoDB database. Type OS Console
+      Command mongod --setParameter enableLocalhostAuthBypass=0 or To manually
+      configure use the setParameter option in the mongo configuration file to set
+      it to false. setParameter: enableLocalhostAuthBypass: false Default Value: By
+      default, localhost exception value (enableLocalhostAuthBypass) is true.
+      References: 1. https://www.mongodb.com/docs/v7.0/core/localhost-exception/
+
+  - rule_id: tciem.mongodb.authentication_is_enabled_in_the_sharded_cluster
+    title: "Ensure authentication is enabled in the sharded cluster"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '2.3'
+    cis_section: '2'
+    log_source: "mongod.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To authenticate to servers, clients can use x.509 certificates instead of
+      usernames and passwords. MongoDB supports x.509 certificate authentication for
+      use with a secure TLS/SSL connection. The x.509 client authentication allows
+      clients to authenticate to servers with certificates rather than with a
+      username and password. Change the configuration file /etc/mongod.conf on each
+      host, adding the following rows: net: port: 27017 tls: mode: requireSSL
+      PEMKeyFile: /etc/mongodb/ssl/server1.pem CAFile: /etc/mongodb/ssl/mongoCA.crt
+      clusterFile: /etc/mongodb/ssl/server1.pem security: authorization: enabled
+      clusterAuthMode: x509 Restart the daemon sudo service mongodb restart To
+      enable authentication in the sharded cluster, perform the following steps:(
+      Only for Development Purpose ) • Generate A Key File • On each component in
+      the shared cluster, enable authentication by editing the configuration file
+      /etc/mongod.conf. Set the keyFile option to the key file’s path and then start
+      the component with this command: keyFile = /srv/mongodb/keyfile • When
+      starting the component, set --keyFile option, which is an option for both
+      mongos instances and mongod instances. Set the --keyFile to the key file’s
+      path. Default Value: Not configured References: 1.
+      https://www.mongodb.com/docs/v7.0/core/security-transport-encryption/#std-
+      label-transport-encryption 2.
+      https://www.mongodb.com/docs/v7.0/reference/security/ 3.
+      https://www.mongodb.com/docs/v7.0/tutorial/deploy-shard-cluster/
+
+  - rule_id: tciem.mongodb.federal_information_processing_standard_fips_is
+    title: "Ensure Federal Information Processing Standard (FIPS) is enabled"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '4.4'
+    cis_section: '4'
+    log_source: "mongod.log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Configuring FIPS mode, ensure that your certificate is FIPS compliant. Run
+      mongod or mongos instance in FIPS mode. Make changes to configuration file, to
+      configure your mongod or mongos instance to use FIPS mode, shut down the
+      instance and update the configuration file with the following setting: net:
+      tls: FIPSMode: true Start mongod or mongos instance with a configuration file.
+      mongod --config /etc/mongod.conf Default Value: Not configured References: 1.
+      https://www.mongodb.com/docs/v7.0/tutorial/configure-fips/
+
+  - rule_id: tciem.mongodb.system_activity_is_audited
+    title: "Ensure that system activity is audited"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '5.1'
+    cis_section: '5'
+    log_source: "mongod.log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Set the value of auditLog.destination to the appropriate value from the
+      following options: syslog To enable auditing and print audit events to syslog
+      mongod --dbpath data/db --auditDestination syslog console To enable auditing
+      and print audit events to standard output (i.e., stdout) mongod --dbpath
+      data/db --auditDestination console Json File To enable auditing and print
+      audit events to a file in JSON format. Printing audit events to file in JSON
+      format degrades server performance more than printing to a file in BSON
+      format. mongod --dbpath data/db --auditDestination file --auditFormat JSON --
+      auditPath data/db/auditLog.json Bson File To enable auditing and print audit
+      events to a file in BSON binary format mongod --dbpath data/db
+      --auditDestination file --auditFormat BSON -- auditPath data/db/auditLog.bson
+      Default Value: Not configured References: 1.
+      http://docs.mongodb.org/manual/tutorial/configure-auditing/
+

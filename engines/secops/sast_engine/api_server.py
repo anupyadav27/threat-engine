@@ -2,9 +2,10 @@
 SecOps Scanner API — Unified code security platform.
 
 Sub-routers:
-  /api/v1/secops/sast/*   — Static Application Security Testing (14 languages, ~2,900 rules)
-  /api/v1/secops/dast/*   — Dynamic Application Security Testing (OWASP Top 10, 479 payloads)
-  /api/v1/secops/sca/*    — Software Composition Analysis / SBOM (planned)
+  /api/v1/secops/sast/*        — Static Application Security Testing (14 languages, ~2,900 rules)
+  /api/v1/secops/dast/*        — Dynamic Application Security Testing (OWASP Top 10, 479 payloads)
+  /api/v1/secops/sca/*         — Software Composition Analysis / SBOM (planned)
+  /api/v1/secops/image-scan    — Container image scanning (PLACEHOLDER — not yet implemented)
 
 Health:
   GET /api/v1/health/live   — Liveness probe
@@ -36,6 +37,7 @@ from scan_local import scan_path
 from routers.sast import router as sast_router
 from routers.dast import router as dast_router
 from routers.sca import get_sca_app
+from routers.image_scan import router as image_scan_router
 
 try:
     import sys as _sys, os as _os
@@ -43,6 +45,16 @@ try:
     from engine_common.telemetry import configure_telemetry as _configure_telemetry
 except ImportError:
     _configure_telemetry = None
+
+# ── Auth imports (engine_auth is COPY shared/auth/ ./engine_auth/ in Dockerfile) ──
+try:
+    from engine_auth.fastapi.middleware import AuthMiddleware as _AuthMiddleware
+    from engine_auth.fastapi.dependencies import require_permission as _require_permission
+    from engine_auth.core.models import AuthContext as _AuthContext
+    _AUTH_AVAILABLE = True
+except ImportError:
+    _AUTH_AVAILABLE = False
+    _AuthContext = None  # type: ignore[assignment,misc]
 
 logger = logging.getLogger("secops")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -69,11 +81,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# AuthMiddleware validates access_token / X-Auth-Context for every non-health path
+if _AUTH_AVAILABLE:
+    app.add_middleware(_AuthMiddleware)
+
 
 # ── Include sub-routers ──────────────────────────────────────────────────────
 
 app.include_router(sast_router, prefix="/api/v1/secops/sast", tags=["SAST"])
 app.include_router(dast_router, prefix="/api/v1/secops/dast", tags=["DAST"])
+app.include_router(image_scan_router, prefix="/api/v1/secops", tags=["Image Scan (Placeholder)"])
 
 # SCA/SBOM: mounted as a sub-application (has its own lifespan, asyncpg pool, etc.)
 try:
@@ -142,7 +159,7 @@ async def root():
     return {
         "service": "SecOps Scanner Engine",
         "version": "4.0.0",
-        "capabilities": ["sast", "dast", "sca"],
+        "capabilities": ["sast", "dast", "sca", "image-scan (placeholder)"],
         "status": "operational",
         "supported_languages": list(get_supported_languages()),
         "endpoints": {
@@ -211,7 +228,6 @@ async def api_health():
 
 
 # ── Backward-compat redirects ───────────────────────────────────────────────
-# Old callers hitting /api/v1/secops/scan get forwarded to /sast
 
 @app.post("/api/v1/secops/scan")
 async def compat_scan(request: Request):

@@ -1,0 +1,47 @@
+version: '1.0'
+provider: gcp
+service: certificatemanager
+checks:
+- rule_id: gcp.certificatemanager.certificate.certificates_expiration_check_gcp_load_balancing_s_protocols
+  for_each: gcp.certificatemanager.projects.locations.certificates.list
+  severity: MEDIUM
+  conditions:
+    var: item.expireTime
+    op: gt
+    value: '2025-01-01T00:00:00Z'
+- rule_id: gcp.certificatemanager.certificate.certificates_expiration_check_gcp_storage_bucket_enf_enabled
+  for_each: gcp.certificatemanager.projects.locations.certificates.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.expireTime
+      op: exists
+      value: null
+    - var: item.expireTime
+      op: gt
+      value: '2025-01-01T00:00:00Z'
+- rule_id: gcp.certificatemanager.certificate.expiration
+  for_each: gcp.certificatemanager.projects.locations.certificates.list
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.expireTime
+      op: exists
+      value: null
+    - var: item.expireTime
+      op: gt
+      value: '2025-01-15T00:00:00Z'
+- rule_id: gcp.certificatemanager.certificate.expiration_configured
+  for_each: gcp.certificatemanager.projects.locations.certificates.list
+  severity: MEDIUM
+  conditions:
+    var: item.expireTime
+    op: exists
+    value: null
+- rule_id: gcp.certificatemanager.certificate.manager_certificates_expiration_configured
+  for_each: gcp.certificatemanager.projects.locations.certificates.list
+  severity: MEDIUM
+  conditions:
+    var: item.expireTime
+    op: exists
+    value: null

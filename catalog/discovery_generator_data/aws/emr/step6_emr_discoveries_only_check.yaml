@@ -1,0 +1,94 @@
+# discoveries_only_check: 3 kept / 24 removed from 27 total
+# generated_from: step6_emr.discovery.yaml
+# purpose: only discoveries needed by emr.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: emr
+services:
+  client: emr
+  module: boto3.client
+discovery:
+- discovery_id: aws.emr.get_block_public_access_configuration
+  calls:
+  - action: get_block_public_access_configuration
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      BlockPublicAccessConfiguration: '{{ response.BlockPublicAccessConfiguration.BlockPublicAccessConfiguration
+        }}'
+      BlockPublicAccessConfigurationMetadata: '{{ response.BlockPublicAccessConfiguration.BlockPublicAccessConfigurationMetadata
+        }}'
+      BlockPublicSecurityGroupRules: '{{ response.BlockPublicAccessConfiguration.BlockPublicSecurityGroupRules
+        }}'
+      Enabled: '{{ response.BlockPublicAccessConfiguration.Enabled }}'
+      PermittedPublicSecurityGroupRuleRanges: '{{ response.BlockPublicAccessConfiguration.PermittedPublicSecurityGroupRuleRanges
+        }}'
+      PresignedURL: '{{ response.BlockPublicAccessConfiguration.PresignedURL }}'
+      PresignedURLReady: '{{ response.BlockPublicAccessConfiguration.PresignedURLReady
+        }}'
+- discovery_id: aws.emr.list_clusters
+  calls:
+  - action: list_clusters
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Clusters }}'
+    item:
+      Id: '{{ item.Id }}'
+      Name: '{{ item.Name }}'
+      Status: '{{ item.Status }}'
+      Cluster: '{{ item.Cluster }}'
+      ClusterArn: '{{ item.ClusterArn }}'
+      NormalizedInstanceHours: '{{ item.NormalizedInstanceHours }}'
+      OutpostArn: '{{ item.OutpostArn }}'
+- discovery_id: aws.emr.describe_cluster
+  for_each: aws.emr.list_clusters
+  calls:
+  - action: describe_cluster
+    params:
+      ClusterId: '{{ item.ClusterId }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      Id: '{{ response.Cluster.Id }}'
+      Name: '{{ response.Cluster.Name }}'
+      ServiceRole: '{{ response.Cluster.ServiceRole }}'
+      Status: '{{ response.Cluster.Status }}'
+      Tags: '{{ response.Cluster.Tags }}'
+      Applications: '{{ response.Cluster.Applications }}'
+      AutoScalingRole: '{{ response.Cluster.AutoScalingRole }}'
+      AutoTerminate: '{{ response.Cluster.AutoTerminate }}'
+      ClusterArn: '{{ response.Cluster.ClusterArn }}'
+      Configurations: '{{ response.Cluster.Configurations }}'
+      CustomAmiId: '{{ response.Cluster.CustomAmiId }}'
+      EbsRootVolumeIops: '{{ response.Cluster.EbsRootVolumeIops }}'
+      EbsRootVolumeSize: '{{ response.Cluster.EbsRootVolumeSize }}'
+      EbsRootVolumeThroughput: '{{ response.Cluster.EbsRootVolumeThroughput }}'
+      Ec2InstanceAttributes: '{{ response.Cluster.Ec2InstanceAttributes }}'
+      ExtendedSupport: '{{ response.Cluster.ExtendedSupport }}'
+      InstanceCollectionType: '{{ response.Cluster.InstanceCollectionType }}'
+      KerberosAttributes: '{{ response.Cluster.KerberosAttributes }}'
+      LogEncryptionKmsKeyId: '{{ response.Cluster.LogEncryptionKmsKeyId }}'
+      LogUri: '{{ response.Cluster.LogUri }}'
+      MasterPublicDnsName: '{{ response.Cluster.MasterPublicDnsName }}'
+      MonitoringConfiguration: '{{ response.Cluster.MonitoringConfiguration }}'
+      NormalizedInstanceHours: '{{ response.Cluster.NormalizedInstanceHours }}'
+      OSReleaseLabel: '{{ response.Cluster.OSReleaseLabel }}'
+      OutpostArn: '{{ response.Cluster.OutpostArn }}'
+      PlacementGroups: '{{ response.Cluster.PlacementGroups }}'
+      ReleaseLabel: '{{ response.Cluster.ReleaseLabel }}'
+      RepoUpgradeOnBoot: '{{ response.Cluster.RepoUpgradeOnBoot }}'
+      RequestedAmiVersion: '{{ response.Cluster.RequestedAmiVersion }}'
+      RunningAmiVersion: '{{ response.Cluster.RunningAmiVersion }}'
+      ScaleDownBehavior: '{{ response.Cluster.ScaleDownBehavior }}'
+      SecurityConfiguration: '{{ response.Cluster.SecurityConfiguration }}'
+      StepConcurrencyLevel: '{{ response.Cluster.StepConcurrencyLevel }}'
+      TerminationProtected: '{{ response.Cluster.TerminationProtected }}'
+      UnhealthyNodeReplacement: '{{ response.Cluster.UnhealthyNodeReplacement }}'
+      VisibleToAllUsers: '{{ response.Cluster.VisibleToAllUsers }}'
+      Cluster: '{{ response.Cluster }}'

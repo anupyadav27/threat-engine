@@ -1,0 +1,54 @@
+# discoveries_only_check: 4 kept / 9 removed from 13 total
+# generated_from: step6_glacier.discovery.yaml
+# purpose: only discoveries needed by glacier.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: glacier
+services:
+  client: glacier
+  module: boto3.client
+discovery:
+- discovery_id: aws.glacier.describe_vault
+  calls:
+  - action: describe_vault
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      CreationDate: '{{ response.CreationDate }}'
+      LastInventoryDate: '{{ response.LastInventoryDate }}'
+      NumberOfArchives: '{{ response.NumberOfArchives }}'
+      SizeInBytes: '{{ response.SizeInBytes }}'
+      VaultARN: '{{ response.VaultARN }}'
+      VaultName: '{{ response.VaultName }}'
+- discovery_id: aws.glacier.get_data_retrieval_policy
+  calls:
+  - action: get_data_retrieval_policy
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      Rules: '{{ response.Policy.Rules }}'
+      Statement: '{{ response.Policy.Statement }}'
+      Version: '{{ response.Policy.Version }}'
+      policy: '{{ response.Policy.policy }}'
+- discovery_id: aws.glacier.get_vault_access_policy
+  calls:
+  - action: get_vault_access_policy
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      Policy: '{{ response.policy.Policy }}'
+- discovery_id: aws.glacier.get_vault_lock
+  calls:
+  - action: get_vault_lock
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      State: '{{ response.State }}'

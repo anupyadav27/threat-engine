@@ -1,0 +1,29 @@
+version: '1.0'
+provider: gcp
+service: workflows
+checks:
+- rule_id: gcp.workflows.workflow.workflow_approval_steps_required_for_destructive_actions
+  for_each: gcp.workflows.projects.locations.workflows.list
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.sourceContents
+      op: contains
+      value: approval
+    - var: item.sourceContents
+      op: contains
+      value: destructive
+- rule_id: gcp.workflows.workflow.workflow_integrations_least_privilege
+  for_each: gcp.workflows.projects.locations.workflows.list
+  severity: HIGH
+  conditions:
+    var: item.serviceAccount
+    op: exists
+    value: null
+- rule_id: gcp.workflows.workflow.workflow_kms_encryption_enabled
+  for_each: gcp.workflows.projects.locations.workflows.list
+  severity: HIGH
+  conditions:
+    var: item.cryptoKeyName
+    op: exists
+    value: null

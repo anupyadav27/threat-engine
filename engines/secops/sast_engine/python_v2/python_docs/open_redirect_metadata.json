@@ -1,0 +1,36 @@
+{
+  "rule_id": "open_redirect",
+  "title": "Open Redirect - redirect() with user-controlled URL",
+  "type": "VULNERABILITY",
+  "status": "ready",
+  "defaultSeverity": "High",
+  "description": "Passing a user-controlled URL directly to redirect() allows attackers to redirect victims to malicious external sites, enabling phishing attacks.",
+  "message": "redirect() called with a variable URL - open redirect risk if URL comes from user input (CWE-601).",
+  "tags": ["security", "open-redirect", "cwe-601"],
+  "security_mappings": {
+    "CWE": "601",
+    "OWASP": "A1:2021 - Broken Access Control"
+  },
+  "remediation": {
+    "func": "Constant/Issue",
+    "constantCost": "15min"
+  },
+  "examples": {
+    "noncompliant": [
+      {
+        "code": "url = request.args.get('url')\nreturn redirect(url)",
+        "description": "User-supplied URL passed directly to redirect() - attacker can redirect to any external site."
+      }
+    ],
+    "compliant": [
+      {
+        "code": "url = request.args.get('url', '/')\nif not url.startswith('/'):\n    url = '/'\nreturn redirect(url)",
+        "description": "Validate URL is a relative path before redirecting."
+      }
+    ]
+  },
+  "logic": {
+    "node_types": ["Call"],
+    "custom_function": "open_redirect_check"
+  }
+}

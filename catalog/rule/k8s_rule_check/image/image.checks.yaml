@@ -1,0 +1,66 @@
+version: '1.0'
+provider: k8s
+service: image
+checks:
+- rule_id: k8s.image.latest.tag_avoidance
+  for_each: k8s.image.list_pod_for_all_namespaces
+  severity: LOW
+  conditions:
+    all:
+    - var: item.spec[].containers[].image
+      op: not_contains
+      value: :latest
+- rule_id: k8s.image.latest.tag_prohibited
+  for_each: k8s.image.list_pod_for_all_namespaces
+  severity: LOW
+  conditions:
+    all:
+    - var: item.spec[].containers[].image
+      op: not_contains
+      value: :latest
+- rule_id: k8s.image.pod.container_scanning_enabled_enforced
+  for_each: k8s.image.list_pod_for_all_namespaces
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/pod-container-scanning-enabled-enforced
+    op: exists
+    value: null
+- rule_id: k8s.image.pod.image_provenance_verified_enforced
+  for_each: k8s.image.list_pod_for_all_namespaces
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/pod-image-provenance-verified-enforced
+    op: exists
+    value: null
+- rule_id: k8s.image.pod.latest_tag_avoidance_configured
+  for_each: k8s.image.list_pod_for_all_namespaces
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/pull-policy-always
+    op: exists
+    value: null
+- rule_id: k8s.image.pull.policy_always
+  for_each: k8s.image.list_pod_for_all_namespaces
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.spec[].containers[].imagePullPolicy
+      op: exists
+      value: null
+    - var: item.spec[].containers[].imagePullPolicy
+      op: equals
+      value: Always
+- rule_id: k8s.image.scan.on_admission
+  for_each: k8s.image.list_pod_for_all_namespaces
+  severity: MEDIUM
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/scan-on-admission
+    op: exists
+    value: null
+- rule_id: k8s.image.vulnerability.scanning_enabled
+  for_each: k8s.image.list_pod_for_all_namespaces
+  severity: LOW
+  conditions:
+    var: item.metadata.annotations.cspm.k8s.io/vulnerability-scanning-enabled
+    op: is_true
+    value: null

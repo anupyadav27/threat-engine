@@ -7,8 +7,9 @@ UI-ready response.
 
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
+from ._auth import resolve_tenant_id
 from ._shared import fetch_many, safe_get
 from ._transforms import normalize_threat, _safe_lower
 
@@ -115,33 +116,145 @@ def _build_mitre(threat: dict) -> dict:
     }
 
 
+def _infer_resource_type_from_arn(arn: str) -> str:
+    if not arn or not isinstance(arn, str):
+        return "Unknown"
+    a = arn.lower()
+    if "instance/" in a:
+        return "AWS::EC2::Instance"
+    if "security-group/" in a:
+        return "AWS::EC2::SecurityGroup"
+    if arn.startswith("arn:aws:s3:::"):
+        return "AWS::S3::Bucket"
+    if "role/" in a:
+        return "AWS::IAM::Role"
+    if "user/" in a:
+        return "AWS::IAM::User"
+    if "function:" in a:
+        return "AWS::Lambda::Function"
+    if ":db:" in a:
+        return "AWS::RDS::DBInstance"
+    if ":secret:" in a:
+        return "AWS::SecretsManager::Secret"
+    if "key/" in a:
+        return "AWS::KMS::Key"
+    if "parameter/" in a:
+        return "AWS::SSM::Parameter"
+    parts = arn.split(":")
+    if len(parts) >= 3 and parts[0] == "arn":
+        service = parts[2].title() if len(parts) > 2 else "Resource"
+        return f"AWS::{service}::Resource"
+    return "Unknown"
+
+
+def _extract_short_name(arn: str) -> str:
+    if not arn:
+        return ""
+    if "/" in arn:
+        return arn.split("/")[-1]
+    return arn.split(":")[-1]
+
+
+def _enrich_attack_chain_steps(hops: list, attack_chain: dict, threat_raw: dict) -> list:
+    target = attack_chain.get("target", "")
+
+    # Threat-level fallback technique (used when hop has none)
+    techniques = threat_raw.get("mitre_techniques") or []
+    fallback_technique = ""
+    if techniques:
+        first = techniques[0]
+        if isinstance(first, dict):
+            fallback_technique = first.get("id") or first.get("technique_id", "")
+        else:
+            fallback_technique = str(first)
+
+    enriched = []
+    for idx, hop in enumerate(hops):
+        # Schema A: {from, to, rel, category}  — Neo4j / graph hops
+        # Schema B: {step, action, resource, description, mitre_techniques}  — threat_analysis list
+        to_arn = hop.get("to") or hop.get("to_resource") or hop.get("resource", "")
+        from_arn = hop.get("from") or hop.get("from_resource") or (
+            enriched[-1]["to"] if enriched else ""
+        )
+        relationship = hop.get("rel") or hop.get("relationship") or hop.get("action", "")
+        category = hop.get("category") or hop.get("threat_category", "")
+
+        # Per-step technique takes priority over the threat-level fallback
+        step_techs = hop.get("mitre_techniques") or []
+        if step_techs:
+            st = step_techs[0]
+            technique = (st.get("id") or st.get("technique_id", "")) if isinstance(st, dict) else str(st)
+        else:
+            technique = fallback_technique
+
+        is_entry = idx == 0
+        is_target = bool(target) and to_arn == target
+        is_internet_reachable = is_entry and (not from_arn or from_arn.lower().startswith("internet"))
+
+        enriched.append({
+            "from": from_arn,
+            "fromName": _extract_short_name(from_arn) if from_arn else "Internet",
+            "fromResourceType": _infer_resource_type_from_arn(from_arn) if from_arn else "Internet",
+            "to": to_arn,
+            "toName": _extract_short_name(to_arn),
+            "toResourceType": _infer_resource_type_from_arn(to_arn),
+            "relationship": relationship,
+            "category": category,
+            "technique": technique,
+            "riskScore": threat_raw.get("risk_score", 0) if is_target else 0,
+            "isTarget": is_target,
+            "isEntry": is_entry,
+            "isInternetReachable": is_internet_reachable,
+        })
+    return enriched
+
+
 def _build_attack_path(threat: dict, analysis: dict) -> dict:
-    """Extract attack path info from threat data and analysis.
+    """Extract and enrich attack path from threat data and analysis.
 
-    Prefers the analysis attack_chain (from threat_analysis table) which
-    contains the full computed chain.  Falls back to threat-level fields.
+    JSONB note: attack_chain is already a dict — never call json.loads().
     """
-    # Try analysis attack_chain first (JSONB from threat_analysis)
     attack_chain = analysis.get("attack_chain")
-    if attack_chain:
-        if isinstance(attack_chain, list):
-            return {"exists": True, "steps": attack_chain}
-        if isinstance(attack_chain, dict):
-            steps = attack_chain.get("steps") or attack_chain.get("chain", [])
-            return {"exists": bool(steps), "steps": steps}
 
-    # Fallback to threat-level data
+    if attack_chain and isinstance(attack_chain, dict):
+        hops = attack_chain.get("hops") or attack_chain.get("steps") or attack_chain.get("chain", [])
+        enriched_steps = _enrich_attack_chain_steps(hops, attack_chain, threat)
+        return {
+            "exists": bool(enriched_steps),
+            "chainType": attack_chain.get("chain_type", ""),
+            "pathScore": attack_chain.get("path_score", 0),
+            "entryPoint": attack_chain.get("entry_point", ""),
+            "target": attack_chain.get("target", ""),
+            "targetCategory": attack_chain.get("target_category", ""),
+            "depth": attack_chain.get("depth", len(enriched_steps)),
+            "steps": enriched_steps,
+        }
+
+    if attack_chain and isinstance(attack_chain, list):
+        enriched_steps = _enrich_attack_chain_steps(attack_chain, {}, threat)
+        return {"exists": bool(enriched_steps), "chainType": "", "pathScore": 0,
+                "entryPoint": "", "target": "", "targetCategory": "",
+                "depth": len(enriched_steps), "steps": enriched_steps}
+
     attack_path = threat.get("attack_path") or threat.get("attack_paths") or {}
     if isinstance(attack_path, list):
         steps = attack_path
-        exists = bool(steps)
     elif isinstance(attack_path, dict):
-        steps = attack_path.get("steps", [])
-        exists = attack_path.get("exists", bool(steps))
+        steps = attack_path.get("steps") or attack_path.get("hops", [])
     else:
         steps = []
-        exists = False
-    return {"exists": exists, "steps": steps}
+
+    enriched_steps = _enrich_attack_chain_steps(steps, attack_path if isinstance(attack_path, dict) else {}, threat)
+    return {
+        "exists": bool(enriched_steps),
+        "chainType": attack_path.get("chain_type", "") if isinstance(attack_path, dict) else "",
+        "pathScore": attack_path.get("path_score", 0) if isinstance(attack_path, dict) else 0,
+        "entryPoint": attack_path.get("entry_point", "") if isinstance(attack_path, dict) else "",
+        "target": attack_path.get("target", "") if isinstance(attack_path, dict) else "",
+        "targetCategory": attack_path.get("target_category", "") if isinstance(attack_path, dict) else "",
+        "depth": len(enriched_steps),
+        "steps": enriched_steps,
+    }
 
 
 def _build_blast_radius(threat: dict, analysis: dict) -> dict:
@@ -150,9 +263,17 @@ def _build_blast_radius(threat: dict, analysis: dict) -> dict:
     The analysis endpoint returns blast_radius as JSONB with:
     reachable_count, critical_assets, affected_services.
     """
-    # Prefer analysis blast_radius (from threat_analysis table)
+    # Prefer analysis blast_radius — may be top-level or nested in analysis_results
     blast = analysis.get("blast_radius")
+    if not blast and isinstance(analysis.get("analysis_results"), dict):
+        blast = analysis["analysis_results"].get("blast_radius")
     if blast and isinstance(blast, dict):
+        raw_critical = blast.get("critical_assets", [])
+        critical_assets = [
+            {**a, "resourceName": _extract_short_name(a.get("resource_uid", "") or a.get("arn", ""))}
+            if isinstance(a, dict) else {"resource_uid": str(a), "resourceName": _extract_short_name(str(a))}
+            for a in raw_critical
+        ]
         return {
             "reachableCount": (
                 blast.get("reachable_count")
@@ -160,22 +281,45 @@ def _build_blast_radius(threat: dict, analysis: dict) -> dict:
             ),
             "criticalCount": (
                 blast.get("critical_count")
-                or len(blast.get("critical_assets", []))
+                or len(raw_critical)
             ),
-            "criticalAssets": blast.get("critical_assets", []),
+            "criticalAssets": critical_assets,
             "affectedServices": blast.get("affected_services", []),
+            "depthDistribution": blast.get("depth_distribution", {}),
+            "reachableResources": blast.get("reachable_resources", [])[:50],
+            "pathEdges": blast.get("path_edges", []),
+            "isInternetReachable": blast.get("is_internet_reachable", False),
         }
 
     # Fallback to threat-level blast_radius
     blast = threat.get("blast_radius") or {}
     if isinstance(blast, dict):
+        raw_critical = blast.get("critical_assets", [])
+        critical_assets = [
+            {**a, "resourceName": _extract_short_name(a.get("resource_uid", "") or a.get("arn", ""))}
+            if isinstance(a, dict) else {"resource_uid": str(a), "resourceName": _extract_short_name(str(a))}
+            for a in raw_critical
+        ]
         return {
             "reachableCount": blast.get("reachable_count") or blast.get("total", 0),
             "criticalCount": blast.get("critical_count", 0),
-            "criticalAssets": blast.get("critical_assets", []),
+            "criticalAssets": critical_assets,
             "affectedServices": blast.get("affected_services", []),
+            "depthDistribution": blast.get("depth_distribution", {}),
+            "reachableResources": blast.get("reachable_resources", [])[:50],
+            "pathEdges": blast.get("path_edges", []),
+            "isInternetReachable": blast.get("is_internet_reachable", False),
         }
-    return {"reachableCount": 0, "criticalCount": 0, "criticalAssets": [], "affectedServices": []}
+    return {
+        "reachableCount": 0,
+        "criticalCount": 0,
+        "criticalAssets": [],
+        "affectedServices": [],
+        "depthDistribution": {},
+        "reachableResources": [],
+        "pathEdges": [],
+        "isInternetReachable": False,
+    }
 
 
 def _build_risk_breakdown(analysis: dict) -> dict:
@@ -222,32 +366,47 @@ def _build_timeline(threat: dict, normalized: dict, analysis: dict) -> list:
     if analysis_created and analysis_created not in (detected, created, last_seen):
         events.append({"timestamp": analysis_created, "event": "Analysis completed", "type": "analysis"})
 
+    # Add status-change event if present
+    status_changed_at = threat.get("status_changed_at")
+    status_changed_by = threat.get("status_changed_by")
+    if status_changed_at and status_changed_at not in (detected, created, last_seen):
+        label = f"Status changed by {status_changed_by}" if status_changed_by else "Status changed"
+        events.append({
+            "timestamp": status_changed_at,
+            "event": label,
+            "type": "status_change",
+            "actor": status_changed_by or "",
+        })
+
     events.sort(key=lambda e: e.get("timestamp", ""))
     return events
 
 
 @router.get("/threats/{threat_id}")
 async def view_threat_detail(
+    request: Request,
     threat_id: str,
-    tenant_id: str = Query(...),
 ):
     """BFF view for threat detail page — single endpoint for the entire page.
 
-    Fans out to five engine endpoints in parallel and merges results into a
+    Fans out to three engine endpoints in parallel and merges results into a
     single response containing the normalized threat, exposure flags, MITRE
     detail, affected resources, supporting misconfig findings, attack path,
     blast radius, risk breakdown, evidence, remediation, and timeline.
     """
+
+    tenant_id = resolve_tenant_id(request)
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 
     results = await fetch_many([
         ("threat", f"/api/v1/threat/threats/{threat_id}", {"tenant_id": tenant_id}),
         ("threat", f"/api/v1/threat/analysis/{threat_id}", {"tenant_id": tenant_id}),
         # Use the new detection-aware endpoint that cross-queries the check DB
         ("threat", f"/api/v1/threat/detections/{threat_id}/check-findings", {"tenant_id": tenant_id}),
-        ("threat", f"/api/v1/threat/{threat_id}/remediation", {"tenant_id": tenant_id}),
-    ])
+    ], auth_headers=fwd_headers)
 
-    threat_raw, analysis_raw, misconfig_raw, remediation_raw = results
+    threat_raw, analysis_raw, misconfig_raw = results
 
     # Safely handle None responses
     if not isinstance(threat_raw, dict):
@@ -256,8 +415,6 @@ async def view_threat_detail(
         analysis_raw = {}
     if not isinstance(misconfig_raw, (dict, list)):
         misconfig_raw = {}
-    if not isinstance(remediation_raw, dict):
-        remediation_raw = {}
 
     # Normalize the core threat (from threat_detections table)
     normalized = normalize_threat(threat_raw)
@@ -294,20 +451,17 @@ async def view_threat_detail(
             or safe_get(misconfig_raw, "misconfig_findings", [])
         )
 
-    # Remediation — merge engine remediation with analysis recommendations
-    rem_steps = (
-        safe_get(remediation_raw, "steps", [])
-        or safe_get(remediation_raw, "remediation_steps", [])
-        or remediation_raw.get("remediation", [])
-    )
-    if isinstance(rem_steps, str):
-        rem_steps = [rem_steps]
-    # Append analysis recommendations if remediation endpoint returned nothing
-    if not rem_steps and analysis_recs:
-        rem_steps = analysis_recs
-    sla = safe_get(remediation_raw, "sla", {})
-    if not isinstance(sla, dict):
-        sla = {}
+    # Remediation — derived from analysis_raw recommendations (no engine call)
+    SLA_MAP = {"critical": "24h", "high": "72h", "medium": "30d", "low": "90d"}
+    severity = (threat_raw.get("severity") or "").lower()
+    sla_target = SLA_MAP.get(severity, "30d")
+
+    analysis_recs = analysis_raw.get("recommendations") or []
+    rem_steps = [
+        {"action": r} if isinstance(r, str) else r
+        for r in analysis_recs
+    ]
+    sla = {"target": sla_target, "severity": severity}
 
     # Affected resources — from evidence, analysis, or the threat's own resource
     affected = []

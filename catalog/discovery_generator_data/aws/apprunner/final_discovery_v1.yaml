@@ -1,0 +1,81 @@
+# ==========================================================
+# Discovery YAML — apprunner (final_discovery v1)
+# Generated from: aws_field_rule_catalog.csv
+# Check rules: 7 | ops: 0 independent, 2 dependent
+# ==========================================================
+version: '1.0'
+provider: aws
+service: apprunner
+
+services:
+  client: apprunner
+  module: "boto3.client('apprunner')"
+
+# Resource identifiers — used by inventory engine for asset dedup/linking
+inventory_resource_identifiers:
+  []
+
+checks: []
+
+discovery:
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.apprunner.describe_service [dependent] ──
+  - discovery_id: aws.apprunner.describe_service
+    for_each: aws.apprunner.list_services
+    calls:
+      - action: describe_service
+        params:
+          ServiceArn: "{{ item.ServiceArn }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        AutoScalingConfigurationSummary: '{{ item.AutoScalingConfigurationSummary }}'
+        CreatedAt: '{{ item.CreatedAt }}'
+        DeletedAt: '{{ item.DeletedAt }}'
+        EncryptionConfiguration: '{{ item.EncryptionConfiguration }}'
+        HealthCheckConfiguration: '{{ item.HealthCheckConfiguration }}'
+        InstanceConfiguration: '{{ item.InstanceConfiguration }}'
+        NetworkConfiguration: '{{ item.NetworkConfiguration }}'
+        NetworkConfiguration.EgressConfiguration.EgressType: '{{ item.NetworkConfiguration.EgressConfiguration.EgressType }}'
+        NetworkConfiguration.IngressConfiguration.IsPubliclyAccessible: '{{ item.NetworkConfiguration.IngressConfiguration.IsPubliclyAccessible }}'
+        ObservabilityConfiguration: '{{ item.ObservabilityConfiguration }}'
+        ObservabilityConfiguration.ObservabilityEnabled: '{{ item.ObservabilityConfiguration.ObservabilityEnabled }}'
+        ServiceArn: '{{ item.ServiceArn }}'
+        ServiceId: '{{ item.ServiceId }}'
+        ServiceName: '{{ item.ServiceName }}'
+        ServiceUrl: '{{ item.ServiceUrl }}'
+        SourceConfiguration: '{{ item.SourceConfiguration }}'
+        Status: '{{ item.Status }}'
+        Tags: '{{ item.Tags }}'
+        UpdatedAt: '{{ item.UpdatedAt }}'
+        item: '{{ item }}'
+
+  # ════ DEPENDENT (enrich) operations ════
+  # ── aws.apprunner.describe_vpc_ingress_connection [dependent] ──
+  - discovery_id: aws.apprunner.describe_vpc_ingress_connection
+    for_each: aws.apprunner.list_vpc_ingress_connections
+    calls:
+      - action: describe_vpc_ingress_connection
+        params:
+          VpcIngressConnectionArn: "{{ item.VpcIngressConnectionArn }}"
+        save_as: response
+        on_error: continue
+    emit:
+      as: item
+      items_for: '{{ response.items }}'
+      item:
+        AccountId: '{{ item.AccountId }}'
+        CreatedAt: '{{ item.CreatedAt }}'
+        DeletedAt: '{{ item.DeletedAt }}'
+        DomainName: '{{ item.DomainName }}'
+        IngressVpcConfiguration: '{{ item.IngressVpcConfiguration }}'
+        ServiceArn: '{{ item.ServiceArn }}'
+        Status: '{{ item.Status }}'
+        Tags: '{{ item.Tags }}'
+        VpcIngressConnectionArn: '{{ item.VpcIngressConnectionArn }}'
+        VpcIngressConnectionName: '{{ item.VpcIngressConnectionName }}'
+

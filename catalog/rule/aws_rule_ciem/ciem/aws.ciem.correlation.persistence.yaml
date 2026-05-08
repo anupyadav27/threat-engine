@@ -1,0 +1,104 @@
+rule_id: aws.ciem.correlation.persistence
+service: ciem
+provider: aws
+check_type: log_correlation
+severity: critical
+title: 'Correlation: Persistence'
+description: 'Persistence chain detected: new user or identity provider created, followed by access key.'
+rationale: 'Adversaries create cloud accounts (IAM users, Entra ID users, service principals) to maintain access to victim systems without deploying persistent remote access tools. Such accounts establish secondary credentialed access that survives password resets of the initially compromised account. Detected via: IAM CreateUser + AttachUserPolicy from non-standard sources, Add User events from unusual IPs, and SaaS account provisioning outside business hours.'
+threat_category: persistence
+mitre_tactics:
+- persistence
+- credential_access
+mitre_techniques:
+- T1136.003
+- T1552.005
+risk_score: 90
+resource: multi_resource
+source: ciem_rule_generator
+is_active: true
+domain: identity_and_access_management
+action_category: create
+posture_category: iam_posture
+threat_tags:
+- T1136.003
+- T1552.005
+- T1136
+- T1552
+- persistence
+- backdoor
+- ciem_correlation
+- attack_chain
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: write
+  target_type: cloud_resource
+  blast_radius: tenant_or_account
+  stealth_risk: high
+iam_security:
+  applicable: true
+  modules:
+  - access_control
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_aws_v3:
+  - 1.1
+  - 1.4
+  - 1.16
+  cis_azure_v2:
+  - 1.1
+  - 2.1
+  - 2.9
+  nist_800_53_r5:
+  - AC-2
+  - AC-6
+  - IA-2
+  - SC-7
+  pci_dss_v4:
+  - 7.1
+  - 8.2
+  - 10.2
+  iso_27001_2022:
+  - A.8.2
+  - A.9.2
+  - A.5.18
+detection_events:
+- 'iam:CreateUser'
+- microsoft.directory/users/create
+- 'organizations:CreateAccount'
+- New-MsolUser (PowerShell)
+remediation: |
+  1. Disable and investigate the new cloud account immediately.
+  2. Require MFA and business justification for all cloud account creation.
+  3. Integrate account provisioning with HR/ITSM systems for lifecycle control.
+  4. Enable alerts for account creation across all cloud tenants and sub-accounts.
+references:
+- https://attack.mitre.org/techniques/T1136/003/
+- https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_accounts.html
+- https://learn.microsoft.com/en-us/azure/active-directory/fundamentals/add-users-azure-active-directory
+- https://attack.mitre.org/techniques/T1552/005/
+check_config:
+  description: Actor created an access key then attached or created a policy — potential
+    backdoor persistence mechanism.
+  for_each: log_events
+  match_by: actor.principal
+  min_events: 2
+  mitre_tactics:
+  - persistence
+  - privilege_escalation
+  mitre_techniques:
+  - T1098.001
+  - T1484.001
+  sequence:
+  - rule_id: aws.ciem.correlation.cloudtrail.access_key_created
+  - any_of:
+    - aws.ciem.correlation.cloudtrail.policy_attached
+    - aws.ciem.correlation.cloudtrail.policy_created
+  - optional:
+    - aws.ciem.correlation.cloudtrail.admin_api_call
+  severity: high
+  time_window_minutes: 60
+  title: 'Persistence: access key + policy attachment'
+  type: log_correlation
+version: '1.0'

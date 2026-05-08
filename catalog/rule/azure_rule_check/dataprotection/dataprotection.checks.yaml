@@ -1,0 +1,39 @@
+version: '1.0'
+provider: azure
+service: dataprotection
+checks:
+- rule_id: azure.dataprotection.backup.vault.cross.region.restore.enabled
+  for_each: azure.dataprotection.backupinstances.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.policyInfo.policyParameters.azureBackupParamsResourceGroup
+    op: exists
+    value: null
+- rule_id: azure.dataprotection.backup.vault.encryption.cmk.enabled
+  for_each: azure.dataprotection.backupinstances.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.encryptionSettings.encryptionSettings[].keyVaultProperties
+    op: exists
+    value: null
+- rule_id: azure.dataprotection.backup.vault.immutability.check
+  for_each: azure.dataprotection.backupinstances.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.policyInfo.policyParameters.immutabilitySettings.state
+    op: equals
+    value: Enabled
+- rule_id: azure.dataprotection.backup.vault.soft.delete.compliance.check
+  for_each: azure.dataprotection.backupinstances.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.protectionStatus.softDeleteState
+    op: equals
+    value: 'On'
+- rule_id: azure.dataprotection.backupvault.infrastructure.encryption.enabled
+  for_each: azure.dataprotection.backupinstances.list
+  severity: MEDIUM
+  conditions:
+    var: item.properties.infrastructureEncryption
+    op: equals
+    value: Enabled

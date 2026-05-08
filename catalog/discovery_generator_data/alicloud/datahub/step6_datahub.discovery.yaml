@@ -1,0 +1,33 @@
+version: '1.0'
+provider: alicloud
+service: datahub
+discovery:
+- discovery_id: alicloud.datahub.list_consumers
+  calls:
+  - action: ListTopicSchema
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Consumers.Consumer }}'
+    item:
+      ConsumerName: '{{ item.ConsumerName }}'
+      AuthRequired: '{{ item.AuthRequired }}'
+      Permissions: '{{ item.Permissions }}'
+- discovery_id: alicloud.datahub.list_streams
+  calls:
+  - action: ListTopic
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Topics.Topic }}'
+    item:
+      TopicName: '{{ item.TopicName }}'
+      Encrypted: '{{ item.Encrypted }}'
+      EncryptionAtRest: '{{ item.EncryptionAtRest }}'
+      EncryptionEnabled: '{{ item.EncryptionEnabled }}'
+      Network: '{{ item.Network }}'
+      RetentionPeriod: '{{ item.RetentionPeriod }}'
+      ConsumerAuthRequired: '{{ item.ConsumerAuthRequired }}'
+      Permissions: '{{ item.Permissions }}'

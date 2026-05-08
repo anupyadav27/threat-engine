@@ -1,0 +1,21 @@
+version: '1.0'
+rule_id: aws.ec2.networkacl.ssh_port_22_restricted
+for_each: aws.ec2.describe_network_acls
+severity: MEDIUM
+conditions:
+  all:
+  - var: item.Entries[].CidrBlock
+    op: not_contains
+    value: 0.0.0.0/0
+  - var: item.Entries[].PortRange.From
+    op: lte
+    value: 22
+  - var: item.Entries[].PortRange.To
+    op: gte
+    value: 22
+  - var: item.Entries[].RuleAction
+    op: equals
+    value: deny
+fixture_validated: false
+fixture_note: 'PASS fixture returned FAIL — wrong field or operator (pass_fixture keys: [''Associations'', ''Entries'', ''IsDefault'',
+  ''NetworkAclId'', ''NetworkAcls'', ''Tags'', ''VpcId''])'

@@ -1,0 +1,146 @@
+version: '1.0'
+provider: database
+engine: oracle_db
+category: section_3
+cis_section: '3'
+description: >
+  oracle_db CIS Section 3 — 'PASSWORD_LIFE_TIME + PASSWORD_GRACE_TIME' Is Less Than Or Equal To '365'
+
+discovery:
+
+  - discovery_id: oracle_db.section_3.password_life_time_password_grace_time_is_less
+    description: Ensure 'PASSWORD_LIFE_TIME + PASSWORD_GRACE_TIME' Is Less Than Or Equal To '365'
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT CON_ID, DECODE(P.CON_ID,0,'ENTIRE- '||SYS_CONTEXT('USERENV','DB_NAME'), 1,'ROOTONLY-'||SYS_CONTEXT('USERENV','DB_NAME'), CON_ID_TO_CON_NAME(P.CON_ID)) AS CONTAINERNAME, P.PROFILE, P.RESOURCE_NAME, TO_NUMBER(DECODE(P.LIMIT, 'DEFAULT',(SELECT DECODE(LIMIT,'UNLIMITED',9999,LIMIT) FROM CDB_PROFILES WHERE PROFILE='DEFAULT' AND RESOURCE_NAME='PASSWORD_LIFE_TIME' AND CON_ID = P.CON_ID), 'UNLIMITED','9999', P.LIMIT)) LIMIT FROM CDB_PROFILES P WHERE P.RESOURCE_NAME = 'PASSWORD_LIFE_TIME'), PWD_GRACE_TIME AS (SELECT CON_ID, DECODE(P.CON_ID,0,'ENTIRE- '||SYS_CONTEXT('USERENV','DB_NAME'), 1,'ROOTONLY-'||SYS_CONTEXT('USERENV','DB_NAME'), CON_ID_TO_CON_NAME(P.CON_ID)) AS CONTAINERNAME, P.PROFILE, P.RESOURCE_NAME, TO_NUMBER(DECODE(P.LIMIT, 'DEFAULT',(SELECT DECODE(LIMIT,'UNLIMITED',9999,LIMIT) FROM CDB_PROFILES WHERE PROFILE='DEFAULT' AND RESOURCE_NAME='PASSWORD_GRACE_TIME' AND CON_ID = P.CON_ID), 'UNLIMITED','9999', P.LIMIT)) LIMIT FROM CDB_PROFILES P WHERE P.RESOURCE_NAME = 'PASSWORD_GRACE_TIME') SELECT L.CONTAINERNAME, L.PROFILE, L.RESOURCE_NAME, L.LIMIT, G.RESOURCE_NAME, G.LIMIT FROM PWD_LIFE_TIME L, PWD_GRACE_TIME G WHERE L.CON_ID = G.CON_ID AND L.PROFILE = G.PROFILE AND L.LIMIT + G.LIMIT > 365 ORDER BY L.CON_ID, L.PROFILE, L.RESOURCE_NAME;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_life_time_password_grace_time_is_less
+        setting_name: password_life_time_password_grace_time_is_less
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: oracle_db.section_3.password_reuse_max_is_set_to_unlimited
+    description: Ensure 'PASSWORD_REUSE_MAX' Is Set To 'UNLIMITED'
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT DECODE(P.CON_ID,0,'ENTIRE-'||SYS_CONTEXT('USERENV','DB_NAME'), 1,'ROOTONLY-'||SYS_CONTEXT('USERENV','DB_NAME'), CON_ID_TO_CON_NAME(P.CON_ID)) AS CONTAINERNAME, P.PROFILE, P.RESOURCE_NAME, P.LIMIT FROM CDB_PROFILES P WHERE TO_NUMBER(DECODE(P.LIMIT, 'DEFAULT',(SELECT DECODE(LIMIT,'UNLIMITED',9999,LIMIT) FROM CDB_PROFILES WHERE PROFILE='DEFAULT' AND RESOURCE_NAME='PASSWORD_REUSE_MAX' AND CON_ID = P.CON_ID), 'UNLIMITED','9999',P.LIMIT)) < 9999 AND P.RESOURCE_NAME = 'PASSWORD_REUSE_MAX' ORDER BY CON_ID, PROFILE, RESOURCE_NAME;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_reuse_max_is_set_to_unlimited
+        setting_name: password_reuse_max_is_set_to_unlimited
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: oracle_db.section_3.password_verify_function_is_set_for_all_profiles
+    description: Ensure 'PASSWORD_VERIFY_FUNCTION' Is Set For All Profiles
+    calls:
+
+
+      - action: query_table
+        query: "SELECT DECODE(P.CON_ID,0,'ENTIRE-'||SYS_CONTEXT('USERENV','DB_NAME'), 1,'ROOTONLY-'||SYS_CONTEXT('USERENV','DB_NAME'), CON_ID_TO_CON_NAME(P.CON_ID)) AS CONTAINERNAME, P.PROFILE, P.RESOURCE_NAME, P.LIMIT FROM SYS.CDB_PROFILES P WHERE RESOURCE_NAME='PASSWORD_VERIFY_FUNCTION' AND P.LIMIT = 'NULL' ORDER BY CON_ID, PROFILE, RESOURCE_NAME;"
+        save_as: rows
+    emit:
+      as: items
+      items: "{{ rows }}"
+      item:
+        check: password_verify_function_is_set_for_all_profiles
+        value: "{{ item.value }}"
+        expected: ""
+
+
+  - discovery_id: oracle_db.section_3.password_rollover_time_is_set_to_0
+    description: Ensure 'PASSWORD_ROLLOVER_TIME' Is set to '0'
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT DECODE(P.CON_ID,0,'ENTIRE-'||SYS_CONTEXT('USERENV','DB_NAME'), 1,'ROOTONLY-'||SYS_CONTEXT('USERENV','DB_NAME'), CON_ID_TO_CON_NAME(P.CON_ID)) AS CONTAINERNAME, P.PROFILE, P.RESOURCE_NAME, P.LIMIT FROM SYS.CDB_PROFILES P WHERE TO_NUMBER(DECODE(P.LIMIT,'DEFAULT',(SELECT LIMIT FROM CDB_PROFILES WHERE PROFILE='DEFAULT' AND RESOURCE_NAME='PASSWORD_ROLLOVER_TIME' AND CON_ID = P.CON_ID), P.LIMIT)) > 0 AND RESOURCE_NAME='PASSWORD_ROLLOVER_TIME' ORDER BY CON_ID, PROFILE, RESOURCE_NAME;"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_rollover_time_is_set_to_0
+        setting_name: password_rollover_time_is_set_to_0
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: oracle_db.section_3.password_life_time_is_less_than_or_equal_to_90
+    description: Ensure 'PASSWORD_LIFE_TIME' Is Less than or Equal to '90'
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT P.PROFILE, P.RESOURCE_NAME, P.LIMIT FROM DBA_PROFILES P WHERE TO_NUMBER(DECODE(P.LIMIT, 'DEFAULT',(SELECT DISTINCT DECODE(LIMIT,'UNLIMITED',9999,LIMIT) FROM DBA_PROFILES WHERE PROFILE='DEFAULT' AND RESOURCE_NAME='PASSWORD_LIFE_TIME'), 'UNLIMITED','9999',P.LIMIT)) > 90 AND P.RESOURCE_NAME = 'PASSWORD_LIFE_TIME' AND EXISTS ( SELECT 'X' FROM DBA_USERS U WHERE U.PROFILE = P.PROFILE );"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_life_time_is_less_than_or_equal_to_90
+        setting_name: password_life_time_is_less_than_or_equal_to_90
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: oracle_db.section_3.password_reuse_max_is_greater_than_or_equal_to_20
+    description: Ensure 'PASSWORD_REUSE_MAX' Is Greater than or Equal to '20'
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT P.PROFILE, P.RESOURCE_NAME, P.LIMIT FROM DBA_PROFILES P WHERE TO_NUMBER(DECODE(P.LIMIT, 'DEFAULT',(SELECT DISTINCT DECODE(LIMIT,'UNLIMITED',9999,LIMIT) FROM DBA_PROFILES WHERE PROFILE='DEFAULT' AND RESOURCE_NAME='PASSWORD_REUSE_MAX'), 'UNLIMITED','9999',P.LIMIT)) < 20 AND P.RESOURCE_NAME = 'PASSWORD_REUSE_MAX' AND EXISTS ( SELECT 'X' FROM DBA_USERS U WHERE U.PROFILE = P.PROFILE );"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_reuse_max_is_greater_than_or_equal_to_20
+        setting_name: password_reuse_max_is_greater_than_or_equal_to_20
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: oracle_db.section_3.password_reuse_time_is_greater_than_or_equal_to
+    description: Ensure 'PASSWORD_REUSE_TIME' Is Greater than or Equal to '365'
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT P.PROFILE, P.RESOURCE_NAME, P.LIMIT FROM DBA_PROFILES P WHERE TO_NUMBER(DECODE(P.LIMIT, 'DEFAULT',(SELECT DISTINCT DECODE(LIMIT,'UNLIMITED',9999,LIMIT) FROM DBA_PROFILES WHERE PROFILE='DEFAULT' AND RESOURCE_NAME='PASSWORD_REUSE_TIME'), 'UNLIMITED','9999',P.LIMIT)) < 365 AND P.RESOURCE_NAME = 'PASSWORD_REUSE_TIME' AND EXISTS ( SELECT 'X' FROM DBA_USERS U WHERE U.PROFILE = P.PROFILE );"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: password_reuse_time_is_greater_than_or_equal_to
+        setting_name: password_reuse_time_is_greater_than_or_equal_to
+        value: "{{ result.value }}"
+        expected: ""
+
+
+  - discovery_id: oracle_db.section_3.sessions_per_user_is_less_than_or_equal_to_10
+    description: Ensure 'SESSIONS_PER_USER' Is Less than or Equal to '10'
+    calls:
+
+
+      - action: query_setting
+        query: "SELECT P.PROFILE, P.RESOURCE_NAME, P.LIMIT FROM DBA_PROFILES P WHERE TO_NUMBER(DECODE(P.LIMIT, 'DEFAULT',(SELECT DISTINCT DECODE(LIMIT,'UNLIMITED',9999,LIMIT) FROM DBA_PROFILES WHERE PROFILE='DEFAULT' AND RESOURCE_NAME='SESSIONS_PER_USER'), 'UNLIMITED','9999',P.LIMIT)) > 10 AND P.RESOURCE_NAME = 'SESSIONS_PER_USER' AND EXISTS ( SELECT 'X' FROM DBA_USERS U WHERE U.PROFILE = P.PROFILE );"
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: sessions_per_user_is_less_than_or_equal_to_10
+        setting_name: sessions_per_user_is_less_than_or_equal_to_10
+        value: "{{ result.value }}"
+        expected: ""
+
+

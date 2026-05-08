@@ -10,9 +10,11 @@ and scan orchestration to construct a timeline event feed.
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
-from ._shared import fetch_many, safe_get
+from ._auth import resolve_tenant_id
+from ._shared import fetch_many, safe_get, BFFMeta
+from .schemas.threat_timeline import ThreatTimelineResponse
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
@@ -36,9 +38,9 @@ def _parse_ts(ts_str: Optional[str]) -> Optional[datetime]:
         return None
 
 
-@router.get("/threats/timeline")
+@router.get("/threats/timeline", response_model=ThreatTimelineResponse, response_model_exclude_none=False)
 async def threat_timeline_view(
-    tenant_id: str = Query(...),
+    request: Request,
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
@@ -50,6 +52,11 @@ async def threat_timeline_view(
     orchestration to construct a chronological event feed.
     """
 
+    tenant_id = resolve_tenant_id(request)
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+    meta = BFFMeta("threat_timeline")
+
     # Use threat engine's ui-data endpoint (returns detections with timestamps)
     threat_params = {
         "tenant_id": tenant_id,
@@ -59,8 +66,10 @@ async def threat_timeline_view(
 
     threat_data, scan_data = await fetch_many([
         ("threat", "/api/v1/threat/ui-data", threat_params),
-        ("onboarding", "/api/v1/cloud-accounts/scans/recent", {"tenant_id": tenant_id}),
-    ])
+        ("onboarding", "/api/v1/scan-runs", {"tenant_id": tenant_id, "limit": "20"}),
+    ], auth_headers=fwd_headers)
+    meta.record_engine("threat", "/api/v1/threat/ui-data", threat_data)
+    meta.record_engine("onboarding", "/api/v1/scan-runs", scan_data)
 
     if not isinstance(threat_data, dict):
         threat_data = {}
@@ -183,7 +192,7 @@ async def threat_timeline_view(
             })
 
     # Add scan events from orchestration
-    raw_scans = safe_get(scan_data, "scans", []) or []
+    raw_scans = safe_get(scan_data, "scan_runs", []) or []
     if isinstance(raw_scans, list):
         for s in raw_scans[:20]:
             scan_id = s.get("scan_run_id") or ""
@@ -232,4 +241,5 @@ async def threat_timeline_view(
             "avgResponseTime": avg_response_time,
             "openInvestigations": investigating_count,
         },
+        "_meta": meta.to_dict(),
     }

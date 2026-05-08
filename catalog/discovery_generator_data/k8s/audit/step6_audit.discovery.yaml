@@ -1,0 +1,57 @@
+version: '1.0'
+provider: k8s
+service: audit
+services:
+  client: audit
+  module: kubernetes.client
+discovery:
+- discovery_id: k8s.audit.list_audit_sink
+  calls:
+  - action: list_audit_sink
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+    item:
+      apiVersion: '{{ item.apiVersion }}'
+      kind: '{{ item.kind }}'
+      metadata.uid: '{{ item.metadata.uid }}'
+      metadata.name: '{{ item.metadata.name }}'
+      metadata.namespace: '{{ item.metadata.namespace }}'
+      metadata.labels: '{{ item.metadata.labels }}'
+      metadata.annotations: '{{ item.metadata.annotations }}'
+      metadata.creationTimestamp: '{{ item.metadata.creationTimestamp }}'
+      metadata.resourceVersion: '{{ item.metadata.resourceVersion }}'
+      metadata.ownerReferences: '{{ item.metadata.ownerReferences }}'
+      spec.policy: '{{ item.spec.policy }}'
+      spec.webhook: '{{ item.spec.webhook }}'
+- discovery_id: k8s.audit.list_event_for_all_namespaces
+  calls:
+  - action: list_event_for_all_namespaces
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response }}'
+    item:
+      apiVersion: '{{ item.apiVersion }}'
+      kind: '{{ item.kind }}'
+      metadata.uid: '{{ item.metadata.uid }}'
+      metadata.name: '{{ item.metadata.name }}'
+      metadata.namespace: '{{ item.metadata.namespace }}'
+      metadata.labels: '{{ item.metadata.labels }}'
+      metadata.annotations: '{{ item.metadata.annotations }}'
+      metadata.creationTimestamp: '{{ item.metadata.creationTimestamp }}'
+      metadata.resourceVersion: '{{ item.metadata.resourceVersion }}'
+      metadata.ownerReferences: '{{ item.metadata.ownerReferences }}'
+      type: '{{ item.type }}'
+      reason: '{{ item.reason }}'
+      message: '{{ item.message }}'
+      source: '{{ item.source }}'
+      involvedObject.kind: '{{ item.involvedObject.kind }}'
+      involvedObject.namespace: '{{ item.involvedObject.namespace }}'
+      involvedObject.name: '{{ item.involvedObject.name }}'
+      firstTimestamp: '{{ item.firstTimestamp }}'
+      lastTimestamp: '{{ item.lastTimestamp }}'
+      count: '{{ item.count }}'

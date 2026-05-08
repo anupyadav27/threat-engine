@@ -1,0 +1,99 @@
+version: '1.0'
+provider: aws
+service: securityhub
+checks:
+- rule_id: aws.securityhub.action.rbac_least_privilege
+  for_each: aws.securityhub.get_findings
+  severity: HIGH
+  conditions:
+    var: item.Action
+    op: exists
+    value: null
+- rule_id: aws.securityhub.action.securityhub_storage_encrypted_and_private
+  for_each: aws.securityhub.get_findings
+  severity: HIGH
+  conditions:
+    all:
+    - var: item.Findings[].ProductFields.ControlId
+      op: contains
+      value: S3.1
+    - var: item.Findings[].ProductFields.ControlId
+      op: contains
+      value: S3.8
+- rule_id: aws.securityhub.action.versioning_and_immutability_enabled
+  for_each: aws.securityhub.describe_hub
+  severity: LOW
+  conditions:
+    var: item.AutoEnableControls
+    op: is_true
+    value: null
+- rule_id: aws.securityhub.finding.alert_destinations_configured
+  for_each: aws.securityhub.describe_action_targets
+  severity: MEDIUM
+  conditions:
+    var: item.ActionTargets
+    op: not_empty
+    value: null
+- rule_id: aws.securityhub.finding.securityhub_archival_export_encrypted
+  for_each: aws.securityhub.describe_hub
+  severity: HIGH
+  conditions:
+    var: item.AutoEnableControls
+    op: is_true
+    value: null
+- rule_id: aws.securityhub.hub.securityhub_auto_enroll_new_accounts_configured
+  for_each: aws.securityhub.describe_hub
+  severity: MEDIUM
+  conditions:
+    var: item.AutoEnableControls
+    op: is_true
+    value: null
+- rule_id: aws.securityhub.hub.securityhub_destinations_encrypted
+  for_each: aws.securityhub.describe_hub
+  severity: HIGH
+  conditions:
+    var: item.HubArn
+    op: exists
+    value: null
+- rule_id: aws.securityhub.hub.securityhub_detectors_enabled
+  for_each: aws.securityhub.describe_hub
+  severity: MEDIUM
+  conditions:
+    var: item.HubArn
+    op: exists
+    value: null
+- rule_id: aws.securityhub.hub.securityhub_enabled_in_all_regions
+  for_each: aws.securityhub.describe_hub
+  severity: MEDIUM
+  conditions:
+    var: item.HubArn
+    op: exists
+    value: null
+- rule_id: aws.securityhub.hub.securityhub_finding_export_encrypted_destination
+  for_each: aws.securityhub.describe_hub
+  severity: HIGH
+  conditions:
+    var: item.AutoEnableControls
+    op: is_true
+    value: null
+- rule_id: aws.securityhub.hub.securityhub_master_member_configured
+  for_each: aws.securityhub.get_master_account
+  severity: MEDIUM
+  conditions:
+    var: item.Master
+    op: exists
+    value: null
+- rule_id: aws.securityhub.resource.securityhub_hub_enabled_in_all_regions
+  for_each: aws.securityhub.describe_hub
+  severity: MEDIUM
+  conditions:
+    var: item.HubArn
+    op: exists
+    value: null
+- rule_id: aws.securityhub.resource.securityhub_resource_enabled
+  for_each: aws.securityhub.describe_hub
+  severity: MEDIUM
+  conditions:
+    var: item.HubArn
+    op: exists
+    value: null

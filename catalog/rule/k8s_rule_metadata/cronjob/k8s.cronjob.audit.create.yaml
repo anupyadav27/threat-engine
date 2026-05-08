@@ -1,0 +1,60 @@
+rule_id: k8s.cronjob.audit.create
+rule_type: ciem
+title: 'CronJob: CronJob Created'
+scope: cronjob.audit
+domain: container_and_kubernetes_security
+subcategory: container_security
+severity: high
+service: cronjob
+resource: audit
+requirement: Create
+description: CronJob created outside normal CI/CD pipelines — scheduled recurring
+  workloads used for persistent cryptomining, data exfiltration, or C2 callbacks.
+rationale: Adversaries create Kubernetes CronJobs to schedule recurring malicious
+  workloads — cryptomining, data exfiltration, or C2 callbacks — that survive pod
+  restarts and operator intervention. CronJob creation outside normal CI/CD pipelines
+  or with unusual schedules indicates adversary use. Detected via K8s audit logs for
+  cronjobs/create.
+remediation: '1. Delete the unauthorized DaemonSet, CronJob, or ServiceAccount immediately.
+
+  2. Audit all resources in kube-system: `kubectl get all -n kube-system`
+
+  3. Enable admission control policies restricting resource creation to known CI/CD
+  identities.
+
+  4. Use RBAC least-privilege: restrict create verbs on DaemonSets/CronJobs to dedicated
+  service accounts.
+
+  5. Monitor for new ServiceAccount creation via Falco or audit log alerting.
+
+  '
+references:
+- https://attack.mitre.org/techniques/T1053/
+- https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/
+compliance:
+  cis_k8s_v1:
+  - 5.1.1
+  - 5.1.4
+  - 5.4.1
+  nist_800_53_r5:
+  - AC-2
+  - AC-6
+  - CM-7
+  pci_dss_v4:
+  - 7.1
+  - 8.2
+  - 6.4
+  iso_27001_2022:
+  - A.5.18
+  - A.8.19
+threat_category: persistence
+mitre_tactics:
+- persistence
+- execution
+mitre_techniques:
+- T1053
+risk_score: 75
+action_category: create
+source: default
+metadata_source: auto_generated
+generated_by: k8s_ciem_generator

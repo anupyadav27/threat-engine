@@ -1,0 +1,66 @@
+# discoveries_only_check: 3 kept / 8 removed from 11 total
+# generated_from: step6_budgets.discovery.yaml
+# purpose: only discoveries needed by budgets.checks.yaml for_each chains
+version: '1.0'
+provider: aws
+service: budgets
+services:
+  client: budgets
+  module: boto3.client
+discovery:
+- discovery_id: aws.budgets.describe_budget
+  calls:
+  - action: describe_budget
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      AutoAdjustData: '{{ response.Budget.AutoAdjustData }}'
+      BillingViewArn: '{{ response.Budget.BillingViewArn }}'
+      Budget: '{{ response.Budget.Budget }}'
+      BudgetLimit: '{{ response.Budget.BudgetLimit }}'
+      BudgetName: '{{ response.Budget.BudgetName }}'
+      BudgetType: '{{ response.Budget.BudgetType }}'
+      CalculatedSpend: '{{ response.Budget.CalculatedSpend }}'
+      CostFilters: '{{ response.Budget.CostFilters }}'
+      CostTypes: '{{ response.Budget.CostTypes }}'
+      FilterExpression: '{{ response.Budget.FilterExpression }}'
+      HealthStatus: '{{ response.Budget.HealthStatus }}'
+      LastUpdatedTime: '{{ response.Budget.LastUpdatedTime }}'
+      Metrics: '{{ response.Budget.Metrics }}'
+      PlannedBudgetLimits: '{{ response.Budget.PlannedBudgetLimits }}'
+      TimePeriod: '{{ response.Budget.TimePeriod }}'
+      TimeUnit: '{{ response.Budget.TimeUnit }}'
+- discovery_id: aws.budgets.describe_budget_action
+  calls:
+  - action: describe_budget_action
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      ExecutionRoleArn: '{{ response.Action.ExecutionRoleArn }}'
+      Status: '{{ response.Action.Status }}'
+      ActionId: '{{ response.Action.ActionId }}'
+      ActionThreshold: '{{ response.Action.ActionThreshold }}'
+      ActionType: '{{ response.Action.ActionType }}'
+      ApprovalModel: '{{ response.Action.ApprovalModel }}'
+      BudgetName: '{{ response.Action.BudgetName }}'
+      Definition: '{{ response.Action.Definition }}'
+      NotificationType: '{{ response.Action.NotificationType }}'
+      Subscribers: '{{ response.Action.Subscribers }}'
+- discovery_id: aws.budgets.describe_notifications_for_budget
+  calls:
+  - action: describe_notifications_for_budget
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.Notifications }}'
+    item:
+      ComparisonOperator: '{{ item.ComparisonOperator }}'
+      NotificationState: '{{ item.NotificationState }}'
+      NotificationType: '{{ item.NotificationType }}'
+      Threshold: '{{ item.Threshold }}'
+      ThresholdType: '{{ item.ThresholdType }}'

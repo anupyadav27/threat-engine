@@ -1,0 +1,318 @@
+# MARIADB — CIEM Detection Rules
+# Real-time authentication & access event analysis
+# Log source: general_log, error_log
+
+tech_type: mariadb
+category: database
+log_source: general_log, error_log
+
+rules:
+
+  - rule_id: tciem.mariadb.use_dedicated_least_privileged_account_for
+    title: "Use Dedicated Least Privileged Account for MariaDB Daemon/Service"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '1.2'
+    cis_section: '1'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Create a user which is only used for running MariaDB and directly related
+      processes. This user must not have administrative rights to the system.
+      Additionally, it's best to avoid providing shell access to such an account.
+      Shell access can be removed using the following command at a terminal prompt:
+      /usr/sbin/groupadd -g 27 -o -r mysql >/dev/null 2>&1 || : /usr/sbin/useradd -M
+      -N -g mysql -o -r -d /var/lib/mysql -s /bin/false \ -c 'MariaDB Server' -u 27
+      mysql >/dev/null 2>&1 || : References: 1. https://mariadb.com/kb/en/running-
+      mysqld-as-root/ Additional Information: The root user may be used to start the
+      MariaDB service on Linux/UNIX, but then it must be configured to drop
+      privileges by specifying a service specific user in the mariadb.cnf or my.ini
+      file.
+
+  - rule_id: tciem.mariadb.disable_mariadb_command_history
+    title: "Disable MariaDB Command History"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.3'
+    cis_section: '1'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: resource_access
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      For MariaDB Client perform the following steps to remediate this setting: 1.
+      Remove .mysql_history if it exists. 2. Use either of the techniques below to
+      prevent it from being created again: o Set the MYSQL_HISTFILE environment
+      variable to /dev/null. This will need to be placed in the shell's startup
+      script. o Create .mysql_history as a symbolic to /dev/null. > ln -s /dev/null
+      $HOME/.mysql_history Default Value: By default, the MariaDB command history
+      file is located in /root/.mysql_history. References: 1.
+      https://mariadb.com/kb/en/mysql-command-line-client/#the-mysql_history-file 2.
+      https://mariadb.com/kb/en/mysqld-options/
+
+  - rule_id: tciem.mariadb.interactive_login_is_disabled
+    title: "Ensure Interactive Login is Disabled"
+    severity: medium
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '1.5'
+    cis_section: '1'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute one of the following commands in a terminal: usermod -s /bin/false
+      mysql Or usermod -s /sbin/nologin mysql References: 1.
+      https://mariadb.com/kb/en/mysql-command-line-client/
+
+  - rule_id: tciem.mariadb.log_bin_basename_files_have_appropriate
+    title: "Ensure 'log_bin_basename' Files Have Appropriate Permissions"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '3.2'
+    cis_section: '3'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following command for each log file location requiring corrected
+      permissions and ownership: chmod 660 <log file> chown mysql:mysql <log file>
+
+  - rule_id: tciem.mariadb.log_error_has_appropriate_permissions
+    title: "Ensure 'log_error' Has Appropriate Permissions"
+    severity: high
+    mitre_technique: T1078
+    mitre_tactic: initial_access
+    cis_control: '3.3'
+    cis_section: '3'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: authentication_success
+      filters:
+        account_type: human
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following command for each log file location requiring corrected
+      permissions and ownership: chmod 600 <log file> chown mysql:mysql <log file>
+      References: 1. https://mariadb.com/kb/en/error-log/
+
+  - rule_id: tciem.mariadb.slow_query_log_has_appropriate_permissions
+    title: "Ensure 'slow_query_log' Has Appropriate Permissions"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '3.4'
+    cis_section: '3'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Set slow query log to OFF (instead use SYS schema views or query
+      Performance_Schema) SET PERSIST slow_query_log = OFF; If slow query is
+      enabled, execute the following command to correct permissions and ownership:
+      chmod 660 <log file> chown mysql:mysql <log file> Default Value: Slow query
+      log is off by default. References: 1. https://mariadb.com/kb/en/slow-query-
+      log-overview/
+
+  - rule_id: tciem.mariadb.relay_log_basename_files_have_appropriate
+    title: "Ensure 'relay_log_basename' Files Have Appropriate Permissions"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '3.5'
+    cis_section: '3'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following command for each log file location requiring corrected
+      permissions and ownership: chmod 660 <log file> chown mysql:mysql <log file>
+      Default Value: <datadir> + '/' + <hostname> + '-relay-bin' References: 1.
+      https://mariadb.com/kb/en/mariadb-10-1-6-release-notes/ 2.
+      https://mariadb.com/kb/en/relay-log/
+
+  - rule_id: tciem.mariadb.general_log_file_has_appropriate_permissions
+    title: "Ensure 'general_log_file' Has Appropriate Permissions"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '3.6'
+    cis_section: '3'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      If you can, use MariaDB SYS, PERFORMANCE_SCHEMA, or MariaDBL Auditing as these
+      are more secure options. By default the general_log is disabled (0 or OFF).
+      It's most secure to disable the general_log. To disable the general_log_file:
+      SET PERSIST @@GENERAL_LOG=OFF; If you must use general_log then assure the
+      permissions are correct. Execute the following command for each log file
+      location requiring corrected permissions and ownership: chmod 600
+      <general_log_file> chown mysql:mysql <general_log_file> Default Value: The
+      variable general_log is set to OFF by default. The variable general_log_file
+      is set to <host_name> .log by default. References: 1.
+      https://mariadb.com/kb/en/general-query-log/
+
+  - rule_id: tciem.mariadb.server_audit_file_path_has_appropriate_permissions
+    title: "Ensure 'server_audit_file_path' Has Appropriate Permissions"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '3.9'
+    cis_section: '3'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following commands for the server_audit_file_path discovered in
+      the audit procedure: chmod 660 <server_audit_file_path> chown mysql:mysql
+      <server_audit_file_path>
+
+  - rule_id: tciem.mariadb.mariadb_is_not_started_with_skip_grant_tables
+    title: "Ensure mariadb is Not Started With 'skip-grant-tables'"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '4.5'
+    cis_section: '4'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following to establish the recommended state: • Open the MariaDB
+      configuration (e.g., mariadb.cnf) file and set: skip-grant-tables = FALSE • If
+      there are any occurrences of skip_grant_tables, also set that to FALSE or
+      remove it. References: 1.
+      https://mariadb.com/docs/server/ref/mdb/cli/mariadbd/skip-grant-tables/ 2.
+      https://mariadb.com/kb/en/server-system-variables/#skip_grant_tables 3.
+      https://mariadb.com/kb/en/mysqld-options/#option-prefixes Additional
+      Information: This option has no SHOW VARIABLES counterpart.
+
+  - rule_id: tciem.mariadb.audit_logging_is_enabled
+    title: "Ensure Audit Logging Is Enabled"
+    severity: medium
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '6.4'
+    cis_section: '6'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Although the plugin's shared library is distributed with MariaDB, the plugin
+      is not actually installed by default. Add the following to MariaDB’s config
+      file. [mariadb] ... #MariaDB plugin plugin_load_add = server_audit
+      server_audit_logging=ON server_audit_events=CONNECT Reboot the instance.
+      References: 1. https://mariadb.com/kb/en/mariadb-audit-plugin/ 2.
+      https://mariadb.com/kb/en/mariadb-audit-plugin-installation/ 3.
+      https://mariadb.com/kb/en/mariadb-audit-plugin-configuration/ 4.
+      https://mariadb.com/kb/en/mariadb-audit-plugin-log-settings/
+
+  - rule_id: tciem.mariadb.audit_plugin_can_t_be_unloaded
+    title: "Ensure the Audit Plugin Can't be Unloaded"
+    severity: high
+    mitre_technique: T1562
+    mitre_tactic: defense_evasion
+    cis_control: '6.5'
+    cis_section: '6'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: audit_event
+      filters:
+        change_type: security_relevant
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      To remediate this setting, follow these steps: 1. Open the MariaDB
+      configuration file (mariadb.cnf) 2. Ensure the following line is found in the
+      mariadbd section server_audit=FORCE_PLUS_PERMANENT References: 1.
+      https://mariadb.com/kb/en/mariadb-audit-plugin-installation/
+
+  - rule_id: tciem.mariadb.no_users_have_wildcard_hostnames
+    title: "Ensure No Users Have Wildcard Hostnames"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '7.5'
+    cis_section: '7'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Perform the following actions to remediate this setting: 1. Enumerate all
+      users returned after running the audit procedure. 2. Either ALTER the user's
+      host to be specific or DROP the user.
+
+  - rule_id: tciem.mariadb.super_priv_is_not_set_to_y_for_replication_users
+    title: "Ensure 'super_priv' is Not Set to 'Y' for Replication Users"
+    severity: high
+    mitre_technique: T1068
+    mitre_tactic: privilege_escalation
+    cis_control: '9.3'
+    cis_section: '9'
+    log_source: "general_log, error_log"
+    detection:
+      event_type: privilege_change
+      filters:
+        action_in: [GRANT, ROLE_ADD, ELEVATION, SUDO]
+        target_privilege_in: [admin, superuser, root, dba, wheel]
+      evidence_fields: [source_ip, username, timestamp, action]
+    response: alert
+    remediation: >
+      Execute the following steps to remediate this setting: 1. Enumerate the
+      replication users found in the result set of the audit procedure 2. For each
+      replication user, issue the following SQL statement (replace repl with your
+      replication user's name): REVOKE SUPER ON *.* FROM 'repl'; References: 1.
+      https://mariadb.com/kb/en/grant/#super
+

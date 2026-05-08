@@ -1,0 +1,233 @@
+version: '1.0'
+provider: oci
+service: waf
+checks:
+- rule_id: oci.waf.protection_rule.ip_set_used_by_at_least_one_rule
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: LOW
+  conditions:
+    all:
+    - var: item.protection_rules[].type
+      op: contains
+      value: ACCESS_CONTROL
+    - var: item.protection_rules[].access_control_rules[].condition
+      op: contains
+      value: IP
+- rule_id: oci.waf.protection_rule.regex_set_used_by_at_least_one_rule
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: LOW
+  conditions:
+    any:
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.waf.protection_rule.rule_group_no_permit_all
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: LOW
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.freeform_tags.Environment
+      op: exists
+      value: null
+    - var: item.defined_tags.Environment
+      op: exists
+      value: null
+- rule_id: oci.waf.protection_rule.rule_group_references_only_approved_managed_used
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: LOW
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+- rule_id: oci.waf.protection_rule.rule_group_unique_priorities
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: LOW
+  conditions:
+    var: item.ocid
+    op: exists
+    value: null
+- rule_id: oci.waf.protection_rule.rule_has_effective_action_not_count_only
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: LOW
+  conditions:
+    all:
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+    - var: item.protection_rules[].action
+      op: not_contains
+      value: COUNT
+- rule_id: oci.waf.protection_rule.rule_priority_unique_within_web_acl
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: LOW
+  conditions:
+    var: item.protection_rules[].priority
+    op: not_contains
+    value: null
+- rule_id: oci.waf.protection_rule.rule_references_valid_ip_or_regex_sets_only
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: LOW
+  conditions:
+    all:
+    - var: item.protection_rules[].condition
+      op: exists
+      value: null
+    - var: item.protection_rules[].condition.exclusions[].target
+      op: not_contains
+      value: REQUEST_HEADERS
+- rule_id: oci.waf.web_app_firewall.firewall_logging_enabled
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: MEDIUM
+  conditions:
+    var: item.logging_configuration
+    op: exists
+    value: null
+- rule_id: oci.waf.web_app_firewall.firewall_no_permit_any
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: MEDIUM
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.waf.web_app_firewall.firewall_rule_groups_attached
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: MEDIUM
+  conditions:
+    var: item.firewall_rule_groups
+    op: not_empty
+    value: null
+- rule_id: oci.waf.web_app_firewall.global_webacl_logging_enabled
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: MEDIUM
+  conditions:
+    var: item.global_webacl_logging_enabled
+    op: is_true
+    value: null
+- rule_id: oci.waf.web_app_firewall.ip_set_cidrs_valid_and_minimized
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: LOW
+  conditions:
+    all:
+    - var: item.ocid
+      op: exists
+      value: null
+    - var: item.lifecycle_state
+      op: equals
+      value: ACTIVE
+- rule_id: oci.waf.web_app_firewall.ip_set_cross_account_sharing_restricted
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: LOW
+  conditions:
+    var: item.freeform_tags.Environment
+    op: not_equals
+    value: production
+- rule_id: oci.waf.web_app_firewall.ip_set_not_empty
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: LOW
+  conditions:
+    var: item.ip_set
+    op: not_empty
+    value: null
+- rule_id: oci.waf.web_app_firewall.ip_set_sources_trusted
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: LOW
+  conditions:
+    var: item.ip_set_sources_trusted
+    op: exists
+    value: null
+- rule_id: oci.waf.web_app_firewall.ip_set_storage_encrypted
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: MEDIUM
+  conditions:
+    var: item.ipSetStorageEncrypted
+    op: is_true
+    value: null
+- rule_id: oci.waf.web_app_firewall.ip_set_used_by_detectors
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: LOW
+  conditions:
+    var: item.ip_set_used_by_detectors
+    op: exists
+    value: null
+- rule_id: oci.waf.web_app_firewall.regex_set_no_overly_broad_patterns
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: LOW
+  conditions:
+    all:
+    - var: item.ocid
+      op: exists
+      value: null
+- rule_id: oci.waf.web_app_firewall.regex_set_not_empty
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: LOW
+  conditions:
+    var: item.regex_sets
+    op: not_empty
+    value: null
+- rule_id: oci.waf.web_app_firewall.rule_group_visibility_config_enabled
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: LOW
+  conditions:
+    var: item.rule_groups[].visibility_config.is_visible
+    op: is_true
+    value: null
+- rule_id: oci.waf.web_app_firewall.waf_block_actions_not_count_only
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: LOW
+  conditions:
+    all:
+    - var: item.actions[].type
+      op: contains
+      value: BLOCK
+    - var: item.actions[].type
+      op: not_contains
+      value: COUNT
+- rule_id: oci.waf.web_app_firewall.waf_ip_rate_limit_rules_configured
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: LOW
+  conditions:
+    var: item.ocid
+    op: exists
+    value: null
+- rule_id: oci.waf.web_app_firewall.waf_logging_enabled
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: MEDIUM
+  conditions:
+    var: item.logging_configuration
+    op: exists
+    value: null
+- rule_id: oci.waf.web_app_firewall.waf_managed_rule_sets_enabled
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: LOW
+  conditions:
+    var: item.managed_rules
+    op: exists
+    value: null
+- rule_id: oci.waf.web_app_firewall.waf_web_acl_attached_to_cdn
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: LOW
+  conditions:
+    var: item.lifecycle_state
+    op: equals
+    value: ACTIVE
+- rule_id: oci.waf.web_app_firewall.webacl_logging_enabled
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: MEDIUM
+  conditions:
+    var: item.logging_configuration
+    op: exists
+    value: null
+- rule_id: oci.waf.web_app_firewall.webacl_rule_logging_enabled
+  for_each: oci.waf.list_web_app_firewall_policies
+  severity: MEDIUM
+  conditions:
+    var: item.logging_configuration
+    op: exists
+    value: null

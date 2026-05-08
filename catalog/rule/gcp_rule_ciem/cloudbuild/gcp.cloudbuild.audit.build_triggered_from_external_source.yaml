@@ -1,0 +1,74 @@
+rule_id: gcp.cloudbuild.audit.build_triggered_from_external_source
+service: cloudbuild
+provider: gcp
+check_type: log
+severity: high
+title: 'Cloud Build: Build Triggered from Unverified External Source'
+description: A Cloud Build was triggered from an external or unrecognized source repository. Supply chain attacks inject malicious code into CI/CD pipelines.
+rationale: Adversaries abuse cloudbuild operations to achieve execution in GCP environments. Detected via Cloud Admin Activity or Data Access audit logs.
+threat_category: execution
+mitre_tactics:
+- execution
+- initial_access
+mitre_techniques:
+- T1195
+risk_score: 80
+resource: gcp_cloudbuild_build
+source: default
+is_active: true
+domain: compute_and_workload_security
+action_category: execute
+log_source_type: 
+posture_category: workload_posture
+threat_tags:
+- T1195
+- remote_execution
+- cloud_exec
+risk_indicators:
+  actor_type: cloud_principal
+  action_type: execution
+  target_type: cloud_resource
+  blast_radius: resource_group
+  stealth_risk: medium
+iam_security:
+  applicable: false
+  modules: []
+data_security:
+  applicable: false
+compliance_frameworks:
+  cis_gcp_v2:
+  - 4.1
+  - 4.2
+  - 4.3
+  nist_800_53_r5:
+  - CM-7
+  - SI-3
+  - SI-4
+  pci_dss_v4:
+  - 6.3
+  - 6.4
+  iso_27001_2022:
+  - A.8.19
+  - A.8.20
+remediation: |
+  1. Audit the compute instance or function for malicious startup scripts or code.
+  2. Verify the workload image against a trusted artifact registry with Binary Authorization.
+  3. Apply Org Policy `compute.requireShieldedVm` for all new VM instances.
+  4. Enable Security Command Center threats for anomalous compute execution events.
+  5. Review service account permissions attached to the created instance or function.
+references:
+- https://attack.mitre.org/techniques/T1195/
+- https://cloud.google.com/logging/docs/audit
+check_config:
+  conditions:
+    all:
+    - field: source_type
+      op: equals
+      value: gcp_audit
+    - field: service
+      op: equals
+      value: cloudbuild.googleapis.com
+    - field: operation
+      op: equals
+      value: google.devtools.cloudbuild.v1.CloudBuild.CreateBuild
+version: '1.0'

@@ -1,0 +1,152 @@
+version: '1.0'
+provider: alicloud
+service: config
+checks:
+- rule_id: alicloud.config.aggregator.aggregation_authorization_trusts_least_privilege
+  for_each: alicloud.config.aggregator
+  severity: HIGH
+  conditions:
+    var: item.permissions
+    op: exists
+    value: null
+- rule_id: alicloud.config.compliance_monitoring_enabled.configured
+  for_each: alicloud.config.compliance_monitoring_enabled
+  severity: MEDIUM
+  conditions:
+    var: item.status
+    op: equals
+    value: ACTIVE
+- rule_id: alicloud.config.delivery.config_delivery_destination_access_least_privilege
+  for_each: alicloud.config.delivery
+  severity: HIGH
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.config.delivery.config_delivery_kms_encryption_enabled
+  for_each: alicloud.config.delivery
+  severity: HIGH
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.config.delivery_channel.destination_access_least_privilege
+  for_each: alicloud.config.delivery
+  severity: HIGH
+  conditions:
+    var: item.permissions
+    op: not_contains
+    value: '*'
+- rule_id: alicloud.config.delivery_channel.kms_encryption_enabled
+  for_each: alicloud.config.GetAggregateConfigDeliveryChannel
+  severity: HIGH
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.config.drift_detection.config_drift_alerts_configured
+  for_each: alicloud.config.delivery
+  severity: MEDIUM
+  conditions:
+    var: item.id
+    op: exists
+    value: null
+- rule_id: alicloud.config.drift_detection.config_drift_critical_resources_drift_detection_enabled
+  for_each: alicloud.config.delivery
+  severity: HIGH
+  conditions:
+    var: item.drift_detection_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.config.enabled.configured
+  for_each: alicloud.config.compliance_monitoring_enabled
+  severity: MEDIUM
+  conditions:
+    var: item.status
+    op: equals
+    value: ACTIVE
+- rule_id: alicloud.config.recorder.active_all_regions_with_global_resources
+  for_each: alicloud.config.delivery
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.status
+      op: equals
+      value: ACTIVE
+    - var: item.resource_type
+      op: contains
+      value: global
+- rule_id: alicloud.config.recorder.config_delivery_secure_destination_configured
+  for_each: alicloud.config.delivery
+  severity: MEDIUM
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.config.recorder.config_recorder_enabled
+  for_each: alicloud.config.compliance_monitoring_enabled
+  severity: MEDIUM
+  conditions:
+    var: item.status
+    op: equals
+    value: ACTIVE
+- rule_id: alicloud.config.recorder.config_recorder_global_resource_types_tracked
+  for_each: alicloud.config.compliance_monitoring_enabled
+  severity: MEDIUM
+  conditions:
+    var: item.resource_type
+    op: contains
+    value: global
+- rule_id: alicloud.config.recorder.delivery_channel_secure_destination_configured
+  for_each: alicloud.config.delivery
+  severity: MEDIUM
+  conditions:
+    var: item.encrypted
+    op: is_true
+    value: null
+- rule_id: alicloud.config.recorder_enabled_in_all_regions.configured
+  for_each: alicloud.config.delivery
+  severity: MEDIUM
+  conditions:
+    all:
+    - var: item.status
+      op: equals
+      value: ACTIVE
+    - var: item.region
+      op: exists
+      value: null
+- rule_id: alicloud.config.remediation.config_remediation_auto_remediation_enabled_for_high
+  for_each: alicloud.config.DescribeRemediation
+  severity: MEDIUM
+  conditions:
+    var: item.auto_remediation_enabled
+    op: is_true
+    value: null
+- rule_id: alicloud.config.rule.config_rule_remediation_targets_bound
+  for_each: alicloud.config.DescribeRemediation
+  severity: MEDIUM
+  conditions:
+    var: item.id
+    op: exists
+    value: null
+- rule_id: alicloud.config.rule.config_rule_required_rules_present
+  for_each: alicloud.config.compliance_monitoring_enabled
+  severity: MEDIUM
+  conditions:
+    var: item.id
+    op: exists
+    value: null
+- rule_id: alicloud.config.rule.config_rule_rules_enabled
+  for_each: alicloud.config.compliance_monitoring_enabled
+  severity: MEDIUM
+  conditions:
+    var: item.status
+    op: equals
+    value: ACTIVE
+- rule_id: alicloud.config.workload.no_high_or_medium_risks
+  for_each: alicloud.config.DescribeRemediation
+  severity: MEDIUM
+  conditions:
+    var: item.status
+    op: equals
+    value: ACTIVE
