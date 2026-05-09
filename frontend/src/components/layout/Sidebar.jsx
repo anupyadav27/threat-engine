@@ -214,9 +214,9 @@ export default function Sidebar({ collapsed = false, onToggle }) {
         style={{ borderBottom: '1px solid var(--border-primary)' }}
       >
         {collapsed ? (
-          <Image src="/logo.svg" alt="Onam Security" width={32} height={32} unoptimized style={{ objectFit: 'contain' }} />
+          <img src="https://d1fp5dwui44wle.cloudfront.net/logo.svg" alt="Onam Security" style={{ width: 32, height: 32, objectFit: 'contain' }} />
         ) : (
-          <Image src="/logo.svg" alt="Onam Security" width={140} height={47} unoptimized style={{ objectFit: 'contain' }} />
+          <img src="https://d1fp5dwui44wle.cloudfront.net/logo.svg" alt="Onam Security" style={{ width: 140, height: 47, objectFit: 'contain' }} />
         )}
       </div>
 
