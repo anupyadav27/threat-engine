@@ -3,11 +3,13 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Shield, ChevronRight, ChevronDown, CheckCircle, XCircle,
-  AlertTriangle, ArrowLeft, Search, Download, X,
+  AlertTriangle, ArrowLeft, Search, Download, X, Info,
 } from 'lucide-react';
 import { getFromEngine, fetchView } from '@/lib/api';
 import { TENANT_ID } from '@/lib/constants';
+import { useGlobalFilter } from '@/lib/global-filter-context';
 import SeverityBadge from '@/components/shared/SeverityBadge';
+import Tooltip from '@/components/shared/Tooltip';
 
 /* ─── Colors ─────────────────────────────────────────────── */
 const C = {
@@ -28,6 +30,9 @@ const pct = (n, d) => d > 0 ? Math.round(100 * n / d) : 0;
    Main Compliance Page — Orca-style single page
    ═══════════════════════════════════════════════════════════ */
 export default function CompliancePage() {
+  // ── Global scope filters ──
+  const { provider: gProvider, account: gAccount, region: gRegion } = useGlobalFilter();
+
   // ── State ──
   const [loading, setLoading] = useState(true);
   const [hasRunScan, setHasRunScan] = useState(false); // true once BFF returns (even empty)
@@ -42,17 +47,22 @@ export default function CompliancePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedSections, setExpandedSections] = useState(new Set());
 
-  // ── Fetch frameworks list ──
+  // ── Fetch frameworks list — re-runs when global scope filters change ──
   useEffect(() => {
     setLoading(true);
-    fetchView('compliance')
+    setSelectedFw(null); // clear drill-down when scope changes
+    const params = {};
+    if (gProvider) params.provider = gProvider;
+    if (gAccount)  params.account  = gAccount;
+    if (gRegion)   params.region   = gRegion;
+    fetchView('compliance', params)
       .then(d => {
         setFrameworks(d?.frameworks || []);
         setHasRunScan(true);
       })
       .catch(() => { setHasRunScan(false); })
       .finally(() => setLoading(false));
-  }, []);
+  }, [gProvider, gAccount, gRegion]);
 
   // ── Fetch framework detail when selected ──
   useEffect(() => {
@@ -91,13 +101,20 @@ export default function CompliancePage() {
     }).finally(() => setPanelLoading(false));
   }, [selectedFw]);
 
-  // ── Computed totals ──
+  // ── Computed totals — only count assessed frameworks; respect provider filter ──
   const totals = useMemo(() => {
-    const pass = frameworks.reduce((s, f) => s + (f.passed || 0), 0);
-    const fail = frameworks.reduce((s, f) => s + (f.failed || 0), 0);
+    const visible = gProvider
+      ? frameworks.filter(f => {
+          const fp = (f.provider || 'multi').toLowerCase();
+          return fp === 'multi' || fp === gProvider.toLowerCase();
+        })
+      : frameworks;
+    const assessed = visible.filter(f => (f.passed || 0) > 0 || (f.failed || 0) > 0);
+    const pass = assessed.reduce((s, f) => s + (f.passed || 0), 0);
+    const fail = assessed.reduce((s, f) => s + (f.failed || 0), 0);
     const total = pass + fail || 1;
-    return { pass, fail, total, score: pct(pass, total), byAsset: 0 };
-  }, [frameworks]);
+    return { pass, fail, total, score: pct(pass, total), assessedCount: assessed.length, totalVisible: visible.length, byAsset: 0 };
+  }, [frameworks, gProvider]);
 
   // ── Toggle section accordion ──
   const toggleSection = (family) => {
@@ -153,9 +170,36 @@ export default function CompliancePage() {
 
       {/* ── Score Strip ── */}
       <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
-        <ScoreCard label="Compliance Score" sublabel="By Control"
-          value={selectedFw && fwDetail ? `${fwDetail.score}%` : `${totals.score}%`}
-          color={totals.score >= 70 ? C.pass : totals.score >= 40 ? C.partial : C.fail} />
+        {/* When no framework is selected: show overall pass rate across all frameworks */}
+        {!selectedFw && (
+          <ScoreCard
+            label="Overall Pass Rate"
+            sublabel={`${totals.assessedCount} of ${totals.totalVisible} frameworks assessed${gProvider ? ` · ${gProvider}` : ''}`}
+            value={`${totals.score}%`}
+            color={totals.score >= 70 ? C.pass : totals.score >= 40 ? C.partial : C.fail}
+            tooltip={`Across ${totals.assessedCount} assessed frameworks${gProvider ? ` for ${gProvider}` : ''}, this is the percentage of tested controls that fully pass. ${totals.totalVisible - totals.assessedCount} framework${totals.totalVisible - totals.assessedCount !== 1 ? 's' : ''} have not been scanned yet and are excluded.`}
+          />
+        )}
+        {/* When a framework is selected: show the strict Pass Rate */}
+        {selectedFw && fwDetail && (
+          <ScoreCard
+            label="Pass Rate"
+            sublabel={`${fwDetail.summary?.PASS || 0} of ${fwDetail.total_controls || '?'} controls`}
+            value={`${fwDetail.score}%`}
+            color={fwDetail.score >= 70 ? C.pass : fwDetail.score >= 40 ? C.partial : C.fail}
+            tooltip={`Strict pass rate — out of every control in this framework (including those not yet assessed), ${fwDetail.score}% are fully passing. This is the number a compliance auditor would verify.`}
+          />
+        )}
+        {/* Assessed Score: engine's weighted score (only assessed controls, partial credit) */}
+        {selectedFw && fwDetail && fwDetail.assessed_score != null && (
+          <ScoreCard
+            label="Assessed Score"
+            sublabel="tested controls only"
+            value={`${fwDetail.assessed_score}%`}
+            color={C.blue}
+            tooltip="Of the controls we were able to test (controls with no applicable cloud resources are excluded), this percentage are implemented. Partial credit is given for controls that are partly met."
+          />
+        )}
         {selectedFw && fwDetail && (
           <div style={{ display: 'flex', gap: 24, padding: '16px 24px', borderRadius: 12, border: `1px solid ${C.border}`, backgroundColor: C.bg, flex: 1, flexWrap: 'wrap' }}>
             <MiniStat label="Pass" value={fwDetail.summary?.PASS || 0} color={C.pass} />
@@ -185,11 +229,39 @@ export default function CompliancePage() {
                 style={{ width: '100%', padding: '7px 12px 7px 30px', borderRadius: 8, border: `1px solid ${C.border}`, backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 12, outline: 'none' }} />
             </div>
           </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: '38%' }} /> {/* Framework name */}
+              <col style={{ width: '10%' }} /> {/* Provider */}
+              <col style={{ width: '16%' }} /> {/* Score */}
+              <col style={{ width: '18%' }} /> {/* Controls */}
+              <col style={{ width: '11%' }} /> {/* Findings */}
+              <col style={{ width: '7%' }} />  {/* Chevron */}
+            </colgroup>
             <thead>
               <tr style={{ borderBottom: `1px solid ${C.border}`, backgroundColor: 'var(--bg-secondary)' }}>
                 {['Framework', 'Provider', 'Score', 'Controls', 'Findings', ''].map(h => (
-                  <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{h}</th>
+                  <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, overflow: 'hidden' }}>
+                    {h === 'Score' ? (
+                      <Tooltip
+                        text="How well this framework is implemented, based on the controls we tested. Controls with no applicable cloud resources are excluded. Partial credit is given for controls that are partly met."
+                        position="bottom"
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'help' }}>
+                          Score <Info size={10} style={{ opacity: 0.6 }} />
+                        </span>
+                      </Tooltip>
+                    ) : h === 'Findings' ? (
+                      <Tooltip
+                        text="Number of failing controls — the checks that are not passing and need attention."
+                        position="bottom"
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'help' }}>
+                          Findings <Info size={10} style={{ opacity: 0.6 }} />
+                        </span>
+                      </Tooltip>
+                    ) : h}
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -211,13 +283,26 @@ export default function CompliancePage() {
                   </div>
                 </td></tr>
               ) : frameworks
-                  .filter(fw => !searchTerm || (fw.name || fw.id || '').toLowerCase().includes(searchTerm.toLowerCase()))
+                  .filter(fw => {
+                    // Provider scope filter: show multi-provider frameworks always;
+                    // hide CSP-specific frameworks for other providers.
+                    if (gProvider) {
+                      const fwProv = (fw.provider || 'multi').toLowerCase();
+                      if (fwProv !== 'multi' && fwProv !== gProvider.toLowerCase()) return false;
+                    }
+                    return !searchTerm || (fw.name || fw.id || '').toLowerCase().includes(searchTerm.toLowerCase());
+                  })
                   .map((fw, i) => {
                 const passed = fw.passed || 0;
                 const failed = fw.failed || 0;
                 const total = fw.controls || (passed + failed) || 0;
-                const score = fw.score || pct(passed, total);
-                const scoreCol = score >= 70 ? C.pass : score >= 40 ? C.partial : C.fail;
+                // A framework with 0 passed AND 0 failed has never been assessed —
+                // no cloud resources were found for it, or no scan has run for that provider.
+                // This is NOT the same as "everything passing". Show it distinctly.
+                const hasAssessment = passed > 0 || failed > 0;
+                const score = hasAssessment ? (fw.score || pct(passed, total)) : null;
+                const scoreCol = score == null ? C.na
+                  : score >= 70 ? C.pass : score >= 40 ? C.partial : C.fail;
                 const provider = (fw.provider || 'multi').toUpperCase();
                 const providerColors = {
                   AWS: '#f59e0b', AZURE: '#3b82f6', GCP: '#ef4444', OCI: '#a855f7',
@@ -228,11 +313,11 @@ export default function CompliancePage() {
                     style={{ borderBottom: `1px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.1s' }}
                     onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
                     onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
-                    <td style={{ padding: '12px 16px' }}>
+                    <td style={{ padding: '12px 16px', overflow: 'hidden' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <Shield size={16} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{fw.name || fw.id}</div>
+                        <Shield size={16} style={{ color: hasAssessment ? 'var(--accent-primary)' : C.na, flexShrink: 0 }} />
+                        <div style={{ overflow: 'hidden' }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={fw.name || fw.id}>{fw.name || fw.id}</div>
                           {fw.version && <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>v{fw.version}</div>}
                         </div>
                       </div>
@@ -243,24 +328,54 @@ export default function CompliancePage() {
                       </span>
                     </td>
                     <td style={{ padding: '12px 16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <svg width="28" height="28" viewBox="0 0 36 36">
-                          <circle cx="18" cy="18" r="15" fill="none" stroke="var(--bg-tertiary)" strokeWidth="3" />
-                          <circle cx="18" cy="18" r="15" fill="none" stroke={scoreCol} strokeWidth="3"
-                            strokeDasharray={`${score * 0.942} 94.2`} strokeLinecap="round" transform="rotate(-90 18 18)" />
-                        </svg>
-                        <span style={{ fontSize: 15, fontWeight: 700, color: scoreCol }}>{score}%</span>
-                      </div>
+                      {hasAssessment ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <svg width="28" height="28" viewBox="0 0 36 36">
+                            <circle cx="18" cy="18" r="15" fill="none" stroke="var(--bg-tertiary)" strokeWidth="3" />
+                            <circle cx="18" cy="18" r="15" fill="none" stroke={scoreCol} strokeWidth="3"
+                              strokeDasharray={`${score * 0.942} 94.2`} strokeLinecap="round" transform="rotate(-90 18 18)" />
+                          </svg>
+                          <span style={{ fontSize: 15, fontWeight: 700, color: scoreCol }}>{score}%</span>
+                        </div>
+                      ) : (
+                        <Tooltip
+                          text="Not assessed — no scan has run for this provider yet, or no cloud resources were found that this framework applies to. Run a scan for this cloud provider to populate results."
+                          position="top"
+                          maxWidth={280}
+                        >
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                            fontSize: 11, fontWeight: 600, color: C.na,
+                            padding: '3px 8px', borderRadius: 4,
+                            border: '1px dashed var(--border-primary)',
+                            cursor: 'help',
+                          }}>
+                            Not assessed
+                          </span>
+                        </Tooltip>
+                      )}
                     </td>
                     <td style={{ padding: '12px 16px' }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{total}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: hasAssessment ? 'var(--text-primary)' : C.na, marginBottom: 2 }}>{total}</div>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        <Dot color={C.pass} count={passed} />
-                        <Dot color={C.fail} count={failed} />
+                        {hasAssessment ? (
+                          <>
+                            <Dot color={C.pass} count={passed} />
+                            <Dot color={C.fail} count={failed} />
+                          </>
+                        ) : (
+                          <span style={{ fontSize: 10, color: C.na }}>no data</span>
+                        )}
                       </div>
                     </td>
                     <td style={{ padding: '12px 16px' }}>
-                      <span style={{ fontSize: 14, fontWeight: 600, color: (fw.findings || failed) > 0 ? C.fail : C.pass }}>{fw.findings || failed}</span>
+                      {hasAssessment ? (
+                        <span style={{ fontSize: 14, fontWeight: 600, color: (fw.findings || failed) > 0 ? C.fail : C.pass }}>
+                          {fw.findings || failed}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: 13, color: C.na }}>—</span>
+                      )}
                     </td>
                     <td style={{ padding: '12px 16px', textAlign: 'right' }}>
                       <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
@@ -333,11 +448,19 @@ export default function CompliancePage() {
                     {/* Expanded controls */}
                     {isOpen && (
                       <div style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                          <colgroup>
+                            <col style={{ width: '6%' }} />  {/* Status icon */}
+                            <col style={{ width: '18%' }} /> {/* Control ID tail */}
+                            <col style={{ width: '43%' }} /> {/* Control name */}
+                            <col style={{ width: '12%' }} /> {/* Severity */}
+                            <col style={{ width: '10%' }} /> {/* Findings */}
+                            <col style={{ width: '11%' }} /> {/* Resources */}
+                          </colgroup>
                           <thead>
                             <tr style={{ borderBottom: `1px solid ${C.border}` }}>
                               {['Status', 'ID', 'Control', 'Severity', 'Findings', 'Resources'].map(h => (
-                                <th key={h} style={{ padding: '8px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{h}</th>
+                                <th key={h} style={{ padding: '8px 14px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', overflow: 'hidden' }}>{h}</th>
                               ))}
                             </tr>
                           </thead>
@@ -347,17 +470,17 @@ export default function CompliancePage() {
                                 style={{ borderBottom: `1px solid ${C.border}`, cursor: 'pointer', transition: 'background 0.1s' }}
                                 onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
                                 onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
-                                <td style={{ padding: '10px 14px', width: 50 }}>{statusIcon(ctrl.status)}</td>
-                                <td style={{ padding: '10px 14px', width: 180 }}>
-                                  <code style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{ctrl.control_id?.slice(-15)}</code>
+                                <td style={{ padding: '10px 14px', overflow: 'hidden' }}>{statusIcon(ctrl.status)}</td>
+                                <td style={{ padding: '10px 14px', overflow: 'hidden' }}>
+                                  <code style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={ctrl.control_id || ''}>{ctrl.control_id?.slice(-15)}</code>
                                 </td>
-                                <td style={{ padding: '10px 14px' }}>
-                                  <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{ctrl.control_name || ctrl.control_id}</span>
+                                <td style={{ padding: '10px 14px', overflow: 'hidden' }}>
+                                  <span style={{ fontSize: 13, color: 'var(--text-primary)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.4 }} title={ctrl.control_name || ctrl.control_id || ''}>{ctrl.control_name || ctrl.control_id}</span>
                                 </td>
-                                <td style={{ padding: '10px 14px', width: 90 }}>
+                                <td style={{ padding: '10px 14px', overflow: 'hidden' }}>
                                   {ctrl.severity && <SeverityBadge severity={ctrl.severity} />}
                                 </td>
-                                <td style={{ padding: '10px 14px', width: 80 }}>
+                                <td style={{ padding: '10px 14px', overflow: 'hidden' }}>
                                   {ctrl.fail_count > 0 ? (
                                     <span onClick={(e) => { e.stopPropagation(); window.open(`/misconfig?control=${ctrl.control_id}`, '_blank'); }}
                                       style={{ fontSize: 12, fontWeight: 600, color: C.fail, cursor: 'pointer', textDecoration: 'underline' }}>
@@ -367,7 +490,7 @@ export default function CompliancePage() {
                                     <span style={{ fontSize: 11, color: C.na }}>0</span>
                                   )}
                                 </td>
-                                <td style={{ padding: '10px 14px', width: 80 }}>
+                                <td style={{ padding: '10px 14px', overflow: 'hidden' }}>
                                   {ctrl.total_resources > 0 ? (
                                     <span onClick={(e) => { e.stopPropagation(); window.open(`/inventory?control=${ctrl.control_id}`, '_blank'); }}
                                       style={{ fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer', textDecoration: 'underline' }}>
@@ -688,10 +811,18 @@ function RemediationTab({ controlDetail, findings }) {
 
 /* ─── Small components ─────────────────────────────────────── */
 
-function ScoreCard({ label, sublabel, value, color }) {
+function ScoreCard({ label, sublabel, value, color, tooltip }) {
   return (
     <div style={{ padding: '16px 24px', borderRadius: 12, border: `1px solid ${C.border}`, backgroundColor: C.bg }}>
-      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>
+        {tooltip ? (
+          <Tooltip text={tooltip} position="bottom">
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'help', borderBottom: '1px dotted var(--text-muted)' }}>
+              {label} <Info size={10} style={{ opacity: 0.6 }} />
+            </span>
+          </Tooltip>
+        ) : label}
+      </div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
         <span style={{ fontSize: 28, fontWeight: 800, color }}>{value}</span>
         {sublabel && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{sublabel}</span>}

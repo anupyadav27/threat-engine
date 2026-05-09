@@ -1,7 +1,7 @@
 'use client';
 
-import { Shield, AlertTriangle, CheckCircle, Search } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { Shield, AlertTriangle, CheckCircle, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
 import { useViewFetch } from '@/lib/use-view-fetch';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 
@@ -17,6 +17,7 @@ const C = {
 };
 
 const SEVERITY_ORDER = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3, INFO: 4 };
+const PAGE_SIZE = 25;
 
 const sevColor = (s) => C[(s || '').toLowerCase()] || C.low;
 
@@ -42,11 +43,12 @@ export default function ComplianceRemediationPage() {
   const { data, loading, error } = useViewFetch('compliance/remediation');
   const [searchTerm, setSearchTerm] = useState('');
   const [severityFilter, setSeverityFilter] = useState('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const { failingControls = [], totalFailing = 0, bySeverity = {} } = data ?? {};
 
-  /* Client-side filter + search (data is already severity-sorted from BFF) */
-  const displayed = useMemo(() => {
+  /* Client-side filter + search across the full loaded dataset */
+  const filtered = useMemo(() => {
     let rows = failingControls;
     if (severityFilter !== 'ALL') {
       rows = rows.filter(c => (c.severity || '').toUpperCase() === severityFilter);
@@ -61,6 +63,14 @@ export default function ComplianceRemediationPage() {
     }
     return rows;
   }, [failingControls, severityFilter, searchTerm]);
+
+  /* Reset to page 1 whenever the filter/search changes */
+  useEffect(() => { setCurrentPage(1); }, [severityFilter, searchTerm]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageStart  = (currentPage - 1) * PAGE_SIZE;
+  const pageEnd    = pageStart + PAGE_SIZE;
+  const displayed  = filtered.slice(pageStart, pageEnd);
 
   /* ── Loading ── */
   if (loading) {
@@ -186,7 +196,9 @@ export default function ComplianceRemediationPage() {
             </div>
 
             <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)' }}>
-              {displayed.length} result{displayed.length !== 1 ? 's' : ''}
+              {filtered.length < totalFailing
+                ? `${filtered.length} matching · ${totalFailing} total`
+                : `${totalFailing} control${totalFailing !== 1 ? 's' : ''}`}
             </span>
           </div>
 
@@ -287,6 +299,55 @@ export default function ComplianceRemediationPage() {
               ))}
             </tbody>
           </table>
+
+          {/* Pagination footer */}
+          {totalPages > 1 && (
+            <div style={{
+              padding: '12px 20px', borderTop: `1px solid ${C.border}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              backgroundColor: 'var(--bg-secondary)',
+            }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                Showing {pageStart + 1}–{Math.min(pageEnd, filtered.length)} of {filtered.length}
+                {filtered.length < totalFailing && ` (${totalFailing} total)`}
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                    cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                    border: `1px solid ${C.border}`,
+                    backgroundColor: currentPage === 1 ? 'var(--bg-tertiary)' : 'var(--bg-card)',
+                    color: currentPage === 1 ? 'var(--text-muted)' : 'var(--text-primary)',
+                    opacity: currentPage === 1 ? 0.5 : 1,
+                  }}
+                >
+                  <ChevronLeft size={13} /> Previous
+                </button>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)', minWidth: 80, textAlign: 'center' }}>
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                    cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                    border: `1px solid ${C.border}`,
+                    backgroundColor: currentPage === totalPages ? 'var(--bg-tertiary)' : 'var(--bg-card)',
+                    color: currentPage === totalPages ? 'var(--text-muted)' : 'var(--text-primary)',
+                    opacity: currentPage === totalPages ? 0.5 : 1,
+                  }}
+                >
+                  Next <ChevronRight size={13} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

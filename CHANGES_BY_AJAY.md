@@ -355,5 +355,431 @@ controls that were previously unmapped for Azure DB resources.
 
 ---
 
+## 8. Compliance UI — Matrix, Remediation & Navigation Fixes
+
+*Date: 2026-05-09*
+
+### 8a. Multi-Cloud Compliance Matrix (BFF + Frontend)
+
+**File:** `shared/api_gateway/bff/compliance.py` — new `view_compliance_matrix` endpoint
+**File:** `frontend/src/app/compliance/matrix/page.jsx`
+**File:** `frontend/src/lib/constants.js`
+
+**Problem:**
+The matrix page rendered 7 separate CIS rows (CIS_AWS, CIS_GCP, CIS_Azure, …) as individual
+rows — a meaningless layout since rows and columns both represented cloud providers.
+
+Clicking a matrix cell navigated to `/compliance` (frameworks list) with a filter,
+forcing the user to click again to reach the actual detail page — a redundant two-step flow.
+
+**Changes:**
+
+- `constants.js` — collapsed 19 FRAMEWORKS entries into 12, with IDs aligned to BFF matrix keys
+  (e.g. `CIS`, `NIST`, `PCI_DSS`, `SOC2`, `ISO27001`, `FedRAMP`, …)
+
+- BFF `view_compliance_matrix` — new endpoint at `/compliance/matrix`:
+  - Maps each `framework_id` from the engine to a matrix key + CSP column using
+    `_classify_fw()`, `_CIS_PROVIDER`, `_REG_FW_KEY` helpers
+  - CIS row: each CSP column shows its own CIS benchmark score (CIS AWS → aws column, etc.)
+  - Regulatory rows: score applied to all active provider columns
+  - Returns `{ matrix, frameworkIds }` — `frameworkIds[fw_key][provider]` holds the engine
+    framework_id for direct navigation
+
+- `matrix/page.jsx` — cell click now calls `router.push('/compliance/${engineId}')` directly,
+  bypassing the intermediate frameworks list page entirely.
+
+---
+
+### 8b. Remediation Page — Empty State Fix + Column Layout
+
+**File:** `shared/api_gateway/bff/compliance.py` — `view_compliance_remediation`
+**File:** `frontend/src/app/compliance/remediation/page.jsx`
+
+**Problem:**
+Remediation page showed "No failing controls" even when 217 failing controls existed,
+because `ui-data.failing_controls` was empty in the engine response.
+Columns had unequal widths and long control IDs/titles overflowed.
+
+**Changes:**
+
+- BFF `view_compliance_remediation` — fallback path: when `failing_controls` is empty,
+  picks the top 6 frameworks by `failed` count, calls their `/framework/{id}/assessment`
+  endpoints in parallel, and extracts FAIL/PARTIAL controls from the families tree.
+
+- `remediation/page.jsx` — fixed table layout:
+  - `tableLayout: fixed` with explicit `<colgroup>` percentages (13/22/32/10/12/11%)
+  - Control ID and Title columns: `-webkit-line-clamp: 2` with `title` attr for full text on hover
+
+---
+
+## 9. Compliance UI — Score Labelling, Tooltips & "Not Assessed" State
+
+*Date: 2026-05-09*
+
+### 9a. New Shared Tooltip Component
+
+**File:** `frontend/src/components/shared/Tooltip.jsx` *(new)*
+
+A reusable hover tooltip component for plain-English explanations visible to non-technical users.
+- Dark floating card with arrow, appears above or below the wrapped element
+- Controlled via `position` prop (`top` / `bottom`) and `maxWidth`
+- Used across all compliance sub-pages
+
+---
+
+### 9b. Two Compliance Scores — Both Shown and Explained
+
+**Context (Issue #1 deep-dive):**
+Two endpoints compute scores with different formulas:
+- `frameworks/summary` → **Assessed Score** (engine's stored value): `(PASS + 0.5×PARTIAL) / assessed_controls_only` — excludes N/A from denominator, gives partial credit
+- `framework/{id}/assessment` → **Pass Rate** (strict): `PASS / all_controls` — includes N/A controls in denominator, no partial credit
+
+For CIS AWS this produces 11.2% vs 6.4%. Both are valid but measure different things.
+Showing only one without labelling is misleading.
+
+**Fix — BFF `view_framework_detail`:**
+**File:** `shared/api_gateway/bff/compliance.py`
+
+Added a parallel call to `frameworks/summary` alongside the assessment call.
+Matches the framework by ID to pull `assessed_score` (the engine's stored weighted score).
+Returns `assessed_score` alongside the existing `score` (strict pass rate).
+Zero added latency — both calls are concurrent via `fetch_many`.
+
+**Fix — Framework detail page (standalone):**
+**File:** `frontend/src/app/compliance/[framework]/page.jsx`
+
+- Hero header now shows two scores side by side:
+  - **Pass Rate** (large, color-coded) with ⓘ tooltip: *"out of every control in this framework … this is the number a compliance auditor would verify: X passing out of Y total controls"*
+  - **Assessed Score** (smaller, blue) with ⓘ tooltip: *"of the controls we were able to test … partial credit is given for controls that are partly met"*
+- `assessed_score` included in the `summary` object built from `d.assessed_score`
+
+**Fix — Frameworks list + inline detail:**
+**File:** `frontend/src/app/compliance/page.jsx`
+
+- Top score strip renamed from "Compliance Score" to **"Overall Pass Rate"** with tooltip
+- When a framework is selected (inline detail), strip shows **"Pass Rate" + "Assessed Score"** cards side by side
+- `ScoreCard` component updated to accept optional `tooltip` prop — renders label with dotted underline and ⓘ icon
+- Score column header: "SCORE ⓘ" with hover tooltip explaining partial credit and resource exclusion
+- Findings column header: "FINDINGS ⓘ" with hover tooltip
+
+**Fix — Matrix legend:**
+**File:** `frontend/src/app/compliance/matrix/page.jsx`
+
+- Added *"What do these scores mean? ⓘ"* link in the legend row
+- Tooltip explains the Assessed Score formula and that clicking a cell opens the full control breakdown
+
+---
+
+### 9c. "Not Assessed" State — Distinguish No-Data from Passing
+
+**File:** `frontend/src/app/compliance/page.jsx`
+
+**Problem:**
+Frameworks with 0 passed AND 0 failed (e.g. CIS OCI with 1977 controls, score 0%, findings 0)
+showed identically to frameworks that were scanned and fully passing. Users interpreted
+"0 findings" as "everything is fine" — it actually means "nothing was ever checked."
+
+**Fix:**
+- Added `hasAssessment = passed > 0 || failed > 0` flag per framework row
+- Score cell: when `!hasAssessment` → dashed gray pill **"Not assessed"** replaces the 0% ring
+  - Hover tooltip: *"Not assessed — no scan has run for this provider yet, or no cloud resources were found that this framework applies to. Run a scan for this cloud provider to populate results."*
+- Findings cell: shows `—` instead of `0` for unassessed frameworks
+- Controls cell: shows "no data" instead of green/red dot counters
+- Shield icon: gray for unassessed, accent for assessed
+- `totals` computation: **excludes unassessed frameworks** so the Overall Pass Rate is not
+  dragged down by frameworks that have never been evaluated
+- Overall Pass Rate sublabel now reads *"N of 37 frameworks assessed"* so users immediately
+  see how many frameworks are excluded
+
+---
+
+## Files Changed Summary (additions from sessions 8–9)
+
+| File | Type | Change |
+|---|---|---|
+| `shared/api_gateway/bff/compliance.py` | Modified | New matrix endpoint; remediation fallback; assessed_score in framework detail |
+| `frontend/src/lib/constants.js` | Modified | Collapse FRAMEWORKS from 19 → 12; align IDs to matrix keys |
+| `frontend/src/app/compliance/matrix/page.jsx` | Modified | Direct cell navigation; frameworkIds state; legend tooltip |
+| `frontend/src/app/compliance/remediation/page.jsx` | Modified | Fixed column widths; 2-line clamp with title tooltip |
+| `frontend/src/app/compliance/page.jsx` | Modified | Tooltip imports; ScoreCard tooltip; Pass Rate + Assessed Score strip; Not Assessed state; Overall Pass Rate excludes unassessed frameworks |
+| `frontend/src/app/compliance/[framework]/page.jsx` | Modified | Pass Rate + Assessed Score hero; Tooltip imports; assessed_score in summary |
+| `frontend/src/components/shared/Tooltip.jsx` | **New** | Reusable hover tooltip component |
+
+---
+
+## 10. Compliance UI — Global Filter Wiring
+
+*Date: 2026-05-09*
+
+**Problem:**
+The Provider / Account / Region / Time Range filters in the top navigation bar were not
+connected to two of the three compliance sub-pages. Only the remediation page (which uses
+the `useViewFetch` hook) correctly re-fetched data when the filter changed. The frameworks
+list and the matrix displayed stale data — always the full cross-provider view — regardless
+of what the user selected in the global filter.
+
+**Audit result (per page):**
+
+| Page | Filter wired before fix |
+|---|---|
+| `/compliance` (frameworks list) | No — used raw `fetchView()` with no filter params |
+| `/compliance/matrix` | No — `useEffect` dependency was `[view]` only |
+| `/compliance/[framework]` (detail) | Yes — via `useViewFetch` |
+| `/compliance/remediation` | Yes — via `useViewFetch` |
+
+**Fix — Frameworks list (`frontend/src/app/compliance/page.jsx`):**
+
+- Added `useGlobalFilter` import; destructured `gProvider`, `gAccount`, `gRegion`
+- `useEffect` now depends on `[gProvider, gAccount, gRegion]` in addition to existing deps
+- On scope change: passes `{ provider: gProvider, account: gAccount, region: gRegion }`
+  as query params to `fetchView('compliance/frameworks')` and calls `setSelectedFw(null)`
+  to clear any open inline detail panel that would now be out of scope
+- Client-side provider filter: rows for CSP-specific frameworks (e.g. CIS_AWS, CIS_GCP)
+  are hidden when `gProvider` is set to a different provider; multi-provider frameworks
+  (NIST, SOC2, ISO 27001, etc.) always remain visible
+- `totals` useMemo: respects `gProvider` filter when computing the Overall Pass Rate and
+  "N of M frameworks assessed" sublabel — e.g. "9 of 12 frameworks assessed · AWS" when
+  provider is selected, so the aggregate number matches the visible rows
+
+**Fix — Matrix (`frontend/src/app/compliance/matrix/page.jsx`):**
+
+- Added `useGlobalFilter` import; destructured `provider` as `gProvider`, `account` as `gAccount`
+- `useEffect` dependency array changed from `[view]` to `[view, gProvider, gAccount]`
+- Passes `provider` and `account` as query params to `fetchView('compliance/matrix', params)`
+  when those filters are set — the BFF `view_compliance_matrix` handler already accepted
+  and forwarded these params to the compliance engine
+
+**Result:**
+All four compliance sub-pages now respond correctly to the global Provider / Account / Region
+filter. Switching provider instantly re-fetches and re-renders the relevant frameworks and
+scores for that provider's scan data, with the aggregates and table rows updating in step.
+
+---
+
+## 11. Compliance UI — Remediation Queue: Full Data + Pagination
+
+*Date: 2026-05-09*
+
+### Problem
+
+The remediation page was silently truncating results at 100 controls with no indication that
+more existed. Three separate bugs caused this:
+
+1. **Hard `limit=100` cap** — `failing_controls = failing_controls[:limit]` ran before
+   `bySeverity` and `totalFailing` were computed, so the severity chips (e.g. "17 HIGH")
+   and the header count ("100 failing controls") both reflected only the truncated set,
+   not the real totals (217 controls in the live environment).
+
+2. **Fallback read only top 6 frameworks** — When `ui-data` returned no `failing_controls`
+   (the normal case for this deployment), the BFF fell back to reading framework assessments.
+   But it capped at the 6 highest-failure frameworks via `[:6]`. Controls from the remaining
+   failing frameworks were never returned at all.
+
+3. **No pagination** — The UI just stopped at 100 rows with the toolbar showing "100 results",
+   which users read as "there are only 100 failing controls".
+
+### Fix — BFF (`shared/api_gateway/bff/compliance.py`)
+
+- Removed `[:6]` cap on fallback framework list — all failing frameworks are now read,
+  regardless of how many there are.
+- Moved `bySeverity` and `totalFailing` computation to **after sorting but before the limit**
+  so both always reflect the real dataset.
+- Raised default `limit` from `100` to `1000` (a safety net, not a UX cap — realistic
+  data volumes are well under this). `limit=0` is treated as unlimited by `if limit > 0:`.
+
+### Fix — Frontend (`frontend/src/app/compliance/remediation/page.jsx`)
+
+- Added `PAGE_SIZE = 25` constant and `currentPage` state.
+- Renamed `displayed` → `filtered` (the full filtered dataset across all loaded controls).
+- `displayed` is now `filtered.slice(pageStart, pageEnd)` — just the current page.
+- `useEffect` resets `currentPage` to 1 when `severityFilter` or `searchTerm` changes,
+  so filter interactions never leave the user stranded on an empty page.
+- Toolbar count now shows: *"87 matching · 217 total"* when a filter is active,
+  or *"217 controls"* when showing all.
+- Added pagination footer (only renders when `totalPages > 1`):
+  - **"Showing 26–50 of 217"** — exact range, updates on every page turn
+  - **Previous / Page N of M / Next** — disabled and de-emphasised at the boundary pages
+  - Previous/Next are `ChevronLeft` / `ChevronRight` icons from lucide-react
+
+### User experience after fix
+
+| Before | After |
+|---|---|
+| 100 rows, no indication more exist | All controls loaded; 25 per page |
+| Severity chips show counts for 100-row slice | Chips always show real totals from engine |
+| Header: "100 failing controls" | Header: "217 failing controls" (real count) |
+| Controls from 7+ frameworks invisible (fallback cap) | All failing frameworks read |
+| Search/filter only spans 100 loaded rows | Search/filter spans all loaded controls |
+
+---
+
+## Files Changed Summary (additions from session 10)
+
+| File | Type | Change |
+|---|---|---|
+| `frontend/src/app/compliance/page.jsx` | Modified | Wire gProvider/gAccount/gRegion into fetch; client-side provider row filter; totals respects filter; clear selected fw on scope change |
+| `frontend/src/app/compliance/matrix/page.jsx` | Modified | Wire gProvider/gAccount into fetch; useEffect dependency updated |
+
+## Files Changed Summary (additions from session 11)
+
+| File | Type | Change |
+|---|---|---|
+| `shared/api_gateway/bff/compliance.py` | Modified | Remediation: remove [:6] fallback cap; move bySeverity/totalFailing before limit; raise limit default to 1000 |
+| `frontend/src/app/compliance/remediation/page.jsx` | Modified | Client-side pagination (PAGE_SIZE=25); filtered vs displayed split; reset page on filter change; pagination footer with Showing X–Y of Z |
+
+---
+
+## 12. Compliance UI — Table Column Alignment Fix (All 4 Tables)
+
+*Date: 2026-05-09*
+
+**Problem:**
+All four compliance table views lacked `tableLayout: fixed` + `<colgroup>` width definitions.
+Without these, browsers auto-size columns based on content — meaning long NIST control IDs
+like `nist_800_53_rev5_multi_cloud_AC-16-b_0135` drove the Control ID column to 40%+ of
+the table width, crushing the Control name column which should be the widest column.
+Additionally, no text cells had overflow protection, so long content spilled into adjacent
+cells or stretched row heights arbitrarily.
+
+**Tables fixed:**
+
+### `frontend/src/app/compliance/[framework]/page.jsx` — Controls Detail table
+
+Added `tableLayout: 'fixed'` and `<colgroup>`:
+
+| Column | Width | Before |
+|---|---|---|
+| Expand toggle | 36px fixed | `w-8` (Tailwind, no effect without fixed layout) |
+| Control ID | 18% | auto-sized to content |
+| Control name | 36% | auto-sized to content |
+| Domain | 20% | auto-sized to content |
+| Severity | 10% | auto-sized |
+| Status | 8% | auto-sized |
+| Resources | 8% | auto-sized |
+
+Cell overflow fixes in `ControlRow`:
+- **Control ID** `<code>`: `display: -webkit-box; WebkitLineClamp: 2; overflow: hidden; wordBreak: break-all` + `title` for hover
+- **Control name** `<span>`: same line-clamp pattern + `title` for hover
+- **Domain** `<span>`: `overflow: hidden; text-overflow: ellipsis; white-space: nowrap` + `title`; icon wrapped in a `flexShrink: 0` span so it never gets squeezed out
+
+### `frontend/src/app/compliance/page.jsx` — Frameworks list table
+
+Added `tableLayout: 'fixed'` and `<colgroup>`:
+
+| Column | Width |
+|---|---|
+| Framework name | 38% |
+| Provider | 10% |
+| Score | 16% |
+| Controls | 18% |
+| Findings | 11% |
+| → (chevron) | 7% |
+
+Framework name cell: added `overflow: hidden; text-overflow: ellipsis; white-space: nowrap` + `title` so long names like "AWS Foundational Security Best Practices v1.0.0" never push the Provider column off-screen.
+
+### `frontend/src/app/compliance/page.jsx` — Inline accordion controls table
+
+Added `tableLayout: 'fixed'` and `<colgroup>`:
+
+| Column | Width |
+|---|---|
+| Status icon | 6% |
+| Control ID (tail) | 18% |
+| Control name | 43% |
+| Severity | 12% |
+| Findings | 10% |
+| Resources | 11% |
+
+Removed the hardcoded `width: 50`, `width: 180`, `width: 90`, `width: 80` on individual `<td>` elements (replaced by colgroup). Added 2-line clamp + `title` to the Control name cell. Added `overflow: hidden` to every `<td>`.
+
+### `frontend/src/app/compliance/remediation/page.jsx` — Remediation Queue table
+
+Already had `tableLayout: fixed` and `<colgroup>` from a previous session. No changes needed.
+
+---
+
+## Files Changed Summary (additions from session 12)
+
+| File | Type | Change |
+|---|---|---|
+| `frontend/src/app/compliance/[framework]/page.jsx` | Modified | tableLayout + colgroup; Control ID/name 2-line clamp + title; Domain ellipsis |
+| `frontend/src/app/compliance/page.jsx` | Modified | Frameworks table: tableLayout + colgroup + Framework name ellipsis; Accordion table: tableLayout + colgroup + Control name 2-line clamp |
+
+---
+
+## 13. Compliance UI — Provider Filter Fallback (All Pages)
+
+**Files:**
+- `frontend/src/lib/global-filter-context.jsx`
+
+**Problem:**
+The "All Providers" dropdown in the GlobalFilterBar was empty when the
+onboarding engine was unreachable (local dev, CI, or during fixture testing).
+`providerOptions` is derived from real cloud accounts fetched from the
+onboarding API at mount — if that fetch fails, the accounts list stays `[]`
+and no provider options appear, making the compliance provider filter
+non-functional.
+
+**Changes made:**
+
+- Added `STATIC_PROVIDER_OPTIONS` constant: a fixed ordered list of the 6
+  supported providers (AWS, GCP, Azure, OCI, AliCloud, IBM) built from the
+  existing `CLOUD_PROVIDERS` constant.
+
+- Updated `providerOptions` memo: when `accounts.length === 0` (onboarding
+  API unavailable) use the static list as fallback. When real accounts exist,
+  the live-account-derived list is used exactly as before — no behaviour
+  change in production.
+
+**Result:**
+Selecting GCP in the Provider dropdown now correctly hides AWS/Azure/OCI CIS
+rows and keeps multi-provider framework rows (NIST, SOC 2, PCI-DSS, ISO, GDPR)
+visible. Selecting AWS hides GCP/Azure/OCI CIS rows. Clearing restores all 10.
+
+---
+
+## 14. Compliance BFF — Remediation Severity + Total Count Fix
+
+**File:** `shared/api_gateway/bff/compliance.py`
+
+**Problem (3 separate bugs):**
+
+1. `bySeverity` counts were computed *after* the `[:limit]` slice, so severity
+   chips showed counts for the truncated page only, not the full dataset.
+
+2. `totalFailing` was also computed after the slice — UI showed e.g. "100 controls"
+   even when 217 were failing.
+
+3. The fallback framework fetch used `[:6]` — only the first 6 frameworks were
+   ever included in the remediation list.
+
+4. Default `limit` was 100, capping the dataset sent to the client.
+
+**Changes made:**
+
+- Moved `total_failing` and `bySeverity` computation to before the `[:limit]`
+  slice so both always reflect the full failing dataset.
+
+- Removed the `[:6]` cap on the fallback framework loop.
+
+- Raised default `limit` from 100 to 1000 so all controls reach the client
+  for client-side pagination.
+
+**Result:**
+Remediation page correctly shows 217 failing controls with CRITICAL=12,
+HIGH=45, MEDIUM=95, LOW=65. Severity chips count the full dataset regardless
+of pagination state.
+
+---
+
+## Files Changed Summary (additions from sessions 13–14)
+
+| File | Type | Change |
+|---|---|---|
+| `frontend/src/lib/global-filter-context.jsx` | Modified | Static provider fallback when onboarding engine unreachable |
+| `shared/api_gateway/bff/compliance.py` | Modified | Remediation: bySeverity+totalFailing before limit; removed [:6] cap; limit 1000 |
+
+---
+
 *Prepared by: Ajay*
-*Date: 2026-05-08*
+*Date: 2026-05-09*

@@ -17,7 +17,6 @@ from ._transforms import normalize_framework, normalize_failing_control
 from ._page_context import compliance_page_context, compliance_filter_schema
 from ._cache import cache_key, cached_view, TTL_COMPLIANCE, auth_level_from_header
 from ._common_schemas import ComplianceViewResponse
-
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
 MATRIX_FRAMEWORKS = ["CIS", "NIST", "SOC2", "PCI", "HIPAA", "ISO", "GDPR"]
@@ -579,12 +578,13 @@ async def view_compliance_remediation(
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
     severity: Optional[str] = Query(None),
-    limit: int = Query(100),
+    limit: int = Query(1000),
 ):
-    """Remediation Queue — failing controls sorted by severity.
+    """Remediation Queue — all failing controls sorted by severity.
 
-    Fetches failing_controls from the compliance engine and enriches them
-    with affected account info so the UI can render a prioritised work queue.
+    Returns the complete list of failing controls so the UI can paginate
+    and filter client-side. bySeverity and totalFailing always reflect
+    the full dataset before any limit is applied.
     """
     tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
@@ -616,15 +616,14 @@ async def view_compliance_remediation(
     if not isinstance(raw_fc, list):
         raw_fc = []
 
-    # If ui-data has no failing_controls, derive from framework assessments.
-    # Pick the top 6 frameworks by failed-control count and call their assessments.
+    # If ui-data has no failing_controls, derive from ALL failing framework assessments.
     if not raw_fc:
         fw_list = frameworks_data.get("frameworks", []) or []
         failing_fws = sorted(
             [fw for fw in fw_list if isinstance(fw, dict) and (fw.get("failed") or 0) > 0],
             key=lambda x: x.get("failed", 0),
             reverse=True,
-        )[:6]
+        )  # no [:6] cap — read every failing framework
 
         if failing_fws:
             assessment_calls = [
@@ -666,22 +665,19 @@ async def view_compliance_remediation(
         acct_id = c.get("account") or c.get("account_id", "")
         last_checked = c.get("last_checked") or c.get("last_seen_at") or c.get("assessed_at")
         failing_controls.append({
-            "framework":             c.get("framework") or c.get("framework_id", ""),
-            "control_id":            c.get("control_id", ""),
-            "control_title":         c.get("title") or c.get("control_name", ""),
-            "severity":              raw_sev,
-            "affected_accounts":     [acct_id] if acct_id else [],
+            "framework":              c.get("framework") or c.get("framework_id", ""),
+            "control_id":             c.get("control_id", ""),
+            "control_title":          c.get("title") or c.get("control_name", ""),
+            "severity":               raw_sev,
+            "affected_accounts":      [acct_id] if acct_id else [],
             "affected_account_count": 1 if acct_id else 0,
-            "last_checked":          last_checked,
+            "last_checked":           last_checked,
         })
 
-    # Optional filters
+    # Optional server-side filters (provider carries no data in failing_controls, skip)
     if severity:
         sev_upper = severity.upper()
         failing_controls = [c for c in failing_controls if c["severity"] == sev_upper]
-    if provider:
-        # The failing_controls list does not carry provider; skip silently (no data to filter)
-        pass
     if account:
         failing_controls = [
             c for c in failing_controls
@@ -691,20 +687,22 @@ async def view_compliance_remediation(
     # Sort: CRITICAL → HIGH → MEDIUM → LOW → INFO
     failing_controls.sort(key=lambda x: SEVERITY_ORDER.get(x.get("severity", "INFO"), 99))
 
-    # Enforce limit
-    failing_controls = failing_controls[:limit]
-
-    # Severity breakdown counts
+    # Compute totals from the full sorted list — before any limit is applied.
+    total_failing = len(failing_controls)
     by_severity: Dict[str, int] = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
     for c in failing_controls:
         sev = c.get("severity", "LOW")
         if sev in by_severity:
             by_severity[sev] += 1
 
+    # Safety cap (default 1000 — effectively unlimited for realistic data volumes)
+    if limit > 0:
+        failing_controls = failing_controls[:limit]
+
     return {
         "failingControls": failing_controls,
-        "totalFailing": len(failing_controls),
-        "bySeverity": by_severity,
+        "totalFailing":    total_failing,
+        "bySeverity":      by_severity,
     }
 
 
@@ -716,7 +714,9 @@ async def view_framework_detail(
 ):
     """Framework detail view — controls grouped by family with assessment status.
 
-    Calls compliance engine /framework/{framework_id}/assessment.
+    Calls compliance engine /framework/{framework_id}/assessment in parallel with
+    frameworks/summary so the UI can show both the strict Pass Rate and the
+    engine's weighted Assessed Score side by side.
     """
     tenant_id = resolve_tenant_id(request)
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
@@ -725,9 +725,22 @@ async def view_framework_detail(
     results = await fetch_many([
         ("compliance", f"/api/v1/compliance/framework/{framework_id}/assessment",
          {"tenant_id": tenant_id, "scan_run_id": scan_run_id}),
+        ("compliance", "/api/v1/compliance/frameworks/summary",
+         {"tenant_id": tenant_id}),
     ], auth_headers=fwd_headers)
 
-    data = results[0] if results[0] and isinstance(results[0], dict) else {}
+    data         = results[0] if results[0] and isinstance(results[0], dict) else {}
+    summary_data = results[1] if results[1] and isinstance(results[1], dict) else {}
+
+    # Pull the engine's stored weighted score (Assessed Score) from the summary list.
+    # This uses a different formula than the strict PASS/total score in `data["score"]`.
+    assessed_score: Optional[float] = None
+    for fw in (summary_data.get("frameworks") or []):
+        if isinstance(fw, dict):
+            fid = (fw.get("id") or fw.get("framework_id") or "").lower()
+            if fid == framework_id.lower():
+                assessed_score = fw.get("score")
+                break
 
     if not data or data.get("error"):
         return {
@@ -736,9 +749,12 @@ async def view_framework_detail(
             "total_controls": 0,
             "summary": {},
             "families": [],
+            "assessed_score": None,
         }
 
-    return data
+    result = dict(data)
+    result["assessed_score"] = assessed_score
+    return result
 
 
 @router.get("/compliance/framework/{framework_id}/report")

@@ -15,6 +15,14 @@
 import { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
 import { fetchView } from './api';
 import { useAuth } from './auth-context';
+import { CLOUD_PROVIDERS } from './constants';
+
+// Static fallback used when the onboarding engine is unreachable (local dev, CI).
+// Ordered: most common clouds first.
+const STATIC_PROVIDER_OPTIONS = ['aws', 'gcp', 'azure', 'oci', 'alicloud', 'ibm'].map(p => ({
+  value: p.toUpperCase(),
+  label: CLOUD_PROVIDERS[p]?.name || p.toUpperCase(),
+}));
 
 const GlobalFilterContext = createContext(null);
 
@@ -100,11 +108,13 @@ export function GlobalFilterProvider({ children }) {
 
   const hasActiveFilters = !!(provider || account || region || timeRange !== '7d');
 
-  // Derived dropdown options (memoised from real accounts)
-  const providerOptions = useMemo(() =>
-    [...new Set(accounts.map(a => a.provider))].map(p => ({ value: p, label: p })),
-    [accounts]
-  );
+  // Derived dropdown options (memoised from real accounts).
+  // Falls back to the static provider list when the onboarding engine is unreachable
+  // so the compliance / inventory provider filter still works in local dev.
+  const providerOptions = useMemo(() => {
+    if (accounts.length === 0) return STATIC_PROVIDER_OPTIONS;
+    return [...new Set(accounts.map(a => a.provider))].map(p => ({ value: p, label: p }));
+  }, [accounts]);
 
   const accountOptions = useMemo(() =>
     accounts
