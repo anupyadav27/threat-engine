@@ -404,6 +404,174 @@ async def view_compliance(
 
 SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}
 
+# ── Matrix endpoint helpers ────────────────────────────────────────────────────
+
+_PROVIDERS = ["aws", "azure", "gcp", "oci", "alicloud", "ibm", "k8s"]
+
+# CIS framework_id prefix → CSP provider key
+_CIS_PROVIDER: Dict[str, str] = {
+    "cis_aws":         "aws",
+    "cis_azure":       "azure",
+    "cis_gcp":         "gcp",
+    "cis_k8s":         "k8s",
+    "cis_kubernetes":  "k8s",
+    "cis_ibm":         "ibm",
+    "cis_alicloud":    "alicloud",
+    "cis_ali":         "alicloud",
+    "cis_oci":         "oci",
+    "cis_oracle":      "oci",
+}
+
+# Regulatory/universal framework_id prefix → matrix key (matches frontend FRAMEWORKS ids)
+_REG_FW_KEY: Dict[str, str] = {
+    "pci_dss":          "PCI_DSS",
+    "hipaa":            "HIPAA",
+    "gdpr":             "GDPR",
+    "soc2":             "SOC2",
+    "soc_2":            "SOC2",
+    "iso_27001":        "ISO27001",
+    "iso27001":         "ISO27001",
+    "nist_csf":         "NIST",
+    "nist_800_53":      "NIST",
+    "nist_sp_800_53":   "NIST",
+    "nist_800_171":     "NIST",
+    "fedramp":          "FedRAMP",
+    "canada_pbmm":      "CANADA_PBMM",
+    "rbi_bank":         "RBI_BANK",
+    "rbi_nbfc":         "RBI_NBFC",
+    "cisa_ce":          "CISA_CE",
+}
+
+
+def _classify_fw(fw_id_raw: str):
+    """Returns (matrix_key, cis_provider_or_None). Unknown → (None, None)."""
+    low = fw_id_raw.lower().replace("-", "_")
+    for prefix, prov in _CIS_PROVIDER.items():
+        if low == prefix or low.startswith(prefix + "_"):
+            return "CIS", prov
+    if low.startswith("cis_"):
+        for prov in _PROVIDERS:
+            if prov in low:
+                return "CIS", prov
+        return "CIS", None
+    for prefix, key in _REG_FW_KEY.items():
+        if low == prefix or low.startswith(prefix + "_"):
+            return key, None
+    return None, None
+
+
+@router.get("/compliance/matrix")
+async def view_compliance_matrix(
+    request: Request,
+    view: str = Query("config"),
+):
+    """Multi-cloud compliance matrix: framework family × provider → score.
+
+    CIS row: each CSP column shows its own CIS benchmark score.
+    Regulatory rows: cross-cloud framework score per provider that has accounts.
+    """
+    tenant_id = resolve_tenant_id(request)
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
+    results = await fetch_many([
+        ("compliance", "/api/v1/compliance/frameworks/summary", {"tenant_id": tenant_id}),
+        ("compliance", "/api/v1/compliance/ui-data",            {"tenant_id": tenant_id, "scan_id": "latest"}),
+        ("onboarding", "/api/v1/cloud-accounts",                {"tenant_id": tenant_id}),
+    ], auth_headers=fwd_headers)
+
+    frameworks_data, compliance_data, onboarding_data = results
+    frameworks_data  = frameworks_data  if isinstance(frameworks_data,  dict) else {}
+    compliance_data  = compliance_data  if isinstance(compliance_data,  dict) else {}
+    onboarding_data  = onboarding_data  if isinstance(onboarding_data,  dict) else {}
+
+    fw_list          = frameworks_data.get("frameworks",        []) or []
+    raw_accounts     = onboarding_data.get("accounts",          []) or []
+    per_account_raw  = compliance_data.get("per_account_scores", []) or []
+
+    # account_id → provider
+    account_provider: Dict[str, str] = {}
+    for acct in raw_accounts:
+        if isinstance(acct, dict):
+            aid  = acct.get("account_id", "")
+            prov = (acct.get("provider") or acct.get("csp") or "").lower()
+            if aid and prov in _PROVIDERS:
+                account_provider[aid] = prov
+
+    active_providers = set(account_provider.values())
+
+    # matrix[fw_key][provider] = score
+    # framework_ids[fw_key][provider] = original engine framework_id (for direct detail navigation)
+    matrix: Dict[str, Dict[str, float]] = {}
+    framework_ids: Dict[str, Dict[str, str]] = {}
+
+    # Pass 1 — build from framework summary (global scores per framework)
+    for fw in fw_list:
+        if not isinstance(fw, dict):
+            continue
+        fw_id_raw = fw.get("id") or fw.get("framework_id") or ""
+        score = fw.get("score") or 0
+        if not score:
+            passed = fw.get("passed") or 0
+            failed = fw.get("failed") or 0
+            total  = passed + failed
+            score  = round((passed / total) * 100, 1) if total > 0 else None
+        else:
+            score = round(float(score), 1)
+
+        if not score:
+            continue
+
+        fw_key, cis_provider = _classify_fw(fw_id_raw)
+        if not fw_key:
+            continue
+
+        if fw_key not in matrix:
+            matrix[fw_key] = {}
+        if fw_key not in framework_ids:
+            framework_ids[fw_key] = {}
+
+        if cis_provider:
+            # CIS: score in the specific CSP column only
+            matrix[fw_key][cis_provider] = score
+            framework_ids[fw_key][cis_provider] = fw_id_raw
+        else:
+            # Regulatory: apply to all providers that have active accounts
+            for prov in (active_providers or _PROVIDERS):
+                if prov not in matrix[fw_key]:
+                    matrix[fw_key][prov] = score
+                    framework_ids[fw_key][prov] = fw_id_raw
+
+    # Pass 2 — refine with per-account scores for provider-level accuracy
+    if per_account_raw:
+        from collections import defaultdict
+        prov_fw_scores: Dict[str, Dict[str, List[float]]] = defaultdict(lambda: defaultdict(list))
+
+        for entry in per_account_raw:
+            if not isinstance(entry, dict):
+                continue
+            acct_id = entry.get("account_id", "")
+            acct_prov = account_provider.get(acct_id)
+            if not acct_prov:
+                continue
+            for raw_key, val in entry.items():
+                if raw_key == "account_id" or not isinstance(val, (int, float)):
+                    continue
+                fw_key, cis_provider = _classify_fw(raw_key)
+                if not fw_key:
+                    continue
+                effective_prov = cis_provider if cis_provider else acct_prov
+                prov_fw_scores[effective_prov][fw_key].append(float(val))
+
+        for prov, fw_scores in prov_fw_scores.items():
+            for fw_key, scores in fw_scores.items():
+                if scores:
+                    if fw_key not in matrix:
+                        matrix[fw_key] = {}
+                    matrix[fw_key][prov] = round(sum(scores) / len(scores), 1)
+
+    return {"matrix": matrix, "frameworkIds": framework_ids}
+
 
 @router.get("/compliance/remediation")
 async def view_compliance_remediation(
@@ -423,13 +591,15 @@ async def view_compliance_remediation(
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 
     results = await fetch_many([
-        ("compliance", "/api/v1/compliance/ui-data", {"tenant_id": tenant_id, "scan_id": "latest"}),
-        ("onboarding", "/api/v1/cloud-accounts",     {"tenant_id": tenant_id}),
+        ("compliance", "/api/v1/compliance/ui-data",         {"tenant_id": tenant_id, "scan_id": "latest"}),
+        ("compliance", "/api/v1/compliance/frameworks/summary", {"tenant_id": tenant_id}),
+        ("onboarding", "/api/v1/cloud-accounts",             {"tenant_id": tenant_id}),
     ], auth_headers=fwd_headers)
 
-    compliance_data, onboarding_data = results
-    compliance_data = compliance_data if isinstance(compliance_data, dict) else {}
-    onboarding_data = onboarding_data if isinstance(onboarding_data, dict) else {}
+    compliance_data, frameworks_data, onboarding_data = results
+    compliance_data  = compliance_data  if isinstance(compliance_data,  dict) else {}
+    frameworks_data  = frameworks_data  if isinstance(frameworks_data,  dict) else {}
+    onboarding_data  = onboarding_data  if isinstance(onboarding_data,  dict) else {}
 
     # Build a lookup: account_id → account display name
     raw_accounts = onboarding_data.get("accounts", [])
@@ -445,6 +615,48 @@ async def view_compliance_remediation(
     raw_fc = compliance_data.get("failing_controls", [])
     if not isinstance(raw_fc, list):
         raw_fc = []
+
+    # If ui-data has no failing_controls, derive from framework assessments.
+    # Pick the top 6 frameworks by failed-control count and call their assessments.
+    if not raw_fc:
+        fw_list = frameworks_data.get("frameworks", []) or []
+        failing_fws = sorted(
+            [fw for fw in fw_list if isinstance(fw, dict) and (fw.get("failed") or 0) > 0],
+            key=lambda x: x.get("failed", 0),
+            reverse=True,
+        )[:6]
+
+        if failing_fws:
+            assessment_calls = [
+                ("compliance",
+                 f"/api/v1/compliance/framework/{fw.get('id') or fw.get('framework_id')}/assessment",
+                 {"tenant_id": tenant_id})
+                for fw in failing_fws
+            ]
+            assessments = await fetch_many(assessment_calls, auth_headers=fwd_headers)
+
+            for i, assessment in enumerate(assessments):
+                if not isinstance(assessment, dict):
+                    continue
+                fw_name = (
+                    assessment.get("framework", {}).get("framework_name")
+                    or assessment.get("framework", {}).get("framework_id")
+                    or (failing_fws[i].get("name") or failing_fws[i].get("id") or "")
+                )
+                for family in (assessment.get("families") or []):
+                    for ctrl in (family.get("controls") or []):
+                        status = (ctrl.get("status") or "").upper()
+                        if status not in ("FAIL", "PARTIAL"):
+                            continue
+                        raw_fc.append({
+                            "control_id":   ctrl.get("control_id") or ctrl.get("id", ""),
+                            "title":        ctrl.get("title") or ctrl.get("control_name", ""),
+                            "framework":    fw_name,
+                            "severity":     ctrl.get("severity") or "medium",
+                            "total_failed": ctrl.get("failed_resources") or ctrl.get("failed") or 1,
+                            "account":      "",
+                            "days_open":    0,
+                        })
 
     failing_controls = []
     for c in raw_fc:

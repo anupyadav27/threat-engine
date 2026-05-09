@@ -46,28 +46,21 @@ export const SLA_THRESHOLDS = {
 };
 
 export const FRAMEWORKS = [
-  // CIS per-provider benchmarks
-  { id: 'CIS_AWS',          name: 'CIS AWS',          shortName: 'CIS AWS',    color: '#FF9900', group: 'CIS' },
-  { id: 'CIS_AZURE',        name: 'CIS Azure',         shortName: 'CIS Azure',  color: '#0078D4', group: 'CIS' },
-  { id: 'CIS_GCP',          name: 'CIS GCP',           shortName: 'CIS GCP',    color: '#4285F4', group: 'CIS' },
-  { id: 'CIS_K8S',          name: 'CIS Kubernetes',    shortName: 'CIS K8S',    color: '#326CE5', group: 'CIS' },
-  { id: 'CIS_IBM',          name: 'CIS IBM Cloud',     shortName: 'CIS IBM',    color: '#1F70C1', group: 'CIS' },
-  { id: 'CIS_ALICLOUD',     name: 'CIS AliCloud',      shortName: 'CIS Ali',    color: '#FF6A00', group: 'CIS' },
-  { id: 'CIS_OCI',          name: 'CIS Oracle Cloud',  shortName: 'CIS OCI',    color: '#F80000', group: 'CIS' },
+  // CIS — one row; each CSP column shows its own CIS benchmark score
+  { id: 'CIS',         name: 'CIS Benchmark',    shortName: 'CIS',       color: '#22c55e', group: 'CIS' },
   // Regulatory
-  { id: 'PCI_DSS',          name: 'PCI DSS v4.0.1',    shortName: 'PCI DSS',    color: '#f97316', group: 'Regulatory' },
-  { id: 'HIPAA',            name: 'HIPAA',             shortName: 'HIPAA',      color: '#ef4444', group: 'Regulatory' },
-  { id: 'GDPR',             name: 'GDPR',              shortName: 'GDPR',       color: '#8b5cf6', group: 'Regulatory' },
-  { id: 'SOC2',             name: 'SOC 2',             shortName: 'SOC 2',      color: '#ec4899', group: 'Regulatory' },
-  { id: 'ISO27001_2022',    name: 'ISO 27001:2022',    shortName: 'ISO 27001',  color: '#06b6d4', group: 'Regulatory' },
-  { id: 'CANADA_PBMM',      name: 'Canada PBMM',       shortName: 'PBMM',       color: '#dc2626', group: 'Regulatory' },
-  { id: 'RBI_BANK',         name: 'RBI Bank',          shortName: 'RBI Bank',   color: '#f59e0b', group: 'Regulatory' },
-  { id: 'RBI_NBFC',         name: 'RBI NBFC',          shortName: 'RBI NBFC',   color: '#d97706', group: 'Regulatory' },
+  { id: 'PCI_DSS',     name: 'PCI DSS v4.0.1',   shortName: 'PCI DSS',   color: '#f97316', group: 'Regulatory' },
+  { id: 'HIPAA',       name: 'HIPAA',            shortName: 'HIPAA',     color: '#ef4444', group: 'Regulatory' },
+  { id: 'GDPR',        name: 'GDPR',             shortName: 'GDPR',      color: '#8b5cf6', group: 'Regulatory' },
+  { id: 'SOC2',        name: 'SOC 2',            shortName: 'SOC 2',     color: '#ec4899', group: 'Regulatory' },
+  { id: 'ISO27001',    name: 'ISO 27001:2022',   shortName: 'ISO 27001', color: '#06b6d4', group: 'Regulatory' },
+  { id: 'CANADA_PBMM', name: 'Canada PBMM',      shortName: 'PBMM',      color: '#dc2626', group: 'Regulatory' },
+  { id: 'RBI_BANK',    name: 'RBI Bank',         shortName: 'RBI Bank',  color: '#f59e0b', group: 'Regulatory' },
+  { id: 'RBI_NBFC',    name: 'RBI NBFC',         shortName: 'RBI NBFC',  color: '#d97706', group: 'Regulatory' },
   // US Government
-  { id: 'NIST_800_53',      name: 'NIST 800-53',       shortName: 'NIST 800-53',color: '#3b82f6', group: 'US Gov' },
-  { id: 'NIST_800_171',     name: 'NIST 800-171',      shortName: 'NIST 171',   color: '#2563eb', group: 'US Gov' },
-  { id: 'FedRAMP_Moderate', name: 'FedRAMP Moderate',  shortName: 'FedRAMP',    color: '#1d4ed8', group: 'US Gov' },
-  { id: 'CISA_CE',          name: 'CISA CE',           shortName: 'CISA CE',    color: '#1e3a8a', group: 'US Gov' },
+  { id: 'NIST',        name: 'NIST 800-53',      shortName: 'NIST',      color: '#3b82f6', group: 'US Gov' },
+  { id: 'FedRAMP',     name: 'FedRAMP Moderate', shortName: 'FedRAMP',   color: '#1d4ed8', group: 'US Gov' },
+  { id: 'CISA_CE',     name: 'CISA CE',          shortName: 'CISA CE',   color: '#1e3a8a', group: 'US Gov' },
 ];
 
 export const NAV_ITEMS = [

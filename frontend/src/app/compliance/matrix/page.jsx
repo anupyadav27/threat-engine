@@ -31,13 +31,17 @@ function scoreText(score) {
 
 export default function ComplianceMatrixPage() {
   const router = useRouter();
-  const [matrix, setMatrix] = useState({});   // { framework_id: { provider: score } }
+  const [matrix, setMatrix] = useState({});       // { fw_key: { provider: score } }
+  const [frameworkIds, setFrameworkIds] = useState({}); // { fw_key: { provider: engine_id } }
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('config'); // config | ciem | combined
 
   useEffect(() => {
     fetchView('compliance/matrix', { view })
-      .then(d => setMatrix(d?.matrix || {}))
+      .then(d => {
+        setMatrix(d?.matrix || {});
+        setFrameworkIds(d?.frameworkIds || {});
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [view]);
@@ -45,7 +49,13 @@ export default function ComplianceMatrixPage() {
   const handleCellClick = (fwId, provider) => {
     const score = matrix[fwId]?.[provider];
     if (score == null) return;
-    router.push(`/compliance?fw=${fwId}&provider=${provider}`);
+    // Navigate directly to the framework detail page using the engine's actual framework_id
+    const engineId = frameworkIds[fwId]?.[provider];
+    if (engineId) {
+      router.push(`/compliance/${engineId}`);
+    } else {
+      router.push(`/compliance?fw=${fwId}&provider=${provider}`);
+    }
   };
 
   const exportCsv = () => {
