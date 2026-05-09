@@ -24,9 +24,9 @@ function SevChip({ level, count }) {
   );
 }
 
-export default function CiemRuntimeCard({ ciemRuntimeEvents, accountId }) {
+export default function CiemRuntimeCard({ cdrRuntimeEvents, accountId }) {
   const router = useRouter();
-  const events = ciemRuntimeEvents || {};
+  const events = cdrRuntimeEvents || {};
   const { count = 0, critical = 0, high = 0, medium = 0, low = 0,
           link_available = false, sample_findings = [] } = events;
 
@@ -36,7 +36,7 @@ export default function CiemRuntimeCard({ ciemRuntimeEvents, accountId }) {
   function handleViewTimeline() {
     const params = new URLSearchParams({ filter: 'action_category:runtime' });
     if (accountId) params.append('account', accountId);
-    router.push(`/ciem?${params.toString()}`);
+    router.push(`/cdr?${params.toString()}`);
   }
 
   return (
@@ -44,19 +44,19 @@ export default function CiemRuntimeCard({ ciemRuntimeEvents, accountId }) {
       <div className="flex items-center gap-2 mb-3">
         <Activity className="w-4 h-4 text-indigo-400" />
         <span className="text-sm font-semibold text-slate-200">
-          CIEM Behavioral Events
+          CDR Behavioral Events
         </span>
       </div>
 
       {unavailable && (
         <div className="flex items-center gap-2 text-slate-400 text-sm">
           <AlertTriangle className="w-4 h-4" />
-          CIEM engine unavailable
+          CDR engine unavailable
         </div>
       )}
 
       {!unavailable && noEvents && (
-        <p className="text-sm text-slate-400">No CIEM runtime events detected</p>
+        <p className="text-sm text-slate-400">No CDR runtime events detected</p>
       )}
 
       {!unavailable && !noEvents && (
@@ -96,7 +96,7 @@ export default function CiemRuntimeCard({ ciemRuntimeEvents, accountId }) {
             onClick={handleViewTimeline}
             className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
           >
-            View Full Behavioral Timeline in CIEM →
+            View Full Behavioral Timeline in CDR →
           </button>
         </>
       )}

@@ -100,6 +100,7 @@ export const NAV_ITEMS = [
       { label: 'Agents',       href: '/vulnerability/agents' },
     ],
   },
+  { label: 'Risk', href: '/risk', icon: 'Activity', subtitle: 'FAIR Model' },
   {
     label: 'Compliance',
     href: '/compliance',
@@ -158,13 +159,9 @@ export const NAV_ITEMS = [
     ],
   },
 
-  // ── separator ─────────────────────────────────────────────────────────────
-  { separator: true },
-  { label: 'Risk',    href: '/risk',    icon: 'Activity', subtitle: 'FAIR Model' },
+  // ── PLATFORM ──────────────────────────────────────────────────────────────
+  { sectionLabel: 'PLATFORM' },
   { label: 'Reports', href: '/reports', icon: 'FileText' },
-
-  // ── separator ─────────────────────────────────────────────────────────────
-  { separator: true },
   {
     label: 'Onboarding',
     href: '/onboarding',
@@ -194,6 +191,9 @@ export const NAV_ITEMS = [
       { label: 'Notifications', href: '/settings/notifications' },
     ],
   },
+
+  // ── ADMINISTRATION ────────────────────────────────────────────────────────
+  { sectionLabel: 'ADMINISTRATION' },
   {
     label: 'Admin Dashboard',
     href: '/admin/dashboard',

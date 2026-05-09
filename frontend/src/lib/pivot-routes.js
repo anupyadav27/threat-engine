@@ -104,7 +104,7 @@ export function resolvePivotUrl({ to, id, engine, framework, provider, kind } = 
       path = `/vulnerability/agents/${eid}`;
       break;
     case 'identity':
-      path = `/ciem/identity/${eid}`;
+      path = `/cdr/identity/${eid}`;
       break;
     default:
       return null;

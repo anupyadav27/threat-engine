@@ -19,6 +19,7 @@ import {
 import DataTable from '@/components/shared/DataTable';
 import AlertBanner from '@/components/shared/AlertBanner';
 import MetricStrip from '@/components/shared/MetricStrip';
+import { GuidedTourProvider, TourButton } from '@/components/onboarding/GuidedTour';
 import InsightRow from '@/components/shared/InsightRow';
 import CloudProviderBadge from '@/components/shared/CloudProviderBadge';
 import TrendLine from '@/components/charts/TrendLine';
@@ -134,7 +135,7 @@ const riskColumns = [
   { accessorKey: 'risk_rating', header: 'Rating', cell: (i) => { const r = (i.getValue() || i.row.original.rating || '').toLowerCase(); const c = r === 'critical' ? '#ef4444' : r === 'high' ? '#f97316' : r === 'medium' ? '#eab308' : '#3b82f6'; return <SeverityBadge severity={r} />; } },
 ];
 
-const ciemColumns = [
+const cdrColumns = [
   { accessorKey: 'severity', header: 'Severity', cell: (i) => <SeverityBadge severity={i.getValue()} /> },
   { accessorKey: 'title', header: 'Detection', cell: (i) => <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{i.getValue() || i.row.original.detection || '—'}</span> },
   { accessorKey: 'rule_id', header: 'Rule ID', cell: (i) => <span className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>{i.getValue() || '—'}</span> },
@@ -2264,8 +2265,8 @@ const DOMAIN_VIEWS = {
     },
     tableTitle: 'Top Risk Scenarios',
   },
-  ciem: {
-    label: 'CIEM', Icon: Eye, href: '/ciem', color: '#a855f7', bffView: 'ciem',
+  cdr: {
+    label: 'CDR — Cloud Detection & Response', Icon: Eye, href: '/cdr', color: '#a855f7', bffView: 'cdr',
     getKpis: (d) => d.kpiGroups || [],
     getCharts: (d) => {
       return {
@@ -2467,22 +2468,22 @@ const DOMAIN_VIEWS = {
     },
     getTable: (d) => {
       const mockDetections = [
-        { severity:'CRITICAL', title:'Privilege escalation via iam:PassRole',              rule_id:'CIEM-001', detection:'eks-node-iam-role → AdministratorAccess',    account_id:'AWS Production' },
-        { severity:'CRITICAL', title:'Cross-account assume role without MFA',              rule_id:'CIEM-002', detection:'analytics-role → prod-admin-role',            account_id:'AWS Production' },
-        { severity:'CRITICAL', title:'Service account with unused AdministratorAccess',    rule_id:'CIEM-003', detection:'dev-service-account: 847 perms, 12 used',     account_id:'AWS Production' },
-        { severity:'HIGH',     title:'Contractor account active after 90d with no review', rule_id:'CIEM-004', detection:'contractor-user-03: last used 89d ago',       account_id:'Azure Corp'     },
-        { severity:'HIGH',     title:'Lambda role can create IAM policy versions',         rule_id:'CIEM-005', detection:'lambda-execution-role → policy escalation',   account_id:'AWS Production' },
-        { severity:'HIGH',     title:'External trust relationship unreviewed 30d+',        rule_id:'CIEM-006', detection:'Azure Corp → AWS Production (OIDC)',          account_id:'AWS Production' },
-        { severity:'HIGH',     title:'CI/CD pipeline has production admin access',         rule_id:'CIEM-007', detection:'ci-cd-deployer → iam:AttachUserPolicy',       account_id:'AWS Staging'    },
-        { severity:'MEDIUM',   title:'Role with full S3 access never used on prod data',   rule_id:'CIEM-008', detection:'backup-svc-account: 312 perms, 6 used',      account_id:'AWS Production' },
-        { severity:'MEDIUM',   title:'Monitoring role can access instance metadata',       rule_id:'CIEM-009', detection:'monitoring-role → IMDS credential exposure',  account_id:'GCP Primary'    },
-        { severity:'LOW',      title:'Unused IAM role candidates for removal',             rule_id:'CIEM-010', detection:'234 permissions flagged for cleanup',         account_id:'All Accounts'   },
+        { severity:'CRITICAL', title:'Privilege escalation via iam:PassRole',              rule_id:'CDR-001', detection:'eks-node-iam-role → AdministratorAccess',    account_id:'AWS Production' },
+        { severity:'CRITICAL', title:'Cross-account assume role without MFA',              rule_id:'CDR-002', detection:'analytics-role → prod-admin-role',            account_id:'AWS Production' },
+        { severity:'CRITICAL', title:'Service account with unused AdministratorAccess',    rule_id:'CDR-003', detection:'dev-service-account: 847 perms, 12 used',     account_id:'AWS Production' },
+        { severity:'HIGH',     title:'Contractor account active after 90d with no review', rule_id:'CDR-004', detection:'contractor-user-03: last used 89d ago',       account_id:'Azure Corp'     },
+        { severity:'HIGH',     title:'Lambda role can create IAM policy versions',         rule_id:'CDR-005', detection:'lambda-execution-role → policy escalation',   account_id:'AWS Production' },
+        { severity:'HIGH',     title:'External trust relationship unreviewed 30d+',        rule_id:'CDR-006', detection:'Azure Corp → AWS Production (OIDC)',          account_id:'AWS Production' },
+        { severity:'HIGH',     title:'CI/CD pipeline has production admin access',         rule_id:'CDR-007', detection:'ci-cd-deployer → iam:AttachUserPolicy',       account_id:'AWS Staging'    },
+        { severity:'MEDIUM',   title:'Role with full S3 access never used on prod data',   rule_id:'CDR-008', detection:'backup-svc-account: 312 perms, 6 used',      account_id:'AWS Production' },
+        { severity:'MEDIUM',   title:'Monitoring role can access instance metadata',       rule_id:'CDR-009', detection:'monitoring-role → IMDS credential exposure',  account_id:'GCP Primary'    },
+        { severity:'LOW',      title:'Unused IAM role candidates for removal',             rule_id:'CDR-010', detection:'234 permissions flagged for cleanup',         account_id:'All Accounts'   },
       ];
       const apiData = (d.topCritical || []).filter(c => c.title);
       const data = apiData.length >= 3 ? apiData.slice(0,10) : mockDetections;
-      return { data, columns: ciemColumns };
+      return { data, columns: cdrColumns };
     },
-    tableTitle: 'Top CIEM Detections',
+    tableTitle: 'Top CDR Detections',
   },
 };
 
@@ -2538,8 +2539,8 @@ const DOMAIN_KPIS = {
     { label: 'Est. Exposure', value: '$2.4M', delta: '+$0.3M', bad: true, color: '#ef4444', context: 'potential loss value' },
     { label: 'Attack Surface', value: 34, delta: '-2', bad: false, color: '#10b981', context: 'exposed entry points' },
   ],
-  ciem: [
-    { label: 'CIEM Violations', value: 47, delta: '+4', bad: true, color: '#a855f7', context: 'active detections' },
+  cdr: [
+    { label: 'CDR Detections', value: 47, delta: '+4', bad: true, color: '#a855f7', context: 'active detections' },
     { label: 'Unused Permissions', value: 234, delta: '-18', bad: false, color: '#f59e0b', context: 'candidates for removal' },
     { label: 'Cross-account Access', value: 12, delta: '+2', bad: true, color: '#ef4444', context: 'unreviewed trust' },
     { label: 'Priv Esc Paths', value: 8, delta: '+1', bad: true, color: '#ef4444', context: 'escalation chains' },
@@ -2628,7 +2629,7 @@ function DomainDashboard({ view, data }) {
           datasec:    { label: 'Exposure',      text: '12 data stores are publicly accessible; 8 contain classified PII. Encrypt and restrict access before next compliance review.' },
           network:    { label: 'Exposure',      text: '12 security groups allow unrestricted inbound (0.0.0.0/0). These represent the highest-priority network fixes with lowest remediation effort.' },
           risk:       { label: 'Exposure Est.', text: 'Estimated financial exposure is $2.4M across 7 risk scenarios. Top 5 scenarios account for 78% of total exposure value.' },
-          ciem:       { label: 'Privilege Risk', text: '8 privilege escalation paths detected. Cross-account trust relationships require immediate access review to prevent lateral movement.' },
+          cdr:        { label: 'CDR Detections', text: '8 privilege escalation paths detected. Cross-account trust relationships require immediate access review to prevent lateral movement.' },
         };
         const ins = insights[view] || { label: 'Summary', text: 'Review the findings below and prioritise by severity.' };
         return (
@@ -2911,7 +2912,7 @@ export default function DashboardPage() {
     { id: 'datasec', label: 'Data', Icon: Lock, color: '#ec4899', score: 85 },
     { id: 'network', label: 'Network', Icon: Network, color: '#3b82f6', score: 80 },
     { id: 'risk', label: 'Risk', Icon: Activity, color: '#f97316', score: 67 },
-    { id: 'ciem', label: 'CIEM', Icon: Eye, color: '#a855f7', score: 74 },
+    { id: 'cdr', label: 'CDR — Cloud Detection & Response', Icon: Eye, color: '#a855f7', score: 74 },
   ];
 
   // ── Inline sub-components ─────────────────────────────────────────────
@@ -3205,6 +3206,7 @@ export default function DashboardPage() {
 
   // ═══════════════════════════════════════════════════════════════════════════
   return (
+    <GuidedTourProvider>
     <div className="space-y-5">
 
       {/* ── Error state ───────────────────────────────────────────────────── */}
@@ -3231,15 +3233,20 @@ export default function DashboardPage() {
       )}
 
       {/* [2a] POSTURE SCORE BANNER ────────────────────────────────────────── */}
+      <div data-tour="tour-posture" className="flex items-start gap-3">
+        <div className="flex-1">
       <PostureScoreBanner
         score={kpiData.complianceScore || MOCK_POSTURE.score}
         delta={kpiData.complianceScoreChange || MOCK_POSTURE.delta}
         status={kpiData.complianceScore >= 75 ? 'Good' : kpiData.complianceScore >= 50 ? 'Fair' : 'Critical'}
         criticalActions={kpiData.criticalHighFindings || MOCK_POSTURE.criticalActions}
       />
+        </div>
+        <TourButton className="flex-shrink-0 mt-1" />
+      </div>
 
       {/* [2b] KPI STRIP — 5 action-oriented metrics ─────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div data-tour="tour-kpi" className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <KpiCard label="Total Assets" Icon={Server} href="/inventory" color="#3b82f6"
           value={kpiData.totalAssets || MOCK_DASHBOARD.total_assets}
           delta="+47 this week" deltaGood
@@ -3411,12 +3418,14 @@ export default function DashboardPage() {
       )}
 
       {/* [4] DOMAIN TAB SWITCHER ─────────────────────────────────────────── */}
-      <div className="rounded-xl border overflow-hidden" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+      <div data-tour="tour-tab-switcher" className="rounded-xl border overflow-hidden" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
         <div className="flex items-stretch overflow-x-auto">
           {tabs.map((tab) => {
             const isActive = activeView === tab.id;
             return (
-              <button key={tab.id} onClick={() => setActiveView(tab.id)}
+              <button key={tab.id}
+                data-tour={`tour-tab-${tab.id}`}
+                onClick={() => setActiveView(tab.id)}
                 className="flex flex-col items-center gap-1 px-4 py-3 border-r last:border-r-0 whitespace-nowrap transition-all hover:opacity-90 relative"
                 style={{
                   borderColor: 'var(--border-primary)',
@@ -3940,5 +3949,6 @@ export default function DashboardPage() {
       })()}
 
     </div>
+    </GuidedTourProvider>
   );
 }

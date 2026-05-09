@@ -1,0 +1,2462 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "BFF Contract Snapshot (phase0)",
+    "version": "phase0"
+  },
+  "paths": {},
+  "components": {
+    "schemas": {
+      "BaseFindingItem": {
+        "additionalProperties": true,
+        "description": "Required base for ALL per-CSP finding list item models.\n\nField naming rules (ADR-006):\n  - ``resource_uid``  \u2014 NOT arn / instance_id / compartment_id\n  - ``account_id``    \u2014 NOT subscription_id / project_id\n  - ``region``        \u2014 NOT availability_zone\n  - ``provider``      \u2014 required on every item; drives CSP icon in the UI\n  - ``provider_metadata`` \u2014 opaque dict for CSP-specific fields that don't\n                            normalize across providers\n\nCredential fields are declared ``exclude=True`` so they are never\nserialized into the HTTP response.",
+        "properties": {
+          "finding_id": {
+            "title": "Finding Id",
+            "type": "string"
+          },
+          "resource_uid": {
+            "title": "Resource Uid",
+            "type": "string"
+          },
+          "resource_type": {
+            "title": "Resource Type",
+            "type": "string"
+          },
+          "provider": {
+            "enum": [
+              "aws",
+              "azure",
+              "gcp",
+              "oci",
+              "alicloud",
+              "ibm",
+              "k8s"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "region": {
+            "title": "Region",
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low",
+              "info"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Account Id"
+          },
+          "scan_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Scan Run Id"
+          },
+          "first_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "First Seen At"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Last Seen At"
+          },
+          "credential_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Credential Ref"
+          },
+          "credential_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Credential Type"
+          },
+          "provider_metadata": {
+            "additionalProperties": true,
+            "title": "Provider Metadata",
+            "type": "object"
+          }
+        },
+        "required": [
+          "finding_id",
+          "resource_uid",
+          "resource_type",
+          "provider",
+          "region",
+          "severity",
+          "status"
+        ],
+        "title": "BaseFindingItem",
+        "type": "object"
+      },
+      "SeverityCounts": {
+        "$defs": {
+          "SeverityCounts": {
+            "additionalProperties": true,
+            "description": "Severity breakdown for a group of findings.\n\n``by_provider`` is populated only for multi-CSP aggregation pages\n(dashboard, compliance, risk).  Single-CSP pages leave it empty.",
+            "properties": {
+              "critical": {
+                "default": 0,
+                "title": "Critical",
+                "type": "integer"
+              },
+              "high": {
+                "default": 0,
+                "title": "High",
+                "type": "integer"
+              },
+              "medium": {
+                "default": 0,
+                "title": "Medium",
+                "type": "integer"
+              },
+              "low": {
+                "default": 0,
+                "title": "Low",
+                "type": "integer"
+              },
+              "info": {
+                "default": 0,
+                "title": "Info",
+                "type": "integer"
+              },
+              "by_provider": {
+                "additionalProperties": {
+                  "$ref": "#/$defs/SeverityCounts"
+                },
+                "title": "By Provider",
+                "type": "object"
+              }
+            },
+            "title": "SeverityCounts",
+            "type": "object"
+          }
+        },
+        "$ref": "#/$defs/SeverityCounts"
+      },
+      "BFFErrorResponse": {
+        "description": "Structured error envelope for all BFF 4xx/5xx responses.\n\nEvery handler that catches an upstream failure must return this model\n(never a raw dict or a plain string).",
+        "properties": {
+          "page": {
+            "title": "Page",
+            "type": "string"
+          },
+          "error_code": {
+            "title": "Error Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Detail"
+          },
+          "degraded_engines": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Degraded Engines",
+            "type": "array"
+          }
+        },
+        "required": [
+          "page",
+          "error_code",
+          "message"
+        ],
+        "title": "BFFErrorResponse",
+        "type": "object"
+      },
+      "PaginatedList": {
+        "additionalProperties": true,
+        "description": "Generic paginated response container.\n\nUse as the ``items`` field type in any view that returns a scrollable\ntable rather than a fixed-size KPI aggregate.\n\nExample:\n    class MisconfigResponse(BaseModel):\n        items: PaginatedList[MisconfigItem]",
+        "properties": {
+          "items": {
+            "items": {},
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          },
+          "page": {
+            "default": 1,
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "default": 50,
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          }
+        },
+        "title": "PaginatedList",
+        "type": "object"
+      },
+      "ScanRunRef": {
+        "description": "Lightweight reference to a completed scan run.",
+        "properties": {
+          "scan_run_id": {
+            "title": "Scan Run Id",
+            "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "enum": [
+                  "aws",
+                  "azure",
+                  "gcp",
+                  "oci",
+                  "alicloud",
+                  "ibm",
+                  "k8s"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Provider"
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Account Id"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Completed At"
+          },
+          "total_findings": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Total Findings"
+          }
+        },
+        "required": [
+          "scan_run_id"
+        ],
+        "title": "ScanRunRef",
+        "type": "object"
+      },
+      "KpiItem": {
+        "additionalProperties": true,
+        "description": "Single KPI tile rendered by the UI.",
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value"
+          },
+          "suffix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Suffix"
+          }
+        },
+        "required": [
+          "label",
+          "value"
+        ],
+        "title": "KpiItem",
+        "type": "object"
+      },
+      "KpiGroup": {
+        "$defs": {
+          "KpiItem": {
+            "additionalProperties": true,
+            "description": "Single KPI tile rendered by the UI.",
+            "properties": {
+              "label": {
+                "title": "Label",
+                "type": "string"
+              },
+              "value": {
+                "title": "Value"
+              },
+              "suffix": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Suffix"
+              }
+            },
+            "required": [
+              "label",
+              "value"
+            ],
+            "title": "KpiItem",
+            "type": "object"
+          }
+        },
+        "additionalProperties": true,
+        "description": "Named group of KPI tiles (one card on the page).",
+        "properties": {
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/$defs/KpiItem"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "KpiGroup",
+        "type": "object"
+      },
+      "PageTab": {
+        "additionalProperties": true,
+        "description": "Single tab in the page-context tab strip.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Count"
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "PageTab",
+        "type": "object"
+      },
+      "PageContext": {
+        "$defs": {
+          "PageTab": {
+            "additionalProperties": true,
+            "description": "Single tab in the page-context tab strip.",
+            "properties": {
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "label": {
+                "title": "Label",
+                "type": "string"
+              },
+              "count": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Count"
+              }
+            },
+            "required": [
+              "id",
+              "label"
+            ],
+            "title": "PageTab",
+            "type": "object"
+          }
+        },
+        "additionalProperties": true,
+        "description": "Standard pageContext envelope produced by `_page_context.py` helpers.",
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Title"
+          },
+          "brief": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Brief"
+          },
+          "details": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Details",
+            "type": "array"
+          },
+          "tabs": {
+            "items": {
+              "$ref": "#/$defs/PageTab"
+            },
+            "title": "Tabs",
+            "type": "array"
+          }
+        },
+        "title": "PageContext",
+        "type": "object"
+      },
+      "FilterField": {
+        "additionalProperties": true,
+        "description": "Wiz-style filter field descriptor (filterSchema entries).",
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "operators": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Operators",
+            "type": "array"
+          },
+          "values": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Values"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "type"
+        ],
+        "title": "FilterField",
+        "type": "object"
+      },
+      "_BaseViewResponse": {
+        "additionalProperties": true,
+        "description": "Base for all BFF view responses.\n\nextra=\"allow\" preserves the dozens of legacy / camelCase / snake_case\nfields each page returns without enumerating every one. The validator\nenforces credential-key denylist across the entire serialized output.",
+        "properties": {},
+        "title": "_BaseViewResponse",
+        "type": "object"
+      },
+      "ComplianceBlock": {
+        "$defs": {
+          "ComplianceMappingItem": {
+            "properties": {
+              "framework": {
+                "title": "Framework",
+                "type": "string"
+              },
+              "controlId": {
+                "title": "Controlid",
+                "type": "string"
+              },
+              "controlName": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Controlname"
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Status"
+              }
+            },
+            "required": [
+              "framework",
+              "controlId"
+            ],
+            "title": "ComplianceMappingItem",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "controlMappings": {
+            "items": {
+              "$ref": "#/$defs/ComplianceMappingItem"
+            },
+            "title": "Controlmappings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "available"
+        ],
+        "title": "ComplianceBlock",
+        "type": "object"
+      },
+      "ComplianceMappingItem": {
+        "properties": {
+          "framework": {
+            "title": "Framework",
+            "type": "string"
+          },
+          "controlId": {
+            "title": "Controlid",
+            "type": "string"
+          },
+          "controlName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Controlname"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Status"
+          }
+        },
+        "required": [
+          "framework",
+          "controlId"
+        ],
+        "title": "ComplianceMappingItem",
+        "type": "object"
+      },
+      "EngineExtensions": {
+        "additionalProperties": true,
+        "description": "Plugin slot \u2014 engines may register additional tab payloads.\n\nAllows extra fields, but the denylist validator blocks\nprototype-pollution-style key names.",
+        "properties": {},
+        "title": "EngineExtensions",
+        "type": "object"
+      },
+      "FindingDetailResponse": {
+        "$defs": {
+          "ComplianceBlock": {
+            "properties": {
+              "available": {
+                "title": "Available",
+                "type": "boolean"
+              },
+              "controlMappings": {
+                "items": {
+                  "$ref": "#/$defs/ComplianceMappingItem"
+                },
+                "title": "Controlmappings",
+                "type": "array"
+              }
+            },
+            "required": [
+              "available"
+            ],
+            "title": "ComplianceBlock",
+            "type": "object"
+          },
+          "ComplianceMappingItem": {
+            "properties": {
+              "framework": {
+                "title": "Framework",
+                "type": "string"
+              },
+              "controlId": {
+                "title": "Controlid",
+                "type": "string"
+              },
+              "controlName": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Controlname"
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Status"
+              }
+            },
+            "required": [
+              "framework",
+              "controlId"
+            ],
+            "title": "ComplianceMappingItem",
+            "type": "object"
+          },
+          "EngineExtensions": {
+            "additionalProperties": true,
+            "description": "Plugin slot \u2014 engines may register additional tab payloads.\n\nAllows extra fields, but the denylist validator blocks\nprototype-pollution-style key names.",
+            "properties": {},
+            "title": "EngineExtensions",
+            "type": "object"
+          },
+          "FindingHeader": {
+            "properties": {
+              "findingId": {
+                "title": "Findingid",
+                "type": "string"
+              },
+              "engine": {
+                "enum": [
+                  "check",
+                  "threat",
+                  "iam",
+                  "network-security",
+                  "datasec",
+                  "encryption",
+                  "container-security",
+                  "dbsec",
+                  "ai-security",
+                  "ciem",
+                  "secops"
+                ],
+                "title": "Engine",
+                "type": "string"
+              },
+              "ruleId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Ruleid"
+              },
+              "severity": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Severity"
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Status"
+              },
+              "title": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Title"
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Description"
+              },
+              "resourceUid": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resourceuid"
+              },
+              "resourceType": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resourcetype"
+              },
+              "resourceName": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resourcename"
+              },
+              "provider": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Provider"
+              },
+              "accountId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Accountid"
+              },
+              "region": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Region"
+              },
+              "firstSeenAt": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Firstseenat"
+              },
+              "lastSeenAt": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Lastseenat"
+              },
+              "riskScore": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Riskscore"
+              },
+              "standardColumns": {
+                "$ref": "#/$defs/StandardColumns"
+              },
+              "findingData": {
+                "additionalProperties": true,
+                "title": "Findingdata",
+                "type": "object"
+              }
+            },
+            "required": [
+              "findingId",
+              "engine",
+              "standardColumns"
+            ],
+            "title": "FindingHeader",
+            "type": "object"
+          },
+          "RelatedFinding": {
+            "properties": {
+              "engine": {
+                "enum": [
+                  "check",
+                  "threat",
+                  "iam",
+                  "network-security",
+                  "datasec",
+                  "encryption",
+                  "container-security",
+                  "dbsec",
+                  "ai-security",
+                  "ciem",
+                  "secops"
+                ],
+                "title": "Engine",
+                "type": "string"
+              },
+              "findingId": {
+                "title": "Findingid",
+                "type": "string"
+              },
+              "severity": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Severity"
+              },
+              "ruleId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Ruleid"
+              },
+              "title": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Title"
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Status"
+              }
+            },
+            "required": [
+              "engine",
+              "findingId"
+            ],
+            "title": "RelatedFinding",
+            "type": "object"
+          },
+          "RelatedFindingsBlock": {
+            "properties": {
+              "available": {
+                "title": "Available",
+                "type": "boolean"
+              },
+              "perEngineAvailability": {
+                "additionalProperties": {
+                  "type": "boolean"
+                },
+                "title": "Perengineavailability",
+                "type": "object"
+              },
+              "restrictedEngines": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Restrictedengines",
+                "type": "array"
+              },
+              "items": {
+                "items": {
+                  "$ref": "#/$defs/RelatedFinding"
+                },
+                "title": "Items",
+                "type": "array"
+              }
+            },
+            "required": [
+              "available"
+            ],
+            "title": "RelatedFindingsBlock",
+            "type": "object"
+          },
+          "RemediationBlock": {
+            "properties": {
+              "available": {
+                "title": "Available",
+                "type": "boolean"
+              },
+              "steps": {
+                "items": {
+                  "$ref": "#/$defs/RemediationStep"
+                },
+                "title": "Steps",
+                "type": "array"
+              },
+              "references": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "References",
+                "type": "array"
+              },
+              "estimatedEffort": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Estimatedeffort"
+              },
+              "slaPriority": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Slapriority"
+              },
+              "guidance": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Guidance"
+              },
+              "markdown": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Markdown"
+              },
+              "runbook_url": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Runbook Url"
+              }
+            },
+            "required": [
+              "available"
+            ],
+            "title": "RemediationBlock",
+            "type": "object"
+          },
+          "RemediationStep": {
+            "properties": {
+              "order": {
+                "title": "Order",
+                "type": "integer"
+              },
+              "action": {
+                "title": "Action",
+                "type": "string"
+              },
+              "detail": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Detail"
+              }
+            },
+            "required": [
+              "order",
+              "action"
+            ],
+            "title": "RemediationStep",
+            "type": "object"
+          },
+          "StandardColumns": {
+            "description": "The mandatory 14 columns echoed from every finding table.\n\n`credentialRef` and `credentialType` are excluded from serialization\nvia Field(exclude=True). The model_validator on FindingDetailResponse\nenforces the same rule across the full payload as defense-in-depth.",
+            "properties": {
+              "tenantId": {
+                "title": "Tenantid",
+                "type": "string"
+              },
+              "scanRunId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Scanrunid"
+              },
+              "credentialRef": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Credentialref"
+              },
+              "credentialType": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Credentialtype"
+              },
+              "findingId": {
+                "title": "Findingid",
+                "type": "string"
+              },
+              "accountId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Accountid"
+              },
+              "provider": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Provider"
+              },
+              "region": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Region"
+              },
+              "resourceUid": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resourceuid"
+              },
+              "resourceType": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resourcetype"
+              },
+              "severity": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Severity"
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Status"
+              },
+              "firstSeenAt": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Firstseenat"
+              },
+              "lastSeenAt": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Lastseenat"
+              }
+            },
+            "required": [
+              "tenantId",
+              "findingId"
+            ],
+            "title": "StandardColumns",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "finding": {
+            "$ref": "#/$defs/FindingHeader"
+          },
+          "header": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/FindingHeader"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "resourceContext": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resourcecontext"
+          },
+          "relatedFindings": {
+            "$ref": "#/$defs/RelatedFindingsBlock"
+          },
+          "compliance": {
+            "$ref": "#/$defs/ComplianceBlock"
+          },
+          "remediation": {
+            "$ref": "#/$defs/RemediationBlock"
+          },
+          "engineExtensions": {
+            "$ref": "#/$defs/EngineExtensions"
+          },
+          "tabPermissions": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tabpermissions"
+          },
+          "degradedEngines": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Degradedengines"
+          },
+          "restrictedEngines": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restrictedengines"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Evidence"
+          },
+          "related": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related"
+          },
+          "supporting": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supporting"
+          },
+          "partial": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Partial"
+          },
+          "allTabs": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alltabs"
+          }
+        },
+        "required": [
+          "finding",
+          "relatedFindings",
+          "compliance",
+          "remediation"
+        ],
+        "title": "FindingDetailResponse",
+        "type": "object"
+      },
+      "FindingHeader": {
+        "$defs": {
+          "StandardColumns": {
+            "description": "The mandatory 14 columns echoed from every finding table.\n\n`credentialRef` and `credentialType` are excluded from serialization\nvia Field(exclude=True). The model_validator on FindingDetailResponse\nenforces the same rule across the full payload as defense-in-depth.",
+            "properties": {
+              "tenantId": {
+                "title": "Tenantid",
+                "type": "string"
+              },
+              "scanRunId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Scanrunid"
+              },
+              "credentialRef": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Credentialref"
+              },
+              "credentialType": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Credentialtype"
+              },
+              "findingId": {
+                "title": "Findingid",
+                "type": "string"
+              },
+              "accountId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Accountid"
+              },
+              "provider": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Provider"
+              },
+              "region": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Region"
+              },
+              "resourceUid": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resourceuid"
+              },
+              "resourceType": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Resourcetype"
+              },
+              "severity": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Severity"
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Status"
+              },
+              "firstSeenAt": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Firstseenat"
+              },
+              "lastSeenAt": {
+                "anyOf": [
+                  {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Lastseenat"
+              }
+            },
+            "required": [
+              "tenantId",
+              "findingId"
+            ],
+            "title": "StandardColumns",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "findingId": {
+            "title": "Findingid",
+            "type": "string"
+          },
+          "engine": {
+            "enum": [
+              "check",
+              "threat",
+              "iam",
+              "network-security",
+              "datasec",
+              "encryption",
+              "container-security",
+              "dbsec",
+              "ai-security",
+              "ciem",
+              "secops"
+            ],
+            "title": "Engine",
+            "type": "string"
+          },
+          "ruleId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ruleid"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Severity"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Status"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Title"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "resourceUid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resourceuid"
+          },
+          "resourceType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resourcetype"
+          },
+          "resourceName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resourcename"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Provider"
+          },
+          "accountId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Accountid"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Region"
+          },
+          "firstSeenAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Firstseenat"
+          },
+          "lastSeenAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lastseenat"
+          },
+          "riskScore": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Riskscore"
+          },
+          "standardColumns": {
+            "$ref": "#/$defs/StandardColumns"
+          },
+          "findingData": {
+            "additionalProperties": true,
+            "title": "Findingdata",
+            "type": "object"
+          }
+        },
+        "required": [
+          "findingId",
+          "engine",
+          "standardColumns"
+        ],
+        "title": "FindingHeader",
+        "type": "object"
+      },
+      "RelatedFinding": {
+        "properties": {
+          "engine": {
+            "enum": [
+              "check",
+              "threat",
+              "iam",
+              "network-security",
+              "datasec",
+              "encryption",
+              "container-security",
+              "dbsec",
+              "ai-security",
+              "ciem",
+              "secops"
+            ],
+            "title": "Engine",
+            "type": "string"
+          },
+          "findingId": {
+            "title": "Findingid",
+            "type": "string"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Severity"
+          },
+          "ruleId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ruleid"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Title"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Status"
+          }
+        },
+        "required": [
+          "engine",
+          "findingId"
+        ],
+        "title": "RelatedFinding",
+        "type": "object"
+      },
+      "RelatedFindingsBlock": {
+        "$defs": {
+          "RelatedFinding": {
+            "properties": {
+              "engine": {
+                "enum": [
+                  "check",
+                  "threat",
+                  "iam",
+                  "network-security",
+                  "datasec",
+                  "encryption",
+                  "container-security",
+                  "dbsec",
+                  "ai-security",
+                  "ciem",
+                  "secops"
+                ],
+                "title": "Engine",
+                "type": "string"
+              },
+              "findingId": {
+                "title": "Findingid",
+                "type": "string"
+              },
+              "severity": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Severity"
+              },
+              "ruleId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Ruleid"
+              },
+              "title": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Title"
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Status"
+              }
+            },
+            "required": [
+              "engine",
+              "findingId"
+            ],
+            "title": "RelatedFinding",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "perEngineAvailability": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "title": "Perengineavailability",
+            "type": "object"
+          },
+          "restrictedEngines": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Restrictedengines",
+            "type": "array"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/$defs/RelatedFinding"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "available"
+        ],
+        "title": "RelatedFindingsBlock",
+        "type": "object"
+      },
+      "RemediationBlock": {
+        "$defs": {
+          "RemediationStep": {
+            "properties": {
+              "order": {
+                "title": "Order",
+                "type": "integer"
+              },
+              "action": {
+                "title": "Action",
+                "type": "string"
+              },
+              "detail": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Detail"
+              }
+            },
+            "required": [
+              "order",
+              "action"
+            ],
+            "title": "RemediationStep",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/$defs/RemediationStep"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "references": {
+            "items": {
+              "type": "string"
+            },
+            "title": "References",
+            "type": "array"
+          },
+          "estimatedEffort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Estimatedeffort"
+          },
+          "slaPriority": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Slapriority"
+          },
+          "guidance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Guidance"
+          },
+          "markdown": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Markdown"
+          },
+          "runbook_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Runbook Url"
+          }
+        },
+        "required": [
+          "available"
+        ],
+        "title": "RemediationBlock",
+        "type": "object"
+      },
+      "RemediationStep": {
+        "properties": {
+          "order": {
+            "title": "Order",
+            "type": "integer"
+          },
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Detail"
+          }
+        },
+        "required": [
+          "order",
+          "action"
+        ],
+        "title": "RemediationStep",
+        "type": "object"
+      },
+      "StandardColumns": {
+        "description": "The mandatory 14 columns echoed from every finding table.\n\n`credentialRef` and `credentialType` are excluded from serialization\nvia Field(exclude=True). The model_validator on FindingDetailResponse\nenforces the same rule across the full payload as defense-in-depth.",
+        "properties": {
+          "tenantId": {
+            "title": "Tenantid",
+            "type": "string"
+          },
+          "scanRunId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Scanrunid"
+          },
+          "credentialRef": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Credentialref"
+          },
+          "credentialType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Credentialtype"
+          },
+          "findingId": {
+            "title": "Findingid",
+            "type": "string"
+          },
+          "accountId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Accountid"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Provider"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Region"
+          },
+          "resourceUid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resourceuid"
+          },
+          "resourceType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resourcetype"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Severity"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Status"
+          },
+          "firstSeenAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Firstseenat"
+          },
+          "lastSeenAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lastseenat"
+          }
+        },
+        "required": [
+          "tenantId",
+          "findingId"
+        ],
+        "title": "StandardColumns",
+        "type": "object"
+      },
+      "StatusUpdateRequest": {
+        "properties": {
+          "status": {
+            "enum": [
+              "OPEN",
+              "IN_PROGRESS",
+              "RESOLVED",
+              "SUPPRESSED",
+              "FALSE_POSITIVE"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Note"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "StatusUpdateRequest",
+        "type": "object"
+      }
+    }
+  }
+}

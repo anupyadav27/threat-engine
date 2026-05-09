@@ -41,7 +41,7 @@ const WORKLOAD_META = {
   images:     { label: 'Images',        icon: Box,       color: '#06b6d4', desc: 'Container image security + CVE scan' },
   hosts:      { label: 'Hosts / VMs',   icon: Server,    color: '#8b5cf6', desc: 'OS / middleware CVEs (agent-based)' },
   serverless: { label: 'Serverless',    icon: Activity,  color: '#f97316', desc: 'Lambda / Azure Functions / GCF' },
-  runtime:    { label: 'Runtime',       icon: Shield,    color: '#ef4444', desc: 'Privileged containers / CIEM events' },
+  runtime:    { label: 'Runtime',       icon: Shield,    color: '#ef4444', desc: 'Privileged containers / CDR events' },
 };
 
 // ── Per-workload stat config: [label, accessor, color] ────────────────────────
@@ -388,7 +388,7 @@ export default function CwppPage() {
       searchPlaceholder: 'Search runtime findings...',
       headerExtra: (
         <CiemRuntimeCard
-          ciemRuntimeEvents={pageData.runtime?.ciemRuntimeEvents}
+          cdrRuntimeEvents={pageData.runtime?.cdrRuntimeEvents}
           accountId={null}
         />
       ),

@@ -528,7 +528,7 @@ def cnapp_page_context(summary: Dict[str, Any]) -> Dict:
         "details": [
             "Unified Cloud-Native Application Protection Platform view across all security pillars",
             "CSPM: Cloud configuration compliance (check + compliance engines)",
-            "CIEM: Identity & entitlement management (ciem + iam engines)",
+            "CDR — Cloud Detection & Response (behavioral detection, log analysis)",
             "CWPP: Workload protection — containers, images, hosts, serverless, runtime",
             "DSPM: Data security posture — sensitive stores, encryption, PII/PHI exposure",
             "Network: 7-layer network posture — SGs, NACLs, WAF, flow logs",
@@ -542,7 +542,7 @@ def cnapp_page_context(summary: Dict[str, Any]) -> Dict:
 def cnapp_filter_schema() -> List[Dict]:
     return [
         _enum_field("pillar", "Pillar", [
-            "cspm", "ciem", "cwpp", "dspm", "network", "threat", "appsec",
+            "cspm", "cdr", "cwpp", "dspm", "network", "threat", "appsec",
         ]),
         _enum_field("risk_band", "Risk Band", ["critical", "high", "medium", "low", "unknown"]),
         _enum_field("status", "Status", ["ok", "unavailable", "no_data"]),

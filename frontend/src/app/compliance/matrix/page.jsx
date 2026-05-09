@@ -34,7 +34,7 @@ export default function ComplianceMatrixPage() {
   const [matrix, setMatrix] = useState({});       // { fw_key: { provider: score } }
   const [frameworkIds, setFrameworkIds] = useState({}); // { fw_key: { provider: engine_id } }
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState('config'); // config | ciem | combined
+  const [view, setView] = useState('config'); // config | cdr | combined
 
   useEffect(() => {
     fetchView('compliance/matrix', { view })
@@ -82,7 +82,7 @@ export default function ComplianceMatrixPage() {
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           {/* View toggle */}
-          {['config', 'ciem', 'combined'].map(v => (
+          {['config', 'cdr', 'combined'].map(v => (
             <button key={v} onClick={() => setView(v)}
               style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
                 border: view === v ? '2px solid var(--accent-primary)' : `1px solid ${C.border}`,

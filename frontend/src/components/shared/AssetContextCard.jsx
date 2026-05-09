@@ -13,7 +13,7 @@ const ENGINE_META = [
   { key: 'container',     label: 'Container',  route: '/container-security' },
   { key: 'dbsec',         label: 'Database',   route: '/database-security'  },
   { key: 'ai_security',   label: 'AI',         route: '/ai-security'        },
-  { key: 'ciem',          label: 'CIEM',       route: '/ciem'               },
+  { key: 'cdr',           label: 'CDR',        route: '/cdr'                },
 ];
 
 const SEV_STYLE = {

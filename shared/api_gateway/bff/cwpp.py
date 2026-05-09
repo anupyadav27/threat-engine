@@ -243,7 +243,7 @@ async def view_cwpp(
             },
             "runtime": {
                 "findings": (runtime_data.get("runtime_findings", []) + runtime_data.get("runtime_keyword_findings", [])),
-                "ciemRuntimeEvents": workloads.get("runtime", {}).get("ciem_runtime_events", {
+                "cdrRuntimeEvents": workloads.get("runtime", {}).get("cdr_runtime_events", {
                     "count": 0, "critical": 0, "high": 0, "medium": 0, "low": 0,
                     "link_available": False, "sample_findings": [],
                 }),

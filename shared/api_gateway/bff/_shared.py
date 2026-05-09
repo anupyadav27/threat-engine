@@ -31,7 +31,7 @@ ENGINE_URLS: Dict[str, str] = {
     "onboarding":    os.getenv("ONBOARDING_ENGINE_URL",     "http://engine-onboarding:8008"),
     "rule":          os.getenv("RULE_ENGINE_URL",           "http://engine-rule:8000"),
     "network":       os.getenv("NETWORK_ENGINE_URL",        "http://engine-network:80"),
-    "ciem":          os.getenv("CIEM_ENGINE_URL",           "http://engine-ciem"),
+    "cdr":          os.getenv("CDR_ENGINE_URL",           "http://engine-cdr"),
     "ai_security":   os.getenv("AI_SECURITY_ENGINE_URL",    "http://engine-ai-security"),
     "container_sec": os.getenv("CONTAINER_SEC_ENGINE_URL",  "http://engine-container-sec"),
     "cnapp":         os.getenv("CNAPP_ENGINE_URL",          "http://engine-cnapp"),

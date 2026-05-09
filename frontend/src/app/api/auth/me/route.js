@@ -23,7 +23,7 @@ export async function GET() {
         'inventory:read', 'inventory:write',
         'check:read', 'compliance:read',
         'iam:read', 'datasec:read',
-        'ciem:read', 'cwpp:read',
+        'cdr:read', 'cwpp:read',
         'container_security:read', 'database_security:read',
         'ai_security:read', 'encryption:read',
         'network:read', 'risk:read',
@@ -42,7 +42,7 @@ export async function GET() {
     permissions: [
       'platform:admin',
       'threat:read', 'inventory:read', 'check:read',
-      'iam:read', 'datasec:read', 'ciem:read', 'cwpp:read',
+      'iam:read', 'datasec:read', 'cdr:read', 'cwpp:read',
       'container_security:read', 'database_security:read',
       'ai_security:read', 'encryption:read', 'network:read',
       'risk:read', 'discoveries:read', 'compliance:read',

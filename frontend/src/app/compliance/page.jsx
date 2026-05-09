@@ -162,12 +162,12 @@ export default function CompliancePage() {
             <MiniStat label="Fail" value={fwDetail.summary?.FAIL || 0} color={C.fail} />
             <MiniStat label="Partial" value={fwDetail.summary?.PARTIAL || 0} color={C.partial} />
             <MiniStat label="N/A" value={fwDetail.summary?.NOT_APPLICABLE || 0} color={C.na} />
-            {/* Config vs CIEM split — surfaced from enriched CSV */}
-            {(fwDetail.config_score != null || fwDetail.ciem_score != null) && (
+            {/* Config vs CDR split — surfaced from enriched CSV */}
+            {(fwDetail.config_score != null || fwDetail.cdr_score != null) && (
               <>
                 <div style={{ width: 1, backgroundColor: C.border, alignSelf: 'stretch' }} />
                 <CiemConfigBar label="Config" score={fwDetail.config_score ?? fwDetail.score} />
-                <CiemConfigBar label="CIEM" score={fwDetail.ciem_score ?? 0} gap={(fwDetail.config_score ?? 0) - (fwDetail.ciem_score ?? 0)} />
+                <CiemConfigBar label="CDR" score={fwDetail.cdr_score ?? 0} gap={(fwDetail.config_score ?? 0) - (fwDetail.cdr_score ?? 0)} />
               </>
             )}
           </div>
@@ -494,11 +494,11 @@ export default function CompliancePage() {
                     </Section>
                   )}
 
-                  {/* CIEM checks list */}
-                  {controlDetail?.ciem_checks?.length > 0 && (
-                    <Section title="CIEM Checks">
+                  {/* CDR detections list */}
+                  {controlDetail?.cdr_checks?.length > 0 && (
+                    <Section title="CDR Detections">
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {controlDetail.ciem_checks.map((ck) => (
+                        {controlDetail.cdr_checks.map((ck) => (
                           <a key={ck.check_id} href={`/check/${ck.provider}/${ck.check_id}`}
                             style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', borderRadius: 6, backgroundColor: 'rgba(139,92,246,0.07)', textDecoration: 'none', border: `1px solid rgba(139,92,246,0.2)` }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -751,7 +751,7 @@ function StatBox({ label, value, color }) {
 }
 
 function CiemConfigBar({ label, score, gap }) {
-  const color = label === 'CIEM' ? '#8b5cf6' : '#3b82f6';
+  const color = label === 'CDR' ? '#8b5cf6' : '#3b82f6';
   return (
     <div style={{ minWidth: 120 }}>
       <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>

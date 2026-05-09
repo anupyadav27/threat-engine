@@ -20,7 +20,7 @@ from typing import Dict, List, Optional
 
 PILLAR_WEIGHTS: Dict[str, float] = {
     "cspm":    0.20,
-    "ciem":    0.20,
+    "cdr":     0.20,
     "cwpp":    0.20,
     "dspm":    0.15,
     "network": 0.15,
