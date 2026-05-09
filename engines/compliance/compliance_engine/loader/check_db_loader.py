@@ -8,11 +8,14 @@ Use this for the Discovery → Check → Threat → Compliance flow when
 all data is stored in local PostgreSQL. Configure via CHECK_DB_* env vars.
 """
 
+import logging
 import os
 import json
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
 from collections import defaultdict
+
+logger = logging.getLogger(__name__)
 
 try:
     import psycopg2
@@ -193,7 +196,12 @@ class CheckDBLoader:
                     else:
                         rec["scan_timestamp"] = datetime.now(timezone.utc).isoformat() + "Z"
                     rows.append(rec)
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "CheckDBLoader: failed to load check_findings "
+                "(scan_run_id=%s tenant_id=%s): %s",
+                effective_scan_id, tenant_id, exc,
+            )
             return []
 
         return rows

@@ -197,6 +197,31 @@ def main():
         except Exception as ciem_pre_err:
             logger.warning(f"CIEM compliance pre-merge failed (non-fatal): {ciem_pre_err}")
 
+        # Merge technology-engine check findings (database CIS checks)
+        try:
+            from compliance_engine.loader.tech_db_loader import TechDBLoader
+            tech_loader = TechDBLoader()
+            try:
+                tech_scan = tech_loader.load_and_convert(
+                    scan_run_id=scan_run_id,
+                    tenant_id=tenant_id,
+                    account_id=account_id or "",
+                    csp=provider,
+                )
+                tech_results = tech_scan.get("results", [])
+                if tech_results:
+                    scan_results["results"] = scan_results.get("results", []) + tech_results
+                    logger.info(
+                        f"Tech DB: merged {sum(len(r['checks']) for r in tech_results)} "
+                        f"findings from {len(tech_results)} service/region groups"
+                    )
+                else:
+                    logger.info("Tech DB: no tech_check_findings for this scan_run_id")
+            finally:
+                tech_loader.close()
+        except Exception as tech_err:
+            logger.warning(f"Tech DB merge failed (non-fatal): {tech_err}")
+
         # Generate enterprise report
         from compliance_engine.schemas.enterprise_report_schema import (
             ScanContext, TriggerType, Cloud, CollectionMode,

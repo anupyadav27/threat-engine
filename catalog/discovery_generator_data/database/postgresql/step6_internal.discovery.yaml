@@ -1,0 +1,60 @@
+version: '1.0'
+provider: database
+engine: postgresql
+category: internal
+description: >
+  PostgreSQL internally-auditable checks — manually authored, not generated.
+  These checks query internal catalog tables not accessible via cloud APIs.
+  DO NOT overwrite with generate_tech_rules.py --apply (the generator guards this file).
+
+discovery:
+
+  - discovery_id: postgresql.internal.anonymous_user_existence
+    description: Ensure no anonymous (blank rolname) database user accounts exist
+    applicable_to: ["cloud_managed", "self_hosted"]
+    calls:
+
+      - action: query_table
+        query: "SELECT rolname FROM pg_roles WHERE rolname = '';"
+        save_as: result
+    emit_as: rows
+    emit:
+      as: rows
+      item:
+        check: anonymous_user_existence
+        value: "{{ result.rolname }}"
+        expected: ""
+
+
+  - discovery_id: postgresql.internal.pg_hba_auth_methods
+    description: Ensure pg_hba.conf does not use insecure authentication methods (trust, password, md5)
+    applicable_to: ["self_hosted"]
+    calls:
+
+      - action: query_table
+        query: "SELECT type, database, user_name, address, auth_method FROM pg_hba_file_rules;"
+        save_as: result
+    emit_as: rows
+    emit:
+      as: rows
+      item:
+        check: pg_hba_auth_methods
+        value: "{{ result.auth_method }}"
+        expected: "scram-sha-256"
+
+
+  - discovery_id: postgresql.internal.superuser_assignments
+    description: Ensure no unexpected accounts hold the superuser privilege
+    applicable_to: ["cloud_managed", "self_hosted"]
+    calls:
+
+      - action: query_table
+        query: "SELECT rolname FROM pg_roles WHERE rolsuper = true AND rolname NOT IN ('pg_read_all_data','pg_write_all_data');"
+        save_as: result
+    emit_as: rows
+    emit:
+      as: rows
+      item:
+        check: superuser_assignments
+        value: "{{ result.rolname }}"
+        expected: "postgres"

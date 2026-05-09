@@ -16,6 +16,11 @@ from common.models.connector_interface import (
 from executor.yaml_executor import TechYAMLExecutor
 from providers.db.connectors.db_connector import get_db_connector, BaseDBConnector
 
+try:
+    from engine_common.arn import host_to_resource_uid
+except ImportError:
+    from shared.common.arn import host_to_resource_uid
+
 logger = logging.getLogger(__name__)
 
 
@@ -61,6 +66,17 @@ class DBScanner(TechScanner):
             logger.warning("No discovery YAML for %s/%s: %s", self.tech_category, self.tech_type, exc)
             return []
 
+        # Canonical resource_uid for this database — same value the cloud engine
+        # stores in discovery_findings.resource_uid (DBInstanceArn for AWS RDS,
+        # hostname for self-hosted / Azure / GCP).  All findings for the same
+        # database share this uid so the compliance engine sees one asset, not one
+        # per discovery check.
+        canonical_uid = host_to_resource_uid(
+            host=self.host,
+            provider=self.tech_type,
+            account_id=self.account_id,
+        )
+
         findings: List[TechFinding] = []
 
         for entry in executor.queries:
@@ -74,13 +90,12 @@ class DBScanner(TechScanner):
             )
 
             for item in results:
-                raw_data     = item.get("raw_data", {})
-                resource_uid = item.get("resource_uid", f"{self.host}.{disc_id}")
-                error_msg    = raw_data.get("error") if "error" in raw_data else None
+                raw_data  = item.get("raw_data", {})
+                error_msg = raw_data.get("error") if "error" in raw_data else None
 
                 finding = self._build_finding(
                     discovery_id  = disc_id,
-                    resource_uid  = resource_uid,
+                    resource_uid  = canonical_uid,
                     resource_type = resource_type,
                     raw_data      = raw_data,
                     error_message = error_msg,

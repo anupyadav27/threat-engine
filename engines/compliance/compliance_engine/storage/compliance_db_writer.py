@@ -112,13 +112,13 @@ def save_compliance_report_to_db(compliance_report: Dict[str, Any]) -> str:
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO compliance_report (
-                    compliance_scan_id, scan_run_id, tenant_id, cloud,
+                    scan_run_id, tenant_id, cloud,
                     trigger_type, collection_mode,
                     started_at, completed_at,
                     total_controls, controls_passed, controls_failed,
                     total_findings, report_data
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
                 ON CONFLICT (scan_run_id) DO UPDATE SET
                     completed_at = EXCLUDED.completed_at,
                     total_controls = EXCLUDED.total_controls,
@@ -127,8 +127,7 @@ def save_compliance_report_to_db(compliance_report: Dict[str, Any]) -> str:
                     total_findings = EXCLUDED.total_findings,
                     report_data = EXCLUDED.report_data
             """, (
-                str(scan_run_id),  # compliance_scan_id
-                str(scan_run_id),  # scan_run_id
+                str(scan_run_id),
                 tenant_id or 'default',
                 csp,
                 'manual',
@@ -250,7 +249,7 @@ def list_compliance_scans(tenant_id: str, limit: int = 100) -> List[Dict[str, An
             cur.execute("""
                 SELECT
                     scan_run_id,
-                    scan_run_id,
+                    status,
                     cloud,
                     total_controls,
                     controls_passed,

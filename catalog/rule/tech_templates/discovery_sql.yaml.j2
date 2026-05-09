@@ -8,11 +8,22 @@ description: >
 
 discovery:
 {% for row in rows %}
+{% set title_lower = row.title | lower %}
   - discovery_id: {{ row._discovery_id }}
     description: {{ row.title | replace('"', "'") }}
+    applicable_to: {{ row._applicable_to | tojson }}
     calls:
-{% set title_lower = row.title | lower %}
-{% if 'list' in title_lower or ' all ' in title_lower or 'each' in title_lower or 'every' in title_lower %}
+{% if row._is_os_level %}
+      - action: run_command
+        command: {{ row._ssh_command | default('# TODO: extract command from audit_procedure') | tojson }}
+        save_as: result
+    emit:
+      as: item
+      item:
+        check: {{ row._check_slug }}
+        value: "{{ '{{' }} result.stdout {{ '}}' }}"
+        expected: "{{ row._expected_value }}"
+{% elif 'list' in title_lower or ' all ' in title_lower or 'each' in title_lower or 'every' in title_lower %}
       - action: query_table
         query: "{{ row._sql_query }}"
         save_as: rows
