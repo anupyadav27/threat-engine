@@ -10,7 +10,7 @@ import ToastContainer from '@/components/shared/Toast';
 import FetchInterceptorMount from '@/components/billing/FetchInterceptorMount';
 
 export const metadata = {
-  title: 'Threat Engine CSPM',
+  title: 'Onam Security',
   description: 'Cloud Security Posture Management Platform',
 };
 

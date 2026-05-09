@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   LayoutDashboard,
   UserPlus,
@@ -209,14 +210,13 @@ export default function Sidebar({ collapsed = false, onToggle }) {
     >
       {/* ── Logo ──────────────────────────────────────────────────────────── */}
       <div
-        className={`h-14 flex items-center gap-2.5 flex-shrink-0 ${collapsed ? 'justify-center px-0' : 'px-5'}`}
+        className={`h-14 flex items-center flex-shrink-0 ${collapsed ? 'justify-center px-2' : 'px-4'}`}
         style={{ borderBottom: '1px solid var(--border-primary)' }}
       >
-        <Shield size={22} className="text-blue-500 flex-shrink-0" />
-        {!collapsed && (
-          <span className="text-base font-bold truncate" style={{ color: 'var(--text-primary)' }}>
-            THREAT ENGINE
-          </span>
+        {collapsed ? (
+          <Image src="/logo.svg" alt="Onam Security" width={32} height={32} unoptimized style={{ objectFit: 'contain' }} />
+        ) : (
+          <Image src="/logo.svg" alt="Onam Security" width={140} height={47} unoptimized style={{ objectFit: 'contain' }} />
         )}
       </div>
 
