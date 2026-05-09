@@ -18,12 +18,12 @@
  *
  * Example registration (CIEM Activity Heatmap, kept commented for reference):
  *
- *   ciem: [
+ *   cdr: [
  *     {
  *       tabId: 'activity',
  *       label: 'Activity Heatmap',
- *       component: () => import('@/components/ciem/ActivityHeatmapTab'),
- *       fetchPath: (id) => `ciem/findings/${id}/activity`,
+ *       component: () => import('@/components/cdr/ActivityHeatmapTab'),
+ *       fetchPath: (id) => `cdr/findings/${id}/activity`,
  *     },
  *   ],
  */

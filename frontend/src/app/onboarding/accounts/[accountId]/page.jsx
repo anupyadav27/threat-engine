@@ -7,7 +7,7 @@
  *   Schedule     — active schedule + edit inline
  *   Scan History — recent scan_runs for this account
  *   Credentials  — re-validate, credential type/ref
- *   Log Sources  — CIEM log source config (CloudTrail, VPC Flow, etc.)
+ *   Log Sources  — CDR log source config (CloudTrail, VPC Flow, etc.)
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -532,7 +532,7 @@ function TabLogSources({ account, onRefresh }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          Configure S3 bucket locations for CIEM log collection.
+          Configure S3 bucket locations for CDR log collection.
           Leave empty to use auto-discovery mode.
         </p>
         <button onClick={handleSave} disabled={saving}

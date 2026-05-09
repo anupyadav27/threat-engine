@@ -308,9 +308,9 @@ async def view_compliance(
         {"id": "matrix", "label": "Account Matrix", "count": len(account_matrix)},
     ]
 
-    # -- Build config_checks and ciem_checks from failing controls -------------
+    # -- Build config_checks and cdr_checks from failing controls -------------
     config_checks = []
-    ciem_checks   = []
+    cdr_checks   = []
     for ctrl in failing:
         check_obj = {
             "check_id":     ctrl.get("control_id", ""),
@@ -322,8 +322,8 @@ async def view_compliance(
             "provider":     ctrl.get("account", ""),
             "framework":    ctrl.get("framework", ""),
         }
-        if "ciem" in ctrl.get("framework", "").lower() or "identity" in ctrl.get("title", "").lower():
-            ciem_checks.append(check_obj)
+        if "cdr" in ctrl.get("framework", "").lower() or "identity" in ctrl.get("title", "").lower():
+            cdr_checks.append(check_obj)
         else:
             config_checks.append(check_obj)
 
@@ -389,7 +389,7 @@ async def view_compliance(
         "failingControls":  failing,
         "filteredControls": filtered_controls,
         "config_checks":    config_checks,
-        "ciem_checks":      ciem_checks,
+        "cdr_checks":      cdr_checks,
         "totals":           totals,
         "modes":            modes,
         "trendData":        trend_data_out,

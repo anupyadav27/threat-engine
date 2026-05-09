@@ -81,8 +81,8 @@ def get_network_conn() -> psycopg2.extensions.connection:
     return _make_conn("NETWORK", "threat_engine_network")
 
 
-def get_ciem_conn() -> psycopg2.extensions.connection:
-    return _make_conn("CIEM", "threat_engine_ciem")
+def get_cdr_conn() -> psycopg2.extensions.connection:
+    return _make_conn("CDR", "threat_engine_cdr")
 
 
 def get_risk_conn() -> psycopg2.extensions.connection:

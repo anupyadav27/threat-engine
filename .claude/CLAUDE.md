@@ -14,7 +14,7 @@
 | compliance, CIS, NIST, framework score | `compliance` |
 | network, SG, VPC, topology, 7-layer | `network-security` |
 | IAM, identity, MFA, policy, root account | `iam` |
-| CIEM, entitlement, CloudTrail behavior | `ciem` |
+| CDR, cloud detection, log analysis, VPC Flow, behavioral detection | `cdr` |
 | risk, FAIR, exposure, blast radius score | `risk` |
 | datasec, data security, DSPM, S3 classification | `datasec` |
 | vulnerability, CVE, SBOM, agent-based | `vulnerability` |
@@ -87,7 +87,7 @@ Comprehensive Cloud Security Posture Management (CSPM) platform for multi-cloud 
 - **Compliance evaluation**: Map findings to 13+ frameworks (CIS, NIST, ISO 27001, PCI-DSS, HIPAA, GDPR, SOC 2)
 - **Threat detection**: MITRE ATT&CK technique mapping, risk scoring (0-100)
 - **Network security**: 7-layer topology analysis (isolation → reachability → ACL → SG → LB → WAF → monitoring)
-- **Security analysis**: IAM posture, Data security, CIEM, Vulnerability scanning
+- **Security analysis**: IAM posture, Data security, CDR, Vulnerability scanning
 
 ## Repository Structure
 
@@ -113,7 +113,7 @@ threat-engine/
 - `engines/datasec/`: Data security and classification (Port 8003)
 - `engines/secops/`: IaC scanning (14 languages) (Port 8005)
 - `engines/network-security/`: 7-layer network topology analysis (Port 8004)
-- `engines/ciem/`: Cloud Identity and Entitlement Management
+- `engines/cdr/`: CDR — Cloud Detection & Response
 - `engines/risk/`: Risk scoring and blast radius computation
 - `engines/rule/`: YAML rule management (Port 8011)
 - `engines/vulnerability/`: Vulnerability scanning (SBOM, DAST, CVE)
@@ -219,7 +219,7 @@ git commit -m "feat(engine-name): description"
 Onboarding → Discovery → Inventory → Check → Threat → Compliance/IAM/DataSec/Network
   (8008)      (8001)      (8022)     (8002)  (8020)       (8000/−/8003/8004)
                                                  ↓
-                                          CIEM + Risk
+                                          CDR + Risk
 ```
 
 ### Network Engine — 7-Layer Architecture
@@ -255,7 +255,7 @@ The network engine runs two phases:
 
 ## Rule Routing
 - **Config/posture rules** → `check` engine (`catalog/rule/{csp}_rule_check/`)
-- **CIEM/log-dependent rules** → `rule_ciem` (log event analysis, not discovery-based)
+- **CDR/log-dependent rules** → `rule_cdr` (log event analysis, not discovery-based)
 - **Network rules** tagged with `network_security.applicable=true` in `rule_metadata` → surfaced by network engine Layer 1
 
 ## Security & Access Control

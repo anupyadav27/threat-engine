@@ -737,9 +737,9 @@ async def view_asset_detail(
             max_depth=3,
         )
 
-    if resource_uid.endswith("/ciem"):
-        actual_uid = resource_uid[: -len("/ciem")]
-        return await view_asset_ciem(request=request, resource_uid=actual_uid)
+    if resource_uid.endswith("/cdr"):
+        actual_uid = resource_uid[: -len("/cdr")]
+        return await view_asset_cdr(request=request, resource_uid=actual_uid)
 
     # Encode resource_uid for use in URL paths — '/' in ARNs must be %2F so
     # FastAPI's {param:path} routes don't split on them.
@@ -870,7 +870,7 @@ async def _fetch_posture_for_nodes(
 _jny03_audit_logger = logging.getLogger("api-gateway.audit")
 
 
-def _jny03_emit_ciem_audit(
+def _jny03_emit_cdr_audit(
     *,
     endpoint: str,
     user_id: str,
@@ -914,17 +914,17 @@ def _jny03_emit_ciem_audit(
     _jny03_audit_logger.info(_json.dumps(payload))
 
 
-async def view_asset_ciem(request: Request, resource_uid: str) -> Dict[str, Any]:
+async def view_asset_cdr(request: Request, resource_uid: str) -> Dict[str, Any]:
     """BFF view: CIEM identity data for a specific asset.
 
     Security pattern (sequential — NOT parallel):
       1. Verify asset_id belongs to the caller's tenant via inventory engine.
       2. Only after ownership confirmed, call CIEM engine with resource_uid.
 
-    Permission gate: ciem:sensitive — analyst+ only. Viewer returns 403.
+    Permission gate: cdr:sensitive — analyst+ only. Viewer returns 403.
     tenant_id sourced exclusively from AuthContext (never from query param).
     """
-    _audit_endpoint = f"/api/v1/views/inventory/asset/{resource_uid}/ciem"
+    _audit_endpoint = f"/api/v1/views/inventory/asset/{resource_uid}/cdr"
     ctx = _parse_auth_context(request)
     if ctx is None:
         raise HTTPException(status_code=401, detail="Authentication required")
@@ -932,8 +932,8 @@ async def view_asset_ciem(request: Request, resource_uid: str) -> Dict[str, Any]
     _audit_user = getattr(ctx, "user_id", "unknown")
     _audit_tenant = resolve_tenant_id(request)
 
-    if "ciem:sensitive" not in ctx.permissions:
-        _jny03_emit_ciem_audit(
+    if "cdr:sensitive" not in ctx.permissions:
+        _jny03_emit_cdr_audit(
             endpoint=_audit_endpoint, user_id=_audit_user, tenant_id=_audit_tenant,
             target=resource_uid, target_field="asset_id", result=403, request=request,
         )
@@ -956,13 +956,13 @@ async def view_asset_ciem(request: Request, resource_uid: str) -> Dict[str, Any]
     )
     inv_asset = inv_resp[0] if inv_resp else None
     if not isinstance(inv_asset, dict) or not inv_asset.get("resource_uid"):
-        _jny03_emit_ciem_audit(
+        _jny03_emit_cdr_audit(
             endpoint=_audit_endpoint, user_id=_audit_user, tenant_id=_audit_tenant,
             target=resource_uid, target_field="asset_id", result=403, request=request,
         )
         raise HTTPException(status_code=403, detail="Asset not found or access denied")
     if tenant_id and inv_asset.get("tenant_id") not in (tenant_id, None):
-        _jny03_emit_ciem_audit(
+        _jny03_emit_cdr_audit(
             endpoint=_audit_endpoint, user_id=_audit_user, tenant_id=_audit_tenant,
             target=resource_uid, target_field="asset_id", result=403, request=request,
         )
@@ -971,17 +971,17 @@ async def view_asset_ciem(request: Request, resource_uid: str) -> Dict[str, Any]
     confirmed_uid = inv_asset.get("resource_uid") or resource_uid
 
     # Step 2 — ONLY after ownership confirmed: call CIEM engine
-    ciem_results = await fetch_many(
-        [("ciem", "/api/v1/ciem/findings", {"resource_uid": confirmed_uid, "tenant_id": tenant_id, "limit": "500"})],
+    cdr_results = await fetch_many(
+        [("cdr", "/api/v1/cdr/findings", {"resource_uid": confirmed_uid, "tenant_id": tenant_id, "limit": "500"})],
         auth_headers=fwd_headers,
     )
-    ciem_raw = ciem_results[0] if ciem_results else None
+    cdr_raw = cdr_results[0] if cdr_results else None
 
     findings: List[Dict[str, Any]] = []
-    if isinstance(ciem_raw, dict):
-        findings = ciem_raw.get("findings") or ciem_raw.get("data") or []
-    elif isinstance(ciem_raw, list):
-        findings = ciem_raw
+    if isinstance(cdr_raw, dict):
+        findings = cdr_raw.get("findings") or cdr_raw.get("data") or []
+    elif isinstance(cdr_raw, list):
+        findings = cdr_raw
 
     # Aggregate by actor_principal
     by_principal: Dict[str, Dict[str, Any]] = defaultdict(lambda: {
@@ -1054,7 +1054,7 @@ async def view_asset_ciem(request: Request, resource_uid: str) -> Dict[str, Any]
     truncated = len(identities) > 100
     over_privileged_count = sum(1 for i in identities if i["over_privileged"])
 
-    _jny03_emit_ciem_audit(
+    _jny03_emit_cdr_audit(
         endpoint=_audit_endpoint, user_id=_audit_user, tenant_id=_audit_tenant,
         target=resource_uid, target_field="asset_id", result=200, request=request,
         findings=identities[:5],
@@ -1681,11 +1681,11 @@ def _aggregate_by_principal(findings: list) -> list:
 _di05_audit_logger = logging.getLogger("api-gateway.audit")
 
 
-@router.get("/inventory/{asset_id}/ciem")
-async def view_inventory_ciem(request: Request, asset_id: str):
+@router.get("/inventory/{asset_id}/cdr")
+async def view_inventory_cdr(request: Request, asset_id: str):
     """BFF: CIEM identity risk summary for a specific inventory asset.
 
-    Requires ciem:sensitive permission. Verifies asset ownership via inventory
+    Requires cdr:sensitive permission. Verifies asset ownership via inventory
     engine before fetching CIEM data (sequential by design — not parallel).
     """
     import httpx
@@ -1693,7 +1693,7 @@ async def view_inventory_ciem(request: Request, asset_id: str):
     ctx = _parse_auth_context(request)
     if ctx is None:
         raise HTTPException(status_code=401, detail="Authentication required")
-    if "ciem:sensitive" not in (ctx.permissions or []):
+    if "cdr:sensitive" not in (ctx.permissions or []):
         raise HTTPException(
             status_code=403,
             detail="You need Analyst access to view identity entitlements",
@@ -1715,18 +1715,18 @@ async def view_inventory_ciem(request: Request, asset_id: str):
     resource_uid = inv_data.get("resource_uid") or asset_id
 
     # Step 2: fetch CIEM findings only after ownership confirmed
-    ciem_url = f"{ENGINE_URLS['ciem']}/api/v1/ciem/findings"
+    cdr_url = f"{ENGINE_URLS['cdr']}/api/v1/cdr/findings"
     async with httpx.AsyncClient(timeout=15.0) as client:
-        ciem_resp = await client.get(
-            ciem_url,
+        cdr_resp = await client.get(
+            cdr_url,
             params={"resource_uid": resource_uid, "tenant_id": tenant_id, "limit": 100},
         )
 
-    ciem_findings = ciem_resp.json() if ciem_resp.status_code == 200 else []
-    if isinstance(ciem_findings, dict):
-        ciem_findings = ciem_findings.get("findings") or ciem_findings.get("items") or []
+    cdr_findings = cdr_resp.json() if cdr_resp.status_code == 200 else []
+    if isinstance(cdr_findings, dict):
+        cdr_findings = cdr_findings.get("findings") or cdr_findings.get("items") or []
 
-    all_identities = _aggregate_by_principal(ciem_findings)
+    all_identities = _aggregate_by_principal(cdr_findings)
     truncated = len(all_identities) > 100
     identities = all_identities[:100]
     over_privileged = sum(
@@ -1741,7 +1741,7 @@ async def view_inventory_ciem(request: Request, asset_id: str):
             "user_id": getattr(ctx, "user_id", "unknown"),
             "tenant_id": tenant_id,
             "asset_id": asset_id,
-            "endpoint": f"/api/v1/views/inventory/{asset_id}/ciem",
+            "endpoint": f"/api/v1/views/inventory/{asset_id}/cdr",
             "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         },
     )

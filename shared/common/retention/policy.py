@@ -77,10 +77,10 @@ ENGINE_POLICY: dict = {
             {"name": "datasec_findings", "timestamp_col": "first_seen_at", "partition_by": "provider"},
         ],
     },
-    "ciem": {
-        "conn_factory": "get_ciem_conn",
+    "cdr": {
+        "conn_factory": "get_cdr_conn",
         "tables": [
-            {"name": "ciem_findings", "timestamp_col": "first_seen_at", "partition_by": "provider"},
+            {"name": "cdr_findings", "timestamp_col": "first_seen_at", "partition_by": "provider"},
         ],
     },
     "risk": {

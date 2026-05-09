@@ -73,8 +73,8 @@ from .scan_status import router as scan_status_router
 from .reports import router as reports_router
 from .rules import router as rules_router
 from .scope import router as scope_router
-from .ciem import router as ciem_router
-from .ciem_identity import router as ciem_identity_router
+from .cdr import router as cdr_router
+from .cdr_identity import router as cdr_identity_router
 from .secops import router as secops_router
 from .policies import router as policies_router
 from .ai_security import router as ai_security_router
@@ -125,8 +125,8 @@ for _sub in (
     reports_router,
     rules_router,
     scope_router,
-    ciem_router,
-    ciem_identity_router,
+    cdr_router,
+    cdr_identity_router,
     secops_router,
     policies_router,
     ai_security_router,

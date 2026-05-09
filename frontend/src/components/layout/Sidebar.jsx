@@ -35,6 +35,9 @@ import {
   Search,
   Container,
   Brain,
+  Package,
+  LayoutGrid,
+  DollarSign,
 } from 'lucide-react';
 import { NAV_ITEMS } from '@/lib/constants';
 import { useTheme } from '@/lib/theme-context';
@@ -68,6 +71,9 @@ const ICON_MAP = {
   Container,
   Brain,
   Shield,
+  Package,
+  LayoutGrid,
+  DollarSign,
 };
 
 // Sidebar width constants
@@ -224,6 +230,25 @@ export default function Sidebar({ collapsed = false, onToggle }) {
             );
           }
 
+          // Section label support — text header when expanded, thin line when collapsed
+          if (item.sectionLabel) {
+            if (collapsed) {
+              return (
+                <div key={`sl-${idx}`} className="my-2 mx-4" style={{ borderTop: '1px solid var(--border-primary)' }} />
+              );
+            }
+            return (
+              <div key={`sl-${idx}`} className="px-5 pt-4 pb-1.5 mt-1">
+                <span
+                  className="text-[9px] font-bold uppercase tracking-widest select-none"
+                  style={{ color: 'var(--text-muted)', letterSpacing: '0.12em' }}
+                >
+                  {item.sectionLabel}
+                </span>
+              </div>
+            );
+          }
+
           const Icon        = ICON_MAP[item.icon];
           const active      = isParentActive(item);
           const hasChildren = item.children && item.children.length > 0;
@@ -235,7 +260,7 @@ export default function Sidebar({ collapsed = false, onToggle }) {
                 <Link
                   href={item.href}
                   title={collapsed ? item.label : undefined}
-                  className={`flex-1 flex items-center gap-3 py-2.5 text-sm font-medium transition-colors duration-150 ${collapsed ? 'justify-center px-0' : 'px-5'}`}
+                  className={`flex-1 flex items-center gap-3 py-2 text-sm font-medium transition-colors duration-150 ${collapsed ? 'justify-center px-0' : 'px-5'}`}
                   style={{
                     backgroundColor: active ? 'var(--sidebar-active)' : 'transparent',
                     color:           active ? 'var(--sidebar-active-text)' : 'var(--text-tertiary)',
@@ -247,7 +272,16 @@ export default function Sidebar({ collapsed = false, onToggle }) {
                   onMouseLeave={(e) => { if (!active) e.currentTarget.style.backgroundColor = 'transparent'; }}
                 >
                   {Icon && <Icon size={18} className="flex-shrink-0" />}
-                  {!collapsed && <span className="truncate">{item.label}</span>}
+                  {!collapsed && (
+                    <span className="flex flex-col min-w-0 flex-1">
+                      <span className="truncate leading-tight">{item.label}</span>
+                      {item.subtitle && (
+                        <span className="truncate text-[10px] font-normal leading-tight mt-0.5" style={{ color: 'var(--text-muted)', opacity: 0.75 }}>
+                          {item.subtitle}
+                        </span>
+                      )}
+                    </span>
+                  )}
                   {!collapsed && item.badgeKey && badgeCounts[item.badgeKey] > 0 && (
                     <span style={{
                       marginLeft: 'auto',

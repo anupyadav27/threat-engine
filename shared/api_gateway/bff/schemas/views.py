@@ -202,8 +202,8 @@ class NetworkSecurityView(TypedDict):
     trendData: Optional[List[Dict[str, Any]]]
 
 
-class CiemView(TypedDict):
-    """Response shape for GET /api/v1/views/ciem."""
+class CdrView(TypedDict):
+    """Response shape for GET /api/v1/views/cdr."""
 
     pageContext: Optional[Dict[str, Any]]
     kpiGroups: List[KpiGroup]

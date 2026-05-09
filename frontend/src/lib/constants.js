@@ -70,7 +70,7 @@ export const NAV_ITEMS = [
     href: '/inventory',
     icon: 'Server',
     children: [
-      { label: 'Assets', href: '/inventory' },
+      { label: 'Assets',       href: '/inventory' },
       { label: 'Architecture', href: '/inventory/architecture' },
     ],
   },
@@ -78,11 +78,11 @@ export const NAV_ITEMS = [
     label: 'Threats',
     href: '/threats',
     icon: 'AlertTriangle',
+    subtitle: 'ATT&CK · Attack Paths',
     accentColor: '#EA580C',
     badgeKey: 'threatCriticalHighCount',
     children: [
       { label: 'Command Room',     href: '/threats' },
-      { label: 'Scenarios List',   href: '/threats/scenarios' },
       { label: 'ATT&CK Coverage',  href: '/threats/attack-map' },
       { label: 'Graph Explorer',   href: '/threats/graph' },
       { label: 'Trends & Posture', href: '/threats/trends' },
@@ -92,62 +92,85 @@ export const NAV_ITEMS = [
     label: 'Vulnerabilities',
     href: '/vulnerability',
     icon: 'Bug',
+    subtitle: 'VM · CVE · SBOM',
     children: [
-      { label: 'Dashboard', href: '/vulnerability' },
-      { label: 'Scans', href: '/vulnerability/scans' },
+      { label: 'Dashboard',    href: '/vulnerability' },
+      { label: 'Scans',        href: '/vulnerability/scans' },
       { label: 'CVE Explorer', href: '/vulnerability/cves' },
-      { label: 'Agents', href: '/vulnerability/agents' },
+      { label: 'Agents',       href: '/vulnerability/agents' },
     ],
   },
+  { label: 'Risk', href: '/risk', icon: 'Activity', subtitle: 'FAIR Model' },
   {
     label: 'Compliance',
     href: '/compliance',
     icon: 'ClipboardCheck',
+    subtitle: 'CIS · NIST · PCI · HIPAA',
     children: [
-      { label: 'Frameworks', href: '/compliance' },
+      { label: 'Frameworks',         href: '/compliance' },
       { label: 'Multi-Cloud Matrix', href: '/compliance/matrix' },
-      { label: 'Remediation Queue', href: '/compliance/remediation' },
+      { label: 'Remediation Queue',  href: '/compliance/remediation' },
     ],
   },
+
+  // ── CLOUD POSTURE ─────────────────────────────────────────────────────────
+  { sectionLabel: 'CLOUD POSTURE' },
   {
-    label: 'Security Posture',
+    label: 'Cloud Posture',
     href: '/misconfig',
     icon: 'Shield',
+    subtitle: 'CSPM',
     children: [
-      { label: 'Posture Security', href: '/misconfig', icon: 'ShieldAlert' },
-      { label: 'IAM Security', href: '/iam', icon: 'KeyRound' },
-      { label: 'Network Security', href: '/network-security', icon: 'Network' },
-      { label: 'Data Security', href: '/datasec', icon: 'Lock' },
-      { label: 'Encryption', href: '/encryption', icon: 'Lock' },
-      { label: 'Database Security', href: '/database-security', icon: 'Database' },
-      { label: 'Container Security', href: '/container-security', icon: 'Container' },
-      { label: 'AI Security', href: '/ai-security', icon: 'Brain' },
+      { label: 'Misconfigurations',  href: '/misconfig',          icon: 'ShieldAlert' },
+      { label: 'IAM Security',       href: '/iam',                icon: 'KeyRound'    },
+      { label: 'Network Security',   href: '/network-security',   icon: 'Network'     },
+      { label: 'Encryption',         href: '/encryption',         icon: 'Lock'        },
+      { label: 'Container Security', href: '/container-security', icon: 'Container'   },
+      { label: 'AI Security',        href: '/ai-security',        icon: 'Brain'       },
     ],
   },
-  { label: 'CIEM', href: '/ciem', icon: 'Eye' },
-  { label: 'CNAPP', href: '/cnapp', icon: 'Shield' },
-  { label: 'CWPP', href: '/cwpp', icon: 'Container' },
+
+  // ── DETECTION & DATA ──────────────────────────────────────────────────────
+  { sectionLabel: 'DETECTION & DATA' },
+  { label: 'CDR',  href: '/cdr',  icon: 'Eye',       subtitle: 'Cloud Detection & Response' },
+  { label: 'CWPP', href: '/cwpp', icon: 'Container', subtitle: 'Cloud Workload Protection'  },
+  {
+    label: 'Data Security',
+    href: '/datasec',
+    icon: 'Lock',
+    subtitle: 'DSPM · Database',
+    children: [
+      { label: 'Data Posture',      href: '/datasec',           icon: 'Lock'     },
+      { label: 'Database Security', href: '/database-security', icon: 'Database' },
+    ],
+  },
+
+  // ── CODE SECURITY ─────────────────────────────────────────────────────────
+  { sectionLabel: 'CODE SECURITY' },
   {
     label: 'Code Security',
     href: '/secops',
     icon: 'Code',
+    subtitle: 'SAST · SCA · IaC',
     children: [
-      { label: 'SecOps', href: '/secops' },
+      { label: 'Overview', href: '/secops',          icon: 'Code'       },
+      { label: 'Projects', href: '/secops/projects', icon: 'FileText'   },
+      { label: 'Reports',  href: '/secops/reports',  icon: 'ScrollText' },
     ],
   },
-  { label: 'Risk', href: '/risk', icon: 'Activity' },
+
+  // ── PLATFORM ──────────────────────────────────────────────────────────────
+  { sectionLabel: 'PLATFORM' },
   { label: 'Reports', href: '/reports', icon: 'FileText' },
-  // ── separator ──
-  { separator: true },
   {
     label: 'Onboarding',
     href: '/onboarding',
     icon: 'UserPlus',
     children: [
       { label: 'Cloud Accounts', href: '/onboarding' },
-      { label: 'Users', href: '/onboarding/users' },
-      { label: 'Tenants', href: '/onboarding/tenants' },
-      { label: 'Scans', href: '/scans' },
+      { label: 'Users',          href: '/onboarding/users' },
+      { label: 'Tenants',        href: '/onboarding/tenants' },
+      { label: 'Scans',          href: '/scans' },
     ],
   },
   {
@@ -155,7 +178,7 @@ export const NAV_ITEMS = [
     href: '/policies',
     icon: 'BookOpen',
     children: [
-      { label: 'All Policies', href: '/policies' },
+      { label: 'All Policies',    href: '/policies' },
       { label: 'Rule Management', href: '/rules' },
     ],
   },
@@ -164,10 +187,13 @@ export const NAV_ITEMS = [
     href: '/settings',
     icon: 'Settings',
     children: [
-      { label: 'Platform', href: '/settings' },
+      { label: 'Platform',      href: '/settings' },
       { label: 'Notifications', href: '/settings/notifications' },
     ],
   },
+
+  // ── ADMINISTRATION ────────────────────────────────────────────────────────
+  { sectionLabel: 'ADMINISTRATION' },
   {
     label: 'Admin Dashboard',
     href: '/admin/dashboard',

@@ -3,7 +3,7 @@
 Delegates to the CNAPP engine (/api/v1/cnapp/dashboard) which aggregates
 all 7 CNAPP pillars in parallel:
   CSPM    — check + compliance engines
-  CIEM    — ciem + iam engines
+  CDR     — cdr + iam engines
   CWPP    — cwpp engine (containers, images, hosts, serverless, runtime)
   DSPM    — datasec engine
   Network — network-security engine
@@ -104,7 +104,7 @@ async def view_cnapp(
     page_ctx["tabs"] = [
         {"id": "overview",  "label": "Overview"},
         {"id": "cspm",      "label": "CSPM"},
-        {"id": "ciem",      "label": "CIEM"},
+        {"id": "cdr",       "label": "CDR — Cloud Detection & Response"},
         {"id": "cwpp",      "label": "CWPP"},
         {"id": "dspm",      "label": "DSPM"},
         {"id": "network",   "label": "Network"},
@@ -149,7 +149,7 @@ async def view_cnapp(
 
 _PILLAR_NAMES = {
     "cspm":    "Cloud Security Posture (CSPM)",
-    "ciem":    "Identity & Entitlement (CIEM)",
+    "cdr":     "CDR — Cloud Detection & Response",
     "cwpp":    "Workload Protection (CWPP)",
     "dspm":    "Data Security (DSPM)",
     "network": "Network Security",

@@ -1729,8 +1729,8 @@ _CIEM_LOG_SOURCES = [
 ]
 
 
-def mock_ciem() -> dict:
-    """Mock response for /api/v1/views/ciem — matches real BFF /ciem contract."""
+def mock_cdr() -> dict:
+    """Mock response for /api/v1/views/cdr — matches real BFF /cdr contract."""
     random.seed(42)
 
     acct0 = ACCOUNTS[0]["account_id"]
@@ -1917,7 +1917,7 @@ def mock_ciem() -> dict:
             {"severity": "low",      "count": 13},
         ],
         "engineBreakdown": [
-            {"primary_engine": "ciem",   "count": 52},
+            {"primary_engine": "cdr",   "count": 52},
             {"primary_engine": "threat", "count": 20},
             {"primary_engine": "iam",    "count": 15},
         ],
