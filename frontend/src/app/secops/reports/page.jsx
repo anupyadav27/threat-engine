@@ -931,7 +931,23 @@ export default function ReportsPage() {
             </p>
           </div>
           <button
-            onClick={() => alert('Export coming soon')}
+            onClick={() => {
+              const allScans = [
+                ...sastScans.map(s => ({ ...s, engine: 'SAST' })),
+                ...dastScans.map(s => ({ ...s, engine: 'DAST' })),
+                ...scaScans.map(s => ({ ...s, engine: 'SCA' })),
+              ];
+              const header = ['Engine', 'Scan ID', 'Status', 'Severity', 'Title', 'File', 'Line'];
+              const rows = allScans.map(s => [
+                s.engine, s.scan_id || s.id || '', s.status || '', s.severity || '',
+                s.title || s.rule || '', s.file || '', s.line || '',
+              ]);
+              const csv = [header, ...rows].map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+              const a = document.createElement('a');
+              a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }));
+              a.download = 'secops_report.csv';
+              a.click();
+            }}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl border hover:opacity-75 transition-opacity"
             style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-primary)', backgroundColor: 'var(--bg-card)' }}>
             <Download className="w-4 h-4" />

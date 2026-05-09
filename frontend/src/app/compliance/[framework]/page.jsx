@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import {
   Shield, ChevronRight, CheckCircle, XCircle, AlertTriangle,
   ChevronDown, ChevronUp, Database, Network, Eye, Lock, Server,
-  ExternalLink, Filter, Search, Info,
+  ExternalLink, Filter, Search, Info, Download,
 } from 'lucide-react';
 import Tooltip from '@/components/shared/Tooltip';
 import SeverityBadge from '@/components/shared/SeverityBadge';
@@ -275,6 +275,21 @@ function DomainCard({ domain, controls, onClick, active }) {
   );
 }
 
+/* ─── CSV export helper ────────────────────────────────────── */
+function exportControlsCsv(frameworkId, families) {
+  const header = ['Control ID', 'Title', 'Domain', 'Status', 'Severity', 'Fail Count'];
+  const rows = (families || []).flatMap(fam =>
+    (fam.controls || []).map(c => [
+      c.control_id, c.title || c.control_name, fam.family, c.status, c.severity, c.fail_count ?? 0,
+    ])
+  );
+  const csv = [header, ...rows].map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }));
+  a.download = `${frameworkId}_controls.csv`;
+  a.click();
+}
+
 /* ─── Main page ───────────────────────────────────────────── */
 
 export default function FrameworkDetailPage() {
@@ -490,6 +505,13 @@ export default function FrameworkDetailPage() {
             <span className={`px-3 py-1.5 rounded-full text-sm font-semibold ${col.bg} ${col.text}`}>
               {scoreLabel(summary.score)}
             </span>
+            <button
+              onClick={() => exportControlsCsv(frameworkId, data?.families)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-opacity hover:opacity-75"
+              style={{ borderColor: 'var(--border-primary)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-card)' }}
+            >
+              <Download className="w-3.5 h-3.5" /> Export CSV
+            </button>
           </div>
         </div>
       </div>

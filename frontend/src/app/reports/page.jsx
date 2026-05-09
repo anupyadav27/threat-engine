@@ -89,7 +89,25 @@ export default function ReportsPage() {
     { accessorKey: 'format', header: 'Format', cell: (info) => <code style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }} className="px-2 py-1 rounded text-xs">{info.getValue()}</code> },
     { accessorKey: 'size', header: 'Size', cell: (info) => <span style={{ color: 'var(--text-tertiary)' }}>{info.getValue()}</span> },
     { accessorKey: 'status', header: 'Status', cell: (info) => <span style={{ color: '#10b981' }} className="text-xs font-semibold flex items-center gap-1"><CheckCircle className="w-4 h-4" /> {info.getValue()}</span> },
-    { accessorKey: 'id', header: 'Action', cell: (info) => <button className="p-1 hover:opacity-70 transition-colors" style={{ color: 'var(--text-secondary)' }}><Download className="w-4 h-4" /></button> },
+    { accessorKey: 'id', header: 'Action', cell: (info) => {
+      const row = info.row.original;
+      return (
+        <button
+          className="p-1 hover:opacity-70 transition-colors"
+          style={{ color: 'var(--text-secondary)' }}
+          title={`Download ${row.name}`}
+          onClick={() => {
+            const content = JSON.stringify(row, null, 2);
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([content], { type: 'application/json' }));
+            a.download = `${(row.name || 'report').toLowerCase().replace(/\s+/g, '_')}.json`;
+            a.click();
+          }}
+        >
+          <Download className="w-4 h-4" />
+        </button>
+      );
+    }},
   ];
 
   const scheduledColumns = [

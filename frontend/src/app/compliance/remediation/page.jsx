@@ -1,6 +1,6 @@
 'use client';
 
-import { Shield, AlertTriangle, CheckCircle, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Shield, AlertTriangle, CheckCircle, Search, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { useState, useMemo, useEffect } from 'react';
 import { useViewFetch } from '@/lib/use-view-fetch';
 import SeverityBadge from '@/components/shared/SeverityBadge';
@@ -125,6 +125,22 @@ export default function ComplianceRemediationPage() {
             Failing compliance controls sorted by severity
           </p>
         </div>
+        <button
+          onClick={() => {
+            const header = ['Control ID', 'Title', 'Framework', 'Severity', 'Status', 'Resources'];
+            const rows = failingControls.map(c => [
+              c.control_id, c.control_title || c.title, c.framework, c.severity, c.status, c.resources ?? 0,
+            ]);
+            const csv = [header, ...rows].map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }));
+            a.download = 'remediation_queue.csv';
+            a.click();
+          }}
+          style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: `1px solid ${C.border}`, backgroundColor: 'var(--bg-card)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12 }}
+        >
+          <Download size={14} /> Export CSV
+        </button>
       </div>
 
       {/* ── Severity summary strip ── */}

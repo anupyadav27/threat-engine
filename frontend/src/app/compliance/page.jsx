@@ -26,6 +26,22 @@ const statusIcon = (s) => {
 
 const pct = (n, d) => d > 0 ? Math.round(100 * n / d) : 0;
 
+/* ─── CSV download helper ─────────────────────────────────── */
+function downloadCsv(filename, rows) {
+  const csv = rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }));
+  a.download = filename;
+  a.click();
+}
+
+function downloadJson(filename, obj) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' }));
+  a.download = filename;
+  a.click();
+}
+
 /* ═══════════════════════════════════════════════════════════
    Main Compliance Page — Orca-style single page
    ═══════════════════════════════════════════════════════════ */
@@ -146,23 +162,28 @@ export default function CompliancePage() {
           </p>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          {selectedFw && (
+          {selectedFw && fwDetail && (
             <>
               <button onClick={() => {
-                const origin = typeof window !== 'undefined' ? window.location.origin : '';
-                window.open(`${origin}/gateway/api/v1/views/compliance/framework/${selectedFw.id}/report?format=csv`, '_blank');
+                const header = ['Control ID', 'Title', 'Domain', 'Status', 'Severity', 'Fail Count'];
+                const rows = (fwDetail.families || []).flatMap(fam =>
+                  (fam.controls || []).map(c => [c.control_id, c.title, fam.family, c.status, c.severity, c.fail_count ?? 0])
+                );
+                downloadCsv(`${selectedFw.id}_controls.csv`, [header, ...rows]);
               }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: `1px solid ${C.border}`, backgroundColor: 'var(--bg-card)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12 }}>
                 <Download size={14} /> CSV
               </button>
-              <button onClick={() => {
-                const origin = typeof window !== 'undefined' ? window.location.origin : '';
-                window.open(`${origin}/gateway/api/v1/views/compliance/framework/${selectedFw.id}/report?format=json`, '_blank');
-              }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: `1px solid ${C.border}`, backgroundColor: 'var(--bg-card)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12 }}>
+              <button onClick={() => downloadJson(`${selectedFw.id}_report.json`, fwDetail)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: `1px solid ${C.border}`, backgroundColor: 'var(--bg-card)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12 }}>
                 <Download size={14} /> JSON
               </button>
             </>
           )}
-          <button style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: `1px solid ${C.border}`, backgroundColor: 'var(--bg-card)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>
+          <button onClick={() => {
+            const header = ['Framework', 'Provider', 'Score %', 'Passed', 'Failed', 'Total Controls'];
+            const rows = frameworks.map(f => [f.name, (f.provider || 'multi').toUpperCase(), f.score ?? 0, f.passed ?? 0, f.failed ?? 0, f.controls ?? 0]);
+            downloadCsv('compliance_frameworks.csv', [header, ...rows]);
+          }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: `1px solid ${C.border}`, backgroundColor: 'var(--bg-card)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>
             <Download size={14} /> Export
           </button>
         </div>
