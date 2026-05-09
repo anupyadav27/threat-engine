@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
@@ -1063,6 +1064,7 @@ function QuickWinsPanel({ findings }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function MisconfigurationsPage() {
+  const router = useRouter();
   const { data: rawData, loading, error, refetch } = useViewFetch('misconfig');
   const [exporting, setExporting] = useState(false);
   const [selectedFinding, setSelectedFinding] = useState(null);
@@ -1475,7 +1477,7 @@ export default function MisconfigurationsPage() {
           </div>
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{pageContext.brief}</p>
           {pageContext.details?.length > 0 && (
-            <button className="flex items-center gap-1 text-xs mt-1 hover:underline" style={{ color: 'var(--accent-primary)' }}>
+            <button onClick={() => router.push('/rules')} className="flex items-center gap-1 text-xs mt-1 hover:underline" style={{ color: 'var(--accent-primary)' }}>
               <span>Best practices</span>
             </button>
           )}

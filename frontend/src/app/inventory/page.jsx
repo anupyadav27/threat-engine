@@ -156,7 +156,7 @@ const getRiskLevel = (score) => {
 
 export default function InventoryPage() {
   const router = useRouter();
-  const { data, loading, error } = useViewFetch('inventory');
+  const { data, loading, error, refetch } = useViewFetch('inventory');
   const assets  = data.assets  || [];
   const summary = data.summary || null;
 
@@ -884,8 +884,10 @@ export default function InventoryPage() {
         <button
           className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm"
           style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}
+          onClick={refetch}
+          disabled={loading}
         >
-          <RefreshCw className="w-4 h-4" />
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </button>
         </div>

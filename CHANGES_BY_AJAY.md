@@ -781,5 +781,72 @@ of pagination state.
 
 ---
 
+## 15. Platform-Wide UI Interactivity Sprint (UI-QA-01)
+
+**Sprint story:** `.claude/planning/stories/UI-QA-01_platform_interactivity_sprint.md`
+
+**Problem:**
+A platform-wide audit of all frontend pages (excluding /threats/) revealed 11 broken interactive elements — buttons with no onClick handlers, stub alert() calls, and dead-end UX that gave users no feedback.
+
+**Fixes implemented (fixes 1–9):**
+
+### Fix 1 — Inventory Refresh button (`frontend/src/app/inventory/page.jsx`)
+Added `refetch` to `useViewFetch` destructuring. Refresh button now calls `refetch()` with `disabled={loading}` guard and `animate-spin` on the icon.
+
+### Fix 2–4 — Reports Generate buttons (`frontend/src/app/reports/page.jsx`)
+- Header "Generate Report" button scrolls to the templates grid via `templatesRef.scrollIntoView`.
+- "Generate Now" on each template card fetches real data from existing BFF views (`fetchView()`) and downloads a CSV blob client-side. Loading state shows spinner; button disabled while generating.
+- Threat Landscape card disabled with tooltip "Requires threat engine scan data" (no threat data available without scan).
+- Custom Report card opens the builder section.
+- Custom builder "Generate Report" fetches selected section views in parallel, merges rows, and downloads `custom_report.csv`. Disabled until at least one section is checked.
+- `TEMPLATE_FETCH` map: exec-summary → compliance+vulnerabilities, compliance-posture → compliance, vuln-status → vulnerabilities, iam-assessment → iam, datasec-audit → datasec, risk-assessment → risk.
+- `SECTION_VIEW` map: builder section names → BFF view keys.
+
+### Fix 5 — Settings Add Integration (`frontend/src/app/settings/page.jsx`)
+Replaced live button with `DisabledBtn` component showing tooltip: "Configure via Admin API — integration setup requires backend configuration". No fake modal.
+
+### Fix 6 — Settings Generate New Key (`frontend/src/app/settings/page.jsx`)
+Replaced live button with `DisabledBtn` showing tooltip: "Use POST /api/v1/admin/keys — key generation requires backend API call".
+
+### Fix 7 — Settings Add Rule (`frontend/src/app/settings/page.jsx`)
+Replaced live button with `DisabledBtn` showing tooltip: "Notification rules — backend rule engine coming in v2.0".
+
+### Fix 8 — Settings Save Changes / Security tab (`frontend/src/app/settings/page.jsx`)
+Save Changes reads all inputs inside `[data-settings-general]`, persists to `localStorage`, and shows inline success toast via `useInlineToast` hook (3s auto-dismiss, no external dependency).
+
+### Fix 9 — Misconfig Best Practices link (`frontend/src/app/misconfig/page.jsx`)
+Wired Best Practices button: `onClick={() => router.push('/rules')}` — navigates to rules catalog.
+
+**Additional export fixes (from earlier session):**
+- `frontend/src/app/compliance/page.jsx` — Export button downloads frameworks list as CSV
+- `frontend/src/app/compliance/[framework]/page.jsx` — Export CSV button exports controls for selected framework
+- `frontend/src/app/compliance/remediation/page.jsx` — Export CSV button exports all failing controls
+- `frontend/src/app/check/[provider]/[checkId]/page.jsx` — Download evidence JSON button downloads check object
+- `frontend/src/app/secops/reports/page.jsx` — Export replaced alert() with real CSV of SAST+DAST+SCA rows
+
+**Fix 10 — Trigger Scan (`/vulnerabilities`):** Deferred — to be discussed separately.
+
+**Design principle:**
+No fake UX anywhere. Every button either performs a real action (CSV download from BFF data, navigation, localStorage save) or is honestly disabled with a descriptive tooltip explaining what backend capability is needed.
+
+---
+
+## Files Changed Summary (additions from session 15 — UI-QA-01 sprint)
+
+| File | Type | Change |
+|---|---|---|
+| `frontend/src/app/reports/page.jsx` | Modified | generateReport + generateCustomReport functions; header button scroll; template card wiring; custom builder wiring; Threat Landscape disabled |
+| `frontend/src/app/inventory/page.jsx` | Modified | Refresh button wired to refetch() with loading guard |
+| `frontend/src/app/settings/page.jsx` | Modified | DisabledBtn component; useInlineToast hook; Add Integration/Key/Rule disabled; Save Changes localStorage |
+| `frontend/src/app/misconfig/page.jsx` | Modified | Best Practices button → router.push('/rules') |
+| `frontend/src/app/compliance/page.jsx` | Modified | Export CSV/JSON from frameworks data |
+| `frontend/src/app/compliance/[framework]/page.jsx` | Modified | Export CSV of controls |
+| `frontend/src/app/compliance/remediation/page.jsx` | Modified | Export CSV of failing controls |
+| `frontend/src/app/check/[provider]/[checkId]/page.jsx` | Modified | Download evidence JSON |
+| `frontend/src/app/secops/reports/page.jsx` | Modified | Real CSV export replacing alert() |
+| `frontend/src/lib/global-filter-context.jsx` | Modified | Static provider fallback (AWS/GCP/Azure/OCI/AliCloud/IBM) when onboarding unreachable |
+
+---
+
 *Prepared by: Ajay*
 *Date: 2026-05-09*
