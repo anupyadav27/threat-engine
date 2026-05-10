@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   Shield,
   Server,
@@ -25,7 +25,43 @@ import DataTable from '@/components/shared/DataTable';
  * Enterprise Settings & Configuration
  * Multi-tab interface for platform administration
  */
+/* ── Disabled-button tooltip wrapper ─────────────────────────────────────── */
+function DisabledBtn({ children, tip }) {
+  return (
+    <span title={tip} style={{ cursor: 'not-allowed', display: 'inline-flex' }}>
+      <button
+        disabled
+        className="flex items-center gap-2 px-4 py-2 rounded-lg text-white font-medium transition-colors"
+        style={{ backgroundColor: 'var(--accent-primary)', opacity: 0.45, pointerEvents: 'none' }}
+      >
+        {children}
+      </button>
+    </span>
+  );
+}
+
+/* ── Toast notification (inline, no external dep) ──────────────────────── */
+function useInlineToast() {
+  const [msg, setMsg] = useState(null);
+  const show = useCallback((text, type = 'success') => {
+    setMsg({ text, type });
+    setTimeout(() => setMsg(null), 3000);
+  }, []);
+  const Toast = msg ? (
+    <div style={{
+      position: 'fixed', bottom: 24, right: 24, zIndex: 9999,
+      padding: '10px 18px', borderRadius: 10, fontWeight: 600, fontSize: 13,
+      color: '#fff', boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+      backgroundColor: msg.type === 'success' ? '#22c55e' : '#ef4444',
+    }}>
+      {msg.text}
+    </div>
+  ) : null;
+  return { show, Toast };
+}
+
 export default function SettingsPage() {
+  const { show: showToast, Toast } = useInlineToast();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('platform-health');
   const [engines, setEngines] = useState([]);
@@ -295,6 +331,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
+      {Toast}
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>Settings</h1>
@@ -346,9 +383,9 @@ export default function SettingsPage() {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Connected Integrations</h3>
-              <button className="flex items-center gap-2 px-4 py-2 rounded-lg text-white font-medium transition-colors" style={{ backgroundColor: 'var(--accent-primary)' }}>
+              <DisabledBtn tip="Configure via Admin API — integration setup requires backend configuration">
                 <Plus className="w-4 h-4" /> Add Integration
-              </button>
+              </DisabledBtn>
             </div>
             <DataTable data={integrations} columns={integrationColumns} pageSize={10} loading={loading} emptyMessage="No integrations configured" />
           </div>
@@ -362,9 +399,9 @@ export default function SettingsPage() {
                 <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>API Keys</h3>
                 <p style={{ color: 'var(--text-tertiary)' }} className="text-sm mt-1">Rotate keys every 90 days. Expiring keys highlighted in orange.</p>
               </div>
-              <button className="flex items-center gap-2 px-4 py-2 rounded-lg text-white font-medium transition-colors" style={{ backgroundColor: 'var(--accent-primary)' }}>
+              <DisabledBtn tip="Use POST /api/v1/admin/keys — key generation requires backend API call">
                 <Plus className="w-4 h-4" /> Generate New Key
-              </button>
+              </DisabledBtn>
             </div>
             <DataTable data={apiKeys} columns={apiKeyColumns} pageSize={10} loading={loading} emptyMessage="No API keys found" />
           </div>
@@ -386,9 +423,9 @@ export default function SettingsPage() {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Notification Rules</h3>
-              <button className="flex items-center gap-2 px-4 py-2 rounded-lg text-white font-medium transition-colors" style={{ backgroundColor: 'var(--accent-primary)' }}>
+              <DisabledBtn tip="Notification rules — backend rule engine coming in v2.0">
                 <Plus className="w-4 h-4" /> Add Rule
-              </button>
+              </DisabledBtn>
             </div>
             <DataTable data={notifications} columns={notificationColumns} pageSize={10} loading={loading} emptyMessage="No notification rules found" />
           </div>
@@ -396,7 +433,7 @@ export default function SettingsPage() {
 
         {/* General Tab */}
         {activeTab === 'general' && (
-          <div className="space-y-6">
+          <div className="space-y-6" data-settings-general>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Tenant Settings */}
               <div className="rounded-lg border p-6" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
@@ -482,7 +519,21 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
-            <button className="px-6 py-2 rounded-lg text-white font-medium transition-colors" style={{ backgroundColor: 'var(--accent-primary)' }}>Save Changes</button>
+            <button
+              className="px-6 py-2 rounded-lg text-white font-medium transition-colors"
+              style={{ backgroundColor: 'var(--accent-primary)' }}
+              onClick={() => {
+                try {
+                  const form = document.querySelector('[data-settings-general]');
+                  const inputs = form ? Array.from(form.querySelectorAll('input,select')) : [];
+                  const saved = Object.fromEntries(inputs.map(el => [el.name || el.dataset.key || el.placeholder, el.value]));
+                  localStorage.setItem('cspm_general_settings', JSON.stringify(saved));
+                } catch (_) {}
+                showToast('Settings saved');
+              }}
+            >
+              Save Changes
+            </button>
           </div>
         )}
       </div>

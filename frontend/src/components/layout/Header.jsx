@@ -117,7 +117,7 @@ export default function Header() {
                 {/* All Tenants row — only visible to platform_admin */}
                 {isPlatformAdmin && (
                   <button
-                    onClick={() => { setActiveTenant(null); switchTenant(null); setShowTenantMenu(false); }}
+                    onClick={() => { setActiveTenant(null); switchTenant(null); setShowTenantMenu(false); router.refresh(); }}
                     className="w-full text-left px-3 py-2 text-xs border-b hover:opacity-75"
                     style={{ backgroundColor: activeTenant === null ? 'var(--bg-tertiary)' : 'transparent', color: 'var(--text-secondary)', borderColor: 'var(--border-primary)' }}
                   >
@@ -133,7 +133,7 @@ export default function Header() {
                 {tenants.map(t => (
                   <button
                     key={t.tenant_id}
-                    onClick={() => { setActiveTenant(t); switchTenant(t.engine_tenant_id || t.tenant_id); setShowTenantMenu(false); }}
+                    onClick={() => { setActiveTenant(t); switchTenant(t.engine_tenant_id || t.tenant_id); setShowTenantMenu(false); router.refresh(); }}
                     className="w-full text-left px-3 py-2 text-xs border-b last:border-b-0 hover:opacity-75"
                     style={{ backgroundColor: activeTenant?.tenant_id === t.tenant_id ? 'var(--bg-tertiary)' : 'transparent', color: 'var(--text-secondary)', borderColor: 'var(--border-primary)' }}
                   >

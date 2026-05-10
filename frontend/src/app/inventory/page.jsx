@@ -156,7 +156,7 @@ const getRiskLevel = (score) => {
 
 export default function InventoryPage() {
   const router = useRouter();
-  const { data, loading, error } = useViewFetch('inventory');
+  const { data, loading, error, refetch } = useViewFetch('inventory');
   const assets  = data.assets  || [];
   const summary = data.summary || null;
 
@@ -864,6 +864,19 @@ export default function InventoryPage() {
         <button
           className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm"
           style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}
+          onClick={() => {
+            const header = ['Resource ID', 'Name', 'Type', 'Provider', 'Region', 'Account', 'Status', 'Severity'];
+            const rows = assets.map(a => [
+              a.resource_uid || a.resource_id || '', a.name || '', a.resource_type || a.type || '',
+              (a.provider || a.csp || '').toUpperCase(), a.region || '', a.account_id || a.account || '',
+              a.status || '', a.severity || '',
+            ]);
+            const csv = [header, ...rows].map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }));
+            a.download = 'inventory_assets.csv';
+            a.click();
+          }}
         >
           <Download className="w-4 h-4" />
           Export
@@ -871,8 +884,10 @@ export default function InventoryPage() {
         <button
           className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm"
           style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}
+          onClick={refetch}
+          disabled={loading}
         >
-          <RefreshCw className="w-4 h-4" />
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </button>
         </div>
