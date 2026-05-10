@@ -7,6 +7,7 @@ import Tooltip from '@/components/shared/Tooltip';
 import { TENANT_ID, FRAMEWORKS, CLOUD_PROVIDERS } from '@/lib/constants';
 import { fetchView } from '@/lib/api';
 import { useGlobalFilter } from '@/lib/global-filter-context';
+import { useTenant } from '@/lib/tenant-context';
 
 const C = {
   pass: '#22c55e', fail: '#ef4444', partial: '#f59e0b', na: '#6b7280',
@@ -34,6 +35,7 @@ function scoreText(score) {
 export default function ComplianceMatrixPage() {
   const router = useRouter();
   const { provider: gProvider, account: gAccount } = useGlobalFilter();
+  const { activeTenant } = useTenant();
 
   const [matrix, setMatrix] = useState({});       // { fw_key: { provider: score } }
   const [frameworkIds, setFrameworkIds] = useState({}); // { fw_key: { provider: engine_id } }
@@ -52,7 +54,7 @@ export default function ComplianceMatrixPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [view, gProvider, gAccount]);
+  }, [view, gProvider, gAccount, activeTenant]);
 
   const handleCellClick = (fwId, provider) => {
     const score = matrix[fwId]?.[provider];

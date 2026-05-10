@@ -89,6 +89,14 @@ async def view_compliance(
     # Drop degenerate rows where both id AND name are empty
     frameworks = [fw for fw in frameworks if fw.get("id") or fw.get("name")]
 
+    # When engine has findings but no assessment (compliance_assessments empty),
+    # the engine returns passed=0, failed=0 even though findings > 0.
+    # Promote findings count to failed so the frontend can show "assessed" status.
+    for fw in frameworks:
+        if fw.get("passed", 0) == 0 and fw.get("failed", 0) == 0 and fw.get("findings", 0) > 0:
+            fw["failed"] = fw["findings"]
+            fw["has_assessment"] = True
+
     # If all scores are 0, derive from passed/failed
     all_zero = all(fw.get("score", 0) == 0 for fw in frameworks) if frameworks else True
     if all_zero and frameworks:

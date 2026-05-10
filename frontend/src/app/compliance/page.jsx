@@ -8,6 +8,7 @@ import {
 import { getFromEngine, fetchView } from '@/lib/api';
 import { TENANT_ID } from '@/lib/constants';
 import { useGlobalFilter } from '@/lib/global-filter-context';
+import { useTenant } from '@/lib/tenant-context';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import Tooltip from '@/components/shared/Tooltip';
 
@@ -48,6 +49,7 @@ function downloadJson(filename, obj) {
 export default function CompliancePage() {
   // ── Global scope filters ──
   const { provider: gProvider, account: gAccount, region: gRegion } = useGlobalFilter();
+  const { activeTenant } = useTenant();
 
   // ── State ──
   const [loading, setLoading] = useState(true);
@@ -63,7 +65,7 @@ export default function CompliancePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedSections, setExpandedSections] = useState(new Set());
 
-  // ── Fetch frameworks list — re-runs when global scope filters change ──
+  // ── Fetch frameworks list — re-runs when global scope filters or active tenant changes ──
   useEffect(() => {
     setLoading(true);
     setSelectedFw(null); // clear drill-down when scope changes
@@ -78,7 +80,7 @@ export default function CompliancePage() {
       })
       .catch(() => { setHasRunScan(false); })
       .finally(() => setLoading(false));
-  }, [gProvider, gAccount, gRegion]);
+  }, [gProvider, gAccount, gRegion, activeTenant]);
 
   // ── Fetch framework detail when selected ──
   useEffect(() => {
