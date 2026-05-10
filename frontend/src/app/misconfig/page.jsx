@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { SEVERITY_COLORS, CLOUD_PROVIDERS } from '@/lib/constants';
 import { useViewFetch } from '@/lib/use-view-fetch';
+import { useToast } from '@/lib/toast-context';
 import PageLayout from '@/components/shared/PageLayout';
 import InsightRow from '@/components/shared/InsightRow';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
@@ -392,7 +393,7 @@ function escapeCSV(val) {
 
 async function exportCSV() {
   const data = await fetchView('misconfig');
-  if (data.error) { alert(`Export failed: ${data.error}`); return; }
+  if (data.error) { throw new Error(data.error); }
 
   const allFindings = (data.findings || []).map(f => ({
     ...f,
@@ -1065,6 +1066,7 @@ function QuickWinsPanel({ findings }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function MisconfigurationsPage() {
   const router = useRouter();
+  const toast = useToast();
   const { data: rawData, loading, error, refetch } = useViewFetch('misconfig');
   const [exporting, setExporting] = useState(false);
   const [selectedFinding, setSelectedFinding] = useState(null);
@@ -1459,7 +1461,14 @@ export default function MisconfigurationsPage() {
   // ── Export handlers ───────────────────────────────────────────────────
   const handleExportCSV = async () => {
     setExporting(true);
-    try { await exportCSV(); } finally { setExporting(false); }
+    try {
+      await exportCSV();
+      toast.success('CSV exported successfully');
+    } catch (err) {
+      toast.error(`Export failed: ${err.message}`);
+    } finally {
+      setExporting(false);
+    }
   };
   const handleExportPDF = () => {
     exportPDF(allFindings, summary);

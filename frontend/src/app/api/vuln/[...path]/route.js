@@ -14,7 +14,7 @@
  *  - Follows 307 redirects correctly on the server
  *
  * Client calls:  /ui/api/vuln/v1/scans?agent_id=xxx
- * Proxy calls:   http://NLB/vulnerability/api/v1/scans/?agent_id=xxx&api_key=xxx
+ * Proxy calls:   http://NLB/vulnerability/api/v1/scans/?agent_id=xxx  (X-API-Key header added server-side)
  */
 
 export async function GET(request, { params }) {
@@ -30,7 +30,6 @@ export async function GET(request, { params }) {
   try {
     const pathParts = (await params).path; // e.g. ['v1', 'scans'] or ['v1', 'vulnerabilities', 'stats', 'severity']
     const { searchParams } = new URL(request.url);
-    searchParams.set('api_key', API_KEY);
 
     // Add trailing slash only for collection endpoints (single path segment).
     // Sub-resource and stats paths (e.g. scans/{id}/vulnerabilities,
@@ -38,12 +37,13 @@ export async function GET(request, { params }) {
     // and would 307 if we added one.
     const isCollection = pathParts.length === 1;
     const trailingSlash = isCollection ? '/' : '';
-    const targetUrl = `${NLB_URL}/vulnerability/api/v1/${pathParts.join('/')}${trailingSlash}?${searchParams}`;
+    const qs = searchParams.toString();
+    const targetUrl = `${NLB_URL}/vulnerability/api/v1/${pathParts.join('/')}${trailingSlash}${qs ? `?${qs}` : ''}`;
 
     const res = await fetch(targetUrl, {
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`,
+        'X-API-Key': API_KEY,
       },
       // Node.js fetch follows redirects server-side — no CORS issues
     });
