@@ -3,6 +3,7 @@
 import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Shield, Eye, EyeOff, Lock, ChevronRight, AlertCircle, ArrowRight, Mail } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
@@ -139,23 +140,8 @@ function LoginContent() {
       <div style={{ width: '100%', maxWidth: 400 }}>
 
         {/* ── Logo ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 40, justifyContent: 'center' }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: 12,
-            background: 'linear-gradient(135deg, #2563eb 0%, #6366f1 100%)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 0 28px rgba(99,102,241,0.45)',
-          }}>
-            <Shield size={23} color="white" />
-          </div>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: '#f1f5f9', letterSpacing: '0.05em' }}>
-              THREAT ENGINE
-            </div>
-            <div style={{ fontSize: 10, color: '#818cf8', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
-              Cloud Security Platform
-            </div>
-          </div>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 40 }}>
+          <img src="https://d1fp5dwui44wle.cloudfront.net/logo.svg" alt="Onam Security" style={{ width: 160, objectFit: 'contain' }} />
         </div>
 
         {/* ── URL-level error ── */}
