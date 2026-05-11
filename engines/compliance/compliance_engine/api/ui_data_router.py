@@ -1154,12 +1154,15 @@ async def get_framework_assessment(
             }
 
             if family not in families:
-                families[family] = {"family": family, "controls": [], "pass": 0, "fail": 0, "total": 0, "na": 0}
+                families[family] = {"family": family, "controls": [], "pass": 0, "partial": 0, "fail": 0, "total": 0, "na": 0}
             families[family]["controls"].append(ctrl_entry)
             families[family]["total"] += 1
             if status == "PASS":
                 families[family]["pass"] += 1
-            elif status in ("FAIL", "PARTIAL"):
+            elif status == "PARTIAL":
+                families[family]["partial"] += 1
+                families[family]["fail"] += 1
+            elif status == "FAIL":
                 families[family]["fail"] += 1
             elif status == "NOT_APPLICABLE":
                 families[family]["na"] += 1
