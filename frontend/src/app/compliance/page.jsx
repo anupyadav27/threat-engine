@@ -443,7 +443,7 @@ export default function CompliancePage() {
 
               {(fwDetail?.families || []).map((fam) => {
                 const isOpen = expandedSections.has(fam.family);
-                const famScore = pct(fam.pass, fam.total);
+                const famScore = pct(fam.pass, fam.total - (fam.na || 0));
                 const filteredControls = searchTerm
                   ? fam.controls.filter(c => (c.control_name || '').toLowerCase().includes(searchTerm.toLowerCase()) || (c.control_id || '').toLowerCase().includes(searchTerm.toLowerCase()))
                   : fam.controls;

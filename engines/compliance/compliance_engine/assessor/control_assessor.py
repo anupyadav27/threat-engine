@@ -396,6 +396,11 @@ def _load_rule_control_map(conn, framework_id: Optional[str]) -> Dict[str, List[
 def _write_assessment(conn, assessment_id, scan_run_id, tenant_id, framework_id, controls, summary):
     total = len(controls)
     implemented = summary.get("PASS", 0) + summary.get("PARTIAL", 0)
+    not_applicable = summary.get("NOT_APPLICABLE", 0)
+    # Assessed Score uses only tested controls in denominator (excludes NOT_APPLICABLE)
+    # so it is naturally distinct from Pass Rate which always divides by total_controls.
+    assessed_total = total - not_applicable
+    overall_score = round(100 * implemented / assessed_total, 1) if assessed_total > 0 else 0
     with conn.cursor() as cur:
         cur.execute("""
             INSERT INTO compliance_assessments (
@@ -417,8 +422,8 @@ def _write_assessment(conn, assessment_id, scan_run_id, tenant_id, framework_id,
             total,
             implemented,
             summary.get("FAIL", 0),
-            summary.get("NOT_APPLICABLE", 0),
-            round(100 * implemented / total, 1) if total > 0 else 0,
+            not_applicable,
+            overall_score,
             json.dumps({"scan_run_id": scan_run_id, "summary": summary}),
         ))
 

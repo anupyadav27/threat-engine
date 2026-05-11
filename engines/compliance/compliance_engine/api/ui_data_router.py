@@ -963,7 +963,9 @@ async def get_all_frameworks_with_status(
 
             passed = summary.get("PASS", 0) + summary.get("PARTIAL", 0)
             failed = summary.get("FAIL", 0)
-            score = assessment.get("overall_score") or (round(100 * passed / total, 1) if total > 0 else 0)
+            not_applicable = summary.get("NOT_APPLICABLE", 0)
+            assessed_total = total - not_applicable
+            score = assessment.get("overall_score") or (round(100 * passed / assessed_total, 1) if assessed_total > 0 else 0)
 
             # Match findings by framework_name or framework_id
             findings = finding_counts.get(fname, 0) or finding_counts.get(fid, 0)
@@ -1152,13 +1154,15 @@ async def get_framework_assessment(
             }
 
             if family not in families:
-                families[family] = {"family": family, "controls": [], "pass": 0, "fail": 0, "total": 0}
+                families[family] = {"family": family, "controls": [], "pass": 0, "fail": 0, "total": 0, "na": 0}
             families[family]["controls"].append(ctrl_entry)
             families[family]["total"] += 1
             if status == "PASS":
                 families[family]["pass"] += 1
             elif status in ("FAIL", "PARTIAL"):
                 families[family]["fail"] += 1
+            elif status == "NOT_APPLICABLE":
+                families[family]["na"] += 1
 
         total = len(controls)
         passed = summary.get("PASS", 0)
