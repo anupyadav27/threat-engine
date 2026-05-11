@@ -257,8 +257,8 @@ def main():
 
         # Compute per-control assessment and update compliance_report scores
         try:
-            from compliance_engine.assessor.control_assessor import compute_assessment
-            assessment = compute_assessment(scan_run_id, tenant_id)
+            from compliance_engine.assessor.control_assessor import compute_all_assessments
+            assessment = compute_all_assessments(scan_run_id, tenant_id)
             summary = assessment.get("summary", {})
             total_controls = assessment.get("total_controls", 0)
             controls_passed = summary.get("PASS", 0)

@@ -163,6 +163,137 @@ def compute_assessment(
         conn.close()
 
 
+def compute_all_assessments(
+    scan_run_id: str,
+    tenant_id: str,
+) -> Dict[str, Any]:
+    """Compute and persist assessments for every active framework in one pass.
+
+    Opens DB connections once and reuses shared scan data (fail counts, total
+    counts) across all frameworks — avoids N×2 connection overhead.
+
+    Args:
+        scan_run_id: Pipeline scan run ID
+        tenant_id: Tenant identifier
+
+    Returns:
+        Grand summary dict with total_controls and per-status counts.
+    """
+    conn = _get_conn()
+    try:
+        # Load scan-wide data once — shared across all framework iterations
+        fail_counts = _get_fail_counts(conn, scan_run_id, tenant_id)
+        total_counts = _get_total_counts_from_check(scan_run_id, tenant_id)
+
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT DISTINCT framework_id FROM compliance_controls WHERE is_active = true"
+            )
+            framework_ids = [r[0] for r in cur.fetchall()]
+
+        if not framework_ids:
+            logger.warning("compute_all_assessments: no active frameworks found")
+            return {"status": "no_frameworks", "total_controls": 0, "summary": {}}
+
+        grand_summary: Dict[str, int] = {
+            "PASS": 0, "FAIL": 0, "PARTIAL": 0,
+            "MANUAL_REVIEW": 0, "NOT_APPLICABLE": 0,
+        }
+        total_controls = 0
+
+        for fid in framework_ids:
+            try:
+                controls = _load_controls(conn, fid)
+                if not controls:
+                    continue
+
+                rule_to_controls = _load_rule_control_map(conn, fid)
+                assessment_id = str(uuid.uuid4())
+                results = []
+                summary: Dict[str, int] = {
+                    "PASS": 0, "FAIL": 0, "PARTIAL": 0,
+                    "MANUAL_REVIEW": 0, "NOT_APPLICABLE": 0,
+                }
+
+                for ctrl in controls:
+                    cid = ctrl["control_id"]
+                    atype = ctrl.get("assessment_type", "automated")
+
+                    if atype == "manual":
+                        status = "MANUAL_REVIEW"
+                        pass_count = fail_count = total = 0
+                    else:
+                        mapped_rules = [r for r, cids in rule_to_controls.items() if cid in cids]
+
+                        fail_count = fail_counts.get(cid, 0)
+                        if fail_count == 0:
+                            for rid in mapped_rules:
+                                fail_count += fail_counts.get(rid, 0)
+
+                        total = sum(total_counts.get(rid, 0) for rid in mapped_rules)
+                        pass_count = max(0, total - fail_count)
+
+                        if total == 0:
+                            status = "NOT_APPLICABLE"
+                        elif fail_count == 0:
+                            status = "PASS"
+                        elif pass_count == 0:
+                            status = "FAIL"
+                        else:
+                            status = "PARTIAL"
+
+                    summary[status] = summary.get(status, 0) + 1
+                    grand_summary[status] = grand_summary.get(status, 0) + 1
+                    total_controls += 1
+
+                    results.append((
+                        str(uuid.uuid4()),
+                        assessment_id,
+                        cid,
+                        tenant_id,
+                        status,
+                        None,
+                        "automated" if atype != "manual" else "manual",
+                        json.dumps({
+                            "pass_count": pass_count,
+                            "fail_count": fail_count,
+                            "total_resources": total,
+                            "scan_run_id": scan_run_id,
+                        }),
+                        None, None, None, None, None, None, None,
+                        "system",
+                        datetime.now(timezone.utc),
+                    ))
+
+                _write_assessment(conn, assessment_id, scan_run_id, tenant_id, fid, controls, summary)
+                _write_results(conn, results)
+                conn.commit()
+                logger.info(f"Assessment written: framework={fid} controls={len(controls)} summary={summary}")
+
+            except Exception as fw_err:
+                conn.rollback()
+                logger.warning(f"Assessment for {fid} failed (non-fatal): {fw_err}")
+
+        logger.info(
+            f"compute_all_assessments complete: {len(framework_ids)} frameworks "
+            f"{total_controls} controls | {grand_summary}"
+        )
+        return {
+            "scan_run_id": scan_run_id,
+            "tenant_id": tenant_id,
+            "framework_id": "all",
+            "total_controls": total_controls,
+            "summary": grand_summary,
+        }
+
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"compute_all_assessments failed: {e}", exc_info=True)
+        raise
+    finally:
+        conn.close()
+
+
 def _load_controls(conn, framework_id: Optional[str]) -> List[Dict]:
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         if framework_id:

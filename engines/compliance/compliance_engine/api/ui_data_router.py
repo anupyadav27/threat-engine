@@ -1163,11 +1163,10 @@ async def get_framework_assessment(
         total = len(controls)
         passed = summary.get("PASS", 0)
 
-        # If compliance_assessments is empty (always the case in production — assessment runner
-        # is never called with framework_id), derive aggregate from compliance_findings.
-        # IMPORTANT: filter by tenant_id only (NO scan_run_id) because
-        # compliance_findings.scan_run_id ≠ compliance_report.scan_run_id in this deployment.
-        # Use same CTE+JOIN pattern as get_all_frameworks_with_status which is proven to work.
+        # Fallback: if no assessment data exists yet (tenant's first scan hasn't completed
+        # the assessor phase, or assessor was skipped), derive aggregate counts from
+        # compliance_findings directly. Filter by tenant_id only — scan_run_id is not
+        # used because compliance_findings may span multiple scans for the same tenant.
         if passed == 0 and summary.get("FAIL", 0) == 0 and total > 0:
             cur.execute("""
                 WITH fw_keys AS (
