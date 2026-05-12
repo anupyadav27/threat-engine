@@ -443,6 +443,105 @@ async def get_metrics():
     return metrics
 
 
+# ── Rule catalog endpoint (Rules Library page) ───────────────────────────
+
+
+@app.get("/api/v1/check/rules/catalog")
+async def get_rules_catalog(
+    provider: Optional[str] = Query(None),
+    service: Optional[str] = Query(None),
+    severity: Optional[str] = Query(None),
+    rule_type: Optional[str] = Query(None),   # "config" | "cdr" | "threat"
+    search: Optional[str] = Query(None),
+    limit: int = Query(15000, le=20000),
+    offset: int = Query(0),
+):
+    """Return rule_metadata catalog for the Rules Library UI.
+
+    rule_type mapping:
+      config  — rule_class='security' / primary_engine='check'
+      cdr     — rule_class IN ('log_detection','log','log_correlation')
+      threat  — primary_engine='threat'
+    """
+    conn = None
+    try:
+        conn = get_check_conn()
+        cur = conn.cursor()
+
+        clauses: list = []
+        params: list = []
+
+        if provider:
+            clauses.append("provider = %s")
+            params.append(provider.lower())
+
+        if service:
+            clauses.append("service = %s")
+            params.append(service.lower())
+
+        if severity:
+            clauses.append("severity = %s")
+            params.append(severity.lower())
+
+        if rule_type == "config":
+            clauses.append("(rule_class = 'security' OR primary_engine = 'check' OR rule_class IS NULL)")
+            clauses.append("rule_class NOT IN ('log_detection','log','log_correlation')")
+            clauses.append("(primary_engine != 'threat' OR primary_engine IS NULL)")
+        elif rule_type == "cdr":
+            clauses.append("rule_class IN ('log_detection','log','log_correlation')")
+        elif rule_type == "threat":
+            clauses.append("primary_engine = 'threat'")
+
+        if search:
+            clauses.append("(rule_id ILIKE %s OR title ILIKE %s OR service ILIKE %s)")
+            like = f"%{search}%"
+            params.extend([like, like, like])
+
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+
+        count_sql = f"SELECT COUNT(*) FROM rule_metadata {where}"
+        cur.execute(count_sql, params)
+        total = cur.fetchone()[0]
+
+        cur.execute(
+            f"""
+            SELECT rule_id, service, provider, severity, title, description,
+                   domain, rule_class, primary_engine
+            FROM   rule_metadata
+            {where}
+            ORDER  BY provider, service, rule_id
+            LIMIT  %s OFFSET %s
+            """,
+            params + [limit, offset],
+        )
+        cols = [d[0] for d in cur.description]
+        rows = [dict(zip(cols, row)) for row in cur.fetchall()]
+
+        # Tag rule_type for each row
+        for r in rows:
+            rc = r.get("rule_class") or ""
+            pe = r.get("primary_engine") or ""
+            if rc in ("log_detection", "log", "log_correlation"):
+                r["rule_type"] = "cdr"
+            elif pe == "threat":
+                r["rule_type"] = "threat"
+            else:
+                r["rule_type"] = "config"
+
+        return {
+            "rules": rows,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }
+
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    finally:
+        if conn:
+            conn.close()
+
+
 # ── All-findings endpoints (misconfigurations page) ──────────────────────
 
 

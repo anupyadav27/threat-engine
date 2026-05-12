@@ -5,7 +5,7 @@ import os
 
 import psycopg2
 import psycopg2.extras
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Dict, Any, List, Optional, Literal
@@ -286,11 +286,13 @@ async def generate_rule(request: RuleCreateRequest):
 
 
 @app.get("/api/v1/rules/{rule_id}")
-async def get_rule(rule_id: str):
+async def get_rule(rule_id: str, request: Request):
     """Get specific rule details"""
-    # ui-data is registered after this route so this route captures it first — forward it
+    # Static sub-paths registered after this parameterized route — forward them here.
     if rule_id == "ui-data":
         return await rules_ui_data()
+    if rule_id == "suppressions":
+        return await list_suppressions(request)
     if rule_id not in rules_storage:
         raise HTTPException(status_code=404, detail="Rule not found")
     
@@ -641,6 +643,441 @@ async def list_user_rules(
             conn.close()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Rule Suppressions — per-tenant / per-account suppression of rules/services/techs
+# =============================================================================
+
+VALID_SCOPE_TYPES = {"rule", "service", "technology", "provider"}
+
+
+class SuppressRequest(BaseModel):
+    """Payload to create a rule suppression."""
+    scope_level: Literal["tenant", "account"] = "tenant"
+    account_id: Optional[str] = None           # required when scope_level='account'
+    scope_type: str                            # rule | service | technology | provider
+    scope_value: str                           # rule_id | service | tech_category | provider
+    provider: Optional[str] = None            # None = all providers
+    reason: Optional[str] = None
+    expires_at: Optional[str] = None          # ISO 8601 or None for permanent
+
+
+class SuppressionOut(BaseModel):
+    """Suppression record returned by list/create."""
+    model_config = {"extra": "allow"}
+
+
+def _parse_auth_ctx(request: Request) -> dict:
+    """Parse X-Auth-Context header into a plain dict. Returns {} if missing/invalid."""
+    import json as _json
+    raw = request.headers.get("X-Auth-Context") or request.headers.get("x-auth-context")
+    if not raw:
+        return {}
+    try:
+        return _json.loads(raw)
+    except Exception:
+        return {}
+
+
+def _tenant_from_header(request: Request) -> str:
+    """Extract tenant_id from X-Auth-Context header. Raises 401 if missing."""
+    active = request.headers.get("x-active-tenant-id") or request.headers.get("X-Active-Tenant-Id")
+    if active:
+        return active
+    ctx = _parse_auth_ctx(request)
+    if ctx:
+        tid = ctx.get("engine_tenant_id") or (ctx.get("tenant_ids") or [None])[0]
+        if tid:
+            return tid
+    raise HTTPException(status_code=401, detail="Authentication required — no tenant context")
+
+
+def _require_permission(request: Request, permission: str) -> None:
+    """Raise 403 if the authenticated user does not hold the given permission.
+
+    permission 'rules:read'  → analyst, tenant_admin, org_admin, platform_admin
+    permission 'rules:write' → tenant_admin, org_admin, platform_admin
+    """
+    ctx = _parse_auth_ctx(request)
+    permissions: list = ctx.get("permissions") or []
+    role: str = ctx.get("role") or ""
+    # Viewer has no suppression access at all
+    if role == "viewer":
+        raise HTTPException(status_code=403, detail="Viewers cannot manage suppressions")
+    if permission and permission not in permissions:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Permission '{permission}' required for this action",
+        )
+
+
+# Only org_admin and platform_admin may create/lift suppressions
+_SUPPRESS_ADMIN_ROLES = {"org_admin", "platform_admin"}
+
+
+def _require_suppress_admin(request: Request) -> None:
+    """Raise 403 unless the caller is org_admin or platform_admin."""
+    ctx = _parse_auth_ctx(request)
+    role: str = ctx.get("role") or ""
+    if role not in _SUPPRESS_ADMIN_ROLES:
+        raise HTTPException(
+            status_code=403,
+            detail="Only org_admin or platform_admin can manage suppressions",
+        )
+
+
+def _suppressed_by_from_header(request: Request) -> tuple[str, str]:
+    """Return (suppressed_by_email_or_id, role) from the auth context."""
+    ctx = _parse_auth_ctx(request)
+    user = ctx.get("user_email") or ctx.get("email") or ctx.get("user_id") or "unknown"
+    role = ctx.get("role") or "unknown"
+    return user, role
+
+
+@app.post("/api/v1/rules/suppress")
+async def create_suppression(request: Request, body: SuppressRequest):
+    """Create a tenant-wide or account-level rule suppression. Requires org_admin or platform_admin."""
+    _require_suppress_admin(request)
+    tenant_id = _tenant_from_header(request)
+
+    if body.scope_type not in VALID_SCOPE_TYPES:
+        raise HTTPException(status_code=400, detail=f"scope_type must be one of {VALID_SCOPE_TYPES}")
+    if not body.scope_value or not body.scope_value.strip():
+        raise HTTPException(status_code=400, detail="scope_value is required")
+    if body.scope_level == "account" and not body.account_id:
+        raise HTTPException(status_code=400, detail="account_id is required when scope_level='account'")
+
+    account_id = body.account_id if body.scope_level == "account" else None
+    suppressed_by, _role = _suppressed_by_from_header(request)
+
+    try:
+        conn = _get_check_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        try:
+            cur.execute(
+                """
+                INSERT INTO rule_suppressions
+                    (tenant_id, account_id, scope_type, scope_value, provider,
+                     reason, suppressed_by, expires_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s,
+                        %s::timestamptz)
+                ON CONFLICT (tenant_id, COALESCE(account_id, ''), scope_type, scope_value, COALESCE(provider, ''))
+                    DO UPDATE SET
+                        reason        = EXCLUDED.reason,
+                        suppressed_by = EXCLUDED.suppressed_by,
+                        suppressed_at = now(),
+                        expires_at    = EXCLUDED.expires_at
+                RETURNING id, tenant_id, account_id, scope_type, scope_value,
+                          provider, reason, suppressed_by, suppressed_at, expires_at
+                """,
+                (
+                    tenant_id, account_id, body.scope_type, body.scope_value.strip(),
+                    body.provider, body.reason, suppressed_by, body.expires_at,
+                ),
+            )
+            row = dict(cur.fetchone())
+            conn.commit()
+            for k in ("suppressed_at", "expires_at"):
+                if row.get(k) and hasattr(row[k], "isoformat"):
+                    row[k] = row[k].isoformat()
+            row["id"] = str(row["id"])
+            return {"success": True, "suppression": row}
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cur.close()
+            conn.close()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/api/v1/rules/suppressions")
+async def list_suppressions(
+    request: Request,
+    include_expired: bool = False,
+):
+    """List active rule-scope suppressions for the authenticated tenant. Requires rules:read."""
+    _require_permission(request, "rules:read")
+    tenant_id = _tenant_from_header(request)
+
+    try:
+        conn = _get_check_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        try:
+            expiry_clause = "" if include_expired else "AND (expires_at IS NULL OR expires_at > now())"
+            cur.execute(
+                f"""
+                SELECT id, tenant_id, account_id, scope_type, scope_value,
+                       provider, reason, suppressed_by, suppressed_at, expires_at
+                FROM   rule_suppressions
+                WHERE  tenant_id = %s
+                  {expiry_clause}
+                ORDER  BY suppressed_at DESC
+                """,
+                (tenant_id,),
+            )
+            rows = []
+            for r in cur.fetchall():
+                row = dict(r)
+                row["id"] = str(row["id"])
+                for k in ("suppressed_at", "expires_at"):
+                    if row.get(k) and hasattr(row[k], "isoformat"):
+                        row[k] = row[k].isoformat()
+                row["scope_level"] = "account" if row.get("account_id") else "tenant"
+                rows.append(row)
+
+            tenant_wide = sum(1 for r in rows if r["scope_level"] == "tenant")
+            account_level = len(rows) - tenant_wide
+            from datetime import datetime, timezone, timedelta
+            soon = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+            expiring_soon = sum(
+                1 for r in rows
+                if r.get("expires_at") and r["expires_at"] <= soon
+            )
+
+            return {
+                "suppressions": rows,
+                "total": len(rows),
+                "kpi": {
+                    "tenant_wide": tenant_wide,
+                    "account_level": account_level,
+                    "expiring_soon": expiring_soon,
+                    "by_scope_type": {
+                        st: sum(1 for r in rows if r["scope_type"] == st)
+                        for st in VALID_SCOPE_TYPES
+                    },
+                },
+            }
+        finally:
+            cur.close()
+            conn.close()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.delete("/api/v1/rules/suppressions/{suppression_id}")
+async def delete_suppression(request: Request, suppression_id: str):
+    """Lift (remove) a rule-scope suppression. Requires org_admin or platform_admin."""
+    _require_suppress_admin(request)
+    tenant_id = _tenant_from_header(request)
+
+    try:
+        conn = _get_check_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        try:
+            cur.execute(
+                "SELECT id FROM rule_suppressions WHERE id = %s::uuid AND tenant_id = %s",
+                (suppression_id, tenant_id),
+            )
+            if not cur.fetchone():
+                raise HTTPException(status_code=404, detail="Suppression not found or not in your tenant")
+            cur.execute(
+                "DELETE FROM rule_suppressions WHERE id = %s::uuid AND tenant_id = %s",
+                (suppression_id, tenant_id),
+            )
+            conn.commit()
+            return {"success": True, "deleted_id": suppression_id}
+        except HTTPException:
+            conn.rollback()
+            raise
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cur.close()
+            conn.close()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+# =============================================================================
+# Finding Suppressions — resource-level (analyst+)
+# =============================================================================
+
+
+class FindingSuppressRequest(BaseModel):
+    """Payload to suppress a specific resource-level finding."""
+    account_id:  str                   # required — always account-scoped
+    rule_id:     str                   # rule that produced the finding
+    resource_uid: Optional[str] = None # specific resource ARN/ID; None = all resources for rule in account
+    finding_id:  Optional[str] = None  # sha256 finding_id from check_findings (most precise)
+    reason:      Optional[str] = None
+    expires_at:  Optional[str] = None  # ISO 8601
+
+
+@app.post("/api/v1/findings/suppress")
+async def create_finding_suppression(request: Request, body: FindingSuppressRequest):
+    """Suppress a specific finding at resource level. Requires org_admin or platform_admin."""
+    _require_suppress_admin(request)
+    tenant_id = _tenant_from_header(request)
+    suppressed_by, role = _suppressed_by_from_header(request)
+
+    if not body.account_id or not body.account_id.strip():
+        raise HTTPException(status_code=400, detail="account_id is required")
+    if not body.rule_id or not body.rule_id.strip():
+        raise HTTPException(status_code=400, detail="rule_id is required")
+
+    try:
+        conn = _get_check_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        try:
+            cur.execute(
+                """
+                INSERT INTO finding_suppressions
+                    (tenant_id, account_id, rule_id, resource_uid, finding_id,
+                     reason, suppressed_by, suppressed_by_role, expires_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::timestamptz)
+                ON CONFLICT (tenant_id, account_id, rule_id,
+                             COALESCE(resource_uid, ''), COALESCE(finding_id, ''))
+                    DO UPDATE SET
+                        reason             = EXCLUDED.reason,
+                        suppressed_by      = EXCLUDED.suppressed_by,
+                        suppressed_by_role = EXCLUDED.suppressed_by_role,
+                        suppressed_at      = now(),
+                        expires_at         = EXCLUDED.expires_at
+                RETURNING id, tenant_id, account_id, rule_id, resource_uid, finding_id,
+                          reason, suppressed_by, suppressed_by_role, suppressed_at, expires_at
+                """,
+                (
+                    tenant_id, body.account_id.strip(), body.rule_id.strip(),
+                    body.resource_uid, body.finding_id,
+                    body.reason, suppressed_by, role, body.expires_at,
+                ),
+            )
+            row = dict(cur.fetchone())
+            conn.commit()
+            row["id"] = str(row["id"])
+            for k in ("suppressed_at", "expires_at"):
+                if row.get(k) and hasattr(row[k], "isoformat"):
+                    row[k] = row[k].isoformat()
+            return {"success": True, "suppression": row, "suppression_type": "finding"}
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cur.close()
+            conn.close()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/api/v1/findings/suppressions")
+async def list_finding_suppressions(
+    request: Request,
+    account_id: Optional[str] = None,
+    rule_id: Optional[str] = None,
+    include_expired: bool = False,
+):
+    """List finding-level suppressions for the authenticated tenant. Requires rules:read."""
+    _require_permission(request, "rules:read")
+    tenant_id = _tenant_from_header(request)
+
+    try:
+        conn = _get_check_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        try:
+            clauses = ["tenant_id = %s"]
+            params: list = [tenant_id]
+            if account_id:
+                clauses.append("account_id = %s")
+                params.append(account_id)
+            if rule_id:
+                clauses.append("rule_id = %s")
+                params.append(rule_id)
+            if not include_expired:
+                clauses.append("(expires_at IS NULL OR expires_at > now())")
+
+            cur.execute(
+                f"SELECT * FROM finding_suppressions WHERE {' AND '.join(clauses)} ORDER BY suppressed_at DESC",
+                params,
+            )
+            rows = []
+            for r in cur.fetchall():
+                row = dict(r)
+                row["id"] = str(row["id"])
+                for k in ("suppressed_at", "expires_at"):
+                    if row.get(k) and hasattr(row[k], "isoformat"):
+                        row[k] = row[k].isoformat()
+                row["suppression_type"] = "finding"
+                rows.append(row)
+
+            from datetime import datetime, timezone, timedelta
+            soon = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+            return {
+                "suppressions": rows,
+                "total": len(rows),
+                "kpi": {
+                    "total": len(rows),
+                    "expiring_soon": sum(
+                        1 for r in rows if r.get("expires_at") and r["expires_at"] <= soon
+                    ),
+                    "resource_specific": sum(1 for r in rows if r.get("resource_uid")),
+                    "rule_in_account": sum(1 for r in rows if not r.get("resource_uid")),
+                },
+            }
+        finally:
+            cur.close()
+            conn.close()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.delete("/api/v1/findings/suppressions/{suppression_id}")
+async def delete_finding_suppression(request: Request, suppression_id: str):
+    """Lift a finding suppression.
+    rules:read → analyst can lift their own.
+    rules:write → tenant_admin+ can lift anyone's.
+    """
+    _require_permission(request, "rules:read")
+    tenant_id = _tenant_from_header(request)
+    ctx = _parse_auth_ctx(request)
+    can_lift_any = "rules:write" in (ctx.get("permissions") or [])
+    current_user, _role = _suppressed_by_from_header(request)
+
+    try:
+        conn = _get_check_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        try:
+            cur.execute(
+                "SELECT id, suppressed_by FROM finding_suppressions WHERE id = %s::uuid AND tenant_id = %s",
+                (suppression_id, tenant_id),
+            )
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Finding suppression not found")
+            if not can_lift_any and dict(row).get("suppressed_by") != current_user:
+                raise HTTPException(status_code=403, detail="You can only lift your own suppressions")
+            cur.execute(
+                "DELETE FROM finding_suppressions WHERE id = %s::uuid AND tenant_id = %s",
+                (suppression_id, tenant_id),
+            )
+            conn.commit()
+            return {"success": True, "deleted_id": suppression_id}
+        except HTTPException:
+            conn.rollback()
+            raise
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cur.close()
+            conn.close()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 # =============================================================================
@@ -1293,6 +1730,7 @@ async def create_rule_from_template(
 # Update list_rules to support custom filter
 @app.get("/api/v1/rules", response_model=RuleLenientResponse, response_model_exclude_none=False)
 async def list_rules(
+    request: Request,
     provider: Optional[str] = None,
     service: Optional[str] = None,
     custom: Optional[bool] = None,
@@ -1301,8 +1739,29 @@ async def list_rules(
     offset: int = 0
 ):
     """List all generated rules, optionally filtered by provider, service, custom flag, and creation date"""
+    # Fetch suppressed rule_ids for current tenant to annotate is_suppressed
+    suppressed_rule_ids: set = set()
+    try:
+        tenant_id = _tenant_from_header(request)
+        if tenant_id:
+            conn = _get_check_db_connection()
+            cur = conn.cursor()
+            try:
+                cur.execute(
+                    "SELECT scope_value FROM rule_suppressions "
+                    "WHERE tenant_id = %s AND scope_type = 'rule' "
+                    "AND (expires_at IS NULL OR expires_at > now())",
+                    (tenant_id,),
+                )
+                suppressed_rule_ids = {row[0] for row in cur.fetchall()}
+            finally:
+                cur.close()
+                conn.close()
+    except Exception:
+        pass  # suppression lookup is best-effort; don't break the rules list
+
     filtered_rules = []
-    
+
     for rule_id, rule_data in rules_storage.items():
         # Filter by provider
         if provider and rule_data.get("provider") != provider:
@@ -1320,19 +1779,20 @@ async def list_rules(
             created_at = rule_data.get("created_at", "")
             if created_at < created_after:
                 continue
-        
+
         filtered_rules.append({
             "rule_id": rule_id,
             "provider": rule_data.get("provider"),
             "service": rule_data.get("service"),
             "title": rule_data.get("title"),
             "created_at": rule_data.get("created_at"),
-            "updated_at": rule_data.get("updated_at")
+            "updated_at": rule_data.get("updated_at"),
+            "is_suppressed": rule_id in suppressed_rule_ids,
         })
-    
+
     # Sort by created_at descending
     filtered_rules.sort(key=lambda x: x.get("created_at") or "", reverse=True)
-    
+
     return {
         "rules": filtered_rules[offset:offset+limit],
         "total": len(filtered_rules),
