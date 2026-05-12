@@ -1,5 +1,5 @@
 # Vulnerability Agent Enrollment — Feature Plan
-**Version:** 1.5  
+**Version:** 1.6  
 **Author:** Ajay  
 **Status:** Ready for Team Review  
 **Date:** 2026-05-12
@@ -18,31 +18,38 @@ Currently the vulnerability agent has a hardcoded `"ajay4141"` fallback for `vul
 
 ## 2. Goal
 
-Enforce a **provision → download → scan** lifecycle so that:
-- Agent identity is sourced from the onboarding table (already exists when account is onboarded)
-- Scan submissions are authenticated with a secret key — not just identity-checked
+Enforce a **provision → download → register → scan** lifecycle so that:
+- Agent identity comes from the onboarding engine (already exists — `agent_registrations` table)
+- Scan submissions are authenticated with a permanent secret key issued at register time
 - The engine rejects scans from unknown or revoked agents
-- User experience is completely frictionless — download a zip, run it, done
+- User experience is completely frictionless — download a ZIP, run it, done
 - **User never sees, copies, or types a token or key**
 
 ---
 
 ## 3. Core Design Principle
 
-**The onboarding table is the identity source. We do not create a new agent identity.**
+**The onboarding engine already creates agent identity. We do not create a new one.**
 
-When a tenant onboards a cloud account, the onboarding engine already creates an `account_id`. That `account_id` IS the agent identity. The vulnerability agent is scoped to an account — not to an individual server.
+When a tenant onboards a `vulnerability` (or `database` / `middleware`) account, they call the
+onboarding engine's `issue_agent_token` endpoint. This creates a row in `agent_registrations`
+with a short readable `agent_id` (format: `agnt-xxxxxxxx`) linked to `account_id`.
 
 ```
-Onboarding table (already exists):
-  account_id  UUID  ← this becomes the agent's identity
-  tenant_id   UUID
-  status      active / inactive
-  provider    aws / azure / gcp / ...
+agent_registrations (already exists in onboarding DB):
+  registration_id  UUID PK
+  agent_id         VARCHAR  — e.g. "agnt-3f8a1b2c"  ← the agent's stable identity
+  account_id       UUID FK → cloud_accounts.account_id
+  tenant_id        VARCHAR
+  token_hash       VARCHAR(64)  — SHA256 of registration token (30-min window)
+  status           'pending' → 'connected' → 'disconnected'
+  agent_hostname   VARCHAR
+  agent_version    VARCHAR
+  issued_at, activated_at, last_heartbeat_at, expires_at
 ```
 
-One agent config per account. All servers in that account use the same config.
-Individual server identity (hostname, resource_uid) is captured per scan finding for audit — not used as a gate.
+The `agent_id` is NOT the `account_id` — it is a separate short identifier generated per
+registration. Multiple re-provisions of the same account create new `agent_id` values.
 
 ---
 
@@ -50,18 +57,20 @@ Individual server identity (hostname, resource_uid) is captured per scan finding
 
 | Decision | Choice | Reason |
 |----------|--------|--------|
-| Where does agent identity come from? | Onboarding table — `account_id` already exists | No new identity to create; account is the natural scoping unit |
-| When is the agent credential issued? | Portal "Download Agent" click | Ties credential to tenant/account at download time |
-| How does user activate the agent? | Pre-configured ZIP — `account_id` + `agent_api_key` silently in `agent_config.json` | Zero friction; user never touches a key |
+| Where does agent identity come from? | `agent_registrations.agent_id` — created by onboarding's `issue_agent_token` | Already exists; purpose-built for agent identity |
+| When is identity created? | Portal "Download Agent" click → calls onboarding `issue_agent_token` | Ties enrollment to tenant/account at download time |
+| How does user activate the agent? | Pre-configured ZIP — `agent_id` + `registration_token` silently in `agent_config.json` | Zero friction; user never touches a token or key |
 | Any manual token/key option? | **No** — one flow only | Keep it simple |
-| Is there a register step? | **No** — agent scans directly after download | Identity comes from onboarding; no separate registration needed |
-| Scan authentication? | `account_id` (from onboarding) + `agent_api_key` (issued at download) | account_id alone is not a secret; api_key prevents fake submissions |
-| What does engine validate against? | Onboarding table (account active?) + `vul_agent_credentials` (api_key hash match?) | Two checks — identity + auth |
+| Is there a register step? | **Yes** — needed to exchange `registration_token` → `agent_api_key` | Registration token is one-time/30-min; api_key is the permanent scan credential |
+| Registration token window? | 30 minutes (existing `expires_at = NOW()+30min` in onboarding) | Short window for initial handshake only; permanent key issued on registration |
+| Scan authentication? | `agent_id` + `agent_api_key` (issued at register, stored in vul engine DB) | api_key is a secret; agent_id alone is not |
+| Where is scan auth stored? | `vul_agent_sessions` table in vul engine DB | Vul engine must not write to onboarding DB; local table enables fast scan gate |
+| Does vul engine call onboarding on every scan? | **No** — only once at register time | Avoid coupling on hot scan path; vul_agent_sessions is the local authority |
 | Binary integrity? | SHA256 hash embedded in `agent_config.json`; agent self-verifies at startup | Detects tampered binary before any network call |
 | Binary hosting? | S3 bucket (managed by dev team) | Simple; portal fetches at download time |
-| Download delivery? | Pre-signed S3 URL (10-min expiry) for per-provision ZIP | Portal assembles ZIP + config in memory, uploads to temp S3 path, returns time-limited URL — browser downloads from S3 directly |
-| Multi-server / cloud fleet? | Same config deployed to all servers in the account | Cloud-native; no hostname binding; admin manages at account level |
-| Revoke? | Set `vul_agent_credentials.status = 'revoked'` → entire account fleet stops immediately | One click; cryptographically enforced via api_key |
+| Download delivery? | Pre-signed S3 URL (10-min expiry) for per-provision ZIP | Portal assembles ZIP + config in memory, uploads to temp S3 path, returns time-limited URL |
+| Multi-server / cloud fleet? | Same config deployed to all servers for the account | Cloud-native; no hostname binding; admin manages at account level |
+| Revoke? | Set `vul_agent_sessions.status = 'revoked'` → entire fleet stops immediately | One click; api_key cryptographically enforced |
 
 ---
 
@@ -71,117 +80,110 @@ Individual server identity (hostname, resource_uid) is captured per scan finding
 STEP 1 — Portal Admin clicks "Download Agent"
 ──────────────────────────────────────────────
 
-  Portal UI: Admin selects account + platform (Linux / Windows) → clicks Download
+  Portal UI: Admin selects onboarded vulnerability account + platform → clicks Download
        │
        ▼
-  Portal BFF → POST /api/vulnerability/agent/provision
-               { tenant_id, account_id, platform }
+  Portal BFF → calls onboarding engine:
+               POST /api/v1/accounts/{account_id}/agent-token
+               (existing endpoint: issue_agent_token)
        │
        ▼
+  Onboarding engine:
+  ① Validates account exists + account_type ∈ ('vulnerability', 'database', 'middleware')
+  ② Generates: raw_token = uuid4()
+  ③ Creates agent_registrations row:
+       agent_id        = "agnt-" + uuid4()[:8]      ← stable readable identity
+       token_hash      = SHA256(raw_token)
+       status          = 'pending'
+       expires_at      = NOW() + 30 minutes          ← short registration window
+       account_id, tenant_id
+  ④ Returns { raw_token, agent_id } to portal
+
   Portal backend:
-  ① Validates account_id exists in onboarding table AND status = 'active'
-     If not → 400 "Account not onboarded or inactive"
-
-  ② Generates scan credential:
-       agent_api_key = secrets.token_hex(32)   ← 256-bit secret, issued once
-
-  ③ Upserts vul_agent_credentials:
-     INSERT INTO vul_agent_credentials
-       (tenant_id, account_id, api_key_hash, status, provisioned_at)
-     VALUES
-       ($tenant_id, $account_id, SHA256($agent_api_key), 'active', now())
-     ON CONFLICT (tenant_id, account_id)
-       DO UPDATE SET api_key_hash = SHA256($agent_api_key),
-                     status = 'active',
-                     provisioned_at = now()
-     (re-downloading replaces the old credential — previous ZIP stops working)
-
-  ④ Fetches binary from S3 (permanent store):
+  ① Receives { raw_token, agent_id }
+  ② Fetches binary from S3 (permanent store):
        s3://cspm-agent-binaries/vul-agent/{VERSION}/vul-agent        (Linux)
        s3://cspm-agent-binaries/vul-agent/{VERSION}/vul-agent.exe    (Windows)
-
-  ⑤ Computes binary SHA256 hash
-
-  ⑥ Creates agent_config.json:
+  ③ Computes binary SHA256 hash
+  ④ Creates agent_config.json:
        {
-         "account_id":    "<account_id>",     ← identity from onboarding
-         "agent_api_key": "<hex-secret>",     ← scan auth credential
-         "binary_sha256": "<sha256>",         ← integrity check
-         "engine_url":    "https://vul-engine.internal",
-         "tenant_id":     "<tenant_id>"
+         "agent_id":            "agnt-3f8a1b2c",   ← identity from onboarding
+         "registration_token":  "uuid4-raw",        ← one-time, 30-min window
+         "binary_sha256":       "abcdef...",        ← integrity check
+         "engine_url":          "https://vul-engine.internal",
+         "tenant_id":           "tenant-uuid"
        }
-
-  ⑦ Zips binary + config in memory
-  ⑧ Uploads ZIP to temporary S3 path:
+  ⑤ Zips binary + config in memory
+  ⑥ Uploads ZIP to temp S3 path:
        s3://cspm-agent-binaries/downloads/{uuid}/vul-agent-{platform}.zip
-       (S3 lifecycle rule: auto-delete after 24 hours)
-  ⑨ Generates 10-min pre-signed GET URL for that ZIP
-  ⑩ Returns JSON to browser: { download_url, url_expires_at }
+       (S3 lifecycle: auto-delete after 24h)
+  ⑦ Generates 10-min pre-signed GET URL
+  ⑧ Returns { download_url, url_expires_at } to browser
 
   Portal UI shows:
   ┌──────────────────────────────────────────────────────┐
   │  Deploy Vulnerability Agent                          │
   │                                                      │
-  │  Account:   [ aws-prod-account (123456789012) ]      │
+  │  Account:   [ aws-prod-account (123456789012) ▼ ]   │
   │  Platform:  [ Linux ]  [ Windows ]                   │
   │                                                      │
   │  [ ⬇ Download vul-agent-linux.zip ]  ← one click    │
   │                                                      │
-  │  How to install:                                     │
-  │  1. Unzip the downloaded file                        │
-  │  2. Linux:   chmod +x vul-agent && ./vul-agent       │
-  │     Windows: double-click vul-agent.exe              │
-  │  3. Agent starts scanning automatically              │
+  │  1. Unzip the file                                   │
+  │  2. chmod +x vul-agent && ./vul-agent  (Linux)       │
+  │     double-click vul-agent.exe         (Windows)     │
+  │  3. Agent registers and starts scanning              │
   │                                                      │
   │  Download link valid for: 10 minutes                 │
   └──────────────────────────────────────────────────────┘
 
 
-STEP 2 — User runs the agent on their server
-──────────────────────────────────────────────
-
-  Linux:   unzip vul-agent-linux.zip && chmod +x vul-agent && ./vul-agent
-  Windows: unzip → double-click vul-agent.exe
+STEP 2 — User runs the agent on their server (first run only)
+──────────────────────────────────────────────────────────────
 
   Agent startup — automatic, no user input:
   ① Reads agent_config.json
-  ② Self-integrity check:
-       actual_hash = sha256(this binary file)
+  ② Binary integrity check:
+       actual_hash = sha256(this binary)
        if actual_hash != binary_sha256 → exit "Binary tampered. Re-download."
-  ③ Validates config has account_id + agent_api_key
-     If missing → exit "Agent not configured. Re-download from portal."
-  ④ Collects server identity for scan payload:
-       hostname     = system hostname
-       resource_uid = AWS IMDSv2 instance ID (if available, else NULL)
-       platform     = linux / windows
-       os_version, arch
-  ⑤ Runs scan → submits findings
+  ③ If agent_config has agent_id + agent_api_key → skip to STEP 3 (already registered)
+  ④ Has registration_token → call vul engine to register:
+       POST /api/v1/agents/register
+       { registration_token, agent_id, hostname, resource_uid, platform, os_version, arch }
+  ⑤ Vul engine register logic:
+       a. Call onboarding API: GET /api/v1/agents/validate-token { token_hash=SHA256(token) }
+          → confirms agent_id, account_id, tenant_id, token not expired
+       b. Issues: agent_api_key = secrets.token_hex(32)
+       c. Upserts vul_agent_sessions:
+            INSERT (agent_id, account_id, tenant_id, api_key_hash, status='active', hostname)
+       d. Returns { agent_api_key }
+  ⑥ Agent saves to agent_config.json:
+       {
+         "agent_id":      "agnt-3f8a1b2c",   ← kept
+         "agent_api_key": "hex-secret",       ← new, permanent scan credential
+         "engine_url":    "...",
+         "tenant_id":     "..."
+       }
+       (registration_token + binary_sha256 removed — no longer needed)
+  ⑦ Prints: "Agent registered. Starting scan..."
 
 
-STEP 3 — All scans (first run and every subsequent run)
-──────────────────────────────────────────────────────────
+STEP 3 — All subsequent scans
+───────────────────────────────
 
   Agent: POST /api/v1/agents/scan
          Authorization: Bearer <agent_api_key>
-         Body: { account_id, tenant_id, hostname, resource_uid, findings... }
+         Body: { agent_id, tenant_id, hostname, resource_uid, findings... }
        │
        ▼
-  Engine gate — two checks in sequence:
-
-    ① Identity + active status:
-         SELECT status FROM onboarding_accounts
-         WHERE account_id = $account_id AND tenant_id = $tenant_id
-         → Not found or status != 'active' → 403 "Account not active"
-
-    ② Scan authentication:
-         SELECT status FROM vul_agent_credentials
-         WHERE account_id  = $account_id
-           AND tenant_id   = $tenant_id
-           AND api_key_hash = SHA256($api_key)
-           AND status      = 'active'
-         → Not found → 403 "Invalid agent credentials"
-
-    Both pass → accept scan, UPDATE vul_agent_credentials SET last_seen_at = now()
+  Engine gate (local — no onboarding call):
+    SELECT * FROM vul_agent_sessions
+    WHERE agent_id      = $agent_id
+      AND tenant_id     = $tenant_id
+      AND api_key_hash  = SHA256($api_key)
+      AND status        = 'active'
+    → Not found → 403 "Invalid agent credentials"
+    → Found → accept scan, UPDATE last_seen_at
 ```
 
 ---
@@ -189,41 +191,57 @@ STEP 3 — All scans (first run and every subsequent run)
 ## 6. Agent Lifecycle
 
 ```
-[Account onboarded in platform]
+[Portal: account onboarded as type='vulnerability']
         │
-        │  identity exists in onboarding table
+        │  issue_agent_token → agent_registrations row created
         ▼
-[Admin clicks Download Agent]
+     PENDING (30 min window)
         │
-        │  agent_api_key generated, hash stored in vul_agent_credentials
+        │  agent runs → calls /register → api_key issued
         ▼
-     ACTIVE ──── sends scans (account_id + api_key) ──► last_seen_at updated
+     ACTIVE (vul_agent_sessions status='active')
         │
-        ├── admin clicks Revoke ──────────────────────► REVOKED
-        │     (api_key_hash stays in DB, status = 'revoked')
-        │     (all servers in fleet stop being accepted immediately)
+        ├── sends scans (agent_id + api_key) ──► last_seen_at updated
         │
-        └── admin clicks Re-provision (Download again)
-              → new api_key issued → old ZIP stops working
-              → status back to ACTIVE
+        ├── admin clicks Revoke ─────────────► REVOKED
+        │     (vul_agent_sessions status='revoked'; all fleet scans rejected)
+        │
+        └── admin clicks Re-provision
+              → portal calls issue_agent_token again
+              → new agent_id + new registration_token issued
+              → old vul_agent_sessions row stays revoked
+              → new ZIP built + new api_key issued on first run
 ```
 
-No PENDING state. No token expiry. Identity validation is delegated entirely to the onboarding table.
+If registration token expires (30-min window missed), admin re-provisions — new download.
 
 ---
 
-## 7. Why No Register Step
+## 7. Why vul_agent_sessions (not reuse agent_registrations directly)
 
-Previous designs had a `register` endpoint for the agent to call on first run. It is not needed because:
+The scan validation gate runs on every scan — potentially hundreds of times per hour per agent.
+It must be fast and must not depend on onboarding engine availability.
 
-| What register was doing | What replaces it |
-|-------------------------|-----------------|
-| Create agent identity (uuid4) | Identity already exists: `account_id` from onboarding |
-| Issue `agent_api_key` | Issued at download time; embedded in ZIP |
-| Capture hostname | Captured in scan payload on every scan |
-| Set status = 'active' | Credential row is 'active' from the moment it's provisioned |
+```
+Option A: vul engine queries onboarding DB directly on every scan
+  ✗ Cross-DB query on hot path
+  ✗ Vul engine couples to onboarding DB schema
+  ✗ Onboarding outage = no scans accepted
 
-The agent goes directly from download → scan. No intermediate call.
+Option B: vul engine calls onboarding API on every scan
+  ✗ HTTP call on hot scan path (latency)
+  ✗ Onboarding outage = no scans accepted
+
+Option C: vul_agent_sessions table in vul engine DB  ← CHOSEN
+  ✓ Local lookup — fast
+  ✓ Populated once at register time
+  ✓ Onboarding outage does not affect scan acceptance
+  ✓ Vul engine owns its own auth state
+```
+
+Onboarding is called **once** — at register time — to validate the registration token and
+retrieve `agent_id + account_id + tenant_id`. After that, `vul_agent_sessions` is the
+authority for scan authentication.
 
 ---
 
@@ -231,7 +249,6 @@ The agent goes directly from download → scan. No intermediate call.
 
 ```
 Portal at download time:
-  binary_bytes  = fetch from S3
   binary_sha256 = hashlib.sha256(binary_bytes).hexdigest()
   → embed in agent_config.json
 
@@ -242,8 +259,6 @@ Agent at startup (before any network call):
       exit("ERROR: Binary integrity check failed. Re-download from portal.")
 ```
 
-Catches: S3 compromise, download corruption, manual tampering.
-
 ---
 
 ## 9. Binary Distribution — S3
@@ -252,39 +267,23 @@ Catches: S3 compromise, download corruption, manual tampering.
 
 ```
 s3://cspm-agent-binaries/
-├── vul-agent/                              ← permanent binaries (dev team managed)
+├── vul-agent/                              ← permanent (dev team managed)
 │   └── v1.0.0/
-│       ├── vul-agent                       (Linux binary, ~50MB)
-│       └── vul-agent.exe                   (Windows binary, ~50MB)
+│       ├── vul-agent                       (Linux, ~50MB)
+│       └── vul-agent.exe                   (Windows, ~50MB)
 │
 └── downloads/                              ← temporary per-provision ZIPs
     └── {uuid}/
-        └── vul-agent-{platform}.zip        (binary + agent_config.json)
+        └── vul-agent-{platform}.zip
 ```
 
-S3 lifecycle rule on `downloads/` prefix: delete objects older than 24 hours.
+S3 lifecycle rule on `downloads/`: delete after 24 hours.
 
-### Dev Team Release Flow
-
-```
-pyinstaller --onefile vul_agent.py --name vul-agent        (Linux)
-pyinstaller --onefile vul_agent.py --name vul-agent.exe    (Windows)
-aws s3 cp dist/vul-agent     s3://cspm-agent-binaries/vul-agent/v1.0.0/
-aws s3 cp dist/vul-agent.exe s3://cspm-agent-binaries/vul-agent/v1.0.0/
-```
-
-### Portal env vars
+### Portal IAM permissions
 
 ```
-S3_VUL_AGENT_BUCKET  = cspm-agent-binaries
-VUL_AGENT_VERSION    = v1.0.0
-```
-
-### Required IAM permissions for portal service account
-
-```
-s3:GetObject    on arn:aws:s3:::cspm-agent-binaries/vul-agent/*
-s3:PutObject    on arn:aws:s3:::cspm-agent-binaries/downloads/*
+s3:GetObject    on cspm-agent-binaries/vul-agent/*
+s3:PutObject    on cspm-agent-binaries/downloads/*
 s3:GeneratePresignedUrl
 ```
 
@@ -292,128 +291,134 @@ s3:GeneratePresignedUrl
 
 ## 10. Required Changes by Layer
 
-### 10.1 Vulnerability Engine — Database
+### 10.1 Onboarding Engine — No DB Changes
 
-> **Pre-migration discovery:** The existing `scans` table has `scan_id VARCHAR`
-> format `10052026_013` (DDMMYYYY + sequence). This must be swapped for `scan_run_id UUID`
-> (the cross-engine correlation ID from the pipeline orchestrator).
+`agent_registrations` table already exists with the required columns.
+`issue_agent_token` endpoint already exists.
 
-**NEW table: `vul_agent_credentials`**
+**One optional addition** (not blocking v1):
+Expose a token-validation endpoint for the vul engine to call at register time:
 
-```sql
-CREATE TABLE vul_agent_credentials (
-  id              SERIAL PRIMARY KEY,
-  tenant_id       UUID        NOT NULL,
-  account_id      UUID        NOT NULL,
-  api_key_hash    VARCHAR(64) NOT NULL,       -- SHA256 of agent_api_key
-  status          VARCHAR(20) NOT NULL DEFAULT 'active',  -- active / revoked
-  provisioned_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  last_seen_at    TIMESTAMPTZ,
+```
+GET /api/v1/internal/agents/validate-token
+Header: X-Token-Hash: <sha256>
+Response: { agent_id, account_id, tenant_id, status, expires_at }
 
-  UNIQUE (tenant_id, account_id)              -- one credential per account
-);
-
-CREATE INDEX idx_vul_creds_account ON vul_agent_credentials(tenant_id, account_id);
-CREATE INDEX idx_vul_creds_key     ON vul_agent_credentials(api_key_hash);
+Alternatively: vul engine reads onboarding DB directly (same cluster, different schema).
+Confirm with team which is preferred — API call vs direct DB read.
 ```
 
-No `agents` table. Identity validation goes to the onboarding table. Only credential
-(api_key_hash) and status live here.
+---
 
-**Table: `scans`** — swap scan_id for scan_run_id
+### 10.2 Vulnerability Engine — Database
+
+> **Pre-migration discovery:** `scans.scan_id` is VARCHAR format `10052026_013`.
+> Must be swapped for `scan_run_id UUID`. Same applies to `scan_vulnerabilities.scan_id`.
+> Decision: **DROP both** (no production data exists).
+
+**NEW table: `vul_agent_sessions`**
+
+```sql
+CREATE TABLE vul_agent_sessions (
+  id              SERIAL PRIMARY KEY,
+  agent_id        VARCHAR(20)  NOT NULL,          -- "agnt-xxxxxxxx" from onboarding
+  account_id      UUID         NOT NULL,
+  tenant_id       VARCHAR(255) NOT NULL,
+  api_key_hash    VARCHAR(64)  NOT NULL,           -- SHA256(agent_api_key)
+  status          VARCHAR(20)  NOT NULL DEFAULT 'active',  -- active / revoked
+  hostname        VARCHAR(255),
+  provisioned_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  last_seen_at    TIMESTAMPTZ,
+
+  UNIQUE (agent_id)
+);
+
+CREATE INDEX idx_vul_sessions_agent    ON vul_agent_sessions(agent_id);
+CREATE INDEX idx_vul_sessions_account  ON vul_agent_sessions(account_id, tenant_id);
+CREATE INDEX idx_vul_sessions_api_key  ON vul_agent_sessions(api_key_hash);
+```
+
+**Table: `scans`** — swap scan_id → scan_run_id
 
 ```sql
 ALTER TABLE scans ADD COLUMN scan_run_id UUID;
 ALTER TABLE scans ADD COLUMN tenant_id   UUID;
 ALTER TABLE scans ADD COLUMN account_id  UUID;
-
--- Drop old string-format column.
--- Values like "10052026_013" are vul-engine-internal only; no other engine references
--- them and no production scans exist yet. Clean break chosen over rename.
-ALTER TABLE scans DROP COLUMN scan_id;
-
+ALTER TABLE scans DROP COLUMN scan_id;          -- clean break; no prod data
 CREATE INDEX idx_scans_scan_run_id ON scans(scan_run_id);
 ```
 
-**Table: `scan_vulnerabilities`** — swap scan_id + add standard columns
-
-> Same pattern as `scans`: `scan_id` is expected to be a VARCHAR referencing
-> `scans.scan_id`. Both must be swapped together so the FK relationship stays consistent.
+**Table: `scan_vulnerabilities`** — same swap
 
 ```sql
--- Step 1: add the correct UUID column
-ALTER TABLE scan_vulnerabilities ADD COLUMN scan_run_id UUID;
-
--- Step 2: drop the old string FK (consistent with scans.scan_id — drop, not rename)
-ALTER TABLE scan_vulnerabilities DROP COLUMN scan_id;
-
--- Step 3: add remaining standard columns
-ALTER TABLE scan_vulnerabilities
-  ADD COLUMN tenant_id    UUID,
-  ADD COLUMN account_id   UUID,
-  ADD COLUMN resource_uid VARCHAR(255);
-
+ALTER TABLE scan_vulnerabilities ADD COLUMN scan_run_id  UUID;
+ALTER TABLE scan_vulnerabilities ADD COLUMN tenant_id    UUID;
+ALTER TABLE scan_vulnerabilities ADD COLUMN account_id   UUID;
+ALTER TABLE scan_vulnerabilities ADD COLUMN resource_uid VARCHAR(255);
+ALTER TABLE scan_vulnerabilities DROP COLUMN scan_id;   -- consistent with scans
 CREATE INDEX idx_scan_vuln_scan_run_id ON scan_vulnerabilities(scan_run_id);
 ```
 
-> Both tables drop `scan_id` consistently — no legacy columns remain.
+Both tables drop `scan_id` consistently — no legacy columns remain.
 
 ---
 
-### 10.2 Vulnerability Engine — API
+### 10.3 Vulnerability Engine — API
 
-#### NEW: `POST /api/v1/agents/provision`
-Called by portal backend only (internal, not exposed to agents).
+#### NEW: `POST /api/v1/agents/register`
+Called by agent binary on first run only.
 
 ```
-Request:  { tenant_id, account_id, platform }
-Response: { agent_api_key }   ← plain key, returned once, never stored plain
+Request:  { registration_token, agent_id, hostname, resource_uid, platform, os_version, arch }
+Response: { agent_api_key }
 
 Logic:
-- Validate account_id in onboarding table, status = 'active'
-- api_key   = secrets.token_hex(32)
-- key_hash  = sha256(api_key)
-- UPSERT vul_agent_credentials:
-    ON CONFLICT (tenant_id, account_id)
-    DO UPDATE SET api_key_hash = key_hash, status = 'active', provisioned_at = now()
-- Return { agent_api_key: api_key }
-```
+① Call onboarding to validate token:
+   GET /internal/agents/validate-token  { token_hash: SHA256(registration_token) }
+   → returns: { agent_id, account_id, tenant_id, expires_at }
+   → If not found or expired → 403 "Token invalid or expired"
+   → If agent_id in response ≠ agent_id in request → 403 "Agent ID mismatch"
 
-#### REMOVE: `POST /api/v1/agents/register`
-No longer needed. Identity is from onboarding; credential is issued at provision.
+② Issue scan credential:
+   agent_api_key = secrets.token_hex(32)
+
+③ UPSERT vul_agent_sessions:
+   INSERT (agent_id, account_id, tenant_id, api_key_hash=SHA256(key),
+           status='active', hostname, provisioned_at=now())
+   ON CONFLICT (agent_id) DO UPDATE SET
+     api_key_hash=SHA256(key), status='active',
+     hostname=$hostname, provisioned_at=now()
+
+④ Return { agent_api_key }
+   (plain key returned ONCE — agent must persist it in agent_config.json)
+```
 
 #### MODIFY: `POST /api/v1/agents/scan`
-Two-check gate against onboarding + vul_agent_credentials.
+Replace current gate with local vul_agent_sessions lookup.
 
 ```
-Request body:  { account_id, tenant_id, hostname, resource_uid, findings... }
+Request body:  { agent_id, tenant_id, hostname, resource_uid, findings... }
 Header:        Authorization: Bearer <agent_api_key>
 
-Gate logic:
-① SELECT status FROM onboarding_accounts
-  WHERE account_id = $account_id AND tenant_id = $tenant_id
-  → not found or not 'active' → 403 "Account not active"
-
-② api_key = extract from Authorization header
-   SELECT id FROM vul_agent_credentials
-   WHERE account_id  = $account_id
-     AND tenant_id   = $tenant_id
-     AND api_key_hash = sha256($api_key)
-     AND status      = 'active'
-   → not found → 403 "Invalid agent credentials"
-
-Both pass → accept scan
-  UPDATE vul_agent_credentials SET last_seen_at = now()
-  INSERT into scans / scan_vulnerabilities with scan_run_id, tenant_id, account_id, hostname, resource_uid
+Gate:
+  api_key = extract from Authorization header
+  SELECT * FROM vul_agent_sessions
+  WHERE agent_id     = $agent_id
+    AND tenant_id    = $tenant_id
+    AND api_key_hash = SHA256($api_key)
+    AND status       = 'active'
+  → Not found → 403 "Invalid agent credentials"
+  → Found → accept scan
+    UPDATE vul_agent_sessions SET last_seen_at = now()
+    INSERT findings with scan_run_id, tenant_id, account_id, resource_uid
 ```
 
 #### NEW: `POST /api/v1/agents/revoke`
 Called by portal when admin clicks Revoke.
 
 ```
-Request:  { tenant_id, account_id }
-Logic:    UPDATE vul_agent_credentials SET status = 'revoked'
-          WHERE tenant_id = $1 AND account_id = $2
+UPDATE vul_agent_sessions SET status = 'revoked'
+WHERE agent_id = $1 AND tenant_id = $2
 ```
 
 #### REMOVE: Hardcoded fallback in `vul_agent.py`
@@ -423,55 +428,49 @@ Logic:    UPDATE vul_agent_credentials SET status = 'revoked'
 vul_agent_id = os.environ.get("VUL_AGENT_ID", "ajay4141")
 
 # REPLACE WITH:
-account_id    = config.get("account_id")
+agent_id      = config.get("agent_id")
 agent_api_key = config.get("agent_api_key")
-if not account_id or not agent_api_key:
+if not agent_id or not agent_api_key:
     raise SystemExit("ERROR: Agent not configured. Re-download from portal.")
 ```
 
 ---
 
-### 10.3 Portal Backend — Endpoint
+### 10.4 Portal Backend — Endpoint
 
-#### NEW: `POST /api/vulnerability/agent/provision`
+#### MODIFY: Download provision flow
 
 ```
-Request:  { tenant_id, account_id, platform: "linux" | "windows" }
-Response: { download_url, url_expires_at }
+POST /api/vulnerability/agent/provision
+Request:  { account_id, platform: "linux" | "windows" }
 
 Logic:
-1. Call vul engine POST /api/v1/agents/provision
-   → receive { agent_api_key }
+1. Call onboarding: POST /api/v1/accounts/{account_id}/agent-token
+   → receive { raw_token, agent_id }
 
-2. Fetch binary from S3 (permanent store):
-   s3://{S3_VUL_AGENT_BUCKET}/vul-agent/{VUL_AGENT_VERSION}/vul-agent{.exe}
+2. Fetch binary from S3
 
-3. Compute binary integrity hash:
-   binary_sha256 = hashlib.sha256(binary_bytes).hexdigest()
+3. binary_sha256 = sha256(binary_bytes)
 
 4. Build agent_config.json:
    {
-     "account_id":    "<account_id>",
-     "agent_api_key": "<plain_api_key>",
-     "binary_sha256": "<hash>",
-     "engine_url":    "<VUL_ENGINE_URL>",
-     "tenant_id":     "<tenant_id>"
+     "agent_id":           "agnt-3f8a1b2c",
+     "registration_token": "<raw_token>",
+     "binary_sha256":      "<hash>",
+     "engine_url":         "<VUL_ENGINE_URL>",
+     "tenant_id":          "<tenant_id>"
    }
 
-5. Create ZIP in memory
+5. ZIP in memory → upload to s3://cspm-agent-binaries/downloads/{uuid}/...
 
-6. Upload ZIP to temp S3 path:
-   s3://{S3_VUL_AGENT_BUCKET}/downloads/{uuid}/vul-agent-{platform}.zip
+6. Generate 10-min pre-signed URL
 
-7. Generate 10-min pre-signed URL:
-   presigned_url = s3.generate_presigned_url("get_object", ExpiresIn=600)
-
-8. Return { download_url: presigned_url, url_expires_at: <iso8601> }
+7. Return { download_url, url_expires_at }
 ```
 
 ---
 
-### 10.4 Portal UI — Changes
+### 10.5 Portal UI — Changes
 
 **Download Dialog:**
 
@@ -484,11 +483,7 @@ Logic:
 │                                                      │
 │  [ ⬇ Download vul-agent-linux.zip ]                  │
 │                                                      │
-│  How to install:                                     │
-│  1. Unzip the downloaded file                        │
-│  2. Linux:   chmod +x vul-agent && ./vul-agent       │
-│     Windows: double-click vul-agent.exe              │
-│  3. Agent starts scanning automatically              │
+│  1. Unzip   2. Run agent   3. Scans start auto       │
 │                                                      │
 │  Download link valid for: 10 minutes                 │
 └──────────────────────────────────────────────────────┘
@@ -496,52 +491,48 @@ Logic:
 
 **Agent Management Table:**
 
-| Account | Status | Last Seen | Provisioned | Actions |
-|---------|--------|-----------|-------------|---------|
-| aws-prod (123456789012) | ACTIVE | 2 hrs ago | 01 May 2026 | [Revoke] [Re-provision] |
-| azure-dev | ACTIVE | 1 day ago | 15 Apr 2026 | [Revoke] [Re-provision] |
-| aws-staging | REVOKED | 10 days ago | — | [Re-provision] |
+| Agent ID | Account | Status | Last Seen | Provisioned | Actions |
+|----------|---------|--------|-----------|-------------|---------|
+| agnt-3f8a1b2c | aws-prod (123...) | ACTIVE | 2 hrs ago | 01 May 2026 | [Revoke] |
+| agnt-7d2c9e01 | azure-dev | ACTIVE | 1 day ago | 15 Apr 2026 | [Revoke] |
+| agnt-a1b2c3d4 | aws-staging | REVOKED | 10 days ago | — | [Re-provision] |
 
 ---
 
-### 10.5 Agent Binary — `vul_agent.py` Changes
+### 10.6 Agent Binary — `vul_agent.py` Changes
 
 ```python
 def startup():
-    config = load_config()   # reads agent_config.json
+    config = load_config()
 
-    # Step 1: Verify binary integrity before any network call
+    # Step 1: Binary integrity check
     if config.get("binary_sha256"):
         actual = hashlib.sha256(open(sys.argv[0], 'rb').read()).hexdigest()
         if actual != config["binary_sha256"]:
-            raise SystemExit("ERROR: Binary integrity check failed. Re-download from portal.")
+            raise SystemExit("ERROR: Binary integrity check failed. Re-download.")
 
-    # Step 2: Validate config has required fields
-    account_id    = config.get("account_id")
-    agent_api_key = config.get("agent_api_key")
-    if not account_id or not agent_api_key:
-        raise SystemExit("ERROR: Agent not configured. Re-download from portal.")
+    # Step 2: Already registered
+    if config.get("agent_id") and config.get("agent_api_key"):
+        return config["agent_id"], config["agent_api_key"]
 
-    # Step 3: Collect server identity for scan payload
-    server_info = {
-        "hostname":     socket.gethostname(),
-        "resource_uid": get_instance_id_from_imdsv2(),  # None if not AWS
-        "platform":     sys.platform,
-        "os_version":   platform.version(),
-        "arch":         platform.machine(),
-    }
+    # Step 3: First run — register with vul engine
+    if config.get("registration_token") and config.get("agent_id"):
+        response = call_register_endpoint(
+            registration_token = config["registration_token"],
+            agent_id           = config["agent_id"],
+            hostname           = socket.gethostname(),
+            resource_uid       = get_instance_id_from_imdsv2(),
+            platform           = sys.platform,
+            os_version         = platform.version(),
+            arch               = platform.machine(),
+        )
+        config["agent_api_key"] = response["agent_api_key"]
+        del config["registration_token"]
+        del config["binary_sha256"]
+        save_config(config)
+        return config["agent_id"], config["agent_api_key"]
 
-    return account_id, agent_api_key, server_info
-
-def run_scan(account_id, agent_api_key, server_info):
-    headers = {"Authorization": f"Bearer {agent_api_key}"}
-    payload = {
-        "account_id":   account_id,
-        "tenant_id":    config["tenant_id"],
-        "findings":     [...],
-        **server_info   # hostname, resource_uid, etc.
-    }
-    post("/api/v1/agents/scan", json=payload, headers=headers)
+    raise SystemExit("ERROR: Agent not configured. Re-download from portal.")
 ```
 
 ---
@@ -556,62 +547,69 @@ def run_scan(account_id, agent_api_key, server_info):
 | Per-agent scan rate limiting | v2 |
 | mTLS for agent ↔ engine communication | v2 |
 | api_key rotation without re-provisioning | v2 |
-| Per-server revocation (today: per-account) | v2 |
 
 ---
 
 ## 12. Implementation Order
 
 ```
-①  DB migration    — CREATE vul_agent_credentials table
-                      scans: swap scan_id (VARCHAR) → scan_run_id (UUID)  ⚠ not backfillable
-                      scan_vulnerabilities: same swap — scan_id → scan_run_id + add standard cols
-                      Both tables: drop/rename decision must match — confirm before running
+①  DB migration (vul engine)
+     — CREATE vul_agent_sessions table
+     — scans: DROP scan_id, ADD scan_run_id UUID
+     — scan_vulnerabilities: DROP scan_id, ADD scan_run_id UUID + standard cols
 
-②  Vul Engine      — POST /api/v1/agents/provision
-                      (validate onboarding, generate api_key, upsert vul_agent_credentials)
+②  Onboarding engine
+     — Expose internal token-validation endpoint (or confirm direct DB access)
+     — No schema changes needed
 
-③  Vul Engine      — MODIFY POST /api/v1/agents/scan
-                      (two-check gate: onboarding active + api_key_hash match)
+③  Vul Engine — POST /api/v1/agents/register (new)
+     — Validate registration_token via onboarding
+     — Issue agent_api_key, store hash in vul_agent_sessions
 
-④  Vul Engine      — POST /api/v1/agents/revoke
+④  Vul Engine — MODIFY POST /api/v1/agents/scan
+     — Replace old gate with vul_agent_sessions lookup
 
-⑤  Vul Engine      — REMOVE /api/v1/agents/register (no longer needed)
+⑤  Vul Engine — POST /api/v1/agents/revoke (new)
 
-⑥  Vul Agent       — remove "ajay4141"; add integrity check; read account_id + api_key from config
+⑥  Vul Agent (vul_agent.py)
+     — Remove "ajay4141" fallback
+     — Add integrity check + register flow
 
-⑦  S3 bucket       — create cspm-agent-binaries; upload Linux + Windows binaries v1.0.0
-                      set lifecycle rule: delete downloads/* after 24h
+⑦  S3 bucket
+     — Upload Linux + Windows binaries v1.0.0
+     — Set lifecycle rule: delete downloads/* after 24h
 
-⑧  Portal BFF      — POST /api/vulnerability/agent/provision
-                      (onboarding lookup → api_key → ZIP → S3 upload → presigned URL)
+⑧  Portal BFF
+     — POST /api/vulnerability/agent/provision
+       (call onboarding issue_agent_token → build ZIP → S3 upload → presigned URL)
 
-⑨  Portal UI       — Download dialog (account selector + platform) + Agent Management table
+⑨  Portal UI
+     — Download dialog + Agent Management table
 
-⑩  E2E test        — onboard account → download ZIP → integrity-check → scan accepted
-                      → revoke → scan rejected → re-provision → scan accepted again
+⑩  E2E test
+     — Onboard vulnerability account → download ZIP → integrity-check
+     → register → scan accepted → revoke → scan rejected → re-provision → scan accepted
 ```
 
 ---
 
 ## 13. Open Questions for Team
 
-1. **Onboarding table name**: What is the exact table/column name for `account_id` in the onboarding engine DB? Plan assumes `onboarding_accounts.account_id` — confirm.
-2. **Cross-DB query**: Vul engine scan gate needs to query the onboarding table. Are these in the same DB or different DBs? If different — vul engine calls the onboarding engine API instead of direct SQL.
-3. **resource_uid**: Mandatory on AWS, optional elsewhere — acceptable in scan payload?
-4. **Re-provision behaviour**: Re-downloading issues a new api_key — previous ZIP stops working. Admin must redeploy config to all fleet servers. Is this acceptable, or should old key stay valid for a grace period?
+1. **Onboarding token validation**: Does vul engine call the onboarding API, or query onboarding DB directly? API call is cleaner (no cross-DB access); direct DB is faster. Confirm preferred approach.
+2. **account_type gate**: Only `vulnerability`, `database`, `middleware` accounts can issue agent tokens (existing constraint). Is this correct for our use case?
+3. **resource_uid**: Optional (NULL if not on AWS) — acceptable in scan payload?
+4. **Re-provision behaviour**: New `agent_id` is issued on re-provision — old `agent_id` row stays revoked. Admin must redeploy config to all fleet servers. Acceptable?
 5. **Revoke permission**: `tenant_admin` only, or `analyst` too?
-6. **S3 bucket**: Create new `cspm-agent-binaries` or reuse existing one?
-7. **Temp ZIP cleanup**: S3 lifecycle rule (delete after 24h) — confirm this is sufficient vs event-driven cleanup.
-8. ~~**scan_id history**~~ — **resolved**: drop both `scans.scan_id` and `scan_vulnerabilities.scan_id`. No production data exists (engine was in dev state); clean break chosen.
+6. **S3 bucket**: Create new `cspm-agent-binaries` or reuse existing bucket?
+7. **Temp ZIP cleanup**: S3 lifecycle rule (delete after 24h) — sufficient?
+8. ~~**scan_id history**~~ — **resolved**: drop both `scans.scan_id` and `scan_vulnerabilities.scan_id`. Clean break.
 
 ---
 
-*Plan v1.5 — updated 2026-05-12 — agent identity sourced from onboarding table.*  
-*Key changes from v1.4: removed agent_id generation entirely — identity is `account_id` from the onboarding table. Removed register step and enrollment token. `vul_agent_credentials` table replaces the `agents` table (stores only api_key_hash + status, keyed by tenant_id + account_id). Agent goes directly from download → scan. agent_config.json contains account_id + agent_api_key. Engine validates against two tables: onboarding (active?) + vul_agent_credentials (api_key match?).*
+*Plan v1.6 — updated 2026-05-12 — aligned with existing onboarding engine code.*  
+*Key changes from v1.5: code inspection of onboarding engine revealed `agent_registrations` table and `issue_agent_token` endpoint already exist. Corrections: (1) `agent_id` is `agnt-xxxxxxxx` from `agent_registrations`, NOT `account_id`; (2) provision reuses onboarding's existing `issue_agent_token`; (3) register step is back — exchanges 30-min registration token for permanent `agent_api_key`; (4) `vul_agent_sessions` table replaces `vul_agent_credentials` — local to vul engine DB, populated once at register time, no onboarding call on scan path.*
 
-*Plan v1.4 — updated 2026-05-12 — scan_id → scan_run_id swap documented.*
-
-*Plan v1.3 — updated 2026-05-12 — hybrid pre-signed URL delivery.*
-
-*Plan v1.2 — updated 2026-05-11 after security review.*
+*Plan v1.5 — identity from onboarding table.*  
+*Plan v1.4 — scan_id → scan_run_id swap.*  
+*Plan v1.3 — hybrid pre-signed URL delivery.*  
+*Plan v1.2 — security hardening (token expiry, uuid4, api_key, binary SHA256).*
