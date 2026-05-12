@@ -327,11 +327,10 @@ ALTER TABLE scans ADD COLUMN scan_run_id UUID;
 ALTER TABLE scans ADD COLUMN tenant_id   UUID;
 ALTER TABLE scans ADD COLUMN account_id  UUID;
 
--- Drop old string-format column (not backfillable to UUID):
--- Option A — clean break:
+-- Drop old string-format column.
+-- Values like "10052026_013" are vul-engine-internal only; no other engine references
+-- them and no production scans exist yet. Clean break chosen over rename.
 ALTER TABLE scans DROP COLUMN scan_id;
--- Option B — preserve history:
--- ALTER TABLE scans RENAME COLUMN scan_id TO legacy_scan_id;
 
 CREATE INDEX idx_scans_scan_run_id ON scans(scan_run_id);
 ```
@@ -345,10 +344,8 @@ CREATE INDEX idx_scans_scan_run_id ON scans(scan_run_id);
 -- Step 1: add the correct UUID column
 ALTER TABLE scan_vulnerabilities ADD COLUMN scan_run_id UUID;
 
--- Step 2: drop the old string FK (or rename to preserve history — match whatever
---         was decided for scans.scan_id in the block above)
+-- Step 2: drop the old string FK (consistent with scans.scan_id — drop, not rename)
 ALTER TABLE scan_vulnerabilities DROP COLUMN scan_id;
--- or: ALTER TABLE scan_vulnerabilities RENAME COLUMN scan_id TO legacy_scan_id;
 
 -- Step 3: add remaining standard columns
 ALTER TABLE scan_vulnerabilities
@@ -359,8 +356,7 @@ ALTER TABLE scan_vulnerabilities
 CREATE INDEX idx_scan_vuln_scan_run_id ON scan_vulnerabilities(scan_run_id);
 ```
 
-> **Note:** The drop/rename decision for `scan_vulnerabilities.scan_id` must match
-> what was chosen for `scans.scan_id` — they should be consistent.
+> Both tables drop `scan_id` consistently — no legacy columns remain.
 
 ---
 
@@ -607,7 +603,7 @@ def run_scan(account_id, agent_api_key, server_info):
 5. **Revoke permission**: `tenant_admin` only, or `analyst` too?
 6. **S3 bucket**: Create new `cspm-agent-binaries` or reuse existing one?
 7. **Temp ZIP cleanup**: S3 lifecycle rule (delete after 24h) — confirm this is sufficient vs event-driven cleanup.
-8. **scan_id history**: Rename to `legacy_scan_id` (keeps old data) or drop outright (clean break)?
+8. ~~**scan_id history**~~ — **resolved**: drop both `scans.scan_id` and `scan_vulnerabilities.scan_id`. No production data exists (engine was in dev state); clean break chosen.
 
 ---
 
