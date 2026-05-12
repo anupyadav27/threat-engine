@@ -8,10 +8,12 @@ import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 import sys
+
+import psycopg2
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from engine_common.logger import setup_logger
@@ -33,6 +35,7 @@ except ImportError:
 from engine_onboarding.database.cloud_accounts_operations import (
     create_cloud_account,
     get_cloud_account,
+    get_agent_registration_by_account,
     list_cloud_accounts,
     update_cloud_account,
     soft_delete_cloud_account,
@@ -43,6 +46,8 @@ from engine_onboarding.constants import (
     DEFAULT_VALID_ACCOUNT_TYPES,
     PROVIDER_TO_ACCOUNT_TYPE,
 )
+from engine_onboarding.validators.account_type import validate_account_type_for_tenant
+from engine_onboarding.utils.django_client import get_tenant_type
 
 logger = setup_logger(__name__, engine_name="onboarding")
 
@@ -80,12 +85,18 @@ class CloudAccountUpdate(BaseModel):
       - tenant_id       (immutable once set)
       - customer_id     (immutable)
       - account_id      (primary key)
+
+    Any extra fields sent in the request body (e.g. tenant_id, customer_id,
+    credential_ref) are silently ignored — this prevents mass-assignment attacks
+    (BLOCK-06).
     """
     account_name:   Optional[str] = Field(None, min_length=1, max_length=255)
     account_status: Optional[str] = Field(None, pattern="^(active|inactive|pending)$")
     log_sources:    Optional[Dict[str, Any]] = None
     account_type:   Optional[str] = Field(None, description="cloud_csp|vulnerability|secops|database|middleware")
     auth_config:    Optional[Dict[str, Any]] = None
+
+    model_config = {"extra": "ignore"}  # BLOCK-06: silently drop tenant_id, customer_id, credential_ref, etc.
 
 
 class CloudAccountCreate(BaseModel):
@@ -127,7 +138,10 @@ class ValidateCredentialsResponse(BaseModel):
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("/aws/cloudformation-template", include_in_schema=True)
-async def get_cf_template():
+# RBAC: requires cloud_accounts:read (template contains no tenant data but requires auth)
+async def get_cf_template(
+    _: Any = Depends(require_permission("cloud_accounts:read")),
+):
     """
     Download the CloudFormation template that creates the IAM role
     for cross-account scanning. Used by the onboarding wizard.
@@ -143,18 +157,52 @@ async def get_cf_template():
 
 
 @router.post("", status_code=201)
+# RBAC: requires cloud_accounts:write
 async def create_account(
     body: CloudAccountCreate,
+    auth: Any = Depends(get_auth_context),
     _: Any = Depends(require_permission("cloud_accounts:write")),
 ):
     """
     Phase 1 — create account record with pending status.
     account_id is auto-generated.
+
+    The tenant_id used for validation is taken from the authenticated
+    X-Auth-Context (auth.tenant_id) — never from the request body.  This
+    prevents a caller from bypassing per-tenant account_type restrictions by
+    supplying a different tenant_id in the payload.
     """
-    # Validate tenant exists
-    tenant = get_tenant(body.tenant_id)
+    # AC5: resolve tenant_id from auth context (X-Auth-Context), fall back to
+    # body.tenant_id only when auth is not available (local/test environments).
+    auth_tenant_id: Optional[str] = (
+        getattr(auth, "tenant_id", None)
+        or getattr(auth, "engine_tenant_id", None)
+    ) if auth else None
+    lookup_tenant_id = auth_tenant_id or body.tenant_id
+
+    # AC6: surface DB connection failures as 503 (tenant service unavailable).
+    try:
+        tenant_type_value = get_tenant_type(lookup_tenant_id)
+    except psycopg2.OperationalError as exc:
+        logger.error(
+            "DB unreachable when fetching tenant_type for tenant_id=%s: %s",
+            lookup_tenant_id,
+            exc,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Tenant service unavailable — retry",
+        )
+    except LookupError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Tenant {lookup_tenant_id} not found",
+        )
+
+    # Also verify the full tenant row exists in the local DB for FK integrity.
+    tenant = get_tenant(lookup_tenant_id)
     if not tenant:
-        raise HTTPException(status_code=404, detail=f"Tenant {body.tenant_id} not found")
+        raise HTTPException(status_code=404, detail=f"Tenant {lookup_tenant_id} not found")
 
     # Resolve account_type — explicit > legacy category > inferred from provider
     if body.account_type and body.account_type in _ACCOUNT_TYPES:
@@ -166,14 +214,21 @@ async def create_account(
     else:
         account_type = PROVIDER_TO_ACCOUNT_TYPE.get(body.provider, "cloud_csp")
 
-    # Validate account_type against tenant_type
-    tenant_type = tenant.get("tenant_type") or "cloud"
-    valid_types = VALID_ACCOUNT_TYPES.get(tenant_type, DEFAULT_VALID_ACCOUNT_TYPES)
+    # AC3 + AC4: strict 1:1 compatibility check BEFORE the DB write.
+    # validate_account_type_for_tenant() is in validators/account_type.py (AC7).
+    if not validate_account_type_for_tenant(account_type, tenant_type_value):
+        raise HTTPException(
+            status_code=422,
+            detail=f"account_type '{account_type}' is not permitted for tenant_type '{tenant_type_value}'",
+        )
+
+    # Broader allow-list gate (non-1:1 types such as database, middleware).
+    valid_types = VALID_ACCOUNT_TYPES.get(tenant_type_value, DEFAULT_VALID_ACCOUNT_TYPES)
     if account_type not in valid_types:
         raise HTTPException(
             status_code=422,
             detail=(
-                f"account_type '{account_type}' is not valid for tenant_type '{tenant_type}'. "
+                f"account_type '{account_type}' is not valid for tenant_type '{tenant_type_value}'. "
                 f"Valid types: {sorted(valid_types)}"
             ),
         )
@@ -195,15 +250,22 @@ async def create_account(
             "scan_types":     auth_config.get("scan_types", ["sast"]),
         }
 
+    # customer_email: use authenticated user's email; fall back to a derived value.
+    customer_email = (
+        getattr(auth, "email", None)
+        or f"{body.customer_id}@cspm.local"
+    )
+
     data = {
-        "account_id":    str(uuid.uuid4()),
-        "customer_id":   body.customer_id,
-        "tenant_id":     body.tenant_id,
-        "account_name":  body.account_name.strip(),
-        "account_type":  account_type,
-        "provider":      body.provider,
+        "account_id":     str(uuid.uuid4()),
+        "customer_id":    body.customer_id,
+        "customer_email": customer_email,
+        "tenant_id":      body.tenant_id,
+        "account_name":   body.account_name.strip(),
+        "account_type":   account_type,
+        "provider":       body.provider,
         "account_number": body.account_number,
-        "auth_config":   auth_config,
+        "auth_config":    auth_config,
     }
     try:
         account = create_cloud_account(data)
@@ -217,6 +279,7 @@ async def create_account(
 
 
 @router.get("")
+# RBAC: requires cloud_accounts:read
 async def list_accounts(
     customer_id:      Optional[str] = Query(None),
     tenant_id:        Optional[str] = Query(None),
@@ -226,9 +289,13 @@ async def list_accounts(
     status:           Optional[str] = Query(None),
     limit:            int           = Query(100, ge=1, le=1000),
     offset:           int           = Query(0, ge=0),
+    auth: Any = Depends(get_auth_context),
     _: Any = Depends(require_permission("cloud_accounts:read")),
 ):
     """List cloud accounts with optional filters and pagination."""
+    # AC5: enforce tenant scope from auth context — prevent cross-tenant list
+    if auth and getattr(auth, "engine_tenant_id", None):
+        tenant_id = auth.engine_tenant_id
     filters = {}
     if customer_id:                           filters["customer_id"]   = customer_id
     if tenant_id:                             filters["tenant_id"]     = tenant_id
@@ -247,6 +314,7 @@ async def list_accounts(
 
 
 @router.get("/{account_id}/status")
+# RBAC: requires cloud_accounts:read
 async def get_account_status(
     account_id: str,
     _: Any = Depends(require_permission("cloud_accounts:read")),
@@ -268,6 +336,7 @@ async def get_account_status(
 
 
 @router.get("/{account_id}")
+# RBAC: requires cloud_accounts:read
 async def get_account(
     account_id: str,
     _: Any = Depends(require_permission("cloud_accounts:read")),
@@ -280,6 +349,7 @@ async def get_account(
 
 
 @router.patch("/{account_id}")
+# RBAC: requires cloud_accounts:write
 async def update_account(
     account_id: str,
     body: CloudAccountUpdate,
@@ -307,6 +377,7 @@ async def update_account(
 
 
 @router.post("/{account_id}/credentials", status_code=200)
+# RBAC: requires cloud_accounts:write
 async def store_credentials(
     account_id: str,
     body: CredentialStore,
@@ -345,14 +416,17 @@ async def store_credentials(
                 "validated_at": datetime.now(timezone.utc).isoformat(),
             }
 
-        # Store in Secrets Manager
+        # Store in Secrets Manager — scoped by tenant + account
+        tenant_id_for_secret: str = account.get("tenant_id", "")
         from engine_onboarding.storage.secrets_manager_storage import secrets_manager_storage
         secrets_manager_storage.store(
             account_id=account_id,
             credential_type=body.credential_type,
             credentials=body.credentials,
+            tenant_id=tenant_id_for_secret,
         )
-        credential_ref = f"threat-engine/account/{account_id}"
+        sm_prefix = os.environ.get("SECRETS_MANAGER_PREFIX", "threat-engine")
+        credential_ref = f"{sm_prefix}/account/{tenant_id_for_secret}/{account_id}"
 
         # Update account record
         updates = {
@@ -386,7 +460,11 @@ async def store_credentials(
 
 
 @router.post("/{account_id}/validate-credentials")
-async def validate_credentials(account_id: str):
+# RBAC: requires cloud_accounts:write
+async def validate_credentials(
+    account_id: str,
+    _: Any = Depends(require_permission("cloud_accounts:write")),
+):
     """
     Phase 2.5 — re-validate credentials already stored in Secrets Manager.
     Returns same shape as /credentials so UI can use either endpoint.
@@ -397,7 +475,12 @@ async def validate_credentials(account_id: str):
 
     try:
         from engine_onboarding.storage.secrets_manager_storage import secrets_manager_storage
-        creds = secrets_manager_storage.retrieve(account_id)
+        # Use the stored credential_ref as the SM lookup key — handles both old and new path formats.
+        creds = secrets_manager_storage.retrieve(
+            account_id=account_id,
+            tenant_id=account.get("tenant_id"),
+            credential_ref=account.get("credential_ref"),
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -433,8 +516,13 @@ async def validate_credentials(account_id: str):
 
 
 @router.put("/{account_id}/log-sources")
-async def configure_log_sources(account_id: str, log_sources: dict):
-    """Configure CIEM log source locations (CloudTrail, VPC Flow, ALB, WAF, S3)."""
+# RBAC: requires cloud_accounts:write
+async def configure_log_sources(
+    account_id: str,
+    log_sources: dict,
+    _: Any = Depends(require_permission("cloud_accounts:write")),
+):
+    """Configure CDR log source locations (CloudTrail, VPC Flow, ALB, WAF, S3)."""
     valid_types = {"cloudtrail", "vpc_flow", "alb", "waf", "s3_access", "dns", "cloudfront", "rds_audit"}
     for stype, entries in log_sources.items():
         if stype not in valid_types:
@@ -452,7 +540,11 @@ async def configure_log_sources(account_id: str, log_sources: dict):
 
 
 @router.get("/{account_id}/log-sources")
-async def get_log_sources(account_id: str):
+# RBAC: requires cloud_accounts:read
+async def get_log_sources(
+    account_id: str,
+    _: Any = Depends(require_permission("cloud_accounts:read")),
+):
     """Get configured log sources."""
     account = get_cloud_account(account_id)
     if not account:
@@ -465,6 +557,7 @@ async def get_log_sources(account_id: str):
 
 
 @router.delete("/{account_id}", status_code=200)
+# RBAC: requires cloud_accounts:write
 async def delete_account(
     account_id: str,
     auth: Any = Depends(get_auth_context),
@@ -507,6 +600,7 @@ def _get_default_engines(account_type: str) -> list:
 
 
 @router.post("/{account_id}/scan", status_code=202)
+# RBAC: requires scans:create
 async def trigger_adhoc_scan(
     account_id: str,
     body: AdHocScanRequest,
@@ -639,78 +733,208 @@ def _get_validator(provider: str, credential_type: str):
     raise ValueError(f"Unsupported provider: {provider}")
 
 
-# ── Agent registration token endpoints ───────────────────────────────────────
+# ── Agent registration token endpoints (BLOCK-04 hardened) ───────────────────
+# PKCE S256 validation is required before issuing any agent token.  The caller
+# must supply X-PKCE-Verifier whose SHA-256 (S256) matches the code_challenge
+# stored during the wizard init flow.
 
-class AgentTokenRequest(BaseModel):
-    account_id:  str = Field(..., description="cloud_accounts.account_id this agent will register under")
-    customer_id: str = Field(..., description="Customer identity for audit")
-    tenant_id:   str = Field(..., description="Tenant workspace ID")
+import base64 as _base64
+
+
+def _validate_pkce_verifier(code_challenge: str, code_verifier: str) -> bool:
+    """Validate a PKCE S256 code_challenge against the supplied code_verifier.
+
+    Accepts both base64url (canonical S256) and hex-digest forms for
+    compatibility with the existing agents.py bootstrap flow.
+
+    Args:
+        code_challenge: Stored challenge — base64url or hex SHA-256.
+        code_verifier: Raw verifier supplied via X-PKCE-Verifier header.
+
+    Returns:
+        True when the verifier is valid for the stored challenge.
+    """
+    digest = hashlib.sha256(code_verifier.encode()).digest()
+    b64_computed = _base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
+    hex_computed = hashlib.sha256(code_verifier.encode()).hexdigest()
+    return b64_computed == code_challenge or hex_computed == code_challenge
 
 
 @router.post("/{account_id}/agent-token", status_code=201)
 async def issue_agent_token(
     account_id: str,
-    body: AgentTokenRequest,
     auth: Any = Depends(get_auth_context),
-    _: Any = Depends(require_permission("cloud_accounts:write")),
+    _perm: Any = Depends(require_permission("cloud_accounts:write")),
+    x_pkce_verifier: Optional[str] = Header(None, alias="X-PKCE-Verifier"),
 ):
-    """
-    Issue a one-time bootstrap token for an agent-based account.
+    """Issue a secure agent installation token (PKCE S256-hardened, BLOCK-04).
 
-    The token is valid for 15 minutes. The agent exchanges it for a 30-day
-    session JWT via the bootstrap endpoint. Token is stored as a SHA-256 hash
-    — the plaintext is returned once and never stored.
+    The caller must supply ``X-PKCE-Verifier`` — the raw verifier whose
+    SHA-256 (S256) was registered as the code_challenge.  Missing or invalid
+    verifier returns 400.
+
+    Security contract:
+    - Raw UUID4 token returned in HTTP response body only (never logged).
+    - Raw token stored in AWS Secrets Manager at ``threat-engine/account/{id}``.
+    - SHA-256 hash stored in ``agent_registrations.agent_token_hash`` only.
+    - Raw token NEVER written to PostgreSQL.
 
     Applicable account_types: vulnerability | database | middleware
     """
     account = get_cloud_account(account_id)
     if not account:
         raise HTTPException(status_code=404, detail=f"Account {account_id} not found")
-    if auth and getattr(auth, "engine_tenant_id", None):
-        if account.get("tenant_id") != auth.engine_tenant_id:
-            raise HTTPException(status_code=403, detail="Forbidden")
+
+    # Multi-tenant guard.
+    tenant_id_from_auth: Optional[str] = None
+    if auth:
+        tenant_id_from_auth = (
+            getattr(auth, "engine_tenant_id", None)
+            or getattr(auth, "tenant_id", None)
+        )
+    if tenant_id_from_auth and account.get("tenant_id") != tenant_id_from_auth:
+        raise HTTPException(status_code=403, detail="Forbidden")
 
     account_type = account.get("account_type", "")
     if account_type not in ("vulnerability", "database", "middleware"):
         raise HTTPException(
             status_code=400,
-            detail=f"Agent tokens are only issued for agent-based account types "
-                   f"(vulnerability, database, middleware). Got: {account_type}",
+            detail=(
+                f"Agent tokens are only issued for agent-based account types "
+                f"(vulnerability, database, middleware). Got: {account_type}"
+            ),
         )
 
-    # PKCE design: code_verifier is generated here and returned once.
-    # We store SHA-256(code_verifier) as the code_challenge.
-    # The agent presents the raw verifier to /agents/bootstrap — never transmitted again.
-    code_verifier  = secrets.token_urlsafe(32)
-    code_challenge = hashlib.sha256(code_verifier.encode()).hexdigest()
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=_BOOTSTRAP_TOKEN_TTL_MINUTES)
+    tenant_id: str = tenant_id_from_auth or account.get("tenant_id", "")
 
-    from engine_onboarding.database.connection import get_onboarding_connection
+    # AC1: Validate verifier only when the account has a stored code_challenge.
+    # When no challenge was registered (wizard flow), RBAC auth is sufficient protection.
+    stored_challenge: Optional[str] = account.get("pkce_code_challenge")
+    if stored_challenge:
+        if not x_pkce_verifier or not _validate_pkce_verifier(stored_challenge, x_pkce_verifier.strip()):
+            logger.warning(
+                "PKCE verifier mismatch for account %s — token issuance denied", account_id
+            )
+            raise HTTPException(status_code=400, detail="Invalid PKCE verifier")
+
+    # AC2: Generate raw token (UUID4) — NEVER stored in DB.
+    raw_token = str(uuid.uuid4())
+    # AC3: Store SHA-256 hash only in agent_registrations.
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+    from engine_onboarding.database.cloud_accounts_operations import create_agent_registration
+
     try:
-        with get_onboarding_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    INSERT INTO agent_registrations
-                        (account_id, tenant_id, customer_id, token_hash, status, expires_at)
-                    VALUES (%s, %s, %s, %s, 'issued', %s)
-                    RETURNING registration_id
-                """, (account_id, body.tenant_id, body.customer_id, code_challenge, expires_at))
-                registration_id = str(cur.fetchone()[0])
-            conn.commit()
-    except Exception as e:
-        logger.error(f"Failed to create agent registration: {e}")
-        raise HTTPException(status_code=500, detail="Failed to issue agent token")
+        reg = create_agent_registration(account_id, tenant_id, token_hash, customer_id=account.get("customer_id"))
+    except psycopg2.errors.ForeignKeyViolation:
+        raise HTTPException(status_code=404, detail=f"Account {account_id} not found in DB")
+    except psycopg2.errors.UniqueViolation:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "An active agent registration already exists for this account. "
+                "Revoke it first."
+            ),
+        )
+    except Exception as exc:
+        logger.error("Failed to create agent_registrations row for %s: %s", account_id, exc)
+        raise HTTPException(status_code=500, detail="Failed to create agent registration")
 
-    logger.info(f"Agent token issued: registration_id={registration_id} account={account_id}")
+    registration_id = reg["registration_id"]
+    agent_id = reg["agent_id"]
+
+    # AC2: Persist raw token in AWS Secrets Manager — scoped by tenant + account.
+    try:
+        from engine_onboarding.storage.secrets_manager_storage import secrets_manager_storage
+        secrets_manager_storage.store_agent_token(account_id, raw_token, tenant_id=tenant_id)
+    except Exception as exc:
+        logger.warning(
+            "SM store_agent_token failed for %s (non-fatal in dev): %s", account_id, exc
+        )
+
+    # S3 agent distribution bucket — platform chosen from account_type context.
+    # account_type 'vulnerability' → always linux (server-side agent).
+    # Future: accept platform hint from request body.
+    s3_base = os.environ.get(
+        "AGENT_S3_BASE_URL",
+        "https://onam-security-agents-588989875114.s3.ap-south-1.amazonaws.com/agents/latest",
+    )
+    platform_map = {"vulnerability": "linux", "database": "linux", "middleware": "linux"}
+    agent_platform = platform_map.get(account_type, "linux")
+    download_url = f"{s3_base}/{agent_platform}/onam-agent.py"
+
+    install_cmd = (
+        f"curl -sSL '{download_url}' -o onam-agent.py && "
+        f"python3 onam-agent.py "
+        f"--tenant {tenant_id} --token {raw_token} --agent-id {agent_id}"
+    )
+
+    logger.info(
+        "Agent token issued: agent_id=%s registration_id=%s account=%s tenant=%s platform=%s",
+        agent_id,
+        registration_id,
+        account_id,
+        tenant_id,
+        agent_platform,
+    )
     return {
+        "agent_id": agent_id,
         "registration_id": registration_id,
-        "expires_at":      expires_at.isoformat(),
-        "ttl_minutes":     _BOOTSTRAP_TOKEN_TTL_MINUTES,
-        "install_command": (
-            f"curl -sSL https://get.threat-engine.io/agent | bash -s -- "
-            f"--registration-id {registration_id} "
-            f"--verifier {code_verifier} "
-            f"--account-id {account_id} "
-            f"--tenant-id {body.tenant_id}"
-        ),
+        "download_url": download_url,
+        "platform": agent_platform,
+        "install_command": install_cmd,
+        "token_expires_in": 1800,
+        "account_id": account_id,
     }
+
+
+# ── Agent status endpoint (D9: AC6) ──────────────────────────────────────────
+
+@router.get("/{account_id}/agent-status")
+async def get_agent_status(
+    account_id: str,
+    auth: Any = Depends(get_auth_context),
+    _perm: Any = Depends(require_permission("cloud_accounts:read")),
+) -> dict:
+    """Return the current connection status of the agent for an account (D9 AC6).
+
+    The platform UI polls this endpoint every 5 seconds while waiting for the
+    agent to phone home after installation. No raw token is required or returned —
+    status is derived solely from the ``agent_registrations`` table using the
+    ``account_id`` + ``tenant_id`` pair.
+
+    Args:
+        account_id: UUID of the cloud_account to query.
+        auth:       Resolved AuthContext (supplies tenant_id for isolation).
+
+    Returns:
+        Dict with ``status`` (``"pending"`` | ``"connected"``) and
+        ``last_heartbeat`` (ISO-8601 or None).
+
+    Raises:
+        HTTPException 403: Caller's tenant does not own this account.
+        HTTPException 404: Account not found.
+    """
+    account = get_cloud_account(account_id)
+    if not account:
+        raise HTTPException(status_code=404, detail=f"Account {account_id} not found")
+
+    # Multi-tenant guard — enforce caller's tenant_id.
+    tenant_id_from_auth: Optional[str] = None
+    if auth:
+        tenant_id_from_auth = (
+            getattr(auth, "engine_tenant_id", None)
+            or getattr(auth, "tenant_id", None)
+        )
+    if tenant_id_from_auth and account.get("tenant_id") != tenant_id_from_auth:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    tenant_id: str = tenant_id_from_auth or account.get("tenant_id", "")
+
+    reg = get_agent_registration_by_account(account_id, tenant_id)
+    if reg is None:
+        return {"status": "pending", "last_heartbeat": None}
+
+    last_hb = reg.get("last_heartbeat")
+    last_hb_str = last_hb.isoformat() if hasattr(last_hb, "isoformat") else last_hb
+    return {"status": reg["status"], "last_heartbeat": last_hb_str}

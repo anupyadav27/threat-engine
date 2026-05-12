@@ -111,7 +111,7 @@ def _get_recent_scans(
                started_at, completed_at,
                engines_requested, engines_completed,
                results_summary
-        FROM scan_runs
+        FROM scan_orchestration
         WHERE tenant_id = %s
         ORDER BY started_at DESC
         LIMIT %s

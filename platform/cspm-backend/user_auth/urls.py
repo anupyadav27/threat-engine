@@ -11,6 +11,7 @@ from user_auth.views.saml_auth import (
     SAMLLoginView, SAMLACSView, SAMLMetadataView, SAMLLogoutView,
 )
 from user_auth.views.invite import ValidateInviteView, AcceptInviteView, InviteSSORedirectView
+from user_auth.views.invite_send import InviteUserView, InviteUserAcceptView
 from user_auth.views.password_reset import PasswordResetRequestView, PasswordResetConfirmView
 from user_auth.views.account_access import UserAccountAccessView
 
@@ -51,6 +52,13 @@ urlpatterns = [
     path("invite/<str:token>/", ValidateInviteView.as_view(), name="invite_validate"),
     path("invite/<str:token>/sso/", InviteSSORedirectView.as_view(), name="invite_sso"),
     path("invite/<str:token>/accept/", AcceptInviteView.as_view(), name="invite_accept"),
+
+    # ── onboarding-D2: customer_id–scoped invite (users:write) ────────────────
+    # Separate from the tenant-scoped /api/v1/invites/ flow (BILL-S07).
+    # Raw token never stored — SHA-256 hash only (AC6).
+    # 72-hour TTL (AC6/AC10), same-org=409 / cross-org=422 (AC3/AC4).
+    path("users/invite/accept/", InviteUserAcceptView.as_view(), name="users_invite_accept"),
+    path("users/invite/", InviteUserView.as_view(), name="users_invite"),
 
     # ── Password reset ────────────────────────────────────────────────────────
     path("password-reset/request/", PasswordResetRequestView.as_view(), name="password_reset_request"),

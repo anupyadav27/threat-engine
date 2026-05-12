@@ -3012,10 +3012,10 @@ async def list_predefined_hunts(
 
 @app.post("/api/v1/hunt/execute")
 async def execute_hunt(
-    tenant_id: str = Body(...),
     hunt_id: Optional[str] = Body(None),
     predefined_id: Optional[str] = Body(None),
     cypher: Optional[str] = Body(None),
+    auth: AuthContext = Depends(require_permission("threat:read")),
 ):
     """
     Execute a threat hunt query.
@@ -3027,6 +3027,7 @@ async def execute_hunt(
     """
     import time as _time
     start = _time.time()
+    tenant_id = auth.engine_tenant_id  # SR-002: always from AuthContext, never from request body
 
     try:
         gq = SecurityGraphQueries()

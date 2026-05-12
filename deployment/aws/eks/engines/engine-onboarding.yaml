@@ -228,3 +228,70 @@ spec:
     name: http
   selector:
     app: engine-onboarding
+---
+# BUG-07 fix: Celery beat scheduler Deployment — fires the weekly credential
+# expiry health-check task.  MUST remain replicas: 1 (singleton); multiple
+# beat pods would submit the same task multiple times.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: engine-onboarding-celery-beat
+  namespace: threat-engine-engines
+  labels:
+    app: engine-onboarding-celery-beat
+    tier: engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: engine-onboarding-celery-beat
+  template:
+    metadata:
+      labels:
+        app: engine-onboarding-celery-beat
+        tier: engine
+    spec:
+      serviceAccountName: engine-sa
+      containers:
+      - name: celery-beat
+        image: yadavanup84/threat-engine-onboarding-api:v-onboard-secops2
+        command: ["celery", "-A", "engine_onboarding.celery_app", "beat", "--loglevel=info"]
+        envFrom:
+        - configMapRef:
+            name: threat-engine-db-config
+        - secretRef:
+            name: threat-engine-db-passwords
+        env:
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: platform-config
+              key: aws-region
+        - name: DATABASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: platform-config
+              key: database-url
+        - name: SHARED_DB_NAME
+          value: "threat_engine_onboarding"
+        - name: DB_SCHEMA
+          value: "public"
+        - name: FROM_EMAIL
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-secrets
+              key: FROM_EMAIL
+              optional: true
+        - name: PLATFORM_ADMIN_EMAIL
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-secrets
+              key: PLATFORM_ADMIN_EMAIL
+              optional: true
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"

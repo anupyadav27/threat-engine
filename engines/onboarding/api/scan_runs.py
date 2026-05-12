@@ -1,5 +1,5 @@
 """
-Scan Runs API — status polling and history for scan_runs table.
+Scan Runs API — status polling and history for scan_orchestration table.
 """
 import uuid
 from datetime import datetime, timezone

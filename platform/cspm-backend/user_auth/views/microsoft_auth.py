@@ -25,10 +25,11 @@ from django.utils import timezone
 from rest_framework.views import APIView
 
 from user_auth.models import Users, UserSessions
+from user_auth.throttles import IDPCallbackRateThrottle
 from user_auth.utils.auth_utils import compute_auth_caches, generate_token, hash_token
 from user_auth.utils.audit_utils import log_auth_event
 from user_auth.utils.cookie_utils import set_auth_cookies
-from user_auth.utils.tenant_utils import accept_invite_membership, provision_first_tenant
+from user_auth.utils.tenant_utils import accept_invite_membership, provision_tenant_for_new_user
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +75,8 @@ class MicrosoftLoginView(APIView):
 
 class MicrosoftCallbackView(APIView):
     """Handle Microsoft OAuth code, upsert user, issue session cookies, redirect."""
+
+    throttle_classes = [IDPCallbackRateThrottle]
 
     def get(self, request):
         frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:3000")
@@ -154,7 +157,7 @@ class MicrosoftCallbackView(APIView):
                 sso_provider="microsoft",
                 sso_id=ms_id,
             )
-            provision_first_tenant(user)
+            provision_tenant_for_new_user(user)
 
         user.last_login = timezone.now()
         user.save(update_fields=["last_login"])

@@ -25,11 +25,12 @@ from rest_framework.views import APIView
 
 from tenant_management.models import TenantIDPConfig
 from user_auth.models import Users, UserSessions
+from user_auth.throttles import IDPCallbackRateThrottle
 from user_auth.utils.auth_utils import compute_auth_caches, generate_token, hash_token
 from user_auth.utils.audit_utils import log_auth_event
 from user_auth.utils.cookie_utils import set_auth_cookies
 from user_auth.utils.secrets_utils import get_idp_client_secret
-from user_auth.utils.tenant_utils import accept_invite_membership, provision_first_tenant
+from user_auth.utils.tenant_utils import accept_invite_membership, provision_tenant_for_new_user
 
 logger = logging.getLogger(__name__)
 
@@ -171,6 +172,8 @@ class OIDCCallbackView(APIView):
     GET /api/auth/oidc/callback/?code=...&state=...
     """
 
+    throttle_classes = [IDPCallbackRateThrottle]
+
     def get(self, request: HttpRequest) -> HttpResponse:
         frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:3000")
 
@@ -270,7 +273,7 @@ class OIDCCallbackView(APIView):
                 sso_provider="oidc",
                 sso_id=sub,
             )
-            provision_first_tenant(user)
+            provision_tenant_for_new_user(user)
 
         user.last_login = timezone.now()
         user.save(update_fields=["last_login"])

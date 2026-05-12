@@ -19,10 +19,12 @@ from django.utils import timezone
 from rest_framework.views import APIView
 
 from user_auth.models import Users, UserSessions
+from user_auth.throttles import IDPCallbackRateThrottle
 from user_auth.utils.auth_utils import compute_auth_caches, generate_token, hash_token
 from user_auth.utils.audit_utils import log_auth_event
 from user_auth.utils.cookie_utils import set_auth_cookies
-from user_auth.utils.tenant_utils import accept_invite_membership, provision_first_tenant
+from user_auth.utils.oauth import validate_google_hd
+from user_auth.utils.tenant_utils import accept_invite_membership, provision_tenant_for_new_user
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +70,8 @@ class GoogleLoginView(APIView):
 
 class GoogleCallbackView(APIView):
     """Handle Google OAuth code, upsert user, issue session cookies, redirect."""
+
+    throttle_classes = [IDPCallbackRateThrottle]
 
     def get(self, request):
         frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:3000")
@@ -120,12 +124,21 @@ class GoogleCallbackView(APIView):
         if not email:
             return HttpResponseRedirect(f"{frontend_url}/auth/login?error=google_no_email")
 
-        # BLOCK-03: validate hosted domain from session (not from profile — profile.hd can be spoofed)
+        # BLOCK-03 (session hd hint): validate hosted domain from session (not from
+        # profile — profile.hd can be spoofed by a crafted userinfo response).
         if requested_hd:
             email_domain = email.split("@")[-1]
             if email_domain != requested_hd:
                 logger.warning("Google OAuth hd mismatch: expected=%s got=%s", requested_hd, email_domain)
                 return HttpResponseRedirect(f"{frontend_url}/auth/login?error=domain_mismatch")
+
+        # BLOCK-03 (platform-wide restriction): validate the hd claim in the
+        # Google userinfo payload against GOOGLE_ALLOWED_DOMAINS env var.
+        # When the env var is empty, validation is skipped (backward-compatible).
+        if not validate_google_hd(profile):
+            return HttpResponseRedirect(
+                f"{frontend_url}/auth/login?error=domain_not_authorized"
+            )
 
         # Upsert user
         is_new_user = False
@@ -150,7 +163,7 @@ class GoogleCallbackView(APIView):
                 sso_provider="google",
                 sso_id=google_id,
             )
-            provision_first_tenant(user)
+            provision_tenant_for_new_user(user)
 
         user.last_login = timezone.now()
         user.save(update_fields=["last_login"])

@@ -1,477 +1,463 @@
 ---
-stepsCompleted: ['step-01-init', 'step-02-discovery', 'step-02b-vision', 'step-02c-executive-summary', 'step-03-success', 'step-04-journeys', 'step-05-domain-requirements', 'step-06-innovation', 'step-07-b2b-requirements', 'step-08-scoping', 'step-09-functional', 'step-10-nonfunctional', 'step-11-open-questions', 'step-12-complete']
-inputDocuments: ['_bmad-output/planning-artifacts/epics.md']
+stepsCompleted: ['step-01-init', 'step-02-discovery', 'step-02b-vision', 'step-02c-executive-summary', 'step-03-success', 'step-04-journeys', 'step-05-domain-requirements', 'step-06-innovation', 'step-07-b2b-requirements', 'step-08-scoping', 'step-09-functional', 'step-10-nonfunctional', 'step-11-polish', 'step-12-complete']
+inputDocuments:
+  - 'memory/project_onboarding_revamp.md'
+  - 'memory/project_auth_onboarding_sprint.md'
+  - '.claude/planning/SPRINT-PLAN-AUTH-ONBOARDING.md'
+  - 'engines/onboarding/api/cloud_accounts.py'
+  - 'engines/onboarding/api/agents.py'
+  - 'engines/onboarding/api/schedules.py'
+  - 'engines/onboarding/api/credentials.py'
+  - 'engines/onboarding/api/scans.py'
+  - 'engines/onboarding/database/models.py'
+  - 'engines/onboarding/database/scan_run_operations.py'
+  - 'engines/onboarding/tasks/credential_health_check.py'
+  - 'engines/onboarding/storage/secrets_manager_storage.py'
+  - 'engines/platform-admin/routers/orgs.py'
+  - 'platform/cspm-backend/user_auth/models.py'
+  - 'platform/cspm-backend/user_auth/urls.py'
+  - 'platform/cspm-backend/tenant_management/models.py'
+  - 'platform/cspm-backend/tenant_management/urls.py'
 workflowType: 'prd'
+releaseMode: 'single-release'
 classification:
   projectType: saas_b2b
-  domain: cloud_security_saas_billing
+  domain: cloud_security_credential_management
   complexity: high
   projectContext: brownfield
+groundTruthAudit:
+  auditedBy: ['onboarding-engine-expert', 'platform-admin-engine', 'billing-engine', 'vulnerability-engine']
+  auditDate: '2026-05-11'
 ---
 
-# Product Requirements Document - threat-engine
+# Product Requirements Document — Customer Onboarding & Credential Management
 
-**Author:** Anup
-**Date:** 2026-05-02
+**Author:** Anup Yadave
+**Date:** 2026-05-11
+**Status:** Final
+**Feature Area:** Platform Onboarding, Credential Lifecycle, User Provisioning
+
+---
 
 ## Executive Summary
 
-The Threat Engine CSPM platform is live in production with 18+ scanning engines, RBAC, and self-service registration — but has no commercial layer. Every registered user receives `org_admin` access with unrestricted scan capabilities and full engine visibility, making monetization, resource governance, and enterprise sales impossible. This PRD defines the **Subscription & Billing system**: a net-new capability that adds tiered plans, payment processing, usage enforcement, and operator-level monitoring without re-architecting any existing scan engine.
+The Onam Security CSPM platform has 18+ scanning engines in production but no controlled customer provisioning path. Every customer org is created through self-service signup, credentials are partially managed through AWS Secrets Manager but lack expiry tracking, and the vulnerability agent's auth system is entirely disconnected from the onboarding engine's PKCE bootstrap. A legacy credential router with zero authentication sits live in production. This PRD defines the **Customer Onboarding & Credential Management** system: a single-release effort that closes these gaps, introduces a platform-admin-controlled org creation flow, and establishes a complete 4-stage credential lifecycle across all account types.
 
 **Target personas:**
-- **Self-serve buyer (org_admin):** Cloud security engineer or DevSecOps lead who registers, evaluates on Free, and upgrades when they need more accounts or enterprise engines. Wants frictionless upgrade, clear value at each tier, and transparent usage metrics.
-- **SaaS operator (platform_admin):** The Threat Engine team managing all customer orgs — monitoring engine health, pipeline runs, subscription status, and granting trial extensions.
-- **Invited team member (analyst/viewer):** Scoped to their org's plan limits; cannot change subscription but can see what tier their org is on.
+- **Platform Admin:** Onam Security operator who provisions new customer orgs, creates initial users, and assigns org-level access. Currently has no endpoint to create orgs — this is the primary new capability.
+- **Org Admin:** Customer security lead who adds tenants, cloud accounts, and credentials. Onboarding wizard drives them from account creation to first validated scan.
+- **Tenant Admin:** Scoped to a specific tenant; adds cloud accounts, manages credentials, triggers scans, monitors pipeline status.
+- **VUL Agent (system actor):** The installed vulnerability scanning agent that phones home to register itself and submit scan results. Currently disconnected from onboarding auth.
 
-**Problem being solved:** The platform generates security value but captures zero revenue. Without subscription gates, there is no mechanism to differentiate free vs paid users, block overuse, or restrict access to the 7 enterprise engines (datasec, secops, vulnerability, ai-security, encryption, dbsec, container-sec) that represent premium value.
+**Problem being solved:** Customers cannot be provisioned in a controlled, operator-managed way. Credential expiry is not tracked in the database, so expiry notifications cannot fire. The agent install flow issues a JWT that the vulnerability engine ignores. Seven endpoints accept credential operations with no authentication. The platform captures security value but has no governed entry point for new enterprise customers.
 
 ### What Makes This Special
 
-The core insight: **the enforcement layer already exists.** The 27-permission RBAC matrix, the `require_permission()` FastAPI dependency on every engine endpoint, and the `permissions_cache` in every session token are already production-hardened. Subscription tiers map directly to RBAC capability sets — Free maps to viewer-level engine access, Pro to analyst-level, Enterprise unlocks the 7 gated engines. No scan engine code changes required; enforcement is injected at the Gateway layer via a new `X-Subscription-Context` header alongside the existing `X-Auth-Context`.
+The enforcement layer already exists: AWS Secrets Manager integration, PKCE agent bootstrap, real CSP validation API calls (STS, ARM, GCP IAM), Django SAML/OAuth, RBAC, and group tables are all implemented. The differentiator is **connective tissue** — wiring these components into a governed, end-to-end flow where platform admin controls org creation, credentials follow a tracked 4-stage lifecycle, and agents self-register through a consistent auth path. No competitor offers an operator-controlled provisioning model that spans cloud, code, and agent-based scan types in a single wizard.
 
-**Differentiator over bolt-on billing:** Most SaaS billing is orthogonal to the product. Here, billing *is* the access control system — subscription status resolves at session time and propagates as a header, identical to permissions. A subscription downgrade revokes capabilities at next login with zero special-case code in engines.
-
-**Two new services, clearly separated:**
-- `engine-billing` (FastAPI, port 8040) — Stripe integration, invoice generation, plan management, usage metering, webhook handling. Isolated from scan engines.
-- `engine-platform-admin` (FastAPI, port 8041) — Operator dashboard: all-engine health, Argo pipeline status, per-org subscription management, usage metrics, trial extensions. Only accessible to `platform_admin` role.
+---
 
 ## Project Classification
 
-| Attribute | Value |
-|-----------|-------|
-| Project Type | B2B SaaS — Net-new billing feature on existing platform |
-| Domain | Cloud Security SaaS (cybersecurity + fintech billing hybrid) |
-| Complexity | High — regulated data handling, payment scope (PCI-DSS SAQ A-EP), multi-tenant enforcement, 18 live engine integration points |
-| Project Context | Brownfield — live production system, zero downtime constraint |
-| Compliance Scope | PCI-DSS (Stripe elements), SOC 2 Type II (audit log of billing events), GDPR (payment data residency) |
+- **Project Type:** SaaS B2B — multi-tenant cloud security platform
+- **Domain:** Cloud Security / Credential Management / DevSecOps
+- **Complexity:** High — cross-engine auth dependencies, multi-CSP credential validation, regulated credential data, real-time agent callbacks, billing initialization coupling
+- **Project Context:** Brownfield — 4 partially-built components (onboarding engine, platform-admin engine, Django auth backend, VUL agent) with confirmed gaps from live code audit conducted 2026-05-11
+
+---
 
 ## Success Criteria
 
 ### User Success
-- org_admin completes plan upgrade (Free → Pro) in ≤3 minutes with no support contact
-- 14-day trial users who connect ≥1 cloud account and run ≥1 scan convert to paid at ≥30%
-- Invited team members (analyst/viewer) see their org's subscription tier on first login
-- Zero cases of a user charged without an explicit confirmation step
-- Downgrade and cancellation flows completable without support contact
+
+- A platform admin can create a new customer org, provision initial users, and set access scope entirely within the CSPM portal — no direct DB inserts or manual steps required.
+- An org admin reaches a validated, scan-ready cloud account within 10 minutes of entering credentials.
+- A tenant admin installs the vulnerability agent, sees status flip from **Pending** to **Connected** in the UI within 60 seconds of the agent phoning home, without any manual backend intervention.
+- Org admins and platform admins receive credential expiry email alerts at day 76 and are never surprised by a scan blockage at day 90.
 
 ### Business Success
-- Billing infrastructure live and first paying customer onboarded within Sprint 1 of implementation
-- ≥20% of registered orgs on a paid plan within 6 months of launch
-- Monthly churn on paid plans ≤5%
-- Payment failure recovery (retry + dunning) resolves ≥90% of failed charges without manual intervention
-- platform_admin answers "which orgs expire this week?" in ≤30 seconds without DB access
+
+- 100% of new enterprise customer orgs provisioned through the platform admin flow — zero orgs created via direct Django admin or DB access.
+- Credential expiry rate drops to zero within 90 days of launch, measured by active accounts with `credential_validation_status = expired`.
+- All inbound scan pipeline triggers succeed (zero failures from the `scan_runs` vs `scan_orchestration` table name mismatch bug).
 
 ### Technical Success
-- Subscription enforcement check adds ≤10ms p99 latency to gateway request path
-- Stripe webhook processing is idempotent — no duplicate charges under any retry scenario
-- engine-billing deployable and rollback-able independently with zero downtime to scan engines
-- 100% of scan requests over account limit receive HTTP 402 (not 500, not silent pass-through)
-- All billing events written to audit log (SOC 2 Type II requirement)
+
+- Zero unauthenticated credential endpoints in the onboarding engine (legacy `/api/v1/accounts` router removed or fully gated).
+- `cloud_accounts` table has `expires_at` and `last_rotated_at` columns and all active accounts have these populated.
+- Credential expiry Celery beat task is deployed as a running K8s pod — not just code — and fires on schedule.
+- Billing trial record (`org_subscriptions`, status `trialing`) is auto-initialized on every new org creation via `POST /api/v1/billing/trial/provision`.
+- `org_id` in billing aligns with `customer_id` in Django and onboarding engines — single consistent identifier across all services.
 
 ### Measurable Outcomes
-- Time-to-first-payment: ≤3 minutes from "upgrade" click to active subscription
-- Trial-to-paid conversion: ≥30% of trials that ran ≥1 scan
-- Operator time-to-insight: ≤30 seconds from dashboard open to actionable view
-- Blast radius: engine-billing downtime does not degrade any scan engine availability
 
-## Product Scope
+| Metric | Target | How Measured |
+|---|---|---|
+| Time to first validated scan | ≤ 10 min | Timestamp delta: account_created_at → credential_validated_at |
+| Unauthenticated credential endpoints | 0 | Security audit of all `/api/v1/accounts` and `/api/v1/cloud-accounts` routes |
+| Active creds with expiry tracked | 100% | `SELECT COUNT(*) FROM cloud_accounts WHERE expires_at IS NULL AND account_status='active'` = 0 |
+| Expiry notifications fired on time | 100% | Celery task log: alert sent before day 76 for all qualifying accounts |
+| Scan pipeline trigger success rate | 100% | `scan_orchestration` write success rate after table name fix |
 
-### MVP — Minimum Viable Product
-- 4 subscription tiers: Free, Starter, Pro, Enterprise
-- Stripe Checkout integration (hosted page — Threat Engine never touches raw card data)
-- Account limit enforcement: new onboarding blocked with HTTP 402 when org exceeds `max_accounts`
-- Engine tier gating: enterprise engines return HTTP 402 when org is on Free/Starter/Pro
-- 14-day trial on all paid tiers — auto-downgrade to Free on expiry if no payment method added
-- `engine-billing` (port 8040): plan CRUD, Stripe webhook handler, subscription state DB
-- `engine-platform-admin` (port 8041): org health dashboard, subscription management, engine health monitor
-- New RBAC permissions: `billing:read`, `billing:write`, `platform:admin`
-- `/api/auth/me` response extended with subscription tier and usage counts
-- Scan frequency enforcement at Gateway (Free = 1/week, Starter = 1/day, Pro = 4/day, Enterprise = unlimited)
-
-### Growth Features (Post-MVP)
-- Usage-based overage billing (pay-per-account beyond limit instead of hard block)
-- PDF invoice generation and download from billing portal
-- Annual billing with 2-month discount
-- Stripe Customer Portal (self-serve payment method update, invoice history)
-- Email notifications: trial expiry (7 days, 1 day), payment failed, renewal receipt, limit warning at 80%
-- Team seat licensing (per-user pricing layer on top of account limits)
-
-### Vision (Future)
-- Engine add-on marketplace (buy specific engines à la carte)
-- White-label billing for MSP/reseller partners
-- Usage analytics dashboard for org_admin (scan trends, findings over time, cost-per-scan)
-- Multi-year contracts with custom pricing managed by platform_admin
-- Automatic rightsizing suggestions ("2 of 10 Pro accounts used — consider downgrade?")
+---
 
 ## User Journeys
 
-### Journey 1: Priya — Self-Serve Upgrade (Primary Happy Path)
+### Journey 1 — Platform Admin: Onboarding a New Enterprise Customer
 
-Priya is a senior DevSecOps engineer at a 40-person SaaS startup. She registered last week, connected her AWS account, ran her first scan, and saw 47 critical findings. She wants to connect her GCP and Azure accounts too.
+**Opening scene:** Priya is a platform admin at Onam Security. A new enterprise customer, FinVault, has signed a contract. Priya logs into the CSPM portal with her `platform_admin` role.
 
-**Opening scene:** Priya clicks "Add Cloud Account" in the onboarding portal. A modal appears: "Your Free plan includes 1 cloud account. Upgrade to Pro to connect up to 10 accounts and run daily scans." She sees a side-by-side comparison of Free, Starter, Pro, and Enterprise.
+**Rising action:** Priya navigates to Platform Admin → Customer Orgs → New Customer. She enters FinVault's org name and contact email. The system creates a new `customer_id`, calls `POST /api/v1/billing/trial/provision` to initialize a 14-day Pro trial, and the org appears in the org list as `status=active`.
 
-**Rising action:** She selects Pro ($99/month). The portal opens Stripe Checkout in the same tab — no redirect to a separate billing site. She enters her card details (handled entirely by Stripe, never touching Threat Engine servers). She clicks "Subscribe."
+Priya then clicks "Add Users" and enters two email addresses — a security engineer (org-level access) and a team lead (org-group-level access to only the production tenant). The system sends invite emails via SES. She assigns both users to the `org_admin` role for the first, and `tenant_admin` scoped to the prod-tenant group for the second.
 
-**Climax:** Within 3 seconds she's back in the portal with a green banner: "You're now on Pro. Connect up to 10 accounts." Her GCP onboarding continues without interruption. The session permissions_cache is refreshed on next request — no re-login required.
+**Climax:** Priya clicks "Complete Provisioning." The portal sends both invite emails and shows FinVault in the customer list with status `Provisioned`, trial days remaining, and zero tenants. She copies the portal login URL and sends it to FinVault.
 
-**Resolution:** By end of day Priya has AWS, GCP, and Azure connected and is scheduling daily scans. She receives an email receipt. Her org's subscription tier shows "Pro — active" in the billing portal.
-
-**Capabilities revealed:** Stripe Checkout integration, account limit enforcement with upgrade prompt, session-aware subscription refresh, billing portal, email receipt.
+**Resolution:** FinVault's security engineer receives the invite email, clicks the link, sets their password (or authenticates via Google OAuth), and lands on the Onam portal with a clean onboarding wizard waiting for them.
 
 ---
 
-### Journey 2: Alex — Morning Ops Check (Platform Admin)
+### Journey 2 — Org Admin: Cloud Account Onboarding (AWS)
 
-Alex is the ops lead at Threat Engine. Every morning he opens the platform admin dashboard before standup.
+**Opening scene:** Marcus is FinVault's org admin. He accepts his invite, logs in, and sees the "Add your first tenant" wizard step.
 
-**Opening scene:** Alex logs in with his platform_admin credentials. The dashboard shows a grid: 23 active orgs, 4 on trial, 2 trials expiring within 3 days, 1 org with a failed payment in retry state, all 18 engines green except engine-datasec which has elevated error rate.
+**Rising action:** Marcus creates a tenant named "FinVault AWS Production" with `tenant_type=cloud`. The wizard then steps him to "Add Cloud Account." He selects AWS as the provider, enters his AWS access key ID and secret. The UI shows a clear field map: which credential goes where, what minimum IAM permissions are needed.
 
-**Rising action:** He clicks the failing payment org — "TechCorp Ltd, Pro plan, payment failed 2 days ago, 2 retries remaining." He sees their scan access is still active (grace period). He sends them a manual notification from the dashboard.
+He clicks "Save & Validate." The onboarding engine retrieves the credential reference from AWS Secrets Manager at `threat-engine/account/{account_id}`, calls `sts:GetCallerIdentity`, and returns PASS in under 5 seconds. The AWS account number auto-fills the `account_number` field.
 
-**Climax:** He clicks engine-datasec. The detail view shows the last 10 Argo pipeline runs, the error rate, and a pod restart count. He sees it's a transient issue — last 3 runs were clean. No action needed.
+**Climax:** Marcus sees a green checkmark on the Credentials step. The wizard automatically enrolls the account on the default daily scan schedule. He clicks "Trigger First Scan" — an ad-hoc scan fires immediately.
 
-**Resolution:** In 8 minutes Alex has answered: who's expiring, who's in payment trouble, and whether all engines are healthy. He goes to standup with data.
-
-**Capabilities revealed:** Platform admin engine health monitor, subscription status grid, payment state visibility, Argo pipeline monitor, manual notification trigger.
+**Resolution:** Within minutes, the pipeline status page shows Discovery → Inventory → Check progressing. Marcus bookmarks the scan status page and reports to his team: "We're scanning AWS production."
 
 ---
 
-### Journey 3: Marcus — Invited Analyst (Scoped Access)
+### Journey 3 — Tenant Admin: Vulnerability Agent Install
 
-Marcus is a security analyst invited by his org's org_admin to review findings. His org is on the Starter plan.
+**Opening scene:** Fatima is a tenant admin at FinVault responsible for container security. She needs to onboard their Kubernetes cluster for vulnerability scanning.
 
-**Opening scene:** Marcus receives an invite email. He clicks the link, sets a password, and lands on the CSPM dashboard. He sees discoveries, check findings, threat, inventory, compliance, IAM, CIEM, network, and risk — all 9 core engines his role permits.
+**Rising action:** Fatima adds a new account under the FinVault tenant, selects `account_type=vulnerability`. The wizard shows: "Install the Onam Vulnerability Agent on your target environment." A code block appears:
 
-**Rising action:** Marcus notices there's no datasec tab. He hovers over a greyed-out "Data Security" nav item. A tooltip: "Data Security is available on Pro and above. Ask your org admin to upgrade." He's not blocked — he just knows the context.
+```bash
+curl -sSL https://agents.onam.cloud/install.sh | bash -s -- \
+  --tenant FinVault-prod \
+  --token <generated-agent-token> \
+  --endpoint https://api.onam.cloud/vuln
+```
 
-**Climax:** Marcus opens a threat finding he wants to investigate. He can read all details, create notes, export to CSV. He can't trigger a new scan — that requires scans:create which is org_admin/tenant_admin only.
+She copies the command, runs it on the target VM. The agent installs, calls `POST /api/v1/agents/register` on the VUL engine with the token, and the VUL engine records the registration.
 
-**Resolution:** Marcus does his security review without any subscription friction. He sends his org_admin a message about upgrading to Pro to get datasec coverage. Subscription awareness flows naturally without hard blocking his work.
+**Climax:** Back in the portal, Fatima watches the agent status card. Within 60 seconds it flips from **Pending** to **Connected** — the onboarding engine has polled `GET /api/v1/agents/{id}/status` and confirmed the heartbeat. The account `credential_validation_status` is set to `valid`.
 
-**Capabilities revealed:** Tier-aware UI gating with upgrade hints (not hard walls), permission-scoped access, engine 402 handling surfaced gracefully in frontend.
+**Resolution:** The first vulnerability scan runs automatically on the agent's default 1-hour interval. Fatima sees CVEs appearing in the Vulnerability page. No credentials were entered, no API keys stored in her config files.
+
+---
+
+### Journey 4 — System: Credential Expiry Notification
+
+**Opening scene:** It's day 76 since FinVault's AWS credentials were created. The Celery beat task fires at 3 AM UTC on Monday.
+
+**Rising action:** The `credential_health_check` task queries:
+```sql
+SELECT account_id, tenant_id, customer_id, expires_at
+FROM cloud_accounts
+WHERE expires_at <= NOW() + INTERVAL '14 days'
+  AND account_status = 'active'
+  AND credential_validation_status != 'expired';
+```
+
+It finds FinVault's AWS Production account. It sends an SES email to Marcus (org admin) and Priya (platform admin): "AWS Production credentials expire in 14 days. Log in to rotate them."
+
+**Climax:** Marcus logs in, navigates to the account, clicks "Rotate Credentials." He enters new access keys. The engine stores them in AWS SM, calls `sts:GetCallerIdentity` again, updates `credential_validated_at`, `last_rotated_at`, and resets `expires_at` to 90 days from now. Status stays `valid`.
+
+**Resolution:** No scan disruption. No day-90 INACTIVE flip. The next expiry reminder won't fire for another 76 days.
 
 ---
 
-### Journey 4: Priya — Account Limit Hit Mid-Scan (Edge Case Recovery)
+### Journey 5 — Platform Admin: Visibility Across All Customers
 
-Priya's org is on Free (1 account). She'd forgotten she already connected AWS. She tries to trigger a scan run for a second account she added manually via API.
+**Opening scene:** Priya starts her Monday morning review of the platform health dashboard.
 
-**Opening scene:** The API call returns HTTP 402 with body: `{"error": "account_limit_exceeded", "current": 1, "limit": 1, "upgrade_url": "/billing/upgrade?from=account_limit"}`. The error is structured, not a generic 500.
+**Rising action:** She opens Platform Admin → All Customers. She sees FinVault: 2 tenants, 4 accounts, all credentials valid, last scan 6 hours ago. She sees another customer, RetailCo: 1 account with `credential_validation_status=expired` — scan blocked for 3 days. She clicks into RetailCo.
 
-**Rising action:** Priya's CI/CD pipeline catches the 402, logs it, and sends a Slack notification to her team. She clicks the upgrade URL, lands on the billing portal with "Upgrade to Pro" pre-selected and the reason pre-filled.
+**Climax:** Priya sees the org admin's email. She clicks "Send Reminder" which fires a manual SES notification. She can also see their trial is expiring in 2 days and clicks "Extend Trial by 7 days" which calls the billing engine's trial extension endpoint.
 
-**Resolution:** She upgrades, her second account scan runs, and the CI/CD pipeline retries automatically. No data was lost; no scan was partially executed.
-
-**Capabilities revealed:** Structured 402 response with upgrade context, idempotent scan retry after upgrade, CI/CD-friendly error shape.
-
----
+**Resolution:** RetailCo org admin gets the reminder and rotates credentials within the hour. Priya's dashboard shows all customers green again.
 
 ### Journey Requirements Summary
 
 | Journey | Capabilities Required |
-|---------|----------------------|
-| Priya — Upgrade | Stripe Checkout, limit enforcement, upgrade prompt, session refresh, email receipt |
-| Alex — Ops check | Platform admin engine, health dashboard, payment state, Argo monitor, notifications |
-| Marcus — Analyst | Tier-aware UI gating, permission-scoped access, 402→tooltip surfacing |
-| Priya — Edge case | Structured 402 with context, idempotent scan retry, CI/CD-safe error shape |
+|---|---|
+| J1 Platform Admin Provisioning | Org creation endpoint, billing initialization, user invite, role/group assignment |
+| J2 Cloud Account Onboarding | Account creation wizard, credential storage in SM, real CSP validation, scan trigger |
+| J3 VUL Agent Install | Agent token generation, install command UI, agent status polling, VUL engine registration |
+| J4 Credential Expiry | DB-queryable expires_at, Celery beat K8s deployment, SES notification, credential rotation UI |
+| J5 Platform Admin Visibility | Org overview with scan/credential status, trial management, manual SES trigger |
+
+---
 
 ## Domain-Specific Requirements
 
+### Security & Credential Handling
+
+Cloud credentials are among the most sensitive data the platform handles. A leaked AWS access key can result in full account compromise. Requirements driven by this risk:
+
+- **No plaintext credentials in DB.** `cloud_accounts.credential_ref` stores only the AWS SM path. The actual key material never enters PostgreSQL.
+- **Credential isolation per account.** SM path convention: `threat-engine/account/{account_id}`. One secret per account, no shared secrets.
+- **Authentication on all credential endpoints.** Every endpoint that reads, writes, or deletes a credential must require a valid `X-Auth-Context` session with appropriate permission. The current legacy `/api/v1/accounts` router has zero auth on store/validate/delete and must be removed.
+- **Tenant isolation.** Every cloud_accounts DB query must be scoped by both `tenant_id` and `customer_id`. Cross-tenant credential reads are a P0 security incident.
+- **Webhook auth.** The `POST /engine-status` callback endpoint must require a shared secret or signed payload — currently it accepts unauthenticated calls from any party with a known `scan_run_id`.
+
 ### Compliance & Regulatory
 
-**PCI-DSS SAQ A-EP (Stripe Checkout):**
-- Threat Engine never stores, processes, or transmits raw card data; all payment data handled by Stripe
-- Stripe.js loads directly from Stripe CDN on payment pages — not proxied through Threat Engine servers
-- TLS 1.2+ enforced on all endpoints; TLS 1.3 preferred
-- Annual SAQ A-EP self-assessment required; Stripe provides pre-filled compliance documentation
-- Webhook endpoint validates Stripe-Signature header using HMAC-SHA256 before processing any event
+- Credential data retention: credentials deleted from SM when account is deleted (7-day recovery window maintained per SM default).
+- Audit trail: all credential create/rotate/delete operations must generate an audit log entry in Django's audit log system.
+- RBAC: Platform Admin (`l1`) → Org Admin (`l2`) → Tenant Admin (`l4`) → Analyst → Viewer. Credential write operations require `cloud_accounts:write`. Viewer role has no credential access.
 
-**SOC 2 Type II:**
-- All billing state changes written to `billing_audit_log` table with: event_type, org_id, actor_id, previous_state, new_state, timestamp, source_ip
-- Audit log is append-only; no UPDATE or DELETE permitted by application code
-- Retention: billing audit events retained for 7 years minimum
-- Access to billing audit log restricted to `platform_admin` role only
+### Identifier Alignment
 
-**GDPR:**
-- Billing data (name, email, company name) stored in the same AWS region as platform DB (ap-south-1)
-- Card data: never stored — Stripe Customer ID is the only reference
-- Right to erasure: org deletion anonymizes billing records (replace PII with "DELETED_USER") but retains aggregate billing history for financial audit
-- Privacy policy must disclose Stripe as payment processor and data sub-processor
+- Billing engine uses `org_id` (VARCHAR). Django uses `customer_id`. These must carry the same value. When platform admin creates an org, `customer_id = str(user.id)` (Django convention) must be passed as `org_id` to the billing trial provision call.
+- All engines (onboarding, billing, platform-admin) must use the same string as the org identifier. No silent divergence.
 
-### Technical Constraints
+### Agent Auth Alignment (VUL Engine)
 
-- Stripe webhook events must be processed idempotently using `stripe_event_id` as deduplication key
-- Billing engine must gracefully degrade: if billing DB is unreachable, gateway allows existing sessions through (fail-open for read, fail-closed for new scan creation)
-- Subscription state cached in `user_sessions.scope_cache` — cache invalidated on subscription change
-- All inter-service calls from billing engine to other engines use internal Kubernetes service DNS (no public internet)
+- The onboarding engine issues a PKCE-derived 30-day JWT as the agent token. The VUL engine currently uses a static `API_KEYS` env var list and ignores JWTs.
+- **Resolution path:** The generated agent token (from `POST /cloud-accounts/{id}/agent-token`) must be added to the VUL engine's `API_KEYS` list at install time, OR the VUL engine must be updated to verify the onboarding-issued JWT. The simpler path (static key injection) is preferred for MVP. The token is written into SM and injected into the VUL engine's environment as part of the agent install command.
 
-### Risk Mitigations
+---
 
-| Risk | Mitigation |
-|------|-----------|
-| Double-charge on webhook retry | Idempotency key = Stripe event ID; upsert on processing |
-| Billing engine outage blocks scans | Gateway fails-open for reads; scans:create checks cached subscription state |
-| Subscription downgrade mid-scan | Scan runs to completion; enforcement applies on next scan trigger |
-| PCI scope creep | Stripe Checkout only; no custom payment form ever |
-| Trial abuse (re-register) | Trial linked to verified email domain; one trial per email domain |
+## SaaS B2B Specific Requirements
 
-## Innovation & Novel Patterns
+### Tenant Model
 
-### Detected Innovation Areas
+```
+Platform Admin (Onam Security operator)
+  └── Customer / Org  [customer_id = org_id in billing]
+       ├── Org Users  (provisioned by platform admin; org-level or org-group access)
+       │    └── can invite additional users after initial provisioning
+       └── Tenant(s)  [tenant_type: cloud | security | database]
+            └── Cloud Account(s)  [account_type: cloud_csp | vulnerability | secops | database]
+                 └── Credentials  [stored in AWS SM at threat-engine/account/{account_id}]
+```
 
-**Billing as Access Control (Core Innovation):**
-The conventional approach treats billing as a separate system that grants/revokes access. Threat Engine's approach inverts this: the existing `permissions_cache` and `require_permission()` engine layer already IS the access control system. Subscription tiers are expressed as permission capability sets — the billing engine writes to `UserRoles` (same table used by RBAC), and the Gateway's existing `X-Auth-Context` header carries the resolved permissions.
+### RBAC Matrix for Onboarding Operations
 
-This means:
-- Zero new enforcement code in any of the 18 scan engines
-- Downgrade = remove role from UserRoles = invalidate session = new session has fewer permissions
-- Upgrade = add role = new session cache = immediate access
-- Subscription state and RBAC state are always in sync by construction
+| Operation | platform_admin | org_admin | tenant_admin | analyst | viewer |
+|---|---|---|---|---|---|
+| Create customer org | ✓ | ✗ | ✗ | ✗ | ✗ |
+| Invite org users | ✓ | ✓ | ✗ | ✗ | ✗ |
+| Create tenant | ✓ | ✓ | ✗ | ✗ | ✗ |
+| Create cloud account | ✓ | ✓ | ✓ | ✗ | ✗ |
+| Store credentials | ✓ | ✓ | ✓ | ✗ | ✗ |
+| View credential status | ✓ | ✓ | ✓ | ✓ | ✗ |
+| Trigger scan | ✓ | ✓ | ✓ | ✗ | ✗ |
+| View scan status | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Suspend org | ✓ | ✗ | ✗ | ✗ | ✗ |
+| Extend trial | ✓ | ✗ | ✗ | ✗ | ✗ |
 
-**Subscription Context Header Pattern:**
-A new `X-Subscription-Context` header (alongside `X-Auth-Context`) allows engines to return structured 402 responses with upgrade context. Engines don't need billing logic — they receive a structured header and return the appropriate error shape.
+### Multi-Tenancy Rules
 
-### Validation Approach
+- Every onboarding engine DB query scoped by `tenant_id` from `AuthContext`.
+- Org boundary enforced by `customer_id`: org_admin can only read/write accounts within their `customer_id`.
+- Platform admin bypasses org boundary (reads across all `customer_id`s) — requires `platform:admin` permission.
+- Group-scoped access: `tenant_group_access` and `account_group_access` tables already exist; group checks applied after `customer_id` boundary check.
 
-- The permission-as-subscription model can be validated with a single integration test: create a user, assign org_admin + Pro subscription role, verify datasec endpoint returns 200; downgrade to Free, verify same endpoint returns 402
-- No mock billing needed — the enforcement path is pure RBAC
+### SSO & Auth
+
+- Self-service signup: disabled by default (`ALLOW_LOCAL_SIGNUP=false`). Customer users are always invite-provisioned.
+- Google OAuth: ✓ wired. Microsoft OIDC: ✓ wired. Per-tenant SAML 2.0: ✓ wired.
+- IDP group sync (SCIM): deferred — not in scope for this release. Users are manually invited or provisioned by platform admin.
+
+### Scheduling
+
+- **Default schedule:** daily 2 AM UTC, auto-applied to all new accounts.
+- **Adhoc:** `POST /cloud-accounts/{id}/scan` — manual trigger, no schedule required.
+- No custom schedule options for this release. The preset cron options (hourly/daily/weekly) exist in the DB but are not surfaced to end users in this release.
+
+---
+
+## Project Scoping
+
+### Approach
+
+Single release — all requirements listed in this document are in scope. No phasing. The sprint plan (SPRINT-PLAN-AUTH-ONBOARDING.md) already defines 4 implementation sprints (A→B→C→D) within this single release.
+
+### Must-Have Capabilities (All In Scope)
+
+1. Platform admin org creation endpoint (`POST /padmin/orgs`)
+2. Billing trial auto-initialization on org creation
+3. Platform admin user provisioning and group access assignment
+4. Org admin invite flow (email + SSO accept)
+5. Tenant creation with tenant_type selection
+6. Cloud account creation wizard (all 6 account types)
+7. Credential storage in AWS SM for all CSP types
+8. Real CSP API validation on credential entry (per-provider validators)
+9. Credential expiry DB columns (`expires_at`, `last_rotated_at`) on `cloud_accounts`
+10. Credential expiry notification (day 76 alert via SES, day 90 INACTIVE flip)
+11. Celery beat task deployed as K8s pod (not just code)
+12. VUL agent PKCE token generation + install command UI
+13. VUL agent phone-home status polling in UI
+14. VUL agent token injected into VUL engine `API_KEYS` at install
+15. Legacy zero-auth credential router (`/api/v1/accounts`) removed
+16. `engine-status` webhook auth-gated
+17. `scan_runs` → `scan_orchestration` table name fix across all onboarding files
+18. `org_id` (billing) = `customer_id` (Django) alignment
+19. Scan status / pipeline progress view for tenant admin + platform admin
+20. Bulk scan-all endpoint surfaced in UI
+
+### Technical Debt in Scope (Must Fix)
+
+| Debt Item | File | Fix |
+|---|---|---|
+| `scan_runs` table name | `scan_run_operations.py`, `scans.py`, `ui_data_router.py` | Replace with `scan_orchestration` |
+| Legacy auth-free router | `api/credentials.py` | Remove entirely |
+| Missing auth on 3 endpoints | `cloud_accounts.py` validate-credentials, log-sources | Add `Depends(require_permission(...))` |
+| `engine-status` no auth | `scan_runs.py` line 176 | Require shared secret |
+| `exclude_regions` not forwarded to Argo | `scheduler_service.py`, `schedules.py` run-now | Pass to `ArgoClient.submit_pipeline()` |
+| Celery worker not deployed | — | Add K8s CronJob/Beat manifest |
+| `engine-cdr` stale ref in platform-admin | `engines.py` health URL map | Update to `engine-cdr` |
 
 ### Risk Mitigation
 
-- If the billing engine is down, existing UserRoles rows remain unchanged — users keep their current tier until next session
-- The fail-open/fail-closed design means billing engine unavailability never breaks security scanning
+- **Table name fix risk:** Run as a migration/hotfix first (Sprint A) before any other code changes ship. Validate with a known scan_run_id.
+- **VUL agent auth gap:** Token injection via install command (static `API_KEYS` addition) is the safe path. Full JWT verification in VUL engine is a post-release enhancement.
+- **Billing trial init:** If `POST /billing/trial/provision` fails during org creation, org creation must roll back (transactional). Do not leave orphan orgs without billing records.
+- **org_id alignment:** Map `customer_id` → `org_id` in the Django org-creation call. All billing queries must use this value. Validate with a query after first org creation.
 
-## B2B SaaS Technical Requirements
-
-### Multi-Tenancy Model
-
-Billing is scoped at the **Organization level** (the `Tenants` table in platform DB), not at the cloud provider tenant or account level. One org = one Stripe Customer = one subscription. All cloud provider tenants (AWS, GCP, Azure) and their accounts under an org share the same subscription.
-
-- `Tenants.id` maps 1:1 to `stripe_customer_id` in billing DB
-- Account limit (`max_accounts`) counts total `OnboardingAccount` rows across all providers for the org
-- User seat limits (Growth feature) count `TenantUsers` rows for the org
-
-### Subscription Tier Feature Matrix
-
-| Feature | Free | Starter | Pro | Enterprise |
-|---------|------|---------|-----|------------|
-| Cloud accounts | 1 | 3 | 10 | Unlimited |
-| Users (seats) | 3 | 10 | 25 | Unlimited |
-| Scan frequency | 1/week | 1/day | 4/day | Unlimited |
-| Data retention | 7 days | 30 days | 90 days | 1 year |
-| discoveries engine | ✓ | ✓ | ✓ | ✓ |
-| check engine | ✓ | ✓ | ✓ | ✓ |
-| threat engine | ✓ | ✓ | ✓ | ✓ |
-| inventory engine | ✓ | ✓ | ✓ | ✓ |
-| compliance engine | ✓ | ✓ | ✓ | ✓ |
-| iam engine | ✓ | ✓ | ✓ | ✓ |
-| ciem engine | ✓ | ✓ | ✓ | ✓ |
-| network-security | ✓ | ✓ | ✓ | ✓ |
-| risk engine | ✓ | ✓ | ✓ | ✓ |
-| datasec engine | — | — | ✓ | ✓ |
-| secops engine | — | — | ✓ | ✓ |
-| vulnerability engine | — | — | ✓ | ✓ |
-| ai-security engine | — | — | — | ✓ |
-| encryption engine | — | — | — | ✓ |
-| dbsec engine | — | — | — | ✓ |
-| container-sec engine | — | — | — | ✓ |
-| fix engines (AI remediation) | — | — | — | ✓ |
-| Priority support | — | — | Email | Dedicated CSM |
-
-### Permission Model Extensions
-
-Three new permissions added to the 27-permission matrix:
-
-| Permission | viewer | analyst | tenant_admin | org_admin | platform_admin |
-|-----------|--------|---------|-------------|-----------|----------------|
-| `billing:read` | — | — | — | Y | Y |
-| `billing:write` | — | — | — | Y | Y |
-| `platform:admin` | — | — | — | — | Y |
-
-### Integration Requirements
-
-| System | Integration Type | Purpose |
-|--------|-----------------|---------|
-| Stripe | REST API + Webhooks | Payment processing, subscription lifecycle |
-| engine-onboarding | Internal K8s DNS | Account count queries, account creation enforcement |
-| platform Django | Internal K8s DNS | Subscription state in /api/auth/me, UserRoles sync |
-| API Gateway | Header injection | X-Subscription-Context forwarding to engines |
-| All 18 scan engines | Header reading | Structured 402 response on tier violation |
-| Argo Workflows | Kubernetes API | Pipeline status reads for platform admin dashboard |
-
-### Implementation Considerations
-
-- `engine-billing` must never be in the hot path of scan requests — subscription state resolved at login and cached in session
-- Stripe Customer Portal (Growth) requires allowlisting return URL; must validate return URL against known frontend origins
-- `engine-platform-admin` is `platform_admin`-only — must validate `platform:admin` permission on every endpoint via `require_permission()` same as all other engines
-- Billing DB schema separate from all other engine DBs; no cross-DB joins at runtime
-
-## Project Scoping & Phased Development
-
-### MVP Strategy & Philosophy
-
-**MVP Approach:** Revenue MVP — build the minimum that captures the first paying customer and enforces plan limits. The goal is not feature completeness but commercial viability and enforcement correctness.
-
-**Resource Requirements:** 2 backend engineers (billing engine + platform admin engine), 1 frontend engineer (billing portal UI), 1 DevOps (K8s manifests + Stripe webhook SSL), 1 QA.
-
-### MVP Feature Set (Phase 1)
-
-**Core User Journeys Supported:** All 4 journeys (Priya upgrade, Alex ops check, Marcus analyst, Priya edge case)
-
-**Must-Have Capabilities:**
-- Subscription tier definitions (4 tiers) with feature matrix in DB
-- Stripe Checkout integration (hosted page)
-- Account limit enforcement (HTTP 402 on onboarding engine)
-- Engine tier gating (HTTP 402 on 9 gated engines via X-Subscription-Context)
-- 14-day trial auto-provisioned on registration
-- Trial expiry auto-downgrade to Free
-- `engine-billing` deployed at port 8040
-- `engine-platform-admin` deployed at port 8041
-- Billing portal page for org_admin (current plan, usage, upgrade/downgrade)
-- Platform admin dashboard (org grid, engine health, Argo pipeline status)
-- New permissions: `billing:read`, `billing:write`, `platform:admin` seeded in DB
-- `/api/auth/me` extended with subscription field
-- Audit log for all billing events
-
-### Post-MVP Features (Phase 2)
-
-- Usage-based overage billing
-- PDF invoice generation
-- Annual billing with discount
-- Stripe Customer Portal
-- Email notification suite (trial expiry, payment failure, renewal, limit warning)
-- Team seat enforcement
-
-### Expansion (Phase 3)
-
-- Engine add-on marketplace
-- White-label billing for resellers
-- Usage analytics dashboard (org_admin)
-- Multi-year contracts
-- Automatic rightsizing suggestions
-
-### Risk Mitigation Strategy
-
-**Technical Risks:** Stripe Checkout API changes — mitigated by pinning Stripe SDK version and testing webhook events in Stripe's test mode before production deployment.
-
-**Market Risks:** Existing users resist paywalling — mitigated by grandfathering all existing orgs on Pro plan for 90 days from billing launch (platform_admin can set tier overrides).
-
-**Resource Risks:** If eng headcount reduced, engine-platform-admin dashboard can be deferred (Phase 2) — enforcement and billing are more critical than monitoring UI.
+---
 
 ## Functional Requirements
 
-### Subscription Plan Management
+### Customer Org Management
 
-- FR1: org_admin can view all subscription tiers with side-by-side feature and pricing comparison before purchasing
-- FR2: org_admin can initiate plan upgrade from any in-product limit notification without navigating away from current workflow
-- FR3: org_admin can downgrade their plan with downgrade taking effect at end of current billing cycle
-- FR4: org_admin can cancel subscription with confirmation dialog showing data retention impact
-- FR5: platform_admin can create, modify, and deprecate subscription plan definitions including price and feature limits
-- FR6: platform_admin can assign a custom plan or tier override to any org without Stripe payment
+- **FR1:** Platform Admin can create a new customer org by providing org name and contact email, resulting in a provisioned org with `customer_id`, active status, and an initialized billing trial record.
+- **FR2:** Platform Admin can view all customer orgs with their subscription tier, trial days remaining, account count, and last scan timestamp.
+- **FR3:** Platform Admin can suspend and unsuspend a customer org, which blocks all scans for that org while suspended.
+- **FR4:** Platform Admin can extend a customer org's trial period.
+- **FR5:** Platform Admin can view credential expiry status across all accounts in all customer orgs.
+- **FR6:** System automatically initializes a 14-day Pro billing trial record when a new customer org is created.
 
-### Payment & Billing
+### User & Access Management
 
-- FR7: org_admin can complete payment for a subscription upgrade via Stripe-hosted checkout without leaving Threat Engine UI flow
-- FR8: org_admin can view full invoice history with date, amount, status, and download link
-- FR9: org_admin can update payment method via Stripe Customer Portal without re-entering subscription details
-- FR10: system automatically retries failed payments on day 1, day 3, and day 7 before marking subscription as lapsed
-- FR11: platform_admin can view all orgs' billing state (active, trialing, past_due, cancelled) in a single dashboard view
-- FR12: system writes a billing audit event for every subscription state change including actor, timestamp, previous state, and new state
+- **FR7:** Platform Admin can provision one or more initial users for a customer org, specifying their email and access scope (org-level or org-group-level).
+- **FR8:** Org Admin can invite additional users to their org via email; invited users receive an SES email with an accept link.
+- **FR9:** Invited users can accept an invite by setting a password or authenticating via Google OAuth, Microsoft OIDC, or per-tenant SAML SSO.
+- **FR10:** Org Admin can create named user groups and assign groups to specific tenants or cloud accounts with a role.
+- **FR11:** Org Admin can assign org-level RBAC roles (`org_admin`, `tenant_admin`, `analyst`, `viewer`) to users.
+- **FR12:** Users can authenticate via Google OAuth, Microsoft OIDC, or per-tenant SAML 2.0 SSO without a local password.
 
-### Trial Management
+### Tenant & Account Structure
 
-- FR13: system automatically provisions a 14-day Pro-equivalent trial for every new org on registration
-- FR14: org_admin receives email notification at 7 days and 1 day before trial expiry
-- FR15: system automatically downgrades org to Free tier at trial expiry when no payment method is on file
-- FR16: platform_admin can extend a trial period for a specific org by a specified number of days
-- FR17: org_admin can convert from trial to paid plan at any point before expiry
+- **FR13:** Org Admin can create multiple tenants under their org, assigning a `tenant_type` (`cloud`, `security`, or `database`) that constrains which account types may be added.
+- **FR14:** Tenant Admin can add cloud accounts under their assigned tenant; account type selection is constrained by the tenant's `tenant_type`.
+- **FR15:** System validates that the selected `account_type` is permitted for the parent tenant's `tenant_type` before creating the account.
 
-### Usage Enforcement
+### Credential Management
 
-- FR18: system blocks new cloud account onboarding and returns HTTP 402 with structured upgrade context when org exceeds tier's `max_accounts` limit
-- FR19: system returns HTTP 402 (not HTTP 403) with tier and upgrade context when org accesses an engine outside their subscription tier
-- FR20: system allows read access to all existing findings after a plan downgrade (no data deletion on downgrade)
-- FR21: org_admin can view current usage vs. plan limits for accounts, users, and scan frequency in billing portal
-- FR22: system enforces per-org scan frequency limits at the Gateway layer before forwarding to scan engines
-- FR23: system returns structured 402 JSON with `upgrade_url`, `current_tier`, `required_tier`, and `limit_type` fields on all enforcement rejections
+- **FR16:** Tenant Admin can register credentials for a cloud account by entering type-appropriate fields (e.g., access key + secret for AWS, service principal for Azure, service account JSON for GCP).
+- **FR17:** All credentials are stored exclusively in AWS Secrets Manager at path `threat-engine/account/{account_id}` — no credential material is stored in the PostgreSQL DB.
+- **FR18:** Tenant Admin can optionally enable 30-day credential rotation via AWS SM's managed rotation feature for any cloud account.
+- **FR19:** Tenant Admin can trigger a manual re-validation of credentials for any existing account, which calls the CSP-specific validation API and updates the validation status.
+- **FR20:** System validates credentials against real CSP APIs on initial entry: `sts:GetCallerIdentity` (AWS), ARM token exchange (Azure), `projects.get` (GCP), IAM API (OCI), STS (AliCloud).
+- **FR21:** Validation result (`valid`, `invalid`, `pending`, `expired`) and timestamp are stored on the `cloud_accounts` record and displayed in the account list.
+- **FR22:** Tenant Admin can view per-account credential status (validation state, validated_at, expires_at, days until expiry).
+- **FR23:** Credential expiry is tracked at 90 days per account via `expires_at` column on `cloud_accounts` (DB-queryable, not only in SM payload).
+- **FR24:** On credential entry or rotation, `last_rotated_at` is updated on the `cloud_accounts` record.
 
-### Platform Operator Administration
+### Agent-Based Onboarding (Vulnerability Engine)
 
-- FR24: platform_admin can view real-time health status (last scan time, error rate, pod count) for all 18+ scan engines in a single dashboard
-- FR25: platform_admin can view all active and recently completed Argo pipeline runs with status, duration, and error details
-- FR26: platform_admin can view per-org subscription status, account count, user count, and last scan timestamp
-- FR27: platform_admin can change any org's subscription tier effective immediately without going through Stripe checkout
-- FR28: platform_admin can pause and resume scan access for any org
-- FR29: platform_admin can view platform-wide aggregate metrics: total orgs, orgs per tier, scans in last 24 hours, total findings
-- FR30: platform_admin can view and export the billing audit log filtered by org, date range, and event type
+- **FR25:** Tenant Admin can generate an agent install token for a `vulnerability`-type account.
+- **FR26:** UI displays a ready-to-run shell install command containing the tenant ID, generated token, and VUL engine endpoint.
+- **FR27:** The generated agent token is provisioned into the VUL engine's accepted token list so the agent's `POST /api/v1/agents/register` call is authenticated upon install.
+- **FR28:** UI polls agent connection status (Pending → Connected) and displays a live status indicator without page reload.
+- **FR29:** Account `credential_validation_status` flips to `valid` automatically once the VUL agent successfully phones home.
 
-### User-Facing Billing Portal
+### Credential Expiry & Notifications
 
-- FR31: org_admin can access a billing portal showing current plan name, price, renewal date, and usage summary
-- FR32: analyst and viewer roles can view their org's current subscription tier (read-only, no billing actions available)
-- FR33: org_admin can view projected charges for the current billing period based on current usage
-- FR34: org_admin can initiate plan upgrade, downgrade, or cancellation from the billing portal in ≤3 clicks
+- **FR30:** System sends an email notification to org admins and the platform admin 14 days before credential expiry (day 76) for all active accounts with tracked `expires_at`.
+- **FR31:** On credential expiry (day 90), account `account_status` flips to `INACTIVE` and all scans for that account are blocked until credentials are re-provisioned.
+- **FR32:** Tenant Admin can re-provision credentials for an INACTIVE account, which resets the expiry clock and re-activates the account.
+- **FR33:** Credential expiry notification is delivered via SES using the org contact email and platform admin email.
 
-### API & System Integration
+### Scan Scheduling & Triggering
 
-- FR35: API Gateway injects X-Subscription-Context header containing org tier and feature flags on all authenticated requests forwarded to engines
-- FR36: engine-billing exposes REST endpoints for plan definitions, subscription state queries, and usage metrics consumed by Gateway and platform Django
-- FR37: engine-platform-admin exposes REST endpoints for all operator dashboard data accessible only to platform_admin role
-- FR38: system processes Stripe webhook events idempotently using Stripe event ID as deduplication key, rejecting duplicate events with HTTP 200 (not 500)
-- FR39: platform Django /api/auth/me response includes subscription tier, trial status, trial days remaining, and account/user usage counts
-- FR40: engine-onboarding enforces max_accounts limit by querying engine-billing subscription state before creating new provider or account records
+- **FR34:** Tenant Admin can trigger an ad-hoc scan for any active cloud account without requiring a schedule to exist.
+- **FR35:** All new accounts are automatically enrolled in a default daily scan schedule (2 AM UTC) upon creation.
+- **FR36:** Tenant Admin can disable the default schedule for any account, leaving it in adhoc-only mode.
+- **FR37:** Org Admin can trigger a bulk re-scan across all accounts in a tenant.
+- **FR38:** Region exclusions configured on a schedule are forwarded to the Argo pipeline at scan submission time.
+
+### Pipeline Observability
+
+- **FR39:** Tenant Admin and Org Admin can view real-time scan pipeline status for any scan, showing per-engine progress (Discovery → Inventory → Check → Threat → …).
+- **FR40:** Platform Admin can view scan pipeline status across all tenants and customer orgs from a unified view.
+- **FR41:** Scan engine status callbacks are authenticated — only the Argo pipeline controller can update engine completion status for a scan run.
+- **FR42:** Tenant Admin can view scan run history (all past scans, timestamps, status, engines completed) for their accounts.
+- **FR43:** Org Admin or Tenant Admin can re-trigger a failed scan run without re-entering credentials.
+
+---
 
 ## Non-Functional Requirements
 
-### Performance
-
-- Subscription enforcement check (X-Subscription-Context resolution) adds ≤10ms p99 to gateway request latency as measured by existing gateway APM
-- Billing portal page loads current plan and usage data in ≤2 seconds p95 under normal load
-- Platform admin dashboard renders full org grid (≤1000 orgs) in ≤3 seconds p95
-- engine-billing REST API responds to subscription state queries in ≤50ms p99
-
 ### Security
 
-- Threat Engine never stores, processes, or transmits raw card data; PCI scope limited to SAQ A-EP via Stripe Checkout
-- All Stripe webhook payloads validated using HMAC-SHA256 Stripe-Signature header before processing; invalid signatures rejected with HTTP 400
-- Billing audit log table is append-only; application service account has no UPDATE or DELETE privilege on `billing_audit_log`
-- All billing API endpoints require valid session authentication; unauthenticated requests return HTTP 401
-- engine-platform-admin validates `platform:admin` permission via `require_permission()` on every endpoint; non-platform_admin roles receive HTTP 403
-- Billing DB credentials stored in AWS Secrets Manager; never in environment variables or config files
-- Stripe API keys stored in AWS Secrets Manager; rotated on any suspected exposure
-- TLS 1.2+ enforced on all external-facing endpoints; TLS 1.3 preferred
+- **NFR-S1:** All credential read, write, delete, and validate endpoints require an authenticated session with `cloud_accounts:write` or `cloud_accounts:read` permission. Zero unauthenticated credential endpoints permitted.
+- **NFR-S2:** RBAC enforced at three layers: API Gateway (`X-Auth-Context`), Engine (`Depends(require_permission(...))`), and DB (queries scoped by `tenant_id` + `customer_id`).
+- **NFR-S3:** The legacy `/api/v1/accounts` credential router (currently zero-auth) must be removed from the onboarding engine before this release ships. No phased deprecation — hard removal.
+- **NFR-S4:** Engine-status callback (`POST /scan-runs/{id}/engine-status`) must verify a shared secret header (`X-Pipeline-Secret`) before updating scan state. Unauthenticated calls return 401.
+- **NFR-S5:** All credential material stored in AWS SM must use the platform's KMS key (`SECRETS_MANAGER_KMS_KEY_ID`). No SM secrets with default AWS-managed keys for customer credentials.
+- **NFR-S6:** Cross-tenant reads of cloud accounts or credentials are a P0 security violation. Every DB query in the onboarding engine must include both `tenant_id` and `customer_id` predicates.
+
+### Performance
+
+- **NFR-P1:** CSP credential validation (API call + status write) completes within 30 seconds. Validation is async-safe — the UI shows a spinner and polls rather than blocking the HTTP response.
+- **NFR-P2:** Agent status polling UI updates within 5 seconds of the agent's first heartbeat being recorded.
+- **NFR-P3:** Platform Admin org list renders within 2 seconds for up to 500 customer orgs (paginated, 50 per page).
 
 ### Reliability
 
-- engine-billing failure must not degrade any scan engine availability; Gateway uses cached subscription state from user_sessions when billing engine is unreachable
-- engine-billing target uptime: 99.9% monthly (≤44 minutes downtime/month)
-- Stripe webhook processing uses at-least-once delivery with idempotent handler; no webhook event may be permanently dropped
-- Subscription state changes propagate to user_sessions cache within one session refresh cycle (≤60 seconds)
-- engine-platform-admin degradation (dashboard unavailable) has zero impact on billing enforcement or scan operations
+- **NFR-R1:** The credential expiry Celery beat task must be deployed as a running K8s Deployment or CronJob — not latent code. Absence of this pod is a deployment failure.
+- **NFR-R2:** Billing trial initialization (`POST /billing/trial/provision`) must be called transactionally with org creation. If the billing call fails, org creation must roll back. No orphaned orgs.
+- **NFR-R3:** The `scan_orchestration` table name must be used consistently across all onboarding engine files. Any reference to `scan_runs` in SQL queries is a bug and a blocker.
 
-### Scalability
+### Data Integrity
 
-- engine-billing must handle 1,000 concurrent org subscription state queries without degradation; target 10,000 org scale within 12 months
-- Platform admin dashboard must render accurately for up to 10,000 registered orgs
-- Stripe webhook handler must process event bursts of ≥100 events/second during billing cycle events (month-end renewals)
-- Billing DB designed with org-level partitioning to support horizontal scaling without schema changes
+- **NFR-D1:** `cloud_accounts.expires_at` (TIMESTAMPTZ) and `cloud_accounts.last_rotated_at` (TIMESTAMPTZ) columns must exist before any credential lifecycle features are shipped. Migration is a Sprint A prerequisite.
+- **NFR-D2:** `org_id` in `org_subscriptions` (billing DB) must carry the same string value as `customer_id` in `user_auth_users` (Django DB) and `cloud_accounts` (onboarding DB). All org creation code must set this consistently.
+- **NFR-D3:** Credential paths in SM must follow the convention `threat-engine/account/{account_id}`. The onboarding engine regex validates this at write time — no exceptions.
 
 ### Integration
 
-- Stripe SDK version pinned in requirements.txt; upgrades require explicit review and test against Stripe test mode
-- engine-billing communicates with engine-onboarding via internal Kubernetes service DNS only; no public internet calls between engines
-- All inter-service HTTP calls use connection pooling with ≤5 second timeout and 3-retry with exponential backoff
-- Stripe Customer Portal return URL validated against an allowlist of known frontend origins before redirect
+- **NFR-I1:** VUL agent install command must include a token that the VUL engine will accept. The generated agent token must be provisioned into the VUL engine's `API_KEYS` list (either via SM injection or direct env update) before the install command is displayed to the user.
+- **NFR-I2:** `exclude_regions` configured on a scan schedule must be forwarded in the `ArgoClient.submit_pipeline()` call. Dropping it silently at submission (current behavior) is a bug.
+- **NFR-I3:** SES emails (invite, credential expiry, manual reminder) must be sent from a verified SES identity. The `FROM_EMAIL` must be SES-verified in `ap-south-1` before this feature ships.
 
-## Open Questions
+---
 
-| # | Question | Owner | Target Resolution |
-|---|----------|-------|------------------|
-| 1 | What is the pricing for each tier ($/month)? | Product/Business | Before Sprint 1 |
-| 2 | Should existing registered users be grandfathered on Pro for 90 days? | Product | Before MVP launch |
-| 3 | Which AWS region for billing DB — same as platform DB (ap-south-1) or separate for GDPR? | Architect | Sprint 1 |
-| 4 | Stripe test mode webhook secret for dev/staging environments — how to manage per-environment? | DevOps | Sprint 1 |
-| 5 | Should trial be per email address or per email domain (to prevent trial abuse)? | Product | Sprint 1 |
-| 6 | What is the grace period after payment failure before access is restricted? | Product/Legal | Sprint 1 |
-| 7 | Does engine-platform-admin need a frontend UI, or is it API-only with platform_admin using the existing admin panel? | Product | Architecture phase |
+## Open Questions & Decisions Locked
+
+The following were explicitly decided in the product session on 2026-05-11:
+
+| Question | Decision |
+|---|---|
+| Self-service registration? | No — platform admin only creates customer orgs |
+| IdP group sync (SCIM)? | Deferred — not in this release |
+| Custom scan schedules? | No — Default (daily) + Adhoc only |
+| Multiple credential vaults (HashiCorp, Azure KV)? | No — AWS SM only in this release |
+| Full JWT verification in VUL engine? | Deferred — static API_KEYS injection for MVP |
+| Org creation rollback on billing failure? | Yes — transactional, org creation rolls back |
+
+---
+
+## Implementation Sprint Map
+
+This PRD is implemented across 4 sequential sprints defined in `.claude/planning/SPRINT-PLAN-AUTH-ONBOARDING.md`:
+
+| Sprint | Focus | Gate |
+|---|---|---|
+| **A** | DB migrations (`customer_id`, groups, `expires_at`, `last_rotated_at`), `provision_tenant_for_new_user()` update, async Celery sync | Migration applied, `customer_id` backfilled on all rows |
+| **B** | Auth security fixes (email enumeration, rate limiting, Google hd validation, org-boundary enforcement, remove developer bypass) | All 7 BLOCKs resolved in Django backend |
+| **C** | Onboarding engine: table name fix, auth middleware hardening, PKCE hardening, RBAC, region forwarding, Celery deployment | Engine deployed with zero unauthenticated endpoints |
+| **D** | Frontend wizard (catalog-driven), schedule UI, agent install flow, user/group management pages | Full onboarding wizard live end-to-end |
+
+**Story count:** 29 stories, 43 points, ~8 weeks estimated.
+**Security gate:** 12 BLOCKs from bmad-security-architect review, all mapped to stories in Sprint B/C.

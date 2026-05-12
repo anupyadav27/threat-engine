@@ -19,12 +19,13 @@ from rest_framework.views import APIView
 
 from tenant_management.models import TenantIDPConfig
 from user_auth.models import Users, UserSessions
+from user_auth.throttles import IDPCallbackRateThrottle
 from user_auth.utils.audit_utils import log_auth_event
 from user_auth.utils.auth_utils import compute_auth_caches, generate_token, hash_token
 from user_auth.utils.cookie_utils import set_auth_cookies
 from user_auth.utils.saml_utils import build_saml_settings, prepare_django_request
 from user_auth.utils.secrets_utils import get_saml_sp_cert, get_saml_sp_key
-from user_auth.utils.tenant_utils import provision_first_tenant
+from user_auth.utils.tenant_utils import provision_tenant_for_new_user
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +114,8 @@ class SAMLACSView(APIView):
     POST /api/auth/saml/{tenant_id}/acs/
     """
 
+    throttle_classes = [IDPCallbackRateThrottle]
+
     def post(self, request: HttpRequest, tenant_id: str) -> HttpResponse:
         frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:3000")
 
@@ -178,7 +181,7 @@ class SAMLACSView(APIView):
                 sso_provider="saml",
                 sso_id=email,
             )
-            provision_first_tenant(user)
+            provision_tenant_for_new_user(user)
 
         user.last_login = timezone.now()
         user.save(update_fields=["last_login"])

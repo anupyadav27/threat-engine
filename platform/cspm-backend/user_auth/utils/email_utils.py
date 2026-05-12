@@ -20,23 +20,45 @@ def _ses_client():
         raise RuntimeError("boto3 not installed")
 
 
-def send_invite_email(to_email: str, invite_token: str, tenant_name: str, invited_by: str):
-    """Send team invite email with accept link."""
-    accept_url = f"{FRONTEND_URL}/auth/invite/{invite_token}"
-    subject = f"You've been invited to join {tenant_name} on Threat Engine"
+def send_invite_email(
+    to_email: str,
+    invite_token: str,
+    tenant_name: str,
+    invited_by: str,
+    accept_path: str = "/auth/accept-invite",
+    ttl_hours: int = 72,
+    accept_url: str | None = None,
+):
+    """Send team invite email with accept link.
+
+    Args:
+        to_email: Recipient email address.
+        invite_token: Raw (unhashed) invite token — embedded as ?token= query-string
+            unless accept_url is given explicitly.
+        tenant_name: Display name of the tenant/org being joined.
+        invited_by: Email address of the user who sent the invite.
+        accept_path: Frontend path prefix. Combined with ?token= to build the URL
+            when accept_url is not provided. Defaults to /auth/accept-invite.
+        ttl_hours: TTL shown in the email body. Defaults to 72 (D2 flow).
+        accept_url: Override the full accept URL. When provided, invite_token is not
+            appended automatically. Used by legacy token-in-path flows.
+    """
+    if accept_url is None:
+        accept_url = f"{FRONTEND_URL}{accept_path}?token={invite_token}"
+    subject = f"You've been invited to join {tenant_name} on Onam Security"
     body_html = f"""
     <html><body style="font-family: sans-serif; background:#070b14; color:#f1f5f9; padding:40px;">
       <div style="max-width:500px; margin:0 auto; background:#0d1117; border-radius:12px;
                   padding:40px; border:1px solid #1e2d3d;">
         <div style="margin-bottom:28px;">
-          <span style="font-size:22px; font-weight:800; color:#f1f5f9;">Threat Engine</span>
+          <span style="font-size:22px; font-weight:800; color:#f1f5f9;">Onam Security</span>
           <span style="font-size:11px; color:#818cf8; margin-left:8px; text-transform:uppercase;
                        letter-spacing:0.1em;">Cloud Security</span>
         </div>
         <h2 style="color:#f1f5f9; margin-bottom:12px;">You've been invited</h2>
         <p style="color:#94a3b8; line-height:1.6;">
           <strong style="color:#e2e8f0;">{invited_by}</strong> has invited you to join
-          <strong style="color:#e2e8f0;">{tenant_name}</strong> on Threat Engine.
+          <strong style="color:#e2e8f0;">{tenant_name}</strong> on Onam Security.
         </p>
         <a href="{accept_url}" style="display:inline-block; margin-top:28px; padding:14px 28px;
            background:linear-gradient(135deg,#2563eb,#4f46e5); color:white; text-decoration:none;
@@ -44,7 +66,7 @@ def send_invite_email(to_email: str, invite_token: str, tenant_name: str, invite
           Accept Invitation
         </a>
         <p style="margin-top:28px; color:#475569; font-size:12px;">
-          This invite expires in 48 hours. If you didn't expect this email, you can ignore it.
+          This invite expires in {ttl_hours} hours. If you didn't expect this email, you can ignore it.
         </p>
         <p style="margin-top:8px; color:#334155; font-size:11px; word-break:break-all;">
           Or copy this link: {accept_url}

@@ -207,3 +207,41 @@ export async function postToEngine(engine, path, body = {}) {
     };
   }
 }
+
+/**
+ * DELETE request to a specific engine endpoint
+ * @param {string} engine - Engine key from ENGINE_ENDPOINTS
+ * @param {string} path - Path relative to engine
+ * @returns {Promise<object>} API response or { error: message }
+ */
+export async function deleteFromEngine(engine, path) {
+  const enginePrefix = ENGINE_ENDPOINTS[engine];
+  if (!enginePrefix) {
+    return { error: `Unknown engine: ${engine}` };
+  }
+
+  const url = makeUrl(`${API_BASE}${enginePrefix}${path}`);
+
+  try {
+    const response = await fetch(url.toString(), {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...activeTenantHeader(),
+      },
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      return {
+        error: `API error: ${response.status} ${response.statusText}`,
+      };
+    }
+
+    return await response.json();
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : 'Unknown error occurred',
+    };
+  }
+}

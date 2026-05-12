@@ -33,6 +33,9 @@ export function TenantProvider({ children }) {
         tenant_id:    t.engine_tenant_id || t.tenant_id,
         tenant_name:  t.tenant_name,
         account_count: t.account_count ?? 0,
+        // Preserve tenant_type so OrgTenantSwitcher and Header can display
+        // the type badge without an extra network round-trip (AC7).
+        tenant_type:  t.tenant_type || null,
       })),
     [authTenants]
   );

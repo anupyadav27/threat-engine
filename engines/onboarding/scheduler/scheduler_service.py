@@ -151,9 +151,11 @@ class SchedulerService:
             })
             logger.info(f"scan_run created: {scan_run_id} (schedule={schedule_id})")
 
-            # 2. Submit to Argo
+            # 2. Submit to Argo — pass all region/service filter lists
             include_services = sched.get("include_services")
+            exclude_services = sched.get("exclude_services")
             include_regions  = sched.get("include_regions")
+            exclude_regions  = sched.get("exclude_regions")
             workflow_name = self._argo.submit_pipeline(
                 scan_run_id=scan_run_id,
                 tenant_id=tenant_id,
@@ -162,7 +164,9 @@ class SchedulerService:
                 credential_type=cred_type,
                 credential_ref=cred_ref,
                 include_services=include_services if isinstance(include_services, list) else None,
+                exclude_services=exclude_services if isinstance(exclude_services, list) else None,
                 include_regions=include_regions   if isinstance(include_regions, list)  else None,
+                exclude_regions=exclude_regions   if isinstance(exclude_regions, list)   else None,
             ).get("metadata", {}).get("name")
 
             # 3. Mark running
@@ -211,7 +215,7 @@ class SchedulerService:
             try:
                 cur.execute(
                     """
-                    UPDATE scan_runs
+                    UPDATE scan_orchestration
                     SET overall_status = 'failed',
                         completed_at   = NOW(),
                         error_details  = '{"error":"marked stale by scheduler on startup"}'::jsonb

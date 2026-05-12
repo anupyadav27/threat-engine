@@ -1,128 +1,146 @@
-"""BFF view: /policies page.
+"""BFF view: /suppressions page.
 
-Proxies the rule engine's /api/v1/rules endpoint and shapes the
-response into the standard BFF envelope (kpiGroups, filterSchema, data).
+Merges two suppression tables:
+  - rule_suppressions    (rule/service/technology/provider scope — tenant_admin+)
+  - finding_suppressions (resource-level — analyst+)
 
-GET /api/v1/views/policies
+GET /api/v1/views/suppressions → canonical
+GET /api/v1/views/policies     → legacy alias
 """
-
-from typing import Optional
 
 from fastapi import APIRouter, Query, Request
 
 from ._auth import resolve_tenant_id
-from ._shared import fetch_many, safe_get
-from ._cache import cache_key, cached_view, TTL_POLICIES, auth_level_from_header
+from ._shared import fetch_many, safe_get, BFFMeta
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
 
-@router.get("/policies")
-async def view_policies(
-    request: Request,
-    limit: int = Query(200),
-):
+async def _build_suppressions_response(request: Request, include_expired: bool = False) -> dict:
+    """Fetch both suppression types from the rule engine and merge for UI."""
     tenant_id = resolve_tenant_id(request)
-    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    auth_ctx_header = (
+        request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    )
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
-    role_level = auth_level_from_header(auth_ctx_header)
+    meta = BFFMeta("suppressions")
 
-    ck = cache_key("policies", tenant_id, role_level=role_level)
-    cached = cached_view(ck)
-    if cached is not None:
-        return cached
+    params = {"include_expired": str(include_expired).lower()}
 
-    results = await fetch_many([
-        ("rule", "/api/v1/rules", {"limit": str(limit)}),
-    ], auth_headers=fwd_headers)
+    results = await fetch_many(
+        [
+            ("rule", "/api/v1/rules/suppressions",    params),
+            ("rule", "/api/v1/findings/suppressions", params),
+        ],
+        auth_headers=fwd_headers,
+    )
 
-    raw = results[0]
-    policies = []
-    if isinstance(raw, dict):
-        policies = raw.get("rules") or raw.get("data") or raw.get("policies") or raw.get("results") or []
-    elif isinstance(raw, list):
-        policies = raw
+    rule_data    = results[0] or {}
+    finding_data = results[1] or {}
+    meta.record_engine("rule", "/api/v1/rules/suppressions",    rule_data)
+    meta.record_engine("rule", "/api/v1/findings/suppressions", finding_data)
 
-    # Aggregate KPIs
-    by_status: dict = {}
-    by_category: dict = {}
-    by_provider: dict = {}
-    for p in policies:
-        status   = (p.get("status")   or "unknown").lower()
-        category = (p.get("category") or "general").lower()
-        provider = (p.get("provider") or "all").lower()
-        by_status[status]     = by_status.get(status, 0) + 1
-        by_category[category] = by_category.get(category, 0) + 1
-        by_provider[provider] = by_provider.get(provider, 0) + 1
+    rule_suppressions    = safe_get(rule_data,    "suppressions", [])
+    finding_suppressions = safe_get(finding_data, "suppressions", [])
 
-    active    = by_status.get("active",   0)
-    draft     = by_status.get("draft",    0)
-    archived  = by_status.get("archived", 0)
-    total     = len(policies)
+    # Tag each record with its suppression_type for the UI
+    for s in rule_suppressions:
+        s["suppression_type"] = "rule_scope"
+    for s in finding_suppressions:
+        s["suppression_type"] = "finding"
 
-    # Enrich each policy with UI-expected table columns
-    enriched = []
-    for p in policies:
-        enriched.append({
-            **p,
-            "id":             p.get("rule_id") or p.get("id", ""),
-            "name":           p.get("name") or p.get("rule_name") or p.get("title", ""),
-            "category":       p.get("category", "general"),
-            "provider":       p.get("provider", "all"),
-            "severity":       p.get("severity", "medium"),
-            "status":         p.get("status", "active"),
-            "violations":     p.get("violations") or p.get("fail_count", 0),
-            "pass_rate":      p.get("pass_rate", 0),
-            "auto_remediate": p.get("auto_remediate", False),
-            "frameworks":     p.get("frameworks") or [],
-            "evaluations":    p.get("evaluations") or p.get("total_checks", 0),
-            "last_updated":   p.get("last_updated") or p.get("updated_at", ""),
-            "exceptions":     p.get("exceptions") or [],
-            "version_history":p.get("version_history") or [],
-        })
+    all_suppressions = rule_suppressions + finding_suppressions
 
-    by_status_list = [{"status": k, "count": v} for k, v in
-                      sorted(by_status.items(), key=lambda x: -x[1])]
+    rule_kpi    = safe_get(rule_data,    "kpi", {})
+    finding_kpi = safe_get(finding_data, "kpi", {})
 
-    tabs = [
-        {"id": "policies",   "label": "Policies",    "count": total},
-        {"id": "exceptions", "label": "Exceptions",  "count": 0},
-        {"id": "changelog",  "label": "Change Log",  "count": 0},
-    ]
+    tenant_wide   = rule_kpi.get("tenant_wide", 0)
+    account_level = rule_kpi.get("account_level", 0)
+    by_scope_type = rule_kpi.get("by_scope_type", {})
 
-    result = {
-        "policies":   enriched,
-        "total":      total,
-        "brief":      f"{active} active, {draft} draft — {total} total policies",
-        "details":    {},
-        "tabs":       tabs,
+    from datetime import datetime, timezone, timedelta
+    soon = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+    expiring_soon = sum(
+        1 for s in all_suppressions
+        if s.get("expires_at") and s["expires_at"] <= soon
+    )
+
+    return {
+        "suppressions":          all_suppressions,
+        "rule_suppressions":     rule_suppressions,
+        "finding_suppressions":  finding_suppressions,
+        "total":                 len(all_suppressions),
+        "kpi": {
+            "total":                 len(all_suppressions),
+            "rule_scope_total":      len(rule_suppressions),
+            "finding_total":         len(finding_suppressions),
+            "tenant_wide":           tenant_wide,
+            "account_level":         account_level + len(finding_suppressions),
+            "expiring_soon":         expiring_soon,
+            "by_scope_type":         by_scope_type,
+            "finding_resource_specific": finding_kpi.get("resource_specific", 0),
+            "finding_rule_in_account":   finding_kpi.get("rule_in_account", 0),
+        },
         "kpiGroups": [
             {
-                "title": "Policy Coverage",
+                "title": "Suppression Overview",
                 "items": [
-                    {"label": "Total Policies", "value": total},
-                    {"label": "Active",         "value": active},
-                    {"label": "Draft",          "value": draft},
-                    {"label": "Archived",       "value": archived},
+                    {"label": "Total",           "value": len(all_suppressions)},
+                    {"label": "Rule Scope",      "value": len(rule_suppressions)},
+                    {"label": "Finding Level",   "value": len(finding_suppressions)},
+                    {"label": "Expiring in 30d", "value": expiring_soon},
                 ],
-            }
+            },
+            {
+                "title": "Rule Scope Breakdown",
+                "items": [
+                    {"label": "Tenant-wide",    "value": tenant_wide},
+                    {"label": "Account-level",  "value": account_level},
+                    {"label": "By Rule",        "value": by_scope_type.get("rule", 0)},
+                    {"label": "By Service",     "value": by_scope_type.get("service", 0)},
+                ],
+            },
         ],
-        "byCategory": [{"category": k, "count": v} for k, v in
-                       sorted(by_category.items(), key=lambda x: -x[1])],
-        "byProvider": [{"provider": k, "count": v} for k, v in
-                       sorted(by_provider.items(), key=lambda x: -x[1])],
-        "byStatus":   by_status_list,
-        "items":      enriched,
         "filterSchema": [
-            {"key": "status",   "label": "Status",   "type": "enum",
-             "values": ["active", "draft", "archived"]},
-            {"key": "category", "label": "Category", "type": "string"},
-            {"key": "provider", "label": "Provider", "type": "enum",
-             "values": ["aws", "azure", "gcp", "oci", "alicloud", "ibm", "all"]},
-            {"key": "severity", "label": "Severity", "type": "enum",
-             "values": ["critical", "high", "medium", "low"]},
+            {
+                "key": "suppression_type",
+                "label": "Type",
+                "type": "enum",
+                "values": ["rule_scope", "finding"],
+            },
+            {
+                "key": "scope_level",
+                "label": "Level",
+                "type": "enum",
+                "values": ["tenant", "account"],
+            },
+            {
+                "key": "scope_type",
+                "label": "Scope",
+                "type": "enum",
+                "values": ["rule", "service", "technology", "provider"],
+            },
+            {
+                "key": "provider",
+                "label": "Provider",
+                "type": "enum",
+                "values": ["aws", "azure", "gcp", "oci", "alicloud", "ibm", "k8s"],
+            },
         ],
+        "_meta": meta.to_dict(),
     }
 
-    cached_view(ck, result, ttl=TTL_POLICIES)
-    return result
+
+@router.get("/suppressions")
+async def view_suppressions(
+    request: Request,
+    include_expired: bool = Query(False),
+):
+    """Suppression management — merges rule-scope and finding-level suppressions."""
+    return await _build_suppressions_response(request, include_expired)
+
+
+@router.get("/policies")
+async def view_policies(request: Request):
+    """Legacy /policies endpoint — returns suppressions data."""
+    return await _build_suppressions_response(request)

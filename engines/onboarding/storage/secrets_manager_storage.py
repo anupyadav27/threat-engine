@@ -35,16 +35,23 @@ class SecretsManagerStorage:
         self.kms_key_id = KMS_KEY_ID
         self.prefix = SECRET_NAME_PREFIX
     
-    def _get_secret_name(self, account_id: str) -> str:
-        """Generate secret name for account"""
+    def _get_secret_name(self, account_id: str, tenant_id: Optional[str] = None) -> str:
+        """Generate secret name scoped by tenant and account.
+
+        New format: {prefix}/account/{tenant_id}/{account_id}
+        Legacy format (no tenant_id): {prefix}/account/{account_id}
+        """
+        if tenant_id:
+            return f"{self.prefix}/account/{tenant_id}/{account_id}"
         return f"{self.prefix}/account/{account_id}"
-    
+
     def store(
         self,
         account_id: str,
         credential_type: str,
         credentials: Dict[str, Any],
-        expires_at: Optional[str] = None
+        tenant_id: Optional[str] = None,
+        expires_at: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Store credentials in Secrets Manager
@@ -58,15 +65,16 @@ class SecretsManagerStorage:
         Returns:
             Dict with secret ARN and metadata
         """
-        secret_name = self._get_secret_name(account_id)
-        
+        secret_name = self._get_secret_name(account_id, tenant_id)
+
         # Prepare secret value
         secret_value = {
             'credential_type': credential_type,
             'credentials': credentials,
             'account_id': account_id,
+            'tenant_id': tenant_id,
             'created_at': datetime.now(timezone.utc).isoformat(),
-            'expires_at': expires_at
+            'expires_at': expires_at,
         }
         
         try:
@@ -103,41 +111,36 @@ class SecretsManagerStorage:
             'credential_type': credential_type
         }
     
-    def retrieve(self, account_id: str) -> Dict[str, Any]:
-        """
-        Retrieve credentials from Secrets Manager
-        
-        Args:
-            account_id: Account UUID
-            
-        Returns:
-            Decrypted credentials dictionary
-            
+    def retrieve(self, account_id: str, tenant_id: Optional[str] = None, credential_ref: Optional[str] = None) -> Dict[str, Any]:
+        """Retrieve credentials from Secrets Manager.
+
+        Lookup order:
+        1. ``credential_ref`` — full SM path stored in the DB (most specific, handles both formats)
+        2. ``tenant_id`` + ``account_id`` — new tenant-scoped path
+        3. ``account_id`` alone — legacy path for backwards compatibility
+
         Raises:
-            ValueError: If secret not found
+            ValueError: If secret not found or expired
         """
-        secret_name = self._get_secret_name(account_id)
-        
+        # Use the stored credential_ref directly when available — it is the authoritative path.
+        if credential_ref and "/" in credential_ref:
+            secret_name = credential_ref
+        else:
+            secret_name = self._get_secret_name(account_id, tenant_id)
+
         try:
             response = self.secrets_client.get_secret_value(SecretId=secret_name)
             secret_data = json.loads(response['SecretString'])
-            
-            # Check expiration
+
             if secret_data.get('expires_at'):
                 expires_at = datetime.fromisoformat(secret_data['expires_at'].replace('Z', '+00:00'))
                 if expires_at < datetime.now(timezone.utc).replace(tzinfo=expires_at.tzinfo):
                     raise ValueError(f"Credentials for account {account_id} have expired")
-            
-            # Return credentials
+
             credentials = secret_data.get('credentials', {})
             credentials['credential_type'] = secret_data.get('credential_type')
-            
-            # Update last_used_at (store in metadata, not in secret itself)
-            # Note: Secrets Manager doesn't support metadata updates easily
-            # Consider storing last_used_at in DynamoDB instead
-            
             return credentials
-            
+
         except ClientError as e:
             if e.response['Error']['Code'] == 'ResourceNotFoundException':
                 raise ValueError(f"No credentials found for account {account_id}")
@@ -198,15 +201,15 @@ class SecretsManagerStorage:
     def get_secret_metadata(self, account_id: str) -> Dict[str, Any]:
         """
         Get secret metadata (without retrieving the secret value)
-        
+
         Args:
             account_id: Account UUID
-            
+
         Returns:
             Secret metadata
         """
         secret_name = self._get_secret_name(account_id)
-        
+
         try:
             response = self.secrets_client.describe_secret(SecretId=secret_name)
             return {
@@ -222,6 +225,62 @@ class SecretsManagerStorage:
             if e.response['Error']['Code'] == 'ResourceNotFoundException':
                 raise ValueError(f"No credentials found for account {account_id}")
             raise
+
+    def store_agent_token(self, account_id: str, raw_token: str, tenant_id: Optional[str] = None) -> Dict[str, Any]:
+        """Store an agent registration token in Secrets Manager.
+
+        The raw token is stored at ``threat-engine/account/{tenant_id}/{account_id}`` under
+        the key ``agent_token``.  The hash is NOT stored here — only the DB
+        holds the SHA-256 digest.  This is the ONLY place the raw token lives
+        after the HTTP response is sent to the caller.
+
+        Args:
+            account_id: UUID of the cloud_account the agent registers against.
+            raw_token: The UUID4 raw agent token string.  NEVER log this value.
+            tenant_id: Tenant that owns the account — scopes the SM path.
+
+        Returns:
+            Dict with ``secret_arn``, ``secret_name``, ``account_id``.
+        """
+        secret_name = self._get_secret_name(account_id, tenant_id)
+
+        # Merge agent_token into existing secret or create a new one.
+        try:
+            response = self.secrets_client.get_secret_value(SecretId=secret_name)
+            existing: Dict[str, Any] = json.loads(response["SecretString"])
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] == "ResourceNotFoundException":
+                existing = {}
+            else:
+                raise
+
+        existing["agent_token"] = raw_token
+        existing["agent_token_updated_at"] = datetime.now(timezone.utc).isoformat()
+
+        try:
+            result = self.secrets_client.update_secret(
+                SecretId=secret_name,
+                SecretString=json.dumps(existing),
+            )
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] == "ResourceNotFoundException":
+                create_params: Dict[str, Any] = {
+                    "Name": secret_name,
+                    "SecretString": json.dumps(existing),
+                    "Description": f"Threat Engine agent token for account {account_id}",
+                }
+                if self.kms_key_id:
+                    create_params["KmsKeyId"] = self.kms_key_id
+                result = self.secrets_client.create_secret(**create_params)
+            else:
+                raise
+
+        logger.info("Agent token stored in SM for account %s", account_id)
+        return {
+            "secret_arn": result["ARN"],
+            "secret_name": secret_name,
+            "account_id": account_id,
+        }
 
 
 # Global instance

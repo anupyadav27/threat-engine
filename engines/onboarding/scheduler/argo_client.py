@@ -62,7 +62,9 @@ class ArgoClient:
         credential_type: str = "access_key",
         credential_ref: str = "",
         include_services: Optional[List[str]] = None,
+        exclude_services: Optional[List[str]] = None,
         include_regions: Optional[List[str]] = None,
+        exclude_regions: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
         Submit a full CSPM scan pipeline from the WorkflowTemplate.
@@ -73,18 +75,35 @@ class ArgoClient:
             -p scan-run-id=... \\
             --labels scan-run-id=...
 
-        Returns the created Workflow dict from Argo (includes metadata.name).
-        Raises RuntimeError on failure.
+        Args:
+            scan_run_id: Pipeline-wide UUID.
+            tenant_id: Tenant identifier.
+            account_id: Cloud account ID.
+            provider: Cloud provider (aws, azure, gcp, oci, alicloud, ibm).
+            credential_type: Credential resolution type.
+            credential_ref: AWS Secrets Manager secret path.
+            include_services: Allowlist of services to scan (empty = all).
+            exclude_services: Denylist of services to skip.
+            include_regions: Allowlist of regions to scan (empty = all).
+            exclude_regions: Denylist of regions to skip.
+
+        Returns:
+            Created Workflow dict from Argo (includes metadata.name).
+
+        Raises:
+            RuntimeError: On HTTP error or Argo unavailability.
         """
         params = [
-            {"name": "scan-run-id",      "value": scan_run_id},
-            {"name": "tenant-id",        "value": tenant_id},
-            {"name": "account-id",       "value": account_id},
-            {"name": "provider",         "value": provider},
-            {"name": "credential-type",  "value": credential_type},
-            {"name": "credential-ref",   "value": credential_ref},
-            {"name": "include-services", "value": ",".join(include_services) if include_services else ""},
-            {"name": "include-regions",  "value": ",".join(include_regions)  if include_regions  else ""},
+            {"name": "scan-run-id",       "value": scan_run_id},
+            {"name": "tenant-id",         "value": tenant_id},
+            {"name": "account-id",        "value": account_id},
+            {"name": "provider",          "value": provider},
+            {"name": "credential-type",   "value": credential_type},
+            {"name": "credential-ref",    "value": credential_ref},
+            {"name": "include-services",  "value": ",".join(include_services) if include_services else ""},
+            {"name": "exclude-services",  "value": ",".join(exclude_services) if exclude_services else ""},
+            {"name": "include-regions",   "value": ",".join(include_regions)  if include_regions  else ""},
+            {"name": "exclude-regions",   "value": ",".join(exclude_regions)  if exclude_regions  else ""},
         ]
 
         body = {
@@ -161,12 +180,30 @@ async def trigger_scan(
     credential_type: str = "",
     credential_ref: str = "",
     include_services: Optional[List[str]] = None,
+    exclude_services: Optional[List[str]] = None,
     include_regions: Optional[List[str]] = None,
+    exclude_regions: Optional[List[str]] = None,
 ) -> Optional[str]:
     """
     Async convenience wrapper. Fires the Argo pipeline.
+
     Returns workflow_name on success; None on failure (logs but does not raise,
     so callers can handle the scan_run_id even if Argo is temporarily down).
+
+    Args:
+        scan_run_id: Pipeline-wide UUID.
+        tenant_id: Tenant identifier.
+        account_id: Cloud account ID.
+        provider: Cloud provider.
+        credential_type: Credential resolution type.
+        credential_ref: AWS Secrets Manager path.
+        include_services: Allowlist of services (empty = all).
+        exclude_services: Denylist of services to skip.
+        include_regions: Allowlist of regions (empty = all).
+        exclude_regions: Denylist of regions to skip.
+
+    Returns:
+        Argo workflow name on success, None on failure.
     """
     client = ArgoClient()
     try:
@@ -178,7 +215,9 @@ async def trigger_scan(
             credential_type=credential_type,
             credential_ref=credential_ref,
             include_services=include_services,
+            exclude_services=exclude_services,
             include_regions=include_regions,
+            exclude_regions=exclude_regions,
         )
         workflow_name = result.get("metadata", {}).get("name")
         logger.info(f"Argo workflow started: {workflow_name} (scan_run_id={scan_run_id})")

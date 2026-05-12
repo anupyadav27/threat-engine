@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Play, RefreshCw, ChevronDown, CheckCircle2, XCircle, Loader2, Clock, Calendar, Layers } from 'lucide-react';
+import { Play, RefreshCw, ChevronDown, CheckCircle2, XCircle, Loader2, Clock, Calendar, Layers, Zap, ExternalLink } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { getFromEngine, postToEngine, fetchView } from '@/lib/api';
 import { useTenant } from '@/lib/tenant-context';
+import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import ScanRunDetailModal from '@/components/domain/ScanRunDetailModal';
 
@@ -162,9 +164,13 @@ function RunNowModal({ accounts, schedules, onClose, onLaunched }) {
 
 const POLL_INTERVAL_MS = 8000;
 
+const SCAN_ALL_ROLES = ['org_admin', 'platform_admin'];
+
 export default function ScansPage() {
   const { customerId, activeTenant } = useTenant();
+  const { role } = useAuth();
   const toast = useToast();
+  const router = useRouter();
 
   const [runs, setRuns]         = useState([]);
   const [accounts, setAccounts] = useState([]);
@@ -173,8 +179,9 @@ export default function ScansPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [showRunModal, setShowRunModal] = useState(false);
   const [selectedRunId, setSelectedRunId] = useState(null);
+  const [scanAllBusy, setScanAllBusy] = useState(false);
 
-  const tenantId = activeTenant?.tenant_id;
+  const canScanAll = SCAN_ALL_ROLES.includes(role);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -216,6 +223,26 @@ export default function ScansPage() {
     setTimeout(() => load(), 1500);
   }
 
+  async function handleScanAll() {
+    if (!canScanAll) return;
+    setScanAllBusy(true);
+    try {
+      const result = await postToEngine('gateway', '/api/v1/scans/run-all', { tenant_id: tenantId });
+      if (result.error) {
+        toast?.error?.(`Scan All failed: ${result.error}`);
+        return;
+      }
+      const triggered = result.triggered?.length ?? result.triggered_count ?? 0;
+      const skipped   = result.skipped?.length  ?? result.skipped_count  ?? 0;
+      toast?.success?.(`Triggered: ${triggered} account${triggered !== 1 ? 's' : ''}, Skipped: ${skipped} inactive`);
+      setTimeout(() => load(), 1500);
+    } catch (e) {
+      toast?.error?.('Scan All failed. Please try again.');
+    } finally {
+      setScanAllBusy(false);
+    }
+  }
+
   // Summary stats
   const stats = {
     total:     runs.length,
@@ -238,6 +265,18 @@ export default function ScansPage() {
           <button onClick={() => load()} className="p-2 rounded-lg hover:opacity-70" style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-primary)' }} title="Refresh">
             <RefreshCw className="w-4 h-4" />
           </button>
+          {/* Scan All — org_admin and platform_admin only (AC4) */}
+          {canScanAll && (
+            <button
+              onClick={handleScanAll}
+              disabled={scanAllBusy}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+              style={{ backgroundColor: 'rgba(34,197,94,0.12)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)' }}
+            >
+              {scanAllBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+              Scan All
+            </button>
+          )}
           <button onClick={() => setShowRunModal(true)}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white"
             style={{ backgroundColor: 'var(--accent-primary)' }}>
@@ -292,18 +331,18 @@ export default function ScansPage() {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-secondary)' }}>
-              {['Scan Run ID', 'Account', 'Provider', 'Trigger', 'Status', 'Engines', 'Duration', 'Started'].map(h => (
+              {['Scan Run ID', 'Account', 'Provider', 'Trigger', 'Status', 'Engines', 'Duration', 'Started', ''].map(h => (
                 <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center">
+              <tr><td colSpan={9} className="px-4 py-8 text-center">
                 <Loader2 className="w-5 h-5 animate-spin mx-auto" style={{ color: 'var(--text-muted)' }} />
               </td></tr>
             ) : runs.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
                 No scan runs found. Click <strong>Run Now</strong> to trigger your first scan.
               </td></tr>
             ) : runs.map(run => (
@@ -344,6 +383,17 @@ export default function ScansPage() {
                 </td>
                 <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>
                   {fmtRelative(run.started_at)}
+                </td>
+                <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                  <button
+                    onClick={() => router.push(`/scans/${run.scan_run_id}`)}
+                    className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium hover:opacity-80"
+                    style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: 'var(--accent-primary)', border: '1px solid rgba(59,130,246,0.25)' }}
+                    title="View pipeline progress"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    {run.overall_status === 'running' || run.overall_status === 'pending' ? 'Progress' : 'Pipeline'}
+                  </button>
                 </td>
               </tr>
             ))}
