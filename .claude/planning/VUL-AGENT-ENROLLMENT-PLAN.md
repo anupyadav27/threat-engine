@@ -27,159 +27,113 @@ Enforce a **provision → download → register → scan** lifecycle so that:
 
 ---
 
-## 3. End-to-End Flow — Key Values
-
-> Read this first. It shows every value, where it is born, and where it is reused
-> across the full journey from account onboarding through to portal viewing results.
+## 3. End-to-End Flow — Block Diagram
 
 ```
-Legend
-  [CREATE]  — value is born at this step
-  [REUSE]   — value was created earlier; passed through unchanged
-  [REMOVE]  — value is deleted from config after use (consumed)
-  ════════  — database write
-  ────────  — value flows between services
+  KEY:  + value CREATED   ~ value REUSED from earlier   - value REMOVED (consumed)
+        ╔══╗ database write    ┌──┐ file / payload    [  ] service / actor
 ```
 
 ```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- PHASE 1 — ONBOARDING   (done once — admin adds cloud account to CSPM)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  Admin onboards AWS/Azure/GCP account  →  Onboarding engine
-                                              ╔══════════════════════════════╗
-                                              ║  cloud_accounts              ║
-                                              ║  [CREATE] tenant_id          ║
-                                              ║  [CREATE] account_id         ║
-                                              ║  [CREATE] customer_id        ║
-                                              ║           account_type       ║
-                                              ║           status = 'active'  ║
-                                              ╚══════════════════════════════╝
-
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- PHASE 2 — PROVISION   (admin clicks "Download Agent" in portal)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  Portal ─── account_id ──► Onboarding: issue_agent_token(account_id)
-                                              ╔══════════════════════════════════╗
-                                              ║  agent_registrations             ║
-                                              ║  [REUSE]  tenant_id              ║
-                                              ║  [REUSE]  account_id             ║
-                                              ║  [CREATE] agent_id  "agnt-3f8a" ║ ← stable identity
-                                              ║  [CREATE] token_hash             ║ ← SHA256(raw_token)
-                                              ║           status = 'pending'     ║
-                                              ║           expires_at = +30 min   ║
-                                              ╚══════════════════════════════════╝
-                         ◄── { raw_token, agent_id } ──────────────────────────
-
-  Portal builds ZIP  (raw_token + agent_id + binary never touch user screen)
-                                              ┌──────────────────────────────────┐
-                                              │  agent_config.json  (in ZIP)     │
-                                              │  [REUSE]  tenant_id              │
-                                              │  [REUSE]  agent_id  "agnt-3f8a" │
-                                              │  [CREATE] registration_token     │ ← raw_token, 30-min
-                                              │  [CREATE] binary_sha256          │ ← integrity hash
-                                              │           engine_url             │
-                                              └──────────────────────────────────┘
-
-  Portal uploads ZIP to S3  →  generates 10-min pre-signed URL  →  browser downloads
-
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- PHASE 3 — REGISTER   (agent runs for the first time on the server)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  Agent reads agent_config.json
-  Agent verifies binary: sha256(this file) == binary_sha256  →  safe to run
-
-  Agent ─── { registration_token, agent_id } ──► Vul Engine: /register
-
-  Vul Engine ─── SHA256(token) ──► Onboarding: validate-token
-               ◄── { agent_id, account_id, tenant_id, expires_at } ──
-                                              ╔══════════════════════════════════╗
-                                              ║  vul_agent_sessions  (vul DB)    ║
-                                              ║  [REUSE]  agent_id  "agnt-3f8a" ║
-                                              ║  [REUSE]  account_id             ║
-                                              ║  [REUSE]  tenant_id              ║
-                                              ║  [CREATE] api_key_hash           ║ ← SHA256(agent_api_key)
-                                              ║           status = 'active'      ║
-                                              ║           hostname               ║
-                                              ╚══════════════════════════════════╝
-               ◄── { agent_api_key } ──────────────────────────────────────────
-
-  Agent updates agent_config.json on disk:
-                                              ┌──────────────────────────────────┐
-                                              │  agent_config.json  (updated)    │
-                                              │  [REUSE]  tenant_id              │
-                                              │  [REUSE]  agent_id  "agnt-3f8a" │
-                                              │  [CREATE] agent_api_key          │ ← permanent scan key
-                                              │  [REMOVE] registration_token     │ ← consumed, deleted
-                                              │  [REMOVE] binary_sha256          │ ← no longer needed
-                                              └──────────────────────────────────┘
-
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- PHASE 4 — SCAN   (every run from now on — no onboarding call needed)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  Agent ─── { agent_id, agent_api_key, findings } ──► Vul Engine: /scan
-                                                           │
-                                                           │  local check (fast)
-                                                           ▼
-                                                       vul_agent_sessions
-                                                       agent_id + api_key_hash
-                                                       + status = 'active'  →  PASS
-                                                       any mismatch         →  403
-                                              ╔══════════════════════════════════════╗
-                                              ║  scans                               ║
-                                              ║  [REUSE] account_id                  ║
-                                              ║  [REUSE] tenant_id                   ║
-                                              ║  [REUSE] scan_run_id (orchestrator)  ║
-                                              ╚══════════════════════════════════════╝
-                                              ╔══════════════════════════════════════╗
-                                              ║  scan_vulnerabilities                ║
-                                              ║  [REUSE]  account_id                 ║
-                                              ║  [REUSE]  tenant_id                  ║
-                                              ║  [REUSE]  scan_run_id                ║
-                                              ║  [CREATE] finding_id                 ║
-                                              ║  [CREATE] CVE, severity, CVSS        ║
-                                              ║  [CREATE] resource_uid               ║
-                                              ╚══════════════════════════════════════╝
-
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- PHASE 5 — PORTAL READS RESULTS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  Portal query (via BFF → Vul Engine):
-    WHERE account_id = "a-def..."   ← from onboarding (REUSE)
-      AND tenant_id  = "t-abc..."   ← from auth context (REUSE)
-    → returns scan_vulnerabilities rows for that account
-```
-
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- VALUE LIFECYCLE SUMMARY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  Value               Born in          Lives in                     Travels to
-  ─────────────────── ──────────────── ──────────────────────────── ──────────────────────────
-  tenant_id           onboarding       cloud_accounts               → all vul tables (denorm)
-  account_id          onboarding       cloud_accounts               → agent_registrations
-                                                                      → vul_agent_sessions
-                                                                      → scans, scan_vulns (FK)
-  agent_id            onboarding       agent_registrations          → agent_config.json
-   "agnt-xxxxxxxx"                     vul_agent_sessions           → scan payload
-  registration_token  onboarding       agent_config.json only       → /register call  (CONSUMED)
-   (30-min window)                     (never stored plain in DB)
-  binary_sha256       portal           agent_config.json only       → self-check at startup
-                                                                      (REMOVED after register)
-  agent_api_key       vul engine       agent_config.json only       → every scan header (Bearer)
-   (permanent)                         (never stored plain in DB)
-  api_key_hash        vul engine       vul_agent_sessions           scan gate check
-  scan_run_id         orchestrator     scans, scan_vulnerabilities  cross-engine correlation
-  CVE / findings      vul agent        scan_vulnerabilities         portal results view
+┌─────────────────────────────────────────────────────────────────────────┐
+│  1. ONBOARDING   (admin adds cloud account — done once)                 │
+│                                                                         │
+│  [Admin] ──onboard AWS/Azure/GCP──► [Onboarding Engine]                │
+│                                            │                            │
+│                                     ╔══════▼════════════╗              │
+│                                     ║  cloud_accounts    ║              │
+│                                     ║  + tenant_id       ║              │
+│                                     ║  + account_id      ║              │
+│                                     ║  + account_type    ║              │
+│                                     ╚═══════════════════╝              │
+└─────────────────────────────────────────────────────────────────────────┘
+                              │ tenant_id + account_id
+                              ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  2. PROVISION   (admin clicks "Download Agent")                         │
+│                                                                         │
+│  [Portal] ─issue_agent_token(account_id)──► [Onboarding Engine]        │
+│                                                      │                  │
+│                                      ╔═══════════════▼══════════════╗  │
+│                                      ║  agent_registrations          ║  │
+│                                      ║  ~ tenant_id  ~ account_id   ║  │
+│                                      ║  + agent_id  "agnt-3f8a1b"  ║  │
+│                                      ║  + token_hash  SHA256(token) ║  │
+│                                      ║    status=pending  ttl=30min ║  │
+│                                      ╚══════════════════════════════╝  │
+│           ◄── { raw_token, agent_id } ──────────────────────────        │
+│                                                                         │
+│  [Portal] ──fetch binary──► [S3]  compute binary_sha256                 │
+│                                                                         │
+│           ┌── agent_config.json ────────────────────────┐              │
+│           │   ~ tenant_id      ~ agent_id "agnt-3f8a1b" │              │
+│           │   + registration_token  (30-min, one-time)  │              │
+│           │   + binary_sha256  (integrity check)         │──►[S3 temp]│
+│           └────────────────────────────────────────────-┘   10-min    │
+│                                               pre-signed URL ──► [Browser downloads ZIP] │
+└─────────────────────────────────────────────────────────────────────────┘
+                              │ ZIP on server
+                              ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  3. REGISTER   (agent first run on server)                              │
+│                                                                         │
+│  [Agent]  sha256(binary) == binary_sha256 ?  ✓ integrity OK             │
+│     │                                                                   │
+│     └──{ reg_token, agent_id, hostname }──► [Vul Engine /register]     │
+│                                                      │                  │
+│                           ──SHA256(token)──► [Onboarding validate]     │
+│                           ◄── { agent_id, account_id, tenant_id } ──   │
+│                                                      │                  │
+│                                      ╔═══════════════▼══════════════╗  │
+│                                      ║  vul_agent_sessions  (vul DB) ║  │
+│                                      ║  ~ agent_id  ~ account_id    ║  │
+│                                      ║  ~ tenant_id                 ║  │
+│                                      ║  + api_key_hash  SHA256(key) ║  │
+│                                      ║    status=active             ║  │
+│                                      ╚══════════════════════════════╝  │
+│     ◄── { agent_api_key } ──────────────────────────────────────────   │
+│                                                                         │
+│           ┌── agent_config.json (updated on disk) ────────────┐        │
+│           │   ~ tenant_id      ~ agent_id                      │        │
+│           │   + agent_api_key  (permanent scan credential)     │        │
+│           │   - registration_token  (consumed, deleted)        │        │
+│           │   - binary_sha256  (no longer needed)              │        │
+│           └────────────────────────────────────────────────────┘        │
+└─────────────────────────────────────────────────────────────────────────┘
+                              │ agent_id + api_key on disk
+                              ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  4. SCAN   (every run — no onboarding call on this path)                │
+│                                                                         │
+│  [Agent] ──{ agent_id + Bearer api_key + findings }──► [Vul Engine]   │
+│                                                              │          │
+│                              local gate (fast, no network)   │          │
+│                              vul_agent_sessions:             │          │
+│                              agent_id + api_key_hash         │          │
+│                              + status=active  →  PASS ───────┘          │
+│                                                                         │
+│                              ╔═══════════════════════════════════════╗  │
+│                              ║  scans                                ║  │
+│                              ║  ~ account_id  ~ tenant_id            ║  │
+│                              ║  ~ scan_run_id  (from orchestrator)   ║  │
+│                              ╠═══════════════════════════════════════╣  │
+│                              ║  scan_vulnerabilities                 ║  │
+│                              ║  ~ account_id  ~ tenant_id            ║  │
+│                              ║  ~ scan_run_id                        ║  │
+│                              ║  + finding_id  + CVE  + severity      ║  │
+│                              ╚═══════════════════════════════════════╝  │
+└─────────────────────────────────────────────────────────────────────────┘
+                              │ findings stored (account_id is the FK)
+                              ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  5. PORTAL READS RESULTS                                                │
+│                                                                         │
+│  [Portal/BFF] ──{ account_id, tenant_id }──► [Vul Engine]              │
+│               ◄── scan_vulnerabilities rows (CVE, severity, resource)   │
+│                                                                         │
+│  account_id and tenant_id are NEVER created by vul engine —             │
+│  they flow from onboarding through every phase unchanged.               │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
