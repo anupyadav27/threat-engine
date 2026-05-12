@@ -336,15 +336,31 @@ ALTER TABLE scans DROP COLUMN scan_id;
 CREATE INDEX idx_scans_scan_run_id ON scans(scan_run_id);
 ```
 
-**Table: `scan_vulnerabilities`** — add standard columns
+**Table: `scan_vulnerabilities`** — swap scan_id + add standard columns
+
+> Same pattern as `scans`: `scan_id` is expected to be a VARCHAR referencing
+> `scans.scan_id`. Both must be swapped together so the FK relationship stays consistent.
 
 ```sql
+-- Step 1: add the correct UUID column
+ALTER TABLE scan_vulnerabilities ADD COLUMN scan_run_id UUID;
+
+-- Step 2: drop the old string FK (or rename to preserve history — match whatever
+--         was decided for scans.scan_id in the block above)
+ALTER TABLE scan_vulnerabilities DROP COLUMN scan_id;
+-- or: ALTER TABLE scan_vulnerabilities RENAME COLUMN scan_id TO legacy_scan_id;
+
+-- Step 3: add remaining standard columns
 ALTER TABLE scan_vulnerabilities
-  ADD COLUMN scan_run_id  UUID,
   ADD COLUMN tenant_id    UUID,
   ADD COLUMN account_id   UUID,
   ADD COLUMN resource_uid VARCHAR(255);
+
+CREATE INDEX idx_scan_vuln_scan_run_id ON scan_vulnerabilities(scan_run_id);
 ```
+
+> **Note:** The drop/rename decision for `scan_vulnerabilities.scan_id` must match
+> what was chosen for `scans.scan_id` — they should be consistent.
 
 ---
 
@@ -552,9 +568,9 @@ def run_scan(account_id, agent_api_key, server_info):
 
 ```
 ①  DB migration    — CREATE vul_agent_credentials table
-                      scans: swap scan_id (VARCHAR) → scan_run_id (UUID)  ⚠ data loss
-                      scan_vulnerabilities: + scan_run_id, tenant_id, account_id, resource_uid
-                      Confirm: drop scan_id or rename to legacy_scan_id
+                      scans: swap scan_id (VARCHAR) → scan_run_id (UUID)  ⚠ not backfillable
+                      scan_vulnerabilities: same swap — scan_id → scan_run_id + add standard cols
+                      Both tables: drop/rename decision must match — confirm before running
 
 ②  Vul Engine      — POST /api/v1/agents/provision
                       (validate onboarding, generate api_key, upsert vul_agent_credentials)
