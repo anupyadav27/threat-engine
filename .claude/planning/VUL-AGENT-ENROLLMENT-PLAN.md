@@ -1,5 +1,5 @@
 # Vulnerability Agent Enrollment — Feature Plan
-**Version:** 1.3  
+**Version:** 1.4  
 **Author:** Ajay  
 **Status:** Ready for Team Review  
 **Date:** 2026-05-12
@@ -356,6 +356,35 @@ s3:GeneratePresignedUrl                                           (10-min downlo
 
 ### 10.1 Vulnerability Engine — Database
 
+> **Pre-migration discovery:** The existing `scans` table has a column `scan_id VARCHAR`
+> with format `10052026_013` (DDMMYYYY + sequence). This is the vul engine's own internal
+> identifier and is NOT a UUID. The CSPM pipeline standard requires `scan_run_id UUID`
+> (the cross-engine correlation ID assigned by the orchestrator).
+> These are different things — `scan_id` must be swapped out as part of this migration.
+
+**Table: `scans`** — swap `scan_id` for `scan_run_id`
+
+```sql
+-- Step 1: add the correct column
+ALTER TABLE scans ADD COLUMN scan_run_id UUID;
+
+-- Step 2: drop the old string-format column
+--   (existing rows have no valid UUID to backfill — data is abandoned)
+--   If scan history must be preserved, rename first:
+--     ALTER TABLE scans RENAME COLUMN scan_id TO legacy_scan_id;
+--   Otherwise drop directly:
+ALTER TABLE scans DROP COLUMN scan_id;
+
+-- Step 3: make scan_run_id the primary correlation key
+CREATE INDEX idx_scans_scan_run_id ON scans(scan_run_id);
+```
+
+> **Code impact:** Every reference to `scan_id` in `engines/vulnerability/` must be
+> updated to `scan_run_id`. The value source also changes — it is no longer generated
+> by the vul engine; it is received from the pipeline orchestrator in the scan request.
+
+---
+
 **Table: `agents`** — ALTER to add enrollment + auth columns
 
 ```sql
@@ -375,13 +404,13 @@ CREATE INDEX idx_agents_token_hash   ON agents(token_hash)        WHERE token_ha
 CREATE INDEX idx_agents_api_key_hash ON agents(agent_api_key_hash) WHERE agent_api_key_hash IS NOT NULL;
 ```
 
-**Table: `scans`** — add cross-engine linking columns
+**Table: `scans`** — add cross-engine linking columns (scan_run_id swap handled above)
 
 ```sql
 ALTER TABLE scans
-  ADD COLUMN scan_run_id  UUID,
-  ADD COLUMN tenant_id    UUID,
-  ADD COLUMN account_id   UUID;
+  ADD COLUMN tenant_id   UUID,
+  ADD COLUMN account_id  UUID;
+-- scan_run_id is added and scan_id dropped in the swap block above
 ```
 
 **Table: `scan_vulnerabilities`** — add standard columns
@@ -621,7 +650,10 @@ def run_scan(vul_agent_id, agent_api_key):
 ## 12. Implementation Order
 
 ```
-①  DB migration    — agents (+ api_key_hash col), scans, scan_vulnerabilities
+①  DB migration    — agents (+ api_key_hash col), scans (swap scan_id→scan_run_id UUID),
+                      scan_vulnerabilities (+ scan_run_id, tenant_id, account_id, resource_uid)
+                      ⚠ scan_id is a string column today — existing rows are not backfillable;
+                        confirm whether to drop or rename to legacy_scan_id before running
 ②  Vul Engine      — POST /api/v1/agents/provision  (new)
 ③  Vul Engine      — POST /api/v1/agents/register   (assign uuid4 + api_key)
 ④  Vul Engine      — POST /api/v1/agents/scan       (two-factor gate)
@@ -646,8 +678,12 @@ def run_scan(vul_agent_id, agent_api_key):
 5. **api_key loss**: If user loses `agent_config.json`, the `agent_api_key` is unrecoverable (hashed in DB). Recovery path = revoke + re-provision. Confirm this is acceptable.
 6. **Temp ZIP cleanup**: Plan uses S3 lifecycle rule (delete after 24h). Alternative: delete after first successful HEAD/GET on the presigned URL via S3 event notification. Simpler to leave it to the lifecycle rule — confirm.
 7. **Pre-signed URL expiry**: 10 minutes chosen. If user's browser is slow / corporate proxy delays, could the download fail mid-way? S3 pre-signed URL expiry only controls when the download *starts* — once the download begins, it completes regardless. 10 min is safe.
+8. **scan_id history**: The existing `scans.scan_id` (format `10052026_013`) cannot be mapped to a UUID. Should the column be renamed `legacy_scan_id` (keep old data readable) or dropped outright (clean break)? Confirm before migration runs.
 
 ---
+
+*Plan v1.4 — updated 2026-05-12 — scan_id → scan_run_id swap documented.*  
+*Key changes from v1.3: discovered that `scans.scan_id` is a VARCHAR with format `DDMMYYYY_NNN`, not a UUID. Migration must drop/rename this column and add `scan_run_id UUID`. All vul engine code referencing `scan_id` must be updated. Open question added: rename to `legacy_scan_id` or drop outright.*
 
 *Plan v1.3 — updated 2026-05-12 — hybrid pre-signed URL delivery.*  
 *Key changes from v1.2: portal no longer streams binary to browser; instead assembles ZIP in memory, uploads to temporary S3 path (`downloads/{provision_uuid}/`), returns 10-min pre-signed GET URL. Browser downloads directly from S3. S3 lifecycle rule auto-deletes temp ZIPs after 24h. Portal IAM permissions updated. Two new open questions added (temp cleanup strategy, pre-signed URL mid-download behaviour). No changes to identity model, token design, or agent binary logic.*  
