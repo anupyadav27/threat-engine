@@ -41,6 +41,7 @@ ENGINE_URLS: Dict[str, str] = {
     "dbsec":         os.getenv("DBSEC_ENGINE_URL",          "http://engine-dbsec"),
     "billing":        os.getenv("BILLING_ENGINE_URL",         "http://engine-billing:8040"),
     "platform_admin": os.getenv("PLATFORM_ADMIN_ENGINE_URL",  "http://engine-platform-admin:8041"),
+    "threat_v1":      os.getenv("THREAT_V1_ENGINE_URL",       "http://engine-threat-v1:8021"),
 }
 
 # Convenience constants for backward compat

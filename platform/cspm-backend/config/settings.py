@@ -21,6 +21,14 @@ GOOGLE_REDIRECT_URI = os.getenv(
     "GOOGLE_REDIRECT_URI",
     "http://localhost:8000/api/auth/google/callback/",
 )
+# GOOGLE_ALLOWED_DOMAINS: comma-separated list of Google Workspace domains that
+# may authenticate (e.g. "acme.com,partner.io").  When empty or unset, all
+# domains are accepted — preserving backward compatibility for dev / single-tenant
+# deployments.  Set per customer at deploy time via the K8s env var.
+# Personal Gmail accounts (no `hd` claim) are rejected when this is non-empty.
+GOOGLE_ALLOWED_DOMAINS = [
+    d.strip() for d in os.environ.get("GOOGLE_ALLOWED_DOMAINS", "").split(",") if d.strip()
+]
 
 # ── Generic OIDC ──────────────────────────────────────────────────────────────
 OIDC_CALLBACK_URL = os.getenv("OIDC_CALLBACK_URL", "http://localhost:8000/api/auth/oidc/callback/")
@@ -69,10 +77,16 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [],
     "DEFAULT_THROTTLE_CLASSES": [],
     "DEFAULT_THROTTLE_RATES": {
-        "signup": "10/hour",
-        "login": "20/hour",
+        # BLOCK-02: per-minute limits on public auth endpoints
+        "login": "10/min",
+        "register": "5/min",
+        "password_reset": "3/min",
+        # Legacy alias kept for any cached scope references
+        "signup": "5/min",
         "refresh": "60/hour",
         "idp_domain": "5/minute",
+        # BLOCK-10: IDP OAuth/SAML callback endpoints — token-stuffing defence
+        "idp_callback": "20/min",
     },
 }
 

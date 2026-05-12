@@ -1,647 +1,640 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import {
-  BookOpen,
-  Code2,
-  AlertTriangle,
-  CheckCircle,
-  Copy,
-  Download,
-  Plus,
-  Search,
-  AlertCircle,
-  RefreshCw,
-  Eye,
-  EyeOff,
-  Zap,
-  Filter,
-  ChevronDown,
-  ChevronRight,
-  Wand2,
+  BookOpen, CheckCircle, Download, Plus,
+  RefreshCw, Zap, ChevronDown,
+  Ban, X, RotateCcw, Search, CheckSquare, Square,
 } from 'lucide-react';
-import { fetchView, postToEngine } from '@/lib/api';
+import { fetchView, postToEngine, deleteFromEngine, getFromEngine } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 import KpiCard from '@/components/shared/KpiCard';
-import FilterBar from '@/components/shared/FilterBar';
 import SeverityBadge from '@/components/shared/SeverityBadge';
-import DataTable from '@/components/shared/DataTable';
 import RuleBuilderWizard from '@/components/domain/RuleBuilderWizard';
 
-/**
- * Rule Management Page
- * Browse, create, validate, and manage security compliance rules
- */
-export default function RulesPage() {
-  const [loading, setLoading] = useState(true);
-  const [rules, setRules] = useState([]);
-  const [ruleStats, setRuleStats] = useState({});
-  const [templates, setTemplates] = useState([]);
-  const [filteredRules, setFilteredRules] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const [showEditor, setShowEditor] = useState(false);
-  const [editorContent, setEditorContent] = useState('');
-  const [validationResult, setValidationResult] = useState(null);
-  const [showYamlEditor, setShowYamlEditor] = useState(false);
-  const [groupBy, setGroupBy] = useState('');
-  const [expandedGroups, setExpandedGroups] = useState({});
-  const [showRuleBuilder, setShowRuleBuilder] = useState(false);
+// Suppress requires org_admin or platform_admin
+const SUPPRESS_ROLES = ['org_admin', 'platform_admin'];
+const RULE_TYPE_OPTIONS = ['config', 'cdr', 'threat', 'custom'];
 
-  const [activeFilters, setActiveFilters] = useState({
-    provider: '',
-    service: '',
-    severity: '',
-    framework: '',
-    status: '',
-    rule_type: '',
-  });
+// ── Suppress modal (simplified — always suppresses by rule_id) ────────────
+function BulkSuppressModal({ selectedRules, onClose, onSuccess }) {
+  const [reason, setReason]   = useState('');
+  const [expires, setExpires] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors]   = useState([]);
 
-  // Fetch rules via BFF
-  useEffect(() => {
-    const fetchRules = async () => {
-      setLoading(true);
-      try {
-        const data = await fetchView('rules');
-        if (data.error) { console.warn('Error fetching rules:', data.error); return; }
-        if (data.rules)      setRules(data.rules);
-        if (data.kpi)         setRuleStats(data.kpi);
-        else if (data.statistics) setRuleStats(data.statistics);
-        if (data.templates)   setTemplates(data.templates);
-      } catch (error) {
-        console.warn('Error fetching rules:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchRules();
-  }, []);
-
-  // Apply filters and search
-  useEffect(() => {
-    let filtered = [...rules];
-
-    if (searchTerm) {
-      const q = searchTerm.toLowerCase();
-      filtered = filtered.filter(
-        (r) =>
-          r.name.toLowerCase().includes(q) ||
-          r.rule_id.toLowerCase().includes(q) ||
-          r.description.toLowerCase().includes(q)
-      );
+  const handleSubmit = async () => {
+    setLoading(true);
+    setErrors([]);
+    const failed = [];
+    for (const rule of selectedRules) {
+      const body = {
+        scope_type:  'rule',
+        scope_value: rule.rule_id,
+        scope_level: 'tenant',
+        provider:    (rule.provider || '').toLowerCase() || null,
+        reason:      reason || null,
+        expires_at:  expires || null,
+      };
+      const res = await postToEngine('rule', '/api/v1/rules/suppress', body);
+      if (res?.error) failed.push({ rule_id: rule.rule_id, error: res.error });
     }
-
-    if (activeFilters.provider) {
-      filtered = filtered.filter((r) => r.provider === activeFilters.provider);
-    }
-    if (activeFilters.service) {
-      filtered = filtered.filter((r) => r.service === activeFilters.service);
-    }
-    if (activeFilters.severity) {
-      filtered = filtered.filter((r) => r.severity === activeFilters.severity);
-    }
-    if (activeFilters.framework) {
-      filtered = filtered.filter((r) => r.frameworks.some((f) => f === activeFilters.framework));
-    }
-    if (activeFilters.status) {
-      filtered = filtered.filter((r) => r.status === activeFilters.status);
-    }
-    if (activeFilters.rule_type) {
-      filtered = filtered.filter((r) => r.rule_type === activeFilters.rule_type);
-    }
-
-    setFilteredRules(filtered);
-  }, [rules, activeFilters, searchTerm]);
-
-  const uniqueProviders = [...new Set(rules.map((r) => r.provider))].sort();
-  const uniqueServices = [...new Set(rules.map((r) => r.service))].sort();
-  const uniqueFrameworks = [...new Set(rules.flatMap((r) => r.frameworks))].sort();
-  const uniqueRuleTypes = [...new Set(rules.map((r) => r.rule_type).filter(Boolean))].sort();
-
-  // Group-by options
-  const groupByOptions = useMemo(() => [
-    { key: 'provider', label: 'Provider' },
-    { key: 'service', label: 'Service' },
-    { key: 'severity', label: 'Severity' },
-    { key: 'framework', label: 'Framework' },
-    { key: 'status', label: 'Status' },
-    { key: 'rule_type', label: 'Type' },
-  ], []);
-
-  // Group data
-  const grouped = useMemo(() => {
-    if (!groupBy || !filteredRules.length) return null;
-    const groups = {};
-    filteredRules.forEach(row => {
-      let keys;
-      if (groupBy === 'framework') {
-        keys = (row.frameworks && row.frameworks.length > 0) ? row.frameworks : ['Other'];
-      } else {
-        keys = [String(row[groupBy] || 'Other')];
-      }
-      keys.forEach(k => {
-        if (!groups[k]) groups[k] = [];
-        groups[k].push(row);
-      });
-    });
-    return Object.entries(groups)
-      .sort(([, a], [, b]) => b.length - a.length)
-      .map(([key, items]) => ({ key, items, count: items.length }));
-  }, [filteredRules, groupBy]);
-
-  // Auto-expand all groups when groupBy changes
-  useEffect(() => {
-    if (grouped) {
-      const expanded = {};
-      grouped.forEach(g => { expanded[g.key] = true; });
-      setExpandedGroups(expanded);
-    }
-  }, [groupBy]);
-
-  const toggleGroup = (key) => {
-    setExpandedGroups(prev => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  const columns = [
-    {
-      accessorKey: 'name',
-      header: 'Rule Name',
-      cell: (info) => (
-        <div>
-          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-            {info.getValue()}
-          </p>
-          <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-            {info.row.original.rule_id}
-          </p>
-        </div>
-      ),
-    },
-    {
-      accessorKey: 'provider',
-      header: 'Provider',
-      cell: (info) => (
-        <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}>
-          {info.getValue()}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'service',
-      header: 'Service',
-      cell: (info) => (
-        <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-          {info.getValue()}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'severity',
-      header: 'Severity',
-      cell: (info) => <SeverityBadge severity={info.getValue()} />,
-    },
-    {
-      accessorKey: 'frameworks',
-      header: 'Frameworks',
-      cell: (info) => (
-        <div className="flex flex-wrap gap-1">
-          {info.getValue().slice(0, 2).map((f) => (
-            <span key={f} className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--accent-primary)' }}>
-              {f}
-            </span>
-          ))}
-          {info.getValue().length > 2 && (
-            <span className="text-xs px-2 py-1" style={{ color: 'var(--text-tertiary)' }}>
-              +{info.getValue().length - 2}
-            </span>
-          )}
-        </div>
-      ),
-    },
-    {
-      accessorKey: 'rule_type',
-      header: 'Type',
-      cell: (info) => (
-        <span
-          className="text-xs px-2 py-1 rounded font-semibold"
-          style={{
-            backgroundColor: info.getValue() === 'custom' ? 'rgba(168, 85, 247, 0.1)' : 'rgba(59, 130, 246, 0.1)',
-            color: info.getValue() === 'custom' ? 'var(--accent-primary)' : 'var(--accent-primary)',
-          }}
-        >
-          {info.getValue() === 'custom' ? 'Custom' : 'Built-in'}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'status',
-      header: 'Status',
-      cell: (info) => (
-        <div className="flex items-center gap-1">
-          {info.getValue() === 'active' ? (
-            <CheckCircle className="w-4 h-4" style={{ color: 'var(--accent-success)' }} />
-          ) : (
-            <AlertCircle className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
-          )}
-          <span className="text-xs" style={{ color: info.getValue() === 'active' ? 'var(--accent-success)' : 'var(--text-muted)' }}>
-            {info.getValue() === 'active' ? 'Active' : 'Inactive'}
-          </span>
-        </div>
-      ),
-    },
-    {
-      accessorKey: 'passing_resources',
-      header: 'Compliance',
-      cell: (info) => {
-        const total = info.row.original.tested_resources;
-        const passing = info.getValue();
-        const percentage = total > 0 ? ((passing / total) * 100).toFixed(1) : 0;
-        return (
-          <span className="text-xs font-semibold" style={{ color: percentage >= 80 ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
-            {passing}/{total} ({percentage}%)
-          </span>
-        );
-      },
-    },
-  ];
-
-  const filterOptions = [
-    { key: 'provider', label: 'Provider', options: uniqueProviders },
-    { key: 'service', label: 'Service', options: uniqueServices },
-    { key: 'severity', label: 'Severity', options: ['critical', 'high', 'medium', 'low'] },
-    { key: 'framework', label: 'Framework', options: uniqueFrameworks },
-    { key: 'status', label: 'Status', options: ['active', 'inactive'] },
-    { key: 'rule_type', label: 'Type', options: uniqueRuleTypes.length > 0 ? uniqueRuleTypes : ['built-in', 'custom'] },
-  ];
-
-  const handleFilterChange = (key, value) => {
-    setActiveFilters(prev => ({ ...prev, [key]: value }));
-  };
-
-  const handleValidateRule = async () => {
-    try {
-      const ruleData = { yaml: editorContent };
-      const res = await postToEngine('rule', '/api/v1/rules/validate', ruleData);
-      setValidationResult(res);
-    } catch (error) {
-      setValidationResult({ error: true, message: error.message });
-    }
-  };
-
-  const handleGenerateFromTemplate = async () => {
-    if (!selectedTemplate) return;
-    try {
-      const templateData = { template_id: selectedTemplate.id };
-      const res = await postToEngine('rule', '/api/v1/rules/generate', templateData);
-      if (res && res.yaml) {
-        setEditorContent(res.yaml);
-      }
-    } catch (error) {
-      console.warn('Error generating from template:', error);
-    }
-  };
-
-  const handleExportRules = () => {
-    const csv = [
-      ['Rule ID', 'Name', 'Provider', 'Service', 'Severity', 'Status', 'Type', 'Frameworks', 'Passing', 'Total'],
-      ...filteredRules.map((r) => [
-        r.rule_id,
-        r.name,
-        r.provider,
-        r.service,
-        r.severity,
-        r.status,
-        r.rule_type,
-        r.frameworks.join('; '),
-        r.passing_resources,
-        r.tested_resources,
-      ]),
-    ]
-      .map((row) => row.map((cell) => `"${cell}"`).join(','))
-      .join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `rules-${new Date().toISOString()}.csv`;
-    a.click();
+    setLoading(false);
+    if (failed.length === 0) onSuccess();
+    else setErrors(failed);
   };
 
   return (
-    <div className="space-y-6">
-      {showRuleBuilder && (
-        <RuleBuilderWizard
-          onClose={() => setShowRuleBuilder(false)}
-          onSaved={(result) => {
-            setShowRuleBuilder(false);
-            // Optionally refresh rules list
-          }}
-        />
-      )}
-
-      {/* Page Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>
-            Rule Management & Control
-          </h1>
-          <p className="mt-1" style={{ color: 'var(--text-secondary)' }}>
-            Create, validate, and manage compliance rules across cloud environments
-          </p>
-        </div>
-        <button
-          onClick={() => setShowRuleBuilder(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all shadow-lg hover:shadow-xl"
-          style={{ backgroundColor: 'var(--accent-primary)' }}
-        >
-          <Wand2 className="w-4 h-4" />
-          Create Rule
-        </button>
-      </div>
-
-      {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-        <KpiCard
-          title="Total Rules"
-          value={ruleStats.totalRules || ruleStats.total_rules || 0}
-          subtitle="Deployed"
-          icon={<BookOpen className="w-5 h-5" />}
-          color="blue"
-        />
-        <KpiCard
-          title="Active Rules"
-          value={ruleStats.activeRules || ruleStats.active_rules || 0}
-          subtitle="Enabled"
-          icon={<CheckCircle className="w-5 h-5" />}
-          color="green"
-        />
-        <KpiCard
-          title="Built-in Rules"
-          value={ruleStats.builtInRules || ruleStats.built_in_rules || 0}
-          subtitle="Provided"
-          icon={<Code2 className="w-5 h-5" />}
-          color="cyan"
-        />
-        <KpiCard
-          title="Custom Rules"
-          value={ruleStats.customRules || ruleStats.custom_rules || 0}
-          subtitle="Custom"
-          icon={<Zap className="w-5 h-5" />}
-          color="purple"
-        />
-        <KpiCard
-          title="Providers"
-          value={Object.keys(ruleStats.byProvider || {}).length || ruleStats.providers || 0}
-          subtitle="Covered"
-          icon={<Filter className="w-5 h-5" />}
-          color="orange"
-        />
-        <KpiCard
-          title="Frameworks"
-          value={uniqueFrameworks.length}
-          subtitle="Mapped"
-          icon={<Filter className="w-5 h-5" />}
-          color="red"
-        />
-      </div>
-
-      {/* Rule Templates Section */}
-      <div className="rounded-xl p-6 border transition-colors duration-200" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-        <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
-          Rule Templates
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          {templates.map((template) => (
-            <div
-              key={template.id}
-              onClick={() => setSelectedTemplate(template)}
-              className={`p-4 rounded-lg border cursor-pointer transition-all ${selectedTemplate?.id === template.id ? 'ring-2' : ''}`}
-              style={{
-                backgroundColor: selectedTemplate?.id === template.id ? 'var(--bg-secondary)' : 'transparent',
-                borderColor: selectedTemplate?.id === template.id ? 'var(--accent-primary)' : 'var(--border-primary)',
-                ringColor: 'var(--accent-primary)',
-              }}
-            >
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
-                    {template.name}
-                  </h3>
-                  <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
-                    {template.description}
-                  </p>
-                </div>
-                {selectedTemplate?.id === template.id && (
-                  <CheckCircle className="w-5 h-5" style={{ color: 'var(--accent-primary)' }} />
-                )}
-              </div>
-              <div className="flex gap-2 mt-3">
-                <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--accent-primary)' }}>
-                  {template.framework}
-                </span>
-                <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
-                  {template.provider}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-        {selectedTemplate && (
-          <button
-            onClick={handleGenerateFromTemplate}
-            className="w-full px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors"
-            style={{ backgroundColor: 'var(--accent-primary)' }}
-          >
-            <Plus className="w-4 h-4 inline mr-2" />
-            Generate from Template
-          </button>
-        )}
-      </div>
-
-      {/* YAML Rule Editor */}
-      <div className="rounded-xl p-6 border transition-colors duration-200" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-            Rule Editor & Validator
-          </h2>
-          <button
-            onClick={() => setShowYamlEditor(!showYamlEditor)}
-            className="inline-flex items-center gap-2 px-3 py-1 rounded text-sm"
-            style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}
-          >
-            {showYamlEditor ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            {showYamlEditor ? 'Hide' : 'Show'} Editor
-          </button>
-        </div>
-
-        {showYamlEditor && (
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                Rule YAML Definition
-              </label>
-              <textarea
-                value={editorContent}
-                onChange={(e) => setEditorContent(e.target.value)}
-                placeholder={`name: Example Rule
-provider: AWS
-service: S3
-severity: critical
-description: Check for S3 bucket encryption
-metadata:
-  framework: CIS
-  control_id: CIS-2.3.1`}
-                className="w-full mt-2 p-4 rounded-lg font-mono text-sm border"
-                rows={12}
-                style={{
-                  backgroundColor: 'var(--bg-secondary)',
-                  borderColor: 'var(--border-primary)',
-                  color: 'var(--text-primary)',
-                }}
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={handleValidateRule}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors flex items-center gap-2"
-                style={{ backgroundColor: 'var(--accent-primary)' }}
-              >
-                <RefreshCw className="w-4 h-4" />
-                Validate Rule
-              </button>
-              <button
-                onClick={() => {
-                  const blob = new Blob([editorContent], { type: 'text/plain' });
-                  const url = window.URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = 'rule.yaml';
-                  a.click();
-                }}
-                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}
-              >
-                <Download className="w-4 h-4" />
-                Export YAML
-              </button>
-            </div>
-
-            {validationResult && (
-              <div
-                className="p-4 rounded-lg border"
-                style={{
-                  backgroundColor: validationResult.error ? 'rgba(239, 68, 68, 0.1)' : 'rgba(34, 197, 94, 0.1)',
-                  borderColor: validationResult.error ? 'var(--accent-danger)' : 'var(--accent-success)',
-                }}
-              >
-                <div className="flex gap-2">
-                  {validationResult.error ? (
-                    <AlertCircle className="w-5 h-5" style={{ color: 'var(--accent-danger)' }} />
-                  ) : (
-                    <CheckCircle className="w-5 h-5" style={{ color: 'var(--accent-success)' }} />
-                  )}
-                  <div>
-                    <p className="font-semibold text-sm" style={{ color: validationResult.error ? 'var(--accent-danger)' : 'var(--accent-success)' }}>
-                      {validationResult.error ? 'Validation Failed' : 'Validation Passed'}
-                    </p>
-                    <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
-                      {validationResult.message}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      <div className="w-[440px] rounded-2xl border shadow-2xl" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+        <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: 'var(--border-primary)' }}>
+          <div className="flex items-center gap-2">
+            <Ban className="w-4 h-4" style={{ color: '#f97316' }} />
+            <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+              Suppress {selectedRules.length} Rule{selectedRules.length !== 1 ? 's' : ''}
+            </span>
           </div>
-        )}
-      </div>
+          <button onClick={onClose}><X className="w-4 h-4" style={{ color: 'var(--text-muted)' }} /></button>
+        </div>
 
-      {/* Rules Table */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="p-5 space-y-4">
+          <div className="rounded-lg p-3 text-xs" style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
+            {selectedRules.length} rule ID{selectedRules.length !== 1 ? 's' : ''} will be suppressed individually.
+          </div>
+
           <div>
-            <h2 className="text-lg font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
-              Rules Library
-            </h2>
-            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-              {filteredRules.length} of {rules.length} rules
-            </p>
+            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Reason (optional)</label>
+            <input
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              placeholder="e.g. Accepted risk — reviewed 2026-05"
+              className="w-full px-3 py-2 rounded-lg border text-sm bg-transparent"
+              style={{ borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
+            />
           </div>
-          <button
-            onClick={handleExportRules}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors"
-            style={{ backgroundColor: 'var(--accent-primary)' }}
-          >
-            <Download className="w-4 h-4" />
-            Export
-          </button>
+
+          <div>
+            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Expires At (optional — blank = permanent)</label>
+            <input
+              type="date"
+              value={expires}
+              onChange={e => setExpires(e.target.value ? e.target.value + 'T00:00:00Z' : '')}
+              className="w-full px-3 py-2 rounded-lg border text-sm bg-transparent"
+              style={{ borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
+            />
+          </div>
+
+          {errors.length > 0 && (
+            <div className="rounded-lg p-3 text-xs space-y-1" style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>
+              {errors.map((e, i) => <div key={i}>{e.rule_id}: {e.error}</div>)}
+            </div>
+          )}
         </div>
 
-        <FilterBar
-          search={searchTerm}
-          onSearchChange={setSearchTerm}
-          searchPlaceholder="Search rules by name, ID, or description..."
-          filters={filterOptions}
-          onFilterChange={handleFilterChange}
-          activeFilters={activeFilters}
-          groupByOptions={groupByOptions}
-          groupBy={groupBy}
-          onGroupByChange={setGroupBy}
-        />
-
-        {grouped ? (
-          <div className="space-y-3">
-            {grouped.map(({ key, items, count }) => (
-              <div key={key} className="rounded-lg border" style={{ borderColor: 'var(--border-primary)' }}>
-                <button
-                  onClick={() => toggleGroup(key)}
-                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium"
-                  style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
-                >
-                  {expandedGroups[key] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                  <span>{key}</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>{count}</span>
-                </button>
-                {expandedGroups[key] && (
-                  <DataTable data={items} columns={columns} pageSize={12} hideToolbar />
-                )}
-              </div>
-            ))}
-            <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-              {grouped.length} groups, {filteredRules.length} total rows
-            </div>
-          </div>
-        ) : (
-          <DataTable
-            data={filteredRules}
-            columns={columns}
-            pageSize={12}
-            loading={loading}
-            emptyMessage="No rules found matching your filters"
-          />
-        )}
-      </div>
-
-      {/* Compliance Guidelines */}
-      <div className="rounded-xl p-6 border transition-colors duration-200" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-        <div className="flex items-start gap-4">
-          <AlertTriangle className="w-6 h-6 flex-shrink-0" style={{ color: 'var(--accent-warning)' }} />
-          <div>
-            <h3 className="font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
-              Rule Development Best Practices
-            </h3>
-            <ul className="space-y-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-              <li>Define clear rule names and descriptions for auditors</li>
-              <li>Map rules to specific controls in compliance frameworks</li>
-              <li>Test rules against known compliant and non-compliant resources</li>
-              <li>Version control all custom rules in Git repositories</li>
-              <li>Review and update rules quarterly for new AWS/Azure/GCP features</li>
-              <li>Document rule logic and rationale for future maintainers</li>
-            </ul>
-          </div>
+        <div className="flex justify-end gap-3 p-5 border-t" style={{ borderColor: 'var(--border-primary)' }}>
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Cancel</button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2"
+            style={{ backgroundColor: 'rgba(249,115,22,0.15)', color: '#f97316' }}
+          >
+            {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Ban className="w-3.5 h-3.5" />}
+            {loading ? 'Suppressing…' : `Suppress ${selectedRules.length}`}
+          </button>
         </div>
       </div>
     </div>
+  );
+}
+
+// ── Reactivate confirmation ───────────────────────────────────────────────
+function ReactivateModal({ selectedRules, onClose, onSuccess }) {
+  const [loading, setLoading] = useState(false);
+
+  const handleReactivate = async () => {
+    setLoading(true);
+    const listRes = await getFromEngine('rule', '/api/v1/rules/suppressions');
+    const suppressions = listRes?.suppressions || [];
+    for (const rule of selectedRules) {
+      const match = suppressions.find(s => s.scope_type === 'rule' && s.scope_value === rule.rule_id);
+      if (match) {
+        await deleteFromEngine('rule', `/api/v1/rules/suppressions/${match.id}`);
+      }
+    }
+    setLoading(false);
+    onSuccess();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      <div className="w-[420px] rounded-2xl border shadow-2xl p-6 space-y-4" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+        <div className="flex items-center gap-2">
+          <RotateCcw className="w-4 h-4 text-emerald-400" />
+          <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+            Reactivate {selectedRules.length} Rule{selectedRules.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          This will lift rule-level suppressions for the selected rules. Service, Category, and Provider suppressions must be managed from the Suppressions page.
+        </p>
+        <div className="flex justify-end gap-3 pt-2">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Cancel</button>
+          <button
+            onClick={handleReactivate}
+            disabled={loading}
+            className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2"
+            style={{ backgroundColor: 'rgba(52,211,153,0.15)', color: '#34d399' }}
+          >
+            {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+            {loading ? 'Reactivating…' : 'Confirm Reactivate'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Rule detail panel ─────────────────────────────────────────────────────
+function RuleDetailPanel({ rule, onClose }) {
+  if (!rule) return null;
+  return (
+    <div className="fixed inset-y-0 right-0 w-[480px] z-40 border-l shadow-2xl flex flex-col"
+      style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+      <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: 'var(--border-primary)' }}>
+        <span className="font-semibold text-sm truncate pr-4" style={{ color: 'var(--text-primary)' }}>{rule.rule_id}</span>
+        <button onClick={onClose}><X className="w-4 h-4" style={{ color: 'var(--text-muted)' }} /></button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div>
+          <div className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Title</div>
+          <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{rule.title || '—'}</div>
+        </div>
+        {rule.description && (
+          <div>
+            <div className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Description</div>
+            <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>{rule.description}</div>
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            ['Provider',  rule.provider],
+            ['Service',   rule.service],
+            ['Severity',  rule.severity],
+            ['Type',      rule.rule_type],
+            ['Domain',    rule.domain],
+            ['Status',    rule.status],
+          ].map(([k, v]) => v && (
+            <div key={k}>
+              <div className="text-xs mb-0.5" style={{ color: 'var(--text-muted)' }}>{k}</div>
+              <div className="text-sm capitalize" style={{ color: 'var(--text-primary)' }}>{v}</div>
+            </div>
+          ))}
+        </div>
+        {rule.is_suppressed && (
+          <div className="rounded-lg p-3 text-xs" style={{ backgroundColor: 'rgba(249,115,22,0.08)', color: '#f97316' }}>
+            <Ban className="w-3 h-3 inline mr-1" />
+            This rule is currently suppressed
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Type badge ────────────────────────────────────────────────────────────
+const TYPE_COLORS = {
+  config:  { bg: 'rgba(59,130,246,0.12)',  text: '#60a5fa' },
+  cdr:     { bg: 'rgba(168,85,247,0.12)',  text: '#c084fc' },
+  threat:  { bg: 'rgba(239,68,68,0.12)',   text: '#f87171' },
+  custom:  { bg: 'rgba(52,211,153,0.12)',  text: '#34d399' },
+};
+function TypeBadge({ type }) {
+  const c = TYPE_COLORS[type] || TYPE_COLORS.config;
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+      style={{ backgroundColor: c.bg, color: c.text }}>
+      {type}
+    </span>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────
+export default function RulesPage() {
+  const { hasPermission, role } = useAuth();
+  const canSuppress = SUPPRESS_ROLES.includes(role);
+
+  const [loading, setLoading]         = useState(true);
+  const [rules, setRules]             = useState([]);
+  const [templates, setTemplates]     = useState([]);
+  const [kpi, setKpi]                 = useState({});
+
+  // Filters (all live in column headers)
+  const [filterType, setFilterType]         = useState('');
+  const [filterProvider, setFilterProvider] = useState('');
+  const [filterService, setFilterService]   = useState('');
+  const [filterSeverity, setFilterSeverity] = useState('');
+  const [filterStatus, setFilterStatus]     = useState('');
+  const [searchQuery, setSearchQuery]       = useState('');
+
+  // Selection
+  const [selectedIds, setSelectedIds] = useState(new Set());
+
+  // Modals
+  const [suppressModal, setSuppressModal]     = useState(false);
+  const [reactivateModal, setReactivateModal] = useState(false);
+  const [detailRule, setDetailRule]           = useState(null);
+  const [showWizard, setShowWizard]           = useState(false);
+
+  // ── Data fetch ──────────────────────────────────────────────────────────
+  const fetchRules = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await fetchView('rules');
+      setRules(data?.rules || []);
+      setTemplates(data?.templates || []);
+      setKpi(data?.kpi || {});
+    } catch (e) {
+      console.error('rules fetch failed', e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchRules(); }, [fetchRules]);
+
+  // ── Filtered rules ──────────────────────────────────────────────────────
+  const filteredRules = useMemo(() => {
+    let out = rules;
+    if (filterType)     out = out.filter(r => r.rule_type === filterType);
+    if (filterProvider) out = out.filter(r => r.provider === filterProvider);
+    if (filterService)  out = out.filter(r => r.service === filterService);
+    if (filterSeverity) out = out.filter(r => r.severity === filterSeverity);
+    if (filterStatus === 'suppressed') out = out.filter(r => r.is_suppressed);
+    if (filterStatus === 'active')     out = out.filter(r => !r.is_suppressed);
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      out = out.filter(r =>
+        (r.rule_id || '').toLowerCase().includes(q) ||
+        (r.title || '').toLowerCase().includes(q) ||
+        (r.service || '').toLowerCase().includes(q)
+      );
+    }
+    return out;
+  }, [rules, filterType, filterProvider, filterService, filterSeverity, filterStatus, searchQuery]);
+
+  // Selected rule objects
+  const selectedRules = useMemo(
+    () => filteredRules.filter(r => selectedIds.has(r.rule_id)),
+    [filteredRules, selectedIds]
+  );
+  const selectedSuppressed = selectedRules.filter(r => r.is_suppressed);
+  const selectedActive     = selectedRules.filter(r => !r.is_suppressed);
+
+  // ── Selection handlers ──────────────────────────────────────────────────
+  const allChecked = filteredRules.length > 0 && filteredRules.every(r => selectedIds.has(r.rule_id));
+  const someChecked = selectedIds.size > 0;
+
+  const toggleSelectAll = () => {
+    if (allChecked) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredRules.map(r => r.rule_id)));
+    }
+  };
+
+  const toggleRow = (ruleId) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(ruleId) ? next.delete(ruleId) : next.add(ruleId);
+      return next;
+    });
+  };
+
+  // ── Dropdown filters ────────────────────────────────────────────────────
+  const uniqueProviders = useMemo(() => [...new Set(rules.map(r => r.provider).filter(Boolean))].sort(), [rules]);
+  const uniqueServices  = useMemo(() => [...new Set(rules.map(r => r.service).filter(Boolean))].sort(), [rules]);
+  const uniqueSeverities = ['critical', 'high', 'medium', 'low'];
+
+  // ── Export ──────────────────────────────────────────────────────────────
+  const handleExport = () => {
+    const csv = [
+      ['Rule ID', 'Provider', 'Service', 'Type', 'Severity', 'Status', 'Title'].join(','),
+      ...filteredRules.map(r => [
+        r.rule_id, r.provider, r.service, r.rule_type, r.severity,
+        r.is_suppressed ? 'suppressed' : 'active',
+        `"${(r.title || '').replace(/"/g, '""')}"`,
+      ].join(',')),
+    ].join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    const a = document.createElement('a'); a.href = url; a.download = 'rule-library.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // ── After suppress / reactivate success ────────────────────────────────
+  const onSuppressSuccess = () => { setSuppressModal(false); setSelectedIds(new Set()); fetchRules(); };
+  const onReactivateSuccess = () => { setReactivateModal(false); setSelectedIds(new Set()); fetchRules(); };
+
+  // ── Render ──────────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="p-6 space-y-4">
+        <div className="h-24 rounded-2xl animate-pulse" style={{ backgroundColor: 'var(--bg-secondary)' }} />
+        <div className="h-96 rounded-2xl animate-pulse" style={{ backgroundColor: 'var(--bg-secondary)' }} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 space-y-5">
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+        <KpiCard title="Total Rules"  value={(kpi.totalRules  || rules.length).toLocaleString()} subtitle="All rule types"      icon={<BookOpen className="w-5 h-5" />} color="blue" />
+        <KpiCard title="Config"       value={(kpi.byType?.config  || 0).toLocaleString()}        subtitle="Posture rules"       icon={<CheckCircle className="w-5 h-5" />} color="blue" />
+        <KpiCard title="CDR"          value={(kpi.byType?.cdr     || 0).toLocaleString()}        subtitle="Detection rules"     icon={<Zap className="w-5 h-5" />} color="purple" />
+        <KpiCard title="Threat"       value={(kpi.byType?.threat  || 0).toLocaleString()}        subtitle="MITRE ATT&CK"        icon={<Zap className="w-5 h-5" />} color="red" />
+        <KpiCard title="Custom"       value={(kpi.byType?.custom  || 0).toLocaleString()}        subtitle="YAML rules"          icon={<CheckCircle className="w-5 h-5" />} color="green" />
+        <KpiCard title="Suppressed"   value={(kpi.suppressed      || 0).toLocaleString()}        subtitle="Muted rules"         icon={<Ban className="w-5 h-5" />} color="orange" />
+      </div>
+
+      {/* Toolbar — search + actions only (column filters are in table headers) */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
+          <input
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search rule ID, title, service…"
+            className="w-full pl-8 pr-3 py-2 rounded-lg border text-sm bg-transparent"
+            style={{ borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
+          />
+        </div>
+
+        <div className="flex-1" />
+
+        {/* Action buttons */}
+        {canSuppress && (
+          <>
+            <SuppressButton
+              count={selectedActive.length}
+              onClick={() => setSuppressModal(true)}
+            />
+            <ReactivateButton
+              count={selectedSuppressed.length}
+              onClick={() => setReactivateModal(true)}
+            />
+          </>
+        )}
+
+        <button
+          onClick={handleExport}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm"
+          style={{ borderColor: 'var(--border-primary)', color: 'var(--text-muted)' }}
+        >
+          <Download className="w-3.5 h-3.5" />
+          Export
+        </button>
+
+        {canSuppress && (
+          <button
+            onClick={() => setShowWizard(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium"
+            style={{ backgroundColor: 'rgba(99,102,241,0.15)', color: '#818cf8' }}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            New Rule
+          </button>
+        )}
+      </div>
+
+      {/* Selection summary bar */}
+      {someChecked && (
+        <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm"
+          style={{ backgroundColor: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.2)' }}>
+          <CheckSquare className="w-4 h-4" style={{ color: '#f97316' }} />
+          <span style={{ color: 'var(--text-primary)' }}>
+            <strong>{selectedIds.size}</strong> rule{selectedIds.size !== 1 ? 's' : ''} selected
+            {selectedSuppressed.length > 0 && ` (${selectedSuppressed.length} suppressed)`}
+          </span>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="ml-auto text-xs"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="rounded-2xl border" style={{ borderColor: 'var(--border-primary)' }}>
+        <div className="overflow-x-auto overflow-y-visible">
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ backgroundColor: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-primary)' }}>
+                {canSuppress && (
+                  <th className="w-10 px-4 py-3 text-left">
+                    <button onClick={toggleSelectAll}>
+                      {allChecked
+                        ? <CheckSquare className="w-4 h-4" style={{ color: '#f97316' }} />
+                        : <Square className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />}
+                    </button>
+                  </th>
+                )}
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Rule ID</th>
+                <ColumnFilterHeader label="Type"     value={filterType}     onChange={v => { setFilterType(v);     setSelectedIds(new Set()); }} options={RULE_TYPE_OPTIONS} />
+                <ColumnFilterHeader label="Provider" value={filterProvider} onChange={v => { setFilterProvider(v); setSelectedIds(new Set()); }} options={uniqueProviders} />
+                <ColumnFilterHeader label="Service"  value={filterService}  onChange={v => { setFilterService(v);  setSelectedIds(new Set()); }} options={uniqueServices} />
+                <ColumnFilterHeader label="Severity" value={filterSeverity} onChange={v => { setFilterSeverity(v); setSelectedIds(new Set()); }} options={uniqueSeverities} />
+                <ColumnFilterHeader label="Status"   value={filterStatus}   onChange={v => { setFilterStatus(v);   setSelectedIds(new Set()); }} options={['active', 'suppressed']} />
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Title</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredRules.length === 0 ? (
+                <tr>
+                  <td colSpan={canSuppress ? 8 : 7} className="px-4 py-12 text-center text-sm"
+                    style={{ color: 'var(--text-muted)' }}>
+                    No rules match the current filters
+                  </td>
+                </tr>
+              ) : (
+                filteredRules.slice(0, 500).map((rule, idx) => {
+                  const checked = selectedIds.has(rule.rule_id);
+                  return (
+                    <tr
+                      key={rule.rule_id || idx}
+                      onClick={() => setDetailRule(rule)}
+                      className="cursor-pointer transition-colors"
+                      style={{
+                        borderBottom: '1px solid var(--border-primary)',
+                        backgroundColor: checked ? 'rgba(249,115,22,0.04)' : undefined,
+                      }}
+                      onMouseEnter={e => { if (!checked) e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.backgroundColor = checked ? 'rgba(249,115,22,0.04)' : undefined; }}
+                    >
+                      {canSuppress && (
+                        <td className="px-4 py-3" onClick={e => { e.stopPropagation(); toggleRow(rule.rule_id); }}>
+                          {checked
+                            ? <CheckSquare className="w-4 h-4" style={{ color: '#f97316' }} />
+                            : <Square className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />}
+                        </td>
+                      )}
+                      <td className="px-4 py-3">
+                        <code className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>
+                          {rule.rule_id?.length > 48 ? rule.rule_id.slice(0, 48) + '…' : rule.rule_id}
+                        </code>
+                      </td>
+                      <td className="px-4 py-3"><TypeBadge type={rule.rule_type} /></td>
+                      <td className="px-4 py-3 text-xs font-medium" style={{ color: 'var(--text-secondary)' }}
+                        onClick={e => { e.stopPropagation(); if (rule.provider) { setFilterProvider(p => p === rule.provider ? '' : rule.provider); setSelectedIds(new Set()); } }}>
+                        <span className="cursor-pointer hover:underline hover:text-orange-400">{rule.provider || '—'}</span>
+                      </td>
+                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-secondary)' }}
+                        onClick={e => { e.stopPropagation(); if (rule.service) { setFilterService(s => s === rule.service ? '' : rule.service); setSelectedIds(new Set()); } }}>
+                        <span className="cursor-pointer hover:underline hover:text-orange-400">{rule.service || '—'}</span>
+                      </td>
+                      <td className="px-4 py-3"
+                        onClick={e => { e.stopPropagation(); if (rule.severity) { setFilterSeverity(s => s === rule.severity ? '' : rule.severity); setSelectedIds(new Set()); } }}>
+                        <span className="cursor-pointer"><SeverityBadge severity={rule.severity} /></span>
+                      </td>
+                      <td className="px-4 py-3"
+                        onClick={e => { e.stopPropagation(); const s = rule.is_suppressed ? 'suppressed' : 'active'; setFilterStatus(prev => prev === s ? '' : s); setSelectedIds(new Set()); }}>
+                        {rule.is_suppressed
+                          ? <span className="inline-flex items-center gap-1 text-xs font-semibold cursor-pointer hover:opacity-80" style={{ color: '#f97316' }}>
+                              <Ban className="w-3 h-3" />Suppressed
+                            </span>
+                          : <span className="inline-flex items-center gap-1 text-xs font-semibold cursor-pointer hover:opacity-80" style={{ color: '#34d399' }}>
+                              <CheckCircle className="w-3 h-3" />Active
+                            </span>}
+                      </td>
+                      <td className="px-4 py-3 text-xs max-w-[240px] truncate" style={{ color: 'var(--text-muted)' }}>
+                        {rule.title || '—'}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+        {filteredRules.length > 500 && (
+          <div className="px-4 py-2.5 text-xs text-center" style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border-primary)' }}>
+            Showing first 500 of {filteredRules.length.toLocaleString()} rules — use filters to narrow results
+          </div>
+        )}
+      </div>
+
+      {/* Modals */}
+      {suppressModal && canSuppress && selectedActive.length > 0 && (
+        <BulkSuppressModal
+          selectedRules={selectedActive}
+          onClose={() => setSuppressModal(false)}
+          onSuccess={onSuppressSuccess}
+        />
+      )}
+      {reactivateModal && canSuppress && selectedSuppressed.length > 0 && (
+        <ReactivateModal
+          selectedRules={selectedSuppressed}
+          onClose={() => setReactivateModal(false)}
+          onSuccess={onReactivateSuccess}
+        />
+      )}
+
+      {/* Rule detail side panel */}
+      {detailRule && <RuleDetailPanel rule={detailRule} onClose={() => setDetailRule(null)} />}
+
+      {/* Rule builder wizard */}
+      {showWizard && (
+        <RuleBuilderWizard
+          onClose={() => setShowWizard(false)}
+          onSuccess={() => { setShowWizard(false); fetchRules(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Helper components ──────────────────────────────────────────────────────
+
+
+function SuppressButton({ count, onClick }) {
+  const disabled = count === 0;
+  return (
+    <button
+      onClick={!disabled ? onClick : undefined}
+      className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
+      style={{
+        backgroundColor: disabled ? 'var(--bg-secondary)' : 'rgba(249,115,22,0.12)',
+        color: disabled ? 'var(--text-muted)' : '#f97316',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
+      }}
+    >
+      <Ban className="w-3.5 h-3.5" />
+      Suppress{count > 0 ? ` (${count})` : ''}
+    </button>
+  );
+}
+
+function ReactivateButton({ count, onClick }) {
+  const disabled = count === 0;
+  return (
+    <button
+      onClick={!disabled ? onClick : undefined}
+      className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
+      style={{
+        backgroundColor: disabled ? 'var(--bg-secondary)' : 'rgba(52,211,153,0.12)',
+        color: disabled ? 'var(--text-muted)' : '#34d399',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
+      }}
+    >
+      <RotateCcw className="w-3.5 h-3.5" />
+      Reactivate{count > 0 ? ` (${count})` : ''}
+    </button>
+  );
+}
+
+// Clickable column header with inline dropdown filter
+function ColumnFilterHeader({ label, value, onChange, options }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
+  return (
+    <th ref={ref} className="px-4 py-3 text-left relative" style={{ whiteSpace: 'nowrap' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide transition-colors"
+        style={{ color: value ? '#f97316' : 'var(--text-muted)' }}
+      >
+        {value || label}
+        {value
+          ? <X className="w-3 h-3" onClick={e => { e.stopPropagation(); onChange(''); setOpen(false); }} />
+          : <ChevronDown className="w-3 h-3 opacity-60" />}
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 min-w-[140px] max-h-56 overflow-y-auto rounded-xl border shadow-xl z-50"
+          style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+          {options.map(opt => (
+            <button
+              key={opt}
+              onClick={() => { onChange(opt === value ? '' : opt); setOpen(false); }}
+              className="w-full text-left px-3 py-2 text-sm first:rounded-t-xl last:rounded-b-xl"
+              style={{ color: opt === value ? '#f97316' : 'var(--text-primary)', backgroundColor: opt === value ? 'rgba(249,115,22,0.06)' : 'transparent' }}
+              onMouseEnter={e => { if (opt !== value) e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = opt === value ? 'rgba(249,115,22,0.06)' : 'transparent'; }}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
+    </th>
   );
 }

@@ -12,7 +12,7 @@ import {
   AlertTriangle, ShieldAlert, ShieldCheck,
   X, ExternalLink, Copy, Check,
   Download, FileSpreadsheet, RefreshCw, ArrowRight,
-  Zap, Clock, AlertOctagon, TrendingUp, TrendingDown, Layers,
+  Zap, Clock, AlertOctagon, TrendingUp, TrendingDown, Layers, EyeOff,
 } from 'lucide-react';
 import { SEVERITY_COLORS, CLOUD_PROVIDERS } from '@/lib/constants';
 import { useViewFetch } from '@/lib/use-view-fetch';
@@ -143,7 +143,7 @@ function ProviderBadge({ provider }) {
 
 
 // ── Detail slide-out panel ──────────────────────────────────────────────────
-function FindingDetailPanel({ finding, onClose }) {
+function FindingDetailPanel({ finding, onClose, onSuppress, canSuppress }) {
   const [copied, setCopied] = useState(null);
   if (!finding) return null;
 
@@ -364,16 +364,24 @@ function FindingDetailPanel({ finding, onClose }) {
             </section>
           )}
 
-          {/* Link to asset detail */}
-          {finding.resource_uid && (
-            <div className="pt-4 border-t" style={{ borderColor: 'var(--border-primary)' }}>
+          {/* Footer actions */}
+          <div className="pt-4 border-t flex items-center gap-3 flex-wrap" style={{ borderColor: 'var(--border-primary)' }}>
+            {finding.resource_uid && (
               <a href={`/ui/inventory/${encodeURIComponent(finding.resource_uid)}`}
                 className="inline-flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg transition-opacity hover:opacity-80"
                 style={{ backgroundColor: 'var(--accent-primary)', color: '#fff' }}>
                 <ExternalLink className="w-4 h-4" /> View Asset Detail
               </a>
-            </div>
-          )}
+            )}
+            {canSuppress && onSuppress && (
+              <button
+                onClick={() => onSuppress(finding)}
+                className="inline-flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg transition-opacity hover:opacity-80 border"
+                style={{ borderColor: 'rgba(249,115,22,0.4)', color: '#f97316', backgroundColor: 'rgba(249,115,22,0.08)' }}>
+                <EyeOff className="w-4 h-4" /> Suppress Finding
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -1070,6 +1078,17 @@ export default function MisconfigurationsPage() {
   const { data: rawData, loading, error, refetch } = useViewFetch('misconfig');
   const [exporting, setExporting] = useState(false);
   const [selectedFinding, setSelectedFinding] = useState(null);
+  const [suppressTarget, setSuppressTarget] = useState(null);
+
+  const handleSuppressFinding = (finding) => {
+    setSelectedFinding(null); // close detail panel
+    setSuppressTarget({
+      rule_id:      finding.rule_id,
+      resource_uid: finding.resource_uid,
+      account_id:   finding.account_id,
+      finding_id:   finding.finding_id || finding.id || null,
+    });
+  };
 
   const allFindings = useMemo(() => (rawData.findings || []).map(f => ({
     ...f,
@@ -1527,7 +1546,19 @@ export default function MisconfigurationsPage() {
       <FindingDetailPanel
         finding={selectedFinding}
         onClose={() => setSelectedFinding(null)}
+        canSuppress={canSuppressFinding}
+        onSuppress={handleSuppressFinding}
       />
+
+      {/* Suppress Finding Panel */}
+      {suppressTarget && (
+        <SuppressPanel
+          target={suppressTarget}
+          mode="finding"
+          onClose={() => setSuppressTarget(null)}
+          onSuccess={() => setSuppressTarget(null)}
+        />
+      )}
     </div>
   );
 }

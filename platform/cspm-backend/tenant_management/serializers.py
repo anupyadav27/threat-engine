@@ -1,6 +1,24 @@
 from rest_framework import serializers
 from .models import Tenants, TenantIDPConfig, CsmGroups, GroupMembers, TenantGroupAccess, AccountGroupAccess
 
+VALID_TENANT_TYPES = ["cloud", "vulnerability", "secops"]
+
+
+class OrgProfilePatch(serializers.Serializer):
+    """Writable schema for PATCH /api/org/profile/ — only org_name and contact_email are patchable.
+
+    customer_id, plan, and billing_org_id are intentionally absent (read-only — AC3).
+    """
+
+    org_name = serializers.CharField(max_length=255, required=False, allow_blank=False)
+    contact_email = serializers.EmailField(required=False, allow_blank=False)
+
+
+class TenantTypePatch(serializers.Serializer):
+    """Writable schema for PATCH /api/tenants/{id}/type/ — tenant_type only."""
+
+    tenant_type = serializers.ChoiceField(choices=VALID_TENANT_TYPES)
+
 
 class TenantSerializer(serializers.ModelSerializer):
     class Meta:
@@ -53,6 +71,21 @@ class AccountGroupAccessSerializer(serializers.ModelSerializer):
         model = AccountGroupAccess
         fields = ["id", "group", "group_name", "tenant", "account_id", "role", "role_name", "granted_at"]
         read_only_fields = ["id", "group_name", "role_name", "granted_at"]
+
+
+class TenantAssignSerializer(serializers.Serializer):
+    """Request body for POST /api/groups/{group_id}/tenants/ (onboarding-D3)."""
+
+    tenant_id = serializers.CharField(max_length=255)
+    role = serializers.CharField(max_length=50, default="viewer")
+
+
+class AccountAssignSerializer(serializers.Serializer):
+    """Request body for POST /api/groups/{group_id}/accounts/ (onboarding-D3)."""
+
+    account_id = serializers.CharField(max_length=512)
+    tenant_id = serializers.CharField(max_length=255)
+    role = serializers.CharField(max_length=50, default="viewer")
 
 
 class TenantIDPConfigSerializer(serializers.ModelSerializer):

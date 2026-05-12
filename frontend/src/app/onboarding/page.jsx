@@ -1,23 +1,38 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { Plus, Cloud, Globe, HardDrive, CheckCircle, AlertTriangle, Play, Loader2 } from 'lucide-react';
+import { Plus, Cloud, Globe, HardDrive, CheckCircle, AlertTriangle, Play, Loader2, Calendar, Zap } from 'lucide-react';
 import { getFromEngine, postToEngine, fetchView } from '@/lib/api';
 import { useTenant } from '@/lib/tenant-context';
+import { useAuth } from '@/lib/auth-context';
+import { useToast } from '@/lib/toast-context';
 import KpiCard from '@/components/shared/KpiCard';
 import DataTable from '@/components/shared/DataTable';
 import ScanRunDetailModal from '@/components/domain/ScanRunDetailModal';
+import ScheduleModal from '@/components/onboarding/ScheduleModal';
 
+
+// Roles allowed to trigger scans
+const SCAN_TRIGGER_ROLES = ['tenant_admin', 'org_admin', 'platform_admin'];
+// Roles allowed to trigger bulk scans
+const SCAN_ALL_ROLES = ['org_admin', 'platform_admin'];
 
 export default function OnboardingPage() {
   const { customerId, activeTenant } = useTenant();
+  const { role } = useAuth();
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [accounts, setAccounts] = useState([]);
   const [schedules, setSchedules] = useState([]);
   const [expandedGroup, setExpandedGroup] = useState(null);
   const [runningFor, setRunningFor] = useState({});    // accountId → true while triggering
+  const [scanAllBusy, setScanAllBusy] = useState(false);
   const [selectedRunId, setSelectedRunId] = useState(null);
+  const [scheduleModal, setScheduleModal] = useState(null); // { account, schedule } | null
+
+  const canTriggerScan = SCAN_TRIGGER_ROLES.includes(role);
+  const canScanAll = SCAN_ALL_ROLES.includes(role);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -58,18 +73,68 @@ export default function OnboardingPage() {
   }, [activeTenant]);
 
   async function handleRunNow(accountId) {
-    const sched = schedules.find(s => s.account_id === accountId);
-    if (!sched) { alert('No schedule found for this account. Add a schedule first.'); return; }
     setRunningFor(p => ({ ...p, [accountId]: true }));
     try {
-      const result = await postToEngine('onboarding', `/api/v1/schedules/${sched.schedule_id}/run-now`, {});
-      if (result.scan_run_id) setSelectedRunId(result.scan_run_id);
+      const result = await postToEngine('gateway', '/api/v1/scans/run-now', { account_id: accountId });
+      if (result.error) {
+        toast.error(`Failed to start scan: ${result.error}`);
+        return;
+      }
+      const runId = result.scan_run_id;
+      if (runId) {
+        setSelectedRunId(runId);
+        toast.success(`Scan queued — ID: ${runId.slice(0, 8)}…`);
+      }
     } catch (e) {
       console.error('run-now failed:', e);
+      toast.error('Failed to trigger scan. Please try again.');
     } finally {
       setRunningFor(p => ({ ...p, [accountId]: false }));
     }
   }
+
+  async function handleScanAll() {
+    if (!canScanAll) return;
+    const tenantId = activeTenant?.tenant_id;
+    setScanAllBusy(true);
+    try {
+      const result = await postToEngine('gateway', '/api/v1/scans/run-all', { tenant_id: tenantId });
+      if (result.error) {
+        toast.error(`Scan All failed: ${result.error}`);
+        return;
+      }
+      const triggered = result.triggered?.length ?? result.triggered_count ?? 0;
+      const skipped   = result.skipped?.length  ?? result.skipped_count  ?? 0;
+      toast.success(`Triggered: ${triggered} account${triggered !== 1 ? 's' : ''}, Skipped: ${skipped} inactive`);
+    } catch (e) {
+      console.error('scan-all failed:', e);
+      toast.error('Scan All failed. Please try again.');
+    } finally {
+      setScanAllBusy(false);
+    }
+  }
+
+  // Opens ScheduleModal for an account — AC1
+  function handleEditSchedule(e, accountRow) {
+    e.stopPropagation();
+    const existingSchedule = schedules.find(s => s.account_id === accountRow.accountId) || null;
+    // Build a minimal account object that ScheduleModal expects
+    const account = {
+      account_id: accountRow.accountId,
+      account_type: 'cloud_csp',
+      provider: accountRow.provider?.toLowerCase(),
+      tenant_id: activeTenant?.tenant_id,
+    };
+    setScheduleModal({ account, existingSchedule });
+  }
+
+  // Refresh schedules after a save
+  const refreshSchedules = useCallback(async () => {
+    const tenantId = activeTenant?.tenant_id;
+    const qp = tenantId ? `?tenant_id=${tenantId}` : '';
+    const schedsData = await getFromEngine('onboarding', `/api/v1/schedules${qp}&limit=200`).catch(() => null);
+    if (schedsData) setSchedules(schedsData?.schedules || []);
+  }, [activeTenant]);
 
   const accountColumns = [
     {
@@ -160,18 +225,39 @@ export default function OnboardingPage() {
       id: 'actions',
       header: '',
       cell: (info) => {
-        const accountId = info.row.original.id;
+        const row = info.row.original;
+        const accountId = row.id;
         const busy = runningFor[accountId];
+        const hasSched = schedules.some(s => s.account_id === row.accountId);
+        const excRegions = schedules.find(s => s.account_id === row.accountId)?.exclude_regions?.length || 0;
         return (
-          <button
-            onClick={e => { e.stopPropagation(); handleRunNow(accountId); }}
-            disabled={busy}
-            title="Run scan now"
-            className="flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium hover:opacity-80 disabled:opacity-40"
-            style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: 'var(--accent-primary)', border: '1px solid rgba(59,130,246,0.25)' }}>
-            {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-            {busy ? 'Launching…' : 'Run'}
-          </button>
+          <div className="flex items-center gap-1.5">
+            {/* Edit Schedule button */}
+            <button
+              onClick={e => handleEditSchedule(e, row)}
+              title="Edit scan schedule"
+              className="flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium hover:opacity-80"
+              style={{ backgroundColor: 'rgba(139,92,246,0.1)', color: '#8b5cf6', border: '1px solid rgba(139,92,246,0.25)' }}
+            >
+              <Calendar className="w-3 h-3" />
+              {hasSched
+                ? (excRegions > 0 ? `${excRegions} excluded` : 'Schedule')
+                : 'Add Schedule'}
+            </button>
+            {/* Run Now button — hidden for viewer/analyst (AC2) */}
+            {canTriggerScan && (
+              <button
+                onClick={e => { e.stopPropagation(); handleRunNow(accountId); }}
+                disabled={busy}
+                title="Run scan now"
+                className="flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium hover:opacity-80 disabled:opacity-40"
+                style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: 'var(--accent-primary)', border: '1px solid rgba(59,130,246,0.25)' }}
+              >
+                {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+                {busy ? 'Launching…' : 'Run'}
+              </button>
+            )}
+          </div>
         );
       },
     },
@@ -186,13 +272,28 @@ export default function OnboardingPage() {
           <h1 className="text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>Cloud Account Management</h1>
           <p style={{ color: 'var(--text-tertiary)' }} className="mt-1">Manage onboarded cloud accounts and multi-cloud security posture</p>
         </div>
-        <Link
-          href="/onboarding/wizard"
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-white font-medium transition-colors"
-          style={{ backgroundColor: 'var(--accent-primary)' }}
-        >
-          <Plus className="w-4 h-4" /> Add Account
-        </Link>
+        <div className="flex items-center gap-2">
+          {/* Scan All — visible to org_admin and platform_admin only (AC4) */}
+          {canScanAll && (
+            <button
+              onClick={handleScanAll}
+              disabled={scanAllBusy}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
+              style={{ backgroundColor: 'rgba(34,197,94,0.12)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)' }}
+              title="Trigger a scan for all active accounts in this tenant"
+            >
+              {scanAllBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+              {scanAllBusy ? 'Scanning…' : 'Scan All Accounts'}
+            </button>
+          )}
+          <Link
+            href="/onboarding/accounts/new"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-white font-medium transition-colors"
+            style={{ backgroundColor: 'var(--accent-primary)' }}
+          >
+            <Plus className="w-4 h-4" /> Add Account
+          </Link>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -285,6 +386,19 @@ export default function OnboardingPage() {
       {/* Scan run detail modal */}
       {selectedRunId && (
         <ScanRunDetailModal scanRunId={selectedRunId} onClose={() => setSelectedRunId(null)} />
+      )}
+
+      {/* Schedule modal — AC1, AC3-AC11 */}
+      {scheduleModal && (
+        <ScheduleModal
+          account={scheduleModal.account}
+          existingSchedule={scheduleModal.existingSchedule}
+          onClose={() => setScheduleModal(null)}
+          onSaved={() => {
+            setScheduleModal(null);
+            refreshSchedules();
+          }}
+        />
       )}
 
       {/* Credential Management */}

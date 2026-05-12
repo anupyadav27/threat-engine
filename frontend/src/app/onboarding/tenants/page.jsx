@@ -4,12 +4,13 @@ import { Building2, Plus, RefreshCw, X } from 'lucide-react';
 import DataTable from '@/components/shared/DataTable';
 import { getFromEngine, postToEngine } from '@/lib/api';
 import { useTenant } from '@/lib/tenant-context';
+import { TenantTypeSelector } from '@/components/onboarding/TenantTypeSelector';
 
 // ── Create Tenant Modal ───────────────────────────────────────────────────────
 
 function CreateTenantModal({ onClose, onCreated }) {
   const { customerId } = useTenant();
-  const [form, setForm] = useState({ tenant_name: '', tenant_description: '' });
+  const [form, setForm] = useState({ tenant_name: '', tenant_description: '', tenant_type: 'cloud' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
@@ -19,10 +20,12 @@ function CreateTenantModal({ onClose, onCreated }) {
     setSaving(true);
     setError(null);
 
+    // AC3 — tenant_type included in POST body
     const res = await postToEngine('onboarding', '/api/v1/tenants', {
       customer_id: customerId,
       tenant_name: form.tenant_name.trim(),
       tenant_description: form.tenant_description.trim() || undefined,
+      tenant_type: form.tenant_type,
     });
 
     setSaving(false);
@@ -59,6 +62,12 @@ function CreateTenantModal({ onClose, onCreated }) {
               required
             />
           </div>
+
+          {/* AC1, AC2 — TenantTypeSelector with 3 options + descriptions */}
+          <TenantTypeSelector
+            value={form.tenant_type}
+            onChange={v => setForm(f => ({ ...f, tenant_type: v }))}
+          />
 
           <div>
             <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
@@ -132,11 +141,32 @@ export default function TenantsPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const TYPE_BADGE = {
+    cloud:         { bg: 'rgba(59,130,246,0.15)', color: '#60a5fa' },
+    vulnerability: { bg: 'rgba(245,158,11,0.15)', color: '#fbbf24' },
+    secops:        { bg: 'rgba(139,92,246,0.15)', color: '#a78bfa' },
+  };
+
   const columns = [
     {
       accessorKey: 'tenant_name',
       header: 'Workspace Name',
       cell: i => <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{i.getValue()}</span>,
+    },
+    {
+      accessorKey: 'tenant_type',
+      header: 'Type',
+      cell: i => {
+        const t = i.getValue();
+        if (!t) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+        const style = TYPE_BADGE[t] || { bg: 'rgba(100,116,139,0.15)', color: '#94a3b8' };
+        return (
+          <span className="px-2 py-0.5 rounded text-xs font-semibold uppercase"
+            style={{ backgroundColor: style.bg, color: style.color }}>
+            {t}
+          </span>
+        );
+      },
     },
     {
       accessorKey: 'tenant_id',

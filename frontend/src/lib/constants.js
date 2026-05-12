@@ -83,6 +83,7 @@ export const NAV_ITEMS = [
     badgeKey: 'threatCriticalHighCount',
     children: [
       { label: 'Command Room',     href: '/threats' },
+      { label: 'Threat Center v1', href: '/threats-v1' },
       { label: 'ATT&CK Coverage',  href: '/threats/attack-map' },
       { label: 'Graph Explorer',   href: '/threats/graph' },
       { label: 'Trends & Posture', href: '/threats/trends' },
@@ -174,12 +175,12 @@ export const NAV_ITEMS = [
     ],
   },
   {
-    label: 'Policies',
-    href: '/policies',
+    label: 'Rules & Policy',
+    href: '/rules',
     icon: 'BookOpen',
     children: [
-      { label: 'All Policies',    href: '/policies' },
-      { label: 'Rule Management', href: '/rules' },
+      { label: 'Rule Library',  href: '/rules' },
+      { label: 'Suppressions',  href: '/suppressions' },
     ],
   },
   {
@@ -189,6 +190,8 @@ export const NAV_ITEMS = [
     children: [
       { label: 'Platform',      href: '/settings' },
       { label: 'Notifications', href: '/settings/notifications' },
+      { label: 'Users',         href: '/settings/users',  roles: ['org_admin', 'platform_admin'] },
+      { label: 'Groups',        href: '/settings/groups', roles: ['org_admin', 'platform_admin'] },
     ],
   },
 

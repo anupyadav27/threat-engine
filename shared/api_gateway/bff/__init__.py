@@ -33,7 +33,7 @@ Architecture:
         reports.py              -- /views/reports
         rules.py                -- /views/rules
         secops.py               -- /views/secops  (SAST+DAST scan summary)
-        policies.py             -- /views/policies (rule engine proxy)
+        policies.py             -- /views/policies + /views/suppressions (suppression management)
         ai_security.py          -- /views/ai-security
         container_security.py   -- /views/container-security
         cnapp.py                -- /views/cnapp  (unified CNAPP dashboard)
@@ -41,6 +41,9 @@ Architecture:
         vulnerability.py        -- /views/vulnerability (agent scan overview)
         billing.py              -- /views/billing  (billing portal — org_admin)
         platform_admin.py       -- /views/platform-admin  (operator dashboard — platform_admin)
+        onboarding_schedules.py -- /views/onboarding/schedules + /views/onboarding/schedule-detail
+        tenant_switcher.py      -- /views/tenant_switcher  (OrgTenantSwitcher dropdown — org_admin+)
+        users_groups.py         -- /views/users + /views/groups (user/group management — org_admin+)
 """
 
 from fastapi import APIRouter
@@ -83,12 +86,16 @@ from .cnapp import router as cnapp_router
 from .cwpp import router as cwpp_router
 from .vulnerability import router as vulnerability_router
 from .onboarding_cloud_accounts import router as onboarding_cloud_accounts_router
+from .onboarding_schedules import router as onboarding_schedules_router
+from .tenant_switcher import router as tenant_switcher_router
 from .billing import router as billing_router
 from .billing import _trial_router as billing_trial_router
 from .platform_admin import router as platform_admin_router
 from .views.finding_detail import router as finding_detail_router
 from .views.risk_scenario_detail import router as risk_scenario_detail_router
 from .views.vulnerability_agent_detail import router as vulnerability_agent_detail_router
+from .threat_v1 import router as threat_v1_router
+from .users_groups import router as users_groups_router
 
 # Combined router — include this in main.py
 router = APIRouter()
@@ -135,11 +142,15 @@ for _sub in (
     cwpp_router,
     vulnerability_router,
     onboarding_cloud_accounts_router,
+    onboarding_schedules_router,
+    tenant_switcher_router,
     billing_router,
     billing_trial_router,
     platform_admin_router,
     finding_detail_router,
     risk_scenario_detail_router,
     vulnerability_agent_detail_router,
+    threat_v1_router,
+    users_groups_router,
 ):
     router.include_router(_sub)

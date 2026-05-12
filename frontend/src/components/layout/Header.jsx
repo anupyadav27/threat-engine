@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth-context';
 import { CLOUD_PROVIDERS } from '@/lib/constants';
 import { Sun, Moon, Bell, ChevronDown, LogOut, User, Settings, Globe } from 'lucide-react';
 import TrialCountdownChip from '@/components/billing/TrialCountdownChip';
+import OrgTenantSwitcher from '@/components/nav/OrgTenantSwitcher';
 
 const _TENANT_TYPE_STYLES = {
   cloud:        { bg: 'rgba(59,130,246,0.15)',  color: '#60a5fa' },
@@ -37,8 +38,9 @@ export default function Header() {
   const userMenuRef = useRef(null);
 
   const { tenants, activeTenant, setActiveTenant } = useTenant();
-  const { switchTenant, level, user, logout } = useAuth();
+  const { switchTenant, level, role, user, logout } = useAuth();
   const isPlatformAdmin = level === 1;
+  const isOrgAdmin = role === 'org_admin' || level <= 2;
   const currentTenantName = activeTenant?.tenant_name ?? 'All Tenants';
 
   const displayName = user?.name || user?.email || 'User';
@@ -87,12 +89,15 @@ export default function Header() {
           )}
         </button>
 
-        {/* Tenant Switcher — 3 paths:
-              1. Single tenant → static pill (no interaction needed)
-              2. Multiple tenants → dropdown with "All Tenants" pinned at top
-              3. No tenants loaded yet → nothing rendered               */}
-        {tenants.length === 1 ? (
-          /* ── Static pill — only one tenant, no switching needed ── */
+        {/* Tenant Switcher — two paths:
+              1. org_admin / platform_admin → full OrgTenantSwitcher (BFF-driven,
+                 shows tenant_type badge, loading skeleton, dropdown) [AC4–AC10]
+              2. other roles (tenant_admin, analyst, viewer) → simple static pill
+                 or legacy dropdown sourced from auth context tenants          */}
+        {isOrgAdmin ? (
+          <OrgTenantSwitcher />
+        ) : tenants.length === 1 ? (
+          /* ── Static pill for single-tenant non-admin users ── */
           <span
             className="flex items-center px-2.5 py-1 rounded text-xs font-medium"
             style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border-primary)' }}
@@ -100,7 +105,7 @@ export default function Header() {
             {tenants[0].tenant_name}
           </span>
         ) : tenants.length > 1 ? (
-          /* ── Dropdown — multiple tenants available ── */
+          /* ── Lightweight dropdown for multi-tenant non-admin users ── */
           <div className="relative" ref={tenantMenuRef}>
             <button
               onClick={() => setShowTenantMenu(!showTenantMenu)}
@@ -139,27 +144,10 @@ export default function Header() {
                   >
                     <div className="flex items-center gap-1.5">
                       <span className="font-medium">{t.tenant_name}</span>
-                      {t.tenant_type && (
-                        <span className="px-1 py-0.5 rounded text-[9px] font-semibold uppercase"
-                          style={{ backgroundColor: _tenantTypeBg(t.tenant_type), color: _tenantTypeColor(t.tenant_type) }}>
-                          {t.tenant_type}
-                        </span>
-                      )}
                     </div>
                     <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{t.account_count ?? 0} accounts</div>
                   </button>
                 ))}
-
-                {/* Manage tenants — only for platform_admin and org_admin */}
-                {level <= 2 && (
-                  <button
-                    onClick={() => { router.push('/onboarding/tenants'); setShowTenantMenu(false); }}
-                    className="w-full text-left px-3 py-2 text-xs border-t hover:opacity-75"
-                    style={{ color: 'var(--accent-primary)', borderColor: 'var(--border-primary)' }}
-                  >
-                    + Manage tenants
-                  </button>
-                )}
               </div>
             )}
           </div>

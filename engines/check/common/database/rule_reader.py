@@ -146,6 +146,75 @@ class RuleReader:
             if conn:
                 conn.close()
 
+    def read_checks_for_service_tenant(
+        self,
+        service: str,
+        provider: str,
+        tenant_id: str,
+        account_id: Optional[str] = None,
+    ) -> List[Dict]:
+        """Return check rule dicts for a service, filtered by tenant suppressions.
+
+        Identical shape to read_checks_for_service() but excludes rules that are
+        suppressed at the tenant-wide level (account_id IS NULL) or at the
+        specific account level (account_id = $4), and ignores expired suppressions.
+
+        Args:
+            service: Cloud service name (e.g. "s3", "iam").
+            provider: CSP identifier (e.g. "aws", "azure").
+            tenant_id: Tenant scope for suppression lookup.
+            account_id: Account scope; if None only tenant-wide suppressions apply.
+
+        Returns:
+            List of active, non-suppressed check rule dicts.
+        """
+        conn = None
+        try:
+            conn = self._get_connection()
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT rc.rule_id, rc.check_config
+                    FROM   rule_checks rc
+                    WHERE  rc.service  = %s
+                      AND  rc.provider = %s
+                      AND  (rc.is_active IS NULL OR rc.is_active = true)
+                      AND  NOT EXISTS (
+                               SELECT 1
+                               FROM   rule_suppressions rs
+                               WHERE  rs.tenant_id = %s
+                                 AND  (rs.account_id IS NULL OR rs.account_id = %s)
+                                 AND  (rs.expires_at IS NULL OR rs.expires_at > now())
+                                 AND  (
+                                          (rs.scope_type = 'rule'       AND rs.scope_value = rc.rule_id)
+                                       OR (rs.scope_type = 'service'    AND rs.scope_value = rc.service)
+                                       OR (rs.scope_type = 'provider'   AND rs.scope_value = rc.provider)
+                                       OR (rs.scope_type = 'technology' AND rs.scope_value = rc.service)
+                                      )
+                           )
+                    ORDER BY rc.rule_id
+                    """,
+                    (service, provider, tenant_id, account_id),
+                )
+                checks: List[Dict] = []
+                for row in cur.fetchall():
+                    cfg = row["check_config"]
+                    if isinstance(cfg, str):
+                        cfg = json.loads(cfg)
+                    if cfg:
+                        checks.append({"rule_id": row["rule_id"], **cfg})
+                logger.debug(
+                    "Loaded %d checks for %s.%s (tenant=%s, account=%s) after suppression filter",
+                    len(checks), provider, service, tenant_id, account_id,
+                )
+                return checks
+        except Exception as exc:
+            logger.warning("Failed to read suppressed checks for %s: %s", service, exc)
+            return self.read_checks_for_service(service, provider)
+        finally:
+            if conn:
+                conn.close()
+
     def count_rules_by_service(self, provider: str = "aws") -> Dict[str, int]:
         """Return {service: rule_count} for a provider."""
         conn = None

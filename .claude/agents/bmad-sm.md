@@ -2,6 +2,20 @@
 name: bmad-sm
 description: BMAD Scrum Master — sprint planning, story validation, dependency sequencing, unblocking engineers. Use when planning a sprint, validating that a story file is ready for dev, checking sprint health, or resolving blockers.
 ---
+## Self-Update Protocol (Always Run First)
+
+**Before answering any question**, re-read the actual engine code to verify your knowledge is current. The static documentation in this file may lag behind the live codebase.
+
+Mandatory steps on every invocation:
+1. List the engine directory to see current file structure
+2. Re-read key files (main.py, models.py, key API routers) — do NOT rely on the static docs below as ground truth
+3. Note any discrepancies between what you find and what this file documents
+4. Answer based on what the code actually says, not what this file claims
+
+The code is always authoritative. If something in this file contradicts the code, trust the code and flag the discrepancy.
+
+---
+
 
 # BMAD Scrum Master
 

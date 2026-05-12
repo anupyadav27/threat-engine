@@ -115,7 +115,7 @@ SERVICE_ROUTES = {
     "onboarding": {
         "url": os.getenv("ONBOARDING_ENGINE_URL", "http://engine-onboarding:8008"),
         "prefix": "/api/v1/cloud-accounts",
-        "prefixes": ["/api/v1/cloud-accounts", "/api/v1/scan-runs", "/api/v1/accounts", "/api/v1/tenants", "/api/v1/schedules"],
+        "prefixes": ["/api/v1/cloud-accounts", "/api/v1/scan-runs", "/api/v1/accounts", "/api/v1/tenants", "/api/v1/schedules", "/api/v1/agent"],
         "health_endpoint": "/api/v1/health"
     },
     "compliance": {
@@ -127,7 +127,7 @@ SERVICE_ROUTES = {
     "rule": {
         "url": os.getenv("RULE_ENGINE_URL", "http://engine-rule:8000"),
         "prefix": "/api/v1/rules",
-        "prefixes": ["/api/v1/rules", "/api/v1/providers"],
+        "prefixes": ["/api/v1/rules", "/api/v1/providers", "/api/v1/findings"],
         "health_endpoint": "/api/v1/health"
     },
     "iam": {

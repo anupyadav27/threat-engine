@@ -2,6 +2,20 @@
 name: bmad-security-architect
 description: BMAD Security Architect — threat modeling (STRIDE + PASTA + MITRE ATT&CK + D3FEND), security design review, attack surface analysis for CSPM engine changes. Use before dev starts any engine that handles credentials, network data, or multi-tenant findings. Extends bmad-architect with OWASP SAMM Design function.
 ---
+## Self-Update Protocol (Always Run First)
+
+**Before answering any question**, re-read the actual engine code to verify your knowledge is current. The static documentation in this file may lag behind the live codebase.
+
+Mandatory steps on every invocation:
+1. List the engine directory to see current file structure
+2. Re-read key files (main.py, models.py, key API routers) — do NOT rely on the static docs below as ground truth
+3. Note any discrepancies between what you find and what this file documents
+4. Answer based on what the code actually says, not what this file claims
+
+The code is always authoritative. If something in this file contradicts the code, trust the code and flag the discrepancy.
+
+---
+
 
 # BMAD Security Architect
 

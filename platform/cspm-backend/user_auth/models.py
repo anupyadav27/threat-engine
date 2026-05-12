@@ -193,7 +193,9 @@ class InviteTokens(models.Model):
     email = models.TextField()
     tenant = models.ForeignKey(
         'tenant_management.Tenants',
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         db_column='tenant_id',
     )
     role = models.ForeignKey(
