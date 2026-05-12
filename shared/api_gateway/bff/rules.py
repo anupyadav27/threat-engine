@@ -16,7 +16,6 @@ from ._auth import resolve_tenant_id
 from ._shared import fetch_many, safe_get, BFFMeta
 from .schemas.rules import RulesResponse
 from ._transforms import normalize_rule
-from ._page_context import rules_page_context, rules_filter_schema
 
 logger = logging.getLogger("api-gateway.bff")
 
@@ -144,7 +143,6 @@ async def view_rules(
         se = r.get("severity", "medium")
         by_severity[se] = by_severity.get(se, 0) + 1
 
-    engine_stats = safe_get(custom_data, "statistics", {})
     raw_templates = safe_get(custom_data, "templates", [])
     templates = []
     for tmpl in raw_templates:
@@ -157,49 +155,14 @@ async def view_rules(
                 "provider":    tmpl.get("provider", ""),
             })
 
-    page_ctx = rules_page_context()
-    page_ctx["tabs"] = [
-        {"id": "rules",     "label": "Rules",     "count": total},
-        {"id": "templates", "label": "Templates",  "count": len(templates)},
-    ]
-
     return {
-        "pageContext":  page_ctx,
-        "filterSchema": rules_filter_schema(),
-        "kpiGroups": [
-            {
-                "title": "Rule Catalog",
-                "items": [
-                    {"label": "Total",      "value": total},
-                    {"label": "Active",     "value": active},
-                    {"label": "Suppressed", "value": suppressed_count},
-                    {"label": "Custom",     "value": by_type.get("custom", 0)},
-                ],
-            },
-            {
-                "title": "By Type",
-                "items": [
-                    {"label": "Config",     "value": by_type.get("config", 0)},
-                    {"label": "CDR",        "value": by_type.get("cdr", 0)},
-                    {"label": "Threat",     "value": by_type.get("threat", 0)},
-                    {"label": "Custom",     "value": by_type.get("custom", 0)},
-                ],
-            },
-        ],
-        "rules":       rules,
-        "statistics":  engine_stats,
-        "templates":   templates,
-        "providerStatus": safe_get(custom_data, "providers_status", {}),
-        "kpi": {
-            "totalRules":   total,
-            "total_rules":  total,
-            "activeRules":  active,
-            "active_rules": active,
-            "suppressed":   suppressed_count,
-            "byType":       by_type,
-            "byProvider":   by_provider,
-            "bySeverity":   by_severity,
-            "byService":    by_service,
+        "rules":     rules,
+        "templates": templates,
+        "summary": {
+            "total":      total,
+            "active":     active,
+            "suppressed": suppressed_count,
+            "by_type":    by_type,
         },
         "_meta": meta.to_dict(),
     }

@@ -141,7 +141,7 @@ from .reports import (  # noqa: F401
 )
 from .rules import (  # noqa: F401
     RulesResponse,
-    RulesKpi,
+    RuleSummary,
 )
 from .cnapp import (  # noqa: F401
     CNAPPResponse,
@@ -241,7 +241,7 @@ __all__ = [
     "ReportsKpi",
     "ReportTemplate",
     "RulesResponse",
-    "RulesKpi",
+    "RuleSummary",
     "CNAPPResponse",
     "PillarItem",
     "CWPPResponse",
