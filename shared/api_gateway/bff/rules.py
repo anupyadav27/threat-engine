@@ -90,16 +90,26 @@ async def view_rules(
         if rule_type and rule_type != rule_type_val:
             continue
         rules.append({
-            "rule_id":    r.get("rule_id", ""),
-            "provider":   (r.get("provider") or "").upper(),
-            "service":    r.get("service", ""),
-            "title":      r.get("title", ""),
-            "severity":   r.get("severity", "medium"),
-            "domain":     r.get("domain", ""),
-            "description": r.get("description", ""),
-            "rule_type":  rule_type_val,
-            "status":     "active",
-            "is_suppressed": False,
+            "rule_id":             r.get("rule_id", ""),
+            "provider":            (r.get("provider") or "").upper(),
+            "service":             r.get("service", ""),
+            "resource":            r.get("resource") or "",
+            "title":               r.get("title", ""),
+            "severity":            r.get("severity", "medium"),
+            "domain":              r.get("domain") or "",
+            "subcategory":         r.get("subcategory") or "",
+            "posture_category":    r.get("posture_category") or "",
+            "description":         r.get("description") or "",
+            "remediation":         r.get("remediation") or "",
+            "rationale":           r.get("rationale") or "",
+            "compliance_frameworks": r.get("compliance_frameworks") or {},
+            "mitre_tactics":       r.get("mitre_tactics") or [],
+            "mitre_techniques":    r.get("mitre_techniques") or [],
+            "risk_score":          r.get("risk_score"),
+            "remediation_effort":  r.get("remediation_effort") or "",
+            "rule_type":           rule_type_val,
+            "status":              "active",
+            "is_suppressed":       False,
         })
 
     # 2. Custom YAML rules (only when not filtering by a non-custom rule_type)

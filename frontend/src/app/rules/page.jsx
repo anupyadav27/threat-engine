@@ -138,44 +138,161 @@ function ReactivateModal({ selectedRules, onClose, onSuccess }) {
   );
 }
 
+// ── Meta section helper ───────────────────────────────────────────────────
+function MetaSection({ label, children }) {
+  return (
+    <div>
+      <div className="text-[11px] font-semibold uppercase tracking-wider mb-1.5"
+        style={{ color: 'var(--text-muted)' }}>{label}</div>
+      {children}
+    </div>
+  );
+}
+
 // ── Rule detail panel ─────────────────────────────────────────────────────
 function RuleDetailPanel({ rule, onClose }) {
   if (!rule) return null;
+
+  const severityColor = {
+    critical: '#ef4444', high: '#f97316', medium: '#eab308', low: '#3b82f6', info: '#6b7280',
+  }[rule.severity] || '#6b7280';
+
+  const mitreT = rule.mitre_tactics  || [];
+  const mitreTech = rule.mitre_techniques || [];
+  const frameworks = rule.compliance_frameworks?.frameworks || [];
+  const effortColor = { low: '#34d399', medium: '#eab308', high: '#f97316' }[rule.remediation_effort] || 'var(--text-muted)';
+
   return (
-    <div className="fixed inset-y-0 right-0 w-[480px] z-40 border-l shadow-2xl flex flex-col"
+    <div className="fixed inset-y-0 right-0 w-[520px] z-40 border-l shadow-2xl flex flex-col"
       style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-      <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: 'var(--border-primary)' }}>
-        <span className="font-semibold text-sm truncate pr-4" style={{ color: 'var(--text-primary)' }}>{rule.rule_id}</span>
-        <button onClick={onClose}><X className="w-4 h-4" style={{ color: 'var(--text-muted)' }} /></button>
+
+      {/* Header */}
+      <div className="flex items-start justify-between p-5 border-b gap-3"
+        style={{ borderColor: 'var(--border-primary)' }}>
+        <div className="min-w-0">
+          <div className="text-xs font-mono mb-1" style={{ color: 'var(--text-muted)' }}>{rule.rule_id}</div>
+          <div className="text-sm font-semibold leading-snug" style={{ color: 'var(--text-primary)' }}>
+            {rule.title || rule.rule_id}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: `${severityColor}22`, color: severityColor }}>
+              {rule.severity?.toUpperCase()}
+            </span>
+            <TypeBadge type={rule.rule_type} />
+            {rule.is_suppressed && (
+              <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full"
+                style={{ backgroundColor: 'rgba(249,115,22,0.12)', color: '#f97316' }}>
+                <Ban className="w-3 h-3" />Suppressed
+              </span>
+            )}
+          </div>
+        </div>
+        <button onClick={onClose} className="flex-shrink-0 mt-0.5">
+          <X className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
+        </button>
       </div>
-      <div className="flex-1 overflow-y-auto p-5 space-y-4">
-        <div>
-          <div className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Title</div>
-          <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{rule.title || '—'}</div>
-        </div>
-        {rule.description && (
-          <div>
-            <div className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Description</div>
-            <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>{rule.description}</div>
-          </div>
-        )}
-        <div className="grid grid-cols-2 gap-3">
+
+      {/* Body */}
+      <div className="flex-1 overflow-y-auto p-5 space-y-5">
+
+        {/* Identity grid */}
+        <div className="grid grid-cols-3 gap-3 p-3 rounded-xl"
+          style={{ backgroundColor: 'var(--bg-secondary)' }}>
           {[
-            ['Provider', rule.provider], ['Service',  rule.service],
-            ['Severity', rule.severity], ['Type',     rule.rule_type],
-            ['Domain',   rule.domain],   ['Status',   rule.status],
-          ].map(([k, v]) => v && (
+            ['Provider',  rule.provider],
+            ['Service',   rule.service],
+            ['Resource',  rule.resource],
+            ['Domain',    rule.domain],
+            ['Category',  rule.posture_category || rule.subcategory],
+            ['Effort',    rule.remediation_effort],
+          ].map(([k, v]) => v ? (
             <div key={k}>
-              <div className="text-xs mb-0.5" style={{ color: 'var(--text-muted)' }}>{k}</div>
-              <div className="text-sm capitalize" style={{ color: 'var(--text-primary)' }}>{v}</div>
+              <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: 'var(--text-muted)' }}>{k}</div>
+              <div className="text-xs font-medium capitalize"
+                style={{ color: k === 'Effort' ? effortColor : 'var(--text-primary)' }}>{v}</div>
             </div>
-          ))}
+          ) : null)}
+          {rule.risk_score != null && (
+            <div>
+              <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: 'var(--text-muted)' }}>Risk Score</div>
+              <div className="text-xs font-bold" style={{ color: rule.risk_score >= 70 ? '#ef4444' : rule.risk_score >= 40 ? '#f97316' : '#34d399' }}>
+                {rule.risk_score}/100
+              </div>
+            </div>
+          )}
         </div>
-        {rule.is_suppressed && (
-          <div className="rounded-lg p-3 text-xs" style={{ backgroundColor: 'rgba(249,115,22,0.08)', color: '#f97316' }}>
-            <Ban className="w-3 h-3 inline mr-1" />This rule is currently suppressed
-          </div>
+
+        {/* Description */}
+        {rule.description && (
+          <MetaSection label="Description">
+            <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{rule.description}</p>
+          </MetaSection>
         )}
+
+        {/* Rationale */}
+        {rule.rationale && (
+          <MetaSection label="Rationale">
+            <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{rule.rationale}</p>
+          </MetaSection>
+        )}
+
+        {/* Remediation */}
+        {rule.remediation && (
+          <MetaSection label="Remediation">
+            <div className="rounded-lg p-3 text-sm leading-relaxed"
+              style={{ backgroundColor: 'rgba(52,211,153,0.06)', color: 'var(--text-secondary)', border: '1px solid rgba(52,211,153,0.15)' }}>
+              {rule.remediation}
+            </div>
+          </MetaSection>
+        )}
+
+        {/* MITRE */}
+        {(mitreT.length > 0 || mitreTech.length > 0) && (
+          <MetaSection label="MITRE ATT&CK">
+            <div className="space-y-1.5">
+              {mitreT.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {mitreT.map(t => (
+                    <span key={t} className="text-xs px-2 py-0.5 rounded-full"
+                      style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: '#f87171' }}>{t}</span>
+                  ))}
+                </div>
+              )}
+              {mitreTech.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {mitreTech.map(t => (
+                    <span key={t} className="text-xs px-2 py-0.5 rounded font-mono"
+                      style={{ backgroundColor: 'rgba(239,68,68,0.06)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)' }}>{t}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </MetaSection>
+        )}
+
+        {/* Compliance frameworks */}
+        {frameworks.length > 0 && (
+          <MetaSection label="Compliance Frameworks">
+            <div className="flex flex-wrap gap-1.5">
+              {frameworks.map(f => (
+                <span key={f} className="text-xs px-2 py-0.5 rounded"
+                  style={{ backgroundColor: 'rgba(99,102,241,0.1)', color: '#a5b4fc' }}>
+                  {f.replace(/_/g, ' ').toUpperCase()}
+                </span>
+              ))}
+            </div>
+          </MetaSection>
+        )}
+
+        {/* Rule ID (full, copyable) */}
+        <MetaSection label="Rule ID">
+          <code className="text-xs font-mono break-all block p-2 rounded"
+            style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
+            {rule.rule_id}
+          </code>
+        </MetaSection>
+
       </div>
     </div>
   );
@@ -398,12 +515,13 @@ export default function RulesPage() {
                     </button>
                   </th>
                 )}
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Rule ID</th>
-                {['rule_type','provider','service','severity','status'].map(col => (
+                {/* Filterable columns in user-requested order */}
+                {['provider','service','rule_type','status','severity'].map(col => (
                   <th key={col} className="px-4 py-3 text-left" style={{ whiteSpace: 'nowrap' }}>
                     <div className="flex items-center gap-1">
-                      <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: activeCount(col) > 0 ? '#3b82f6' : 'var(--text-muted)' }}>
-                        {{ rule_type:'Type', provider:'Provider', service:'Service', severity:'Severity', status:'Status' }[col]}
+                      <span className="text-xs font-semibold uppercase tracking-wide"
+                        style={{ color: activeCount(col) > 0 ? '#3b82f6' : 'var(--text-muted)' }}>
+                        {{ provider:'Provider', service:'Service', rule_type:'Type', status:'Status', severity:'Severity' }[col]}
                       </span>
                       <button
                         onClick={e => { e.stopPropagation(); openFilter(col, e.currentTarget); }}
@@ -419,7 +537,10 @@ export default function RulesPage() {
                     </div>
                   </th>
                 ))}
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Title</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide min-w-[260px]"
+                  style={{ color: 'var(--text-muted)' }}>Title</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
+                  style={{ color: 'var(--text-muted)' }}>Rule ID</th>
               </tr>
             </thead>
             <tbody>
@@ -433,7 +554,9 @@ export default function RulesPage() {
                 filteredRules.slice(0, 500).map((rule, idx) => {
                   const checked = selectedIds.has(rule.rule_id);
                   return (
-                    <tr key={rule.rule_id || idx} onClick={() => setDetailRule(rule)} className="cursor-pointer"
+                    <tr key={rule.rule_id || idx}
+                      onClick={() => setDetailRule(rule)}
+                      className="cursor-pointer"
                       style={{ borderBottom: '1px solid var(--border-primary)', backgroundColor: checked ? 'rgba(249,115,22,0.04)' : undefined }}
                       onMouseEnter={e => { if (!checked) e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'; }}
                       onMouseLeave={e => { e.currentTarget.style.backgroundColor = checked ? 'rgba(249,115,22,0.04)' : ''; }}>
@@ -444,21 +567,24 @@ export default function RulesPage() {
                             : <Square className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />}
                         </td>
                       )}
-                      <td className="px-4 py-3">
-                        <code className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>
-                          {(rule.rule_id || '').length > 48 ? rule.rule_id.slice(0, 48) + '…' : rule.rule_id}
-                        </code>
-                      </td>
-                      <td className="px-4 py-3"><TypeBadge type={rule.rule_type} /></td>
-                      <td className="px-4 py-3 text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{rule.provider || '—'}</td>
-                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-secondary)' }}>{rule.service || '—'}</td>
-                      <td className="px-4 py-3"><SeverityBadge severity={rule.severity} /></td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2.5 text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{rule.provider || '—'}</td>
+                      <td className="px-4 py-2.5 text-xs" style={{ color: 'var(--text-secondary)' }}>{rule.service || '—'}</td>
+                      <td className="px-4 py-2.5"><TypeBadge type={rule.rule_type} /></td>
+                      <td className="px-4 py-2.5">
                         {rule.is_suppressed
                           ? <span className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: '#f97316' }}><Ban className="w-3 h-3" />Suppressed</span>
                           : <span className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: '#34d399' }}><CheckCircle className="w-3 h-3" />Active</span>}
                       </td>
-                      <td className="px-4 py-3 text-xs max-w-[240px] truncate" style={{ color: 'var(--text-muted)' }}>{rule.title || '—'}</td>
+                      <td className="px-4 py-2.5"><SeverityBadge severity={rule.severity} /></td>
+                      <td className="px-4 py-2.5 text-xs max-w-[300px]" style={{ color: 'var(--text-primary)' }}>
+                        <div className="truncate">{rule.title || '—'}</div>
+                        {rule.domain && <div className="text-[10px] mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{rule.domain}</div>}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <code className="text-[11px] font-mono" style={{ color: 'var(--text-muted)' }}>
+                          {(rule.rule_id || '').length > 40 ? rule.rule_id.slice(0, 40) + '…' : rule.rule_id}
+                        </code>
+                      </td>
                     </tr>
                   );
                 })

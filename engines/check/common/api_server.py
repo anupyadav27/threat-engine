@@ -505,8 +505,10 @@ async def get_rules_catalog(
 
         cur.execute(
             f"""
-            SELECT rule_id, service, provider, severity, title, description,
-                   domain, rule_class, primary_engine
+            SELECT rule_id, service, provider, resource, severity, title, description,
+                   remediation, rationale, domain, subcategory, posture_category,
+                   compliance_frameworks, mitre_tactics, mitre_techniques,
+                   risk_score, remediation_effort, rule_class, primary_engine
             FROM   rule_metadata
             {where}
             ORDER  BY provider, service, rule_id
