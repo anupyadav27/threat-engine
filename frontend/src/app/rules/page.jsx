@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Download, Plus, RefreshCw, CheckCircle,
   Ban, X, RotateCcw, Search, CheckSquare, Square, Filter,
@@ -38,7 +38,7 @@ function BulkSuppressModal({ selectedRules, onClose, onSuccess }) {
     setLoading(true); setErrors([]);
     const failed = [];
     for (const rule of selectedRules) {
-      const res = await postToEngine('rule', '/api/v1/rules/suppress', {
+      const res = await postToEngine('gateway', '/api/v1/rules/suppress', {
         scope_type: 'rule', scope_value: rule.rule_id, scope_level: 'tenant',
         provider: (rule.provider || '').toLowerCase() || null,
         reason: reason || null, expires_at: expires || null,
@@ -104,11 +104,11 @@ function ReactivateModal({ selectedRules, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const handleReactivate = async () => {
     setLoading(true);
-    const listRes = await getFromEngine('rule', '/api/v1/rules/suppressions');
+    const listRes = await getFromEngine('gateway', '/api/v1/rules/suppressions');
     const suppressions = listRes?.suppressions || [];
     for (const rule of selectedRules) {
       const match = suppressions.find(s => s.scope_type === 'rule' && s.scope_value === rule.rule_id);
-      if (match) await deleteFromEngine('rule', `/api/v1/rules/suppressions/${match.id}`);
+      if (match) await deleteFromEngine('gateway', `/api/v1/rules/suppressions/${match.id}`);
     }
     setLoading(false); onSuccess();
   };
@@ -282,13 +282,7 @@ export default function RulesPage() {
   const clearFilter = colKey => { setColFilters(prev => ({ ...prev, [colKey]: new Set() })); setOpenCol(null); };
   const activeCount = colKey => (colFilters[colKey]?.size || 0);
 
-  // Close popover on outside click
-  useEffect(() => {
-    if (!openCol) return;
-    const h = () => setOpenCol(null);
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, [openCol]);
+  // Popover closes via backdrop click (see render section)
 
   // ── Export ──────────────────────────────────────────────────────────────
   const handleExport = () => {
@@ -412,7 +406,6 @@ export default function RulesPage() {
                         {{ rule_type:'Type', provider:'Provider', service:'Service', severity:'Severity', status:'Status' }[col]}
                       </span>
                       <button
-                        onMouseDown={e => e.stopPropagation()}
                         onClick={e => { e.stopPropagation(); openFilter(col, e.currentTarget); }}
                         className="p-0.5 rounded hover:opacity-75 relative"
                         title={`Filter ${col}`}
@@ -480,56 +473,67 @@ export default function RulesPage() {
         )}
       </div>
 
-      {/* ── Filter popover — rendered HERE at page root, outside overflow-x-auto ── */}
+      {/* ── Filter popover — backdrop + popover both at page root (escapes overflow-x-auto) ── */}
       {openCol && (() => {
-        const opts = uniqueVals[openCol] || [];
-        const q    = popoverSearch.toLowerCase();
+        const opts    = uniqueVals[openCol] || [];
+        const q       = popoverSearch.toLowerCase();
         const visible = q ? opts.filter(v => v.toLowerCase().includes(q)) : opts;
-        const active = colFilters[openCol] || new Set();
+        const active  = colFilters[openCol] || new Set();
         return (
-          <div
-            onMouseDown={e => e.stopPropagation()}
-            onClick={e => e.stopPropagation()}
-            style={{
-              position: 'fixed',
-              top: popoverPos.top,
-              left: popoverPos.left,
-              zIndex: 9999,
-              minWidth: 200,
-              maxWidth: 280,
-              backgroundColor: 'var(--bg-card)',
-              border: '1px solid var(--border-primary)',
-              borderRadius: 12,
-              boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
-            }}
-          >
-            <div className="p-2 border-b" style={{ borderColor: 'var(--border-primary)' }}>
-              <input autoFocus type="text" placeholder="Search values…"
-                value={popoverSearch} onChange={e => setPopoverSearch(e.target.value)}
-                className="w-full px-2 py-1 text-xs rounded border focus:outline-none"
-                style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }} />
-            </div>
-            <div className="p-2">
-              <label className="flex items-center gap-2 text-xs cursor-pointer py-1 px-1 rounded hover:opacity-75">
-                <input type="checkbox" checked={active.size === 0} onChange={() => clearFilter(openCol)} style={{ accentColor: '#3b82f6' }} />
-                <span style={{ color: 'var(--text-secondary)' }}>All</span>
-              </label>
-            </div>
-            <div className="max-h-52 overflow-y-auto pb-2">
-              {visible.map(val => (
-                <label key={val} className="flex items-center gap-2 text-xs cursor-pointer py-1 px-3 hover:opacity-75">
-                  <input type="checkbox"
-                    checked={active.has(String(val))}
-                    onChange={() => toggleFilterVal(openCol, String(val))}
-                    style={{ accentColor: '#3b82f6' }} />
-                  <span style={{ color: 'var(--text-primary)' }}>{val}</span>
+          <>
+            {/* Transparent backdrop — click outside closes popover */}
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
+              onClick={() => setOpenCol(null)}
+            />
+            {/* Popover — above backdrop */}
+            <div
+              style={{
+                position: 'fixed',
+                top: popoverPos.top,
+                left: popoverPos.left,
+                zIndex: 9999,
+                minWidth: 200,
+                maxWidth: 280,
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-primary)',
+                borderRadius: 12,
+                boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+              }}
+            >
+              <div className="p-2 border-b" style={{ borderColor: 'var(--border-primary)' }}>
+                <input
+                  autoFocus type="text" placeholder="Search values…"
+                  value={popoverSearch}
+                  onChange={e => setPopoverSearch(e.target.value)}
+                  className="w-full px-2 py-1 text-xs rounded border focus:outline-none"
+                  style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }}
+                />
+              </div>
+              <div className="p-2">
+                <label className="flex items-center gap-2 text-xs cursor-pointer py-1 px-1 rounded hover:opacity-75">
+                  <input type="checkbox" checked={active.size === 0} onChange={() => { clearFilter(openCol); }} style={{ accentColor: '#3b82f6' }} />
+                  <span style={{ color: 'var(--text-secondary)' }}>All (clear filter)</span>
                 </label>
-              ))}
-              {visible.length === 0 && (
-                <div className="px-3 py-2 text-xs" style={{ color: 'var(--text-muted)' }}>No matches</div>
-              )}
+              </div>
+              <div className="max-h-52 overflow-y-auto pb-2">
+                {visible.map(val => (
+                  <label key={val} className="flex items-center gap-2 text-xs cursor-pointer py-1 px-3 hover:opacity-75">
+                    <input
+                      type="checkbox"
+                      checked={active.has(String(val))}
+                      onChange={() => toggleFilterVal(openCol, String(val))}
+                      style={{ accentColor: '#3b82f6' }}
+                    />
+                    <span style={{ color: 'var(--text-primary)' }}>{val}</span>
+                  </label>
+                ))}
+                {visible.length === 0 && (
+                  <div className="px-3 py-2 text-xs" style={{ color: 'var(--text-muted)' }}>No matches</div>
+                )}
+              </div>
             </div>
-          </div>
+          </>
         );
       })()}
 
