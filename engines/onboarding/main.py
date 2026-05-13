@@ -9,7 +9,7 @@ import uvicorn
 import asyncio
 import os
 
-from engine_onboarding.api import cloud_accounts_router, health_router, internal_router, tenants_router, schedules_router, scan_runs_router, scans_adhoc_router
+from engine_onboarding.api import cloud_accounts_router, health_router, internal_router, tenants_router, schedules_router, scan_runs_router, scans_adhoc_router, reference_router
 try:
     from engine_onboarding.api.agents import router as agents_router
     _AGENTS_ROUTER_AVAILABLE = True
@@ -112,6 +112,7 @@ if _AUTH_AVAILABLE and AuthMiddleware:
 # Include routers
 app.include_router(health_router)
 app.include_router(internal_router)
+app.include_router(reference_router)
 app.include_router(tenants_router)
 app.include_router(cloud_accounts_router)
 app.include_router(schedules_router)

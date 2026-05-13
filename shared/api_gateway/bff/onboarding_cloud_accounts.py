@@ -53,6 +53,8 @@ class CloudAccountItem(BaseModel):
     accountId: str = Field(..., description="Account UUID (engine PK)")
     customerId: Optional[str] = None
     tenantId: Optional[str] = None
+    tenantName: Optional[str] = Field(None, description="Workspace name from tenants JOIN")
+    tenantEnvironment: Optional[str] = Field(None, description="production|staging|development|test")
     provider: Optional[str] = Field(None, description="aws|azure|gcp|oci|alicloud|ibm|k8s")
     accountIdentifier: Optional[str] = Field(
         None, description="CSP-native identifier (e.g. AWS 12-digit)"
@@ -63,6 +65,7 @@ class CloudAccountItem(BaseModel):
     )
     accountStatus: Optional[str] = None
     onboardingStatus: Optional[str] = None
+    credentialRef: Optional[str] = Field(None, description="SM path — non-empty means credentials stored")
     credentialValidationStatus: Optional[str] = None
     credentialValidatedAt: Optional[str] = None
     scheduleEnabled: Optional[bool] = None
@@ -84,10 +87,13 @@ def _to_camel(row: dict) -> dict:
 
     Tolerant of missing fields — the engine row is the source of truth.
     """
+    cred_ref = row.get("credential_ref") or ""
     return {
         "accountId":                  row.get("account_id") or row.get("id") or "",
         "customerId":                 row.get("customer_id"),
         "tenantId":                   row.get("tenant_id"),
+        "tenantName":                 row.get("tenant_name"),
+        "tenantEnvironment":          row.get("tenant_environment"),
         "provider":                   row.get("provider"),
         "accountIdentifier":          row.get("account_identifier"),
         "accountName":                row.get("account_name"),
@@ -95,6 +101,7 @@ def _to_camel(row: dict) -> dict:
         "accountStatus":              row.get("account_status"),
         "onboardingStatus":           row.get("account_onboarding_status")
                                        or row.get("onboarding_status"),
+        "credentialRef":              cred_ref if cred_ref not in ("", "pending") else "",
         "credentialValidationStatus": row.get("credential_validation_status"),
         "credentialValidatedAt":      row.get("credential_validated_at"),
         "scheduleEnabled":            row.get("schedule_enabled"),

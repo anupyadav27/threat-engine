@@ -44,7 +44,11 @@ from engine_onboarding.database.tenant_operations import get_tenant
 from engine_onboarding.constants import (
     VALID_ACCOUNT_TYPES,
     DEFAULT_VALID_ACCOUNT_TYPES,
-    PROVIDER_TO_ACCOUNT_TYPE,
+)
+from engine_onboarding.database.reference_operations import (
+    get_default_account_type,
+    get_engines_for_account_type,
+    get_valid_account_type_set,
 )
 from engine_onboarding.validators.account_type import validate_account_type_for_tenant
 from engine_onboarding.utils.django_client import get_tenant_type
@@ -68,10 +72,6 @@ _ALL_PROVIDERS_RE   = f"^({_CLOUD_PROVIDERS}|{_DB_PROVIDERS}|{_GIT_PROVIDERS}|ag
 
 _DB_PROVIDER_SET    = {"postgres", "mysql", "mssql", "mongodb", "oracle"}
 _GIT_PROVIDER_SET   = {"github", "gitlab", "bitbucket"}
-
-# account_type values — agent-based types use 'agent' as provider
-_ACCOUNT_TYPES      = {"cloud_csp", "vulnerability", "secops", "code_security",
-                       "database", "middleware"}
 
 # Agent bootstrap token TTL (15 minutes)
 _BOOTSTRAP_TOKEN_TTL_MINUTES = 15
@@ -204,15 +204,16 @@ async def create_account(
     if not tenant:
         raise HTTPException(status_code=404, detail=f"Tenant {lookup_tenant_id} not found")
 
-    # Resolve account_type — explicit > legacy category > inferred from provider
-    if body.account_type and body.account_type in _ACCOUNT_TYPES:
+    # Resolve account_type — explicit > legacy category > DB-driven default from provider
+    valid_types_set = get_valid_account_type_set()
+    if body.account_type and body.account_type in valid_types_set:
         account_type = body.account_type
     elif body.account_category == "database" or body.provider in _DB_PROVIDER_SET:
         account_type = "database"
     elif body.provider in _GIT_PROVIDER_SET:
         account_type = "code_security"
     else:
-        account_type = PROVIDER_TO_ACCOUNT_TYPE.get(body.provider, "cloud_csp")
+        account_type = get_default_account_type(body.provider)
 
     # AC3 + AC4: strict 1:1 compatibility check BEFORE the DB write.
     # validate_account_type_for_tenant() is in validators/account_type.py (AC7).
@@ -588,15 +589,8 @@ class AdHocScanRequest(BaseModel):
 
 
 def _get_default_engines(account_type: str) -> list:
-    """Return the default engine list for a given account_type."""
-    _MAP = {
-        "cloud_csp":    ["discovery", "check", "inventory", "threat", "compliance", "iam", "datasec", "network-security", "risk"],
-        "vulnerability": ["vulnerability"],
-        "secops":        ["secops"],
-        "database":      ["dbsec"],
-        "middleware":    ["check"],
-    }
-    return _MAP.get(account_type, ["discovery", "check", "inventory", "threat"])
+    """Return the default engine list for a given account_type (DB-driven)."""
+    return get_engines_for_account_type(account_type)
 
 
 @router.post("/{account_id}/scan", status_code=202)
