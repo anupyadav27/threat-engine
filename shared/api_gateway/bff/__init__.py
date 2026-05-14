@@ -96,6 +96,7 @@ from .views.risk_scenario_detail import router as risk_scenario_detail_router
 from .views.vulnerability_agent_detail import router as vulnerability_agent_detail_router
 from .threat_v1 import router as threat_v1_router
 from .users_groups import router as users_groups_router
+from .vulnerability_agents import router as vulnerability_agents_router
 
 # Combined router — include this in main.py
 router = APIRouter()
@@ -141,6 +142,7 @@ for _sub in (
     cnapp_router,
     cwpp_router,
     vulnerability_router,
+    vulnerability_agents_router,
     onboarding_cloud_accounts_router,
     onboarding_schedules_router,
     tenant_switcher_router,

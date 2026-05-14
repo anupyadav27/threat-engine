@@ -772,8 +772,6 @@ async def issue_agent_token(
     - Raw token stored in AWS Secrets Manager at ``threat-engine/account/{id}``.
     - SHA-256 hash stored in ``agent_registrations.agent_token_hash`` only.
     - Raw token NEVER written to PostgreSQL.
-
-    Applicable account_types: vulnerability | database | middleware
     """
     account = get_cloud_account(account_id)
     if not account:
@@ -790,14 +788,6 @@ async def issue_agent_token(
         raise HTTPException(status_code=403, detail="Forbidden")
 
     account_type = account.get("account_type", "")
-    if account_type not in ("vulnerability", "database", "middleware"):
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Agent tokens are only issued for agent-based account types "
-                f"(vulnerability, database, middleware). Got: {account_type}"
-            ),
-        )
 
     tenant_id: str = tenant_id_from_auth or account.get("tenant_id", "")
 
@@ -823,13 +813,13 @@ async def issue_agent_token(
     except psycopg2.errors.ForeignKeyViolation:
         raise HTTPException(status_code=404, detail=f"Account {account_id} not found in DB")
     except psycopg2.errors.UniqueViolation:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                "An active agent registration already exists for this account. "
-                "Revoke it first."
-            ),
-        )
+        # Re-provision: rotate token for existing agent — keep same agent_id
+        from engine_onboarding.database.cloud_accounts_operations import rotate_agent_token
+        try:
+            reg = rotate_agent_token(account_id, tenant_id, token_hash)
+        except Exception as exc:
+            logger.error("Token rotation failed for %s: %s", account_id, exc)
+            raise HTTPException(status_code=500, detail="Failed to rotate agent token")
     except Exception as exc:
         logger.error("Failed to create agent_registrations row for %s: %s", account_id, exc)
         raise HTTPException(status_code=500, detail="Failed to create agent registration")
@@ -874,6 +864,7 @@ async def issue_agent_token(
     return {
         "agent_id": agent_id,
         "registration_id": registration_id,
+        "registration_token": raw_token,
         "download_url": download_url,
         "platform": agent_platform,
         "install_command": install_cmd,

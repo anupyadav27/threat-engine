@@ -15,7 +15,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from engine_common.logger import setup_logger
 
 from engine_onboarding.database.tenant_operations import create_tenant, get_tenant
-from engine_onboarding.database.cloud_accounts_operations import get_agent_registration_by_token_hash
+from engine_onboarding.database.cloud_accounts_operations import (
+    get_agent_registration_by_token_hash,
+    consume_registration_token,
+)
 
 logger = setup_logger(__name__, engine_name="onboarding")
 
@@ -192,3 +195,76 @@ async def validate_agent(
         "status": reg.status,
         "agent_id": reg.agent_id,
     }
+
+
+class ConsumeTokenRequest(BaseModel):
+    """Payload for the registration token consumption endpoint."""
+
+    token_hash: str = Field(..., description="SHA-256 hex digest of the raw registration token")
+
+
+@router.post(
+    "/agents/validate-token",
+    status_code=200,
+    summary="Validate and consume a registration token (internal — called by vul engine at register time)",
+)
+async def validate_and_consume_token(
+    body: ConsumeTokenRequest,
+    x_internal_secret: str = Header(
+        default="",
+        alias="X-Internal-Secret",
+        description="Shared secret for service-to-service calls",
+    ),
+) -> dict:
+    """Validate a 30-min registration token and consume it (single-use).
+
+    Called by the vulnerability engine's POST /api/v1/agents/register endpoint
+    to exchange a registration token for agent identity (agent_id, account_id, tenant_id).
+
+    The token is marked consumed (status='connected') on first successful call.
+    A second call with the same token hash returns 409.
+    An expired token returns 404.
+
+    Args:
+        body: ConsumeTokenRequest with token_hash.
+        x_internal_secret: Shared secret header for service-to-service auth.
+
+    Returns:
+        dict with agent_id, account_id, tenant_id, expires_at.
+
+    Raises:
+        HTTPException 403: X-Internal-Secret mismatch.
+        HTTPException 404: Token not found or expired.
+        HTTPException 409: Token already consumed.
+        HTTPException 500: Unexpected DB error.
+    """
+    _verify_secret(x_internal_secret)
+
+    try:
+        result = consume_registration_token(body.token_hash)
+    except ValueError as exc:
+        logger.warning("internal.validate_token: already consumed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Token already consumed. Please re-provision from portal.",
+        )
+    except Exception as exc:
+        logger.error("internal.validate_token: DB error: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Token validation failed",
+        )
+
+    if result is None:
+        logger.warning("internal.validate_token: token not found or expired")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Token not found or expired. Please re-download from portal.",
+        )
+
+    logger.info(
+        "internal.validate_token: ok agent_id=%s account_id=%s",
+        result["agent_id"],
+        result["account_id"],
+    )
+    return result

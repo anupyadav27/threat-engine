@@ -291,7 +291,6 @@ export default function WorkspaceOnboardingPage() {
   const { customerId, activeTenant } = useTenant();
   const { role } = useAuth();
   const toast = useToast();
-  const router = useRouter();
 
   const [loading, setLoading]               = useState(true);
   const [accounts, setAccounts]             = useState([]);

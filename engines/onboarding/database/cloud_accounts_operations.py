@@ -365,6 +365,58 @@ def create_agent_registration(
         conn.close()
 
 
+def rotate_agent_token(
+    account_id: str,
+    tenant_id: str,
+    new_token_hash: str,
+) -> Dict[str, Any]:
+    """Rotate the agent token for an existing registration (re-provision path).
+
+    Updates token_hash and resets status to 'pending' so the agent must
+    re-connect. The agent_id is preserved so the binary config does not need
+    to change if the user only wants a new token.
+
+    Args:
+        account_id: UUID of the cloud account.
+        tenant_id: Tenant scoping — enforces multi-tenant isolation.
+        new_token_hash: SHA-256 hex digest of the newly generated raw token.
+
+    Returns:
+        Dict with 'registration_id' (UUID str) and 'agent_id' (readable str).
+
+    Raises:
+        ValueError: If no existing registration is found for the account.
+    """
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute(
+            """
+            UPDATE agent_registrations
+            SET token_hash  = %s,
+                status      = 'pending',
+                issued_at   = NOW(),
+                expires_at  = NOW() + INTERVAL '30 minutes',
+                updated_at  = NOW()
+            WHERE account_id = %s
+              AND tenant_id  = %s
+            RETURNING registration_id, agent_id
+            """,
+            (new_token_hash, account_id, tenant_id),
+        )
+        row = cur.fetchone()
+        if row is None:
+            raise ValueError(f"No agent registration found for account {account_id}")
+        conn.commit()
+        return {"registration_id": str(row["registration_id"]), "agent_id": row["agent_id"]}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cur.close()
+        conn.close()
+
+
 def get_agent_registration_by_token_hash(
     token_hash: str,
 ) -> Optional["AgentRegistration"]:
@@ -558,6 +610,92 @@ def set_agent_run_now(account_id: str) -> bool:
         # run_now_requested column not yet present — ignore gracefully.
         conn.rollback()
         return False
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cur.close()
+        conn.close()
+
+
+def consume_registration_token(token_hash: str) -> Optional[Dict[str, Any]]:
+    """Validate and atomically consume a registration token (single-use).
+
+    Validates: token_hash exists, status='pending', expires_at > NOW().
+    On success: sets status='connected', activated_at=NOW().
+    Returns the registration row on success, None if not found/expired.
+
+    Args:
+        token_hash: SHA-256 hex digest of the raw registration token.
+
+    Returns:
+        Dict with registration_id, agent_id, account_id, tenant_id, expires_at
+        if valid and pending. None if not found or expired.
+
+    Raises:
+        ValueError: If token exists but is not in 'pending' status (already consumed).
+    """
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # First check if token exists at all (regardless of status/expiry)
+        cur.execute(
+            """
+            SELECT registration_id, agent_id, account_id, tenant_id,
+                   status, expires_at, activated_at
+            FROM agent_registrations
+            WHERE token_hash = %s
+            """,
+            (token_hash,),
+        )
+        row = cur.fetchone()
+
+        if row is None:
+            return None
+
+        # Token exists but already consumed (not pending)
+        if row["status"] != "pending":
+            raise ValueError(f"Token already consumed: status={row['status']}")
+
+        # Token is pending — check expiry
+        now = datetime.now(timezone.utc)
+        expires_at = row["expires_at"]
+        if expires_at and expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at and expires_at < now:
+            return None  # Expired — treat as not found
+
+        # Atomically consume: set status='connected', activated_at=NOW()
+        cur.execute(
+            """
+            UPDATE agent_registrations
+            SET status       = 'connected',
+                activated_at = NOW(),
+                updated_at   = NOW()
+            WHERE token_hash = %s
+              AND status     = 'pending'
+              AND expires_at > NOW()
+            RETURNING registration_id, agent_id, account_id, tenant_id, expires_at
+            """,
+            (token_hash,),
+        )
+        updated = cur.fetchone()
+        conn.commit()
+
+        if updated is None:
+            # Race condition: another process consumed it between our check and update
+            raise ValueError("Token already consumed (concurrent request)")
+
+        return {
+            "registration_id": str(updated["registration_id"]),
+            "agent_id": updated["agent_id"],
+            "account_id": str(updated["account_id"]),
+            "tenant_id": updated["tenant_id"],
+            "expires_at": updated["expires_at"].isoformat() if updated["expires_at"] else None,
+        }
+    except ValueError:
+        conn.rollback()
+        raise
     except Exception:
         conn.rollback()
         raise
