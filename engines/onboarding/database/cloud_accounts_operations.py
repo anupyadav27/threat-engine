@@ -144,6 +144,7 @@ def list_cloud_accounts(
         query = """
             SELECT ca.*,
                    t.tenant_name,
+                   t.environment      AS tenant_environment,
                    s.schedule_id,
                    s.cron_expression  AS schedule_cron_expression,
                    s.enabled          AS schedule_enabled,

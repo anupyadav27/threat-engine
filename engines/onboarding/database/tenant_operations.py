@@ -10,25 +10,33 @@ from typing import Dict, List, Optional, Any
 from engine_onboarding.database.connection import get_db_connection
 
 
+_VALID_ENVIRONMENTS = {"production", "staging", "development", "test"}
+
+
 def create_tenant(data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Create a new tenant workspace.
 
     Args:
-        data: { tenant_id, customer_id, tenant_name, tenant_description? }
+        data: { tenant_id, customer_id, tenant_name, tenant_description?, environment? }
     Returns:
         Full tenant row as dict.
     Raises:
         ValueError: tenant_name already exists for this customer.
     """
+    environment = data.get("environment", "production")
+    if environment not in _VALID_ENVIRONMENTS:
+        environment = "production"
+
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         now = datetime.now(timezone.utc)
         cur.execute(
             """
-            INSERT INTO tenants (tenant_id, customer_id, tenant_name, tenant_description, status, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, 'active', %s, %s)
+            INSERT INTO tenants (tenant_id, customer_id, tenant_name, tenant_description,
+                                 environment, status, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, 'active', %s, %s)
             RETURNING *
             """,
             (
@@ -36,6 +44,7 @@ def create_tenant(data: Dict[str, Any]) -> Dict[str, Any]:
                 data["customer_id"],
                 data["tenant_name"],
                 data.get("tenant_description"),
+                environment,
                 now,
                 now,
             ),
@@ -124,7 +133,7 @@ def update_tenant(tenant_id: str, updates: Dict[str, Any]) -> Optional[Dict[str,
     Update mutable tenant fields.
     Allowed fields: tenant_name, tenant_description, status.
     """
-    allowed = {"tenant_name", "tenant_description", "status"}
+    allowed = {"tenant_name", "tenant_description", "status", "environment"}
     fields = {k: v for k, v in updates.items() if k in allowed}
     if not fields:
         return get_tenant(tenant_id)

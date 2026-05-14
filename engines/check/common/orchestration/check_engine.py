@@ -216,7 +216,7 @@ class CheckEngine:
         for svc_idx, service in enumerate(services, 1):
             self.phase_logger.info("[%d/%d] %s", svc_idx, len(services), service)
             try:
-                checks = self._load_rules(service, provider, check_source)
+                checks = self._load_rules(service, provider, check_source, tenant_id, account_id)
                 if not checks:
                     self.phase_logger.warning("  No checks found for %s", service)
                     continue
@@ -401,13 +401,24 @@ class CheckEngine:
     # ── Helpers ───────────────────────────────────────────────────────────────
 
     def _load_rules(
-        self, service: str, provider: str, check_source: str
+        self,
+        service: str,
+        provider: str,
+        check_source: str,
+        tenant_id: Optional[str] = None,
+        account_id: Optional[str] = None,
     ) -> List[Dict]:
-        """Load rules from rule_checks DB table (single source at runtime)."""
+        """Load rules from rule_checks DB table, filtered by tenant suppressions when available."""
         checks_by_id: Dict[str, Dict] = {}
         if self.rule_reader:
             try:
-                for c in self.rule_reader.read_checks_for_service(service, provider):
+                if tenant_id:
+                    checks = self.rule_reader.read_checks_for_service_tenant(
+                        service, provider, tenant_id, account_id
+                    )
+                else:
+                    checks = self.rule_reader.read_checks_for_service(service, provider)
+                for c in checks:
                     if c.get("rule_id"):
                         checks_by_id[c["rule_id"]] = c
             except Exception as exc:

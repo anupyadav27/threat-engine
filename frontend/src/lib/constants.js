@@ -168,20 +168,15 @@ export const NAV_ITEMS = [
     href: '/onboarding',
     icon: 'UserPlus',
     children: [
-      { label: 'Cloud Accounts', href: '/onboarding' },
-      { label: 'Users',          href: '/onboarding/users' },
-      { label: 'Tenants',        href: '/onboarding/tenants' },
-      { label: 'Scans',          href: '/scans' },
+      { label: 'Workspace Onboarding', href: '/onboarding' },
+      { label: 'User Onboarding',    href: '/onboarding/users' },
+      { label: 'Scans',              href: '/scans' },
     ],
   },
   {
     label: 'Rules & Policy',
     href: '/rules',
     icon: 'BookOpen',
-    children: [
-      { label: 'Rule Library',  href: '/rules' },
-      { label: 'Suppressions',  href: '/suppressions' },
-    ],
   },
   {
     label: 'Settings',

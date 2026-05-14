@@ -2,6 +2,18 @@
 
 import { API_BASE, ENGINE_ENDPOINTS, CSP_DEFAULT, SCAN_ID_DEFAULT } from './constants';
 
+// When any API call returns 401, clear the stale session and redirect to login.
+// This handles expired access_token cookies without requiring a manual refresh.
+function handleUnauthorized() {
+  if (typeof window === 'undefined') return;
+  const base = process.env.NEXT_PUBLIC_BASE_PATH || '';
+  // Don't redirect if already on the login page — prevents a redirect loop
+  // when a stale request fires while the browser is already showing login.
+  if (window.location.pathname === `${base}/auth/login`) return;
+  try { sessionStorage.removeItem('auth_session'); } catch {}
+  window.location.href = `${base}/auth/login`;
+}
+
 /**
  * Build a URL from a path string. Handles both absolute (production) and
  * relative (local dev with Next.js rewrites) API_BASE values.
@@ -54,6 +66,7 @@ export async function fetchApi(enginePath, options = {}) {
     });
 
     if (!response.ok) {
+      if (response.status === 401) { handleUnauthorized(); return { error: 'Session expired' }; }
       return {
         error: `API error: ${response.status} ${response.statusText}`,
       };
@@ -100,6 +113,7 @@ export async function getFromEngine(engine, path, params = {}) {
     });
 
     if (!response.ok) {
+      if (response.status === 401) { handleUnauthorized(); return { error: 'Session expired' }; }
       return {
         error: `API error: ${response.status} ${response.statusText}`,
       };
@@ -148,6 +162,7 @@ export async function fetchFromCspm(path, options = {}) {
       },
     });
     if (!response.ok) {
+      if (response.status === 401) { handleUnauthorized(); return { error: 'Session expired' }; }
       return { error: `CSPM API error: ${response.status} ${response.statusText}` };
     }
     return await response.json();
@@ -195,6 +210,7 @@ export async function postToEngine(engine, path, body = {}) {
     });
 
     if (!response.ok) {
+      if (response.status === 401) { handleUnauthorized(); return { error: 'Session expired' }; }
       return {
         error: `API error: ${response.status} ${response.statusText}`,
       };
@@ -205,6 +221,43 @@ export async function postToEngine(engine, path, body = {}) {
     return {
       error: err instanceof Error ? err.message : 'Unknown error occurred',
     };
+  }
+}
+
+/**
+ * PATCH request to a specific engine endpoint
+ * @param {string} engine - Engine key from ENGINE_ENDPOINTS
+ * @param {string} path - Path relative to engine
+ * @param {object} body - Partial update payload
+ * @returns {Promise<object>} API response or { error: message }
+ */
+export async function patchToEngine(engine, path, body = {}) {
+  const enginePrefix = ENGINE_ENDPOINTS[engine];
+  if (!enginePrefix) {
+    return { error: `Unknown engine: ${engine}` };
+  }
+
+  const url = makeUrl(`${API_BASE}${enginePrefix}${path}`);
+
+  try {
+    const response = await fetch(url.toString(), {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...activeTenantHeader(),
+      },
+      credentials: 'include',
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) { handleUnauthorized(); return { error: 'Session expired' }; }
+      return { error: `API error: ${response.status} ${response.statusText}` };
+    }
+
+    return await response.json();
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Unknown error occurred' };
   }
 }
 
@@ -233,6 +286,7 @@ export async function deleteFromEngine(engine, path) {
     });
 
     if (!response.ok) {
+      if (response.status === 401) { handleUnauthorized(); return { error: 'Session expired' }; }
       return {
         error: `API error: ${response.status} ${response.statusText}`,
       };

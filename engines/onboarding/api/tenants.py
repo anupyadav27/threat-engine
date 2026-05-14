@@ -34,12 +34,14 @@ class TenantCreate(BaseModel):
     tenant_name: str = Field(..., min_length=1, max_length=255)
     tenant_description: Optional[str] = None
     tenant_id: Optional[str] = Field(None, description="Explicit UUID from platform (sync use)")
+    environment: Optional[str] = Field("production", pattern="^(production|staging|development|test)$")
 
 
 class TenantUpdate(BaseModel):
     tenant_name: Optional[str] = Field(None, min_length=1, max_length=255)
     tenant_description: Optional[str] = None
     status: Optional[str] = Field(None, pattern="^(active|inactive)$")
+    environment: Optional[str] = Field(None, pattern="^(production|staging|development|test)$")
 
 
 # ---------------------------------------------------------------------------
@@ -58,6 +60,7 @@ async def create_tenant_endpoint(body: TenantCreate):
             "customer_id": body.customer_id,
             "tenant_name": body.tenant_name.strip(),
             "tenant_description": body.tenant_description,
+            "environment": body.environment or "production",
         }
         tenant = create_tenant(data)
         logger.info(f"Tenant created: {tenant['tenant_id']} for customer {body.customer_id}")
