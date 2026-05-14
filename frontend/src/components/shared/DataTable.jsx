@@ -152,8 +152,8 @@ export default function DataTable({
     return () => document.removeEventListener('mousedown', handler);
   }, [showGroupPicker]);
 
-  const densityPadding = { compact: 'px-4 py-1.5 text-xs', comfortable: 'px-6 py-4 text-sm', spacious: 'px-6 py-6 text-sm' };
-  const densityHeaderPadding = { compact: 'px-4 py-2.5', comfortable: 'px-6 py-4', spacious: 'px-6 py-5' };
+  const densityPadding = { compact: 'px-3 py-2 text-xs', comfortable: 'px-6 py-4 text-sm', spacious: 'px-6 py-6 text-sm' };
+  const densityHeaderPadding = { compact: 'px-3 py-2 text-xs', comfortable: 'px-6 py-4 text-sm', spacious: 'px-6 py-5 text-sm' };
 
   // Debounce timer for column search
   const debounceTimers = useMemo(() => ({}), []);
@@ -657,7 +657,7 @@ export default function DataTable({
                             boxShadow: '4px 0 8px rgba(0, 0, 0, 0.1)',
                           }),
                         }}
-                        className={`${densityHeaderPadding[density]} text-left font-semibold border-r last:border-r-0 transition-colors duration-200`}
+                        className={`${densityHeaderPadding[density]} text-left font-semibold uppercase tracking-wide border-r last:border-r-0 transition-colors duration-200 align-middle`}
                       >
                         <div className="flex items-center gap-1">
                           {/* Sort button */}
@@ -759,7 +759,7 @@ export default function DataTable({
                                   boxShadow: '4px 0 8px rgba(0, 0, 0, 0.05)',
                                 }),
                               }}
-                              className={`${densityPadding[density]} border-r last:border-r-0 transition-colors duration-200`}
+                              className={`${densityPadding[density]} border-r last:border-r-0 transition-colors duration-200 align-middle`}
                             >
                               <div className="min-w-0">
                                 {col.cell ? col.cell({ getValue: () => cellValue, row: { original: row } }) : cellValue}
@@ -878,7 +878,7 @@ export default function DataTable({
                                       ...(colSize && colSize !== 150 && { width: colSize, minWidth: colSize }),
                                       ...(isSticky && { position: 'sticky', left: 0, zIndex: 9, boxShadow: '4px 0 8px rgba(0,0,0,0.05)' }),
                                     }}
-                                    className={`${densityPadding[density]} border-r last:border-r-0 transition-colors duration-200`}
+                                    className={`${densityPadding[density]} border-r last:border-r-0 transition-colors duration-200 align-middle`}
                                   >
                                     <div className="break-words">
                                       {colDef.cell
@@ -960,7 +960,7 @@ export default function DataTable({
                                   boxShadow: '4px 0 8px rgba(0, 0, 0, 0.05)',
                                 }),
                               }}
-                              className={`${densityPadding[density]} border-r last:border-r-0 transition-colors duration-200`}
+                              className={`${densityPadding[density]} border-r last:border-r-0 transition-colors duration-200 align-middle`}
                             >
                               <div className="min-w-0">
                                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
