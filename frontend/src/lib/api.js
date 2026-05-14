@@ -114,9 +114,12 @@ export async function getFromEngine(engine, path, params = {}) {
 
     if (!response.ok) {
       if (response.status === 401) { handleUnauthorized(); return { error: 'Session expired' }; }
-      return {
-        error: `API error: ${response.status} ${response.statusText}`,
-      };
+      try {
+        const errBody = await response.json();
+        const detail = errBody?.detail || errBody?.message || errBody?.error;
+        if (detail) return { error: typeof detail === 'string' ? detail : JSON.stringify(detail) };
+      } catch {}
+      return { error: `API error: ${response.status} ${response.statusText}` };
     }
 
     return await response.json();
@@ -211,9 +214,12 @@ export async function postToEngine(engine, path, body = {}) {
 
     if (!response.ok) {
       if (response.status === 401) { handleUnauthorized(); return { error: 'Session expired' }; }
-      return {
-        error: `API error: ${response.status} ${response.statusText}`,
-      };
+      try {
+        const errBody = await response.json();
+        const detail = errBody?.detail || errBody?.message || errBody?.error;
+        if (detail) return { error: typeof detail === 'string' ? detail : JSON.stringify(detail) };
+      } catch {}
+      return { error: `API error: ${response.status} ${response.statusText}` };
     }
 
     return await response.json();
