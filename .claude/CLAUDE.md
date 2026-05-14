@@ -346,7 +346,7 @@ kubectl logs -f -l app=engine-threat -n threat-engine-engines --tail=100
 - **EKS**: `vulnerability-eks-cluster` in `ap-south-1`
 - **Namespace**: `threat-engine-engines`
 - **Argo**: installed in `argo` namespace
-- **ELB**: `a6fff2656f8c845e5a2d8effc1b3e56f-1461670384.ap-south-1.elb.amazonaws.com`
+- **ELB**: `a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com`
 - **CSPM Portal**: admin@cspm.local / Admin@12345
 
 ## External Documentation (`.claude/documentation/`)

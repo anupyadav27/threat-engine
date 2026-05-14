@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { ChevronDown, Building2, Globe } from 'lucide-react';
 import { useTenant } from '@/lib/tenant-context';
 
@@ -24,6 +25,7 @@ function TypeBadge({ type }) {
 }
 
 export default function OrgTenantSwitcher() {
+  const router = useRouter();
   const { tenants, activeTenant, setActiveTenant } = useTenant();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -59,7 +61,7 @@ export default function OrgTenantSwitcher() {
         >
           {/* All Tenants option */}
           <button
-            onClick={() => { setActiveTenant(null); setOpen(false); }}
+            onClick={() => { setActiveTenant(null); setOpen(false); router.refresh(); }}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-white/5"
             style={{ color: !activeTenant ? 'var(--accent-primary)' : 'var(--text-secondary)' }}
           >
@@ -76,7 +78,7 @@ export default function OrgTenantSwitcher() {
             return (
               <button
                 key={t.tenant_id}
-                onClick={() => { setActiveTenant(t); setOpen(false); }}
+                onClick={() => { setActiveTenant(t); setOpen(false); router.refresh(); }}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-white/5"
                 style={{ color: isActive ? 'var(--accent-primary)' : 'var(--text-primary)' }}
               >
