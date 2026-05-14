@@ -54,7 +54,7 @@ export default function DataTable({
   showExport = false,
   renderExpandedRow,
   hideToolbar = false,
-  defaultDensity = 'comfortable',
+  defaultDensity = 'compact',
 }) {
   const [searchText, setSearchText] = useState('');
   const [columnSearches, setColumnSearches] = useState({});
