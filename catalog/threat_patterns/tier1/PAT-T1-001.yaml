@@ -1,0 +1,51 @@
+id: PAT-T1-001
+version: 2
+deprecated_at: null
+description: >
+  Public S3 bucket with no encryption and no access logging — direct data
+  exfiltration by unauthenticated actor. Single-hop toxic combo: internet
+  exposure + unencrypted storage + no audit trail.
+
+tier: 1
+severity_base: critical
+confidence: confirmed
+
+mitre_tactics:      [TA0001, TA0009]
+mitre_techniques:   [T1190, T1530]
+tactic_chain_order: [initial_access, collection]
+
+csps: [aws, azure, gcp, alicloud, oci]
+breach_reference: "Capital One 2019 — public bucket component"
+
+entry:
+  node_type: Resource
+  resource_types: []
+  conditions:
+    internet_exposed: true
+
+target:
+  node_type: Resource
+  resource_types: []
+  conditions: {}
+
+min_hops_for_tier2: null
+
+cdr_watch:
+  techniques:     [T1530, T1619]
+  window_minutes: 60
+  min_coverage:   0.5
+  tactic_order_required: false
+
+scoring:
+  posture_severity:  critical
+  active_severity:   critical
+  path_length_bonus: false
+
+tests:
+  positive:
+    description: "Public object storage bucket with public-access-block disabled"
+    expected_tier: 1
+    expected_severity: critical
+  negative:
+    description: "Object storage bucket with public access block enabled and no public ACL"
+    expected_tier: null

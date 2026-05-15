@@ -41,10 +41,16 @@ const ENGINE_PREFIXES = [
   'sbom',          // SBOM engine (port 8002, /sbom ingress)
 ];
 
+const BASE_PATH = process.env.NODE_ENV === 'production' ? '/ui' : '';
+
 const nextConfig = {
   reactStrictMode: true,
-  basePath: process.env.NODE_ENV === 'production' ? '/ui' : '',
+  basePath: BASE_PATH,
   output: 'standalone',
+  // Expose basePath to client components so they can prefix internal fetch calls.
+  env: {
+    NEXT_PUBLIC_BASE_PATH: BASE_PATH,
+  },
   // Prevent Next.js from stripping trailing slashes before rewrites run.
   // Without this, /secops/.../sbom/ gets 308-redirected to /sbom (no slash),
   // which then causes the FastAPI backend to 307-redirect back with a broken
@@ -58,14 +64,29 @@ const nextConfig = {
   async rewrites() {
     // Only rewrite API calls (paths containing /api/), not page routes.
     // This prevents collisions with Next.js page routes like /compliance, /risk, /inventory.
-    const engineRewrites = ENGINE_PREFIXES.map((prefix) => ({
-      source: `/${prefix}/api/:path*`,
-      destination:
-        prefix === 'gateway'
-          ? `${GATEWAY_URL}/${prefix}/api/:path*`
-          : `${NLB_URL}/${prefix}/api/:path*`,
-      basePath: false,
-    }));
+    // Local-dev bypass: route /gateway/api/* through an internal Next.js API
+    // proxy that injects a synthetic X-Auth-Context header so the production
+    // NLB gateway accepts requests without a real session cookie.
+    const localDevBypass = process.env.LOCAL_DEV_BYPASS_AUTH === '1';
+
+    const engineRewrites = ENGINE_PREFIXES.map((prefix) => {
+      if (prefix === 'gateway' && localDevBypass) {
+        // Internal Next.js API proxy — no basePath:false since destination is same-server.
+        // The proxy adds synthetic X-Auth-Context so the NLB gateway accepts requests.
+        return {
+          source: '/gateway/api/:path*',
+          destination: `http://localhost:${process.env.PORT || 3000}/api/local-gw/:path*`,
+        };
+      }
+      return {
+        source: `/${prefix}/api/:path*`,
+        destination:
+          prefix === 'gateway'
+            ? `${GATEWAY_URL}/${prefix}/api/:path*`
+            : `${NLB_URL}/${prefix}/api/:path*`,
+        basePath: false,
+      };
+    });
 
     // The Django CSPM backend sits behind an nginx ingress that strips the /cspm
     // prefix (rewrite-target: /$2). When Django issues redirects, the Location

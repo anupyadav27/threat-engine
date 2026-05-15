@@ -2,7 +2,12 @@ import hashlib
 import json
 import logging
 import os
+import secrets
+import uuid
+from datetime import timedelta
 from typing import Optional
+
+from django.db import transaction
 
 import requests as http_requests
 from django.http import HttpResponse, HttpResponseNotModified, JsonResponse
@@ -1139,3 +1144,92 @@ class GroupAccountDeleteView(APIView):
         )
         access.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ProvisionOrgView(APIView):
+    """POST /api/admin/provision-org — platform admin provisions a new customer org.
+
+    Creates a new user (status=pending), provisions a tenant and billing trial
+    via provision_tenant_for_new_user(), renames the tenant to org_name, and
+    generates a 72-hour invite token the platform admin can share with the org admin.
+
+    Requires platform_admin role. Returns 409 if the email is already in an org.
+    """
+
+    authentication_classes = [CookieTokenAuthentication]
+    permission_classes = []
+
+    def post(self, request):
+        from user_auth.models import Users, InviteTokens, Roles
+        from services.provisioning import provision_tenant_for_new_user
+
+        if not is_platform_admin(request.user):
+            return Response({"detail": "Platform admin required"}, status=status.HTTP_403_FORBIDDEN)
+
+        org_name = (request.data.get("org_name") or "").strip()
+        contact_email = (request.data.get("contact_email") or "").strip().lower()
+
+        if not org_name or not contact_email:
+            return Response(
+                {"detail": "org_name and contact_email are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        existing = Users.objects.filter(email=contact_email).first()
+        if existing and existing.customer_id:
+            return Response(
+                {"detail": f"{contact_email} is already assigned to an org ({existing.customer_id})"},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        try:
+            org_admin_role = Roles.objects.get(name="org_admin")
+        except Roles.DoesNotExist:
+            return Response(
+                {"detail": "org_admin role not seeded — run migration user_auth.0009"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        with transaction.atomic():
+            if existing:
+                user = existing
+            else:
+                user = Users.objects.create_user(email=contact_email, password=None, status="pending")
+                user.set_unusable_password()
+                user.save(update_fields=["password"])
+
+            result = provision_tenant_for_new_user(user)
+
+            # Override the auto-generated "Domain (auto)" tenant name with the given org_name.
+            Tenants.objects.filter(id=result["tenant_id"]).update(name=org_name)
+
+            raw_token = secrets.token_urlsafe(32)
+            token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+            InviteTokens.objects.create(
+                id=str(uuid.uuid4()),
+                token=token_hash,
+                email=contact_email,
+                tenant=None,
+                role=org_admin_role,
+                invited_by=request.user,
+                expires_at=timezone.now() + timedelta(hours=72),
+                used=False,
+                group=None,
+            )
+
+        logger.info(
+            "ProvisionOrgView: org '%s' provisioned by %s (customer_id=%s, tenant_id=%s)",
+            org_name, request.user.email, result["customer_id"], result["tenant_id"],
+        )
+
+        return Response(
+            {
+                "customer_id": result["customer_id"],
+                "tenant_id": result["tenant_id"],
+                "org_name": org_name,
+                "contact_email": contact_email,
+                "invite_token": raw_token,
+            },
+            status=status.HTTP_201_CREATED,
+        )

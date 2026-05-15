@@ -61,14 +61,18 @@ def resolve_tenant_id(request: Request) -> Optional[str]:
     if active:
         return active
 
+    # Platform-level users default to "All Tenants" unless they explicitly
+    # select one via the header above. The cached engine_tenant_id in the
+    # session scope reflects the login-time default, not a conscious selection
+    # — ignore it for platform_admin so they see cross-tenant data by default.
+    if ctx.is_platform_level():
+        return None
+
     if ctx.engine_tenant_id:
         return ctx.engine_tenant_id
 
     if ctx.tenant_ids and len(ctx.tenant_ids) > 0:
         return ctx.tenant_ids[0]
-
-    if ctx.is_platform_level():
-        return None
 
     raise HTTPException(
         status_code=400,

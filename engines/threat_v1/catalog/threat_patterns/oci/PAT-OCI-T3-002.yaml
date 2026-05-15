@@ -1,0 +1,49 @@
+id: PAT-OCI-T3-002
+version: 1
+description: "Vulnerability scanning agent tamper CDR event on OCI compute → instance principal abuse → Autonomous DB crown jewel with public snapshot access."
+tier: 3
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Defense Evasion, Lateral Movement, Exfiltration]
+mitre_techniques: [T1562.001, T1021.007, T1530]
+tactic_chain_order: [Defense Evasion, Lateral Movement, Exfiltration]
+csps: [oci]
+entry:
+  node_type: Resource
+  resource_types: [oci_compute_instance, oci_vulnerability_scanning_target]
+  conditions:
+    cdr_actor_seen: true
+    check_rules_failing:
+      - oci.vulnerabilityscanning.host_scan_target.enabled
+hops:
+  - edge_type: CAN_ESCALATE_TO
+    target:
+      node_type: Resource
+      resource_types: [oci_iam_policy]
+      conditions:
+        is_admin_role: true
+target:
+  node_type: Resource
+  resource_types: [oci_autonomous_database, oci_db_system]
+  conditions:
+    is_crown_jewel: true
+    check_rules_failing:
+      - oci.database.autonomous_database.snapshots_public_access
+cdr_watch:
+  techniques: [T1562.001, T1021.007]
+  window_minutes: 120
+  min_coverage: 0.5
+  tactic_order_required: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "Vuln scan agent tamper CDR → admin IAM → Autonomous DB crown jewel"
+    expected_tier: 3
+    expected_severity: critical
+  negative:
+    description: "No CDR events, scanning enabled, DB not crown jewel"
+    expected_tier: 3
+    expected_severity: low

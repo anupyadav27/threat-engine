@@ -1,0 +1,49 @@
+id: PAT-GCP-T3-001
+version: 1
+description: "Public GCE instance with admin SA steals metadata service token; full path to GCS crown jewel data exfiltration."
+tier: 3
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Initial Access, Credential Access, Exfiltration]
+mitre_techniques: [T1190, T1552.005, T1530]
+tactic_chain_order: [Initial Access, Credential Access, Exfiltration]
+csps: [gcp]
+entry:
+  node_type: Resource
+  resource_types: [gcp_compute_instance, gcp_gce_instance]
+  conditions:
+    check_rules_failing:
+      - gcp.iam.service_account.instance_profile_no_instance_profile_with_admin_star
+    internet_exposed: true
+hops:
+  - edge_type: CAN_ESCALATE_TO
+    target:
+      node_type: Resource
+      resource_types: [gcp_service_account]
+      conditions:
+        is_admin_role: true
+target:
+  node_type: Resource
+  resource_types: [gcp_storage_bucket, gcp_gcs_bucket]
+  conditions:
+    is_crown_jewel: true
+    check_rules_failing:
+      - gcp.storage.policy.bucket_policy_deny_unencrypted_puts
+cdr_watch:
+  techniques: [T1552.005, T1530]
+  window_minutes: 120
+  min_coverage: 0.5
+  tactic_order_required: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "Public GCE admin SA → GCS crown jewel"
+    expected_tier: 3
+    expected_severity: critical
+  negative:
+    description: "Private GCE scoped SA, GCS not crown jewel"
+    expected_tier: 3
+    expected_severity: low

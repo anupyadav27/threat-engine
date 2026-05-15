@@ -1,0 +1,30 @@
+id: PAT-GCP-T1-005
+version: 1
+description: "GCE instance with public IP and unrestricted inbound security group — directly reachable from internet on sensitive ports."
+tier: 1
+severity_base: high
+confidence: confirmed
+mitre_tactics: [Initial Access]
+mitre_techniques: [T1190]
+tactic_chain_order: [Initial Access]
+csps: [gcp]
+entry:
+  node_type: Resource
+  resource_types: [gcp_compute_instance, gcp_gce_instance]
+  conditions:
+    check_rules_failing:
+      - gcp.compute.instance_template.launch_template_no_public_ip_default
+      - gcp.compute.instance.vm_security_group_inbound_restricted
+    internet_exposed: true
+scoring:
+  posture_severity: high
+  active_severity: critical
+tests:
+  positive:
+    description: "GCE with external IP and 0.0.0.0/0 firewall rule on SSH"
+    expected_tier: 1
+    expected_severity: high
+  negative:
+    description: "GCE with no external IP and restricted ingress rules"
+    expected_tier: 1
+    expected_severity: low

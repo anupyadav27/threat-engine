@@ -1,0 +1,44 @@
+id: PAT-K8S-T2-003
+version: 1
+description: "Auto-mounted SA token exec command CDR event — attacker using kubectl exec to run commands in pods with cluster-level permissions."
+tier: 2
+severity_base: high
+confidence: confirmed
+mitre_tactics: [Execution, Lateral Movement]
+mitre_techniques: [T1609, T1021]
+tactic_chain_order: [Execution, Lateral Movement]
+csps: [k8s]
+min_hops_for_tier2: 1
+entry:
+  node_type: Resource
+  resource_types: [k8s_pod]
+  conditions:
+    check_rules_failing:
+      - k8s.pod.serviceaccount.automount_check
+    cdr_actor_seen: true
+hops:
+  - edge_type: CAN_ACCESS
+    target:
+      node_type: Resource
+      resource_types: [k8s_namespace, k8s_cluster]
+      conditions:
+        check_rules_failing:
+          - k8s.rbac.least.privilege_enforcement
+scoring:
+  posture_severity: high
+  active_severity: critical
+  path_length_bonus: true
+cdr_watch:
+  techniques: [T1609]
+  window_minutes: 60
+  min_coverage: 0.5
+  tactic_order_required: false
+tests:
+  positive:
+    description: "Pod exec CDR event + automounted SA + RBAC over-privileged"
+    expected_tier: 2
+    expected_severity: high
+  negative:
+    description: "No CDR events, SA token not auto-mounted, RBAC least privilege"
+    expected_tier: 2
+    expected_severity: low

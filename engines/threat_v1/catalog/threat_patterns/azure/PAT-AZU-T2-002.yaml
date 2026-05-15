@@ -1,0 +1,43 @@
+id: PAT-AZU-T2-002
+version: 1
+description: "Azure AD MFA bypass CDR event followed by PIM role disable — attacker achieves persistent admin without detection."
+tier: 2
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Credential Access, Privilege Escalation, Defense Evasion]
+mitre_techniques: [T1556, T1078.004, T1548]
+tactic_chain_order: [Credential Access, Privilege Escalation, Defense Evasion]
+csps: [azure]
+min_hops_for_tier2: 1
+entry:
+  node_type: Resource
+  resource_types: [azure_ad_user, azure_aad_user]
+  conditions:
+    cdr_actor_seen: true
+    check_rules_failing:
+      - azure.aad.user.access_user_mfa_required
+hops:
+  - edge_type: CAN_ESCALATE_TO
+    target:
+      node_type: Resource
+      resource_types: [azure_rbac_role, azure_role_assignment]
+      conditions:
+        is_admin_role: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+cdr_watch:
+  techniques: [T1556, T1548]
+  window_minutes: 120
+  min_coverage: 0.5
+  tactic_order_required: true
+tests:
+  positive:
+    description: "MFA bypass CDR event + PIM disable → admin role assignment"
+    expected_tier: 2
+    expected_severity: critical
+  negative:
+    description: "No CDR events, MFA enforced, PIM active"
+    expected_tier: 2
+    expected_severity: low

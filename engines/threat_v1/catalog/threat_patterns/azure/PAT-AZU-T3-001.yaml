@@ -1,0 +1,50 @@
+id: PAT-AZU-T3-001
+version: 1
+description: "Internet-facing Azure VM exploited for managed identity token; pivots through RBAC to Key Vault crown jewel secrets."
+tier: 3
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Initial Access, Credential Access, Collection]
+mitre_techniques: [T1190, T1555, T1552]
+tactic_chain_order: [Initial Access, Credential Access, Collection]
+csps: [azure]
+entry:
+  node_type: Resource
+  resource_types: [azure_virtual_machine, azure_vm]
+  conditions:
+    internet_exposed: true
+    check_rules_failing:
+      - azure.vm.encryption.at.host.enabled
+hops:
+  - edge_type: CAN_ACCESS
+    target:
+      node_type: Resource
+      resource_types: [azure_managed_identity]
+      conditions:
+        check_rules_failing:
+          - azure.rbac.role_definition.identity_access_role_attached_policies_not_admin_star
+target:
+  node_type: Resource
+  resource_types: [azure_key_vault, azure_keyvault]
+  conditions:
+    is_crown_jewel: true
+    check_rules_failing:
+      - azure.keyvault.private.endpoint.association.check
+cdr_watch:
+  techniques: [T1190, T1555]
+  window_minutes: 120
+  min_coverage: 0.5
+  tactic_order_required: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "Public VM → managed identity → Key Vault crown jewel"
+    expected_tier: 3
+    expected_severity: critical
+  negative:
+    description: "Private VM, scoped identity, Key Vault private and not crown jewel"
+    expected_tier: 3
+    expected_severity: low

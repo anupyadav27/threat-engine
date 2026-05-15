@@ -1,0 +1,54 @@
+id: PAT-T1-002
+version: 2
+deprecated_at: null
+description: >
+  EC2 instance with IMDSv1 enabled is reachable from the internet via SSH
+  or HTTP. IMDSv1 allows unauthenticated credential theft via SSRF — a
+  single exposed instance is sufficient for credential access.
+
+tier: 1
+severity_base: critical
+confidence: confirmed
+
+mitre_tactics:      [TA0001, TA0006]
+mitre_techniques:   [T1190, T1552.005]
+tactic_chain_order: [initial_access, credential_access]
+
+csps: [aws]
+breach_reference: "Capital One 2019 — IMDSv1 SSRF credential theft"
+stratus_technique: "aws.credential-access.ec2-get-user-data"
+
+entry:
+  node_type: Resource
+  resource_types: []
+  conditions:
+    internet_exposed: true
+    has_imdsv1: true
+
+target:
+  node_type: Resource
+  resource_types: []
+  conditions:
+    internet_exposed: true
+
+min_hops_for_tier2: null
+
+cdr_watch:
+  techniques:     [T1552.005, T1580]
+  window_minutes: 30
+  min_coverage:   0.5
+  tactic_order_required: false
+
+scoring:
+  posture_severity:  critical
+  active_severity:   critical
+  path_length_bonus: false
+
+tests:
+  positive:
+    description: "EC2 with IMDSv1 + public SG ingress 0.0.0.0/0 on port 80/443"
+    expected_tier: 1
+    expected_severity: critical
+  negative:
+    description: "EC2 with IMDSv2 enforced and SG restricted to known CIDR"
+    expected_tier: null

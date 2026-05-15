@@ -1,0 +1,30 @@
+id: PAT-AWS-T1-003
+version: 1
+description: "IAM full-admin policy attached directly to a user or role without MFA — one compromised credential gives org-wide access."
+tier: 1
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Privilege Escalation, Persistence]
+mitre_techniques: [T1078.004, T1098.001]
+tactic_chain_order: [Privilege Escalation, Persistence]
+csps: [aws]
+entry:
+  node_type: Resource
+  resource_types: [aws_iam_user, aws_iam_role]
+  conditions:
+    check_rules_failing:
+      - aws.iam.policy.security_check_full_admin_privileges_configured
+      - aws.iam.policy.no_wildcard_admin_actions_configured
+    is_admin_role: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+tests:
+  positive:
+    description: "IAM user with AdministratorAccess policy attached, no MFA"
+    expected_tier: 1
+    expected_severity: critical
+  negative:
+    description: "IAM role with scoped permissions and MFA enforced"
+    expected_tier: 1
+    expected_severity: low

@@ -1,0 +1,47 @@
+id: PAT-AWS-T3-007
+version: 1
+description: "Overprivileged ECS task accesses S3 crown jewel via instance role — no MFA, no encryption, direct data exfiltration path."
+tier: 3
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Execution, Collection, Exfiltration]
+mitre_techniques: [T1610, T1530, T1537]
+tactic_chain_order: [Execution, Collection, Exfiltration]
+csps: [aws]
+entry:
+  node_type: Resource
+  resource_types: [aws_ecs_task_definition]
+  conditions:
+    check_rules_failing:
+      - aws.iam.instanceprofile.role_policies_least_privilege
+hops:
+  - edge_type: CAN_ACCESS
+    target:
+      node_type: Resource
+      resource_types: [aws_s3_bucket]
+      conditions:
+        check_rules_failing:
+          - aws.s3.bucket.encryption_enabled
+target:
+  node_type: Resource
+  resource_types: [aws_s3_bucket]
+  conditions:
+    is_crown_jewel: true
+cdr_watch:
+  techniques: [T1610, T1530]
+  window_minutes: 120
+  min_coverage: 0.5
+  tactic_order_required: false
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "Overprivileged ECS → unencrypted S3 crown jewel"
+    expected_tier: 3
+    expected_severity: critical
+  negative:
+    description: "Scoped ECS task role, S3 encrypted and not crown jewel"
+    expected_tier: 3
+    expected_severity: low

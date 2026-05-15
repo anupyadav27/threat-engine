@@ -1,0 +1,29 @@
+id: PAT-K8S-T1-001
+version: 1
+description: "Privileged container with hostPID enabled — process can see and signal all host PIDs, enabling direct host takeover."
+tier: 1
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Privilege Escalation, Execution]
+mitre_techniques: [T1611, T1059]
+tactic_chain_order: [Execution, Privilege Escalation]
+csps: [k8s]
+entry:
+  node_type: Resource
+  resource_types: [k8s_pod, k8s_deployment, k8s_daemonset]
+  conditions:
+    check_rules_failing:
+      - k8s.pod.security.privileged_containers_check
+      - k8s.pod.node.host_pid_disabled_enforced
+scoring:
+  posture_severity: critical
+  active_severity: critical
+tests:
+  positive:
+    description: "Pod spec with privileged=true and hostPID=true"
+    expected_tier: 1
+    expected_severity: critical
+  negative:
+    description: "Pod with non-privileged containers and hostPID=false"
+    expected_tier: 1
+    expected_severity: low

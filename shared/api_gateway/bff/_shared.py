@@ -77,6 +77,7 @@ ENGINE_TIMEOUTS: Dict[str, float] = {
     "billing": 10.0,
     "platform_admin": 15.0,
     "vulnerability": 30.0,   # severity stats scans 5k+ rows joined with scans table
+    "threat_v1": 15.0,        # incident list joins threat_scenario_patterns
 }
 
 DEFAULT_TIMEOUT = float(os.getenv("BFF_ENGINE_TIMEOUT", "8"))

@@ -115,7 +115,7 @@ SERVICE_ROUTES = {
     "onboarding": {
         "url": os.getenv("ONBOARDING_ENGINE_URL", "http://engine-onboarding:8008"),
         "prefix": "/api/v1/cloud-accounts",
-        "prefixes": ["/api/v1/cloud-accounts", "/api/v1/scan-runs", "/api/v1/accounts", "/api/v1/tenants", "/api/v1/schedules", "/api/v1/agent"],
+        "prefixes": ["/api/v1/cloud-accounts", "/api/v1/scan-runs", "/api/v1/accounts", "/api/v1/tenants", "/api/v1/schedules", "/api/v1/agent", "/api/v1/onboarding"],
         "health_endpoint": "/api/v1/health"
     },
     "compliance": {
@@ -229,6 +229,12 @@ SERVICE_ROUTES = {
         "url": os.getenv("PLATFORM_ADMIN_ENGINE_URL", "http://engine-platform-admin:8041"),
         "prefix": "/api/v1/padmin",
         "prefixes": ["/api/v1/padmin"],
+        "health_endpoint": "/api/v1/health/live"
+    },
+    "threat-v1": {
+        "url": os.getenv("THREAT_V1_ENGINE_URL", "http://engine-threat-v1.threat-engine-engines.svc.cluster.local:80"),
+        "prefix": "/api/v1/incidents",
+        "prefixes": ["/api/v1/incidents"],
         "health_endpoint": "/api/v1/health/live"
     },
 }

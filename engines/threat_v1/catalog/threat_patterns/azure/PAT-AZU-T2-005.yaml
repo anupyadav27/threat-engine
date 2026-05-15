@@ -1,0 +1,39 @@
+id: PAT-AZU-T2-005
+version: 1
+description: "Azure Storage account accessible over public network without private endpoint connected to admin VM — data in transit exfil path."
+tier: 2
+severity_base: high
+confidence: confirmed
+mitre_tactics: [Collection, Exfiltration]
+mitre_techniques: [T1530, T1048]
+tactic_chain_order: [Collection, Exfiltration]
+csps: [azure]
+min_hops_for_tier2: 1
+entry:
+  node_type: Resource
+  resource_types: [azure_storage_account]
+  conditions:
+    check_rules_failing:
+      - azure.storage.private.endpoint.presence.and.configuration.check
+hops:
+  - edge_type: CAN_ACCESS
+    target:
+      node_type: Resource
+      resource_types: [azure_virtual_machine, azure_vm]
+      conditions:
+        check_rules_failing:
+          - azure.vm.encryption.at.host.enabled
+        internet_exposed: true
+scoring:
+  posture_severity: high
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "Public storage account reachable from internet-facing VM"
+    expected_tier: 2
+    expected_severity: high
+  negative:
+    description: "Storage with private endpoint only, VM private"
+    expected_tier: 2
+    expected_severity: low

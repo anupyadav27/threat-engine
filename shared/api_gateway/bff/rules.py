@@ -15,7 +15,7 @@ from fastapi import APIRouter, Query, Request
 from ._auth import resolve_tenant_id
 from ._shared import fetch_many, safe_get, BFFMeta
 from .schemas.rules import RulesResponse
-from ._transforms import normalize_rule
+
 
 logger = logging.getLogger("api-gateway.bff")
 
@@ -48,17 +48,19 @@ async def view_rules(
     if search:
         catalog_params["search"] = search
 
-    # Custom rules params (rule engine)
-    custom_params: Dict[str, str] = {"tenant_id": tenant_id or "", "limit": "500"}
+    # Custom rules params — only user-created rules from user_check_rules table
+    custom_params: Dict[str, str] = {"limit": "500"}
+    if tenant_id:
+        custom_params["tenant_id"] = tenant_id
     if provider:
         custom_params["provider"] = provider
 
     supp_params: Dict[str, str] = {}
 
-    # Fetch in parallel: check catalog + custom rules + suppressions
+    # Fetch in parallel: check catalog + user-created rules + suppressions
     results = await fetch_many([
         ("check", "/api/v1/check/rules/catalog", catalog_params),
-        ("rule",  "/api/v1/rules/ui-data",       custom_params),
+        ("rule",  "/api/v1/user-rules",          custom_params),
         ("rule",  "/api/v1/rules/suppressions",  supp_params),
     ], auth_headers=fwd_headers)
 
@@ -112,14 +114,33 @@ async def view_rules(
             "is_suppressed":       False,
         })
 
-    # 2. Custom YAML rules (only when not filtering by a non-custom rule_type)
+    # 2. User-created rules from user_check_rules (only when not filtering to a non-custom type)
     if not rule_type or rule_type == "custom":
         for r in safe_get(custom_data, "rules", []):
-            normalized = normalize_rule(r)
-            normalized["rule_type"] = "custom"
-            normalized.setdefault("status", "active")
-            normalized["is_suppressed"] = False
-            rules.append(normalized)
+            # user_check_rules has flat columns: title, severity, category, etc.
+            frameworks_raw = r.get("frameworks") or []
+            rules.append({
+                "rule_id":             r.get("rule_id", ""),
+                "provider":            (r.get("provider") or "").upper(),
+                "service":             r.get("service", ""),
+                "resource":            "",
+                "title":               r.get("title", ""),
+                "severity":            (r.get("severity") or "medium").lower(),
+                "domain":              r.get("category") or "",
+                "subcategory":         "",
+                "posture_category":    "",
+                "description":         r.get("description") or "",
+                "remediation":         "",
+                "rationale":           "",
+                "compliance_frameworks": {f: [] for f in frameworks_raw} if isinstance(frameworks_raw, list) else {},
+                "mitre_tactics":       [],
+                "mitre_techniques":    [],
+                "risk_score":          None,
+                "remediation_effort":  "",
+                "rule_type":           "custom",
+                "status":              "active",
+                "is_suppressed":       False,
+            })
 
     # ── Annotate suppression status ───────────────────────────────────────
     for rule in rules:

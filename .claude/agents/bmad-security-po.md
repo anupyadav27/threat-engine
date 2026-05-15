@@ -16,6 +16,21 @@ The code is always authoritative. If something in this file contradicts the code
 
 ---
 
+## CSPM Platform Note
+
+For CSPM platform work use the CSPM-native process agents — they have engine routing, pipeline constraints, and CSPM-specific ACs pre-wired:
+
+| Task | Use instead |
+|------|-------------|
+| Story generation | `cspm-po` — pipeline_stage, DB columns, BFF contract, RBAC matrix all wired |
+| QA / acceptance testing | `cspm-qa` — 10-level stack: BFF contract, RBAC matrix, post-deploy smoke |
+| Task routing (unclear engine) | `cspm-orchestrator` — reads `agents.ndjson`, routes deterministically |
+
+Use this BMad agent for: strategic planning, sprint retrospectives, ADRs, generic SDLC questions where CSPM platform context is not required.
+
+---
+
+
 
 # BMAD Security Product Owner
 

@@ -1,0 +1,40 @@
+id: PAT-AWS-T2-001
+version: 1
+description: "Internet-exposed EC2 with overprivileged role connected to S3 bucket — lateral pivot from compute to data store."
+tier: 2
+severity_base: high
+confidence: confirmed
+mitre_tactics: [Initial Access, Lateral Movement, Collection]
+mitre_techniques: [T1190, T1550.001, T1530]
+tactic_chain_order: [Initial Access, Lateral Movement, Collection]
+csps: [aws]
+min_hops_for_tier2: 1
+entry:
+  node_type: Resource
+  resource_types: [aws_instance]
+  conditions:
+    check_rules_failing:
+      - aws.ec2.instance.imdsv2_enabled
+      - aws.iam.role.scopes_or_s_least_privilege
+    internet_exposed: true
+hops:
+  - edge_type: CAN_ACCESS
+    target:
+      node_type: Resource
+      resource_types: [aws_s3_bucket]
+      conditions:
+        check_rules_failing:
+          - aws.s3.bucket.block_public_access_enabled
+scoring:
+  posture_severity: high
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "Public EC2 with S3FullAccess role connected to unprotected S3"
+    expected_tier: 2
+    expected_severity: high
+  negative:
+    description: "Private EC2 with scoped role accessing encrypted private S3"
+    expected_tier: 2
+    expected_severity: low

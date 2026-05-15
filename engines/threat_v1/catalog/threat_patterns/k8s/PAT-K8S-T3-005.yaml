@@ -1,0 +1,49 @@
+id: PAT-K8S-T3-005
+version: 1
+description: "EKS pod exec CDR on pod with over-scoped IRSA role — exec into pod to use AWS SDK with admin permissions reaching S3 crown jewel."
+tier: 3
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Execution, Privilege Escalation, Collection]
+mitre_techniques: [T1609, T1078.004, T1530]
+tactic_chain_order: [Execution, Privilege Escalation, Collection]
+csps: [k8s]
+entry:
+  node_type: Resource
+  resource_types: [k8s_pod, aws_eks_cluster]
+  conditions:
+    cdr_actor_seen: true
+    check_rules_failing:
+      - aws.eks.api.wildcard_verbs_disallowed_configured
+hops:
+  - edge_type: CAN_ESCALATE_TO
+    target:
+      node_type: Resource
+      resource_types: [aws_iam_role]
+      conditions:
+        is_admin_role: true
+        check_rules_failing:
+          - aws.iam.policy.no_wildcard_admin_actions_configured
+target:
+  node_type: Resource
+  resource_types: [aws_s3_bucket, aws_secretsmanager_secret]
+  conditions:
+    is_crown_jewel: true
+cdr_watch:
+  techniques: [T1609, T1078.004]
+  window_minutes: 60
+  min_coverage: 0.5
+  tactic_order_required: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "EKS pod exec CDR + IRSA admin role → AWS crown jewel"
+    expected_tier: 3
+    expected_severity: critical
+  negative:
+    description: "No CDR events, IRSA scoped, target not crown jewel"
+    expected_tier: 3
+    expected_severity: low

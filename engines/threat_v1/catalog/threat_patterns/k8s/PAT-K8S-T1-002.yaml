@@ -1,0 +1,29 @@
+id: PAT-K8S-T1-002
+version: 1
+description: "Kubernetes API server allows anonymous authentication — any network-reachable request bypasses RBAC entirely."
+tier: 1
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Initial Access, Discovery]
+mitre_techniques: [T1190, T1613]
+tactic_chain_order: [Initial Access, Discovery]
+csps: [k8s]
+entry:
+  node_type: Resource
+  resource_types: [k8s_cluster, k8s_api_server]
+  conditions:
+    check_rules_failing:
+      - k8s.cluster.server.anonymous_access_disabled_enforced
+      - k8s.rbac.no.anonymous_access
+scoring:
+  posture_severity: critical
+  active_severity: critical
+tests:
+  positive:
+    description: "API server with --anonymous-auth=true"
+    expected_tier: 1
+    expected_severity: critical
+  negative:
+    description: "API server with anonymous auth disabled and RBAC enforced"
+    expected_tier: 1
+    expected_severity: low

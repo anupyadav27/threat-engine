@@ -1182,13 +1182,15 @@ export default function RuleBuilderWizard({ onClose, onSaved }) {
   const [saveResult, setSaveResult] = useState(null);
 
   // Load services when CSP changes
+  const CATALOG_BASE = process.env.NEXT_PUBLIC_BASE_PATH || '';
+
   useEffect(() => {
     if (!form.csp) { setServices([]); return; }
     setLoadingServices(true);
     setServices([]);
     setSelectedOperation(null);
     setOperations({});
-    fetch(`/api/catalog/services?csp=${form.csp}`)
+    fetch(`${CATALOG_BASE}/api/catalog/services?csp=${form.csp}`)
       .then((r) => r.json())
       .then((d) => setServices(d.services || []))
       .catch(() => setServices([]))
@@ -1200,7 +1202,7 @@ export default function RuleBuilderWizard({ onClose, onSaved }) {
     if (!form.csp || !form.service) { setOperations({}); setSelectedOperation(null); return; }
     setLoadingOps(true);
     setSelectedOperation(null);
-    fetch(`/api/catalog/operations?csp=${form.csp}&service=${form.service}`)
+    fetch(`${CATALOG_BASE}/api/catalog/operations?csp=${form.csp}&service=${form.service}`)
       .then((r) => r.json())
       .then((d) => setOperations(d.operations || {}))
       .catch(() => setOperations({}))
@@ -1233,7 +1235,7 @@ export default function RuleBuilderWizard({ onClose, onSaved }) {
     if (step !== 5 || !discoveryId) return;
     setDuplicates(null);
     setCheckingDuplicates(true);
-    fetch('/api/catalog/save-rule', {
+    fetch(`${CATALOG_BASE}/api/catalog/save-rule`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1264,7 +1266,7 @@ export default function RuleBuilderWizard({ onClose, onSaved }) {
     const itemsFor = selectedOperation ? getDiscoveryItemsFor(form.csp, selectedOperation) : null;
     const itemFields = selectedOperation ? getDiscoveryItemFields(form.csp, selectedOperation) : {};
 
-    const res = await fetch('/api/catalog/save-rule', {
+    const res = await fetch(`${CATALOG_BASE}/api/catalog/save-rule`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

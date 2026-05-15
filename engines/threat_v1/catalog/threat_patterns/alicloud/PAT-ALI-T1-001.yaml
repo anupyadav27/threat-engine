@@ -1,0 +1,30 @@
+id: PAT-ALI-T1-001
+version: 1
+description: "ACK cluster with admin RBAC permissions granted to cluster and no KMS encryption for secrets — credential compromise yields cluster-wide access."
+tier: 1
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Privilege Escalation, Credential Access]
+mitre_techniques: [T1613, T1552]
+tactic_chain_order: [Privilege Escalation, Credential Access]
+csps: [alicloud]
+entry:
+  node_type: Resource
+  resource_types: [alicloud_ack_cluster]
+  conditions:
+    check_rules_failing:
+      - alicloud.ack.rbac_k8s.cluster_admin_to_authenticated
+      - alicloud.ack.cluster.kms_cmk_encryption_for_secrets_enabled
+    is_admin_role: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+tests:
+  positive:
+    description: "ACK cluster admin role granted to system:authenticated, no KMS secrets"
+    expected_tier: 1
+    expected_severity: critical
+  negative:
+    description: "ACK cluster with scoped RBAC and KMS secret encryption"
+    expected_tier: 1
+    expected_severity: low

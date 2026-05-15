@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server';
 
-// Rule engine base URL — via NLB in prod, direct in local dev
+// Rule engine base URL — K8s internal URL in prod, override via RULE_ENGINE_URL env var
 const RULE_ENGINE_URL =
   process.env.RULE_ENGINE_URL ||
-  (process.env.NEXT_PUBLIC_GATEWAY_URL
-    ? `${process.env.NEXT_PUBLIC_GATEWAY_URL}/rule`
-    : 'http://localhost:8011');
+  'http://engine-rule.threat-engine-engines.svc.cluster.local';
 
 async function callRuleEngine(path, body) {
   const res = await fetch(`${RULE_ENGINE_URL}${path}`, {

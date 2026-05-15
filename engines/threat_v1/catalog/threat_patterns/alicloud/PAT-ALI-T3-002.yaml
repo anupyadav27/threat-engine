@@ -1,0 +1,49 @@
+id: PAT-ALI-T3-002
+version: 1
+description: "RAM admin policy abuse CDR event navigates to OSS bucket crown jewel — direct data exfiltration from Alibaba Cloud object storage."
+tier: 3
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Privilege Escalation, Collection, Exfiltration]
+mitre_techniques: [T1078.004, T1530, T1537]
+tactic_chain_order: [Privilege Escalation, Collection, Exfiltration]
+csps: [alicloud]
+entry:
+  node_type: Resource
+  resource_types: [alicloud_ram_role, alicloud_ram_user]
+  conditions:
+    is_admin_role: true
+    cdr_actor_seen: true
+    check_rules_failing:
+      - alicloud.ram.policy.attached_only_to_group_or_roles_configured
+hops:
+  - edge_type: CAN_ACCESS
+    target:
+      node_type: Resource
+      resource_types: [alicloud_oss_bucket]
+      conditions:
+        check_rules_failing:
+          - alicloud.emr.cluster.account_public_access_blocked
+target:
+  node_type: Resource
+  resource_types: [alicloud_oss_bucket]
+  conditions:
+    is_crown_jewel: true
+cdr_watch:
+  techniques: [T1078.004, T1530]
+  window_minutes: 120
+  min_coverage: 0.5
+  tactic_order_required: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "RAM admin CDR event → public OSS → OSS crown jewel"
+    expected_tier: 3
+    expected_severity: critical
+  negative:
+    description: "No CDR events, RAM scoped, OSS not crown jewel"
+    expected_tier: 3
+    expected_severity: low

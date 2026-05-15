@@ -1,0 +1,49 @@
+id: PAT-ALI-T3-004
+version: 1
+description: "DTS replication without encryption in transit exposes data stream CDR anomaly; plaintext data flows to attacker-controlled destination crown jewel."
+tier: 3
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Collection, Exfiltration]
+mitre_techniques: [T1557, T1537]
+tactic_chain_order: [Collection, Exfiltration]
+csps: [alicloud]
+entry:
+  node_type: Resource
+  resource_types: [alicloud_dts_instance]
+  conditions:
+    cdr_actor_seen: true
+    check_rules_failing:
+      - alicloud.dts.dr.replication_encryption_in_transit_tls_required
+      - alicloud.dts.dr.replication_cross_region_replication_encrypted
+hops:
+  - edge_type: FLOWS_TO
+    target:
+      node_type: Resource
+      resource_types: [alicloud_rds_instance, alicloud_oss_bucket]
+      conditions:
+        check_rules_failing:
+          - alicloud.dts.backup.continuous_enabled
+target:
+  node_type: Resource
+  resource_types: [alicloud_rds_instance, alicloud_oss_bucket]
+  conditions:
+    is_crown_jewel: true
+cdr_watch:
+  techniques: [T1557]
+  window_minutes: 120
+  min_coverage: 0.5
+  tactic_order_required: false
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "DTS unencrypted CDR anomaly → data flows to crown jewel store"
+    expected_tier: 3
+    expected_severity: critical
+  negative:
+    description: "DTS with TLS enforced, no CDR events, target not crown jewel"
+    expected_tier: 3
+    expected_severity: low
