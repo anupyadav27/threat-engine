@@ -261,7 +261,7 @@ async def view_compliance(
         }
         for fw_key in MATRIX_FRAMEWORKS:
             row[fw_key] = acct_scores.get(fw_key) or acct.get(fw_key) or None
-        scores = [row.get(k, 0) for k in MATRIX_FRAMEWORKS if row.get(k, 0) > 0]
+        scores = [(row.get(k) or 0) for k in MATRIX_FRAMEWORKS if (row.get(k) or 0) > 0]
         row["avg"] = round(sum(scores) / len(scores), 1) if scores else 0
         account_matrix.append(row)
 
