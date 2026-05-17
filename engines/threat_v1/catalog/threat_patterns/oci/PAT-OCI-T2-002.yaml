@@ -1,0 +1,44 @@
+id: PAT-OCI-T2-002
+version: 1
+description: "OCI vulnerability scanning disabled CDR event — attacker disables scanning before deploying malicious workloads undetected."
+tier: 2
+severity_base: high
+confidence: confirmed
+mitre_tactics: [Defense Evasion, Execution]
+mitre_techniques: [T1562.001, T1610]
+tactic_chain_order: [Defense Evasion, Execution]
+csps: [oci]
+min_hops_for_tier2: 1
+entry:
+  node_type: Resource
+  resource_types: [oci_vulnerability_scanning_target]
+  conditions:
+    cdr_actor_seen: true
+    check_rules_failing:
+      - oci.vulnerabilityscanning.host_scan_target.enabled
+hops:
+  - edge_type: EXECUTES_IN
+    target:
+      node_type: Resource
+      resource_types: [oci_compute_instance]
+      conditions:
+        check_rules_failing:
+          - oci.database.autonomous_database.instance_enhanced_monitoring_enabled
+scoring:
+  posture_severity: high
+  active_severity: critical
+  path_length_bonus: true
+cdr_watch:
+  techniques: [T1562.001]
+  window_minutes: 120
+  min_coverage: 0.5
+  tactic_order_required: false
+tests:
+  positive:
+    description: "Vulnerability scanning disabled CDR → compute with no monitoring"
+    expected_tier: 2
+    expected_severity: high
+  negative:
+    description: "Scanning enabled, compute with enhanced monitoring"
+    expected_tier: 2
+    expected_severity: low

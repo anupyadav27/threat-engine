@@ -206,6 +206,7 @@ class LoginView(APIView):
         )
         role_names = [ur.role.name for ur in user_role_qs]
         primary_role = role_names[0] if role_names else None
+        primary_level = user_role_qs[0].role.level if user_role_qs else None
 
         # Build tenant list (same as MeView) so frontend has engine_tenant_id immediately
         from tenant_management.models import TenantUsers as TUModel
@@ -233,6 +234,7 @@ class LoginView(APIView):
                 "name": full_name,
                 "role": primary_role,
                 "roles": role_names,
+                "level": primary_level,
                 "permissions": permissions_cache,
                 "tenants": tenants_list,
             },
@@ -355,6 +357,7 @@ class MeView(APIView):
             .order_by('role__level')
         )
         role_names = [ur.role.name for ur in user_role_qs]
+        primary_level = user_role_qs[0].role.level if user_role_qs else None
 
         # Build per-tenant permissions list from the TenantUsers role assignment
         tenant_memberships = TenantUsers.objects.filter(
@@ -396,6 +399,7 @@ class MeView(APIView):
             "sso_provider": user.sso_provider,
             "role": role_names[0] if role_names else None,
             "roles": role_names,
+            "level": primary_level,
             "permissions": permissions,
             "tenants": tenants,
             "subscription": subscription,

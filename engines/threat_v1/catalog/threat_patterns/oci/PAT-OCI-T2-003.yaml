@@ -1,0 +1,45 @@
+id: PAT-OCI-T2-003
+version: 1
+description: "OCI identity defense evasion chain CDR event — user bypassing identity controls to expand IAM permissions across compartments."
+tier: 2
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Defense Evasion, Privilege Escalation]
+mitre_techniques: [T1548, T1078.004]
+tactic_chain_order: [Defense Evasion, Privilege Escalation]
+csps: [oci]
+min_hops_for_tier2: 1
+entry:
+  node_type: Resource
+  resource_types: [oci_iam_user, oci_identity_user]
+  conditions:
+    cdr_actor_seen: true
+    check_rules_failing:
+      - oci.identity.user.guard_guardduty_enabled
+hops:
+  - edge_type: CAN_ESCALATE_TO
+    target:
+      node_type: Resource
+      resource_types: [oci_iam_policy, oci_identity_policy]
+      conditions:
+        check_rules_failing:
+          - oci.identity.policy.org_scps_enabled
+        is_admin_role: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+cdr_watch:
+  techniques: [T1548, T1078.004]
+  window_minutes: 60
+  min_coverage: 0.5
+  tactic_order_required: false
+tests:
+  positive:
+    description: "Identity defense evasion CDR → admin IAM policy no org SCPs"
+    expected_tier: 2
+    expected_severity: critical
+  negative:
+    description: "No CDR events, GuardDuty enabled, org SCPs enforced"
+    expected_tier: 2
+    expected_severity: low

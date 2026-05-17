@@ -1,0 +1,29 @@
+id: PAT-AZU-T1-005
+version: 1
+description: "Azure Container Registry without image scanning and immutable tags — poisoned image can be deployed without detection."
+tier: 1
+severity_base: high
+confidence: confirmed
+mitre_tactics: [Execution, Defense Evasion]
+mitre_techniques: [T1610, T1036]
+tactic_chain_order: [Execution, Defense Evasion]
+csps: [azure]
+entry:
+  node_type: Resource
+  resource_types: [azure_container_registry, azure_acr]
+  conditions:
+    check_rules_failing:
+      - azure.containerregistry.repository.supply_chain_registry_image_scanning_enabled
+      - azure.containerregistry.repository.supply_chain_registry_immutable_tags_or_signing_enforced
+scoring:
+  posture_severity: high
+  active_severity: critical
+tests:
+  positive:
+    description: "ACR with no vulnerability scanning and mutable tags"
+    expected_tier: 1
+    expected_severity: high
+  negative:
+    description: "ACR with Defender scanning and immutable tag policy"
+    expected_tier: 1
+    expected_severity: low

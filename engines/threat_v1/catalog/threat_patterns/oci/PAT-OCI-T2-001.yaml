@@ -1,0 +1,42 @@
+id: PAT-OCI-T2-001
+version: 1
+description: "OCI ResourceManager compartment change CDR event enables privilege escalation via stack apply to gain Autonomous DB access."
+tier: 2
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Privilege Escalation, Lateral Movement]
+mitre_techniques: [T1548, T1021.007]
+tactic_chain_order: [Privilege Escalation, Lateral Movement]
+csps: [oci]
+min_hops_for_tier2: 1
+entry:
+  node_type: Resource
+  resource_types: [oci_resource_manager_stack]
+  conditions:
+    cdr_actor_seen: true
+hops:
+  - edge_type: CAN_ESCALATE_TO
+    target:
+      node_type: Resource
+      resource_types: [oci_autonomous_database, oci_db_system]
+      conditions:
+        check_rules_failing:
+          - oci.database.autonomous_database.instance_iam_authentication_enabled
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+cdr_watch:
+  techniques: [T1548]
+  window_minutes: 60
+  min_coverage: 0.5
+  tactic_order_required: false
+tests:
+  positive:
+    description: "ResourceManager compartment change CDR → DB with no IAM auth"
+    expected_tier: 2
+    expected_severity: critical
+  negative:
+    description: "No CDR events, DB with IAM authentication enabled"
+    expected_tier: 2
+    expected_severity: low

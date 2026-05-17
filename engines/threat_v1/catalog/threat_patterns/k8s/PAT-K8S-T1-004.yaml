@@ -1,0 +1,29 @@
+id: PAT-K8S-T1-004
+version: 1
+description: "No network policy with unrestricted container capabilities — pods can communicate freely and use raw network capabilities for lateral movement."
+tier: 1
+severity_base: high
+confidence: confirmed
+mitre_tactics: [Lateral Movement, Execution]
+mitre_techniques: [T1021, T1059]
+tactic_chain_order: [Execution, Lateral Movement]
+csps: [k8s]
+entry:
+  node_type: Resource
+  resource_types: [k8s_namespace, k8s_cluster]
+  conditions:
+    check_rules_failing:
+      - k8s.rbac.network_policy_configured
+      - k8s.pod.securitycontext.capabilities_restricted_enforced
+scoring:
+  posture_severity: high
+  active_severity: critical
+tests:
+  positive:
+    description: "Namespace with no NetworkPolicy and pods with unrestricted capabilities"
+    expected_tier: 1
+    expected_severity: high
+  negative:
+    description: "Namespace with NetworkPolicy and pods dropping all capabilities"
+    expected_tier: 1
+    expected_severity: low

@@ -1,0 +1,91 @@
+<?xml version="1.0"?>
+<api_patterns version="1.0" refreshed_at="2026-05-15" tied_to="frontend/src/lib/api.js shared/api_gateway/bff/_auth.py frontend/src/lib/constants.js">
+
+  <calling_patterns>
+    <pattern id="bff-view">
+      <fn>fetchView(page, params)</fn>
+      <resolves_to>/gateway/api/v1/views/{page}</resolves_to>
+      <use_when>charts, KPIs, summaries, multi-engine aggregates, page-level dashboard data</use_when>
+      <never>paginated raw findings tables, user mutations (suppress/delete/update)</never>
+      <cache>yes — TTL set per BFF handler (TTL_SHORT, TTL_CIEM, etc.)</cache>
+      <auth>access_token cookie + X-Active-Tenant-Id header</auth>
+    </pattern>
+    <pattern id="direct-engine-get">
+      <fn>getFromEngine(engine, path, params)</fn>
+      <resolves_to>{ENGINE_ENDPOINTS[engine]}{path} via ingress prefix stripping</resolves_to>
+      <use_when>paginated findings tables, raw records, drill-down detail, scan history</use_when>
+      <never>aggregated data needing multiple engines — use fetchView instead</never>
+      <cache>no — always fresh from engine</cache>
+      <auth>access_token cookie + X-Active-Tenant-Id header (forwarded by ingress)</auth>
+    </pattern>
+    <pattern id="direct-engine-post">
+      <fn>postToEngine(engine, path, body)</fn>
+      <resolves_to>{ENGINE_ENDPOINTS[engine]}{path}</resolves_to>
+      <use_when>user mutations: suppress finding, create rule, trigger scan, update config</use_when>
+      <auth>access_token cookie + X-Active-Tenant-Id header</auth>
+    </pattern>
+    <pattern id="direct-engine-patch">
+      <fn>patchToEngine(engine, path, body)</fn>
+      <resolves_to>{ENGINE_ENDPOINTS[engine]}{path}</resolves_to>
+      <use_when>partial updates: update schedule, patch rule status</use_when>
+    </pattern>
+    <pattern id="direct-engine-delete">
+      <fn>deleteFromEngine(engine, path)</fn>
+      <resolves_to>{ENGINE_ENDPOINTS[engine]}{path}</resolves_to>
+      <use_when>delete rule, remove account, revoke suppression</use_when>
+    </pattern>
+    <pattern id="django-backend">
+      <fn>fetchFromCspm(path)</fn>
+      <resolves_to>/cspm{path}</resolves_to>
+      <use_when>user management, tenant CRUD, auth operations, SSO — Django platform layer only</use_when>
+      <never>engine data, findings, scan results — use engine patterns above</never>
+    </pattern>
+  </calling_patterns>
+
+  <tenant_resolution order="strict">
+    <step priority="1" source="header">X-Active-Tenant-Id header (UI localStorage → set by tenant-context.js)</step>
+    <step priority="2" source="session">AuthContext.engine_tenant_id (baked into access_token at login)</step>
+    <step priority="3" source="fallback">AuthContext.tenant_ids[0] (last resort — first allowed tenant)</step>
+    <critical>BFF resolve_tenant_id() patches the resolved tenant into X-Auth-Context BEFORE forwarding to engines</critical>
+    <critical>Never bypass tenant resolution — wrong tenant_id silently returns another tenant's data</critical>
+  </tenant_resolution>
+
+  <auth_flow>
+    <step order="1">UI sends access_token cookie (HttpOnly) + X-Active-Tenant-Id header on every request</step>
+    <step order="2">Gateway AuthMiddleware validates cookie → builds AuthContext → sets X-Auth-Context header</step>
+    <step order="3">BFF handler reads X-Auth-Context → calls resolve_tenant_id() → patches engine_tenant_id</step>
+    <step order="4">Engine reads X-Auth-Context → require_permission() check → tenant-scoped DB query</step>
+    <never>DEV_BYPASS_AUTH — permanently removed, never re-add under any circumstance</never>
+    <never>Skip X-Auth-Context header — engines return 401 or serve wrong-tenant data silently</never>
+    <never>Add fallback/mock data in BFF when engine returns empty — fix the pipeline instead</never>
+  </auth_flow>
+
+  <engine_key_to_prefix note="from frontend/src/lib/constants.js ENGINE_ENDPOINTS">
+    <entry key="gateway"       prefix="/gateway"              note="BFF views and billing/platformAdmin route here"/>
+    <entry key="onboarding"    prefix="/onboarding"/>
+    <entry key="discoveries"   prefix="/discoveries"/>
+    <entry key="check"         prefix="/check"/>
+    <entry key="inventory"     prefix="/inventory"/>
+    <entry key="threat"        prefix="/threat"/>
+    <entry key="compliance"    prefix="/compliance"/>
+    <entry key="iam"           prefix="/iam"/>
+    <entry key="datasec"       prefix="/datasec"/>
+    <entry key="secops"        prefix="/secops"/>
+    <entry key="risk"          prefix="/risk"/>
+    <entry key="rule"          prefix="/rule"/>
+    <entry key="vulnerability" prefix="/vulnerability"/>
+    <entry key="cnapp"         prefix="/cnapp"/>
+    <entry key="cwpp"          prefix="/cwpp"/>
+    <entry key="billing"       prefix="/gateway"              note="routes via BFF billing handler"/>
+    <entry key="platformAdmin" prefix="/gateway"              note="routes via BFF platform-admin handler"/>
+  </engine_key_to_prefix>
+
+  <ingress_stripping note="nginx ingress strips prefix before forwarding to engine K8s svc">
+    <rule>/gateway/* → gateway svc (BFF + proxy)</rule>
+    <rule>/check/* → engine-check svc (prefix stripped: /check/api/v1/... → /api/v1/...)</rule>
+    <rule>/threat/* → engine-threat svc</rule>
+    <rule>/inventory/* → engine-inventory svc (port 80 → targetPort 8022)</rule>
+    <rule>/onboarding/* → engine-onboarding svc</rule>
+  </ingress_stripping>
+
+</api_patterns>

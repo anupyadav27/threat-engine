@@ -1,0 +1,50 @@
+id: PAT-T1-010
+version: 2
+deprecated_at: null
+description: >
+  Message queue with a public access policy — any internet actor can
+  inject messages or harvest queued data. Common vector for data
+  poisoning and serverless workflow hijacking.
+
+tier: 1
+severity_base: high
+confidence: confirmed
+
+mitre_tactics:      [TA0001, TA0040]
+mitre_techniques:   [T1190, T1496]
+tactic_chain_order: [initial_access, impact]
+
+csps: [aws, azure, gcp]
+
+entry:
+  node_type: Resource
+  resource_types: []
+  conditions:
+    internet_exposed: true
+
+target:
+  node_type: Resource
+  resource_types: []
+  conditions: {}
+
+min_hops_for_tier2: null
+
+cdr_watch:
+  techniques:     [T1190, T1496]
+  window_minutes: 30
+  min_coverage:   0.5
+  tactic_order_required: false
+
+scoring:
+  posture_severity:  high
+  active_severity:   critical
+  path_length_bonus: false
+
+tests:
+  positive:
+    description: "SQS queue with Principal:* policy allowing ReceiveMessage"
+    expected_tier: 1
+    expected_severity: high
+  negative:
+    description: "SQS queue restricted to specific account principals with encryption"
+    expected_tier: null

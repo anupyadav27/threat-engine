@@ -1,0 +1,60 @@
+id: PAT-T2-002
+version: 1
+deprecated_at: null
+description: >
+  CDR-observed resource (behavioral anomaly detected) pivoting through role
+  assumption to another resource. CDR actor activity confirms human or automated
+  attacker is present; the ASSUMES edge shows active lateral movement.
+  High-confidence early warning: live threat with pivot path forming.
+
+tier: 2
+severity_base: high
+confidence: confirmed
+
+mitre_tactics:      [TA0004, TA0006, TA0008]
+mitre_techniques:   [T1548, T1552.005, T1021]
+tactic_chain_order: [privilege_escalation, credential_access, lateral_movement]
+
+csps: []
+breach_reference: "AWS Ransomware campaigns 2023 — CDR anomaly + role pivot pattern"
+
+entry:
+  node_type: Resource
+  resource_types: []
+  conditions:
+    cdr_actor_seen: true
+
+hops:
+  - edge_type: ASSUMES
+    target:
+      node_type: Resource
+      resource_types: []
+      conditions: {}
+
+target:
+  node_type: Resource
+  resource_types: []
+  conditions:
+    is_crown_jewel: null
+
+min_hops_for_tier2: 1
+
+cdr_watch:
+  techniques:     [T1548, T1552.005, T1021]
+  window_minutes: 120
+  min_coverage:   0.7
+  tactic_order_required: true
+
+scoring:
+  posture_severity:  high
+  active_severity:   critical
+  path_length_bonus: true
+
+tests:
+  positive:
+    description: "Resource with CDR behavioral events assumes a downstream role"
+    expected_tier: 2
+    expected_severity: high
+  negative:
+    description: "Resource with no CDR events and no ASSUMES edge"
+    expected_tier: null

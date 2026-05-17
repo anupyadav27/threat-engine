@@ -1,0 +1,49 @@
+id: PAT-OCI-T3-003
+version: 1
+description: "ResourceManager stack apply CDR followed by IAM policy change escalates compartment access; reaches Autonomous DB crown jewel with transport encryption disabled."
+tier: 3
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Privilege Escalation, Lateral Movement, Exfiltration]
+mitre_techniques: [T1548, T1021.007, T1048.002]
+tactic_chain_order: [Privilege Escalation, Lateral Movement, Exfiltration]
+csps: [oci]
+entry:
+  node_type: Resource
+  resource_types: [oci_resource_manager_stack]
+  conditions:
+    cdr_actor_seen: true
+hops:
+  - edge_type: CAN_ESCALATE_TO
+    target:
+      node_type: Resource
+      resource_types: [oci_iam_policy, oci_identity_policy]
+      conditions:
+        is_admin_role: true
+        check_rules_failing:
+          - oci.identity.policy.org_scps_enabled
+target:
+  node_type: Resource
+  resource_types: [oci_autonomous_database]
+  conditions:
+    is_crown_jewel: true
+    check_rules_failing:
+      - oci.database.autonomous_database.instance_transport_encrypted
+cdr_watch:
+  techniques: [T1548, T1021.007]
+  window_minutes: 180
+  min_coverage: 0.5
+  tactic_order_required: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "ResourceManager stack CDR → admin IAM policy → Autonomous DB crown jewel no TLS"
+    expected_tier: 3
+    expected_severity: critical
+  negative:
+    description: "No CDR events, org SCPs enforced, DB with TLS, not crown jewel"
+    expected_tier: 3
+    expected_severity: low

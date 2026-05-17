@@ -1,0 +1,184 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: engine-threat-v1
+  namespace: threat-engine-engines
+  labels:
+    app: engine-threat-v1
+    tier: engine
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: engine-threat-v1
+  template:
+    metadata:
+      labels:
+        app: engine-threat-v1
+        tier: engine
+    spec:
+      serviceAccountName: engine-sa
+      containers:
+      - name: threat-v1
+        # CP1-08: NEVER :latest — always use a pinned tag
+        image: yadavanup84/engine-threat-v1:v-threat-v1-phase20
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8021
+          name: http
+        envFrom:
+        - configMapRef:
+            name: threat-engine-db-config
+        env:
+        - name: PYTHONPATH
+          value: /app
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: PORT
+          value: "8021"
+        - name: ENGINE_NAME
+          value: "engine-threat-v1"
+        # ── Threat DB credentials ──────────────────────────────────────────
+        - name: THREAT_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: THREAT_DB_PASSWORD
+        # ── Check DB credentials (cross-engine read, ADR-006) ──────────────
+        - name: CHECK_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: THREAT_DB_PASSWORD
+        # ── Inventory DB credentials (cross-engine read, ADR-006) ──────────
+        - name: INVENTORY_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: THREAT_DB_PASSWORD
+        # ── CDR DB (configmap has CIEM_DB_* — CDR uses different prefix) ──
+        - name: CDR_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: CDR_DB_PORT
+          value: "5432"
+        - name: CDR_DB_NAME
+          value: "threat_engine_cdr"
+        - name: CDR_DB_USER
+          value: "postgres"
+        - name: CDR_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: THREAT_DB_PASSWORD
+        # ── Vuln DB (vulnerability_db on same RDS instance) ────────────────
+        - name: VULN_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: VULN_DB_PORT
+          value: "5432"
+        - name: VULN_DB_NAME
+          value: "vulnerability_db"
+        - name: VULN_DB_USER
+          value: "postgres"
+        - name: VULN_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: THREAT_DB_PASSWORD
+        # ── Neo4j credentials (reuse threat-engine-db-passwords, same Aura instance) ──
+        - name: NEO4J_URI
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: NEO4J_URI
+              optional: true
+        - name: NEO4J_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: NEO4J_USER
+              optional: true
+        - name: NEO4J_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: NEO4J_PASSWORD
+              optional: true
+        # ── Neo4j database name (Aura Free uses default 'neo4j') ─────────────
+        - name: NEO4J_DATABASE
+          value: "neo4j"
+        # ── OpenTelemetry (optional) ───────────────────────────────────────
+        - name: OTEL_SERVICE_NAME
+          value: "engine-threat-v1"
+        - name: OTEL_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_ENABLED
+              optional: true
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_EXPORTER_OTLP_ENDPOINT
+              optional: true
+        - name: OTEL_EXPORTER_OTLP_INSECURE
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_EXPORTER_OTLP_INSECURE
+              optional: true
+        - name: OTEL_TRACES_SAMPLER
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_TRACES_SAMPLER
+              optional: true
+        - name: OTEL_PROPAGATORS
+          valueFrom:
+            configMapKeyRef:
+              name: otel-config
+              key: OTEL_PROPAGATORS
+              optional: true
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health/live
+            port: 8021
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          failureThreshold: 5
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health/ready
+            port: 8021
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: engine-threat-v1
+  namespace: threat-engine-engines
+  labels:
+    app: engine-threat-v1
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8021
+    protocol: TCP
+    name: http
+  selector:
+    app: engine-threat-v1

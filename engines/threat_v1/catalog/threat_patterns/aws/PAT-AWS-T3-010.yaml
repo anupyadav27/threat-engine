@@ -1,0 +1,50 @@
+id: PAT-AWS-T3-010
+version: 1
+description: "Critical CVE on internet-exposed EC2 combined with IMDSv1 and admin role creates full kill chain to RDS crown jewel."
+tier: 3
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Initial Access, Credential Access, Lateral Movement, Exfiltration]
+mitre_techniques: [T1190, T1552.005, T1021.007, T1048.002]
+tactic_chain_order: [Initial Access, Credential Access, Lateral Movement, Exfiltration]
+csps: [aws]
+entry:
+  node_type: Resource
+  resource_types: [aws_instance]
+  conditions:
+    check_rules_failing:
+      - aws.ec2.instance.imdsv2_enabled
+    internet_exposed: true
+    has_critical_cve: true
+hops:
+  - edge_type: CAN_ESCALATE_TO
+    target:
+      node_type: Resource
+      resource_types: [aws_iam_role]
+      conditions:
+        is_admin_role: true
+target:
+  node_type: Resource
+  resource_types: [aws_rds_instance, aws_db_instance]
+  conditions:
+    is_crown_jewel: true
+    check_rules_failing:
+      - aws.rds.instance.storage_encrypted
+cdr_watch:
+  techniques: [T1190, T1552.005]
+  window_minutes: 60
+  min_coverage: 0.5
+  tactic_order_required: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "Public EC2 with critical CVE + IMDSv1 + admin role → RDS crown jewel"
+    expected_tier: 3
+    expected_severity: critical
+  negative:
+    description: "Private EC2, no CVEs, IMDSv2, scoped role, RDS not crown jewel"
+    expected_tier: 3
+    expected_severity: low

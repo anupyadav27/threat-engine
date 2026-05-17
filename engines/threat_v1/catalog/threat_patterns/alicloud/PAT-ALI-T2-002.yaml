@@ -1,0 +1,38 @@
+id: PAT-ALI-T2-002
+version: 1
+description: "CloudFW public access + DTS replication without in-transit encryption — network path allows data interception during replication."
+tier: 2
+severity_base: high
+confidence: confirmed
+mitre_tactics: [Collection, Lateral Movement]
+mitre_techniques: [T1557, T1021]
+tactic_chain_order: [Lateral Movement, Collection]
+csps: [alicloud]
+min_hops_for_tier2: 1
+entry:
+  node_type: Resource
+  resource_types: [alicloud_cloudfw_instance]
+  conditions:
+    check_rules_failing:
+      - alicloud.cloudfw.instance.public_ip
+hops:
+  - edge_type: FLOWS_TO
+    target:
+      node_type: Resource
+      resource_types: [alicloud_dts_instance]
+      conditions:
+        check_rules_failing:
+          - alicloud.dts.dr.replication_encryption_in_transit_tls_required
+scoring:
+  posture_severity: high
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "CloudFW with public IP path → DTS replication without TLS"
+    expected_tier: 2
+    expected_severity: high
+  negative:
+    description: "CloudFW private, DTS with TLS required"
+    expected_tier: 2
+    expected_severity: low

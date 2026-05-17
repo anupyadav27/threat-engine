@@ -302,6 +302,7 @@ class ThreatScanResponse(BaseModel):
     provider: Optional[str] = None
 
 
+@app.post("/api/v1/internal/scan", response_model=ThreatScanResponse, include_in_schema=False)
 @app.post("/api/v1/scan", response_model=ThreatScanResponse)
 async def create_threat_scan(request: ThreatReportRequest):
     """

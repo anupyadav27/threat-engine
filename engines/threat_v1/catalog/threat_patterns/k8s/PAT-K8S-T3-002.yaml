@@ -1,0 +1,49 @@
+id: PAT-K8S-T3-002
+version: 1
+description: "Compromised workload with auto-mounted SA token pivots via RBAC escalation (CDR) to cluster-admin and reads crown jewel secret."
+tier: 3
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Credential Access, Privilege Escalation, Collection]
+mitre_techniques: [T1528, T1613, T1552]
+tactic_chain_order: [Credential Access, Privilege Escalation, Collection]
+csps: [k8s]
+entry:
+  node_type: Resource
+  resource_types: [k8s_pod, k8s_serviceaccount]
+  conditions:
+    check_rules_failing:
+      - k8s.pod.serviceaccount.automount_check
+    cdr_actor_seen: true
+hops:
+  - edge_type: CAN_ESCALATE_TO
+    target:
+      node_type: Resource
+      resource_types: [k8s_clusterrolebinding]
+      conditions:
+        is_admin_role: true
+        check_rules_failing:
+          - k8s.rbac.role.administrators_cannot_update_cluster_role_binding_configured
+target:
+  node_type: Resource
+  resource_types: [k8s_secret]
+  conditions:
+    is_crown_jewel: true
+cdr_watch:
+  techniques: [T1528, T1613]
+  window_minutes: 60
+  min_coverage: 0.5
+  tactic_order_required: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "Auto-mounted SA CDR exec → cluster-admin binding → crown jewel secret"
+    expected_tier: 3
+    expected_severity: critical
+  negative:
+    description: "SA token not auto-mounted, no CDR events, secret not crown jewel"
+    expected_tier: 3
+    expected_severity: low

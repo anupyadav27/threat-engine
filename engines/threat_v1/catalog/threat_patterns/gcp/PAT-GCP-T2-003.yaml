@@ -1,0 +1,44 @@
+id: PAT-GCP-T2-003
+version: 1
+description: "GKE privileged workload with container escape path escalates via cluster role binding CDR event to cluster admin."
+tier: 2
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Privilege Escalation, Lateral Movement]
+mitre_techniques: [T1611, T1613]
+tactic_chain_order: [Privilege Escalation, Lateral Movement]
+csps: [gcp]
+min_hops_for_tier2: 1
+entry:
+  node_type: Resource
+  resource_types: [gcp_gke_cluster, gcp_gke_workload]
+  conditions:
+    check_rules_failing:
+      - gcp.gke.workload.workload_no_privileged_containers
+    cdr_actor_seen: true
+hops:
+  - edge_type: CAN_ESCALATE_TO
+    target:
+      node_type: Resource
+      resource_types: [gcp_gke_cluster]
+      conditions:
+        check_rules_failing:
+          - gcp.gke.workload.workload_drop_net_raw_and_reduce_caps
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+cdr_watch:
+  techniques: [T1611, T1613]
+  window_minutes: 60
+  min_coverage: 0.5
+  tactic_order_required: true
+tests:
+  positive:
+    description: "GKE privileged pod + cluster role binding CDR event"
+    expected_tier: 2
+    expected_severity: critical
+  negative:
+    description: "GKE no privileged pods, caps dropped, no CDR events"
+    expected_tier: 2
+    expected_severity: low

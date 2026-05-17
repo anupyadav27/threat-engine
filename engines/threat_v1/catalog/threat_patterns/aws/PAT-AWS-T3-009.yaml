@@ -1,0 +1,49 @@
+id: PAT-AWS-T3-009
+version: 1
+description: "Cross-account IAM role with admin trust policy traverses account boundary to reach S3 crown jewel in target account."
+tier: 3
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Privilege Escalation, Lateral Movement, Collection]
+mitre_techniques: [T1078.004, T1550.001, T1530]
+tactic_chain_order: [Privilege Escalation, Lateral Movement, Collection]
+csps: [aws]
+entry:
+  node_type: Resource
+  resource_types: [aws_iam_role]
+  conditions:
+    check_rules_failing:
+      - aws.iam.role.session_duration_reasonable_if_applicable_configured
+    is_admin_role: true
+hops:
+  - edge_type: CAN_ESCALATE_TO
+    target:
+      node_type: Resource
+      resource_types: [aws_iam_role]
+      conditions:
+        check_rules_failing:
+          - aws.iam.policy.security_check_full_admin_privileges_configured
+        is_admin_role: true
+target:
+  node_type: Resource
+  resource_types: [aws_s3_bucket]
+  conditions:
+    is_crown_jewel: true
+cdr_watch:
+  techniques: [T1550.001, T1078.004]
+  window_minutes: 120
+  min_coverage: 0.5
+  tactic_order_required: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "Admin role assuming another admin role → S3 crown jewel"
+    expected_tier: 3
+    expected_severity: critical
+  negative:
+    description: "Scoped cross-account role with no path to crown jewel"
+    expected_tier: 3
+    expected_severity: low

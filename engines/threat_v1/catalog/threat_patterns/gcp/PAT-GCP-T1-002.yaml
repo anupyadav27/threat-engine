@@ -1,0 +1,28 @@
+id: PAT-GCP-T1-002
+version: 1
+description: "GCS bucket allows unencrypted PUT operations — attacker can write malicious objects without encryption enforcement."
+tier: 1
+severity_base: high
+confidence: confirmed
+mitre_tactics: [Exfiltration, Impact]
+mitre_techniques: [T1537, T1485]
+tactic_chain_order: [Impact, Exfiltration]
+csps: [gcp]
+entry:
+  node_type: Resource
+  resource_types: [gcp_storage_bucket, gcp_gcs_bucket]
+  conditions:
+    check_rules_failing:
+      - gcp.storage.policy.bucket_policy_deny_unencrypted_puts
+scoring:
+  posture_severity: high
+  active_severity: critical
+tests:
+  positive:
+    description: "GCS bucket without deny-unencrypted-puts policy"
+    expected_tier: 1
+    expected_severity: high
+  negative:
+    description: "GCS bucket with deny-unencrypted-puts and CMEK enforced"
+    expected_tier: 1
+    expected_severity: low

@@ -27,6 +27,8 @@ from .views import (
     GroupTenantDeleteView,
     GroupAccountAssignView,
     GroupAccountDeleteView,
+    # FR1
+    ProvisionOrgView,
 )
 
 router = DefaultRouter()
@@ -71,6 +73,9 @@ urlpatterns = [
     path("groups/<str:group_id>/tenants/<str:tenant_id>/", GroupTenantDeleteView.as_view(), name="group_tenant_delete"),
     path("groups/<str:group_id>/accounts/", GroupAccountAssignView.as_view(), name="group_account_assign"),
     path("groups/<str:group_id>/accounts/<str:account_id>/", GroupAccountDeleteView.as_view(), name="group_account_delete"),
+
+    # FR1: platform admin org provisioning
+    path("admin/provision-org/", ProvisionOrgView.as_view(), name="provision_org"),
 
     # Router last
     path("", include(router.urls)),

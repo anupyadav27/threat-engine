@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 
 const CATALOG_BASE =
   process.env.CATALOG_PATH ||
-  '/Users/apple/Desktop/threat-engine/catalog/discovery_generator';
+  '/app/catalog';
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);

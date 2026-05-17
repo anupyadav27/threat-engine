@@ -1,0 +1,52 @@
+id: PAT-T1-008
+version: 2
+deprecated_at: null
+description: >
+  Kubernetes/container orchestrator with public API endpoint and overly
+  permissive RBAC (cluster-admin binding to default or unauthenticated
+  principals). Public K8s API with admin RBAC = unauthenticated full
+  cluster takeover.
+
+tier: 1
+severity_base: critical
+confidence: confirmed
+
+mitre_tactics:      [TA0001, TA0004]
+mitre_techniques:   [T1190, T1548.005]
+tactic_chain_order: [initial_access, privilege_escalation]
+
+csps: [aws, azure, gcp]
+
+entry:
+  node_type: Resource
+  resource_types: []
+  conditions:
+    internet_exposed: true
+    is_admin_role: true
+
+target:
+  node_type: Resource
+  resource_types: []
+  conditions: {}
+
+min_hops_for_tier2: null
+
+cdr_watch:
+  techniques:     [T1190, T1548.005]
+  window_minutes: 30
+  min_coverage:   0.5
+  tactic_order_required: false
+
+scoring:
+  posture_severity:  critical
+  active_severity:   critical
+  path_length_bonus: false
+
+tests:
+  positive:
+    description: "EKS public endpoint + cluster-admin ClusterRoleBinding to default SA"
+    expected_tier: 1
+    expected_severity: critical
+  negative:
+    description: "EKS private endpoint only with RBAC least-privilege"
+    expected_tier: null

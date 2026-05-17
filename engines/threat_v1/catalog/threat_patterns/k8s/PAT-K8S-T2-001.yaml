@@ -1,0 +1,44 @@
+id: PAT-K8S-T2-001
+version: 1
+description: "Privileged pod with sensitive HostPath mount CDR event — direct read/write access to host filesystem, enabling node takeover."
+tier: 2
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Privilege Escalation, Lateral Movement]
+mitre_techniques: [T1611, T1005]
+tactic_chain_order: [Privilege Escalation, Lateral Movement]
+csps: [k8s]
+min_hops_for_tier2: 1
+entry:
+  node_type: Resource
+  resource_types: [k8s_pod, k8s_deployment]
+  conditions:
+    check_rules_failing:
+      - k8s.pod.security.privileged_containers_check
+    cdr_actor_seen: true
+hops:
+  - edge_type: CAN_ESCALATE_TO
+    target:
+      node_type: Resource
+      resource_types: [k8s_node]
+      conditions:
+        check_rules_failing:
+          - k8s.admission.control.hostpath_volumes_restricted
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+cdr_watch:
+  techniques: [T1611]
+  window_minutes: 60
+  min_coverage: 0.5
+  tactic_order_required: false
+tests:
+  positive:
+    description: "Privileged pod with hostPath CDR mount event → node"
+    expected_tier: 2
+    expected_severity: critical
+  negative:
+    description: "Non-privileged pod, no hostPath mounts, no CDR events"
+    expected_tier: 2
+    expected_severity: low

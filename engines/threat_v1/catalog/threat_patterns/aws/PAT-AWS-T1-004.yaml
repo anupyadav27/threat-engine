@@ -1,0 +1,29 @@
+id: PAT-AWS-T1-004
+version: 1
+description: "S3 bucket with public access not blocked and no server-side encryption — data exfiltration requires zero credentials."
+tier: 1
+severity_base: high
+confidence: confirmed
+mitre_tactics: [Exfiltration, Collection]
+mitre_techniques: [T1530, T1619]
+tactic_chain_order: [Collection, Exfiltration]
+csps: [aws]
+entry:
+  node_type: Resource
+  resource_types: [aws_s3_bucket]
+  conditions:
+    check_rules_failing:
+      - aws.s3.bucket.block_public_access_enabled
+      - aws.s3.bucket.encryption_enabled
+scoring:
+  posture_severity: high
+  active_severity: critical
+tests:
+  positive:
+    description: "S3 bucket with public ACL and no SSE"
+    expected_tier: 1
+    expected_severity: high
+  negative:
+    description: "S3 bucket with block-all-public and AES256 encryption"
+    expected_tier: 1
+    expected_severity: low

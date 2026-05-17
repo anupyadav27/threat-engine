@@ -1,0 +1,51 @@
+id: PAT-OCI-T3-001
+version: 1
+description: "OCI compute instance using instance principal with overprivileged policy reaches Vault crown jewel — no secrets rotation enables persistent access."
+tier: 3
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Privilege Escalation, Collection, Credential Access]
+mitre_techniques: [T1078.004, T1552, T1555]
+tactic_chain_order: [Privilege Escalation, Credential Access, Collection]
+csps: [oci]
+entry:
+  node_type: Resource
+  resource_types: [oci_compute_instance]
+  conditions:
+    check_rules_failing:
+      - oci.identity.user.sa_no_user_managed_keys
+    internet_exposed: true
+hops:
+  - edge_type: CAN_ESCALATE_TO
+    target:
+      node_type: Resource
+      resource_types: [oci_iam_policy]
+      conditions:
+        is_admin_role: true
+        check_rules_failing:
+          - oci.identity.policy.org_scps_enabled
+target:
+  node_type: Resource
+  resource_types: [oci_vault_secret, oci_kms_vault]
+  conditions:
+    is_crown_jewel: true
+    check_rules_failing:
+      - oci.database.autonomous_database.vault_encryption_enabled
+cdr_watch:
+  techniques: [T1078.004, T1552]
+  window_minutes: 120
+  min_coverage: 0.5
+  tactic_order_required: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "Public OCI compute → admin IAM policy → Vault crown jewel"
+    expected_tier: 3
+    expected_severity: critical
+  negative:
+    description: "Private compute, scoped IAM, Vault not crown jewel"
+    expected_tier: 3
+    expected_severity: low

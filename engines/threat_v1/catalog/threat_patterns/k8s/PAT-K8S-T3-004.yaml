@@ -1,0 +1,48 @@
+id: PAT-K8S-T3-004
+version: 1
+description: "Namespace lateral movement via no NetworkPolicy — pod traverses to privileged namespace and accesses cluster-scoped crown jewel."
+tier: 3
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Lateral Movement, Collection]
+mitre_techniques: [T1021, T1552]
+tactic_chain_order: [Lateral Movement, Collection]
+csps: [k8s]
+entry:
+  node_type: Resource
+  resource_types: [k8s_pod, k8s_namespace]
+  conditions:
+    check_rules_failing:
+      - k8s.rbac.network_policy_configured
+    cdr_actor_seen: true
+hops:
+  - edge_type: CAN_ACCESS
+    target:
+      node_type: Resource
+      resource_types: [k8s_namespace]
+      conditions:
+        check_rules_failing:
+          - k8s.rbac.least.privilege_enforcement
+target:
+  node_type: Resource
+  resource_types: [k8s_secret]
+  conditions:
+    is_crown_jewel: true
+cdr_watch:
+  techniques: [T1021]
+  window_minutes: 60
+  min_coverage: 0.5
+  tactic_order_required: false
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "No NetworkPolicy CDR lateral move → over-privileged namespace → crown jewel secret"
+    expected_tier: 3
+    expected_severity: critical
+  negative:
+    description: "NetworkPolicy in place, RBAC least-privilege, secret not crown jewel"
+    expected_tier: 3
+    expected_severity: low

@@ -1,0 +1,51 @@
+id: PAT-ALI-T3-001
+version: 1
+description: "ACK container escape (CDR: privileged container) → node → over-privileged RAM role → AliCloud KMS crown jewel key access."
+tier: 3
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Privilege Escalation, Lateral Movement, Collection]
+mitre_techniques: [T1611, T1078.004, T1552]
+tactic_chain_order: [Privilege Escalation, Lateral Movement, Collection]
+csps: [alicloud]
+entry:
+  node_type: Resource
+  resource_types: [alicloud_ack_cluster]
+  conditions:
+    cdr_actor_seen: true
+    check_rules_failing:
+      - alicloud.ack.psp.root_user_access_prevented
+hops:
+  - edge_type: CAN_ESCALATE_TO
+    target:
+      node_type: Resource
+      resource_types: [alicloud_ram_role]
+      conditions:
+        is_admin_role: true
+        check_rules_failing:
+          - alicloud.ram.securityaudit.role_created_configured
+target:
+  node_type: Resource
+  resource_types: [alicloud_kms_key]
+  conditions:
+    is_crown_jewel: true
+    check_rules_failing:
+      - alicloud.kms.key.not_publicly_accessible_enforced
+cdr_watch:
+  techniques: [T1611, T1078.004]
+  window_minutes: 120
+  min_coverage: 0.5
+  tactic_order_required: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "ACK container escape CDR → admin RAM role → KMS crown jewel"
+    expected_tier: 3
+    expected_severity: critical
+  negative:
+    description: "ACK no CDR events, scoped RAM role, KMS not crown jewel"
+    expected_tier: 3
+    expected_severity: low

@@ -1,0 +1,44 @@
+id: PAT-AWS-T2-007
+version: 1
+description: "SSM SendCommand observed on EC2 with overprivileged role — lateral movement from compromised management plane to workload."
+tier: 2
+severity_base: high
+confidence: confirmed
+mitre_tactics: [Execution, Lateral Movement]
+mitre_techniques: [T1651, T1021]
+tactic_chain_order: [Execution, Lateral Movement]
+csps: [aws]
+min_hops_for_tier2: 1
+entry:
+  node_type: Resource
+  resource_types: [aws_instance]
+  conditions:
+    check_rules_failing:
+      - aws.iam.role.scopes_or_s_least_privilege
+    cdr_actor_seen: true
+hops:
+  - edge_type: EXECUTES_IN
+    target:
+      node_type: Resource
+      resource_types: [aws_instance]
+      conditions:
+        check_rules_failing:
+          - aws.ec2.security_group_ssh_restricted.ssh_access_restricted
+scoring:
+  posture_severity: high
+  active_severity: critical
+  path_length_bonus: true
+cdr_watch:
+  techniques: [T1651]
+  window_minutes: 120
+  min_coverage: 0.5
+  tactic_order_required: false
+tests:
+  positive:
+    description: "SSM SendCommand CDR event + overprivileged role + SSH-open SG"
+    expected_tier: 2
+    expected_severity: high
+  negative:
+    description: "No CDR events, minimal role, SSH restricted"
+    expected_tier: 2
+    expected_severity: low

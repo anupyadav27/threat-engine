@@ -1,0 +1,47 @@
+id: PAT-AWS-T3-006
+version: 1
+description: "CloudTrail disabled (CDR) creates audit blind spot; attacker pivots from public EC2 to S3 crown jewel undetected."
+tier: 3
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Defense Evasion, Lateral Movement, Collection]
+mitre_techniques: [T1562.001, T1550.001, T1530]
+tactic_chain_order: [Defense Evasion, Lateral Movement, Collection]
+csps: [aws]
+entry:
+  node_type: Resource
+  resource_types: [aws_instance]
+  conditions:
+    cdr_actor_seen: true
+    internet_exposed: true
+hops:
+  - edge_type: CAN_ACCESS
+    target:
+      node_type: Resource
+      resource_types: [aws_s3_bucket]
+      conditions:
+        check_rules_failing:
+          - aws.s3.bucket.object_level_write_logging_enabled
+target:
+  node_type: Resource
+  resource_types: [aws_s3_bucket]
+  conditions:
+    is_crown_jewel: true
+cdr_watch:
+  techniques: [T1562.001, T1530]
+  window_minutes: 240
+  min_coverage: 0.5
+  tactic_order_required: false
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "CloudTrail stop-logging CDR + public EC2 → S3 crown jewel"
+    expected_tier: 3
+    expected_severity: critical
+  negative:
+    description: "CloudTrail active, private EC2, S3 with object logging"
+    expected_tier: 3
+    expected_severity: low

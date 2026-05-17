@@ -1,0 +1,42 @@
+id: PAT-AWS-T2-008
+version: 1
+description: "CloudTrail stop logging event observed while EC2 with overprivileged role is active — attacker disabling audit trail before lateral movement."
+tier: 2
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Defense Evasion, Lateral Movement]
+mitre_techniques: [T1562.001, T1550.001]
+tactic_chain_order: [Defense Evasion, Lateral Movement]
+csps: [aws]
+min_hops_for_tier2: 1
+entry:
+  node_type: Resource
+  resource_types: [aws_cloudtrail, aws_account]
+  conditions:
+    cdr_actor_seen: true
+hops:
+  - edge_type: CAN_ACCESS
+    target:
+      node_type: Resource
+      resource_types: [aws_instance, aws_rds_instance]
+      conditions:
+        check_rules_failing:
+          - aws.iam.role.scopes_or_s_least_privilege
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+cdr_watch:
+  techniques: [T1562.001]
+  window_minutes: 240
+  min_coverage: 0.5
+  tactic_order_required: false
+tests:
+  positive:
+    description: "CloudTrail stop-logging CDR event + reachable EC2 with overprivileged role"
+    expected_tier: 2
+    expected_severity: critical
+  negative:
+    description: "CloudTrail active, no CDR events, scoped EC2 role"
+    expected_tier: 2
+    expected_severity: low

@@ -1,0 +1,30 @@
+id: PAT-AZU-T1-001
+version: 1
+description: "Azure VM with disk unencrypted at host and no trusted launch — compromised hypervisor can access all VM data."
+tier: 1
+severity_base: high
+confidence: confirmed
+mitre_tactics: [Collection, Credential Access]
+mitre_techniques: [T1005, T1552]
+tactic_chain_order: [Collection, Credential Access]
+csps: [azure]
+entry:
+  node_type: Resource
+  resource_types: [azure_virtual_machine, azure_vm]
+  conditions:
+    check_rules_failing:
+      - azure.vm.encryption.at.host.enabled
+      - azure.vm.trusted.launch.secure.boot.vtpm.check
+    internet_exposed: true
+scoring:
+  posture_severity: high
+  active_severity: critical
+tests:
+  positive:
+    description: "Azure VM with host encryption off and no trusted launch"
+    expected_tier: 1
+    expected_severity: high
+  negative:
+    description: "Azure VM with host encryption and secure boot/vTPM enabled"
+    expected_tier: 1
+    expected_severity: low

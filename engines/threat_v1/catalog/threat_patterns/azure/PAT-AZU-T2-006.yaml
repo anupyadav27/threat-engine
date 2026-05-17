@@ -1,0 +1,44 @@
+id: PAT-AZU-T2-006
+version: 1
+description: "Conditional access bypass CDR event on privileged user — attacker circumvented security controls to establish persistent admin session."
+tier: 2
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Credential Access, Persistence]
+mitre_techniques: [T1556, T1098]
+tactic_chain_order: [Credential Access, Persistence]
+csps: [azure]
+min_hops_for_tier2: 1
+entry:
+  node_type: Resource
+  resource_types: [azure_ad_user, azure_aad_user]
+  conditions:
+    cdr_actor_seen: true
+    check_rules_failing:
+      - azure.aad.directory_tenant.access_tenant_console_mfa_required_org_wide
+hops:
+  - edge_type: CAN_ESCALATE_TO
+    target:
+      node_type: Resource
+      resource_types: [azure_ad_application, azure_service_principal]
+      conditions:
+        check_rules_failing:
+          - azure.rbac.role_definition.identity_access_role_trust_principals_allowlist_only
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+cdr_watch:
+  techniques: [T1556]
+  window_minutes: 60
+  min_coverage: 0.5
+  tactic_order_required: false
+tests:
+  positive:
+    description: "Conditional access bypass CDR + admin user → service principal no trust restriction"
+    expected_tier: 2
+    expected_severity: critical
+  negative:
+    description: "No CDR events, MFA required org-wide, trusted principals only"
+    expected_tier: 2
+    expected_severity: low

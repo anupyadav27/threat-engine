@@ -1,0 +1,38 @@
+id: PAT-AWS-T2-002
+version: 1
+description: "ECS task with plaintext secrets connected to RDS — credential exposure path from container to database."
+tier: 2
+severity_base: high
+confidence: confirmed
+mitre_tactics: [Credential Access, Lateral Movement]
+mitre_techniques: [T1552.001, T1021.007]
+tactic_chain_order: [Credential Access, Lateral Movement]
+csps: [aws]
+min_hops_for_tier2: 1
+entry:
+  node_type: Resource
+  resource_types: [aws_ecs_task_definition]
+  conditions:
+    check_rules_failing:
+      - aws.ecs.container_instance.container_env_no_plaintext_secrets_configured
+hops:
+  - edge_type: CAN_ACCESS
+    target:
+      node_type: Resource
+      resource_types: [aws_rds_instance, aws_db_instance]
+      conditions:
+        check_rules_failing:
+          - aws.rds.instance.iam_authentication_enabled
+scoring:
+  posture_severity: high
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "ECS task with plaintext DB_PASSWORD env pointing at RDS with no IAM auth"
+    expected_tier: 2
+    expected_severity: high
+  negative:
+    description: "ECS task using Secrets Manager ARN refs, RDS with IAM auth"
+    expected_tier: 2
+    expected_severity: low

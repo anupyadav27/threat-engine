@@ -6,6 +6,20 @@ WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 
+# ── catalog extractor ────────────────────────────────────────────────
+# Only pulls step2_read_operation_registry.json files (~61 MB) from the
+# 1.4 GB discovery_generator_data tree.  Preserves CSP/service structure.
+FROM alpine:3.19 AS catalog-extractor
+COPY catalog/discovery_generator_data /catalog
+RUN mkdir -p /catalog-slim && \
+    find /catalog -mindepth 3 -maxdepth 3 -name "step2_read_operation_registry.json" | \
+    while read f; do \
+        rel="${f#/catalog/}"; \
+        target_dir="/catalog-slim/$(dirname "$rel")"; \
+        mkdir -p "$target_dir"; \
+        cp "$f" "$target_dir/"; \
+    done
+
 # ── builder ─────────────────────────────────────────────────────────
 FROM node:${NODE_VERSION} AS builder
 WORKDIR /app
@@ -43,6 +57,8 @@ ENV HOSTNAME=0.0.0.0
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
+# Slim catalog: only step2 registry JSONs needed by /api/catalog/* routes
+COPY --from=catalog-extractor /catalog-slim ./catalog
 
 EXPOSE 3000
 CMD ["node", "server.js"]

@@ -1,6 +1,54 @@
 # Threat Engine Development Guide
 
+## CONTEXT LOADING — Load This Before Everything Else
+
+**FIRST ACTION on every task:** Read `.claude/context/agents.ndjson` — match the user's words against `triggers` arrays to identify the engine. Load the `agent_file` from the matched entry. This is non-optional.
+
+**Tier 0 — always load (routing manifest, ~80 lines total):**
+- `.claude/context/agents.ndjson` — engine → triggers → agent file → tools → security gates
+- `.claude/context/tools.md` — task → correct tool (20-row table)
+
+**Tier 1 — load only for UI / BFF / data shape work:**
+- `.claude/context/api_patterns.xml` — fetchView vs getFromEngine rules + auth flow + tenant resolution
+- `.claude/context/bff_contract.ndjson` — per-view contracts (engines called, input params, output shape)
+- `.claude/context/data_flow.ndjson` — full UI→BFF→Engine path per page (auto-generated)
+
+**Tier 2 — load only when specific engine is targeted:**
+- `.claude/agents/{engine}.md` — full engine context (DB schema, API, K8s, gotchas)
+
+**Tier 3 — load only when security gate is triggered:**
+- `.claude/documentation/RBAC.md`, `.claude/documentation/CSPM_CONSTITUTION.md`
+
+**Quick pipeline reference (no file read needed):**
+`Onboarding(0) → Discovery(1) → Inventory(2) → Check(3) → Threat(4) → [Compliance/IAM/DataSec/Network/Encryption/Container/AI/DBSec/CDR/Vuln](5) → Graph-Build(6) → Risk(7) → Narrative(8)`
+
+**Routing shortcut:** If engine target is unclear or task spans process stages → spawn `cspm-orchestrator` agent first. It reads agents.ndjson and routes deterministically.
+
+**New process agents** (available after session restart if created this session):
+`cspm-po` · `cspm-qa` · `cspm-orchestrator` — invoke via `python3 .claude/scripts/invoke_cspm_agent.py --agent cspm-po --task "..."` if subagent_type not yet registered.
+
+---
+
+## SESSION-END PROTOCOL — Run After Every Session With Code Changes
+
+```bash
+git diff --name-only HEAD
+```
+Then for each changed file category:
+- `engines/{engine}/*` changed → update matching line in `.claude/context/agents.ndjson` (svc/port/prefixes)
+- `shared/api_gateway/bff/*.py` changed → update matching line in `.claude/context/bff_contract.ndjson`
+- `frontend/src/lib/constants.js` changed → re-run `python3 scripts/generate_data_flow.py`
+- New UI page added → append line to `.claude/context/data_flow.ndjson` OR re-run generator
+- Engine deployed → update image tag row in MEMORY.md production table
+- Any context file updated → set `refreshed_at` to today's date in that file's `_meta` line
+
+**Stale check:** If any `_meta.refreshed_at` is older than 7 days AND `git log --since` shows changes to its `tied_to` files → flag before using that context file.
+
+---
+
 ## AGENT AUTO-ROUTING — Read Before Every Task
+
+**Prefer agents.ndjson over this table — it is the authoritative routing manifest. This table is a quick-reference shortcut only.**
 
 **Claude must self-select the right specialist agent before doing any work. Never work on engine code without loading its agent.**
 
@@ -36,6 +84,12 @@
 
 ### Step 2 — Spawn the agent (required)
 Use `subagent_type: "<agent-name>"` when invoking via the Agent tool. The agent file lives at `.claude/agents/<agent-name>.md`. Load it as context before touching any code for that engine.
+
+**Process agents (use these instead of generic bmad equivalents):**
+- Story generation → `cspm-po` (CSPM-native ACs: engine routing, DB columns, BFF contract, RBAC matrix)
+- QA / acceptance testing → `cspm-qa` (10-level stack: BFF contract, RBAC matrix, post-deploy smoke)
+- Task routing / unclear engine → `cspm-orchestrator` (reads agents.ndjson, routes deterministically)
+- Pipeline / Argo DAG / multi-engine → `cspm-engine-orchestrator`
 
 ### Step 3 — Apply security gates automatically
 - Any PR touching endpoint / auth / DB / HTTP → also invoke `bmad-security-reviewer`

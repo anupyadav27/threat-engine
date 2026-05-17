@@ -1,0 +1,60 @@
+id: PAT-T2-001
+version: 1
+deprecated_at: null
+description: >
+  Internet-exposed resource assumes a cloud IAM role — partial lateral-movement
+  chain formed. Entry point is reachable from the internet and has pivoted to
+  a cloud identity. Crown jewel data store not yet reached.
+  Early warning: attacker has foothold + credential pivot.
+
+tier: 2
+severity_base: high
+confidence: confirmed
+
+mitre_tactics:      [TA0001, TA0004, TA0006]
+mitre_techniques:   [T1190, T1548, T1552.005]
+tactic_chain_order: [initial_access, privilege_escalation, credential_access]
+
+csps: []
+breach_reference: "Capital One 2019 — SSRF via IMDSv1 to IAM role"
+
+entry:
+  node_type: Resource
+  resource_types: []
+  conditions:
+    internet_exposed: true
+
+hops:
+  - edge_type: ASSUMES
+    target:
+      node_type: Resource
+      resource_types: []
+      conditions: {}
+
+target:
+  node_type: Resource
+  resource_types: []
+  conditions:
+    is_crown_jewel: null
+
+min_hops_for_tier2: 1
+
+cdr_watch:
+  techniques:     [T1552.005, T1580, T1530]
+  window_minutes: 60
+  min_coverage:   0.5
+  tactic_order_required: false
+
+scoring:
+  posture_severity:  high
+  active_severity:   critical
+  path_length_bonus: true
+
+tests:
+  positive:
+    description: "Internet-exposed compute resource assumes an IAM role"
+    expected_tier: 2
+    expected_severity: high
+  negative:
+    description: "Internal resource (not internet-exposed) with role assumption"
+    expected_tier: null

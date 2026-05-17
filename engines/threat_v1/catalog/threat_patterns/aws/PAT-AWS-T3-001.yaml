@@ -1,0 +1,50 @@
+id: PAT-AWS-T3-001
+version: 1
+description: "SSRF on internet-facing EC2 (IMDSv1) steals instance role credentials, pivots via overprivileged role to S3 crown jewel data store."
+tier: 3
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Initial Access, Credential Access, Lateral Movement, Exfiltration]
+mitre_techniques: [T1190, T1552.005, T1550.001, T1530]
+tactic_chain_order: [Initial Access, Credential Access, Lateral Movement, Exfiltration]
+csps: [aws]
+entry:
+  node_type: Resource
+  resource_types: [aws_instance]
+  conditions:
+    check_rules_failing:
+      - aws.ec2.instance.imdsv2_enabled
+      - aws.iam.instanceprofile.no_instance_profile_with_admin_star_configured
+    internet_exposed: true
+hops:
+  - edge_type: CAN_ESCALATE_TO
+    target:
+      node_type: Resource
+      resource_types: [aws_iam_role]
+      conditions:
+        is_admin_role: true
+target:
+  node_type: Resource
+  resource_types: [aws_s3_bucket]
+  conditions:
+    is_crown_jewel: true
+    check_rules_failing:
+      - aws.s3.bucket.require_tls_in_transit_configured
+cdr_watch:
+  techniques: [T1552.005, T1530]
+  window_minutes: 120
+  min_coverage: 0.5
+  tactic_order_required: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "EC2 IMDSv1 + admin role → S3 crown jewel bucket"
+    expected_tier: 3
+    expected_severity: critical
+  negative:
+    description: "EC2 IMDSv2 + scoped role, S3 not crown jewel"
+    expected_tier: 3
+    expected_severity: low

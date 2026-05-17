@@ -1,0 +1,45 @@
+id: PAT-GCP-T2-002
+version: 1
+description: "Service account impersonation CDR event on SA with project editor role — attacker controls resources across entire GCP project."
+tier: 2
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Privilege Escalation, Lateral Movement]
+mitre_techniques: [T1134.001, T1078.004]
+tactic_chain_order: [Privilege Escalation, Lateral Movement]
+csps: [gcp]
+min_hops_for_tier2: 1
+entry:
+  node_type: Resource
+  resource_types: [gcp_service_account, gcp_iam_sa]
+  conditions:
+    cdr_actor_seen: true
+    check_rules_failing:
+      - gcp.iam.service_account.instance_profile_role_policies_least_privilege
+hops:
+  - edge_type: CAN_ESCALATE_TO
+    target:
+      node_type: Resource
+      resource_types: [gcp_project]
+      conditions:
+        check_rules_failing:
+          - gcp.resourcemanager.policy.scp_mandatory_deny_iam_star_admin
+        is_admin_role: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+cdr_watch:
+  techniques: [T1134.001]
+  window_minutes: 60
+  min_coverage: 0.5
+  tactic_order_required: false
+tests:
+  positive:
+    description: "SA impersonation CDR event + SA with editor role on project"
+    expected_tier: 2
+    expected_severity: critical
+  negative:
+    description: "No CDR events, SA scoped, project deny-admin-star enforced"
+    expected_tier: 2
+    expected_severity: low

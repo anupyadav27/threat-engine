@@ -1,0 +1,51 @@
+id: PAT-T1-006
+version: 2
+deprecated_at: null
+description: >
+  Serverless function publicly reachable from the internet with an
+  overly permissive execution role. Exploiting the function grants
+  full account access via the attached admin-equivalent IAM role.
+
+tier: 1
+severity_base: high
+confidence: confirmed
+
+mitre_tactics:      [TA0002, TA0004]
+mitre_techniques:   [T1648, T1078.004]
+tactic_chain_order: [execution, privilege_escalation]
+
+csps: [aws, azure, gcp]
+
+entry:
+  node_type: Resource
+  resource_types: []
+  conditions:
+    internet_exposed: true
+    is_admin_role: true
+
+target:
+  node_type: Resource
+  resource_types: []
+  conditions: {}
+
+min_hops_for_tier2: null
+
+cdr_watch:
+  techniques:     [T1648, T1078.004]
+  window_minutes: 30
+  min_coverage:   0.5
+  tactic_order_required: false
+
+scoring:
+  posture_severity:  high
+  active_severity:   critical
+  path_length_bonus: false
+
+tests:
+  positive:
+    description: "Lambda with admin execution role exposed via public API Gateway"
+    expected_tier: 1
+    expected_severity: high
+  negative:
+    description: "Lambda with least-privilege role behind VPC endpoint"
+    expected_tier: null

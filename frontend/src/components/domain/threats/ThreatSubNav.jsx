@@ -15,21 +15,15 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const TABS = [
-    { label: 'Command Room', href: '/threats'                 },
-    { label: 'Attack Map',   href: '/threats/attack-map' },
-    { label: 'Graph',        href: '/threats/graph'           },
-    { label: 'Trends',       href: '/threats/trends'          },
+    { label: 'Threat Center', href: '/threats-v1'      },
+    { label: 'Graph',         href: '/threats/graph'   },
+    { label: 'Trends',        href: '/threats/trends'  },
 ];
 
 export default function ThreatSubNav({ criticalHighCount = 0 }) {
     const pathname = usePathname();
 
-    const isActive = (href) => {
-        if (href === '/threats') {
-            return pathname === '/threats' || pathname === '/threats/';
-        }
-        return pathname.startsWith(href);
-    };
+    const isActive = (href) => pathname === href || pathname.startsWith(href + '/');
 
     return (
         <div
@@ -44,7 +38,7 @@ export default function ThreatSubNav({ criticalHighCount = 0 }) {
         >
             {TABS.map((tab) => {
                 const active = isActive(tab.href);
-                const showBadge = tab.href === '/threats' && criticalHighCount > 0;
+                const showBadge = tab.href === '/threats-v1' && criticalHighCount > 0;
                 return (
                     <Link
                         key={tab.href}

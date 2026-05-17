@@ -1,0 +1,50 @@
+id: PAT-AWS-T3-005
+version: 1
+description: "SSM SendCommand lateral movement from compromised EC2 pivots through VPC to RDS crown jewel with no IAM auth."
+tier: 3
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Execution, Lateral Movement, Exfiltration]
+mitre_techniques: [T1651, T1021.007, T1048.002]
+tactic_chain_order: [Execution, Lateral Movement, Exfiltration]
+csps: [aws]
+entry:
+  node_type: Resource
+  resource_types: [aws_instance]
+  conditions:
+    cdr_actor_seen: true
+    check_rules_failing:
+      - aws.iam.role.scopes_or_s_least_privilege
+hops:
+  - edge_type: EXECUTES_IN
+    target:
+      node_type: Resource
+      resource_types: [aws_instance]
+      conditions:
+        check_rules_failing:
+          - aws.ec2.security_group_ssh_restricted.ssh_access_restricted
+target:
+  node_type: Resource
+  resource_types: [aws_rds_instance, aws_db_instance]
+  conditions:
+    is_crown_jewel: true
+    check_rules_failing:
+      - aws.rds.instance.iam_authentication_enabled
+cdr_watch:
+  techniques: [T1651, T1021.007]
+  window_minutes: 180
+  min_coverage: 0.5
+  tactic_order_required: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "SSM SendCommand CDR → lateral EC2 → crown jewel RDS"
+    expected_tier: 3
+    expected_severity: critical
+  negative:
+    description: "No CDR events, scoped EC2 role, RDS with IAM auth"
+    expected_tier: 3
+    expected_severity: low
