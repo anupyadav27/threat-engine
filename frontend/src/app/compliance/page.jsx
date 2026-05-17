@@ -22,8 +22,21 @@ const statusIcon = (s) => {
   if (s === 'PASS') return <CheckCircle size={16} style={{ color: C.pass }} />;
   if (s === 'FAIL') return <XCircle size={16} style={{ color: C.fail }} />;
   if (s === 'PARTIAL') return <AlertTriangle size={16} style={{ color: C.partial }} />;
+  if (s === 'MANUAL_REVIEW') return <AlertTriangle size={16} style={{ color: '#a78bfa' }} />;
   return <span style={{ color: C.na, fontSize: 12 }}>--</span>;
 };
+
+function fmtRelative(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d)) return '—';
+  const diff = Math.floor((Date.now() - d) / 86400000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return '1d ago';
+  if (diff < 30) return `${diff}d ago`;
+  const months = Math.floor(diff / 30);
+  return months === 1 ? '1mo ago' : `${months}mo ago`;
+}
 
 const pct = (n, d) => d > 0 ? Math.round(100 * n / d) : 0;
 
@@ -254,33 +267,34 @@ export default function CompliancePage() {
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
-              <col style={{ width: '38%' }} /> {/* Framework name */}
+              <col style={{ width: '32%' }} /> {/* Framework name */}
               <col style={{ width: '10%' }} /> {/* Provider */}
-              <col style={{ width: '16%' }} /> {/* Score */}
-              <col style={{ width: '18%' }} /> {/* Controls */}
-              <col style={{ width: '11%' }} /> {/* Findings */}
+              <col style={{ width: '14%' }} /> {/* Score */}
+              <col style={{ width: '15%' }} /> {/* Controls */}
+              <col style={{ width: '12%' }} /> {/* Failing Controls */}
+              <col style={{ width: '10%' }} /> {/* Last Assessed */}
               <col style={{ width: '7%' }} />  {/* Chevron */}
             </colgroup>
             <thead>
               <tr style={{ borderBottom: `1px solid ${C.border}`, backgroundColor: 'var(--bg-secondary)' }}>
-                {['Framework', 'Provider', 'Score', 'Controls', 'Findings', ''].map(h => (
+                {['Framework', 'Provider', 'Score', 'Controls', 'Failing Controls', 'Last Assessed', ''].map(h => (
                   <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, overflow: 'hidden' }}>
                     {h === 'Score' ? (
                       <Tooltip
-                        text="How well this framework is implemented, based on the controls we tested. Controls with no applicable cloud resources are excluded. Partial credit is given for controls that are partly met."
+                        text="Assessed Score: controls that are passing as a % of all assessed controls. Controls with no applicable cloud resources are excluded from the denominator."
                         position="bottom"
                       >
                         <span style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'help' }}>
                           Score <Info size={10} style={{ opacity: 0.6 }} />
                         </span>
                       </Tooltip>
-                    ) : h === 'Findings' ? (
+                    ) : h === 'Failing Controls' ? (
                       <Tooltip
-                        text="Number of failing controls — the checks that are not passing and need attention."
+                        text="Number of controls with a FAIL or PARTIAL status — these are the gaps that need remediation."
                         position="bottom"
                       >
                         <span style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'help' }}>
-                          Findings <Info size={10} style={{ opacity: 0.6 }} />
+                          Failing Controls <Info size={10} style={{ opacity: 0.6 }} />
                         </span>
                       </Tooltip>
                     ) : h}
@@ -393,12 +407,17 @@ export default function CompliancePage() {
                     </td>
                     <td style={{ padding: '12px 16px' }}>
                       {hasAssessment ? (
-                        <span style={{ fontSize: 14, fontWeight: 600, color: (fw.findings || failed) > 0 ? C.fail : C.pass }}>
-                          {fw.findings || failed}
+                        <span style={{ fontSize: 14, fontWeight: 600, color: failed > 0 ? C.fail : C.pass }}>
+                          {fw.failing_controls ?? failed}
                         </span>
                       ) : (
                         <span style={{ fontSize: 13, color: C.na }}>—</span>
                       )}
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <span style={{ fontSize: 11, color: fw.last_assessed ? 'var(--text-secondary)' : C.na }}>
+                        {fmtRelative(fw.last_assessed)}
+                      </span>
                     </td>
                     <td style={{ padding: '12px 16px', textAlign: 'right' }}>
                       <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
@@ -443,7 +462,10 @@ export default function CompliancePage() {
 
               {(fwDetail?.families || []).map((fam) => {
                 const isOpen = expandedSections.has(fam.family);
-                const famScore = pct((fam.pass || 0) + (fam.partial || 0), fam.total - (fam.na || 0));
+                const famAssessed = (fam.total || 0) - (fam.na || 0);
+                const famScore = famAssessed > 0
+                  ? Math.round(100 * ((fam.pass || 0) + 0.5 * (fam.partial || 0)) / famAssessed)
+                  : 0;
                 const filteredControls = searchTerm
                   ? fam.controls.filter(c => (c.control_name || '').toLowerCase().includes(searchTerm.toLowerCase()) || (c.control_id || '').toLowerCase().includes(searchTerm.toLowerCase()))
                   : fam.controls;
@@ -462,9 +484,9 @@ export default function CompliancePage() {
                       </div>
                       <span style={{ fontSize: 14, fontWeight: 700, textAlign: 'center', color: famScore >= 70 ? C.pass : famScore >= 40 ? C.partial : C.fail }}>{famScore}%</span>
                       <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-                        <Dot color={C.pass} count={fam.pass} />
-                        <Dot color={C.fail} count={fam.fail} />
-                        <Dot color={C.na} count={fam.total - fam.pass - fam.fail} />
+                        <Dot color={C.pass} count={fam.pass || 0} />
+                        {(fam.partial || 0) > 0 && <Dot color={C.partial} count={fam.partial} />}
+                        <Dot color={C.fail} count={fam.fail || 0} />
                       </div>
                     </div>
 
@@ -553,8 +575,8 @@ export default function CompliancePage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {statusIcon(controlPanel.status)}
-                  <span style={{ fontSize: 12, fontWeight: 700, color: controlPanel.status === 'PASS' ? C.pass : controlPanel.status === 'FAIL' ? C.fail : C.na }}>
-                    {controlPanel.status}
+                  <span style={{ fontSize: 12, fontWeight: 700, color: controlPanel.status === 'PASS' ? C.pass : controlPanel.status === 'FAIL' ? C.fail : controlPanel.status === 'PARTIAL' ? C.partial : controlPanel.status === 'MANUAL_REVIEW' ? '#a78bfa' : C.na }}>
+                    {controlPanel.status === 'MANUAL_REVIEW' ? 'Manual Review' : controlPanel.status}
                   </span>
                 </div>
                 <button onClick={() => setControlPanel(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 18 }}>

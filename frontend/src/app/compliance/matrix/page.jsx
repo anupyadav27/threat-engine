@@ -116,7 +116,7 @@ export default function ComplianceMatrixPage() {
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{l}</span>
           </div>
         ))}
-        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>— N/A (no data)</span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>— Not Scanned</span>
         <Tooltip
           text="Each cell shows the Assessed Score for that framework on that cloud provider — the percentage of tested controls that are implemented, including partial credit for partly-met controls. Controls with no applicable resources are excluded. Click any coloured cell to see the full control-by-control breakdown."
           position="bottom"

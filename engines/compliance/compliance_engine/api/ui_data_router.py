@@ -918,7 +918,7 @@ async def get_all_frameworks_with_status(
             SELECT DISTINCT ON (framework_id)
                 framework_id, overall_score, total_controls,
                 controls_implemented, controls_deficient, controls_not_applicable,
-                assessment_data
+                assessment_data, completed_at
             FROM compliance_assessments
             WHERE tenant_id = %s
             ORDER BY framework_id, completed_at DESC NULLS LAST
@@ -987,6 +987,7 @@ async def get_all_frameworks_with_status(
                 fw_data = json.loads(fw_data)
             provider = fw_data.get("provider", "multi")
 
+            completed_at = assessment.get("completed_at")
             frameworks.append({
                 "id": fid,
                 "name": fname,
@@ -1000,6 +1001,11 @@ async def get_all_frameworks_with_status(
                 "failed": failed,
                 "findings": findings,
                 "has_assessment": bool(assessment) or passed > 0 or failed > 0,
+                "last_assessed": (
+                    completed_at.isoformat()
+                    if isinstance(completed_at, datetime)
+                    else str(completed_at) if completed_at else None
+                ),
             })
 
         return {
@@ -1161,7 +1167,6 @@ async def get_framework_assessment(
                 families[family]["pass"] += 1
             elif status == "PARTIAL":
                 families[family]["partial"] += 1
-                families[family]["fail"] += 1
             elif status == "FAIL":
                 families[family]["fail"] += 1
             elif status == "NOT_APPLICABLE":

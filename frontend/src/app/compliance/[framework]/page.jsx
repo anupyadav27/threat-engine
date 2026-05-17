@@ -420,6 +420,21 @@ export default function FrameworkDetailPage() {
   return (
     <div className="space-y-6">
 
+      {/* ── Legacy banner — this route is the older per-framework page; the primary view is now the accordion in /compliance ── */}
+      <div style={{
+        padding: '8px 16px', borderRadius: 8, fontSize: 12,
+        backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)',
+        color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 8,
+      }}>
+        <Info className="w-4 h-4 shrink-0" />
+        <span>
+          You&rsquo;re viewing the standalone framework page. For the full compliance overview with all frameworks and filters, go back to{' '}
+          <button onClick={() => router.push('/compliance')} style={{ color: '#f59e0b', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, padding: 0, fontWeight: 700 }}>
+            Compliance
+          </button>.
+        </span>
+      </div>
+
       {/* ── Breadcrumb ── */}
       <div className="flex items-center gap-2">
         <button

@@ -221,16 +221,17 @@ export default function ComplianceRemediationPage() {
           {/* Table */}
           <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
-              <col style={{ width: '13%' }} />  {/* Framework */}
-              <col style={{ width: '22%' }} />  {/* Control ID */}
-              <col style={{ width: '32%' }} />  {/* Title */}
-              <col style={{ width: '10%' }} />  {/* Severity */}
-              <col style={{ width: '12%' }} />  {/* Affected Accounts */}
-              <col style={{ width: '11%' }} />  {/* Last Checked */}
+              <col style={{ width: '12%' }} />  {/* Framework */}
+              <col style={{ width: '18%' }} />  {/* Control ID */}
+              <col style={{ width: '28%' }} />  {/* Title */}
+              <col style={{ width: '9%' }} />   {/* Severity */}
+              <col style={{ width: '15%' }} />  {/* Account */}
+              <col style={{ width: '9%' }} />   {/* Days Open */}
+              <col style={{ width: '9%' }} />   {/* Last Checked */}
             </colgroup>
             <thead>
               <tr style={{ borderBottom: `1px solid ${C.border}`, backgroundColor: 'var(--bg-secondary)' }}>
-                {['Framework', 'Control ID', 'Title', 'Severity', 'Affected Accounts', 'Last Checked'].map(h => (
+                {['Framework', 'Control ID', 'Title', 'Severity', 'Account', 'Days Open', 'Last Checked'].map(h => (
                   <th key={h} style={{
                     padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600,
                     color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5,
@@ -242,77 +243,96 @@ export default function ComplianceRemediationPage() {
             <tbody>
               {displayed.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                  <td colSpan={7} style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
                     No controls match your filter.
                   </td>
                 </tr>
-              ) : displayed.map((ctrl, i) => (
-                <tr
-                  key={`${ctrl.framework}-${ctrl.control_id}-${i}`}
-                  style={{ borderBottom: `1px solid ${C.border}`, transition: 'background 0.1s' }}
-                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                >
-                  {/* Framework */}
-                  <td style={{ padding: '10px 16px', overflow: 'hidden' }}>
-                    <span style={{
-                      fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 700,
-                      backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)',
-                      display: 'inline-block', maxWidth: '100%',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }} title={ctrl.framework || ''}>
-                      {ctrl.framework || '—'}
-                    </span>
-                  </td>
+              ) : displayed.map((ctrl, i) => {
+                const daysOpen = ctrl.days_open || 0;
+                const daysColor = daysOpen > 90 ? '#ef4444' : daysOpen > 30 ? '#f59e0b' : 'var(--text-secondary)';
+                const acctDisplay = ctrl.affected_account_names?.[0] || ctrl.affected_accounts?.[0] || '—';
+                return (
+                  <tr
+                    key={`${ctrl.framework}-${ctrl.control_id}-${i}`}
+                    style={{ borderBottom: `1px solid ${C.border}`, transition: 'background 0.1s' }}
+                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                  >
+                    {/* Framework */}
+                    <td style={{ padding: '10px 16px', overflow: 'hidden' }}>
+                      <span style={{
+                        fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 700,
+                        backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)',
+                        display: 'inline-block', maxWidth: '100%',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }} title={ctrl.framework || ''}>
+                        {ctrl.framework || '—'}
+                      </span>
+                    </td>
 
-                  {/* Control ID — 2-line max, full on hover via title */}
-                  <td style={{ padding: '10px 16px', overflow: 'hidden' }}>
-                    <code style={{
-                      fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'monospace',
-                      display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden', wordBreak: 'break-all',
-                    }} title={ctrl.control_id || ''}>
-                      {ctrl.control_id || '—'}
-                    </code>
-                  </td>
+                    {/* Control ID */}
+                    <td style={{ padding: '10px 16px', overflow: 'hidden' }}>
+                      <code style={{
+                        fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'monospace',
+                        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden', wordBreak: 'break-all',
+                      }} title={ctrl.control_id || ''}>
+                        {ctrl.control_id || '—'}
+                      </code>
+                    </td>
 
-                  {/* Title — 2-line max, full on hover */}
-                  <td style={{ padding: '10px 16px', overflow: 'hidden' }}>
-                    <span style={{
-                      fontSize: 13, color: 'var(--text-primary)',
-                      display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden', lineHeight: 1.4,
-                    }} title={ctrl.control_title || ctrl.control_id || ''}>
-                      {ctrl.control_title || ctrl.control_id || '—'}
-                    </span>
-                  </td>
+                    {/* Title */}
+                    <td style={{ padding: '10px 16px', overflow: 'hidden' }}>
+                      <span style={{
+                        fontSize: 13, color: 'var(--text-primary)',
+                        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden', lineHeight: 1.4,
+                      }} title={ctrl.control_title || ctrl.control_id || ''}>
+                        {ctrl.control_title || ctrl.control_id || '—'}
+                      </span>
+                    </td>
 
-                  {/* Severity */}
-                  <td style={{ padding: '10px 16px' }}>
-                    {ctrl.severity
-                      ? <SeverityBadge severity={ctrl.severity.toLowerCase()} />
-                      : <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>—</span>
-                    }
-                  </td>
-
-                  {/* Affected Accounts */}
-                  <td style={{ padding: '10px 16px', textAlign: 'center' }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                      {ctrl.affected_account_count ?? (ctrl.affected_accounts?.length ?? 0)}
-                    </span>
-                  </td>
-
-                  {/* Last Checked */}
-                  <td style={{ padding: '10px 16px' }}>
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                      {ctrl.last_checked
-                        ? new Date(ctrl.last_checked).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-                        : '—'
+                    {/* Severity */}
+                    <td style={{ padding: '10px 16px' }}>
+                      {ctrl.severity
+                        ? <SeverityBadge severity={ctrl.severity.toLowerCase()} />
+                        : <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>—</span>
                       }
-                    </span>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+
+                    {/* Account */}
+                    <td style={{ padding: '10px 16px', overflow: 'hidden' }}>
+                      <span style={{
+                        fontSize: 12, color: 'var(--text-secondary)',
+                        display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }} title={acctDisplay}>
+                        {acctDisplay}
+                      </span>
+                    </td>
+
+                    {/* Days Open */}
+                    <td style={{ padding: '10px 16px' }}>
+                      {daysOpen > 0 ? (
+                        <span style={{ fontSize: 13, fontWeight: 700, color: daysColor }}>
+                          {daysOpen}d
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>—</span>
+                      )}
+                    </td>
+
+                    {/* Last Checked */}
+                    <td style={{ padding: '10px 16px' }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {ctrl.last_checked
+                          ? new Date(ctrl.last_checked).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                          : '—'
+                        }
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
 

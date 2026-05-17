@@ -5,8 +5,7 @@ Adds resilience: score computation from passed/failed ratio, trend fallback,
 framework score derivation when engine returns all zeros.
 """
 
-import hashlib
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
 from fastapi import APIRouter, Query, Request
@@ -76,8 +75,9 @@ async def view_compliance(
                 "passed": fw.get("passed", 0),
                 "failed": fw.get("failed", 0),
                 "findings": fw.get("findings", 0),
+                "failing_controls": fw.get("failed", 0),
                 "has_assessment": fw.get("has_assessment", False),
-                "last_assessed": None,
+                "last_assessed": fw.get("last_assessed"),
             })
     else:
         # Fallback to compliance_data frameworks
@@ -85,9 +85,17 @@ async def view_compliance(
         if not isinstance(fw_list, list):
             fw_list = []
         frameworks = [normalize_framework(fw) for fw in fw_list if isinstance(fw, dict)]
+        for fw in frameworks:
+            if "failing_controls" not in fw:
+                fw["failing_controls"] = fw.get("failed", 0)
 
     # Drop degenerate rows where both id AND name are empty
     frameworks = [fw for fw in frameworks if fw.get("id") or fw.get("name")]
+
+    # Ensure failing_controls is set on every framework object
+    for fw in frameworks:
+        if "failing_controls" not in fw:
+            fw["failing_controls"] = fw.get("failed", 0)
 
     # When engine has findings but no assessment (compliance_assessments empty),
     # the engine returns passed=0, failed=0 even though findings > 0.
@@ -174,20 +182,7 @@ async def view_compliance(
 
     exceptions: List[dict] = compliance_data.get("exceptions", []) or []
 
-    # Prefer real audit deadlines from engine; synthesize when empty
     audit_deadlines: List[dict] = compliance_data.get("audit_deadlines", []) or []
-    if not audit_deadlines and frameworks:
-        now = datetime.now(timezone.utc)
-        for i, fw in enumerate(frameworks):
-            days_rem = 30 * i + 60
-            audit_deadlines.append({
-                "framework": fw["name"],
-                "type": "Annual Compliance Audit",
-                "due_date": (now + timedelta(days=days_rem)).isoformat(),
-                "days_remaining": days_rem,
-                "owner": "Compliance Team",
-                "status": "on-track" if days_rem > 30 else "at-risk",
-            })
 
     # ── Matrix key mapping: framework_id (snake_case) → MATRIX_FRAMEWORKS key ──
     _FW_KEY_MAP: Dict[str, str] = {}
@@ -231,31 +226,6 @@ async def view_compliance(
                 normalized[mk] = round(float(val), 1)
         per_account_scores[acct_id] = normalized
 
-    # ── Synthetic per-account scores (variance from overall framework scores) ─
-    if not per_account_scores and frameworks:
-        _accts = onboarding_data.get("accounts", [])
-        if isinstance(_accts, list) and _accts:
-            fw_score_map = {fw["name"]: fw.get("score", 0) for fw in frameworks}
-            for acct in _accts:
-                aid = acct.get("account_id", "")
-                if not aid:
-                    continue
-                row_scores: Dict[str, Any] = {"account_id": aid}
-                for fw_name, base_score in fw_score_map.items():
-                    # Deterministic variance per account+framework (5-15%)
-                    seed = hashlib.md5(f"{aid}:{fw_name}".encode()).hexdigest()
-                    variance_pct = 5 + (int(seed[:4], 16) % 11)  # 5..15
-                    direction = 1 if int(seed[4], 16) % 2 == 0 else -1
-                    adjusted = base_score + direction * (base_score * variance_pct / 100)
-                    adjusted = max(0, min(100, round(adjusted, 1)))
-                    # Map framework name to MATRIX_FRAMEWORKS key
-                    fw_key = fw_name.upper().replace(" ", "").split("-")[0][:5]
-                    for mk in MATRIX_FRAMEWORKS:
-                        if mk in fw_key or fw_key in mk or fw_name.upper().startswith(mk):
-                            row_scores[mk] = adjusted
-                            break
-                per_account_scores[aid] = row_scores
-
     # ── Account compliance matrix ────────────────────────────────────────
     raw_accounts = onboarding_data.get("accounts", [])
     if not isinstance(raw_accounts, list):
@@ -290,10 +260,7 @@ async def view_compliance(
             "status": acct.get("status") or acct.get("account_status", "active"),
         }
         for fw_key in MATRIX_FRAMEWORKS:
-            row[fw_key] = acct_scores.get(fw_key, 0) or acct.get(fw_key, 0)
-        if all(row.get(k, 0) == 0 for k in MATRIX_FRAMEWORKS) and overall_score:
-            for fw_key in MATRIX_FRAMEWORKS:
-                row[fw_key] = round(overall_score)
+            row[fw_key] = acct_scores.get(fw_key) or acct.get(fw_key) or None
         scores = [row.get(k, 0) for k in MATRIX_FRAMEWORKS if row.get(k, 0) > 0]
         row["avg"] = round(sum(scores) / len(scores), 1) if scores else 0
         account_matrix.append(row)
@@ -665,21 +632,35 @@ async def view_compliance_remediation(
                             "days_open":    0,
                         })
 
+    now_utc = datetime.now(timezone.utc)
     failing_controls = []
     for c in raw_fc:
         if not isinstance(c, dict):
             continue
         raw_sev = (c.get("severity") or "LOW").upper()
         acct_id = c.get("account") or c.get("account_id", "")
+        acct_name = account_names.get(acct_id, acct_id) if acct_id else ""
         last_checked = c.get("last_checked") or c.get("last_seen_at") or c.get("assessed_at")
+        # Compute days_open: prefer stored value, fall back to days since last_checked
+        days_open = c.get("days_open") or 0
+        if not days_open and last_checked:
+            try:
+                lc_dt = datetime.fromisoformat(str(last_checked).replace("Z", "+00:00"))
+                if lc_dt.tzinfo is None:
+                    lc_dt = lc_dt.replace(tzinfo=timezone.utc)
+                days_open = max(0, (now_utc - lc_dt).days)
+            except Exception:
+                pass
         failing_controls.append({
             "framework":              c.get("framework") or c.get("framework_id", ""),
             "control_id":             c.get("control_id", ""),
             "control_title":          c.get("title") or c.get("control_name", ""),
             "severity":               raw_sev,
             "affected_accounts":      [acct_id] if acct_id else [],
+            "affected_account_names": [acct_name] if acct_name else [],
             "affected_account_count": 1 if acct_id else 0,
             "last_checked":           last_checked,
+            "days_open":              days_open,
         })
 
     # Optional server-side filters (provider carries no data in failing_controls, skip)
