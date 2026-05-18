@@ -7,7 +7,7 @@ Investigation Journey Unification — Phase F
 P1 — Closes G-11 (Vulnerability "Could not load agent list" + no agent detail) and G-28 (Risk scenarios don't link to driving findings); covers ADR §6.3 recommended scope expansion.
 
 ## Status
-draft
+done — /risk/scenario/[id] and /vulnerability/agents/[agentId] routes exist; risk_scenario_detail.py and vulnerability_agent_detail.py BFF handlers exist; registered in __init__.py
 
 ## Team Assignment (RACI)
 

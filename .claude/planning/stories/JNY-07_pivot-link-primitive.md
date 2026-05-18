@@ -7,7 +7,7 @@ Investigation Journey Unification — Phase B
 P0 — The single primitive that fixes G-7 (no `<a href>`), G-12..G-19 (orphaned rows across 7 engines), and unifies cross-engine navigation.
 
 ## Status
-draft
+done — PivotLink.jsx (real <a>, 400ms delayed tooltip, telemetry emit, 11 entity types) + pivot-routes.js (resolvePivotUrl + ENTITY_REGISTRY) implemented; secops returns null (pending STORY-ENG-SECOPS-FINDING-TABLE)
 
 ## Team Assignment (RACI)
 

@@ -7,7 +7,7 @@ Investigation Journey Unification — Phase C
 P0 — Closes G-12..G-18 (orphaned rows across IAM, Network, DataSec, Encryption, Container Sec, DB Sec, AI Security) and G-19 (no rule_id click).
 
 ## Status
-draft
+done — PivotLink wired in all 7 engine pages (iam, network-security, datasec, encryption, container-security, database-security, ai-security); verified via grep
 
 ## Team Assignment (RACI)
 
