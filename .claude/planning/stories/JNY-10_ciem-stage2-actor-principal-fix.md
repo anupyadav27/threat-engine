@@ -7,7 +7,7 @@ Investigation Journey Unification — Phase D
 P1 — CIEM `/ciem/identity/[principal]` Stage 2 returns empty findings/hourly/dow for principals listed in Stage 1 (G-6).
 
 ## Status
-draft
+done — root cause: path param {principal_encoded}/hourly-activity broke on slashes in IAM ARNs (FastAPI decoded %2F). Fix: (1) CDR engine endpoint changed to query param /hourly-activity?actor_principal=...; (2) BFF cdr_identity.py updated to call new endpoint; (3) actor_principal LIKE→exact match; (4) identity lookup is now case-insensitive
 
 ## Team Assignment (RACI)
 
