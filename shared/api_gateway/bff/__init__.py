@@ -90,6 +90,7 @@ from .asset_posture import router as asset_posture_router
 from .asset_findings import router as asset_findings_router
 from .api_security import router as api_security_router
 from .chat import router as chat_router
+from .threat_technique import router as threat_technique_router
 
 # Combined router — include this in main.py
 router = APIRouter()
@@ -136,5 +137,6 @@ for _sub in (
     asset_findings_router,
     api_security_router,
     chat_router,
+    threat_technique_router,
 ):
     router.include_router(_sub)

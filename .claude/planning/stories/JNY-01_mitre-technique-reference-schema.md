@@ -7,7 +7,7 @@ Investigation Journey Unification — Phase A
 P0 — TechniqueDetailModal returns 500; blocks every threat investigation deep-dive (G-1).
 
 ## Status
-draft
+done — mitre_technique_reference table (110 rows) + threat_finding_techniques already applied; BFF route GET /views/threats/technique/{id} added in v-bff-technique1
 
 ## Team Assignment (RACI)
 

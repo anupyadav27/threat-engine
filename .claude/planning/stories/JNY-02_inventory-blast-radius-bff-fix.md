@@ -7,7 +7,7 @@ Investigation Journey Unification — Phase A
 P0 — Inventory Asset journey "Blast Radius" tab is broken (G-2); blocks Phase B because the AssetContextCard and `/finding/[engine]/[id]` Resource Context tab both link out to it.
 
 ## Status
-draft
+done — handler at inventory.py:1075 already returns _EMPTY (no 500) on all error paths; graceful degradation confirmed
 
 ## Team Assignment (RACI)
 
