@@ -161,6 +161,69 @@ def main():
         _update_report_status(db_manager, scan_run_id, "completed")
         logger.info(f"Check scan completed: {scan_run_id} — {results.get('total_checks', 0)} checks in {duration:.1f}s")
 
+        # Write FAIL findings to security_findings (non-fatal)
+        try:
+            from engine_common.security_findings_writer import upsert_findings
+            from engine_common.db_connections import get_inventory_conn, get_check_conn
+            _inv_conn = get_inventory_conn()
+            try:
+                _sf_rows = []
+                _chk_conn = get_check_conn()
+                try:
+                    with _chk_conn.cursor() as _cur:
+                        _cur.execute(
+                            """
+                            SELECT finding_id, resource_uid, rule_id, severity,
+                                   account_id, provider, resource_type, region,
+                                   first_seen_at, finding_data
+                            FROM check_findings
+                            WHERE scan_run_id = %s AND tenant_id = %s AND status = 'FAIL'
+                            LIMIT 10000
+                            """,
+                            (scan_run_id, tenant_id),
+                        )
+                        for _row in _cur.fetchall():
+                            _fid, _ruid, _rule_id, _sev, _acct, _prov, _rtype, _region, _first_seen, _fdata = _row
+                            _title = (_rule_id or _ruid or "")
+                            if isinstance(_fdata, dict):
+                                _title = _fdata.get("title") or _fdata.get("check_title") or _title
+                                _desc = _fdata.get("description", "")
+                                _remediation = _fdata.get("remediation", "")
+                            else:
+                                _desc = ""
+                                _remediation = ""
+                            _sf_rows.append({
+                                "source_finding_id": _fid or _ruid or "",
+                                "resource_uid": _ruid or "",
+                                "finding_type": "misconfig",
+                                "severity": (_sev or "medium").lower(),
+                                "title": _title,
+                                "account_id": _acct,
+                                "provider": _prov,
+                                "resource_type": _rtype,
+                                "rule_id": _rule_id,
+                                "description": _desc,
+                                "detail": {
+                                    "resource_type": _rtype,
+                                    "region": _region,
+                                    "remediation": _remediation,
+                                },
+                                "in_kev": False,
+                                "first_seen_at": _first_seen,
+                            })
+                finally:
+                    _chk_conn.close()
+                if _sf_rows:
+                    upsert_findings(
+                        _inv_conn, _sf_rows, source_engine="check",
+                        tenant_id=tenant_id, scan_run_id=scan_run_id,
+                    )
+                    logger.info("security_findings (check): wrote %d FAIL findings", len(_sf_rows))
+            finally:
+                _inv_conn.close()
+        except Exception as _sf_err:
+            logger.warning("security_findings write (check) skipped: %s", _sf_err)
+
         # Retention: archive old scans to S3, keep last 5 in DB
         try:
             from engine_common.retention import run_retention

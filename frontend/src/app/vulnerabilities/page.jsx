@@ -13,6 +13,7 @@ import {
   ResponsiveContainer, Legend,
 } from 'recharts';
 import { TENANT_ID } from '@/lib/constants';
+import { postToEngine } from '@/lib/api';
 import { useToast } from '@/lib/toast-context';
 import { useGlobalFilter } from '@/lib/global-filter-context';
 import SearchBar from '@/components/shared/SearchBar';
@@ -183,6 +184,7 @@ export default function VulnerabilitiesPage() {
   const [sortBy,   setSortBy]   = useState('cvss');
   const [sortDir,  setSortDir]  = useState('desc');
   const [selectedCve, setSelectedCve] = useState(null);
+  const [isTriggering, setIsTriggering] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -354,12 +356,27 @@ export default function VulnerabilitiesPage() {
             <Bug size={20} color={C.critical} />
             <h1 style={{ fontSize:20, fontWeight:700, color:'var(--text-primary)', margin:0 }}>Vulnerability Management</h1>
           </div>
-          <button onClick={() => toast.info('Scan triggered')} style={{
-            display:'flex', alignItems:'center', gap:6, padding:'7px 14px',
-            background:C.critical, color:'#fff', border:'none', borderRadius:8,
-            fontSize:12, fontWeight:700, cursor:'pointer',
-          }}>
-            <RefreshCw size={13}/> Trigger Scan
+          <button
+            disabled={isTriggering}
+            onClick={async () => {
+              setIsTriggering(true);
+              try {
+                const result = await postToEngine('gateway', '/api/v1/scans/run-all', { tenant_id: TENANT_ID });
+                const id = result?.scan_run_id;
+                toast.success(id ? `Scan queued — ID: ${id.slice(0, 8)}…` : 'Scan queued');
+              } catch {
+                toast.error('Failed to trigger scan');
+              } finally {
+                setIsTriggering(false);
+              }
+            }}
+            style={{
+              display:'flex', alignItems:'center', gap:6, padding:'7px 14px',
+              background: isTriggering ? '#6b7280' : C.critical,
+              color:'#fff', border:'none', borderRadius:8,
+              fontSize:12, fontWeight:700, cursor: isTriggering ? 'not-allowed' : 'pointer',
+            }}>
+            <RefreshCw size={13} className={isTriggering ? 'animate-spin' : ''}/> {isTriggering ? 'Triggering…' : 'Trigger Scan'}
           </button>
         </div>
         <p style={{ fontSize:13, color:'var(--text-secondary)', margin:0 }}>

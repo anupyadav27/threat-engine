@@ -18,9 +18,14 @@ spec:
         tier: gateway
     spec:
       serviceAccountName: engine-sa
+      tolerations:
+      - key: "spot-scanner"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
       containers:
       - name: api-gateway
-        image: yadavanup84/threat-engine-api-gateway:v-vul-agent8
+        image: yadavanup84/threat-engine-api-gateway:v-bff-jny10
         imagePullPolicy: Always
         ports:
         - containerPort: 8000
@@ -90,6 +95,38 @@ spec:
           value: "http://engine-platform-admin.threat-engine-engines.svc.cluster.local:8041"
         - name: ARGO_SERVER_URL
           value: "http://argo-server.argo.svc.cluster.local:2746"
+        - name: THREAT_V1_ENGINE_URL
+          value: "http://engine-threat-v1.threat-engine-engines.svc.cluster.local:80"
+        - name: ATTACK_PATH_ENGINE_URL
+          value: "http://engine-attack-path.threat-engine-engines.svc.cluster.local:80"
+        - name: API_SECURITY_ENGINE_URL
+          value: "http://engine-api-security.threat-engine-engines.svc.cluster.local"
+        # Inventory DB — used by asset_posture BFF endpoint (AP-P4-04)
+        - name: INVENTORY_DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: threat-engine-db-config
+              key: INVENTORY_DB_HOST
+        - name: INVENTORY_DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: threat-engine-db-config
+              key: INVENTORY_DB_PORT
+        - name: INVENTORY_DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: threat-engine-db-config
+              key: INVENTORY_DB_NAME
+        - name: INVENTORY_DB_USER
+          valueFrom:
+            configMapKeyRef:
+              name: threat-engine-db-config
+              key: INVENTORY_DB_USER
+        - name: INVENTORY_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: INVENTORY_DB_PASSWORD
         # CSP ConfigScan Engine URLs
         - name: CONFIGSCAN_AWS_URL
           value: "http://engine-configscan-aws.threat-engine-engines.svc.cluster.local"

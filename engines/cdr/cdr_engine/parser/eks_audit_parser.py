@@ -62,6 +62,17 @@ class EKSAuditParser(BaseParser):
                 resp_status = event.get("responseStatus", {})
                 source_ips = event.get("sourceIPs", [])
 
+                k8s_resource = obj_ref.get("resource", "")
+                k8s_namespace = obj_ref.get("namespace", "") or "cluster"
+                k8s_name = obj_ref.get("name", "")
+                # Construct resource_uid matching discovery's format: namespace/kind/name
+                # Discovery stores: resource_path = f"{namespace}/{kind}/{name}"
+                _resource_uid = (
+                    f"{k8s_namespace}/{k8s_resource}/{k8s_name}"
+                    if k8s_resource and k8s_name
+                    else ""
+                )
+
                 record = {
                     "kind": "Event",
                     "verb": verb,
@@ -75,9 +86,10 @@ class EKSAuditParser(BaseParser):
                     # Source
                     "source_ip": source_ips[0] if source_ips else "",
                     # Object reference
-                    "resource": obj_ref.get("resource", ""),
-                    "namespace": obj_ref.get("namespace", ""),
-                    "name": obj_ref.get("name", ""),
+                    "resource": k8s_resource,
+                    "namespace": k8s_namespace,
+                    "name": k8s_name,
+                    "_resource_uid": _resource_uid,
                     "api_group": obj_ref.get("apiGroup", ""),
                     "api_version": obj_ref.get("apiVersion", ""),
                     "subresource": obj_ref.get("subresource", ""),
@@ -102,6 +114,7 @@ class EKSAuditParser(BaseParser):
             "operation": "verb",
             "actor.principal": "user_username",
             "actor.ip_address": "source_ip",
+            "resource.uid": "_resource_uid",
             "resource.name": "name",
             "resource.type": "resource",
             "outcome": "response_code",

@@ -7,7 +7,7 @@ Investigation Journey Unification — Phase A
 P1 — Inventory CIEM tab and `/ciem/identity/[principal]` Stage 2 hit 403 for the default admin (G-3); blocks the cross-engine pivot from asset → identity.
 
 ## Status
-draft
+done — Django migrations 0015-0018 applied via v-jny03-1 image; cdr:sensitive=True for analyst/tenant_admin/org_admin/platform_admin, False for viewer; verified in live DB
 
 ## Team Assignment (RACI)
 

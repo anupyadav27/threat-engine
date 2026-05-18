@@ -429,6 +429,20 @@ def main():
         except Exception as l2_exc:
             logger.warning(f"L2 correlation failed (non-fatal): {l2_exc}", exc_info=True)
 
+        # 7b. Sequence detection (multi-event attack patterns — PC-DEPTH-06)
+        seq_stats = {"total_findings": 0}
+        try:
+            from cdr_engine.detectors.sequence_detector import SequenceDetector
+            seq_detector = SequenceDetector(
+                scan_run_id=scan_run_id,
+                tenant_id=tenant_id,
+                provider=provider,
+            )
+            seq_stats = seq_detector.detect(account_id=account_id, region=region)
+            logger.info(f"Sequence detection: {seq_stats}")
+        except Exception as seq_exc:
+            logger.warning(f"Sequence detection failed (non-fatal): {seq_exc}", exc_info=True)
+
         # 8. L3 Baseline evaluation (behavioral anomaly detection)
         l3_stats = {"total_findings": 0}
         try:
@@ -450,6 +464,7 @@ def main():
         total_findings = (
             eval_stats.get("total_findings", 0)
             + l2_stats.get("total_findings", 0)
+            + seq_stats.get("total_findings", 0)
             + l3_stats.get("total_findings", 0)
         )
         duration = (datetime.now(timezone.utc) - start).total_seconds()
@@ -458,6 +473,7 @@ def main():
             f"{total_findings} findings "
             f"(L1={eval_stats.get('total_findings', 0)}, "
             f"L2={l2_stats.get('total_findings', 0)}, "
+            f"SEQ={seq_stats.get('total_findings', 0)}, "
             f"L3={l3_stats.get('total_findings', 0)}) "
             f"in {duration:.1f}s. Sources: {source_stats}"
         )
@@ -468,6 +484,95 @@ def main():
             run_retention("cdr", scan_run_id)
         except Exception as _ret_err:
             logger.warning("Retention cleanup skipped: %s", _ret_err)
+
+        # Write CDR posture signals to resource_security_posture (non-fatal)
+        try:
+            from cdr_engine.posture_signals import (
+                write_cdr_posture_signals,
+                write_cdr_iam_cross_signal,
+            )
+            write_cdr_posture_signals(
+                cdr_scan_run_id=scan_run_id,
+                tenant_id=tenant_id,
+                account_id=account_id or "",
+                provider=provider,
+            )
+            # Link actor_principal ARNs → IAM role posture rows (PC-P2-02)
+            write_cdr_iam_cross_signal(
+                cdr_scan_run_id=scan_run_id,
+                tenant_id=tenant_id,
+                account_id=account_id or "",
+                provider=provider,
+            )
+        except Exception as _ps_err:
+            logger.warning("CDR posture signal write skipped: %s", _ps_err)
+
+        # Write CDR OPEN findings to shared security_findings table (non-fatal)
+        # actor_principal is PII — store only actor_hash = sha256(actor_principal)[:32]
+        try:
+            import hashlib
+            import psycopg2.extras
+            from engine_common.security_findings_writer import upsert_findings
+            from engine_common.db_connections import get_inventory_conn, get_cdr_conn
+
+            cdr_conn = get_cdr_conn()
+            inv_conn = get_inventory_conn()
+            rows: list = []
+            with cdr_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT finding_id, rule_id, resource_uid, resource_type,
+                           account_id, provider, region, severity, status,
+                           actor_principal, title, description,
+                           mitre_tactics, mitre_techniques,
+                           action_category, operation, first_seen_at
+                    FROM cdr_findings
+                    WHERE scan_run_id = %s AND tenant_id = %s AND LOWER(status) = 'open'
+                    LIMIT 2000
+                    """,
+                    (scan_run_id, tenant_id),
+                )
+                for r in cur.fetchall():
+                    actor = r.get("actor_principal") or ""
+                    actor_hash = hashlib.sha256(actor.encode()).hexdigest()[:32] if actor else None
+                    techs = r.get("mitre_techniques") or []
+                    tacts = r.get("mitre_tactics") or []
+                    rows.append({
+                        "source_finding_id": str(r["finding_id"]),
+                        "resource_uid": r.get("resource_uid") or "",
+                        "account_id": r.get("account_id", ""),
+                        "provider": r.get("provider", ""),
+                        "resource_type": r.get("resource_type", ""),
+                        "finding_type": "threat_detection",
+                        "severity": (r.get("severity") or "medium").lower(),
+                        "rule_id": r.get("rule_id", ""),
+                        "title": r.get("title", ""),
+                        "description": r.get("description", ""),
+                        "mitre_technique_id": techs[0] if techs else None,
+                        "mitre_tactic": tacts[0] if tacts else None,
+                        "detail": {
+                            "actor_hash": actor_hash,
+                            "operation": r.get("operation"),
+                            "action_category": r.get("action_category"),
+                            "mitre_techniques": techs,
+                            "mitre_tactics": tacts,
+                        },
+                        "status": "open",
+                        "first_seen_at": r.get("first_seen_at"),
+                    })
+            if rows:
+                written = upsert_findings(
+                    conn=inv_conn,
+                    findings=rows,
+                    source_engine="cdr",
+                    tenant_id=tenant_id,
+                    scan_run_id=scan_run_id,
+                )
+                logger.info("security_findings: wrote %d CDR rows", written)
+            inv_conn.close()
+            cdr_conn.close()
+        except Exception as _sf_err:
+            logger.warning("CDR security_findings write skipped: %s", _sf_err)
 
     except Exception as exc:
         logger.error(f"CIEM scan FAILED: {exc}", exc_info=True)

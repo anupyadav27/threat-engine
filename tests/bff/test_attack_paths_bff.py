@@ -208,7 +208,7 @@ def app():
 
 @pytest.fixture
 def client(app):
-    return TestClient(app, raise_server_exceptions=False)
+    return TestClient(app)
 
 
 # ── Contract shape tests ──────────────────────────────────────────────────────

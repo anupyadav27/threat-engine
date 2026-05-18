@@ -1,0 +1,72 @@
+# KEV Sync CronJob — fetches CISA Known Exploited Vulnerabilities catalog daily
+# Target DB: vulnerability DB (vulnerability-db-secret)
+# Schedule: 02:00 UTC daily
+# Image: yadavanup84/engine-kev-sync:v-kev-sync1
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: kev-sync
+  namespace: threat-engine-engines
+  labels:
+    app: kev-sync
+    tier: cronjob
+spec:
+  schedule: "0 2 * * *"
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            app: kev-sync
+            tier: cronjob
+        spec:
+          serviceAccountName: engine-sa
+          restartPolicy: OnFailure
+          tolerations:
+          - key: spot-scanner
+            operator: Equal
+            value: "true"
+            effect: NoSchedule
+          containers:
+          - name: kev-sync
+            image: yadavanup84/engine-kev-sync:v-kev-sync1
+            imagePullPolicy: Always
+            env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: vulnerability-db-secret
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: vulnerability-db-secret
+                  key: DB_PORT
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: vulnerability-db-secret
+                  key: DB_NAME
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: vulnerability-db-secret
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vulnerability-db-secret
+                  key: DB_PASSWORD
+            resources:
+              requests:
+                cpu: 50m
+                memory: 64Mi
+              limits:
+                cpu: 200m
+                memory: 256Mi

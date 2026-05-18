@@ -7,7 +7,7 @@ Investigation Journey Unification — Phase E
 P2/P3 cluster — addresses G-23 (refresh button repeated), G-24 (KPI strip + tab counts boilerplate), G-25 (no shared empty-state).
 
 ## Status
-draft
+done — EngineShell.jsx, EmptyState.jsx, refreshBus.js all implemented in frontend/src/components/shared/ and frontend/src/lib/
 
 ## Team Assignment (RACI)
 

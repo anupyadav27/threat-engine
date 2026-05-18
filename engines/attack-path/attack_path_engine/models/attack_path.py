@@ -1,0 +1,100 @@
+"""
+Attack Path Engine — Pydantic models.
+
+RawPath: output of Neo4j reverse BFS (one row per path found).
+PostureRow: subset of resource_security_posture used by scorer and deduplicator.
+ScoredPath: RawPath + scoring results.
+Path: ScoredPath + deduplication / grouping metadata.
+ChokePoint: result of choke-point detection.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field
+
+
+class RawPath(BaseModel):
+    """One raw path returned by the Neo4j reverse BFS query (AP-P2-03).
+
+    Fields match the RETURN clause of REVERSE_BFS_CYPHER exactly.
+    """
+
+    crown_jewel_uid: str
+    entry_point_uid: str
+    node_uids: List[str] = Field(default_factory=list)
+    node_types: List[str] = Field(default_factory=list)
+    edge_types: List[str] = Field(default_factory=list)
+    hop_categories: List[str] = Field(default_factory=list)
+    depth: int = 0
+    max_epss: Optional[float] = None
+    misconfig_count: int = 0
+    threat_count: int = 0
+    top_cves: List[Dict[str, Any]] = Field(default_factory=list)
+
+    # Per-hop evidence collected by Phase-2 OPTIONAL MATCH clauses
+    hop_evidence: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class PostureRow(BaseModel):
+    """Subset of resource_security_posture used by the scorer and deduplicator.
+
+    Pre-fetched into a dict[resource_uid → PostureRow] by run_scan.py.
+    The scorer and deduplicator receive this dict — they do NOT query the DB.
+    """
+
+    resource_uid: str = ""
+    entry_point_type: str = ""       # internet | vpn | onprem | peer_account | vendor | k8s_external
+    is_internet_exposed: bool = False
+    max_epss: Optional[float] = None
+    critical_misconfig_count: int = 0
+    high_misconfig_count: int = 0
+    waf_protected: bool = False
+    mfa_required: bool = False
+    has_permission_boundary: bool = False
+    has_active_cdr_actor: bool = False
+    crown_jewel_type: str = ""
+    data_classification: Optional[str] = None   # pii | financial | credentials | internal | public
+    blast_radius_count: int = 0
+    encryption_type: Optional[str] = None       # aes256 | kms | none | null
+    is_crown_jewel: bool = False
+    is_on_attack_path: bool = False
+    attack_path_count: int = 0
+    is_choke_point: bool = False
+
+
+class ScoredPath(RawPath):
+    """RawPath with scoring results appended by scorer.py."""
+
+    probability_score: float = 0.0
+    impact_score: float = 0.0
+    path_score: int = 0                     # round(min(100, P × I × 100))
+    severity: str = "low"                   # critical | high | medium | low
+    chain_type: str = ""                    # e.g. "Internet → Data"
+    entry_point_type: str = ""              # internet | vpn | onprem | peer_account | vendor | k8s_external
+    crown_jewel_type: str = ""              # data | secrets | identity | infra_control | ai_model | code | data_warehouse | encryption_control
+    data_classification: Optional[str] = None
+    has_active_cdr_actor: bool = False      # lifted from posture signals
+
+
+class Path(ScoredPath):
+    """ScoredPath with deduplication / grouping metadata appended by deduplicator.py."""
+
+    # Phase 1 (exact dedup)
+    path_id: str = ""                       # sha256("|".join(node_uids))
+
+    # Phase 3 (convergence grouping)
+    group_id: Optional[str] = None         # first 12 chars of sha256(group_key)
+    group_size: int = 1
+    is_representative: bool = True
+    choke_node_uid: Optional[str] = None   # penultimate node in group tail
+    absorbed_count: int = 0               # how many shorter paths this path absorbed
+
+
+class ChokePoint(BaseModel):
+    """A node identified as a choke point by choke_point_detector.py."""
+
+    node_uid: str
+    paths_blocked_if_fixed: int            # count of distinct group_ids this node appears in
+    avg_path_score: float = 0.0            # average score of representative paths in those groups

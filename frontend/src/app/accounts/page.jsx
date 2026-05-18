@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Zap, RefreshCw, Plus, AlertTriangle } from 'lucide-react';
 import AccountCard from '@/components/accounts/AccountCard';
+import { fetchView } from '@/lib/api';
 import { useTenant } from '@/lib/tenant-context';
 
 export default function AccountsPage() {
@@ -19,10 +20,9 @@ export default function AccountsPage() {
     setLoading(true);
     setError('');
     try {
-      const resp = await fetch('/gateway/api/v1/cloud-accounts/', { credentials: 'include' });
-      if (!resp.ok) throw new Error(`Error ${resp.status}`);
-      const data = await resp.json();
-      setAccounts(data.accounts || data || []);
+      const data = await fetchView('onboarding/cloud_accounts', { limit: 200 });
+      if (data?.error) throw new Error(data.error);
+      setAccounts(data?.accounts || []);
     } catch (e) {
       setError(e.message);
     } finally {

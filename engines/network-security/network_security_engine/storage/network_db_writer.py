@@ -123,6 +123,8 @@ def save_network_findings(findings: List[Dict[str, Any]]) -> int:
             now = datetime.now(timezone.utc)
             values = []
             for f in findings:
+                if not f.get("resource_uid"):
+                    continue
                 values.append((
                     f["finding_id"], f["scan_run_id"], f["tenant_id"],
                     f.get("account_id", ""),

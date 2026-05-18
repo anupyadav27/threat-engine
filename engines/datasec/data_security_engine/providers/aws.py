@@ -6,9 +6,10 @@ Resource types consumed from discovery_findings (story ENG-10):
 """
 
 import hashlib
+import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from psycopg2.extras import RealDictCursor
 
@@ -612,8 +613,256 @@ class AWSDataSecProvider(BaseDataSecProvider):
                     public_access=False, now=now,
                 ))
 
+        # ── Modules 9-11: cross_account_access, acl_ownership, lake_formation ─
+        s3_rows = [r for r in rows if r.get("resource_type") in _S3_TYPES]
+        cdr_conn: Optional[Any] = None
+        try:
+            from engine_common.db_connections import get_cdr_conn
+            cdr_conn = get_cdr_conn()
+        except Exception:
+            pass
+        try:
+            findings.extend(self._analyze_cross_account_access(
+                s3_rows=s3_rows, account_id=account_id,
+                scan_run_id=scan_run_id, tenant_id=tenant_id,
+                now=now, cdr_conn=cdr_conn,
+            ))
+            findings.extend(self._analyze_bucket_acl_ownership(
+                s3_rows=s3_rows, account_id=account_id,
+                scan_run_id=scan_run_id, tenant_id=tenant_id, now=now,
+            ))
+            findings.extend(self._analyze_lake_formation(
+                discoveries_conn=discoveries_conn, account_id=account_id,
+                scan_run_id=scan_run_id, tenant_id=tenant_id, now=now,
+            ))
+        except Exception as _xacct_exc:
+            logger.warning("DataSec cross-account analysis failed (non-fatal): %s", _xacct_exc)
+        finally:
+            if cdr_conn:
+                try:
+                    cdr_conn.close()
+                except Exception:
+                    pass
+
         logger.info(
             "AWS DSPM analyze(): produced %d findings from %d discovery rows",
             len(findings), len(rows),
         )
+        return findings
+
+    def _analyze_cross_account_access(
+        self,
+        s3_rows: List[Dict],
+        account_id: str,
+        scan_run_id: str,
+        tenant_id: str,
+        now: datetime,
+        cdr_conn: Optional[Any] = None,
+    ) -> List[Dict[str, Any]]:
+        """Check S3 bucket policies for cross-account Allow statements."""
+        findings: List[Dict[str, Any]] = []
+        seen: set = set()
+        for row in s3_rows:
+            resource_uid = row.get("resource_uid") or ""
+            region = row.get("region") or "us-east-1"
+            emitted = row.get("emitted_fields") or {}
+            labels = _infer_labels(
+                str(emitted.get("Name") or emitted.get("resource_id") or resource_uid)
+            )
+            policy_raw = emitted.get("Policy") or emitted.get("BucketPolicy") or ""
+            if not policy_raw:
+                continue
+            try:
+                policy = json.loads(policy_raw) if isinstance(policy_raw, str) else policy_raw
+            except (ValueError, TypeError):
+                continue
+            for stmt in (policy.get("Statement") or []):
+                if stmt.get("Effect") != "Allow":
+                    continue
+                principal = stmt.get("Principal")
+                principals: List[str] = []
+                if isinstance(principal, dict):
+                    for v in principal.values():
+                        principals.extend(v if isinstance(v, list) else [str(v)])
+                elif isinstance(principal, str):
+                    principals.append(principal)
+                for p in principals:
+                    if p == "*" or "amazonaws.com" in p or "arn:aws:iam" not in p:
+                        continue
+                    try:
+                        other_acct = p.split(":")[4]
+                    except IndexError:
+                        continue
+                    if not other_acct or other_acct == account_id:
+                        continue
+                    actions = stmt.get("Action", [])
+                    if isinstance(actions, str):
+                        actions = [actions]
+                    has_write = any(
+                        x in a.lower() for a in actions
+                        for x in ("put", "delete", "write", "modify", "create")
+                    )
+                    has_policy = any("policy" in a.lower() for a in actions)
+                    if has_write:
+                        sev, rule = "CRITICAL", "aws.s3.bucket.no_cross_account_write_access"
+                    elif has_policy:
+                        sev, rule = "HIGH", "aws.s3.bucket.cross_account_replication_reviewed"
+                    else:
+                        sev, rule = "HIGH", "aws.s3.bucket.cross_account_read_access_reviewed"
+                    # CDR enrichment: confirm active GetObject cross-account access
+                    if cdr_conn and sev != "CRITICAL":
+                        try:
+                            with cdr_conn.cursor() as _cdr_cur:
+                                _cdr_cur.execute(
+                                    """
+                                    SELECT COUNT(1) FROM cdr_findings
+                                    WHERE resource_uid = %s AND tenant_id = %s
+                                      AND operation ILIKE %s
+                                      AND event_time >= NOW() - INTERVAL '24 hours'
+                                    """,
+                                    (resource_uid, tenant_id, "GetObject"),
+                                )
+                                if (_cdr_cur.fetchone() or [0])[0] > 0:
+                                    sev = "CRITICAL"
+                        except Exception:
+                            pass
+                    key = (resource_uid, rule)
+                    if key not in seen:
+                        seen.add(key)
+                        findings.append(_base_finding(
+                            rule_id=rule,
+                            resource_uid=resource_uid,
+                            resource_type="S3::Bucket",
+                            account_id=account_id,
+                            region=region,
+                            scan_run_id=scan_run_id,
+                            tenant_id=tenant_id,
+                            dspm_module="cross_account_access",
+                            severity=sev,
+                            status="FAIL",
+                            classification_labels=labels,
+                            encryption_status="unknown",
+                            public_access=False,
+                            now=now,
+                        ))
+        return findings
+
+    def _analyze_bucket_acl_ownership(
+        self,
+        s3_rows: List[Dict],
+        account_id: str,
+        scan_run_id: str,
+        tenant_id: str,
+        now: datetime,
+    ) -> List[Dict[str, Any]]:
+        """Check S3 bucket ObjectOwnership — should be BucketOwnerEnforced."""
+        findings: List[Dict[str, Any]] = []
+        for row in s3_rows:
+            resource_uid = row.get("resource_uid") or ""
+            region = row.get("region") or "us-east-1"
+            emitted = row.get("emitted_fields") or {}
+            labels = _infer_labels(
+                str(emitted.get("Name") or emitted.get("resource_id") or resource_uid)
+            )
+            ownership = emitted.get("ObjectOwnership")
+            if ownership is None:
+                ownership_ctrl = emitted.get("BucketOwnershipControls")
+                if isinstance(ownership_ctrl, dict):
+                    rules = ownership_ctrl.get("Rules") or []
+                    if rules:
+                        ownership = (rules[0] or {}).get("ObjectOwnership")
+            if ownership and ownership != "BucketOwnerEnforced":
+                findings.append(_base_finding(
+                    rule_id="aws.s3.bucket.bucket_owner_enforced",
+                    resource_uid=resource_uid,
+                    resource_type="S3::Bucket",
+                    account_id=account_id,
+                    region=region,
+                    scan_run_id=scan_run_id,
+                    tenant_id=tenant_id,
+                    dspm_module="access_control",
+                    severity="MEDIUM",
+                    status="FAIL",
+                    classification_labels=labels,
+                    encryption_status="unknown",
+                    public_access=False,
+                    now=now,
+                ))
+        return findings
+
+    def _analyze_lake_formation(
+        self,
+        discoveries_conn: Any,
+        account_id: str,
+        scan_run_id: str,
+        tenant_id: str,
+        now: datetime,
+    ) -> List[Dict[str, Any]]:
+        """Check LakeFormation for IAM_ALLOWED_PRINCIPALS and admin wildcard grants."""
+        findings: List[Dict[str, Any]] = []
+        try:
+            with discoveries_conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT resource_uid, resource_type, region, emitted_fields
+                    FROM discovery_findings
+                    WHERE scan_run_id = %s AND tenant_id = %s
+                      AND (resource_type ILIKE %s OR resource_type ILIKE %s)
+                    LIMIT 500
+                    """,
+                    (scan_run_id, tenant_id, "%LakeFormation%", "%Glue::DataCatalog%"),
+                )
+                lf_rows = cur.fetchall()
+        except Exception as exc:
+            logger.warning("LakeFormation discovery query failed: %s", exc)
+            return findings
+        for row in lf_rows:
+            resource_uid = row.get("resource_uid") or ""
+            region = row.get("region") or "us-east-1"
+            emitted = row.get("emitted_fields") or {}
+            rtype = row.get("resource_type", "LakeFormation::Database")
+            labels = _infer_labels(str(emitted.get("Name") or resource_uid))
+            permissions = emitted.get("Permissions") or emitted.get("LakeFormationPermissions") or []
+            for perm in (permissions if isinstance(permissions, list) else []):
+                principal = perm.get("Principal") or {}
+                if (isinstance(principal, dict)
+                        and principal.get("DataLakePrincipalIdentifier") == "IAM_ALLOWED_PRINCIPALS"):
+                    findings.append(_base_finding(
+                        rule_id="aws.lakeformation.database.no_iam_allowed_principals",
+                        resource_uid=resource_uid,
+                        resource_type=rtype,
+                        account_id=account_id,
+                        region=region,
+                        scan_run_id=scan_run_id,
+                        tenant_id=tenant_id,
+                        dspm_module="cross_account_access",
+                        severity="HIGH",
+                        status="FAIL",
+                        classification_labels=labels,
+                        encryption_status="unknown",
+                        public_access=False,
+                        now=now,
+                    ))
+                    break
+            admin_perms = emitted.get("AdminPermissions") or emitted.get("CatalogPermissions") or []
+            _admin_ops = {"CREATE_DATABASE", "CREATE_TABLE", "DATA_LOCATION_ACCESS", "SUPER"}
+            for ap in (admin_perms if isinstance(admin_perms, list) else []):
+                if _admin_ops & set(ap.get("Permissions") or []):
+                    findings.append(_base_finding(
+                        rule_id="aws.lakeformation.database.no_admin_wildcard_grant",
+                        resource_uid=resource_uid,
+                        resource_type=rtype,
+                        account_id=account_id,
+                        region=region,
+                        scan_run_id=scan_run_id,
+                        tenant_id=tenant_id,
+                        dspm_module="cross_account_access",
+                        severity="HIGH",
+                        status="FAIL",
+                        classification_labels=labels,
+                        encryption_status="unknown",
+                        public_access=False,
+                        now=now,
+                    ))
+                    break
         return findings

@@ -18,7 +18,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from ._auth import _parse_auth_context, resolve_tenant_id
-from ._shared import ENGINE_URLS, ENGINE_TIMEOUTS, DEFAULT_TIMEOUT, fetch_many, safe_get
+from ._shared import ENGINE_URLS, ENGINE_TIMEOUTS, DEFAULT_TIMEOUT, fetch_many, safe_get, fetch_scan_trend
 from ._transforms import normalize_asset, apply_global_filters, _safe_upper
 from ._page_context import inventory_page_context, inventory_filter_schema
 from ._common_schemas import InventoryViewResponse
@@ -396,6 +396,9 @@ async def view_inventory(
         {"id": "graph", "label": "Graph", "count": 0},
     ]
 
+    # Fetch real scan trend from onboarding DB (best-effort; returns [] on failure)
+    scan_trend = fetch_scan_trend(tenant_id) if tenant_id else []
+
     return {
         "pageContext": page_ctx,
         "filterSchema": inventory_filter_schema(),
@@ -423,6 +426,7 @@ async def view_inventory(
         "total": inventory_data.get("total", len(filtered)),
         "has_more": inventory_data.get("has_more", False),
         "summary": summary_resp,
+        "scanTrend": scan_trend,
     }
 
 

@@ -643,7 +643,7 @@ def create_orchestration_record(
         exclude_regions_json = json.dumps(exclude_regions) if exclude_regions else None
 
         result = db.execute(text("""
-            INSERT INTO scan_orchestration
+            INSERT INTO scan_runs
             (scan_run_id, tenant_id, customer_id, account_id, provider,
              overall_status, engines_requested, include_services, include_regions,
              exclude_services, exclude_regions, credential_type, credential_ref,
@@ -685,7 +685,7 @@ def mark_orchestration_complete(scan_run_id: str, status: str = 'completed') -> 
         from sqlalchemy import text
 
         db.execute(text("""
-            UPDATE scan_orchestration
+            UPDATE scan_runs
             SET overall_status = :status, completed_at = NOW()
             WHERE scan_run_id = :scan_run_id::uuid
         """), {
@@ -731,7 +731,7 @@ def get_orchestration_metadata(scan_run_id: str) -> Dict[str, Any]:
                 started_at,
                 completed_at,
                 created_at
-            FROM scan_orchestration
+            FROM scan_runs
             WHERE scan_run_id = :scan_run_id::uuid
         """), {"scan_run_id": scan_run_id})
 

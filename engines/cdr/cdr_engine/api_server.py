@@ -511,8 +511,8 @@ async def query_findings(
                 conditions.append("primary_engine = %s")
                 params.append(primary_engine)
             if actor_principal:
-                conditions.append("actor_principal LIKE %s")
-                params.append(f"%{actor_principal}%")
+                conditions.append("actor_principal = %s")
+                params.append(actor_principal)
             if resource_uid:
                 conditions.append("resource_uid LIKE %s")
                 params.append(f"%{resource_uid}%")
@@ -981,9 +981,9 @@ async def get_identity_heatmap(
         conn.close()
 
 
-@app.get("/api/v1/cdr/identities/{principal_encoded}/hourly-activity")
+@app.get("/api/v1/cdr/identities/hourly-activity")
 async def get_identity_hourly_activity(
-    principal_encoded: str,
+    actor_principal: str = Query(..., max_length=512, description="Full actor principal ARN"),
     scan_run_id: Optional[str] = Query(None),
     auth: Any = Depends(require_permission("cdr:read")),
 ):
@@ -993,11 +993,11 @@ async def get_identity_hourly_activity(
     Hours and days with zero findings are explicitly included so the response arrays
     are always fixed-length (24 and 7 elements respectively).
 
-    The principal ARN is URL-encoded in the path (e.g. %3A for colons, %2F for slashes).
-    It is decoded before parameterized DB query — no SQL injection risk.
+    NOTE: Changed from path param to query param (JNY-10 fix). Path params with %2F
+    (slash) in ARNs were decoded by FastAPI routing, breaking the route match.
 
     Args:
-        principal_encoded: URL-encoded actor_principal identifier (path parameter).
+        actor_principal: Full actor_principal ARN (query parameter — avoids slash routing issues).
         scan_run_id: Optional scan run filter. When absent, queries the last 14 days.
         auth: AuthContext from require_permission dependency.
 
@@ -1006,16 +1006,13 @@ async def get_identity_hourly_activity(
         'day_of_week_distribution' (7 items).
 
     Raises:
-        HTTPException 400: Decoded principal exceeds 512 chars or contains null bytes.
+        HTTPException 400: Principal exceeds 512 chars or contains null bytes.
         HTTPException 404: No findings for this principal in the tenant.
         HTTPException 500: Unexpected database error.
     """
     import psycopg2.extras
 
-    actor_principal = unquote(principal_encoded)
-
-    # Validate decoded value to prevent abuse
-    if len(actor_principal) > 512 or "\x00" in actor_principal:
+    if "\x00" in actor_principal:
         raise HTTPException(status_code=400, detail="Invalid principal identifier")
 
     tenant_id = (

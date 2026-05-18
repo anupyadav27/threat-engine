@@ -123,7 +123,7 @@ async def view_onboarding_cloud_accounts(
     status: Optional[str] = Query(None, description="account_status filter"),
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
-    _: Any = Depends(require_permission("tenant:accounts:read")),
+    _: Any = Depends(require_permission("cloud_accounts:read")),
 ) -> CloudAccountsListResponse:
     """Return the caller's cloud accounts via the onboarding engine."""
 
@@ -240,7 +240,7 @@ async def view_scan_history(
     account_id: Optional[str] = Query(None, description="Filter by cloud account UUID"),
     page: int = Query(1, ge=1, description="Page number (1-based)"),
     page_size: int = Query(20, ge=1, le=100, description="Results per page"),
-    _: Any = Depends(require_permission("tenant:scans:read")),
+    _: Any = Depends(require_permission("scans:read")),
 ) -> Dict[str, Any]:
     """Return paginated scan run history for the caller's tenant (D-6 AC1, AC2).
 
@@ -289,7 +289,7 @@ async def view_scan_history(
 async def view_scan_detail(
     request: Request,
     scan_run_id: str = Query(..., description="scan_run_id UUID"),
-    _: Any = Depends(require_permission("tenant:scans:read")),
+    _: Any = Depends(require_permission("scans:read")),
 ) -> Dict[str, Any]:
     """Return single scan run detail with per-engine status breakdown (D-6 AC3).
 
@@ -348,7 +348,7 @@ async def view_scan_detail(
 async def view_agent_status(
     request: Request,
     account_id: str = Query(..., description="Cloud account UUID to poll"),
-    _: Any = Depends(require_permission("tenant:accounts:read")),
+    _: Any = Depends(require_permission("cloud_accounts:read")),
 ) -> Dict[str, Any]:
     """Return the current agent connection status for the given account (D9 AC6).
 

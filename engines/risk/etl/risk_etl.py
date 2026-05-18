@@ -197,7 +197,11 @@ class RiskETL:
         account_id: str = "",
         provider: str = "aws",
     ) -> int:
-        """Execute Stage 1 ETL. Returns number of transformed rows."""
+        """Execute Stage 1 ETL. Returns number of transformed rows.
+
+        RF-P1-01: Tries unified security_findings read first (one inventory DB
+        connection). Falls back to per-engine reads only for engines not yet wired.
+        """
         logger.info("Risk ETL started: scan_run_id=%s, tenant=%s", scan_run_id, tenant_id)
 
         # 1. Load enrichment data
@@ -205,10 +209,19 @@ class RiskETL:
         epss_cache = self._load_epss_cache()
         posture_scores = self._load_posture_scores(scan_run_id, tenant_id)
 
-        # 2. Collect CRITICAL/HIGH findings from all engines
-        all_findings = self._collect_findings(scan_run_id, tenant_id)
-        logger.info("Collected %d CRITICAL/HIGH findings across %d engines",
-                     len(all_findings), len(ENGINE_DB_CONFIG))
+        # 2a. Collect CRITICAL/HIGH findings from unified security_findings table (RF-P1-01)
+        unified_findings = self._collect_findings_unified(scan_run_id, tenant_id)
+        # 2b. Engines not yet wired to security_findings — collect from their own DBs
+        # api_security writes to security_findings via upsert_findings() — skip legacy read
+        _wired_engines = {"check", "iam", "network", "datasec", "cdr", "api_security"}
+        legacy_findings = self._collect_findings(
+            scan_run_id, tenant_id, skip_engines=_wired_engines
+        )
+        all_findings = unified_findings + legacy_findings
+        logger.info(
+            "Collected %d findings total (unified=%d, legacy=%d)",
+            len(all_findings), len(unified_findings), len(legacy_findings),
+        )
 
         if not all_findings:
             logger.info("No CRITICAL/HIGH findings to quantify")
@@ -226,17 +239,176 @@ class RiskETL:
         # 4. Write to risk_input_transformed
         count = self._write_transformed(transformed_rows, scan_id)
         logger.info("Risk ETL complete: %d transformed rows", count)
+
+        # 5. Write per-resource risk score back to resource_security_posture (RF-P1-01)
+        # Summarize: for each resource_uid, compute overall_posture_score from findings
+        try:
+            self._write_risk_posture_scores(transformed_rows, tenant_id, scan_run_id)
+        except Exception as _rp_err:
+            logger.warning("Risk posture score write-back skipped: %s", _rp_err)
+
         return count
 
     # ------------------------------------------------------------------
     # Data collection
     # ------------------------------------------------------------------
 
-    def _collect_findings(self, scan_run_id: str, tenant_id: str) -> List[Dict[str, Any]]:
-        """Collect CRITICAL/HIGH findings from each engine's own DB."""
+    def _collect_findings_unified(self, scan_run_id: str, tenant_id: str) -> List[Dict[str, Any]]:
+        """Read CRITICAL/HIGH findings from unified security_findings table (RF-P1-01).
+
+        One inventory DB connection replaces N per-engine connections for wired engines.
+        Returns findings in the same shape as _collect_findings() for downstream compatibility.
+        """
         findings: List[Dict[str, Any]] = []
+        inv_conn = None
+        try:
+            inv_conn = psycopg2.connect(
+                host=os.getenv("INVENTORY_DB_HOST", os.getenv("DB_HOST", "localhost")),
+                port=int(os.getenv("INVENTORY_DB_PORT", os.getenv("DB_PORT", "5432"))),
+                dbname=os.getenv("INVENTORY_DB_NAME", "threat_engine_inventory"),
+                user=os.getenv("INVENTORY_DB_USER", os.getenv("DB_USER", "postgres")),
+                password=(
+                    os.getenv("INVENTORY_DB_PASSWORD")
+                    or os.getenv("DB_PASSWORD")
+                    or os.getenv("DISCOVERIES_DB_PASSWORD", "")
+                ),
+                sslmode=os.getenv("DB_SSLMODE", "prefer"),
+                connect_timeout=10,
+            )
+            with inv_conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        source_finding_id, source_engine, resource_uid,
+                        resource_type, account_id, provider,
+                        severity, rule_id, title, description,
+                        epss_score, cvss_score, mitre_technique_id,
+                        finding_type, detail, status
+                    FROM security_findings
+                    WHERE tenant_id = %s
+                      AND severity IN ('critical', 'high')
+                      AND status = 'open'
+                    ORDER BY severity DESC
+                    LIMIT 10000
+                    """,
+                    (tenant_id,),
+                )
+                for row in cur.fetchall():
+                    detail = row.get("detail") or {}
+                    findings.append({
+                        "source_finding_id": row["source_finding_id"],
+                        "source_engine": row["source_engine"],
+                        "source_scan_id": scan_run_id,
+                        "rule_id": row.get("rule_id", ""),
+                        "severity": (row.get("severity") or "high").lower(),
+                        "title": row.get("title", ""),
+                        "asset_arn": row.get("resource_uid", ""),
+                        "resource_type": row.get("resource_type", ""),
+                        "account_id": row.get("account_id", ""),
+                        "region": detail.get("region", ""),
+                        "provider": row.get("provider", "aws"),
+                        "finding_data": {
+                            "title": row.get("title", ""),
+                            "description": row.get("description", ""),
+                            "epss_score": float(row["epss_score"]) if row.get("epss_score") else None,
+                            "cvss_score": float(row["cvss_score"]) if row.get("cvss_score") else None,
+                            "finding_type": row.get("finding_type"),
+                            **detail,
+                        },
+                        "epss_score": float(row["epss_score"]) if row.get("epss_score") else None,
+                    })
+            logger.info("security_findings unified read: %d CRITICAL/HIGH findings", len(findings))
+        except Exception as exc:
+            logger.warning("Unified security_findings read failed (will fall back to per-engine): %s", exc)
+            findings = []
+        finally:
+            if inv_conn:
+                try:
+                    inv_conn.close()
+                except Exception:
+                    pass
+        return findings
+
+    def _write_risk_posture_scores(
+        self,
+        transformed_rows: List[Dict[str, Any]],
+        tenant_id: str,
+        scan_run_id: str,
+    ) -> None:
+        """Write per-resource overall_posture_score to resource_security_posture (RF-P1-01).
+
+        Computes: posture_score = 100 − (critical_count×20 + high_count×10)
+        clamped to [0, 100]. Updates only resources present in this scan.
+        """
+        sev_counts: Dict[str, Dict[str, int]] = {}
+        for row in transformed_rows:
+            uid = row.get("asset_arn") or row.get("asset_id") or ""
+            if not uid:
+                continue
+            entry = sev_counts.setdefault(uid, {"critical": 0, "high": 0})
+            sev = (row.get("severity") or "").lower()
+            if sev == "critical":
+                entry["critical"] += 1
+            elif sev == "high":
+                entry["high"] += 1
+
+        if not sev_counts:
+            return
+
+        inv_conn = None
+        try:
+            inv_conn = psycopg2.connect(
+                host=os.getenv("INVENTORY_DB_HOST", os.getenv("DB_HOST", "localhost")),
+                port=int(os.getenv("INVENTORY_DB_PORT", os.getenv("DB_PORT", "5432"))),
+                dbname=os.getenv("INVENTORY_DB_NAME", "threat_engine_inventory"),
+                user=os.getenv("INVENTORY_DB_USER", os.getenv("DB_USER", "postgres")),
+                password=(
+                    os.getenv("INVENTORY_DB_PASSWORD")
+                    or os.getenv("DB_PASSWORD")
+                    or os.getenv("DISCOVERIES_DB_PASSWORD", "")
+                ),
+                sslmode=os.getenv("DB_SSLMODE", "prefer"),
+                connect_timeout=5,
+            )
+            with inv_conn.cursor() as cur:
+                for uid, counts in sev_counts.items():
+                    score = max(0, min(100, 100 - counts["critical"] * 20 - counts["high"] * 10))
+                    cur.execute(
+                        """
+                        UPDATE resource_security_posture
+                        SET overall_posture_score = %s, updated_at = NOW()
+                        WHERE resource_uid = %s AND tenant_id = %s
+                        """,
+                        (score, uid, tenant_id),
+                    )
+            inv_conn.commit()
+            logger.info("RF-P1-01: wrote overall_posture_score for %d resources", len(sev_counts))
+        except Exception as exc:
+            logger.warning("RF-P1-01: posture score write-back failed: %s", exc)
+        finally:
+            if inv_conn:
+                try:
+                    inv_conn.close()
+                except Exception:
+                    pass
+
+    def _collect_findings(
+        self,
+        scan_run_id: str,
+        tenant_id: str,
+        skip_engines: Optional[set] = None,
+    ) -> List[Dict[str, Any]]:
+        """Collect CRITICAL/HIGH findings from each engine's own DB.
+
+        Args:
+            skip_engines: Set of engine names already covered by unified read (RF-P1-01).
+        """
+        findings: List[Dict[str, Any]] = []
+        _skip = skip_engines or set()
 
         for engine_name, cfg in ENGINE_DB_CONFIG.items():
+            if engine_name in _skip:
+                continue
             conn = _get_engine_conn(engine_name)
             if not conn:
                 continue

@@ -7,7 +7,7 @@ Investigation Journey Unification — Phase A
 P1 — Working-tree code from prior journey sprint is undeployed; prevents any A/B/C verification (G-32, G-33).
 
 ## Status
-draft
+done — api-gateway→v-bff-technique1 (JNY-01 BFF route), cspm-backend→v-jny03-1 (migrations 0015-0018); engine-threat/inventory/frontend had no Phase A code changes; all deployed and healthy
 
 ## Team Assignment (RACI)
 

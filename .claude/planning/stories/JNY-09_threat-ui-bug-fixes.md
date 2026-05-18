@@ -7,7 +7,7 @@ Investigation Journey Unification — Phase D
 P1/P3 cluster — addresses G-4 (P1), G-5 (P3), G-8 (P3) in a single small PR.
 
 ## Status
-draft
+done — all three bugs (G-4/G-5/G-8) resolved by deletion of /threats/[threatId]/ route; code no longer exists
 
 ## Team Assignment (RACI)
 

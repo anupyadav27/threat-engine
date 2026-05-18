@@ -65,9 +65,9 @@ const sections = [
   },
   {
     title: 'Threats',
-    href: '/threats',
+    href: '/attack-paths',
     icon: 'ShieldAlert',
-    description: 'Threat list with MITRE mapping, attack path visualization, and remediation queue.',
+    description: 'Attack path visualization, choke points, and MITRE ATT&CK mapping.',
     color: 'from-red-500/20 to-red-600/5',
     border: 'border-red-500/30',
   },

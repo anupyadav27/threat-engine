@@ -29,6 +29,78 @@ from engine_common.db_connections import get_encryption_conn
 logger = setup_logger(__name__, engine_name="encryption-scanner")
 
 
+def _emit_encryption_findings(scan_run_id: str, tenant_id: str) -> None:
+    """Read encryption_findings and upsert rows into security_findings (inventory DB).
+
+    Args:
+        scan_run_id: Pipeline run identifier for the completed scan.
+        tenant_id: Tenant scope — ensures multi-tenant isolation.
+    """
+    from engine_common.security_findings_writer import upsert_findings
+    from engine_common.db_connections import get_encryption_conn, get_inventory_conn
+
+    with get_encryption_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    finding_id::text AS source_finding_id,
+                    tenant_id,
+                    account_id,
+                    provider,
+                    region,
+                    resource_uid,
+                    resource_type,
+                    rule_id,
+                    severity,
+                    status,
+                    finding_data
+                FROM encryption_findings
+                WHERE scan_run_id = %s AND tenant_id = %s
+                  AND LOWER(severity) IN ('critical', 'high', 'medium', 'low')
+                """,
+                (scan_run_id, tenant_id),
+            )
+            cols = [d[0] for d in cur.description]
+            rows = cur.fetchall()
+
+    if not rows:
+        return
+
+    findings = []
+    for row in rows:
+        d = dict(zip(cols, row))
+        # finding_data is JSONB — already a dict via psycopg2; never call json.loads()
+        fd = d.get("finding_data") or {}
+        title = fd.get("title") or fd.get("encryption_domain", "Encryption finding")
+        description = fd.get("description")
+        remediation = fd.get("remediation")
+        findings.append({
+            "source_finding_id": d["source_finding_id"],
+            "resource_uid":      d.get("resource_uid", ""),
+            "finding_type":      "encryption",
+            "severity":          (d.get("severity") or "medium").lower(),
+            "title":             title,
+            "account_id":        d.get("account_id", ""),
+            "provider":          d.get("provider", ""),
+            "resource_type":     d.get("resource_type", ""),
+            "rule_id":           d.get("rule_id", ""),
+            "description":       description,
+            "detail":            {"posture_category": "encryption", "remediation": remediation, **fd},
+            "status":            (d.get("status") or "open").lower(),
+        })
+
+    with get_inventory_conn() as iconn:
+        written = upsert_findings(
+            conn=iconn,
+            findings=findings,
+            source_engine="encryption",
+            tenant_id=tenant_id,
+            scan_run_id=scan_run_id,
+        )
+    logger.info("security_findings: wrote %d encryption rows", written)
+
+
 def _update_report_status(scan_run_id: str, status: str, error: str = None):
     """Update encryption_report status in DB."""
     try:
@@ -541,6 +613,23 @@ def main():
         except Exception as ciem_f_err:
             logger.warning(f"CIEM findings load failed (non-fatal): {ciem_f_err}")
 
+        # 5d. Pattern A: provider.analyze() — rule-based findings (non-fatal)
+        try:
+            pa_findings = enc_provider.analyze(
+                scan_run_id=scan_run_id,
+                tenant_id=tenant_id,
+                account_id=account_id,
+                discovery_resources=discovery_resources,
+            )
+            if pa_findings:
+                for pf in pa_findings:
+                    pf.setdefault("credential_ref", metadata.get("credential_ref"))
+                    pf.setdefault("credential_type", metadata.get("credential_type"))
+                findings.extend(pa_findings)
+                logger.info("Pattern A: %d additional rule findings from provider.analyze()", len(pa_findings))
+        except Exception as _pa_err:
+            logger.warning("Encryption Pattern A analyze() failed (non-fatal): %s", _pa_err)
+
         # Build summary
         sev_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
         for f in findings:
@@ -579,6 +668,69 @@ def main():
         save_cert_inventory(scan_run_id, tenant_id, cert_inventory)
         save_secrets_inventory(scan_run_id, tenant_id, secrets_inventory)
 
+        # 6b. Write encryption posture signals to resource_security_posture (inventory DB)
+        try:
+            from engine_common.db_connections import get_inventory_conn as _get_inv_conn
+
+            # Build cert lookup: uid -> (days_until_expiry, is_valid)
+            _cert_by_uid = {}
+            for _cert in cert_inventory:
+                _uid = _cert.get("resource_uid") or _cert.get("cert_arn", "")
+                _days = int(_cert.get("days_until_expiry") or 0)
+                _valid = ((_cert.get("status") or "").upper() == "ISSUED") and _days > 0
+                if _uid not in _cert_by_uid or _days > _cert_by_uid[_uid][0]:
+                    _cert_by_uid[_uid] = (_days, _valid)
+
+            _inv_conn = _get_inv_conn()
+            try:
+                with _inv_conn.cursor() as _cur:
+                    _cur.execute(
+                        "INSERT INTO tenants (tenant_id, tenant_name) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                        (tenant_id, tenant_id),
+                    )
+                    _posture_rows = []
+                    for _uid, _info in coverage_data.get("per_resource", {}).items():
+                        _enc_at_rest = bool(_info.get("encrypted_at_rest"))
+                        _enc_in_transit = bool(_info.get("encrypted_in_transit") or False)
+                        _key_type = _info.get("key_type") or ""
+                        _has_cmk = _key_type in ("CUSTOMER", "customer_managed", "CustomerManaged")
+                        _tls_ver = _info.get("tls_version") or _info.get("protocol_version")
+                        _cert_days, _has_valid_cert = _cert_by_uid.get(_uid, (0, False))
+                        _posture_rows.append((
+                            tenant_id, scan_run_id, _info.get("account_id", account_id),
+                            provider, _info.get("region", ""), _uid,
+                            _info.get("resource_type", ""),
+                            _enc_at_rest, _enc_in_transit, _has_cmk,
+                            _has_valid_cert, int(_cert_days), _tls_ver,
+                        ))
+                    if _posture_rows:
+                        _cur.executemany(
+                            """INSERT INTO resource_security_posture
+                               (tenant_id, scan_run_id, account_id, provider, region,
+                                resource_uid, resource_type,
+                                is_encrypted_at_rest, is_encrypted_in_transit,
+                                has_kms_managed_key, has_valid_certificate,
+                                cert_days_remaining, tls_version)
+                               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                               ON CONFLICT (resource_uid, scan_run_id, tenant_id) DO UPDATE SET
+                                   is_encrypted_at_rest    = EXCLUDED.is_encrypted_at_rest,
+                                   is_encrypted_in_transit = EXCLUDED.is_encrypted_in_transit,
+                                   has_kms_managed_key     = EXCLUDED.has_kms_managed_key,
+                                   has_valid_certificate   = EXCLUDED.has_valid_certificate,
+                                   cert_days_remaining     = EXCLUDED.cert_days_remaining,
+                                   tls_version             = EXCLUDED.tls_version,
+                                   updated_at              = NOW()""",
+                            _posture_rows,
+                        )
+                        _inv_conn.commit()
+                        logger.info(
+                            f"Posture: wrote {len(_posture_rows)} encryption rows to resource_security_posture"
+                        )
+            finally:
+                _inv_conn.close()
+        except Exception as _posture_err:
+            logger.warning(f"Encryption posture write failed (non-fatal): {_posture_err}")
+
         # 7. Save report JSON to /output for S3 sync
         try:
             output_dir = os.getenv("OUTPUT_DIR", "/output")
@@ -593,6 +745,12 @@ def main():
 
         duration = (datetime.now(timezone.utc) - start).total_seconds()
         _update_report_status(scan_run_id, "completed")
+
+        # Write encryption findings to shared security_findings table (non-fatal)
+        try:
+            _emit_encryption_findings(scan_run_id, tenant_id)
+        except Exception as _sf_err:
+            logger.warning("Encryption security_findings write skipped: %s", _sf_err)
 
         # Retention: archive old scans to S3, keep last 5 in DB
         try:

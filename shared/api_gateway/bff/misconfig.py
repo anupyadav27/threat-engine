@@ -11,7 +11,7 @@ from typing import Optional, Dict
 from fastapi import APIRouter, Query, Request
 
 from ._auth import resolve_tenant_id
-from ._shared import fetch_many, safe_get, BFFMeta
+from ._shared import fetch_many, safe_get, BFFMeta, fetch_scan_trend, read_findings
 from .schemas.misconfig import MisconfigResponse
 from ._cache import cache_key, cached_view, TTL_MISCONFIG, auth_level_from_header
 from ._transforms import normalize_check_finding, build_misconfig_heatmap, apply_global_filters
@@ -191,9 +191,30 @@ async def view_misconfig(
             "avg_age": avg_age,
             "sla_breached": sla_breached,
         },
-        # scan_trend from threat engine (pass-through; engine must supply it)
-        "scanTrend": safe_get(data, "scan_trend", []),
+        # scan_trend from onboarding DB via shared helper (real historical data)
+        "scanTrend": fetch_scan_trend(tenant_id) if tenant_id else [],
     }
+
+    # ARCH-01: supplement findings from security_findings table (fallback when threat engine empty)
+    sf = read_findings(
+        tenant_id=tenant_id,
+        source_engines=["check"],
+        provider=provider.lower() if provider else None,
+        account_id=account,
+        region=region,
+        limit=500,
+    )
+    if sf["total"] > 0 and not filtered:
+        # Engine returned nothing — use security_findings as fallback
+        result["findings"] = sf["findings"]
+        result["kpi"]["total"] = sf["total"]
+        result["kpi"]["critical"] = sf["by_severity"].get("critical", 0)
+        result["kpi"]["high"] = sf["by_severity"].get("high", 0)
+        result["kpi"]["medium"] = sf["by_severity"].get("medium", 0)
+        result["kpi"]["low"] = sf["by_severity"].get("low", 0)
+    # Always expose the unified field for cross-engine panels
+    result["securityFindings"] = sf["findings"]
+
     result["_meta"] = meta.to_dict()
     cached_view(ck, result, ttl=TTL_MISCONFIG)
     return result

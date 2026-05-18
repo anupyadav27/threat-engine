@@ -1,7 +1,7 @@
 ---
 story_id: UI-QA-01
 title: Platform-Wide UI Interactivity Audit & Fix
-status: in_progress
+status: done
 sprint: ui-qa-sprint-1
 depends_on: []
 blocks: []

@@ -73,6 +73,37 @@ class ActionTrailParser(BaseParser):
                 error_code = event.get("errorCode") or ""
                 outcome = "failure" if error_code else "success"
 
+                req_params = event.get("requestParameters") or {}
+                if isinstance(req_params, str):
+                    try:
+                        req_params = json.loads(req_params)
+                    except Exception:
+                        req_params = {}
+
+                resp_elems = event.get("responseElements") or {}
+                if isinstance(resp_elems, str):
+                    try:
+                        resp_elems = json.loads(resp_elems)
+                    except Exception:
+                        resp_elems = {}
+
+                # Extract AliCloud resource ARN (acs: prefix) from common fields.
+                # AliCloud ARNs look like: arn:acs:ram::123456:role/admin
+                # Also check referencedResources array (similar to AWS resources[])
+                _resource_uid = ""
+                for arn_field in ("Arn", "arn", "ResourceArn", "resourceArn", "RoleArn"):
+                    val = req_params.get(arn_field) or resp_elems.get(arn_field)
+                    if val and isinstance(val, str) and (
+                        val.startswith("arn:acs:") or val.startswith("acs:")
+                    ):
+                        _resource_uid = val
+                        break
+                # Fallback: referencedResources array (some ActionTrail events)
+                if not _resource_uid:
+                    refs = event.get("referencedResources") or []
+                    if isinstance(refs, list) and refs and isinstance(refs[0], dict):
+                        _resource_uid = refs[0].get("ARN", refs[0].get("arn", ""))
+
                 record = {
                     # Core event fields
                     "eventId":        event.get("eventId", ""),
@@ -93,10 +124,12 @@ class ActionTrailParser(BaseParser):
                     # Network
                     "sourceIpAddress": event.get("sourceIpAddress", ""),
                     "userAgent":       event.get("userAgent", ""),
-                    # Payloads (for advanced conditions via raw_event fallback)
-                    "requestParameters": json.dumps(event.get("requestParameters") or {}),
-                    "responseElements":  json.dumps(event.get("responseElements") or {}),
-                    "additionalEventData": json.dumps(event.get("additionalEventData") or {}),
+                    # Resource UID (AliCloud ARN or empty — suffix-match fallback handles rest)
+                    "_resource_uid":  _resource_uid,
+                    # Keep as dicts so _step3_flatten() can extract additional IDs
+                    "requestParameters":   req_params,
+                    "responseElements":    resp_elems,
+                    "additionalEventData": event.get("additionalEventData") or {},
                 }
                 yield record
 
@@ -113,6 +146,7 @@ class ActionTrailParser(BaseParser):
             "actor.principal": "user_username",
             "actor.ip_address": "sourceIpAddress",
             "actor.account_id": "user_accountId",
+            "resource.uid":    "_resource_uid",
             "resource.region": "region",
         }
 

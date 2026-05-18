@@ -39,6 +39,7 @@ Architecture:
         cnapp.py                -- /views/cnapp  (unified CNAPP dashboard)
         cwpp.py                 -- /views/cwpp   (workload protection platform)
         vulnerability.py        -- /views/vulnerability (agent scan overview)
+        attack_paths.py         -- /views/attack-paths  (Attack Path Engine — stage 6.5)
         billing.py              -- /views/billing  (billing portal — org_admin)
         platform_admin.py       -- /views/platform-admin  (operator dashboard — platform_admin)
         onboarding_schedules.py -- /views/onboarding/schedules + /views/onboarding/schedule-detail
@@ -50,18 +51,6 @@ from fastapi import APIRouter
 
 from .dashboard import router as dashboard_router
 from .inventory import router as inventory_router
-from .threats import router as threats_router
-from .threat_command_room import router as threat_command_room_router
-from .threat_detail import router as threat_detail_router
-from .threat_scenario_detail import router as threat_scenario_detail_router
-from .threat_attack_paths import router as threat_attack_paths_router
-from .threat_blast_radius import router as threat_blast_radius_router
-from .threat_graph import router as threat_graph_router
-from .threat_toxic_combos import router as threat_toxic_combos_router
-from .threat_timeline import router as threat_timeline_router
-from .threat_posture_delta import router as threat_posture_delta_router
-from .threat_mitre_heatmap import router as threat_mitre_heatmap_router
-from .technique_detail import router as technique_detail_router
 from .compliance import router as compliance_router
 from .iam import router as iam_router
 from .datasec import router as datasec_router
@@ -94,31 +83,21 @@ from .platform_admin import router as platform_admin_router
 from .views.finding_detail import router as finding_detail_router
 from .views.risk_scenario_detail import router as risk_scenario_detail_router
 from .views.vulnerability_agent_detail import router as vulnerability_agent_detail_router
-from .threat_v1 import router as threat_v1_router
 from .users_groups import router as users_groups_router
 from .vulnerability_agents import router as vulnerability_agents_router
+from .attack_paths import router as attack_paths_router
+from .asset_posture import router as asset_posture_router
+from .asset_findings import router as asset_findings_router
+from .api_security import router as api_security_router
+from .chat import router as chat_router
+from .threat_technique import router as threat_technique_router
 
 # Combined router — include this in main.py
 router = APIRouter()
 
-# NOTE: Sub-page routers (threat_attack_paths, etc.) must be registered BEFORE
-# the threat_detail router because FastAPI matches routes in registration order
-# and /threats/{threat_id} would otherwise swallow /threats/attack-paths, etc.
 for _sub in (
     dashboard_router,
     inventory_router,
-    threats_router,
-    threat_command_room_router,
-    threat_scenario_detail_router,
-    threat_attack_paths_router,
-    threat_blast_radius_router,
-    threat_graph_router,
-    threat_toxic_combos_router,
-    threat_timeline_router,
-    threat_posture_delta_router,
-    threat_mitre_heatmap_router,
-    technique_detail_router,
-    threat_detail_router,
     compliance_router,
     iam_router,
     datasec_router,
@@ -152,7 +131,12 @@ for _sub in (
     finding_detail_router,
     risk_scenario_detail_router,
     vulnerability_agent_detail_router,
-    threat_v1_router,
     users_groups_router,
+    attack_paths_router,
+    asset_posture_router,
+    asset_findings_router,
+    api_security_router,
+    chat_router,
+    threat_technique_router,
 ):
     router.include_router(_sub)

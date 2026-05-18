@@ -21,7 +21,7 @@ from typing import Dict, List, Optional
 from fastapi import APIRouter, Query, Request
 
 from ._auth import resolve_tenant_id
-from ._shared import fetch_many, fetch_all_check_findings, safe_get, is_empty_or_health
+from ._shared import fetch_many, fetch_all_check_findings, safe_get, is_empty_or_health, read_findings
 from ._transforms import (
     normalize_datastore, normalize_classification, normalize_dlp_violation,
     normalize_residency, normalize_access_activity, apply_global_filters,
@@ -194,6 +194,32 @@ async def view_datasec(
 
     # ── Lineage ──────────────────────────────────────────────────────────────
     lineage = safe_get(datasec_data, "lineage", {})
+    if not isinstance(lineage, dict):
+        lineage = {}
+    if "lineage_chains" not in lineage:
+        # Convert lineage_graph {resource_id: [flow, ...]} → lineage_chains array
+        lineage_graph = lineage.get("lineage_graph", {})
+        chains: list = []
+        if isinstance(lineage_graph, dict):
+            for res_id, flows in lineage_graph.items():
+                if not isinstance(flows, list):
+                    continue
+                for j, flow in enumerate(flows):
+                    if not isinstance(flow, dict):
+                        continue
+                    src = flow.get("source") or {}
+                    dst = flow.get("destination") or {}
+                    chains.append({
+                        "chain_id": f"{str(res_id)[:12]}-{j}",
+                        "risk": flow.get("risk_level") or "medium",
+                        "source": {"name": src.get("name") or src.get("resource_id") or str(src)[:40]},
+                        "sink":   {"name": dst.get("name") or dst.get("resource_id") or str(dst)[:40]},
+                        "encryption_at_rest":     bool(flow.get("encryption_at_rest", False)),
+                        "encryption_in_transit":  bool(flow.get("encryption_in_transit", False)),
+                        "data_classification":    flow.get("data_classification", ""),
+                        "flow_type":              flow.get("flow_type", ""),
+                    })
+        lineage["lineage_chains"] = chains
 
     # ── Findings ─────────────────────────────────────────────────────────────
     # Prefer datasec findings; fall back to check findings
@@ -326,4 +352,10 @@ async def view_datasec(
         "donutSlices":     donut_slices,
         "first":           first_obj,
         "last":            last_obj,
+        # ARCH-04: unified findings from security_findings table (fallback source)
+        "securityFindings": read_findings(
+            tenant_id=tenant_id, source_engines=["datasec"],
+            provider=provider.lower() if provider else None,
+            account_id=account, region=region, limit=500,
+        )["findings"],
     }

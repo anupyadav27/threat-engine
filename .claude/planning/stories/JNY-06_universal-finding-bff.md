@@ -7,7 +7,7 @@ Investigation Journey Unification — Phase B
 P0 — Backs JNY-05's universal route; without it the 5-tab template paints empty for every engine (G-20).
 
 ## Status
-draft
+done — finding_detail.py BFF handler implemented with all 5 tabs (header/related/compliance/remediation), _finding_engine_map.py (10 engines + secops deferred 501), _schemas.py Pydantic models, PATCH status endpoint with audit log; registered in __init__.py
 
 ## Team Assignment (RACI)
 

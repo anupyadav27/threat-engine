@@ -51,6 +51,7 @@ class AWSIAMProvider(BaseIAMProvider):
             )
             from iam_engine.parsers.trust_analyzer import TrustAnalyzer
             from iam_engine.detectors.policy_detector import run_all_detectors
+            from iam_engine.detectors.escalation_detector import detect_privilege_escalation_paths
 
             # Load IAM resources from discovery or inventory
             data_source = os.getenv("IAM_DATA_SOURCE", "discovery").lower()
@@ -123,6 +124,35 @@ class AWSIAMProvider(BaseIAMProvider):
                 account_id=account_id,
             )
             logger.info(f"Policy detectors generated {len(policy_findings)} findings")
+
+            # Run privilege escalation path detector
+            _cdr_conn = None
+            try:
+                from engine_common.db_connections import get_cdr_conn as _get_cdr_conn
+                try:
+                    _cdr_conn = _get_cdr_conn()
+                except Exception as _cdr_err:
+                    logger.debug("CDR connection unavailable for escalation enrichment: %s", _cdr_err)
+
+                escalation_findings = detect_privilege_escalation_paths(
+                    roles=roles,
+                    users=users,
+                    account_id=account_id,
+                    tenant_id=tenant_id,
+                    scan_run_id=scan_run_id,
+                    cdr_conn=_cdr_conn,
+                )
+                logger.info(f"Escalation detector generated {len(escalation_findings)} findings")
+                policy_findings = policy_findings + escalation_findings
+            except Exception as _esc_err:
+                logger.warning(f"Escalation detector failed (non-fatal): {_esc_err}", exc_info=True)
+            finally:
+                if _cdr_conn is not None:
+                    try:
+                        _cdr_conn.close()
+                    except Exception:
+                        pass
+
             result["policy_findings"] = policy_findings
 
         except Exception as e:

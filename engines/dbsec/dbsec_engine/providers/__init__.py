@@ -34,6 +34,9 @@ def get_provider(csp: str) -> "BaseDBSecProvider":
     if csp == "k8s":
         from dbsec_engine.providers.k8s import K8sDBSecProvider
         return K8sDBSecProvider()
+    if csp == "ibm":
+        from dbsec_engine.providers.ibm import IBMDBSecProvider
+        return IBMDBSecProvider()
     # Default: return a no-op provider
     from dbsec_engine.providers.base import NoOpDBSecProvider
     return NoOpDBSecProvider(csp)

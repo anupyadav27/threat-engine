@@ -107,6 +107,9 @@ spec:
     - name: exclude-regions
       value: ""
       description: "Comma-separated regions to skip (empty = none skipped). e.g. ap-east-1,me-south-1"
+    - name: region
+      value: ""
+      description: "Single region override for engines that accept a region param (empty = all)"
 
   podGC:
     strategy: OnPodCompletion
@@ -246,7 +249,7 @@ spec:
       # To expand a `when:` condition: add the new provider with || operator.
 
       - name: compliance
-        depends: "threat"
+        depends: "check"
         # No `when:` — compliance runs for all CSPs (framework mappings exist for all)
         templateRef:
           name: cspm-templates-primitives
@@ -275,7 +278,7 @@ spec:
             value: "1800"
 
       - name: iam
-        depends: "threat"
+        depends: "check"
         # No `when:` — IAM runs for all CSPs (AWS-specific policy parsing is skipped
         # internally for non-AWS; CSP-aware IAMReporter handles the rest)
         templateRef:
@@ -305,7 +308,7 @@ spec:
             value: "14400"
 
       - name: datasec
-        depends: "threat"
+        depends: "check"
         # All CSPs now have data_security rules in rule_metadata (oci=432, ibm=36, alicloud=14)
         when: >-
           "{{workflow.parameters.provider}}" == "aws" ||
@@ -345,7 +348,7 @@ spec:
             value: "1800"
 
       - name: encryption
-        depends: "threat"
+        depends: "check"
         # No `when:` — encryption runs for all CSPs (graceful 0 findings for
         # providers where KMS/ACM equivalents haven't been wired up yet)
         # NOTE: use risk.depends (.Failed || .Errored) to handle failures, not continueOn
@@ -376,7 +379,7 @@ spec:
             value: "1800"
 
       - name: database-security
-        depends: "threat"
+        depends: "check"
         # oci=235, alicloud=4 database_security rules added; ibm=0 stays excluded
         when: >-
           "{{workflow.parameters.provider}}" == "aws" ||
@@ -394,7 +397,7 @@ spec:
           - name: trigger-url
             value: "http://engine-dbsec/api/v1/scan"
           - name: poll-url
-            value: ""
+            value: "http://engine-dbsec/api/v1/scan/{{workflow.parameters.scan-run-id}}/status"
           - name: payload
             value: |
               {
@@ -411,7 +414,7 @@ spec:
             value: "1800"
 
       - name: container-security
-        depends: "threat"
+        depends: "check"
         # oci=74, alicloud=14, ibm=15 container_security rules added
         when: >-
           "{{workflow.parameters.provider}}" == "aws" ||
@@ -449,7 +452,7 @@ spec:
             value: "1800"
 
       - name: ai-security
-        depends: "threat"
+        depends: "check"
         # oci=3 ai_security rules added; alicloud=0 and ibm=0 stay excluded
         when: >-
           "{{workflow.parameters.provider}}" == "aws" ||
@@ -483,7 +486,7 @@ spec:
             value: "1800"
 
       - name: network-security
-        depends: "threat"
+        depends: "check"
         # providers/ pattern: all 6 CSPs now have 7-layer implementation (v-net-fix11)
         when: >-
           "{{workflow.parameters.provider}}" == "aws" ||
@@ -519,6 +522,30 @@ spec:
           - name: timeout
             value: "14400"
 
+      # Step 5b-pre: mitre-enrich — fills NULL mitre_technique_id in security_findings
+      # by joining with rule_metadata (check DB). Non-fatal: always exits 0.
+      # AP-ENHANCE-01
+      - name: mitre-enrich
+        depends: >-
+          (threat.Succeeded || threat.Failed || threat.Errored || threat.Skipped) &&
+          (compliance.Succeeded || compliance.Failed || compliance.Errored || compliance.Skipped) &&
+          (iam.Succeeded || iam.Failed || iam.Errored || iam.Skipped) &&
+          (datasec.Succeeded || datasec.Failed || datasec.Errored || datasec.Skipped) &&
+          (encryption.Succeeded || encryption.Failed || encryption.Errored || encryption.Skipped) &&
+          (database-security.Succeeded || database-security.Failed || database-security.Errored || database-security.Skipped) &&
+          (container-security.Succeeded || container-security.Failed || container-security.Errored || container-security.Skipped) &&
+          (ai-security.Succeeded || ai-security.Failed || ai-security.Errored || ai-security.Skipped) &&
+          (network-security.Succeeded || network-security.Failed || network-security.Errored || network-security.Skipped)
+        templateRef:
+          name: cspm-templates-primitives
+          template: mitre-enrich
+        arguments:
+          parameters:
+          - name: scan-run-id
+            value: "{{workflow.parameters.scan-run-id}}"
+          - name: tenant-id
+            value: "{{workflow.parameters.tenant-id}}"
+
       # Step 5b: graph-build — builds the Neo4j security graph AFTER domain engines
       # complete so that CVE nodes (vulnerability engine) and network EXPOSES edges
       # (network-security engine) are present in the graph.
@@ -530,6 +557,72 @@ spec:
       # does not halt the rest of the pipeline.
       - name: graph-build
         depends: >-
+          (mitre-enrich.Succeeded || mitre-enrich.Failed || mitre-enrich.Errored || mitre-enrich.Skipped)
+        templateRef:
+          name: cspm-templates-primitives
+          template: graph-build
+        arguments:
+          parameters:
+          - name: scan-run-id
+            value: "{{workflow.parameters.scan-run-id}}"
+          - name: tenant-id
+            value: "{{workflow.parameters.tenant-id}}"
+
+      # Step 5: api-security — API gateway OWASP analysis (parallel with IAM, DataSec, Network)
+      - name: api-security
+        depends: "check"
+        when: >-
+          "{{workflow.parameters.provider}}" == "aws" ||
+          "{{workflow.parameters.provider}}" == "azure" ||
+          "{{workflow.parameters.provider}}" == "gcp" ||
+          "{{workflow.parameters.provider}}" == "oci" ||
+          "{{workflow.parameters.provider}}" == "alicloud"
+        templateRef:
+          name: cspm-templates-primitives
+          template: call-engine-api-security
+        arguments:
+          parameters:
+          - name: scan-run-id
+            value: "{{workflow.parameters.scan-run-id}}"
+          - name: tenant-id
+            value: "{{workflow.parameters.tenant-id}}"
+          - name: account-id
+            value: "{{workflow.parameters.account-id}}"
+          - name: provider
+            value: "{{workflow.parameters.provider}}"
+          - name: credential-ref
+            value: "{{workflow.parameters.credential-ref}}"
+          - name: credential-type
+            value: "{{workflow.parameters.credential-type}}"
+          - name: region
+            value: "{{workflow.parameters.region}}"
+
+      # Step 6.5: attack-path-scan — reverse BFS from crown jewels to entry points.
+      # Depends on graph-build (so CVE nodes + EXPOSES edges are present in Neo4j).
+      # retry: 0 — Argo does NOT retry on failure (PRD section 5.2).
+      - name: attack-path-scan
+        depends: >-
+          (graph-build.Succeeded || graph-build.Failed || graph-build.Errored || graph-build.Skipped)
+        templateRef:
+          name: cspm-templates-primitives
+          template: attack-path-scan
+        arguments:
+          parameters:
+          - name: scan-run-id
+            value: "{{workflow.parameters.scan-run-id}}"
+          - name: tenant-id
+            value: "{{workflow.parameters.tenant-id}}"
+          - name: account-id
+            value: "{{workflow.parameters.account-id}}"
+
+      # Step 6: risk — aggregates all engine findings, computes FAIR scores
+      # Runs for all CSPs. Waits for attack-path-scan; continues regardless of outcome.
+      # .Errored covers pod-level timeouts (activeDeadlineSeconds); .Failed covers script sys.exit(1).
+      - name: risk
+        # Wait for attack-path-scan + domain engines; continue regardless of outcome.
+        # Parentheses are required — && binds tighter than || in Argo expression syntax.
+        depends: >-
+          (attack-path-scan.Succeeded || attack-path-scan.Failed || attack-path-scan.Errored || attack-path-scan.Skipped) &&
           (compliance.Succeeded || compliance.Failed || compliance.Errored || compliance.Skipped) &&
           (iam.Succeeded || iam.Failed || iam.Errored || iam.Skipped) &&
           (datasec.Succeeded || datasec.Failed || datasec.Errored || datasec.Skipped) &&
@@ -538,100 +631,7 @@ spec:
           (container-security.Succeeded || container-security.Failed || container-security.Errored || container-security.Skipped) &&
           (ai-security.Succeeded || ai-security.Failed || ai-security.Errored || ai-security.Skipped) &&
           (network-security.Succeeded || network-security.Failed || network-security.Errored || network-security.Skipped) &&
-          (vulnerability.Succeeded || vulnerability.Failed || vulnerability.Errored || vulnerability.Skipped) &&
-          (cdr.Succeeded || cdr.Failed || cdr.Errored || cdr.Skipped)
-        retryStrategy:
-          limit: 1
-          retryPolicy: OnFailure
-        timeout: "600s"
-        script:
-          image: python:3.11-slim
-          command: [python3, -u]
-          source: |
-            import subprocess; subprocess.run(["pip", "install", "-q", "requests"], check=True)
-            import requests, time, sys, json
-
-            TRIGGER_URL = "http://engine-threat/api/v1/graph/build"
-            POLL_BASE   = "http://engine-threat/api/v1/graph/build/status"
-            SCAN_RUN_ID = "{{workflow.parameters.scan-run-id}}"
-            TIMEOUT     = 540  # seconds — well inside the 600s step timeout
-
-            payload = json.dumps({"scan_run_id": SCAN_RUN_ID})
-            headers = {"Content-Type": "application/json"}
-
-            print(f"[graph-build] Triggering graph build for scan_run_id={SCAN_RUN_ID}")
-            try:
-                resp = requests.post(TRIGGER_URL, data=payload, headers=headers, timeout=30)
-            except Exception as e:
-                print(f"[graph-build] Trigger request failed: {e}")
-                sys.exit(1)
-
-            print(f"[graph-build] Trigger HTTP {resp.status_code}: {resp.text[:300]}")
-
-            if resp.status_code not in (200, 202):
-                print(f"[graph-build] Unexpected status {resp.status_code} — failing step")
-                sys.exit(1)
-
-            try:
-                body = resp.json()
-                job_id = body.get("job_id", "")
-            except Exception:
-                job_id = ""
-
-            if not job_id:
-                print("[graph-build] No job_id in trigger response — failing step")
-                sys.exit(1)
-
-            print(f"[graph-build] Job accepted: job_id={job_id}")
-
-            poll_url = f"{POLL_BASE}/{job_id}"
-            elapsed, interval = 0, 15
-
-            while elapsed < TIMEOUT:
-                time.sleep(interval)
-                elapsed += interval
-
-                try:
-                    sr = requests.get(poll_url, timeout=15)
-                    data = sr.json() if sr.status_code != 404 else {}
-                except Exception as poll_err:
-                    print(f"[graph-build] Poll error at {elapsed}s: {poll_err}")
-                    data = {}
-
-                status = data.get("status", "unknown")
-                if elapsed % 60 < interval:
-                    print(f"[graph-build] {elapsed}s | status={status}")
-
-                if status == "completed":
-                    stats = data.get("stats", {})
-                    print(f"[graph-build] Completed in {elapsed}s | stats={stats}")
-                    sys.exit(0)
-
-                if status == "failed":
-                    err = data.get("error", "")
-                    print(f"[graph-build] FAILED at {elapsed}s: {err}")
-                    sys.exit(1)
-
-            print(f"[graph-build] TIMEOUT after {TIMEOUT}s")
-            sys.exit(1)
-
-      # Step 6: risk — aggregates all engine findings, computes FAIR scores
-      # Runs for all CSPs. Waits for all domain engines AND graph-build; continues
-      # if any fail (.Failed || .Errored) so a Neo4j outage doesn't stall scoring.
-      - name: risk
-        # Wait for all domain engines + graph-build; continue regardless of outcome.
-        # .Errored covers pod-level timeouts (activeDeadlineSeconds); .Failed covers script sys.exit(1).
-        # Parentheses are required — && binds tighter than || in Argo expression syntax.
-        depends: >-
-          (graph-build.Succeeded || graph-build.Failed || graph-build.Errored || graph-build.Skipped) &&
-          (compliance.Succeeded || compliance.Failed || compliance.Errored || compliance.Skipped) &&
-          (iam.Succeeded || iam.Failed || iam.Errored || iam.Skipped) &&
-          (datasec.Succeeded || datasec.Failed || datasec.Errored || datasec.Skipped) &&
-          (encryption.Succeeded || encryption.Failed || encryption.Errored || encryption.Skipped) &&
-          (database-security.Succeeded || database-security.Failed || database-security.Errored || database-security.Skipped) &&
-          (container-security.Succeeded || container-security.Failed || container-security.Errored || container-security.Skipped) &&
-          (ai-security.Succeeded || ai-security.Failed || ai-security.Errored || ai-security.Skipped) &&
-          (network-security.Succeeded || network-security.Failed || network-security.Errored || network-security.Skipped)
+          (api-security.Succeeded || api-security.Failed || api-security.Errored || api-security.Skipped)
         templateRef:
           name: cspm-templates-primitives
           template: trigger-and-poll

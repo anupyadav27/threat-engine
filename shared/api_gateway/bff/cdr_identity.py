@@ -12,7 +12,6 @@ import datetime
 import json as _json
 import logging
 from typing import Any, Dict, List, Optional
-from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
@@ -133,8 +132,7 @@ async def view_cdr_identity(
         activity_params["scan_run_id"] = scan_run_id
         summary_params["scan_run_id"] = scan_run_id
 
-    principal_path = quote(principal, safe="")
-    activity_path = f"/api/v1/cdr/identities/{principal_path}/hourly-activity"
+    activity_params["actor_principal"] = principal
 
     try:
         async with httpx.AsyncClient(timeout=12.0) as client:
@@ -143,7 +141,7 @@ async def view_cdr_identity(
                 params=findings_params, auth_headers=fwd_headers,
             )
             activity_data = await _fetch_engine(
-                client, "cdr", activity_path,
+                client, "cdr", "/api/v1/cdr/identities/hourly-activity",
                 params=activity_params, auth_headers=fwd_headers,
             )
             identities_data = await _fetch_engine(
@@ -170,9 +168,13 @@ async def view_cdr_identity(
     dow      = (activity_data or {}).get("day_of_week_distribution", []) if isinstance(activity_data, dict) else []
 
     identity: Dict[str, Any] = {}
+    principal_lower = principal.lower()
     if isinstance(identities_data, dict):
         for row in identities_data.get("identities", []) or []:
-            if isinstance(row, dict) and row.get("actor_principal") == principal:
+            if isinstance(row, dict) and (
+                row.get("actor_principal") == principal
+                or (row.get("actor_principal") or "").lower() == principal_lower
+            ):
                 identity = row
                 break
     if not identity:

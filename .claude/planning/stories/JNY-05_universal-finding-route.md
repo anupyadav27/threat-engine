@@ -7,7 +7,7 @@ Investigation Journey Unification — Phase B
 P0 — Closes G-20 (no per-finding detail route across 11 posture engines) and unlocks G-12..G-18 row-click pivots.
 
 ## Status
-draft
+done — route /finding/[engine]/[id] exists with layout validation, FindingPageClient, FindingTabsShell (5 universal tabs + engine plugin registry), all 5 tab components, engine-meta.js; BFF contract published at .claude/documentation/contracts/finding-detail-bff-contract.md
 
 ## Team Assignment (RACI)
 
