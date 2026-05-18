@@ -27,7 +27,7 @@ from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, Query, Request
 
 from ._auth import resolve_tenant_id
-from ._shared import fetch_many, safe_get, BFFMeta
+from ._shared import fetch_many, safe_get, BFFMeta, fetch_scan_trend
 from .schemas.dashboard import DashboardResponse
 from ._transforms import (
     normalize_threat, severity_chart, apply_global_filters, _safe_upper,
@@ -779,6 +779,8 @@ async def view_dashboard(
         "remediationSLA": remediation_sla,
         "riskyResources": risky_resources,
         "findingsByCategoryData": findings_by_category,
+        # Real scan history from onboarding DB — replaces client-side sine-wave mock
+        "trendData": fetch_scan_trend(tenant_id) if tenant_id else [],
         "_meta": meta.to_dict(),
     }
 

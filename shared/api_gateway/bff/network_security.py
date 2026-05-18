@@ -13,7 +13,7 @@ from typing import Optional
 from fastapi import APIRouter, Query, Request
 
 from ._auth import resolve_tenant_id
-from ._shared import fetch_many, safe_get, BFFMeta
+from ._shared import fetch_many, safe_get, BFFMeta, read_findings
 from .schemas.network_security import NetworkSecurityResponse
 from ._cache import cache_key, cached_view, TTL_NETWORK, auth_level_from_header
 from ._transforms import apply_global_filters
@@ -312,5 +312,16 @@ async def view_network_security(
         "db":               db_domains,
         "_meta":            meta.to_dict(),
     }
+
+    # ARCH-03: supplement from security_findings table (fallback when network engine empty)
+    sf = read_findings(
+        tenant_id=tenant_id, source_engines=["network"],
+        provider=provider.lower() if provider else None,
+        account_id=account, region=region, limit=500,
+    )
+    if sf["total"] > 0 and not result.get("findings"):
+        result["findings"] = sf["findings"]
+    result["securityFindings"] = sf["findings"]
+
     cached_view(ck, result, ttl=TTL_NETWORK)
     return result

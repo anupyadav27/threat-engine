@@ -140,26 +140,10 @@ async def view_risk(
     if not isinstance(risk_register, list):
         risk_register = []
 
-    # Mitigation roadmap — from risk engine or derived from scenarios
+    # Mitigation roadmap — from risk engine only; empty list until engine supplies data
     mitigation_roadmap = safe_get(risk_data, "mitigation_roadmap", [])
     if not isinstance(mitigation_roadmap, list):
         mitigation_roadmap = []
-    if not mitigation_roadmap:
-        for i, s in enumerate(scenarios[:10]):
-            mitigation_roadmap.append({
-                "id": f"MIT-{i+1:03d}",
-                "action": f"Mitigate: {s.get('scenario_name', '')}",
-                "scenario": s.get("scenario_name", ""),
-                "current_risk": s.get("worst_case_loss", 0),
-                "target_risk": round(s.get("expected_loss", 0) * 0.3),
-                "cost": f"${round(s.get('expected_loss', 0) * 0.1):,}",
-                "priority": "Critical" if s.get("risk_rating") == "critical" else "High",
-                "risk_reduction": round((1 - 0.3) * 100),
-                "effort": "Medium",
-                "status": "planned",
-                "owner": "Security Team",
-                "due_date": (datetime.now() + timedelta(days=30*(i+1))).strftime("%Y-%m-%d"),
-            })
 
     # Top risky assets from risk engine
     top_assets = safe_get(risk_data, "top_assets", [])

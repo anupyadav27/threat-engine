@@ -54,7 +54,7 @@ async def get_notifications(
                             started_at,
                             completed_at,
                             trigger_type
-                        FROM scan_orchestration
+                        FROM scan_runs
                         WHERE tenant_id = %s
                           AND started_at >= %s
                         ORDER BY started_at DESC

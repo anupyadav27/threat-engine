@@ -316,11 +316,11 @@ export default function WorkspaceOnboardingPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     const tenantId = activeTenant?.tenant_id;
-    const qp = tenantId ? `?tenant_id=${tenantId}` : '';
+    const qp = tenantId ? `?tenant_id=${tenantId}&limit=200` : '?limit=200';
     try {
       const [accountsData, schedsData, tenantsData] = await Promise.all([
         fetchView('onboarding/cloud_accounts', {}),
-        getFromEngine('onboarding', `/api/v1/schedules${qp}&limit=200`),
+        getFromEngine('onboarding', `/api/v1/schedules${qp}`),
         customerId ? getFromEngine('onboarding', '/api/v1/tenants', { customer_id: customerId }) : Promise.resolve({}),
       ]);
 
@@ -467,8 +467,8 @@ export default function WorkspaceOnboardingPage() {
   }
 
   const refreshSchedules = useCallback(async () => {
-    const qp = activeTenant?.tenant_id ? `?tenant_id=${activeTenant.tenant_id}` : '';
-    const d = await getFromEngine('onboarding', `/api/v1/schedules${qp}&limit=200`).catch(() => null);
+    const qp = activeTenant?.tenant_id ? `?tenant_id=${activeTenant.tenant_id}&limit=200` : '?limit=200';
+    const d = await getFromEngine('onboarding', `/api/v1/schedules${qp}`).catch(() => null);
     if (d) setSchedules(d?.schedules || []);
   }, [activeTenant]);
 

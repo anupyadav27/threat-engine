@@ -2,7 +2,8 @@
 Shared helpers and engine base URLs for BFF view modules.
 
 Provides: fetch_many() for parallel fan-out, safe_get() for nested access,
-engine URL registry, and query string builder.
+engine URL registry, query string builder, and shared DB read helpers
+(fetch_scan_trend, read_findings, read_posture).
 """
 
 import asyncio
@@ -42,6 +43,7 @@ ENGINE_URLS: Dict[str, str] = {
     "billing":        os.getenv("BILLING_ENGINE_URL",         "http://engine-billing:8040"),
     "platform_admin": os.getenv("PLATFORM_ADMIN_ENGINE_URL",  "http://engine-platform-admin:8041"),
     "threat_v1":      os.getenv("THREAT_V1_ENGINE_URL",       "http://engine-threat-v1:8021"),
+    "chat":           os.getenv("CHAT_ENGINE_URL",            "http://engine-chat"),
 }
 
 # Convenience constants for backward compat
@@ -64,7 +66,7 @@ ENGINE_TIMEOUTS: Dict[str, float] = {
     "datasec": 12.0,
     "risk": 5.0,
     "onboarding": 5.0,
-    "check": 30.0,
+    "check": 45.0,   # rules catalog: up to 15k rules can take ~17-30s under load
     "secops": 8.0,
     "rule": 5.0,
     "ai_security": 8.0,
@@ -385,3 +387,399 @@ def mock_fallback(view_name: str):
     except Exception as exc:
         logger.warning("BFF mock fallback error for %s: %s", view_name, exc)
     return None
+
+
+# ── Shared DB helpers ────────────────────────────────────────────────────────
+
+
+def fetch_scan_trend(tenant_id: str, days: int = 30) -> List[Dict[str, Any]]:
+    """Read completed scan history from the onboarding DB's scan_runs table.
+
+    Groups completed scans by UTC date and returns a sorted list of daily
+    data points.  Severity counts and pass_rate are set to 0 because
+    scan_runs does not store per-severity finding counts; a future story
+    will join security_findings for those values.
+
+    Args:
+        tenant_id: The tenant whose scan history to return.
+        days:      Number of days of history to include (default 30).
+
+    Returns:
+        List of dicts: [{date, total, critical, high, medium, passRate,
+                         assets, drift}] sorted ascending by date.
+        Returns [] on any DB error so callers get a graceful empty state.
+    """
+    try:
+        from engine_common.db_connections import get_onboarding_conn
+
+        with get_onboarding_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        DATE(started_at AT TIME ZONE 'UTC') AS scan_date,
+                        COUNT(*) AS scan_count
+                    FROM scan_runs
+                    WHERE tenant_id = %s
+                      AND overall_status = 'completed'
+                      AND started_at > NOW() - (%s * INTERVAL '1 day')
+                    GROUP BY scan_date
+                    ORDER BY scan_date
+                    """,
+                    (tenant_id, days),
+                )
+                rows = cur.fetchall()
+
+        return [
+            {
+                "date":     str(row[0]),
+                "total":    int(row[1]),
+                "critical": 0,
+                "high":     0,
+                "medium":   0,
+                "passRate": 0,
+                "assets":   0,
+                "drift":    0,
+            }
+            for row in rows
+        ]
+    except Exception as exc:
+        logger.warning("fetch_scan_trend failed for tenant %s: %s", tenant_id, exc)
+        return []
+
+
+def read_findings(
+    tenant_id: str,
+    source_engines: Optional[List[str]] = None,
+    posture_category: Optional[str] = None,
+    severity: Optional[List[str]] = None,
+    account_id: Optional[str] = None,
+    region: Optional[str] = None,
+    provider: Optional[str] = None,
+    resource_uid: Optional[str] = None,
+    scan_run_id: Optional[str] = None,
+    limit: int = 1000,
+    offset: int = 0,
+    order_by: str = "severity DESC, last_seen_at DESC",
+) -> Dict[str, Any]:
+    """Read findings from the security_findings table (inventory DB).
+
+    Always tenant-scoped.  JSONB details column is returned as a Python
+    dict by psycopg2 — never call json.loads() on it.
+
+    Args:
+        tenant_id:       Required.  Scopes every query.
+        source_engines:  Optional list to filter by source engine name.
+        posture_category: Optional posture_category filter.
+        severity:        Optional list of severity levels to include.
+        account_id:      Optional account filter.
+        region:          Optional region filter.
+        provider:        Optional provider filter.
+        resource_uid:    Optional exact resource UID filter.
+        scan_run_id:     Optional scan run ID filter.
+        limit:           Max rows to return (default 1000).
+        offset:          Row offset for pagination (default 0).
+        order_by:        ORDER BY clause (injection-safe; uses allowlist internally
+                         via parameterised LIMIT/OFFSET).
+
+    Returns:
+        {
+            "findings":    List[dict],
+            "total":       int,
+            "by_severity": {"critical": N, "high": N, "medium": N, "low": N},
+            "by_engine":   {engine_name: N},
+        }
+    """
+    from engine_common.db_connections import get_inventory_conn
+
+    conditions: List[str] = ["tenant_id = %s"]
+    params: List[Any] = [tenant_id]
+
+    if source_engines:
+        placeholders = ",".join(["%s"] * len(source_engines))
+        conditions.append(f"source_engine IN ({placeholders})")
+        params.extend(source_engines)
+
+    if posture_category:
+        conditions.append("posture_category = %s")
+        params.append(posture_category)
+
+    if severity:
+        placeholders = ",".join(["%s"] * len(severity))
+        conditions.append(f"severity IN ({placeholders})")
+        params.extend(severity)
+
+    if account_id:
+        conditions.append("account_id = %s")
+        params.append(account_id)
+
+    if region:
+        conditions.append("region = %s")
+        params.append(region)
+
+    if provider:
+        conditions.append("provider = %s")
+        params.append(provider)
+
+    if resource_uid:
+        conditions.append("resource_uid = %s")
+        params.append(resource_uid)
+
+    if scan_run_id:
+        conditions.append("scan_run_id = %s")
+        params.append(scan_run_id)
+
+    where = " AND ".join(conditions)
+
+    count_sql = f"SELECT COUNT(*) FROM security_findings WHERE {where}"
+    agg_sql = f"""
+        SELECT source_engine, severity, COUNT(*) AS cnt
+        FROM security_findings
+        WHERE {where}
+        GROUP BY source_engine, severity
+    """
+    data_sql = f"""
+        SELECT
+            finding_id, source_engine, source_finding_id, tenant_id,
+            scan_run_id, account_id, provider, region,
+            resource_uid, resource_type, rule_id, severity, status,
+            title, description, remediation, posture_category,
+            details, first_seen_at, last_seen_at
+        FROM security_findings
+        WHERE {where}
+        ORDER BY {order_by}
+        LIMIT %s OFFSET %s
+    """
+
+    try:
+        with get_inventory_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(count_sql, params)
+                total: int = cur.fetchone()[0]
+
+                cur.execute(agg_sql, params)
+                agg_rows = cur.fetchall()
+
+                cur.execute(data_sql, params + [limit, offset])
+                cols = [d[0] for d in cur.description]
+                rows = cur.fetchall()
+    except Exception as exc:
+        logger.warning("read_findings failed for tenant %s: %s", tenant_id, exc)
+        return {
+            "findings":    [],
+            "total":       0,
+            "by_severity": {"critical": 0, "high": 0, "medium": 0, "low": 0},
+            "by_engine":   {},
+        }
+
+    findings = [dict(zip(cols, r)) for r in rows]
+
+    # Build aggregations (JSONB details already a dict — no json.loads needed)
+    by_severity: Dict[str, int] = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+    by_engine: Dict[str, int] = {}
+    for engine_name, sev, cnt in agg_rows:
+        if sev in by_severity:
+            by_severity[sev] += cnt
+        by_engine[engine_name] = by_engine.get(engine_name, 0) + cnt
+
+    return {
+        "findings":    findings,
+        "total":       total,
+        "by_severity": by_severity,
+        "by_engine":   by_engine,
+    }
+
+
+def read_findings_for_asset(
+    tenant_id: str,
+    resource_uid: str,
+    source_engines: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """All findings for a specific resource_uid across engines.
+
+    Convenience wrapper around read_findings() scoped to a single asset.
+
+    Args:
+        tenant_id:      Required tenant scope.
+        resource_uid:   The resource UID to look up.
+        source_engines: Optional engine filter.
+
+    Returns:
+        Same shape as read_findings().
+    """
+    return read_findings(
+        tenant_id=tenant_id,
+        resource_uid=resource_uid,
+        source_engines=source_engines,
+        limit=500,
+    )
+
+
+def read_posture(
+    tenant_id: str,
+    resource_uid: Optional[str] = None,
+    resource_uids: Optional[List[str]] = None,
+    account_id: Optional[str] = None,
+    provider: Optional[str] = None,
+    resource_type: Optional[str] = None,
+    has_critical: Optional[bool] = None,
+    limit: int = 500,
+    offset: int = 0,
+) -> Dict[str, Any]:
+    """Read posture signals from resource_security_posture (inventory DB).
+
+    Always tenant-scoped.  JSONB detail columns (iam_detail, network_detail,
+    api_detail) are returned as Python dicts — never call json.loads() on them.
+
+    Args:
+        tenant_id:     Required.  Scopes every query.
+        resource_uid:  Optional single resource UID filter.
+        resource_uids: Optional list of resource UIDs (IN filter).
+        account_id:    Optional account filter.
+        provider:      Optional provider filter.
+        resource_type: Optional resource_type filter.
+        has_critical:  When True, only rows where critical_count > 0.
+        limit:         Max rows to return (default 500).
+        offset:        Row offset (default 0).
+
+    Returns:
+        {
+            "posture": List[dict],
+            "total":   int,
+            "summary": {
+                "avg_posture_score": float,
+                "high_risk_count":   int,
+                "critical_findings": int,
+                "unencrypted_count": int,
+                "internet_exposed":  int,
+            },
+        }
+    """
+    from engine_common.db_connections import get_inventory_conn
+
+    conditions: List[str] = ["tenant_id = %s"]
+    params: List[Any] = [tenant_id]
+
+    if resource_uid:
+        conditions.append("resource_uid = %s")
+        params.append(resource_uid)
+
+    if resource_uids:
+        placeholders = ",".join(["%s"] * len(resource_uids))
+        conditions.append(f"resource_uid IN ({placeholders})")
+        params.extend(resource_uids)
+
+    if account_id:
+        conditions.append("account_id = %s")
+        params.append(account_id)
+
+    if provider:
+        conditions.append("provider = %s")
+        params.append(provider)
+
+    if resource_type:
+        conditions.append("resource_type = %s")
+        params.append(resource_type)
+
+    if has_critical:
+        conditions.append("critical_count > 0")
+
+    where = " AND ".join(conditions)
+
+    data_sql = f"""
+        SELECT
+            posture_id, resource_uid, resource_type, tenant_id,
+            account_id, provider, region, scan_run_id,
+            critical_count, high_count, medium_count, low_count, total_findings,
+            overall_posture_score, posture_band,
+            iam_score, iam_detail,
+            network_score, is_in_private_subnet, network_detail,
+            is_encrypted_at_rest, is_encrypted_in_transit, has_kms_managed_key,
+            has_valid_certificate, cert_days_remaining, tls_version, encryption_score,
+            api_auth_type, api_has_waf, api_has_rate_limit,
+            api_publicly_accessible, api_security_score, api_detail,
+            has_privileged_container, image_has_critical_cve,
+            k8s_rbac_overpermissive, container_security_score,
+            ai_security_score,
+            db_auth_type, dbsec_score,
+            is_high_risk_crown_jewel, is_internet_exposed_with_critical,
+            api_public_no_waf, api_public_no_auth,
+            reachable_pii_store_count,
+            last_updated_at
+        FROM resource_security_posture
+        WHERE {where}
+        ORDER BY overall_posture_score DESC NULLS LAST, critical_count DESC
+        LIMIT %s OFFSET %s
+    """
+    count_sql = f"SELECT COUNT(*) FROM resource_security_posture WHERE {where}"
+
+    try:
+        with get_inventory_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(count_sql, params)
+                total: int = cur.fetchone()[0]
+
+                cur.execute(data_sql, params + [limit, offset])
+                cols = [d[0] for d in cur.description]
+                rows = cur.fetchall()
+    except Exception as exc:
+        logger.warning("read_posture failed for tenant %s: %s", tenant_id, exc)
+        return {
+            "posture": [],
+            "total":   0,
+            "summary": {
+                "avg_posture_score": 0, "high_risk_count": 0,
+                "critical_findings": 0, "unencrypted_count": 0,
+                "internet_exposed":  0,
+            },
+        }
+
+    posture_list = [dict(zip(cols, r)) for r in rows]
+
+    if posture_list:
+        summary: Dict[str, Any] = {
+            "avg_posture_score": round(
+                sum(p.get("overall_posture_score") or 0 for p in posture_list)
+                / len(posture_list),
+                1,
+            ),
+            "high_risk_count":   sum(
+                1 for p in posture_list
+                if (p.get("overall_posture_score") or 100) < 40
+            ),
+            "critical_findings": sum(
+                p.get("critical_count") or 0 for p in posture_list
+            ),
+            "unencrypted_count": sum(
+                1 for p in posture_list if not p.get("is_encrypted_at_rest")
+            ),
+            "internet_exposed":  sum(
+                1 for p in posture_list
+                if p.get("is_internet_exposed_with_critical")
+            ),
+        }
+    else:
+        summary = {
+            "avg_posture_score": 0, "high_risk_count": 0,
+            "critical_findings": 0, "unencrypted_count": 0,
+            "internet_exposed":  0,
+        }
+
+    return {"posture": posture_list, "total": total, "summary": summary}
+
+
+def read_posture_for_resource(
+    tenant_id: str,
+    resource_uid: str,
+) -> Optional[Dict[str, Any]]:
+    """Single resource posture row from resource_security_posture.
+
+    Args:
+        tenant_id:    Required tenant scope.
+        resource_uid: Resource UID to look up.
+
+    Returns:
+        A single posture dict or None if the resource is not found.
+    """
+    result = read_posture(tenant_id=tenant_id, resource_uid=resource_uid, limit=1)
+    return result["posture"][0] if result["posture"] else None

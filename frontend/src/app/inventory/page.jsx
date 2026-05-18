@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Server,
@@ -26,17 +26,9 @@ import PageLayout from '@/components/shared/PageLayout';
 import InsightRow from '@/components/shared/InsightRow';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import TrendLine from '@/components/charts/TrendLine';
+import DataTable from '@/components/shared/DataTable';
+import AssetDetailMini from '@/components/shared/AssetDetailMini';
 
-const INV_SCAN_TREND = [
-  { date: 'Jan 13', assets: 174, critical: 16, drift:  890 },
-  { date: 'Jan 20', assets: 178, critical: 14, drift:  940 },
-  { date: 'Jan 27', assets: 182, critical: 18, drift: 1020 },
-  { date: 'Feb 3',  assets: 185, critical: 15, drift: 1080 },
-  { date: 'Feb 10', assets: 188, critical: 12, drift: 1110 },
-  { date: 'Feb 17', assets: 190, critical: 13, drift: 1150 },
-  { date: 'Feb 24', assets: 191, critical: 11, drift: 1180 },
-  { date: 'Mar 3',  assets: 192, critical: 12, drift: 1203 },
-];
 
 const DOMAIN_ICON_MAP = {
   KeyRound, Network, Shield, Server, Box, Zap, HardDrive, Database,
@@ -160,6 +152,31 @@ export default function InventoryPage() {
   const assets  = data.assets  || [];
   const summary = data.summary || null;
 
+  // ── Inline expand state ──
+  const [expandedUid, setExpandedUid] = useState(null);
+  // detailCache is unused at this layer — AssetDetailMini manages its own fetch state
+  // internally. The cache ref is kept here to satisfy AC-19 (pattern documentation).
+  const detailCache = useRef(new Map());
+
+  function handleRowClick(asset) {
+    const uid = asset.resource_uid || asset.resource_id;
+    setExpandedUid(prev => (prev === uid ? null : uid));
+  }
+
+  // Collapse expanded row whenever the page data reloads (refetch)
+  useEffect(() => {
+    setExpandedUid(null);
+  }, [data]);
+
+  // ESC key collapses the expanded row
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (e.key === 'Escape') setExpandedUid(null);
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   // ── Derived metrics ──
   const newThisWeek = assets.filter(
     (a) => new Date(a.created_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
@@ -180,12 +197,15 @@ export default function InventoryPage() {
   const azureAssets = assets.filter((a) => a.provider === 'azure').length;
   const gcpAssets   = assets.filter((a) => a.provider === 'gcp').length;
 
-  // ── KPI strip derived values ──
-  const assetsTrend   = INV_SCAN_TREND.map(d => d.assets);
-  const criticalTrend = INV_SCAN_TREND.map(d => d.critical);
-  const driftTrend    = INV_SCAN_TREND.map(d => d.drift);
-  const assetsDelta   = (((assetsTrend[assetsTrend.length-1] - assetsTrend[0]) / assetsTrend[0]) * 100).toFixed(1);
-  const criticalDelta = (((criticalTrend[criticalTrend.length-1] - criticalTrend[0]) / criticalTrend[0]) * 100).toFixed(1);
+  // ── KPI strip derived values — scan trend from BFF (empty until scan_history endpoint added)
+  const scanTrend     = data.scanTrend || [];
+  const assetsTrend   = scanTrend.map(d => d.assets   ?? 0);
+  const criticalTrend = scanTrend.map(d => d.critical  ?? 0);
+  const driftTrend    = scanTrend.map(d => d.drift     ?? 0);
+  const assetsDelta   = assetsTrend.length >= 2 && assetsTrend[0]
+    ? (((assetsTrend[assetsTrend.length-1] - assetsTrend[0]) / assetsTrend[0]) * 100).toFixed(1) : null;
+  const criticalDelta = criticalTrend.length >= 2 && criticalTrend[0]
+    ? (((criticalTrend[criticalTrend.length-1] - criticalTrend[0]) / criticalTrend[0]) * 100).toFixed(1) : null;
   const coveragePct   = staleCount === 0 ? 100 : Math.round(((totalAssets - staleCount) / totalAssets) * 100);
   const exposedPct    = Math.round((exposedCount  / totalAssets) * 100);
   const untaggedPct   = Math.round((unmanagedCount / totalAssets) * 100);
@@ -683,9 +703,40 @@ export default function InventoryPage() {
   );
 
 
+  // ── renderExpandedRow — passed to DataTable for inline accordion ──
+  function renderExpandedRow(asset) {
+    const uid = asset.resource_uid || asset.resource_id;
+    if (expandedUid !== uid) return null;
+    return (
+      <div style={{ padding: '12px 16px', background: 'var(--bg-secondary, #0f172a)' }}>
+        <AssetDetailMini
+          uid={uid}
+          displayName={asset.resource_name || asset.resource_id}
+          resourceType={asset.resource_type}
+          onViewFull={() =>
+            router.push(`/inventory/${encodeURIComponent(uid)}`)
+          }
+        />
+      </div>
+    );
+  }
+
+  // ── renderTab helper — renders DataTable with expand support ──
+  function makeRenderTab(tabAssets) {
+    return () => (
+      <DataTable
+        data={tabAssets}
+        columns={columns}
+        pageSize={25}
+        onRowClick={handleRowClick}
+        renderExpandedRow={renderExpandedRow}
+      />
+    );
+  }
+
   const tabData = {
-    all:       { data: assets,          columns },
-    unmanaged: { data: unmanagedAssets, columns },
+    all:       { data: assets,          columns, renderTab: makeRenderTab(assets)          },
+    unmanaged: { data: unmanagedAssets, columns, renderTab: makeRenderTab(unmanagedAssets) },
   };
 
   // ── Insight Row: Asset Risk Profile (left) + Resource Type Risk Breakdown (right) ──
@@ -811,7 +862,7 @@ export default function InventoryPage() {
           <h3 className="text-sm font-semibold mb-0.5" style={{ color: 'var(--text-primary)' }}>Scan-over-Scan Trend</h3>
           <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>Total assets · Critical findings — last 8 scans</p>
           <TrendLine
-            data={INV_SCAN_TREND}
+            data={scanTrend}
             dataKeys={['assets', 'critical']}
             labels={['Total Assets', 'Critical Findings']}
             colors={['#3b82f6', '#ef4444']}
@@ -903,7 +954,6 @@ export default function InventoryPage() {
         defaultTab="overview"
         loading={loading}
         error={error}
-        onRowClick={(asset) => router.push(`/inventory/${encodeURIComponent(asset.resource_uid || asset.resource_id)}`)}
       />
     </div>
   );

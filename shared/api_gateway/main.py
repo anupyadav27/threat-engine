@@ -237,6 +237,24 @@ SERVICE_ROUTES = {
         "prefixes": ["/api/v1/incidents"],
         "health_endpoint": "/api/v1/health/live"
     },
+    "attack-path": {
+        "url": os.getenv("ATTACK_PATH_ENGINE_URL", "http://engine-attack-path.threat-engine-engines.svc.cluster.local:80"),
+        "prefix": "/api/v1/attack-paths",
+        "prefixes": ["/api/v1/attack-paths", "/api/v1/crown-jewels", "/api/v1/choke-points"],
+        "health_endpoint": "/api/v1/health/live"
+    },
+    "api-security": {
+        "url": os.getenv("API_SECURITY_ENGINE_URL", "http://engine-api-security.threat-engine-engines.svc.cluster.local"),
+        "prefix": "/api/v1/apisec",
+        "prefixes": ["/api/v1/apisec"],
+        "health_endpoint": "/api/v1/health/live"
+    },
+    "chat": {
+        "url": os.getenv("CHAT_ENGINE_URL", "http://engine-chat:8036"),
+        "prefix": "/api/v1/chat",
+        "prefixes": ["/api/v1/chat"],
+        "health_endpoint": "/api/v1/health/live"
+    },
 }
 
 class ServiceRegistry:

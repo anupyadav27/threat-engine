@@ -67,7 +67,7 @@ async def get_recent_scans(
                             AS duration_seconds,
                         engines_requested,
                         engines_completed
-                    FROM scan_orchestration
+                    FROM scan_runs
                     WHERE tenant_id = %s
                     ORDER BY started_at DESC
                     LIMIT %s
@@ -133,7 +133,7 @@ async def get_scan_pipeline_status(
                         completed_at,
                         engines_requested,
                         engines_completed
-                    FROM scan_orchestration
+                    FROM scan_runs
                     WHERE scan_run_id = %s
                       AND tenant_id = %s
                     LIMIT 1

@@ -1,6 +1,6 @@
 """Base provider interface for the Encryption Security engine."""
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 class BaseEncryptionProvider(ABC):
@@ -35,6 +35,21 @@ class BaseEncryptionProvider(ABC):
 
     def is_supported(self) -> bool:
         return True
+
+    def analyze(
+        self,
+        scan_run_id: str,
+        tenant_id: str,
+        account_id: str,
+        discovery_resources: Dict[str, List[Dict[str, Any]]],
+    ) -> Optional[List[Dict[str, Any]]]:
+        """Pattern A: rule-based findings from discovery data.
+
+        Returns None to signal Pattern B fallback (coverage-based analysis).
+        Subclasses override to produce named rule findings (KMS rotation,
+        cert expiry, TLS version, secrets rotation).
+        """
+        return None
 
     def enrich_resources(self, resources: List[Dict[str, Any]], context: Dict[str, Any]) -> List[Dict[str, Any]]:
         return resources

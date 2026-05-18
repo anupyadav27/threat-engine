@@ -387,6 +387,99 @@ def main():
         except Exception as _ret_err:
             logger.warning("Retention cleanup skipped: %s", _ret_err)
 
+        # Write datasec posture signals to resource_security_posture (non-fatal)
+        try:
+            from data_security_engine.posture_signals import write_datasec_posture_signals
+            write_datasec_posture_signals(
+                scan_run_id=scan_run_id,
+                tenant_id=tenant_id,
+                account_id=account_id or "",
+                provider=provider,
+            )
+        except Exception as _ps_err:
+            logger.warning("DataSec posture signal write skipped: %s", _ps_err)
+
+        # Write datasec FAIL findings to shared security_findings table (non-fatal)
+        try:
+            import hashlib
+            from engine_common.security_findings_writer import upsert_findings
+            from engine_common.db_connections import get_inventory_conn
+
+            inv_conn = get_inventory_conn()
+            datasec_conn = get_datasec_conn()
+            rows: list = []
+            raw_rows = []
+            with datasec_conn.cursor(cursor_factory=__import__("psycopg2.extras", fromlist=["RealDictCursor"]).RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT finding_id, rule_id, resource_uid, resource_type,
+                           account_id, provider, region, severity, status, finding_data
+                    FROM datasec_findings
+                    WHERE scan_run_id = %s AND tenant_id = %s AND status = 'FAIL'
+                    LIMIT 2000
+                    """,
+                    (scan_run_id, tenant_id),
+                )
+                raw_rows = cur.fetchall()
+
+            # Batch-lookup MITRE data from rule_metadata
+            mitre_by_rule: dict = {}
+            rule_ids = list({r["rule_id"] for r in raw_rows if r.get("rule_id")})
+            if rule_ids:
+                try:
+                    from engine_common.db_connections import get_check_conn
+                    check_conn = get_check_conn()
+                    with check_conn.cursor(cursor_factory=__import__("psycopg2.extras", fromlist=["RealDictCursor"]).RealDictCursor) as mc:
+                        mc.execute(
+                            "SELECT rule_id, mitre_attack_id, mitre_tactic FROM rule_metadata WHERE rule_id = ANY(%s)",
+                            (rule_ids,),
+                        )
+                        for rm in mc.fetchall():
+                            mitre_by_rule[rm["rule_id"]] = (rm.get("mitre_attack_id"), rm.get("mitre_tactic"))
+                    check_conn.close()
+                except Exception:
+                    pass
+
+            for r in raw_rows:
+                    fd = r["finding_data"] if isinstance(r["finding_data"], dict) else {}
+                    src_id = hashlib.sha256(
+                        f"datasec|{r['finding_id']}".encode()
+                    ).hexdigest()[:64]
+                    _rule_id = r.get("rule_id") or ""
+                    _mitre_tech, _mitre_tac = mitre_by_rule.get(_rule_id, (None, None))
+                    rows.append({
+                        "source_finding_id": src_id,
+                        "resource_uid": (r["resource_uid"] or "")[:512],
+                        "account_id": r.get("account_id", "")[:128],
+                        "provider": r.get("provider", ""),
+                        "resource_type": r.get("resource_type", "")[:128],
+                        "finding_type": "data_violation",
+                        "severity": (r.get("severity") or "medium").lower(),
+                        "rule_id": _rule_id[:128],
+                        "title": fd.get("title", "")[:500],
+                        "description": fd.get("description", ""),
+                        "mitre_technique_id": _mitre_tech,
+                        "mitre_tactic": _mitre_tac,
+                        "detail": {
+                            "datasec_modules": fd.get("datasec_modules"),
+                            "data_classification": fd.get("data_classification"),
+                            "evidence": fd.get("evidence"),
+                        },
+                        "status": "open",
+                    })
+            if rows:
+                written = upsert_findings(
+                    conn=inv_conn,
+                    findings=rows,
+                    source_engine="datasec",
+                    tenant_id=tenant_id,
+                    scan_run_id=scan_run_id,
+                )
+                logger.info("security_findings: wrote %d datasec rows", written)
+            inv_conn.close()
+            datasec_conn.close()
+        except Exception as _sf_err:
+            logger.warning("DataSec security_findings write skipped: %s", _sf_err)
 
     except Exception as e:
         logger.error(f"DataSec scan FAILED: {e}", exc_info=True)

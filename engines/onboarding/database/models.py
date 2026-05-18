@@ -324,7 +324,7 @@ class ScanRun(Base):
     """
     # NOTE (2026-05-03): Was incorrectly declared as 'scan_runs'.
     # Confirmed: RDS table is 'scan_orchestration' — used by all Argo templates and engines.
-    __tablename__ = 'scan_orchestration'
+    __tablename__ = 'scan_runs'
 
     scan_run_id     = Column(UUID(as_uuid=True), primary_key=True,
                              default=uuid.uuid4)

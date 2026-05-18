@@ -16,7 +16,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Query, Request
 
 from ._auth import resolve_tenant_id
-from ._shared import fetch_many, safe_get, ENGINE_URLS, _fetch_engine
+from ._shared import fetch_many, safe_get, ENGINE_URLS, _fetch_engine, read_findings
 from ._cache import cache_key, cached_view, TTL_CIEM, auth_level_from_header
 from ._common_schemas import CdrViewResponse
 import httpx
@@ -199,6 +199,16 @@ async def view_cdr(
             "logSources":     safe_get(log_sources_data, "sources", []),
         },
     }
+
+    # ARCH-05: supplement from security_findings table (fallback when CDR engine empty)
+    sf = read_findings(tenant_id=tenant_id, source_engines=["cdr"], limit=500)
+    if sf["total"] > 0 and not result.get("topCritical"):
+        result["topCritical"] = [
+            {"title": f.get("title", ""), "severity": f.get("severity", "medium"),
+             "resource_uid": f.get("resource_uid", ""), "finding_type": f.get("finding_type", "")}
+            for f in sf["findings"][:20]
+        ]
+    result["securityFindings"] = sf["findings"]
 
     cached_view(ck, result, ttl=TTL_CIEM)
     return result

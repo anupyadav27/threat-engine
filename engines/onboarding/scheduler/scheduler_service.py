@@ -215,7 +215,7 @@ class SchedulerService:
             try:
                 cur.execute(
                     """
-                    UPDATE scan_orchestration
+                    UPDATE scan_runs
                     SET overall_status = 'failed',
                         completed_at   = NOW(),
                         error_details  = '{"error":"marked stale by scheduler on startup"}'::jsonb

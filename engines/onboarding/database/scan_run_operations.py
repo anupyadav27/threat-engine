@@ -1,5 +1,5 @@
 """
-Database operations for the scan_orchestration table.
+Database operations for the scan_runs table.
 """
 import json
 import uuid
@@ -36,7 +36,7 @@ def create_scan_run(data: Dict[str, Any]) -> Dict[str, Any]:
 
         cur.execute(
             """
-            INSERT INTO scan_orchestration (
+            INSERT INTO scan_runs (
                 scan_run_id,
                 customer_id, tenant_id, account_id,
                 schedule_id, schedule_uuid,
@@ -101,7 +101,7 @@ def get_scan_run(scan_run_id: str) -> Optional[Dict[str, Any]]:
         cur.execute(
             """
             SELECT sr.*, ca.account_name, ca.provider AS account_provider
-            FROM scan_orchestration sr
+            FROM scan_runs sr
             LEFT JOIN cloud_accounts ca ON ca.account_id = sr.account_id
             WHERE sr.scan_run_id = %s
             """,
@@ -128,7 +128,7 @@ def list_scan_runs(
     try:
         query = """
             SELECT sr.*, ca.account_name
-            FROM scan_orchestration sr
+            FROM scan_runs sr
             LEFT JOIN cloud_accounts ca ON ca.account_id = sr.account_id
             WHERE 1=1
         """
@@ -173,7 +173,7 @@ def update_scan_run(scan_run_id: str, updates: Dict[str, Any]) -> Optional[Dict[
         values.append(scan_run_id)
 
         cur.execute(
-            f"UPDATE scan_orchestration SET {set_clause} WHERE scan_run_id = %s RETURNING *",
+            f"UPDATE scan_runs SET {set_clause} WHERE scan_run_id = %s RETURNING *",
             values,
         )
         row = cur.fetchone()
@@ -193,7 +193,7 @@ def mark_scan_run_started(scan_run_id: str) -> None:
     cur = conn.cursor()
     try:
         cur.execute(
-            "UPDATE scan_orchestration SET overall_status = 'running', started_at = %s WHERE scan_run_id = %s",
+            "UPDATE scan_runs SET overall_status = 'running', started_at = %s WHERE scan_run_id = %s",
             (datetime.now(timezone.utc), scan_run_id),
         )
         conn.commit()
@@ -219,7 +219,7 @@ def mark_scan_run_completed(
         now = datetime.now(timezone.utc)
         cur.execute(
             """
-            UPDATE scan_orchestration SET
+            UPDATE scan_runs SET
                 overall_status  = %s,
                 completed_at    = %s,
                 results_summary = %s,

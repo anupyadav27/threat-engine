@@ -22,8 +22,7 @@ import SeverityDonut from '@/components/charts/SeverityDonut';
 // Constants
 // ---------------------------------------------------------------------------
 const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID || 'default-tenant';
-const SCA_API_KEY = 'sbom-api-key-2024';
-const SCA_BASE = '/sbom/api/v1/sbom';
+const SCA_BASE = `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/sbom/sbom`;
 
 const SEV_ORDER = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
 
@@ -816,7 +815,7 @@ export default function SecOpsPage() {
     try {
       const [bff, sca] = await Promise.all([
         fetchView('secops').catch(() => ({})),
-        fetchApi(`${SCA_BASE}`, { headers: { 'X-API-Key': SCA_API_KEY } }).catch(() => []),
+        fetchApi(`${SCA_BASE}`).catch(() => []),
       ]);
       setSastScans(bff?.sastScans || []);
       setDastScans(bff?.dastScans || []);
@@ -853,7 +852,7 @@ export default function SecOpsPage() {
             .catch(() => ({ scan: s, findings: [] }))
         )),
         Promise.all(completedSca.map(s =>
-          fetchApi(`${SCA_BASE}/${s.sbom_id}`, { headers: { 'X-API-Key': SCA_API_KEY } })
+          fetchApi(`${SCA_BASE}/${s.sbom_id}`)
             .then(r => ({ scan: s, detail: r }))
             .catch(() => ({ scan: s, detail: null }))
         )),

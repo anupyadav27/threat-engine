@@ -200,11 +200,12 @@ class BaseDBSecProvider(ABC):
                 "resource_type": r[1],
                 "region": r[2] or "",
                 "account_id": r[3] or "",
-                "emitted_fields": r[4] or {},
+                "emitted_fields": r[4] if isinstance(r[4], dict) else {},
                 "credential_ref": r[5] or "",
                 "credential_type": r[6] or "",
             }
             for r in rows
+            if isinstance(r[4], dict) or r[4] is None
         ]
 
     @staticmethod

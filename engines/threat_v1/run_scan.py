@@ -12,6 +12,9 @@ Execution order (REQUIREMENTS §3, Sprint Plan S1-07):
   Step 5: Load CDR events → CDREvent + CDRActor nodes (actor_principal hashed — CP1-02)
   Step 6: Load inventory relationships → attack-path edges
   Step 7: Crown jewel classification → set is_crown_jewel flags
+  Step 7a: Enrich Neo4j nodes from resource_security_posture (AP-ENHANCE-03)
+  Step 7b: Pattern execution (PatternExecutor)
+  Step 7c: Write T2/T3 incident targets as crown jewels to posture (AP-ENHANCE-02)
   Step 8: Record threat_scan_runs_v1 completion row
   Step 9: Release advisory lock
 
@@ -107,6 +110,153 @@ def _release_advisory_lock(threat_conn, lock_key: int) -> None:
         cur.close()
     except Exception as exc:  # noqa: BLE001
         logger.warning("Failed to release advisory lock %s: %s", lock_key, exc)
+
+
+_T2T3_TYPE_TO_CJ: Dict[str, str] = {
+    # Storage / data
+    "s3.bucket": "data", "gcs.bucket": "data", "oci.object_storage": "data",
+    "blob.container": "data", "adls.filesystem": "data", "azure.storage_blob": "data",
+    # Databases
+    "rds.instance": "database", "rds.cluster": "database",
+    "dynamodb.table": "database", "redshift.cluster": "database",
+    "cloud_sql.instance": "database", "bigquery.dataset": "database",
+    "oci.autonomous_db": "database", "azure.sql_database": "database",
+    # Secrets / KMS
+    "secretsmanager.secret": "secrets", "gcp.secret_manager": "secrets",
+    "azure.key_vault_secret": "secrets",
+    "kms.key": "encryption_control", "gcp.kms_key": "encryption_control",
+    "oci.vault_key": "encryption_control",
+    # Identity
+    "iam.role": "identity", "iam.user": "identity",
+    "gcp.service_account": "identity", "azure.service_principal": "identity",
+    # Infra control
+    "eks.cluster": "infra_control", "gke.cluster": "infra_control",
+    "oci.oke_cluster": "infra_control", "aks.cluster": "infra_control",
+    # AI endpoints
+    "sagemaker.endpoint": "ai_endpoint", "sagemaker_endpoint": "ai_endpoint",
+    "bedrock.model": "ai_endpoint", "bedrock_model": "ai_endpoint",
+    # Code
+    "ecr.repository": "code", "artifact_registry.repo": "code",
+}
+
+
+def _derive_cj_type(resource_type: str) -> str:
+    """Map a resource_security_posture.resource_type to a crown_jewel_type string."""
+    rtype = (resource_type or "").lower()
+    if rtype in _T2T3_TYPE_TO_CJ:
+        return _T2T3_TYPE_TO_CJ[rtype]
+    # Prefix heuristics for types not in the explicit map
+    if any(rtype.startswith(p) for p in ("rds.", "dynamodb.", "redshift.", "cloud_sql.", "bigquery.", "oci.autonomous")):
+        return "database"
+    if any(rtype.startswith(p) for p in ("s3", "gcs", "blob", "oci.object")):
+        return "data"
+    if any(rtype.startswith(p) for p in ("iam.", "gcp.service_account", "azure.service_principal")):
+        return "identity"
+    if any(rtype.startswith(p) for p in ("kms.", "secretsmanager.", "gcp.kms", "oci.vault")):
+        return "secrets"
+    return "data"
+
+
+def _enrich_neo4j_from_posture(inventory_conn, neo4j_driver, tenant_id: str) -> Dict:
+    """Step 7a: Push posture signals (is_crown_jewel, is_internet_exposed) into Neo4j node props."""
+    cur = inventory_conn.cursor()
+    cur.execute(
+        """
+        SELECT resource_uid, is_crown_jewel, is_internet_exposed, crown_jewel_type, resource_type
+        FROM resource_security_posture
+        WHERE tenant_id = %s
+          AND (is_crown_jewel = TRUE OR is_internet_exposed = TRUE)
+        """,
+        (tenant_id,),
+    )
+    rows = cur.fetchall()
+    cur.close()
+
+    if not rows:
+        return {"enriched_count": 0}
+
+    enriched = 0
+    with neo4j_driver.session() as session:
+        for resource_uid, is_crown_jewel, is_internet_exposed, crown_jewel_type, resource_type in rows:
+            props: Dict = {}
+            if is_crown_jewel:
+                props["is_crown_jewel"] = True
+                if crown_jewel_type:
+                    props["crown_jewel_type"] = crown_jewel_type
+            if is_internet_exposed:
+                props["entry_point_type"] = "internet"
+            if resource_type:
+                # Short canonical name: strip 'service.' prefix if present
+                canonical = resource_type.split(".")[-1] if "." in resource_type else resource_type
+                props["resource_type_canonical"] = canonical
+            if props:
+                session.run(
+                    "MATCH (r:Resource {uid: $uid, tenant_id: $tid}) SET r += $props",
+                    uid=resource_uid, tid=tenant_id, props=props,
+                )
+                enriched += 1
+
+    return {"enriched_count": enriched}
+
+
+def _write_t23_crown_jewels_to_posture(
+    threat_conn,
+    inventory_conn,
+    tenant_id: str,
+    scan_run_id: str,
+) -> Dict:
+    """Step 7c: Mark T2/T3 incident target resources as crown jewels in resource_security_posture."""
+    cur = threat_conn.cursor()
+    cur.execute(
+        """
+        SELECT DISTINCT target_resource_uid
+        FROM threat_incidents
+        WHERE tenant_id = %s
+          AND scan_run_id = %s
+          AND tier IN (2, 3)
+          AND target_resource_uid IS NOT NULL
+        """,
+        (tenant_id, scan_run_id),
+    )
+    target_uids = [row[0] for row in cur.fetchall()]
+    cur.close()
+
+    if not target_uids:
+        return {"crown_jewels_written": 0}
+
+    # Fetch resource_type for each uid so we can derive crown_jewel_type
+    inv_cur = inventory_conn.cursor()
+    inv_cur.execute(
+        """
+        SELECT resource_uid, resource_type
+        FROM resource_security_posture
+        WHERE tenant_id = %s
+          AND resource_uid = ANY(%s)
+        """,
+        (tenant_id, target_uids),
+    )
+    uid_to_type: Dict[str, str] = {row[0]: row[1] for row in inv_cur.fetchall()}
+
+    updated = 0
+    for uid in target_uids:
+        rtype = uid_to_type.get(uid, "")
+        cj_type = _derive_cj_type(rtype)
+        inv_cur.execute(
+            """
+            UPDATE resource_security_posture
+            SET is_crown_jewel = TRUE,
+                crown_jewel_type = COALESCE(crown_jewel_type, %s)
+            WHERE resource_uid = %s
+              AND tenant_id = %s
+            """,
+            (cj_type, uid, tenant_id),
+        )
+        updated += inv_cur.rowcount
+
+    inventory_conn.commit()
+    inv_cur.close()
+
+    return {"crown_jewels_written": updated}
 
 
 def _record_scan_run(
@@ -266,6 +416,18 @@ def build_graph(
         stats["crown_jewel_count"] = cj_result["crown_jewel_count"]
         logger.info("Step 7: %s", cj_result)
 
+        # ── Step 7a: Enrich Neo4j node props from resource_security_posture ───
+        # AP-ENHANCE-03: pushes is_crown_jewel + entry_point_type='internet'
+        # onto graph nodes so PatternExecutor sees posture-backed signals.
+        logger.info("Step 7a: enriching Neo4j nodes from posture")
+        try:
+            enrich_result = _enrich_neo4j_from_posture(inventory_conn, neo4j_driver, tenant_id)
+            stats["posture_enriched"] = enrich_result["enriched_count"]
+            logger.info("Step 7a: %s", enrich_result)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Step 7a: posture enrichment failed (non-fatal): %s", exc)
+            stats["posture_enriched"] = 0
+
         # ── Step 7b: Pattern execution (runs after full graph is built) ──────────
         csp = os.environ.get("ACCOUNT_CSP", "aws")
         logger.info("Step 7b: executing patterns (csp=%s)", csp)
@@ -278,6 +440,18 @@ def build_graph(
         stats["patterns_run"] = executor_result["patterns_run"]
         stats["incidents_written"] = executor_result["incidents_written"]
         logger.info("Step 7b: %s", executor_result)
+
+        # ── Step 7c: Write T2/T3 crown jewels back to posture ─────────────────
+        # AP-ENHANCE-02: T2/T3 incident targets are definitionally crown jewels.
+        logger.info("Step 7c: writing T2/T3 crown jewels to resource_security_posture")
+        try:
+            cj_posture_result = _write_t23_crown_jewels_to_posture(
+                threat_conn, inventory_conn, tenant_id, scan_run_id,
+            )
+            stats["t23_crown_jewels_written"] = cj_posture_result["crown_jewels_written"]
+            logger.info("Step 7c: %s", cj_posture_result)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Step 7c: T2/T3 posture write failed (non-fatal): %s", exc)
 
         # ── Step 8: Record completion ─────────────────────────────────────────
         logger.info("Step 8: recording threat_scan_runs_v1 completion row")

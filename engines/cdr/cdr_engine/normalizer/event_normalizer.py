@@ -21,6 +21,37 @@ from .schema import (
 
 logger = logging.getLogger(__name__)
 
+# Maps CloudTrail requestParameters field names → canonical AWS ARN resource type segment.
+# Without this, CDR would produce e.g. arn:aws:ec2:...:groupId/sg-xxx instead of
+# arn:aws:ec2:...:security-group/sg-xxx, causing resource_security_posture upserts to create
+# orphan rows that never join discovery's resource_uid.
+_CLOUDTRAIL_FIELD_TO_ARN_RESOURCE: Dict[str, str] = {
+    # EC2 flat params
+    "instanceId":         "instance",
+    "vpcId":              "vpc",
+    "subnetId":           "subnet",
+    "securityGroupId":    "security-group",
+    "groupId":            "security-group",
+    "networkInterfaceId": "network-interface",
+    "volumeId":           "volume",
+    "snapshotId":         "snapshot",
+    "imageId":            "image",
+    "natGatewayId":       "natgateway",
+    "internetGatewayId":  "internet-gateway",
+    "routeTableId":       "route-table",
+    "networkAclId":       "network-acl",
+    "allocationId":       "elastic-ip",
+    "launchTemplateId":   "launch-template",
+    "autoScalingGroupName": "auto-scaling-group",
+    # EC2 set (array) fields — used as the set_field key in strategy 2b
+    "instancesSet":         "instance",
+    "securityGroupIdSet":   "security-group",
+    "subnetIdSet":          "subnet",
+    "routeTableIdSet":      "route-table",
+    "networkAclIdSet":      "network-acl",
+    "vpcIdSet":             "vpc",
+}
+
 
 class EventNormalizer:
     """6-step normalization pipeline for raw log events."""
@@ -145,9 +176,10 @@ class EventNormalizer:
                 event.actor.ip_address = invoked_by
 
         # ── Resource ──
-        # Strategy 1: resources[] array (S3 data events, some services)
+        # Strategy 1: resources[] / referencedResources[] array
+        # AWS CloudTrail: resources[].ARN  |  AliCloud: referencedResources[].ARN
         if not event.resource.uid:
-            resources = raw.get("resources", [])
+            resources = raw.get("resources") or raw.get("referencedResources") or []
             if resources and isinstance(resources, list):
                 r = resources[0]
                 event.resource.uid = r.get("ARN", r.get("arn", ""))
@@ -180,10 +212,11 @@ class EventNormalizer:
                                    "launchTemplateId", "autoScalingGroupName"]:
                     val = params.get(arn_field)
                     if val and isinstance(val, str):
-                        if val.startswith("arn:"):
+                        if val.startswith("arn:") or val.startswith("acs:"):
                             event.resource.uid = val
                         else:
-                            event.resource.uid = f"arn:aws:{svc}:{region}:{account}:{arn_field}/{val}"
+                            rtype = _CLOUDTRAIL_FIELD_TO_ARN_RESOURCE.get(arn_field, arn_field)
+                            event.resource.uid = f"arn:aws:{svc}:{region}:{account}:{rtype}/{val}"
                         event.resource.name = val
                         break
 
@@ -205,7 +238,8 @@ class EventNormalizer:
                         if isinstance(set_data, list) and set_data:
                             val = set_data[0] if isinstance(set_data[0], str) else None
                             if val:
-                                event.resource.uid = f"arn:aws:{svc}:{region}:{account}:{set_field}/{val}"
+                                rtype = _CLOUDTRAIL_FIELD_TO_ARN_RESOURCE.get(set_field, set_field)
+                                event.resource.uid = f"arn:aws:{svc}:{region}:{account}:{rtype}/{val}"
                                 event.resource.name = val
                                 break
                         # Dict with items: {items: [{instanceId: "i-123"}]}
@@ -214,7 +248,8 @@ class EventNormalizer:
                             if items and isinstance(items, list) and isinstance(items[0], dict):
                                 val = items[0].get(id_field, "")
                                 if val:
-                                    event.resource.uid = f"arn:aws:{svc}:{region}:{account}:{id_field}/{val}"
+                                    rtype = _CLOUDTRAIL_FIELD_TO_ARN_RESOURCE.get(id_field, id_field)
+                                    event.resource.uid = f"arn:aws:{svc}:{region}:{account}:{rtype}/{val}"
                                     event.resource.name = val
                                     break
 
@@ -373,7 +408,7 @@ class EventNormalizer:
                     event.resource.resource_type = asset.get("resource_type", "")
                 if not event.resource.name:
                     event.resource.name = asset.get("name", "")
-            # Try partial match (arn prefix)
+            # Try prefix match (catches trailing-id differences)
             elif event.resource.uid.startswith("arn:"):
                 for uid, asset in self.asset_index.items():
                     if uid.startswith(event.resource.uid[:50]):
@@ -381,6 +416,26 @@ class EventNormalizer:
                         if not event.resource.resource_type:
                             event.resource.resource_type = asset.get("resource_type", "")
                         break
+
+            # Suffix-match fallback: handles canonical vs non-canonical ARN type names.
+            # e.g. CDR builds  arn:aws:ec2:...:groupId/sg-xxx
+            #      discovery   arn:aws:ec2:...:security-group/sg-xxx
+            # Both end with /sg-xxx — match on that suffix and adopt inventory UID.
+            if not event.asset_matched and event.resource.uid.startswith("arn:"):
+                uid_slash = event.resource.uid.rsplit("/", 1)
+                if len(uid_slash) == 2:
+                    resource_id = uid_slash[1]
+                    evt_svc = event.resource.uid.split(":")[2] if event.resource.uid.count(":") >= 2 else ""
+                    suffix = f"/{resource_id}"
+                    for inv_uid, asset in self.asset_index.items():
+                        if inv_uid.endswith(suffix):
+                            inv_svc = inv_uid.split(":")[2] if inv_uid.count(":") >= 2 else ""
+                            if inv_svc == evt_svc:
+                                event.resource.uid = inv_uid
+                                event.asset_matched = True
+                                if not event.resource.resource_type:
+                                    event.resource.resource_type = asset.get("resource_type", "")
+                                break
 
         # ── Risk indicators ──
         indicators = event.risk_indicators

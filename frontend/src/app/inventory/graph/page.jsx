@@ -185,7 +185,7 @@ export default function SecurityRelationshipGraphPage() {
         title="Graph data unavailable"
         description={error}
         actionLabel="Go to Threat Graph"
-        onAction={() => router.push('/threats/graph')}
+        onAction={() => router.push('/attack-paths')}
       />
     );
   }
@@ -197,7 +197,7 @@ export default function SecurityRelationshipGraphPage() {
         title="No security relationships found"
         description="Run a discovery scan to populate the security relationship graph."
         actionLabel="View Threat Graph"
-        onAction={() => router.push('/threats/graph')}
+        onAction={() => router.push('/attack-paths')}
       />
     );
   }
@@ -212,7 +212,7 @@ export default function SecurityRelationshipGraphPage() {
             Security Relationship Graph
           </h1>
           <a
-            href="/threats/graph"
+            href="/attack-paths"
             className="ml-auto flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border"
             style={{ color: 'var(--accent-primary)', borderColor: 'var(--accent-primary)' }}
           >

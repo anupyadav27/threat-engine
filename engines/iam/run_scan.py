@@ -344,6 +344,102 @@ def main():
         except Exception as _ret_err:
             logger.warning("Retention cleanup skipped: %s", _ret_err)
 
+        # Write IAM posture signals to resource_security_posture (non-fatal)
+        try:
+            from iam_engine.posture_signals import write_iam_posture_signals
+            write_iam_posture_signals(
+                scan_run_id=scan_run_id,
+                tenant_id=tenant_id,
+                account_id=account_id or "",
+                provider=provider,
+            )
+        except Exception as _ps_err:
+            logger.warning("IAM posture signal write skipped: %s", _ps_err)
+
+        # Write IAM violations to security_findings (non-fatal)
+        try:
+            from engine_common.security_findings_writer import upsert_findings
+            from engine_common.db_connections import get_inventory_conn
+            _inv_conn = get_inventory_conn()
+            try:
+                # Batch-lookup MITRE data from rule_metadata (fallback for non-CIEM findings)
+                _mitre_by_rule: dict = {}
+                _all_rule_ids = list({_f.get("rule_id") for _f in report.get("findings", []) if _f.get("rule_id")})
+                if _all_rule_ids:
+                    try:
+                        from engine_common.db_connections import get_check_conn
+                        import psycopg2.extras as _pge
+                        _chk_conn = get_check_conn()
+                        with _chk_conn.cursor(cursor_factory=_pge.RealDictCursor) as _mc:
+                            _mc.execute(
+                                "SELECT rule_id, mitre_attack_id, mitre_tactic FROM rule_metadata WHERE rule_id = ANY(%s)",
+                                (_all_rule_ids,),
+                            )
+                            for _rm in _mc.fetchall():
+                                _mitre_by_rule[_rm["rule_id"]] = (_rm.get("mitre_attack_id"), _rm.get("mitre_tactic"))
+                        _chk_conn.close()
+                    except Exception:
+                        pass
+
+                _iam_sf_rows = []
+                for _f in report.get("findings", []):
+                    _fdata = _f.get("finding_data") or {}
+                    if isinstance(_fdata, str):
+                        try:
+                            import json as _json
+                            _fdata = _json.loads(_fdata)
+                        except Exception:
+                            _fdata = {}
+                    _mitre_techniques = _fdata.get("mitre_techniques", [])
+                    _mitre_technique_id = (
+                        _mitre_techniques[0] if _mitre_techniques
+                        else _fdata.get("mitre_technique_id")
+                    )
+                    _mitre_tactics = _fdata.get("mitre_tactics", [])
+                    _mitre_tactic = (
+                        _mitre_tactics[0] if _mitre_tactics
+                        else _fdata.get("mitre_tactic")
+                    )
+                    # Fallback to rule_metadata lookup for non-CIEM findings
+                    if not _mitre_technique_id:
+                        _rm_tech, _rm_tac = _mitre_by_rule.get(_f.get("rule_id", ""), (None, None))
+                        _mitre_technique_id = _rm_tech
+                        if not _mitre_tactic:
+                            _mitre_tactic = _rm_tac
+                    _iam_sf_rows.append({
+                        "source_finding_id": (
+                            _f.get("finding_id") or _f.get("misconfig_finding_id") or _f.get("resource_uid", "")
+                        ),
+                        "resource_uid": _f.get("resource_uid", ""),
+                        "finding_type": "iam_violation",
+                        "severity": (_f.get("severity") or "medium").lower(),
+                        "title": _f.get("title") or _f.get("rule_id") or "IAM Violation",
+                        "account_id": _f.get("account_id"),
+                        "provider": _f.get("provider") or provider,
+                        "resource_type": _f.get("resource_type"),
+                        "rule_id": _f.get("rule_id"),
+                        "description": _fdata.get("description"),
+                        "mitre_technique_id": _mitre_technique_id,
+                        "mitre_tactic": _mitre_tactic,
+                        "detail": {
+                            "resource_uid": _f.get("resource_uid"),
+                            "account_id": _f.get("account_id"),
+                            "region": _f.get("region", "global"),
+                            "iam_modules": _f.get("iam_security_modules", []),
+                            "remediation": _fdata.get("remediation"),
+                        },
+                        "in_kev": False,
+                    })
+                if _iam_sf_rows:
+                    upsert_findings(
+                        _inv_conn, _iam_sf_rows, source_engine="iam",
+                        tenant_id=tenant_id, scan_run_id=scan_run_id,
+                    )
+                    logger.info("security_findings (iam): wrote %d findings", len(_iam_sf_rows))
+            finally:
+                _inv_conn.close()
+        except Exception as _sf_err:
+            logger.warning("security_findings write (iam) skipped: %s", _sf_err)
 
     except Exception as e:
         logger.error(f"IAM scan FAILED: {e}", exc_info=True)

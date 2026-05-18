@@ -660,13 +660,13 @@ export default function DataTable({
                         className={`${densityHeaderPadding[density]} text-left font-semibold uppercase tracking-wide border-r last:border-r-0 transition-colors duration-200 align-middle`}
                       >
                         <div className="flex items-center gap-1">
-                          {/* Sort button */}
-                          <button
-                            onClick={header.column.getToggleSortingHandler()}
-                            className={`flex items-center gap-1 ${header.column.getCanSort() ? 'cursor-pointer hover:opacity-75' : 'cursor-default'}`}
-                          >
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                            {header.column.getCanSort() && (
+                          {/* Sort button — use div when not sortable to avoid nested-button hydration error */}
+                          {header.column.getCanSort() ? (
+                            <button
+                              onClick={header.column.getToggleSortingHandler()}
+                              className="flex items-center gap-1 cursor-pointer hover:opacity-75"
+                            >
+                              {flexRender(header.column.columnDef.header, header.getContext())}
                               <span className="flex-shrink-0" style={{
                                 color: header.column.getIsSorted() ? 'var(--accent-primary)' : 'var(--text-secondary)',
                                 opacity: header.column.getIsSorted() ? 1 : 0.5,
@@ -675,8 +675,12 @@ export default function DataTable({
                                   ? <ArrowDown className="w-3.5 h-3.5" />
                                   : <ArrowUp className="w-3.5 h-3.5" />}
                               </span>
-                            )}
-                          </button>
+                            </button>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              {flexRender(header.column.columnDef.header, header.getContext())}
+                            </div>
+                          )}
                           {/* Column filter button */}
                           {columnDistinctValues[header.column.columnDef.accessorKey] && (
                             <button

@@ -296,6 +296,71 @@ def run_network_scan(scan_run_id: str) -> Dict[str, Any]:
     except Exception as _ret_err:
         logger.warning("Retention cleanup skipped: %s", _ret_err)
 
+    # Write network posture signals to resource_security_posture (non-fatal)
+    try:
+        from network_security_engine.posture_signals import write_network_posture_signals
+        write_network_posture_signals(
+            scan_run_id=scan_run_id,
+            tenant_id=tenant_id,
+            account_id=account_id or "",
+            provider=provider,
+        )
+    except Exception as _ps_err:
+        logger.warning("Network posture signal write skipped: %s", _ps_err)
+
+    # Write network FAIL findings to shared security_findings table (non-fatal)
+    try:
+        import psycopg2.extras
+        from engine_common.security_findings_writer import upsert_findings
+        from engine_common.db_connections import get_inventory_conn
+
+        inv_conn = get_inventory_conn()
+        rows: list = []
+        for f in finding_rows:
+            if f.get("status") != "FAIL":
+                continue
+            fd = f.get("finding_data", {})
+            if isinstance(fd, str):
+                import json as _json
+                try:
+                    fd = _json.loads(fd)
+                except Exception:
+                    fd = {}
+            mitre_techniques = fd.get("mitre_techniques") or []
+            mitre_tactics = fd.get("mitre_tactics") or []
+            rows.append({
+                "source_finding_id": f["finding_id"],
+                "resource_uid": f.get("resource_uid") or "",
+                "account_id": f.get("account_id", ""),
+                "provider": f.get("provider", ""),
+                "resource_type": f.get("resource_type", ""),
+                "finding_type": "network_exposure",
+                "severity": (f.get("severity") or "medium").lower(),
+                "rule_id": f.get("rule_id", ""),
+                "title": f.get("title", fd.get("title", "")),
+                "description": f.get("description", fd.get("description", "")),
+                "mitre_technique_id": mitre_techniques[0] if mitre_techniques else None,
+                "mitre_tactic": mitre_tactics[0] if mitre_tactics else None,
+                "detail": {
+                    "network_layer": f.get("network_layer"),
+                    "effective_exposure": f.get("effective_exposure"),
+                    "network_modules": f.get("network_modules"),
+                },
+                "status": "open",
+            })
+        if rows:
+            written = upsert_findings(
+                conn=inv_conn,
+                findings=rows,
+                source_engine="network",
+                tenant_id=tenant_id,
+                scan_run_id=scan_run_id,
+            )
+            logger.info("security_findings: wrote %d network rows", written)
+        inv_conn.close()
+    except Exception as _sf_err:
+        logger.warning("Network security_findings write skipped: %s", _sf_err)
+
     return {
         "status": "completed",
         "findings": total_findings,

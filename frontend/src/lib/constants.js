@@ -75,16 +75,15 @@ export const NAV_ITEMS = [
     ],
   },
   {
-    label: 'Threats',
-    href: '/threats-v1',
-    icon: 'AlertTriangle',
-    subtitle: 'ATT&CK · Attack Paths',
+    label: 'Attack Paths',
+    href: '/attack-paths',
+    icon: 'GitBranch',
+    subtitle: 'Paths · Choke Points · ATT&CK',
     accentColor: '#EA580C',
     badgeKey: 'threatCriticalHighCount',
     children: [
-      { label: 'Threat Center',    href: '/threats-v1' },
-      { label: 'Graph Explorer',   href: '/threats/graph' },
-      { label: 'Trends & Posture', href: '/threats/trends' },
+      { label: 'Attack Paths',  href: '/attack-paths' },
+      { label: 'Choke Points',  href: '/attack-paths?groupBy=crown_jewel' },
     ],
   },
   {
@@ -126,6 +125,7 @@ export const NAV_ITEMS = [
       { label: 'Encryption',         href: '/encryption',         icon: 'Lock'        },
       { label: 'Container Security', href: '/container-security', icon: 'Container'   },
       { label: 'AI Security',        href: '/ai-security',        icon: 'Brain'       },
+      { label: 'API Security',       href: '/api-security',       icon: 'Webhook'     },
     ],
   },
 
@@ -188,6 +188,10 @@ export const NAV_ITEMS = [
     ],
   },
 
+  // ── AI ────────────────────────────────────────────────────────────────────
+  { sectionLabel: 'AI' },
+  { label: 'AI Assistant', href: '/ai-assistant', icon: 'Brain' },
+
   // ── ADMINISTRATION ────────────────────────────────────────────────────────
   { sectionLabel: 'ADMINISTRATION' },
   {
@@ -234,6 +238,12 @@ export const ENGINE_ENDPOINTS = {
   cwpp: '/cwpp',
   billing: '/gateway',
   platformAdmin: '/gateway',
+  // Attack Path Engine (stage 6.5)
+  ATTACK_PATH: '/api/v1/attack-paths',
+  CROWN_JEWELS: '/api/v1/crown-jewels',
+  CHOKE_POINTS: '/api/v1/choke-points',
+  // AI Chat
+  chat: '/gateway',
 };
 
 // Engines that require a paid tier to access.

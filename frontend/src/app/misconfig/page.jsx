@@ -17,6 +17,7 @@ import {
 import { SEVERITY_COLORS, CLOUD_PROVIDERS } from '@/lib/constants';
 import { useViewFetch } from '@/lib/use-view-fetch';
 import { useToast } from '@/lib/toast-context';
+import { useAuth } from '@/lib/auth-context';
 import PageLayout from '@/components/shared/PageLayout';
 import InsightRow from '@/components/shared/InsightRow';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
@@ -1075,6 +1076,8 @@ function QuickWinsPanel({ findings }) {
 export default function MisconfigurationsPage() {
   const router = useRouter();
   const toast = useToast();
+  const { role } = useAuth();
+  const canSuppressFinding = role === 'platform_admin' || role === 'org_admin';
   const { data: rawData, loading, error, refetch } = useViewFetch('misconfig');
   const [exporting, setExporting] = useState(false);
   const [selectedFinding, setSelectedFinding] = useState(null);
@@ -1159,17 +1162,16 @@ export default function MisconfigurationsPage() {
       .flatMap(([, items]) => items);
   }, [allFindings]);
 
-  // ── By-category grouped data ──────────────────────────────────────────
-  const byCategoryData = useMemo(() => {
+  // ── By-category aggregated data for radar chart ──────────────────────────
+  const categoryChartData = useMemo(() => {
     const groups = {};
     allFindings.forEach(f => {
       const cat = f.posture_category || 'configuration';
-      if (!groups[cat]) groups[cat] = [];
-      groups[cat].push(f);
+      if (!groups[cat]) groups[cat] = { category: cat, total: 0, fail: 0, color: POSTURE_COLORS[cat] || '#64748b' };
+      groups[cat].total++;
+      if ((f.status || 'FAIL').toUpperCase() === 'FAIL') groups[cat].fail++;
     });
-    return Object.entries(groups)
-      .sort(([, a], [, b]) => b.length - a.length)
-      .flatMap(([, items]) => items);
+    return Object.values(groups).sort((a, b) => b.fail - a.fail);
   }, [allFindings]);
 
   // ── Table columns ─────────────────────────────────────────────────────
@@ -1269,7 +1271,7 @@ export default function MisconfigurationsPage() {
         const ruleId = info.row.original.rule_id;
         return (
           <Link
-            href={`/threats?search=${encodeURIComponent(ruleId || '')}`}
+            href="/attack-paths"
             className="inline-flex items-center gap-1 text-xs font-medium hover:opacity-80 transition-opacity whitespace-nowrap"
             style={{ color: 'var(--accent-primary)' }}
             onClick={(e) => e.stopPropagation()}
@@ -1446,7 +1448,7 @@ export default function MisconfigurationsPage() {
       {[
         { key: 'rules',    node: <TopFailingRulesChart topRules={topRules} />,       pad: 'p-5' },
         { key: 'services', node: <TopFailingServicesChart topServices={topServices} />, pad: 'p-5' },
-        { key: 'radar',    node: <ByCategoryChart />,                                  pad: 'p-5' },
+        { key: 'radar',    node: <ByCategoryChart data={categoryChartData} />,           pad: 'p-5' },
         { key: 'trend',    node: <PostureTrendChart data={activeScanTrend} />,          pad: 'p-4' },
       ].map(({ key, node, pad }) => (
         <div key={key} className={`rounded-xl border ${pad}`}

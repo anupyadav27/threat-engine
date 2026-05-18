@@ -15,9 +15,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const TABS = [
-    { label: 'Threat Center', href: '/threats-v1'      },
-    { label: 'Graph',         href: '/threats/graph'   },
-    { label: 'Trends',        href: '/threats/trends'  },
+    { label: 'Attack Paths',  href: '/threats/attack-paths' },
+    { label: 'Graph',         href: '/threats/graph'        },
+    { label: 'Trends',        href: '/threats/trends'       },
 ];
 
 export default function ThreatSubNav({ criticalHighCount = 0 }) {
@@ -38,7 +38,7 @@ export default function ThreatSubNav({ criticalHighCount = 0 }) {
         >
             {TABS.map((tab) => {
                 const active = isActive(tab.href);
-                const showBadge = tab.href === '/threats-v1' && criticalHighCount > 0;
+                const showBadge = tab.href === '/threats/attack-paths' && criticalHighCount > 0;
                 return (
                     <Link
                         key={tab.href}

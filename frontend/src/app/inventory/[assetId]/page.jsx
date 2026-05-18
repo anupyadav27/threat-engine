@@ -43,6 +43,7 @@ import StatusIndicator from '@/components/shared/StatusIndicator';
 import CloudServiceIcon from '@/components/shared/CloudServiceIcon';
 import DriftTimeline from '@/components/shared/DriftTimeline';
 import ComplianceFindingDetail from '@/components/shared/ComplianceFindingDetail';
+import PostureTabs from './PostureTabs';
 
 const DOMAIN_ICON_MAP = {
   KeyRound, Network, Shield, Server, Box, Zap, HardDrive, Database,
@@ -157,7 +158,7 @@ export default function AssetDetailPage() {
           tags: base.tags || {},
           config: (base.config && Object.keys(base.config).length > 0) ? base.config : {},
           // Cross-engine enrichment from BFF
-          findings: bffData.check_severity || base.findings || {},
+          findings: bffData.check_severity || {},
           findings_detail: bffData.check_findings || [],
           check_posture: bffData.check_posture || {},
           threats: bffData.threat_findings || [],
@@ -723,7 +724,7 @@ export default function AssetDetailPage() {
       {/* Tabs */}
       <div style={{ borderBottomColor: 'var(--border-primary)' }} className="border-b">
         <div className="flex gap-1">
-          {['overview', 'configuration', 'misconfigurations', 'threats', 'cdr', 'blast-radius', 'compliance', 'drift'].map(
+          {['overview', 'configuration', 'misconfigurations', 'threats', 'cdr', 'blast-radius', 'compliance', 'drift', 'posture'].map(
             (tab) => (
               <button
                 key={tab}
@@ -1075,11 +1076,11 @@ export default function AssetDetailPage() {
               Explore:
             </span>
             <Link
-              href={`/threats?search=${encodeURIComponent(assetId)}`}
+              href={`/attack-paths`}
               className="text-xs flex items-center gap-1 font-medium hover:opacity-80 transition-opacity"
               style={{ color: 'var(--accent-primary)' }}
             >
-              All Threats <ArrowRight className="w-3 h-3" />
+              Attack Paths <ArrowRight className="w-3 h-3" />
             </Link>
             <button
               onClick={() => setActiveTab('blast-radius')}
@@ -1089,7 +1090,7 @@ export default function AssetDetailPage() {
               Blast Radius <ArrowRight className="w-3 h-3" />
             </button>
             <Link
-              href="/threats/attack-paths"
+              href="/attack-paths"
               className="text-xs flex items-center gap-1 font-medium hover:opacity-80 transition-opacity"
               style={{ color: 'var(--accent-primary)' }}
             >
@@ -1246,6 +1247,13 @@ export default function AssetDetailPage() {
           blastData={asset.blast_radius}
           originName={asset.name || assetId}
           originType={asset.resource_type || ''}
+        />
+      )}
+
+      {activeTab === 'posture' && (
+        <PostureTabs
+          resourceUid={asset.resource_id || assetId}
+          resourceType={asset.resource_type || ''}
         />
       )}
     </div>

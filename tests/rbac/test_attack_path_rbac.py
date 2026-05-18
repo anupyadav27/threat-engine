@@ -35,13 +35,14 @@ No real engine or DB connections required.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.responses import JSONResponse
-from fastapi.testclient import TestClient
 from typing import Optional
+import httpx
 
 
 # ── Auth context builder ──────────────────────────────────────────────────────
@@ -51,7 +52,9 @@ _ROLE_PERMISSIONS = {
     "org_admin":      ["attack_path:read", "attack_path:write"],
     "tenant_admin":   ["attack_path:read", "attack_path:write"],
     "analyst":        ["attack_path:read"],
-    "viewer":         [],  # no attack_path permission → 403 on protected endpoints
+    # viewer has attack_path:read but engine strips sensitive fields (steps, policy_statement)
+    # and blocks detail endpoint + choke-points
+    "viewer":         ["attack_path:read"],
 }
 
 _ROLE_LEVELS = {
@@ -247,9 +250,40 @@ def app():
     return a
 
 
+def _call(app: FastAPI, method: str, path: str, headers=None, json_body=None):
+    """Sync wrapper around httpx.AsyncClient with ASGITransport.
+
+    Replaces TestClient which breaks on httpx >= 0.24 (app= kwarg removed).
+    """
+    async def _run():
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as c:
+            return await c.request(
+                method,
+                path,
+                headers=headers or {},
+                json=json_body,
+            )
+    return asyncio.run(_run())
+
+
 @pytest.fixture(scope="module")
 def client(app):
-    return TestClient(app, raise_server_exceptions=False)
+    """Returns a callable that makes HTTP requests against the test app."""
+    class _SyncClient:
+        def get(self, path, headers=None):
+            return _call(app, "GET", path, headers=headers)
+
+        def patch(self, path, json=None, headers=None):
+            return _call(app, "PATCH", path, headers=headers, json_body=json)
+
+        def post(self, path, json=None, headers=None):
+            return _call(app, "POST", path, headers=headers, json_body=json)
+
+        def request(self, method, path, headers=None, json=None):
+            return _call(app, method, path, headers=headers, json_body=json)
+
+    return _SyncClient()
 
 
 # ── Test matrix: GET /attack-paths ───────────────────────────────────────────

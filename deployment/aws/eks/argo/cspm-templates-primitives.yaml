@@ -208,7 +208,7 @@ spec:
                 'pw_env': 'ENCRYPTION_DB_PASSWORD',
             },
             'database-security': {
-                'db': 'threat_engine_database_security',
+                'db': 'threat_engine_dbsec',
                 'report_table': 'dbsec_report',
                 'findings_table': None,
                 'pw_env': 'DBSEC_DB_PASSWORD',
@@ -352,6 +352,33 @@ spec:
         print(f"  trigger_url : {TRIGGER_URL}")
         print(f"  poll_url    : {POLL_URL or '(none — sync engine)'}")
 
+        # Internal pipeline service account context — trusted because Argo runs inside EKS.
+        # Engines accept X-Auth-Context directly (same path as gateway→engine calls).
+        _TENANT_ID = "{{workflow.parameters.tenant-id}}"
+        _INTERNAL_AUTH = json.dumps({
+            "user_id": "argo-pipeline",
+            "email": "argo@internal.system",
+            "role": "platform_admin",
+            "level": 1,
+            "scope_level": "platform",
+            "permissions": [
+                "discoveries:read", "inventory:read", "check:read", "threat:read",
+                "compliance:read", "iam:read", "network:read", "datasec:read",
+                "cdr:read", "cdr:sensitive", "risk:read", "encryption:read",
+                "container:read", "dbsec:read", "ai_security:read",
+                "vulnerability:read", "vulnerability:write",
+                "attack_path:read", "attack_path:write",
+                "scans:create", "scans:delete", "rules:read", "rules:write",
+                "platform:engines:execute", "platform:engines:read",
+                "tenants:read", "orgs:read", "settings:read",
+            ],
+            "org_ids": None,
+            "tenant_ids": None,
+            "account_ids": None,
+            "engine_tenant_id": _TENANT_ID,
+        })
+        _INTERNAL_HEADERS = {"X-Auth-Context": _INTERNAL_AUTH}
+
         payload = json.loads('''{{inputs.parameters.payload}}''')
         svc = payload.get("include_services", "")
         if svc:
@@ -360,7 +387,7 @@ spec:
             payload.pop("include_services", None)
 
         try:
-            resp = requests.post(TRIGGER_URL, json=payload, timeout=60)
+            resp = requests.post(TRIGGER_URL, json=payload, headers=_INTERNAL_HEADERS, timeout=60)
         except requests.Timeout:
             print(f"[{ENGINE}] ERROR: trigger timed out after 60s")
             sys.exit(1)
@@ -407,7 +434,7 @@ spec:
             elapsed += interval
 
             try:
-                sr = requests.get(POLL_URL, timeout=15)
+                sr = requests.get(POLL_URL, headers=_INTERNAL_HEADERS, timeout=15)
                 if sr.status_code == 404:
                     print(f"[{ENGINE}] poll 404 — status endpoint not ready yet, retrying")
                     data = {}
@@ -536,6 +563,10 @@ spec:
             "risk":              "http://engine-risk:8009/api/v1/scan",
             "secops":            "http://engine-secops/api/v1/scan",
             "threat-narrative":  "http://engine-threat-narrative/api/v1/generate",
+            "graph-build":       "http://engine-threat/api/v1/graph/build",
+            "api-security":      "http://engine-api-security/api/v1/apisec/scan",
+            "attack-path":       "http://engine-attack-path:80/api/v1/internal/scan",
+            "vulnerability":     "http://engine-vulnerability/api/v1/scan",
         }
 
         if ENGINE not in ENGINE_URLS:
@@ -554,8 +585,23 @@ spec:
         if INCLUDE_REGIONS:
             payload["include_regions"] = [r.strip() for r in INCLUDE_REGIONS.split(",") if r.strip()]
 
+        _internal_auth = json.dumps({
+            "user_id": "argo-pipeline", "email": "argo@internal.system",
+            "role": "platform_admin", "level": 1, "scope_level": "platform",
+            "permissions": [
+                "discoveries:read", "inventory:read", "check:read", "threat:read",
+                "compliance:read", "iam:read", "network:read", "datasec:read",
+                "cdr:read", "risk:read", "encryption:read", "container:read",
+                "dbsec:read", "ai_security:read", "api_security:read", "api_security:write",
+                "vulnerability:read", "attack_path:read", "attack_path:write", "scans:create",
+                "platform:engines:execute",
+            ],
+            "org_ids": None, "tenant_ids": None, "account_ids": None,
+            "engine_tenant_id": TENANT_ID,
+        })
         print(f"=== Triggering {ENGINE} at {ENGINE_URLS[ENGINE]} ===")
-        resp = requests.post(ENGINE_URLS[ENGINE], json=payload, timeout=1800)
+        resp = requests.post(ENGINE_URLS[ENGINE], json=payload,
+                             headers={"X-Auth-Context": _internal_auth}, timeout=1800)
         print(f"HTTP {resp.status_code}: {resp.text[:300]}")
 
         if resp.status_code >= 400:
@@ -583,3 +629,328 @@ spec:
             print(f"Warning: could not update engines_completed: {e}")
 
         print(f"=== {ENGINE} COMPLETED ===")
+
+  # ── Graph build — trigger POST /api/v1/graph/build, poll until done ────────
+  - name: graph-build
+    inputs:
+      parameters:
+      - name: scan-run-id
+      - name: tenant-id
+    retryStrategy:
+      limit: 1
+      retryPolicy: OnFailure
+    timeout: "600s"
+    script:
+      image: python:3.11-slim
+      command: [python3, -u]
+      env:
+      - name: X_INTERNAL_SECRET
+        valueFrom:
+          secretKeyRef:
+            name: threat-engine-secrets
+            key: X_INTERNAL_SECRET
+            optional: true
+      source: |
+        import subprocess; subprocess.run(["pip", "install", "-q", "requests"], check=True)
+        import requests, time, sys, json, os
+
+        TRIGGER_URL = "http://engine-threat/api/v1/graph/build"
+        POLL_BASE   = "http://engine-threat/api/v1/graph/build/status"
+        SCAN_RUN_ID = "{{inputs.parameters.scan-run-id}}"
+        TENANT_ID   = "{{inputs.parameters.tenant-id}}"
+        TIMEOUT     = 540
+        SECRET      = os.getenv("X_INTERNAL_SECRET", "")
+
+        payload = json.dumps({"scan_run_id": SCAN_RUN_ID})
+        # Construct synthetic X-Auth-Context so AuthMiddleware accepts the call.
+        # engine_tenant_id is required: graph/build derives tenant_id exclusively
+        # from auth.engine_tenant_id (never from request body — STRIDE: Spoofing).
+        auth_ctx = json.dumps({
+            "user_id": "argo-pipeline", "email": "pipeline@internal.cluster",
+            "role": "platform_admin", "level": 1, "scope_level": "platform",
+            "permissions": ["threat:read", "threat:write"],
+            "org_ids": None, "tenant_ids": None, "account_ids": None,
+            "engine_tenant_id": TENANT_ID
+        })
+        headers = {"Content-Type": "application/json", "X-Internal-Secret": SECRET, "X-Auth-Context": auth_ctx}
+
+        print(f"[graph-build] Triggering graph build for scan_run_id={SCAN_RUN_ID}")
+        try:
+            resp = requests.post(TRIGGER_URL, data=payload, headers=headers, timeout=30)
+        except Exception as e:
+            print(f"[graph-build] Trigger request failed: {e}")
+            sys.exit(1)
+
+        print(f"[graph-build] Trigger HTTP {resp.status_code}: {resp.text[:300]}")
+        if resp.status_code not in (200, 202):
+            print(f"[graph-build] Unexpected status {resp.status_code} — failing step")
+            sys.exit(1)
+
+        try:
+            body = resp.json()
+            job_id = body.get("job_id", "")
+        except Exception:
+            job_id = ""
+
+        if not job_id:
+            print("[graph-build] No job_id in trigger response — failing step")
+            sys.exit(1)
+
+        print(f"[graph-build] Job accepted: job_id={job_id}")
+        poll_url = f"{POLL_BASE}/{job_id}"
+        elapsed, interval = 0, 15
+
+        while elapsed < TIMEOUT:
+            time.sleep(interval)
+            elapsed += interval
+            try:
+                sr = requests.get(poll_url, headers=headers, timeout=15)
+                data = sr.json() if sr.status_code != 404 else {}
+            except Exception as poll_err:
+                print(f"[graph-build] Poll error at {elapsed}s: {poll_err}")
+                data = {}
+
+            status = data.get("status", "unknown")
+            if elapsed % 60 < interval:
+                print(f"[graph-build] {elapsed}s | status={status}")
+
+            if status == "completed":
+                print(f"[graph-build] Completed in {elapsed}s | stats={data.get('stats', {})}")
+                sys.exit(0)
+            if status == "failed":
+                print(f"[graph-build] FAILED at {elapsed}s: {data.get('error', '')}")
+                sys.exit(1)
+
+        print(f"[graph-build] TIMEOUT after {TIMEOUT}s")
+        sys.exit(1)
+
+  # ── Attack-path scan — fire-and-forget reverse BFS to attack-path engine ───
+  - name: attack-path-scan
+    inputs:
+      parameters:
+      - name: scan-run-id
+      - name: tenant-id
+      - name: account-id
+    retryStrategy:
+      limit: 0
+    timeout: "1800s"
+    script:
+      image: python:3.11-slim
+      command: [python3, -u]
+      env:
+      - name: X_INTERNAL_SECRET
+        valueFrom:
+          secretKeyRef:
+            name: threat-engine-secrets
+            key: X_INTERNAL_SECRET
+            optional: true
+      source: |
+        import subprocess; subprocess.run(["pip", "install", "-q", "requests"], check=True)
+        import requests, json, sys, os
+
+        TRIGGER_URL = "http://engine-attack-path.threat-engine-engines.svc.cluster.local:80/api/v1/internal/scan"
+        SCAN_RUN_ID = "{{inputs.parameters.scan-run-id}}"
+        TENANT_ID   = "{{inputs.parameters.tenant-id}}"
+        ACCOUNT_ID  = "{{inputs.parameters.account-id}}"
+        SECRET      = os.getenv("X_INTERNAL_SECRET", "")
+
+        payload = json.dumps({
+            "scan_run_id": SCAN_RUN_ID,
+            "tenant_id":   TENANT_ID,
+            "account_id":  ACCOUNT_ID,
+        })
+        headers = {"Content-Type": "application/json", "X-Internal-Secret": SECRET}
+
+        print(f"[attack-path] Triggering scan for scan_run_id={SCAN_RUN_ID}")
+        try:
+            resp = requests.post(TRIGGER_URL, data=payload, headers=headers, timeout=30)
+        except Exception as e:
+            print(f"[attack-path] Trigger request failed: {e}")
+            sys.exit(1)
+
+        print(f"[attack-path] Trigger HTTP {resp.status_code}: {resp.text[:300]}")
+        if resp.status_code not in (200, 202):
+            print(f"[attack-path] Unexpected status {resp.status_code} — failing step")
+            sys.exit(1)
+
+        print("[attack-path] Scan queued successfully")
+        sys.exit(0)
+
+  - name: call-engine-api-security
+    inputs:
+      parameters:
+      - name: scan-run-id
+      - name: tenant-id
+      - name: account-id
+      - name: provider
+      - name: credential-ref
+      - name: credential-type
+      - name: region
+        value: ""
+    retryStrategy:
+      limit: 1
+    timeout: "1800s"
+    script:
+      image: python:3.11.9-slim
+      command: [python3, -u]
+      env:
+      - name: X_INTERNAL_SECRET
+        valueFrom:
+          secretKeyRef:
+            name: threat-engine-secrets
+            key: X_INTERNAL_SECRET
+            optional: true
+      source: |
+        import urllib.request, json, os, sys
+
+        url = "http://engine-api-security.threat-engine-engines.svc.cluster.local/api/v1/apisec/scan"
+        secret = os.getenv("X_INTERNAL_SECRET", "")
+        payload = json.dumps({
+            "scan_run_id":     "{{inputs.parameters.scan-run-id}}",
+            "tenant_id":       "{{inputs.parameters.tenant-id}}",
+            "account_id":      "{{inputs.parameters.account-id}}",
+            "provider":        "{{inputs.parameters.provider}}",
+            "credential_ref":  "{{inputs.parameters.credential-ref}}",
+            "credential_type": "{{inputs.parameters.credential-type}}",
+            "region":          "{{inputs.parameters.region}}",
+        }).encode()
+        # Synthetic X-Auth-Context so AuthMiddleware accepts the internal call
+        auth_ctx = json.dumps({
+            "user_id": "argo-pipeline", "email": "pipeline@internal.cluster",
+            "role": "platform_admin", "level": 1, "scope_level": "platform",
+            "permissions": ["api_security:read", "api_security:write"],
+            "org_ids": None, "tenant_ids": None, "account_ids": None, "engine_tenant_id": None
+        })
+        req = urllib.request.Request(
+            url, data=payload,
+            headers={"Content-Type": "application/json", "X-Internal-Secret": secret, "X-Auth-Context": auth_ctx},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                body = json.loads(resp.read())
+                print(f"[api-security] Scan dispatched: {body}")
+                sys.exit(0)
+        except urllib.error.HTTPError as e:
+            print(f"[api-security] HTTP {e.code}: {e.read().decode()}")
+            sys.exit(1)
+        except Exception as e:
+            print(f"[api-security] Request failed: {e}")
+            sys.exit(1)
+
+  # ── MITRE Batch Enrichment — AP-ENHANCE-01 ────────────────────────────────
+  # Fills mitre_technique_id + mitre_tactic in security_findings rows that
+  # still have NULL after engine scans, by joining with rule_metadata (check DB).
+  # Non-fatal: exits 0 even on error so graph-build is never blocked.
+  - name: mitre-enrich
+    inputs:
+      parameters:
+      - name: scan-run-id
+      - name: tenant-id
+    retryStrategy:
+      limit: 1
+      retryPolicy: OnFailure
+    timeout: "300s"
+    script:
+      image: python:3.11-slim
+      command: [python3, -u]
+      env:
+      - name: INVENTORY_DB_HOST
+        valueFrom:
+          configMapKeyRef:
+            name: threat-engine-db-config
+            key: INVENTORY_DB_HOST
+      - name: INVENTORY_DB_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: threat-engine-db-passwords
+            key: INVENTORY_DB_PASSWORD
+      - name: CHECK_DB_HOST
+        valueFrom:
+          configMapKeyRef:
+            name: threat-engine-db-config
+            key: CHECK_DB_HOST
+      - name: CHECK_DB_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: threat-engine-db-passwords
+            key: CHECK_DB_PASSWORD
+      source: |
+        import subprocess; subprocess.run(["pip", "install", "-q", "psycopg2-binary"], check=True)
+        import psycopg2, os, sys
+
+        SCAN_RUN_ID = "{{inputs.parameters.scan-run-id}}"
+        TENANT_ID   = "{{inputs.parameters.tenant-id}}"
+
+        def conn(host_key, db_name, pwd_key):
+            return psycopg2.connect(
+                host=os.getenv(host_key, "localhost"),
+                port=5432,
+                database=db_name,
+                user="postgres",
+                password=os.getenv(pwd_key, ""),
+                sslmode="require",
+                connect_timeout=10,
+            )
+
+        try:
+            inv_conn  = conn("INVENTORY_DB_HOST", "threat_engine_inventory", "INVENTORY_DB_PASSWORD")
+            chk_conn  = conn("CHECK_DB_HOST",     "threat_engine_check",     "CHECK_DB_PASSWORD")
+
+            # Fetch all rule_ids in security_findings with NULL mitre_technique_id for this scan
+            with inv_conn.cursor() as ic:
+                ic.execute(
+                    """
+                    SELECT DISTINCT rule_id
+                    FROM security_findings
+                    WHERE tenant_id = %s
+                      AND scan_run_id = %s
+                      AND mitre_technique_id IS NULL
+                      AND rule_id IS NOT NULL AND rule_id != ''
+                    """,
+                    (TENANT_ID, SCAN_RUN_ID),
+                )
+                rule_ids = [r[0] for r in ic.fetchall()]
+
+            if not rule_ids:
+                print(f"[mitre-enrich] No NULL mitre_technique_id rows for scan {SCAN_RUN_ID}")
+                sys.exit(0)
+
+            # Fetch MITRE data from check DB rule_metadata
+            with chk_conn.cursor() as cc:
+                cc.execute(
+                    "SELECT rule_id, mitre_attack_id, mitre_tactic FROM rule_metadata WHERE rule_id = ANY(%s)",
+                    (rule_ids,),
+                )
+                mitre_map = {r[0]: (r[1], r[2]) for r in cc.fetchall() if r[1]}
+
+            if not mitre_map:
+                print(f"[mitre-enrich] No rule_metadata MITRE data for {len(rule_ids)} rules")
+                sys.exit(0)
+
+            # Batch UPDATE security_findings
+            updated = 0
+            with inv_conn.cursor() as ic:
+                for rule_id, (tech_id, tactic) in mitre_map.items():
+                    ic.execute(
+                        """
+                        UPDATE security_findings
+                        SET mitre_technique_id = %s,
+                            mitre_tactic        = %s
+                        WHERE tenant_id = %s
+                          AND scan_run_id = %s
+                          AND rule_id = %s
+                          AND mitre_technique_id IS NULL
+                        """,
+                        (tech_id, tactic, TENANT_ID, SCAN_RUN_ID, rule_id),
+                    )
+                    updated += ic.rowcount
+            inv_conn.commit()
+
+            print(f"[mitre-enrich] Updated {updated} security_findings rows for {len(mitre_map)} rules (scan={SCAN_RUN_ID})")
+            inv_conn.close()
+            chk_conn.close()
+            sys.exit(0)
+        except Exception as exc:
+            print(f"[mitre-enrich] Non-fatal error: {exc}")
+            sys.exit(0)  # always exit 0 — never block graph-build

@@ -114,6 +114,8 @@ def save_findings_to_db(
 
             # Insert findings
             for f in findings:
+                if not f.get("resource_uid"):
+                    continue
                 cur.execute("""
                     INSERT INTO container_sec_findings (
                         finding_id, scan_run_id, tenant_id, account_id,

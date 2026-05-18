@@ -103,3 +103,11 @@ def get_dbsec_conn() -> psycopg2.extensions.connection:
 
 def get_ai_security_conn() -> psycopg2.extensions.connection:
     return _make_conn("AI_SECURITY", "threat_engine_ai_security")
+
+
+def get_attack_path_conn() -> psycopg2.extensions.connection:
+    return _make_conn("ATTACK_PATH", "threat_engine_attack_path")
+
+
+def get_api_security_conn() -> psycopg2.extensions.connection:
+    return _make_conn("API_SECURITY", "threat_engine_api_security")
