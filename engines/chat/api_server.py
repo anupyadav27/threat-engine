@@ -77,9 +77,6 @@ def _get_auth_ctx(request: Request) -> Optional[Any]:
 
 
 def _resolve_tenant(request: Request) -> str:
-    active = request.headers.get("X-Active-Tenant-Id")
-    if active:
-        return active
     ctx = _get_auth_ctx(request)
     if ctx is None:
         raise HTTPException(status_code=401, detail="Authentication required")

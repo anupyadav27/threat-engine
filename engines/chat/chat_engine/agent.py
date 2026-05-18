@@ -156,6 +156,9 @@ async def run_agent(
     # ── Tool loop (non-streaming) ─────────────────────────────────────────────
     tool_rounds = 0
     all_queries: List[str] = []
+    full_text = ""
+    token_count = 0
+    used_tools = False
 
     while tool_rounds < MAX_TOOL_ROUNDS:
         try:
@@ -173,17 +176,25 @@ async def run_agent(
 
         stop_reason = resp.get("stopReason", "end_turn")
         out_msg = resp["output"]["message"]
-        messages.append(out_msg)
 
         if stop_reason == "end_turn":
-            # Final answer — re-ask with streaming
+            # Extract text directly — don't append assistant msg then re-call stream
+            for block in out_msg.get("content", []):
+                if "text" in block:
+                    chunk = block["text"]
+                    full_text += chunk
+                    yield _sse({"type": "token", "content": chunk})
+            usage = resp.get("usage", {})
+            token_count = usage.get("outputTokens", 0)
             break
 
         if stop_reason != "tool_use":
             break
 
-        # Execute tools
+        # Tool use round — execute tools and continue loop
+        used_tools = True
         yield _sse({"type": "thinking"})
+        messages.append(out_msg)
 
         tool_results = []
         for block in out_msg.get("content", []):
@@ -210,33 +221,31 @@ async def run_agent(
         messages.append({"role": "user", "content": tool_results})
         tool_rounds += 1
 
-    # ── Streaming final answer ────────────────────────────────────────────────
-    full_text = ""
-    token_count = 0
-
-    try:
-        stream_resp = bedrock.converse_stream(
-            modelId=BEDROCK_MODEL,
-            system=system,
-            messages=messages,
-            toolConfig=TOOL_CONFIG,
-            inferenceConfig={"maxTokens": 1024, "temperature": 0.1},
-        )
-        for event in stream_resp["stream"]:
-            if "contentBlockDelta" in event:
-                delta = event["contentBlockDelta"]["delta"]
-                if "text" in delta:
-                    chunk = delta["text"]
-                    full_text += chunk
-                    yield _sse({"type": "token", "content": chunk})
-            elif "metadata" in event:
-                usage = event["metadata"].get("usage", {})
-                token_count = usage.get("outputTokens", 0)
-    except Exception as exc:
-        logger.error("Bedrock stream error: %s", exc)
-        if not full_text:
-            yield _sse({"type": "error", "detail": "Streaming response failed."})
-            return
+    # ── Streaming final answer (only when tool loop hit max rounds) ───────────
+    if not full_text:
+        try:
+            stream_resp = bedrock.converse_stream(
+                modelId=BEDROCK_MODEL,
+                system=system,
+                messages=messages,
+                toolConfig=TOOL_CONFIG,
+                inferenceConfig={"maxTokens": 1024, "temperature": 0.1},
+            )
+            for event in stream_resp["stream"]:
+                if "contentBlockDelta" in event:
+                    delta = event["contentBlockDelta"]["delta"]
+                    if "text" in delta:
+                        chunk = delta["text"]
+                        full_text += chunk
+                        yield _sse({"type": "token", "content": chunk})
+                elif "metadata" in event:
+                    usage = event["metadata"].get("usage", {})
+                    token_count = usage.get("outputTokens", 0)
+        except Exception as exc:
+            logger.error("Bedrock stream error: %s", exc)
+            if not full_text:
+                yield _sse({"type": "error", "detail": "Streaming response failed."})
+                return
 
     # Persist assistant message (rollback any aborted tool transaction first)
     try:

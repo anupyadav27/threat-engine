@@ -10,7 +10,6 @@ Each function maps to a Bedrock tool definition. All queries are:
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 from typing import Any, Dict, List, Optional
@@ -21,8 +20,8 @@ import psycopg2.extras
 
 logger = logging.getLogger("chat-engine.tools")
 
-COMPLIANCE_URL = os.getenv("COMPLIANCE_ENGINE_URL", "http://engine-compliance:8010")
-ONBOARDING_URL = os.getenv("ONBOARDING_ENGINE_URL", "http://engine-onboarding:8008")
+COMPLIANCE_URL = os.getenv("COMPLIANCE_ENGINE_URL", "http://engine-compliance")
+ONBOARDING_URL = os.getenv("ONBOARDING_ENGINE_URL", "http://engine-onboarding")
 
 # ── Bedrock tool definitions ───────────────────────────────────────────────────
 
@@ -156,9 +155,10 @@ TOOL_CONFIG = {
             "toolSpec": {
                 "name": "list_accounts",
                 "description": (
-                    "List cloud accounts the user has access to. Always call this first "
-                    "if the user asks about a specific account by name, or if you need "
-                    "account IDs for other tool calls."
+                    "List all cloud accounts being scanned in this tenant. Returns account name, "
+                    "provider (aws/azure/gcp/oci), cloud account ID, and onboarding/scan status. "
+                    "Call this when the user asks how many accounts are scanned, which accounts "
+                    "exist, or needs an account ID for another query."
                 ),
                 "inputSchema": {
                     "json": {
@@ -262,7 +262,7 @@ def _get_findings_summary(
             f"""
             SELECT
                 finding_id, title, severity, source_engine,
-                resource_type, account_id, region, status, first_seen_at
+                resource_type, account_id, status, first_seen_at
             FROM security_findings
             WHERE {where}
             ORDER BY CASE severity
@@ -399,31 +399,32 @@ async def _list_accounts(
     account_ids: Optional[List[str]],
 ) -> Dict[str, Any]:
     try:
-        qs: Dict[str, Any] = {"tenant_id": tenant_id}
         async with httpx.AsyncClient(timeout=8.0) as client:
             resp = await client.get(
-                f"{ONBOARDING_URL}/api/v1/accounts",
-                params=qs,
+                f"{ONBOARDING_URL}/api/v1/cloud-accounts",
+                params={"tenant_id": tenant_id},
             )
             resp.raise_for_status()
             data = resp.json()
     except Exception as exc:
         return {"error": f"Onboarding engine unavailable: {exc}"}
 
-    accounts = data.get("accounts", data if isinstance(data, list) else [])
+    accounts = data.get("accounts", [])
 
-    # Filter by RBAC-allowed accounts if restricted
+    # Filter by RBAC-allowed cloud account numbers if restricted
     if account_ids is not None:
-        accounts = [a for a in accounts if a.get("account_id") in account_ids]
+        accounts = [a for a in accounts if a.get("account_number") in account_ids]
 
     return {
+        "total": len(accounts),
         "accounts": [
             {
-                "account_id": a.get("account_id"),
-                "name": a.get("name") or a.get("account_name"),
-                "provider": a.get("provider") or a.get("csp"),
-                "status": a.get("status"),
+                "cloud_account_id": a.get("account_number"),
+                "name": a.get("account_name"),
+                "provider": a.get("provider"),
+                "status": a.get("account_status"),
+                "onboarding_status": a.get("account_onboarding_status"),
             }
             for a in accounts
-        ]
+        ],
     }
