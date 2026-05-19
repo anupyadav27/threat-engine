@@ -1,20 +1,19 @@
 'use client';
 
 /**
- * Attack Paths Page — /attack-paths/ (AP-REDESIGN-03)
+ * Attack Paths Page — /attack-paths/ (Orca-style 3-zone layout)
  *
- * Layout:
- *   KPI bar (6 metrics)
- *   ChokeBar (sticky, always visible)
- *   Filter + GroupBy row
- *   Grouped path list (accordion)
- *   Pagination (20 per page)
+ * Zones:
+ *   Left  (280px) — ranked path list with filter + pagination
+ *   Center (flex) — React Flow canvas for the selected path
+ *   Right  (320px) — node detail slide-in panel on canvas node click
  *
  * Data: fetchView('attack-paths', params) → BFF /api/v1/views/attack-paths
+ *       fetchView('attack-paths/{id}')    → BFF /api/v1/views/attack-paths/{id}
  *
  * Security:
- *   - Viewer: KPI bar + ChokeBar + row list visible, no expand, restriction banner
- *   - policy_statement: NEVER rendered (only in PathDetailPanel)
+ *   - Viewer: KPI bar visible, path list visible (no canvas / detail), restriction banner
+ *   - policy_statement: NEVER rendered
  *   - credential_ref: NEVER rendered anywhere
  *   - No mock / fallback data — 503 shows error state only
  */
@@ -23,7 +22,7 @@ import {
   useEffect, useState, useMemo, useCallback, useRef,
 } from 'react';
 import {
-  Network, AlertTriangle, RotateCcw, ChevronDown, ChevronUp, Search,
+  Network, AlertTriangle, RotateCcw, Search, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { fetchView } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -31,7 +30,8 @@ import { useGlobalFilter } from '@/lib/global-filter-context';
 import ChokeBar from './ChokeBar';
 import GroupBySelector from './GroupBySelector';
 import AttackPathRow from './AttackPathRow';
-import AttackPathExpanded from './AttackPathExpanded';
+import AttackPathCanvas from './AttackPathCanvas';
+import PathDetailPanel from './PathDetailPanel';
 import styles from './attack-paths.module.css';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -40,12 +40,13 @@ const SEV_COLOR  = { critical: '#ef4444', high: '#f97316', medium: '#eab308', lo
 const SEV_BG     = { critical: 'rgba(239,68,68,0.12)', high: 'rgba(249,115,22,0.12)', medium: 'rgba(234,179,8,0.12)', low: 'rgba(107,114,128,0.12)' };
 const SEV_BORDER = { critical: 'rgba(239,68,68,0.35)', high: 'rgba(249,115,22,0.35)', medium: 'rgba(234,179,8,0.35)', low: 'rgba(107,114,128,0.35)' };
 
-const SEVERITIES       = ['all', 'critical', 'high', 'medium', 'low'];
-const ENTRY_TYPES      = ['all', 'internet', 'vpn', 'onprem', 'peer_account'];
-const PAGE_SIZE        = 20;
-const DEBOUNCE_MS      = 400;
+const SEVERITIES  = ['all', 'critical', 'high', 'medium', 'low'];
+const ENTRY_TYPES = ['all', 'internet', 'vpn', 'onprem', 'peer_account'];
+const PAGE_SIZE   = 25;
+const DEBOUNCE_MS = 400;
+const SEV_ORDER   = { critical: 0, high: 1, medium: 2, low: 3 };
 
-// ── Grouping function ─────────────────────────────────────────────────────────
+// ── Grouping helpers ──────────────────────────────────────────────────────────
 
 function groupPaths(paths, groupBy) {
   return paths.reduce((acc, path) => {
@@ -77,9 +78,6 @@ function groupPaths(paths, groupBy) {
   }, {});
 }
 
-// Sort group keys by priority (severity ordering, then alphabetical)
-const SEV_ORDER = { critical: 0, high: 1, medium: 2, low: 3 };
-
 function sortGroupKeys(keys, groupBy) {
   if (groupBy === 'severity') {
     return [...keys].sort((a, b) => (SEV_ORDER[a] ?? 9) - (SEV_ORDER[b] ?? 9));
@@ -94,12 +92,12 @@ function sortGroupKeys(keys, groupBy) {
 
 function KpiBar({ kpis, total, onSevFilter }) {
   const cells = [
-    { label: 'Total Paths',       value: total,                            color: null,      onClick: null },
-    { label: 'Critical',          value: kpis?.critical ?? 0,              color: '#ef4444', onClick: () => onSevFilter('critical') },
-    { label: 'High',              value: kpis?.high ?? 0,                  color: '#f97316', onClick: () => onSevFilter('high') },
-    { label: 'High Confidence',   value: kpis?.confirmed_paths ?? 0,       color: '#22c55e', onClick: null },
-    { label: 'Choke Points',      value: kpis?.choke_points ?? 0,          color: '#a855f7', onClick: null },
-    { label: 'CDR Live Paths',    value: kpis?.paths_with_active_cdr ?? 0, color: '#ef4444', onClick: null },
+    { label: 'Total Paths',     value: total,                            color: null,      onClick: null },
+    { label: 'Critical',        value: kpis?.critical ?? 0,              color: '#ef4444', onClick: () => onSevFilter('critical') },
+    { label: 'High',            value: kpis?.high ?? 0,                  color: '#f97316', onClick: () => onSevFilter('high') },
+    { label: 'High Confidence', value: kpis?.confirmed_paths ?? 0,       color: '#22c55e', onClick: null },
+    { label: 'Choke Points',    value: kpis?.choke_points ?? 0,          color: '#a855f7', onClick: null },
+    { label: 'CDR Live',        value: kpis?.paths_with_active_cdr ?? 0, color: '#ef4444', onClick: null },
   ];
 
   return (
@@ -115,10 +113,7 @@ function KpiBar({ kpis, total, onSevFilter }) {
             cursor: onClick ? 'pointer' : 'default',
           }}
         >
-          <div
-            className="text-xl font-bold tabular-nums"
-            style={{ color: color || 'var(--text-primary)' }}
-          >
+          <div className="text-xl font-bold tabular-nums" style={{ color: color || 'var(--text-primary)' }}>
             {value}
           </div>
           <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-secondary)' }}>
@@ -130,8 +125,6 @@ function KpiBar({ kpis, total, onSevFilter }) {
   );
 }
 
-// ── Skeleton KPI ──────────────────────────────────────────────────────────────
-
 function SkeletonKpi() {
   return (
     <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
@@ -142,231 +135,217 @@ function SkeletonKpi() {
   );
 }
 
-// ── Severity Badge ────────────────────────────────────────────────────────────
+// ── Left panel: compact filter ────────────────────────────────────────────────
 
-function SevBadge({ severity }) {
-  const color  = SEV_COLOR[severity]  || '#6b7280';
-  const bg     = SEV_BG[severity]     || 'rgba(107,114,128,0.12)';
-  const border = SEV_BORDER[severity] || 'rgba(107,114,128,0.35)';
-  return (
-    <span
-      className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide"
-      style={{ backgroundColor: bg, color, border: `1px solid ${border}` }}
-    >
-      {severity}
-    </span>
-  );
-}
-
-// ── Filter Row ────────────────────────────────────────────────────────────────
-
-function FilterRow({
+function LeftFilter({
   search, onSearchChange,
   severity, onSev,
   entryType, onEntry,
   groupBy, onGroupBy,
-  activeFilterCount,
-  onReset,
+  activeFilterCount, onReset,
 }) {
   return (
-    <div className="space-y-2">
-      {/* Top line: search + group-by + reset */}
-      <div className="flex items-center gap-3 flex-wrap">
-        {/* Search */}
-        <div className="relative flex-1 min-w-[180px] max-w-xs">
-          <Search
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
-            style={{ width: 13, height: 13, color: 'var(--text-secondary)' }}
-          />
-          <input
-            type="text"
-            value={search}
-            onChange={e => onSearchChange(e.target.value)}
-            placeholder="Search paths…"
-            className="w-full pl-8 pr-3 py-1.5 rounded-lg border text-[11px] focus:outline-none"
+    <div style={{ padding: '10px 10px 8px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {/* Search */}
+      <div style={{ position: 'relative' }}>
+        <Search
+          style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: 'rgba(255,255,255,0.3)', pointerEvents: 'none' }}
+        />
+        <input
+          type="text"
+          value={search}
+          onChange={e => onSearchChange(e.target.value)}
+          placeholder="Search paths…"
+          style={{
+            width: '100%',
+            paddingLeft: 28,
+            paddingRight: 8,
+            paddingTop: 6,
+            paddingBottom: 6,
+            borderRadius: 8,
+            border: '1px solid rgba(255,255,255,0.1)',
+            backgroundColor: 'rgba(255,255,255,0.04)',
+            color: 'rgba(255,255,255,0.85)',
+            fontSize: 11,
+            outline: 'none',
+            boxSizing: 'border-box',
+          }}
+        />
+      </div>
+
+      {/* Severity chips */}
+      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+        {SEVERITIES.map(s => (
+          <button
+            key={s}
+            onClick={() => onSev(s)}
             style={{
-              backgroundColor: 'var(--bg-secondary)',
-              borderColor: 'rgba(255,255,255,0.1)',
-              color: 'var(--text-primary)',
+              fontSize: 9,
+              padding: '2px 7px',
+              borderRadius: 20,
+              border: `1px solid ${severity === s ? (s === 'all' ? 'var(--accent-primary, #3b82f6)' : SEV_BORDER[s]) : 'rgba(255,255,255,0.1)'}`,
+              backgroundColor: severity === s
+                ? s === 'all' ? 'rgba(59,130,246,0.2)' : SEV_BG[s]
+                : 'rgba(255,255,255,0.04)',
+              color: severity === s
+                ? s === 'all' ? '#60a5fa' : SEV_COLOR[s]
+                : 'rgba(255,255,255,0.4)',
+              fontWeight: 600,
+              cursor: 'pointer',
+              textTransform: 'capitalize',
+              transition: 'all 0.12s',
             }}
-          />
-        </div>
+          >
+            {s}
+          </button>
+        ))}
+      </div>
 
+      {/* Group-by + reset row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <GroupBySelector value={groupBy} onChange={onGroupBy} />
-
         {activeFilterCount > 0 && (
           <button
             onClick={onReset}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[10px] font-medium hover:opacity-80"
-            style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '3px 8px',
+              borderRadius: 6,
+              border: '1px solid rgba(255,255,255,0.1)',
+              backgroundColor: 'rgba(255,255,255,0.04)',
+              color: 'rgba(255,255,255,0.45)',
+              fontSize: 9,
+              cursor: 'pointer',
+            }}
           >
-            <RotateCcw style={{ width: 11, height: 11 }} /> Reset
-            <span
-              className="ml-1 text-[9px] font-bold px-1 py-0.5 rounded-full"
-              style={{ backgroundColor: 'var(--accent-primary)', color: '#fff' }}
-            >
-              {activeFilterCount}
-            </span>
+            <RotateCcw style={{ width: 9, height: 9 }} /> Reset
           </button>
         )}
-      </div>
-
-      {/* Filter chips row */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {/* Severity */}
-        <div className="flex items-center gap-1">
-          {SEVERITIES.map(s => (
-            <button
-              key={s}
-              onClick={() => onSev(s)}
-              className="text-[10px] px-2 py-0.5 rounded-full border font-medium capitalize transition-all"
-              style={{
-                backgroundColor: severity === s
-                  ? s === 'all' ? 'var(--accent-primary)' : SEV_BG[s]
-                  : 'var(--bg-secondary)',
-                color: severity === s
-                  ? s === 'all' ? '#fff' : SEV_COLOR[s]
-                  : 'var(--text-secondary)',
-                borderColor: severity === s
-                  ? s === 'all' ? 'var(--accent-primary)' : SEV_BORDER[s]
-                  : 'var(--border-primary)',
-              }}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-
-        <div className="w-px h-4 bg-white/10 flex-shrink-0" />
-
-        {/* Entry type */}
-        <div className="flex items-center gap-1">
-          {ENTRY_TYPES.map(e => (
-            <button
-              key={e}
-              onClick={() => onEntry(e)}
-              className="text-[10px] px-2 py-0.5 rounded-full border font-medium capitalize transition-all"
-              style={{
-                backgroundColor: entryType === e ? 'rgba(14,165,233,0.15)' : 'var(--bg-secondary)',
-                color: entryType === e ? '#0ea5e9' : 'var(--text-secondary)',
-                borderColor: entryType === e ? '#0ea5e9' : 'var(--border-primary)',
-              }}
-            >
-              {e === 'peer_account' ? 'Peer' : e}
-            </button>
-          ))}
-        </div>
       </div>
     </div>
   );
 }
 
-// ── Group Section ─────────────────────────────────────────────────────────────
+// ── Left panel: group section ─────────────────────────────────────────────────
 
-function GroupSection({
-  groupKey,
-  paths,
-  expandedPathId,
-  onTogglePath,
-  activeChoke,
-  detailCache,
-  isViewer,
-}) {
+function GroupSection({ groupKey, paths, selectedPathId, onSelectPath, activeChoke, isViewer }) {
   const [collapsed, setCollapsed] = useState(false);
-  const count = paths.length;
 
   return (
-    <div className="space-y-1">
-      {/* Group header */}
+    <div>
       <button
         onClick={() => setCollapsed(c => !c)}
-        className={styles.groupHeader}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '5px 8px',
+          borderRadius: 6,
+          backgroundColor: 'rgba(255,255,255,0.03)',
+          border: '1px solid rgba(255,255,255,0.06)',
+          cursor: 'pointer',
+          marginBottom: 3,
+        }}
       >
-        <span
-          className="text-[10px] font-bold uppercase tracking-wide flex-1 text-left truncate"
-          style={{ color: 'var(--text-primary)' }}
-        >
+        <span style={{ flex: 1, textAlign: 'left', fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {groupKey}
         </span>
-        <span
-          className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
-          style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: 'var(--text-secondary)' }}
-        >
-          {count}
+        <span style={{ fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>
+          {paths.length}
         </span>
         {collapsed
-          ? <ChevronDown style={{ width: 11, height: 11, color: 'var(--text-secondary)', flexShrink: 0 }} />
-          : <ChevronUp   style={{ width: 11, height: 11, color: 'var(--text-secondary)', flexShrink: 0 }} />
+          ? <ChevronDown style={{ width: 10, height: 10, color: 'rgba(255,255,255,0.3)', flexShrink: 0 }} />
+          : <ChevronUp   style={{ width: 10, height: 10, color: 'rgba(255,255,255,0.3)', flexShrink: 0 }} />
         }
       </button>
 
-      {/* Path rows */}
       {!collapsed && (
-        <div className="space-y-1 pl-1">
-          {paths.map(path => {
-            const isExpanded = expandedPathId === path.path_id;
-            const chokeMatch = activeChoke && path.choke_node_uid === activeChoke;
-
-            return (
-              <div key={path.path_id}>
-                <AttackPathRow
-                  path={path}
-                  isExpanded={isExpanded}
-                  onToggle={onTogglePath}
-                  chokeHighlight={!!chokeMatch}
-                  isViewer={isViewer}
-                />
-
-                {isExpanded && (
-                  <AttackPathExpanded
-                    pathId={path.path_id}
-                    detailCache={detailCache}
-                    onClose={() => onTogglePath(path.path_id)}
-                  />
-                )}
-              </div>
-            );
-          })}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: 2 }}>
+          {paths.map(path => (
+            <AttackPathRow
+              key={path.path_id}
+              path={path}
+              isSelected={selectedPathId === path.path_id}
+              onSelect={onSelectPath}
+              chokeHighlight={!!(activeChoke && path.choke_node_uid === activeChoke)}
+              isViewer={isViewer}
+            />
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-// ── Pagination ────────────────────────────────────────────────────────────────
+// ── Left panel: pagination ────────────────────────────────────────────────────
 
 function Pagination({ page, totalPages, onPage }) {
   if (totalPages <= 1) return null;
-
   return (
-    <div className="flex items-center justify-center gap-2 pt-2">
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
       <button
         disabled={page === 1}
         onClick={() => onPage(page - 1)}
-        className="text-[11px] px-3 py-1.5 rounded-lg border font-medium disabled:opacity-40 transition-all"
-        style={{
-          backgroundColor: 'var(--bg-secondary)',
-          borderColor: 'var(--border-primary)',
-          color: 'var(--text-secondary)',
-        }}
+        style={{ fontSize: 10, padding: '4px 8px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.5)', cursor: page === 1 ? 'default' : 'pointer', opacity: page === 1 ? 0.4 : 1 }}
       >
-        Previous
+        ← Prev
       </button>
-      <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
-        Page {page} of {totalPages}
+      <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>
+        {page}/{totalPages}
       </span>
       <button
         disabled={page === totalPages}
         onClick={() => onPage(page + 1)}
-        className="text-[11px] px-3 py-1.5 rounded-lg border font-medium disabled:opacity-40 transition-all"
-        style={{
-          backgroundColor: 'var(--bg-secondary)',
-          borderColor: 'var(--border-primary)',
-          color: 'var(--text-secondary)',
-        }}
+        style={{ fontSize: 10, padding: '4px 8px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.5)', cursor: page === totalPages ? 'default' : 'pointer', opacity: page === totalPages ? 0.4 : 1 }}
       >
-        Next
+        Next →
       </button>
+    </div>
+  );
+}
+
+// ── Canvas header strip ───────────────────────────────────────────────────────
+
+function CanvasHeader({ path }) {
+  if (!path) return null;
+  const sevColor = SEV_COLOR[path.severity] || '#6b7280';
+  const hops = path.depth ?? (path.node_uids?.length ?? 0);
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 10,
+        padding: '8px 14px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        backgroundColor: 'rgba(8,13,23,0.85)',
+        backdropFilter: 'blur(8px)',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+      }}
+    >
+      <span
+        style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 20, backgroundColor: `${sevColor}20`, color: sevColor, textTransform: 'uppercase', border: `1px solid ${sevColor}35`, flexShrink: 0 }}
+      >
+        {path.severity}
+      </span>
+      <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.88)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {path.attack_name || path.title || 'Attack Path'}
+      </span>
+      <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>
+        {hops} hop{hops !== 1 ? 's' : ''}
+      </span>
+      {path.confidence_level && (
+        <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', flexShrink: 0 }}>
+          {path.confidence_level}
+        </span>
+      )}
     </div>
   );
 }
@@ -378,60 +357,47 @@ export default function AttackPathsPage() {
   const { role }     = useAuth();
   const isViewer     = role === 'viewer';
 
-  // Data state
+  // ── List data state ─────────────────────────────────────────────────────────
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
   const [data, setData]       = useState(null);
 
-  // Filter state
-  const [severity, setSeverity]     = useState('all');
-  const [entryType, setEntryType]   = useState('all');
+  // ── Filter state ────────────────────────────────────────────────────────────
+  const [severity, setSeverity]       = useState('all');
+  const [entryType, setEntryType]     = useState('all');
   const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch]         = useState(''); // debounced value
-  const [page, setPage]             = useState(1);
-  const [groupBy, setGroupBy]       = useState('severity');
-
-  // Choke filter
+  const [search, setSearch]           = useState('');
+  const [page, setPage]               = useState(1);
+  const [groupBy, setGroupBy]         = useState('severity');
   const [activeChoke, setActiveChoke] = useState(null);
 
-  // Accordion state
-  const [expandedPathId, setExpandedPathId] = useState(null);
-
-  // Detail fetch cache — persisted across row open/close
+  // ── Canvas / panel state ────────────────────────────────────────────────────
+  const [selectedPathId, setSelectedPathId]   = useState(null);
+  const [selectedNodeData, setSelectedNodeData] = useState(null);
+  const [detail, setDetail]                   = useState(null);
+  const [detailLoading, setDetailLoading]     = useState(false);
   const detailCache = useRef(new Map());
 
   // ── Debounce search ─────────────────────────────────────────────────────────
-
   useEffect(() => {
-    const t = setTimeout(() => {
-      setSearch(searchInput);
-      setPage(1);
-    }, DEBOUNCE_MS);
+    const t = setTimeout(() => { setSearch(searchInput); setPage(1); }, DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  // ── Fetch main view ─────────────────────────────────────────────────────────
-
+  // ── Fetch path list ─────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    setExpandedPathId(null);
 
-    const params = {};
-    if (severity !== 'all')    params.severity         = severity;
-    if (entryType !== 'all')   params.entry_point_type = entryType;
-    if (search)                params.search           = search;
-    if (page > 1)              params.page             = page;
-    params.page_size = PAGE_SIZE;
+    const params = { page, page_size: PAGE_SIZE };
+    if (severity !== 'all')  params.severity         = severity;
+    if (entryType !== 'all') params.entry_point_type = entryType;
+    if (search)              params.search           = search;
 
     fetchView('attack-paths', params).then(result => {
       if (cancelled) return;
-      if (result?.error) {
-        setError(result.error);
-        setLoading(false);
-        return;
-      }
+      if (result?.error) { setError(result.error); setLoading(false); return; }
       setData(result);
       setLoading(false);
     }).catch(err => {
@@ -443,47 +409,59 @@ export default function AttackPathsPage() {
     return () => { cancelled = true; };
   }, [account, severity, entryType, search, page]);
 
-  // ── Client-side filtering (additional) ──────────────────────────────────────
+  // ── Fetch selected path detail ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!selectedPathId) { setDetail(null); setSelectedNodeData(null); return; }
 
-  const filteredPaths = useMemo(() => {
-    let paths = data?.paths || [];
-
-    // Choke filter
-    if (activeChoke) {
-      paths = paths.filter(p => p.choke_node_uid === activeChoke);
+    if (detailCache.current.has(selectedPathId)) {
+      setDetail(detailCache.current.get(selectedPathId));
+      setSelectedNodeData(null);
+      return;
     }
 
+    setDetailLoading(true);
+    setDetail(null);
+    setSelectedNodeData(null);
+
+    fetchView(`attack-paths/${selectedPathId}`).then(result => {
+      if (result?.error || result?.detail) {
+        setDetailLoading(false);
+        return;
+      }
+      detailCache.current.set(selectedPathId, result);
+      setDetail(result);
+      setDetailLoading(false);
+    }).catch(() => setDetailLoading(false));
+  }, [selectedPathId]);
+
+  // ── Filtered + grouped paths ────────────────────────────────────────────────
+  const filteredPaths = useMemo(() => {
+    let paths = data?.paths || [];
+    if (activeChoke) paths = paths.filter(p => p.choke_node_uid === activeChoke);
     return paths;
   }, [data, activeChoke]);
 
-  // ── Grouping ────────────────────────────────────────────────────────────────
+  const grouped       = useMemo(() => groupPaths(filteredPaths, groupBy), [filteredPaths, groupBy]);
+  const sortedKeys    = useMemo(() => sortGroupKeys(Object.keys(grouped), groupBy), [grouped, groupBy]);
+  const total         = data?.total ?? 0;
+  const totalPages    = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const activeFilters = [severity !== 'all', entryType !== 'all', search !== ''].filter(Boolean).length;
 
-  const grouped = useMemo(() => groupPaths(filteredPaths, groupBy), [filteredPaths, groupBy]);
-  const sortedGroupKeys = useMemo(() => sortGroupKeys(Object.keys(grouped), groupBy), [grouped, groupBy]);
-
-  // ── Pagination ──────────────────────────────────────────────────────────────
-
-  const total      = data?.total ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-
-  // ── Active filter count ─────────────────────────────────────────────────────
-
-  const activeFilterCount = [
-    severity !== 'all',
-    entryType !== 'all',
-    search !== '',
-  ].filter(Boolean).length;
+  // Selected path metadata (for canvas header)
+  const selectedPath = useMemo(
+    () => filteredPaths.find(p => p.path_id === selectedPathId) ?? null,
+    [filteredPaths, selectedPathId],
+  );
 
   // ── Handlers ────────────────────────────────────────────────────────────────
-
-  const handleTogglePath = useCallback((pathId) => {
-    setExpandedPathId(prev => prev === pathId ? null : pathId);
+  const handleSelectPath = useCallback((pathId) => {
+    setSelectedPathId(pathId);
+    setSelectedNodeData(null);
   }, []);
 
   const handleSevFilter = useCallback((s) => {
     setSeverity(prev => prev === s ? 'all' : s);
     setPage(1);
-    setExpandedPathId(null);
   }, []);
 
   const handleReset = useCallback(() => {
@@ -492,38 +470,24 @@ export default function AttackPathsPage() {
     setSearchInput('');
     setSearch('');
     setPage(1);
-    setExpandedPathId(null);
     setActiveChoke(null);
   }, []);
 
   // ── Render ──────────────────────────────────────────────────────────────────
-
   return (
-    <div className="space-y-4">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Page header */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
-            Attack Paths
-          </h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-            Multi-step attack chains from entry points to crown jewels
-          </p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
+          Attack Paths
+        </h1>
+        <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+          Multi-step attack chains from entry points to crown jewels
+        </p>
       </div>
 
       {/* Loading skeleton */}
-      {loading && (
-        <div className="space-y-4">
-          <SkeletonKpi />
-          <div className="h-10 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--bg-card)' }} />
-          <div className="space-y-2">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-14 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--bg-card)' }} />
-            ))}
-          </div>
-        </div>
-      )}
+      {loading && <SkeletonKpi />}
 
       {/* Error state */}
       {!loading && error && (
@@ -546,14 +510,10 @@ export default function AttackPathsPage() {
       {/* Main content */}
       {!loading && !error && (
         <>
-          {/* KPI bar — always visible */}
-          <KpiBar
-            kpis={data?.kpis}
-            total={total}
-            onSevFilter={handleSevFilter}
-          />
+          {/* KPI bar */}
+          <KpiBar kpis={data?.kpis} total={total} onSevFilter={handleSevFilter} />
 
-          {/* ChokeBar — sticky, always visible */}
+          {/* ChokeBar */}
           <ChokeBar
             chokePoints={data?.choke_points_preview || []}
             activeChoke={activeChoke}
@@ -564,82 +524,134 @@ export default function AttackPathsPage() {
           {isViewer && (
             <div
               className="rounded-xl border px-5 py-4 text-center text-sm"
-              style={{
-                backgroundColor: 'var(--bg-card)',
-                borderColor: 'rgba(255,255,255,0.08)',
-                color: 'var(--text-secondary)',
-              }}
+              style={{ backgroundColor: 'var(--bg-card)', borderColor: 'rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}
             >
               Contact your admin for investigation access
             </div>
           )}
 
-          {/* Filter row — viewer still sees it, but expand is disabled */}
-          <FilterRow
-            search={searchInput}
-            onSearchChange={v => { setSearchInput(v); }}
-            severity={severity}
-            onSev={handleSevFilter}
-            entryType={entryType}
-            onEntry={v => { setEntryType(v); setPage(1); setExpandedPathId(null); }}
-            groupBy={groupBy}
-            onGroupBy={v => { setGroupBy(v); setExpandedPathId(null); }}
-            activeFilterCount={activeFilterCount}
-            onReset={handleReset}
-          />
-
-          {/* Path count note */}
-          {(activeFilterCount > 0 || activeChoke) && (
-            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-              Showing{' '}
-              <strong style={{ color: 'var(--text-primary)' }}>{filteredPaths.length}</strong>
-              {' '}of {total} paths
-              {activeChoke && (
-                <span style={{ color: '#f59e0b' }}> (choke filter active)</span>
-              )}
-            </p>
-          )}
-
-          {/* Empty state */}
-          {filteredPaths.length === 0 && (
+          {/* ── 3-zone layout ──────────────────────────────────────────────── */}
+          <div
+            style={{
+              display: 'flex',
+              gap: 10,
+              height: '70vh',
+              minHeight: 500,
+            }}
+          >
+            {/* LEFT: path list */}
             <div
-              className="rounded-xl border py-14 text-center space-y-2"
-              style={{ backgroundColor: 'var(--bg-card)', borderColor: 'rgba(255,255,255,0.07)' }}
+              style={{
+                width: 280,
+                flexShrink: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid rgba(255,255,255,0.07)',
+                borderRadius: 12,
+                overflow: 'hidden',
+              }}
             >
-              <Network className="w-10 h-10 mx-auto opacity-25" />
-              <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                {activeFilterCount > 0 || activeChoke
-                  ? 'No paths match these filters'
-                  : 'No Attack Paths Detected'}
-              </p>
-              <p className="text-xs max-w-sm mx-auto" style={{ color: 'var(--text-secondary)' }}>
-                {activeFilterCount > 0 || activeChoke
-                  ? 'Try adjusting filters or clearing the choke filter.'
-                  : 'No multi-step attack paths were found. Run a full pipeline scan (Discovery → Check → Threat → Attack Path) to discover paths.'}
-              </p>
-            </div>
-          )}
+              <LeftFilter
+                search={searchInput}
+                onSearchChange={v => setSearchInput(v)}
+                severity={severity}
+                onSev={handleSevFilter}
+                entryType={entryType}
+                onEntry={v => { setEntryType(v); setPage(1); }}
+                groupBy={groupBy}
+                onGroupBy={v => setGroupBy(v)}
+                activeFilterCount={activeFilters}
+                onReset={handleReset}
+              />
 
-          {/* Grouped path list */}
-          {filteredPaths.length > 0 && (
-            <div className="space-y-3">
-              {sortedGroupKeys.map(groupKey => (
-                <GroupSection
-                  key={groupKey}
-                  groupKey={groupKey}
-                  paths={grouped[groupKey]}
-                  expandedPathId={expandedPathId}
-                  onTogglePath={handleTogglePath}
-                  activeChoke={activeChoke}
-                  detailCache={detailCache}
-                  isViewer={isViewer}
-                />
-              ))}
-            </div>
-          )}
+              {/* Path list (scrollable) */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '8px 6px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {filteredPaths.length === 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: 8 }}>
+                    <Network style={{ width: 32, height: 32, opacity: 0.15 }} />
+                    <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', textAlign: 'center' }}>
+                      {activeFilters > 0 || activeChoke
+                        ? 'No paths match these filters'
+                        : 'No attack paths found'}
+                    </p>
+                  </div>
+                )}
 
-          {/* Pagination */}
-          <Pagination page={page} totalPages={totalPages} onPage={p => { setPage(p); setExpandedPathId(null); }} />
+                {filteredPaths.length > 0 && sortedKeys.map(groupKey => (
+                  <GroupSection
+                    key={groupKey}
+                    groupKey={groupKey}
+                    paths={grouped[groupKey]}
+                    selectedPathId={selectedPathId}
+                    onSelectPath={handleSelectPath}
+                    activeChoke={activeChoke}
+                    isViewer={isViewer}
+                  />
+                ))}
+              </div>
+
+              <Pagination page={page} totalPages={totalPages} onPage={p => setPage(p)} />
+            </div>
+
+            {/* CENTER: canvas */}
+            <div
+              style={{
+                flex: 1,
+                minWidth: 0,
+                position: 'relative',
+                backgroundColor: '#080d17',
+                border: '1px solid rgba(255,255,255,0.07)',
+                borderRadius: 12,
+                overflow: 'hidden',
+              }}
+            >
+              {/* Path context header */}
+              <CanvasHeader path={selectedPath} />
+
+              {/* Canvas (top padding when header is visible) */}
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  top: selectedPath ? 40 : 0,
+                }}
+              >
+                {isViewer ? (
+                  <div
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexDirection: 'column',
+                      gap: 10,
+                      color: 'rgba(255,255,255,0.2)',
+                    }}
+                  >
+                    <Network style={{ width: 40, height: 40, opacity: 0.2 }} />
+                    <p style={{ fontSize: 12 }}>Canvas restricted for viewer role</p>
+                  </div>
+                ) : (
+                  <AttackPathCanvas
+                    detail={detail}
+                    loading={detailLoading}
+                    selectedNodeUid={selectedNodeData?.node_uid ?? null}
+                    onNodeClick={setSelectedNodeData}
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* RIGHT: node detail panel */}
+            {selectedNodeData && !isViewer && (
+              <PathDetailPanel
+                node={selectedNodeData}
+                onClose={() => setSelectedNodeData(null)}
+              />
+            )}
+          </div>
         </>
       )}
     </div>

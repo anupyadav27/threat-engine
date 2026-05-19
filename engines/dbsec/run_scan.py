@@ -226,6 +226,8 @@ def main() -> None:
                         _rsp_by_uid[_uid]["db_auth_type"] = "token"
                     elif not _pd.get("iam_auth_enabled") and "iam_auth_enabled" in _check:
                         _rsp_by_uid[_uid]["db_auth_type"] = "password"
+                    elif "master_username" in _check or "password" in _check:
+                        _rsp_by_uid[_uid]["db_auth_type"] = "password"
                     elif _check:
                         _rsp_by_uid[_uid]["db_auth_type"] = _check
 

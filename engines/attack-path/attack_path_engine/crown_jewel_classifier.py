@@ -258,6 +258,7 @@ class CrownJewelClassifier:
         Returns:
             Number of resources classified as crown jewels.
         """
+        self._clear_neo4j_crown_jewels()
         overrides = self._load_overrides()
         posture_rows = self._load_posture_signals()
         resources = self._load_neo4j_resources()
@@ -373,6 +374,36 @@ class CrownJewelClassifier:
         # Always-crown-jewel resource types (AC-3, AC-4, AC-6, AC-7, AC-8, AC-9, AC-10, AC-11)
         cj_type = _ALWAYS_CROWN_JEWEL.get(rtype)
         return cj_type
+
+    def _clear_neo4j_crown_jewels(self) -> None:
+        """Clear all crown jewel flags for this tenant before re-classifying.
+
+        Without this sweep, nodes marked in a previous scan remain flagged even
+        if the resource no longer qualifies — causing stale chain_type='Virtual → '
+        paths with empty crown labels.
+        """
+        if not self.neo4j_driver:
+            return
+        try:
+            with self.neo4j_driver.session(database="neo4j") as session:
+                result = session.run(
+                    """
+                    MATCH (r:Resource {tenant_id: $tid})
+                    WHERE r.is_crown_jewel = true
+                    SET r.is_crown_jewel = false, r.crown_jewel_type = null
+                    RETURN count(r) AS cleared
+                    """,
+                    tid=self.tenant_id,
+                )
+                record = result.single()
+                cleared = record["cleared"] if record else 0
+                logger.info(
+                    '{"engine":"attack-path","stage":"crown_jewel_clear","tenant_id":"%s","cleared":%d}',
+                    self.tenant_id,
+                    cleared,
+                )
+        except Exception as exc:
+            logger.warning("Neo4j crown jewel clear failed: %s", exc)
 
     def _mark_neo4j(self, uid: str, crown_jewel_type: str) -> None:
         """Set is_crown_jewel=true and crown_jewel_type on the Neo4j node.
