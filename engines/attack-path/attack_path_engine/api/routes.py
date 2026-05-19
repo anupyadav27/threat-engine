@@ -184,6 +184,14 @@ async def get_attack_path_detail(
             steps = [dict(r) for r in cur.fetchall()]
 
         result = dict(path_row)
+        choke_uid = result.get("choke_node_uid")
+        path_account_id = result.get("account_id")
+        path_provider = result.get("provider")
+        for step in steps:
+            step["is_choke_point"] = bool(choke_uid and step.get("node_uid") == choke_uid)
+            step["account_id"] = path_account_id
+            step["provider"] = path_provider
+            step["region"] = _parse_region(step.get("node_uid") or "")
         result["steps"] = steps
         return result
     finally:
@@ -398,6 +406,24 @@ def _run_scan_background(scan_run_id: str, tenant_id: str, account_id: str) -> N
         )
 
 
+def _parse_region(uid: str) -> Optional[str]:
+    """Best-effort region extraction from a resource UID.
+
+    Handles two formats used in this platform:
+      - AWS ARN:       arn:aws:service:region:account:resource  → parts[3]
+      - Synthetic:     region:resource-name                     → parts[0]
+    Returns None when the UID does not match either pattern.
+    """
+    if not uid:
+        return None
+    parts = uid.split(":")
+    if parts[0] == "arn" and len(parts) >= 4:
+        return parts[3] or None
+    if len(parts) >= 2 and "-" in parts[0] and parts[0][0].isalpha():
+        return parts[0]
+    return None
+
+
 def _resolve_tenant(request: Request) -> str:
     """Extract engine_tenant_id from AuthContext. Raises 401 if missing."""
     raw = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
@@ -495,7 +521,8 @@ def _fetch_attack_paths(
             " absorbed_count, choke_node_uid, has_active_cdr_actor,"
             " max_epss, misconfig_count, threat_count, first_seen_at, last_seen_at,"
             " EXTRACT(EPOCH FROM (NOW() - first_seen_at))::INTEGER / 86400 AS open_days,"
-            " attack_name, attack_technique_chain, attack_story"
+            " attack_name, attack_technique_chain, attack_story,"
+            " confidence_level, account_id, provider"
             " FROM attack_paths WHERE " + where_clause
             + " ORDER BY path_score DESC, first_seen_at ASC LIMIT %s OFFSET %s"
         )

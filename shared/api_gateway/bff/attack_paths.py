@@ -235,7 +235,8 @@ async def view_attack_path_detail(
 
     data = resp.json()
 
-    # Ensure steps is present and traversal_reason is passed through
+    # Ensure steps key is present. Engine injects is_choke_point on each step
+    # (True when step.node_uid == path.choke_node_uid) — pass through as-is.
     if "steps" not in data:
         data["steps"] = []
 

@@ -64,9 +64,12 @@ function NodeTooltip({ node, anchorRef }) {
   ));
 
   // Worst finding for tooltip body
+  const misconfigCount = node.misconfigs?.length ?? node.misconfig_count ?? 0;
   const worstCve = node.cves?.length > 0
-    ? [...node.cves].sort((a, b) => (b.epss ?? 0) - (a.epss ?? 0))[0]
+    ? [...node.cves].sort((a, b) => (b.epss ?? b.epss_score ?? 0) - (a.epss ?? a.epss_score ?? 0))[0]
     : null;
+  const worstCveId   = worstCve ? (worstCve.cve_id ?? worstCve.title) : null;
+  const worstCveEpss = worstCve ? (worstCve.epss ?? worstCve.epss_score ?? null) : null;
   const worstMisconfig = node.misconfigs?.length > 0 ? node.misconfigs[0] : null;
 
   return (
@@ -98,12 +101,12 @@ function NodeTooltip({ node, anchorRef }) {
           <span className="font-semibold truncate flex-1" style={{ color: cfg.color }}>
             {cfg.label}
           </span>
-          {node.misconfig_count > 0 && (
+          {misconfigCount > 0 && (
             <span
               className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded"
               style={{ backgroundColor: 'rgba(249,115,22,0.18)', color: '#f97316' }}
             >
-              <Bug style={{ width: 8, height: 8 }} />{node.misconfig_count}
+              <Bug style={{ width: 8, height: 8 }} />{misconfigCount}
             </span>
           )}
           {node.cves && node.cves.length > 0 && (
@@ -129,7 +132,7 @@ function NodeTooltip({ node, anchorRef }) {
           {/* Worst finding */}
           {worstCve && (
             <p className="text-[9px]" style={{ color: '#f87171' }}>
-              {worstCve.cve_id} — EPSS {worstCve.epss != null ? `${(worstCve.epss * 100).toFixed(1)}%` : '—'}
+              {worstCveId} — EPSS {worstCveEpss != null ? `${(worstCveEpss * 100).toFixed(1)}%` : '—'}
             </p>
           )}
           {!worstCve && worstMisconfig && (
@@ -174,6 +177,20 @@ export default function NodeBox({
   const ref = useRef(null);
 
   const cfg = resolveType(node.node_type);
+  const misconfigCount = node.misconfigs?.length ?? node.misconfig_count ?? 0;
+
+  const SEV_ORDER     = { critical: 0, high: 1, medium: 2, low: 3 };
+  const SEV_COLOR_MAP = { critical: '#ef4444', high: '#f97316', medium: '#eab308', low: '#6b7280' };
+  const RISK_SCORE_MAP = { critical: 90, high: 70, medium: 50, low: 30 };
+  const derivedSeverity = (() => {
+    const sevs = [
+      ...(node.misconfigs || []).map(m => m.severity),
+      ...(node.cves || []).map(c => c.severity),
+    ].filter(Boolean).sort((a, b) => (SEV_ORDER[a] ?? 9) - (SEV_ORDER[b] ?? 9));
+    return sevs[0] || null;
+  })();
+  const severityAccentColor = derivedSeverity ? SEV_COLOR_MAP[derivedSeverity] : cfg.color;
+  const nodeRiskScore = derivedSeverity ? RISK_SCORE_MAP[derivedSeverity] : null;
 
   const crownBorder = isLast
     ? `2px solid ${cfg.color}`
@@ -209,8 +226,8 @@ export default function NodeBox({
         }}
         title={node.node_uid}
       >
-        {/* Severity accent bar */}
-        <div className="h-0.5 w-full rounded-t-xl" style={{ backgroundColor: cfg.color }} />
+        {/* Severity accent bar — color reflects worst finding severity, falls back to resource-type color */}
+        <div className="h-0.5 w-full rounded-t-xl" style={{ backgroundColor: severityAccentColor }} />
 
         <div className="flex flex-col items-center gap-1.5 px-2 pt-3 pb-2.5">
           {/* Icon */}
@@ -256,12 +273,12 @@ export default function NodeBox({
 
           {/* Badges */}
           <div className="flex items-center gap-1 flex-wrap justify-center">
-            {node.misconfig_count > 0 && (
+            {misconfigCount > 0 && (
               <span
                 className="flex items-center gap-0.5 text-[7px] font-semibold px-1 py-0.5 rounded"
                 style={{ backgroundColor: 'rgba(249,115,22,0.15)', color: '#f97316', border: '1px solid rgba(249,115,22,0.3)' }}
               >
-                <Bug style={{ width: 6, height: 6 }} />{node.misconfig_count}
+                <Bug style={{ width: 6, height: 6 }} />{misconfigCount}
               </span>
             )}
             {node.cves && node.cves.length > 0 && (
@@ -278,6 +295,14 @@ export default function NodeBox({
                 style={{ backgroundColor: '#ef4444', color: '#fff' }}
               >
                 LIVE
+              </span>
+            )}
+            {nodeRiskScore !== null && !node.cdr_actor_active && !misconfigCount && !node.cves?.length && (
+              <span
+                className="text-[7px] font-semibold px-1 py-0.5 rounded"
+                style={{ backgroundColor: `${severityAccentColor}18`, color: severityAccentColor, border: `1px solid ${severityAccentColor}40` }}
+              >
+                {nodeRiskScore}
               </span>
             )}
           </div>
