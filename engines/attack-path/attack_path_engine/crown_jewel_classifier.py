@@ -377,6 +377,7 @@ class CrownJewelClassifier:
     def _mark_neo4j(self, uid: str, crown_jewel_type: str) -> None:
         """Set is_crown_jewel=true and crown_jewel_type on the Neo4j node.
 
+        EdgeBuilder creates nodes with resource_uid as the merge key (not uid).
         All MATCH clauses include tenant_id: $tid (AC-15).
         """
         if not self.neo4j_driver:
@@ -385,7 +386,7 @@ class CrownJewelClassifier:
             with self.neo4j_driver.session(database="neo4j") as session:
                 session.run(
                     """
-                    MATCH (r:Resource {tenant_id: $tid, uid: $uid})
+                    MATCH (r:Resource {tenant_id: $tid, resource_uid: $uid})
                     SET r.is_crown_jewel = true,
                         r.crown_jewel_type = $type
                     """,
@@ -461,27 +462,40 @@ class CrownJewelClassifier:
         return overrides
 
     def _load_posture_signals(self) -> Dict[str, Dict[str, Any]]:
-        """Load posture signals for this (scan_run_id, tenant_id).
+        """Load posture signals for this tenant from resource_security_posture.
 
         Returns dict: resource_uid → posture row dict.
         JSONB fields auto-deserialized by psycopg2 — no json.loads() (AC-17).
+
+        Not filtered by scan_run_id — posture has UNIQUE on (resource_uid, tenant_id).
+        Filtering by scan_run_id would miss is_crown_jewel signals written by
+        threat_v1 or earlier pipeline runs.
+
+        Only selects columns that exist in the posture schema. IAM signals
+        (is_admin_role, has_wildcard_policy) are read from Neo4j node props
+        in _auto_classify instead.
         """
         posture: Dict[str, Dict[str, Any]] = {}
         try:
             with self.inventory_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(
                     """
-                    SELECT resource_uid, data_classification, is_admin_role,
-                           has_wildcard_policy, crown_jewel_type, is_crown_jewel
+                    SELECT resource_uid, data_classification,
+                           crown_jewel_type, is_crown_jewel
                     FROM resource_security_posture
-                    WHERE tenant_id = %s AND scan_run_id = %s
+                    WHERE tenant_id = %s
                     """,
-                    (self.tenant_id, self.scan_run_id),
+                    (self.tenant_id,),
                 )
                 for row in cur.fetchall():
                     posture[row["resource_uid"]] = dict(row)
         except Exception as exc:
             logger.warning("Failed to load posture signals: %s", exc)
+            # Rollback so the connection is usable for subsequent operations
+            try:
+                self.inventory_conn.rollback()
+            except Exception:
+                pass
         return posture
 
     def _load_neo4j_resources(self) -> List[Dict[str, Any]]:
@@ -499,7 +513,7 @@ class CrownJewelClassifier:
                     """
                     MATCH (r:Resource {tenant_id: $tid})
                     RETURN
-                        r.uid AS uid,
+                        coalesce(r.resource_uid, r.uid) AS uid,
                         r.resource_type AS resource_type,
                         r.region AS region,
                         r.name AS name,

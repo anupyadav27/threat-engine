@@ -181,6 +181,32 @@ class TenantViewSet(
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    def perform_create(self, serializer):
+        """Set engine_tenant_id = id (same UUID) and trigger onboarding sync.
+
+        engine_tenant_id MUST equal the Django UUID so all engine DBs use the
+        same identifier. The Celery task syncs the new tenant row to the
+        onboarding engine (needed for cloud account FK constraints).
+        customer_id is always taken from the authenticated user's org — never
+        from the request body.
+        """
+        tenant_id = str(uuid.uuid4())
+        tenant = serializer.save(
+            id=tenant_id,
+            engine_tenant_id=tenant_id,
+            customer_id=_user_customer_id(self.request.user),
+            created_by=self.request.user,
+        )
+        # Async sync to onboarding engine — idempotent (409 = already exists).
+        try:
+            from user_auth.celery_tasks import sync_tenant_to_onboarding
+            sync_tenant_to_onboarding.apply_async(
+                args=[tenant_id, str(tenant.customer_id or tenant_id)],
+                queue="tenant-sync",
+            )
+        except Exception as exc:
+            logger.warning("TenantViewSet.create: failed to enqueue onboarding sync for %s: %s", tenant_id, exc)
+
 
 # ── IDP Config CRUD (AUTH-05) ─────────────────────────────────────────────────
 

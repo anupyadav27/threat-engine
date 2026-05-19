@@ -216,10 +216,18 @@ def main() -> None:
                         "region": _f.get("region", ""),
                         "db_auth_type": None,
                     }
-                _fd = _f.get("finding_data") or {}
-                _auth = _fd.get("auth_type") or _fd.get("authentication_method") or _fd.get("auth_method")
-                if _auth and not _rsp_by_uid[_uid]["db_auth_type"]:
-                    _rsp_by_uid[_uid]["db_auth_type"] = str(_auth)
+                # auth info lives in pillar_detail (finding_data mirrors it in current writer)
+                if _f.get("pillar") == "authentication" and not _rsp_by_uid[_uid]["db_auth_type"]:
+                    _pd = _f.get("pillar_detail") or _f.get("finding_data") or {}
+                    _check = _pd.get("check", "") if isinstance(_pd, dict) else ""
+                    if _pd.get("iam_auth_enabled") or "iam_controlled" in _check:
+                        _rsp_by_uid[_uid]["db_auth_type"] = "IAM"
+                    elif _pd.get("auth_token_enabled"):
+                        _rsp_by_uid[_uid]["db_auth_type"] = "token"
+                    elif not _pd.get("iam_auth_enabled") and "iam_auth_enabled" in _check:
+                        _rsp_by_uid[_uid]["db_auth_type"] = "password"
+                    elif _check:
+                        _rsp_by_uid[_uid]["db_auth_type"] = _check
 
             if _rsp_by_uid:
                 _inv_conn = _get_inv_conn()
@@ -242,7 +250,8 @@ def main() -> None:
                                (tenant_id, scan_run_id, account_id, provider, region,
                                 resource_uid, resource_type, db_auth_type)
                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                               ON CONFLICT (resource_uid, scan_run_id, tenant_id) DO UPDATE SET
+                               ON CONFLICT (resource_uid, tenant_id) DO UPDATE SET
+                                   scan_run_id  = EXCLUDED.scan_run_id,
                                    db_auth_type = EXCLUDED.db_auth_type,
                                    updated_at   = NOW()""",
                             _rows,

@@ -7,7 +7,7 @@ Investigation Journey Unification — Phase H
 P1 — This is the layer that catches the silent killer: UI reads `data.attackPath.steps[0].technique` while BFF returns `mitre_technique`. Without it, JNY-13 only validates that the BFF is internally consistent, not that the UI agrees.
 
 ## Status
-draft
+done — extract-bff-fields.js AST walker, test_ui_bff_contract.py diff gate, contract.yml required CI check on main, 7 views modelled
 
 ## Team Assignment (RACI)
 

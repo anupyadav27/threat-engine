@@ -57,13 +57,24 @@ def _engine_url() -> str:
 
 
 def _fwd_headers(request: Request) -> Dict[str, str]:
-    """Build forwarded auth headers with correct engine_tenant_id."""
+    """Build forwarded auth headers with correct engine_tenant_id.
+
+    resolve_tenant_id() returns None for platform_admin "All Tenants" mode.
+    In that case we preserve the original engine_tenant_id from the auth
+    context (the user's default tenant) rather than overwriting it with None,
+    which would cause engines to fall back to "default-tenant" (no data).
+    """
     raw = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     headers: Dict[str, str] = {}
     if raw:
         try:
             ctx = json.loads(raw)
-            ctx["engine_tenant_id"] = resolve_tenant_id(request)
+            resolved = resolve_tenant_id(request)
+            if resolved is not None:
+                ctx["engine_tenant_id"] = resolved
+            # If resolved is None (platform_admin all-tenants view), keep the
+            # original engine_tenant_id from the session scope_cache so the engine
+            # gets a valid tenant filter rather than falling back to "default-tenant".
             headers["X-Auth-Context"] = json.dumps(ctx)
         except Exception:
             headers["X-Auth-Context"] = raw
