@@ -7,7 +7,7 @@ Investigation Journey Unification — Phase H
 P1 — Closes the architectural divergence flagged in ADR §3.1.c. Each bypass is a permanent silent-drift surface and a deviation from the BFF-only constitution.
 
 ## Status
-draft
+done — JNY-17.1: onboarding_schedules.py BFF view implemented; onboarding/page.jsx migrated from getFromEngine to fetchView for schedules; vulnerability/sbom deferred (STORY-VULN-BFF-MIGRATION, STORY-SBOM-BFF-MIGRATION)
 
 ## Team Assignment (RACI)
 

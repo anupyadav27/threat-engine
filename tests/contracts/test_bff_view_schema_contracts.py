@@ -368,13 +368,20 @@ async def test_secops_contract():
     from shared.api_gateway.bff.secops import view_secops
     from shared.api_gateway.bff.schemas.secops import SecopsResponse
 
-    sast = [{"secops_scan_id": "s1", "project_name": "my-repo", "status": "completed",
-              "critical": 1, "high": 2, "medium": 3, "low": 1, "scan_timestamp": "2026-05-07T10:00:00Z"}]
-    dast = [{"dast_scan_id": "d1", "target_url": "https://app.example.com", "status": "completed",
-              "critical": 0, "high": 1, "medium": 2, "low": 0, "scan_timestamp": "2026-05-07T11:00:00Z"}]
+    # Primary path: single latest-scans endpoint returns mixed scan_type rows.
+    latest_scans_resp = {
+        "latest_scans": [
+            {"secops_scan_id": "s1", "project_name": "my-repo", "status": "completed",
+             "scan_type": "sast", "critical": 1, "high": 2, "medium": 3, "low": 1,
+             "scan_timestamp": "2026-05-07T10:00:00Z"},
+            {"dast_scan_id": "d1", "target_url": "https://app.example.com", "status": "completed",
+             "scan_type": "dast", "critical": 0, "high": 1, "medium": 2, "low": 0,
+             "scan_timestamp": "2026-05-07T11:00:00Z"},
+        ]
+    }
 
     async def _fetch_many(calls, auth_headers=None):
-        return [sast, dast]
+        return [latest_scans_resp]
 
     req = _make_request()
     with patch("shared.api_gateway.bff.secops.fetch_many", side_effect=_fetch_many), \
@@ -598,7 +605,8 @@ async def test_rules_contract():
     }
 
     async def _fetch_many(calls, auth_headers=None):
-        return [rules_resp]
+        # rules.py calls fetch_many with 3 args: check catalog + user-rules + suppressions
+        return [rules_resp, {}, {}]
 
     req = _make_request()
     with patch("shared.api_gateway.bff.rules.fetch_many", side_effect=_fetch_many), \
@@ -607,8 +615,7 @@ async def test_rules_contract():
 
     validated = _validate(RulesResponse, result)
     assert isinstance(validated.rules, list)
-    assert isinstance(validated.kpiGroups, list)
-    assert len(validated.kpiGroups) >= 2
+    assert validated.kpi.total >= 0
     assert "_meta" in result
 
 

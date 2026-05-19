@@ -53,7 +53,7 @@ WHERE crown.tenant_id = $tid
             OR origin.node_type IN ['Internet', 'OnPrem', 'DataCenter', 'Vendor', 'K8sExternal']
             OR origin.entry_point_type IN ['onprem', 'vpn', 'peer_account', 'vendor', 'k8s_external']
             OR origin.node_type IN ['PeerAccount', 'peer_account']
-            OR origin.uid IN $exposed_uids
+            OR origin.resource_uid IN $exposed_uids
           )
        )
   )
@@ -64,9 +64,9 @@ WHERE crown.tenant_id = $tid
   ))
 
 WITH
-  crown.uid                                  AS crown_jewel_uid,
-  origin.uid                                 AS entry_point_uid,
-  [n IN nodes(path) | n.uid]                 AS node_uids,
+  coalesce(crown.resource_uid, crown.uid)    AS crown_jewel_uid,
+  coalesce(origin.resource_uid, origin.uid)  AS entry_point_uid,
+  [n IN nodes(path) | coalesce(n.resource_uid, n.uid)] AS node_uids,
   [n IN nodes(path) | coalesce(n.resource_type, head(labels(n)))] AS node_types,
   [r IN relationships(path) | type(r)]       AS edge_types,
   [n IN nodes(path) |

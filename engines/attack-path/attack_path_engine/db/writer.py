@@ -100,7 +100,13 @@ def write_paths(
                     misconfig_count    = EXCLUDED.misconfig_count,
                     threat_count       = EXCLUDED.threat_count,
                     has_active_cdr_actor = EXCLUDED.has_active_cdr_actor,
-                    max_epss           = EXCLUDED.max_epss
+                    max_epss           = EXCLUDED.max_epss,
+                    crown_jewel_uid    = EXCLUDED.crown_jewel_uid,
+                    crown_jewel_type   = EXCLUDED.crown_jewel_type,
+                    chain_type         = EXCLUDED.chain_type,
+                    entry_point_uid    = EXCLUDED.entry_point_uid,
+                    entry_point_type   = EXCLUDED.entry_point_type,
+                    data_classification = EXCLUDED.data_classification
                     -- first_seen_at intentionally NOT updated (AC-8)
                 """,
                 (

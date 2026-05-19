@@ -191,7 +191,7 @@ def _enrich_neo4j_from_posture(inventory_conn, neo4j_driver, tenant_id: str) -> 
                 props["resource_type_canonical"] = canonical
             if props:
                 session.run(
-                    "MATCH (r:Resource {uid: $uid, tenant_id: $tid}) SET r += $props",
+                    "MATCH (r:Resource {resource_uid: $uid, tenant_id: $tid}) SET r += $props",
                     uid=resource_uid, tid=tenant_id, props=props,
                 )
                 enriched += 1

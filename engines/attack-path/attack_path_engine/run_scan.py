@@ -403,6 +403,11 @@ def _build_posture_lookup(
 
     Returns dict: resource_uid → PostureRow.
     JSONB fields auto-deserialized by psycopg2 — no json.loads().
+
+    Not filtered by scan_run_id — resource_security_posture has UNIQUE on
+    (resource_uid, tenant_id) so each resource has one row. Crown jewel signals
+    are persistent across scans (written by classifier + threat_v1). Filtering
+    by scan_run_id would miss crown jewels written in earlier pipeline stages.
     """
     from .models.attack_path import PostureRow
 
@@ -413,23 +418,23 @@ def _build_posture_lookup(
                 """
                 SELECT
                     resource_uid,
-                    is_internet_exposed,
-                    epss_max        AS max_epss,
-                    has_waf         AS waf_protected,
-                    mfa_enforced    AS mfa_required,
-                    has_permission_boundary,
-                    has_active_cdr_actor,
-                    crown_jewel_type,
+                    COALESCE(is_internet_exposed, false)     AS is_internet_exposed,
+                    epss_max                                 AS max_epss,
+                    COALESCE(has_waf, false)                 AS waf_protected,
+                    COALESCE(mfa_enforced, false)            AS mfa_required,
+                    COALESCE(has_permission_boundary, false) AS has_permission_boundary,
+                    COALESCE(has_active_cdr_actor, false)    AS has_active_cdr_actor,
+                    COALESCE(crown_jewel_type, '')           AS crown_jewel_type,
                     data_classification,
-                    blast_radius_count,
-                    is_crown_jewel,
-                    is_on_attack_path,
-                    attack_path_count,
-                    is_choke_point
+                    COALESCE(blast_radius_count, 0)          AS blast_radius_count,
+                    COALESCE(is_crown_jewel, false)          AS is_crown_jewel,
+                    COALESCE(is_on_attack_path, false)       AS is_on_attack_path,
+                    COALESCE(attack_path_count, 0)           AS attack_path_count,
+                    COALESCE(is_choke_point, false)          AS is_choke_point
                 FROM resource_security_posture
-                WHERE scan_run_id = %s AND tenant_id = %s
+                WHERE tenant_id = %s
                 """,
-                (scan_run_id, tenant_id),
+                (tenant_id,),
             )
             for row in cur.fetchall():
                 row_dict = dict(row)

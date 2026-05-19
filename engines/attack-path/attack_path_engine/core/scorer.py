@@ -248,16 +248,28 @@ def severity_bucket(score: int) -> str:
 
 
 def _chain_type(path: RawPath, posture_lookup: Dict[str, PostureRow]) -> str:
-    """Build a human-readable chain type label like 'Internet → Data'."""
+    """Build a human-readable chain type label like 'Internet → Data'.
+
+    Entry label priority: posture entry_point_type → hop_categories[0] from BFS.
+    hop_categories[0] is derived by the BFS Cypher from node labels (internet/virtual/compute)
+    and is always more accurate than node_types[0] (which gives raw class names like VirtualNode).
+
+    Crown label: posture crown_jewel_type only — no fallback. If the crown jewel
+    is not in posture_lookup the label is left empty so chain_type shows the gap
+    rather than masking it with a misleading default like "Asset".
+    """
     entry_uid = path.entry_point_uid or ""
     ep = posture_lookup.get(entry_uid)
-    entry_label = (ep.entry_point_type if ep else "").capitalize() if ep else (
-        (path.node_types[0].capitalize() if path.node_types else "Unknown")
-    )
+    if ep and ep.entry_point_type:
+        entry_label = ep.entry_point_type.capitalize()
+    elif path.hop_categories:
+        entry_label = path.hop_categories[0].capitalize()
+    else:
+        entry_label = "Unknown"
 
     crown_uid = path.crown_jewel_uid or ""
     cp = posture_lookup.get(crown_uid)
-    crown_label = (cp.crown_jewel_type if cp else "").replace("_", " ").title() if cp else "Asset"
+    crown_label = (cp.crown_jewel_type or "").replace("_", " ").title() if cp else ""
 
     return f"{entry_label} → {crown_label}"
 

@@ -1,6 +1,6 @@
 # Story PC-DEPTH-01: IAM — Privilege Escalation Path Detection
 
-## Status: ready
+## Status: done
 
 ## Metadata
 - **Phase**: Analysis Depth Track
