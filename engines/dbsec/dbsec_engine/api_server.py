@@ -246,6 +246,67 @@ def _run_scan_sync(
 
         _write_dbsec_report(dbsec_conn, scan_run_id, tenant_id, account_id,
                             provider, findings, written, started_at)
+
+        # Write posture signals to resource_security_posture (non-fatal)
+        try:
+            from engine_common.db_connections import get_inventory_conn as _get_inv_conn
+            _rsp_by_uid: dict = {}
+            for _f in findings:
+                _uid = _f.get("resource_uid", "")
+                if not _uid:
+                    continue
+                if _uid not in _rsp_by_uid:
+                    _rsp_by_uid[_uid] = {
+                        "resource_type": _f.get("resource_type", ""),
+                        "account_id": _f.get("account_id", account_id),
+                        "region": _f.get("region", ""),
+                        "db_auth_type": None,
+                    }
+                if _f.get("pillar") == "authentication" and not _rsp_by_uid[_uid]["db_auth_type"]:
+                    _pd = _f.get("pillar_detail") or {}
+                    _check = _pd.get("check", "") if isinstance(_pd, dict) else ""
+                    if _pd.get("iam_auth_enabled") or "iam_controlled" in _check:
+                        _rsp_by_uid[_uid]["db_auth_type"] = "IAM"
+                    elif _pd.get("auth_token_enabled"):
+                        _rsp_by_uid[_uid]["db_auth_type"] = "token"
+                    elif not _pd.get("iam_auth_enabled") and "iam_auth_enabled" in _check:
+                        _rsp_by_uid[_uid]["db_auth_type"] = "password"
+                    elif "master_username" in _check or "password" in _check:
+                        _rsp_by_uid[_uid]["db_auth_type"] = "password"
+                    elif _check:
+                        _rsp_by_uid[_uid]["db_auth_type"] = _check
+
+            if _rsp_by_uid:
+                _inv_conn = _get_inv_conn()
+                try:
+                    with _inv_conn.cursor() as _cur:
+                        _cur.execute(
+                            "INSERT INTO tenants (tenant_id, tenant_name) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                            (tenant_id, tenant_id),
+                        )
+                        _rows = [
+                            (tenant_id, scan_run_id, _m["account_id"], provider,
+                             _m["region"], _uid, _m["resource_type"], _m["db_auth_type"])
+                            for _uid, _m in _rsp_by_uid.items()
+                        ]
+                        _cur.executemany(
+                            """INSERT INTO resource_security_posture
+                               (tenant_id, scan_run_id, account_id, provider, region,
+                                resource_uid, resource_type, db_auth_type)
+                               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                               ON CONFLICT (resource_uid, tenant_id) DO UPDATE SET
+                                   scan_run_id  = EXCLUDED.scan_run_id,
+                                   db_auth_type = EXCLUDED.db_auth_type,
+                                   updated_at   = NOW()""",
+                            _rows,
+                        )
+                        _inv_conn.commit()
+                    logger.info("Posture: wrote %d DBSec rows to resource_security_posture", len(_rows))
+                finally:
+                    _inv_conn.close()
+        except Exception as _pe:
+            logger.warning("DBSec posture write failed (non-fatal): %s", _pe)
+
         return written
     finally:
         discoveries_conn.close()
