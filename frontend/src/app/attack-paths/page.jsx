@@ -29,9 +29,12 @@ import { useAuth } from '@/lib/auth-context';
 import { useGlobalFilter } from '@/lib/global-filter-context';
 import ChokeBar from './ChokeBar';
 import GroupBySelector from './GroupBySelector';
+import dynamic from 'next/dynamic';
 import AttackPathRow from './AttackPathRow';
-import AttackPathCanvas from './AttackPathCanvas';
 import PathDetailPanel from './PathDetailPanel';
+
+// React Flow uses browser-only APIs (window, ResizeObserver) — must not SSR
+const AttackPathCanvas = dynamic(() => import('./AttackPathCanvas'), { ssr: false });
 import styles from './attack-paths.module.css';
 
 // ── Constants ─────────────────────────────────────────────────────────────────

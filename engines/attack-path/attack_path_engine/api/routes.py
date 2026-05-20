@@ -192,7 +192,41 @@ async def get_attack_path_detail(
             step["account_id"] = path_account_id
             step["provider"] = path_provider
             step["region"] = _parse_region(step.get("node_uid") or "")
-        result["steps"] = steps
+
+        # Prepend a synthetic source node (internet / vpn / peer account).
+        # The DB stores only real cloud resource hops; the threat entry point
+        # is metadata on the path header. We inject it here so the canvas
+        # renders the canonical Orca-style flow:
+        #   [Internet] → [EKS] → [IAM Role] → [S3 Crown Jewel]
+        entry_type = (result.get("entry_point_type") or "internet").lower()
+        SOURCE_LABEL = {
+            "internet":     "Internet",
+            "vpn":          "VPN",
+            "onprem":       "On-Premises",
+            "peer_account": "Peer Account",
+        }
+        source_label = SOURCE_LABEL.get(entry_type, entry_type.replace("_", " ").title())
+        # Edge from source → first real hop: default NETWORK unless first real hop says otherwise
+        first_hop_edge = steps[0].get("edge_to_next", "NETWORK") if steps else "NETWORK"
+        synthetic_source: Dict[str, Any] = {
+            "node_uid":         f"__source__{entry_type}",
+            "node_name":        source_label,
+            "node_type":        entry_type,   # maps to Internet/Globe icon in UI
+            "hop_index":        -1,
+            "edge_to_next":     "NETWORK",    # always NETWORK from external → first hop
+            "edge_category":    "network_access",
+            "traversal_reason": f"External {source_label} connection to cloud environment",
+            "misconfigs":       [],
+            "cves":             [],
+            "threat_detections": [],
+            "is_choke_point":   False,
+            "account_id":       None,
+            "provider":         None,
+            "region":           None,
+            "cdr_actor_active": False,
+            "sg_rule":          None,
+        }
+        result["steps"] = [synthetic_source] + steps
         return result
     finally:
         put_conn(conn)

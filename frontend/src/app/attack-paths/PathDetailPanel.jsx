@@ -20,7 +20,18 @@ import {
   Network, Box, Cpu, HardDrive, Cloud,
   X, ExternalLink, AlertCircle, Bug, Zap,
 } from 'lucide-react';
-import { resolveEdgeColor } from './AttackPathCanvas';
+// Duplicated from AttackPathCanvas to avoid importing reactflow during SSR
+const _EDGE_COLORS = {
+  NETWORK: '#0ea5e9', LATERAL: '#f97316', EXPLOIT: '#ef4444',
+  PRIVILEGE: '#a855f7', ASSUME: '#a855f7', DATA: '#22c55e', COMPROMISE: '#ef4444',
+};
+function resolveEdgeColor(edgeType) {
+  const t = (edgeType || '').toUpperCase();
+  for (const [key, color] of Object.entries(_EDGE_COLORS)) {
+    if (t.includes(key)) return color;
+  }
+  return '#475569';
+}
 
 // ── Type → icon + color (mirrors NodeBox / Canvas) ───────────────────────────
 
