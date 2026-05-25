@@ -366,7 +366,7 @@ async def view_threat_posture_delta(
             (single_data,) = await fetch_many(
                 [
                     (
-                        "threat",
+                        "attack_path",
                         "/api/v1/threat/ui-data",
                         {"tenant_id": tenant_id, "scan_run_id": scan_b, "limit": "2000"},
                     )
@@ -420,12 +420,12 @@ async def view_threat_posture_delta(
     threat_a_data, threat_b_data = await fetch_many(
         [
             (
-                "threat",
+                "attack_path",
                 "/api/v1/threat/ui-data",
                 {"tenant_id": tenant_id, "scan_run_id": scan_a, "limit": "2000"},
             ),
             (
-                "threat",
+                "attack_path",
                 "/api/v1/threat/ui-data",
                 {"tenant_id": tenant_id, "scan_run_id": scan_b, "limit": "2000"},
             ),
@@ -563,6 +563,7 @@ async def view_threat_trend(
         return cached
 
     # Fan-out: threat analytics trend + scan runs list (for scan_run_id per date)
+    # TODO: decommission after engine-threat teardown — no attack-path equivalent yet
     threat_trend_data, scan_runs_data = await fetch_many(
         [
             (

@@ -102,6 +102,7 @@ async def view_attack_paths(
     request: Request,
     severity: Optional[str] = Query(default=None),
     entry_point_type: Optional[str] = Query(default=None),
+    confidence_level: Optional[str] = Query(default=None),
     representative_only: bool = Query(default=True),
     group_id: Optional[str] = Query(default=None),
     search: Optional[str] = Query(default=None),
@@ -124,6 +125,8 @@ async def view_attack_paths(
         params["severity"] = severity
     if entry_point_type:
         params["entry_point_type"] = entry_point_type
+    if confidence_level:
+        params["confidence_level"] = confidence_level
     if group_id:
         params["group_id"] = group_id
     search_stripped = (search or "").strip()

@@ -1,9 +1,15 @@
 import logging
+import os
 from typing import Any, Dict, List
 
 from api_security_engine.providers.base import BaseAPISecProvider
 from api_security_engine.input.check_finding_reader import load_check_findings
-from api_security_engine.input.discovery_reader import load_api_discoveries, load_waf_associations
+
+if os.getenv("DI_ENGINE_ENABLED", "false").lower() == "true":
+    from api_security_engine.input.di_reader import load_api_assets as load_api_discoveries
+    from api_security_engine.input.di_reader import load_waf_associations
+else:
+    from api_security_engine.input.discovery_reader import load_api_discoveries, load_waf_associations
 from api_security_engine.modules.auth_scheme import AuthSchemeModule
 from api_security_engine.modules.throttle_audit import ThrottleAuditModule
 from api_security_engine.modules.waf_coverage import WAFCoverageModule

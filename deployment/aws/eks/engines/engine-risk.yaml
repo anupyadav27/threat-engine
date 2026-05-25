@@ -26,7 +26,7 @@ spec:
       serviceAccountName: engine-sa
       containers:
         - name: engine-risk
-          image: yadavanup84/engine-risk:v-risk-p1-01
+          image: yadavanup84/engine-risk:v-check-fix1
           imagePullPolicy: Always
           ports:
             - containerPort: 8009
@@ -212,7 +212,7 @@ spec:
               value: "risk"
             # ── Scanner Job config ──────────────────────────────────────────
             - name: RISK_SCANNER_IMAGE
-              value: "yadavanup84/engine-risk:v-risk-p1-01"
+              value: "yadavanup84/engine-risk:v-check-fix1"
             - name: SCANNER_CPU_REQUEST
               value: "500m"
             - name: SCANNER_MEM_REQUEST
@@ -225,7 +225,23 @@ spec:
               value: "threat-engine-engines"
             - name: SCANNER_SERVICE_ACCOUNT
               value: "engine-sa"
-          resources:
+          # ── DI engine feature flag + DB credentials ────────────
+        - name: DI_ENGINE_ENABLED
+          value: "true"
+        - name: DI_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: DI_DB_PORT
+          value: "5432"
+        - name: DI_DB_NAME
+          value: "threat_engine_di"
+        - name: DI_DB_USER
+          value: "postgres"
+        - name: DI_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: DI_DB_PASSWORD
+        resources:
             requests:
               cpu: "100m"
               memory: "256Mi"

@@ -235,6 +235,8 @@ async def view_threat_attack_paths(
     if min_path_score:
         pg_params["min_path_score"] = str(min_path_score)
 
+    # TODO: decommission after engine-threat teardown — these endpoints have no
+    # attack-path equivalents; they will return None when engine-threat is gone.
     results = await fetch_many([
         ("threat", "/api/v1/threat/analysis/attack-paths", pg_params),
         ("threat", "/api/v1/graph/orca-paths", {

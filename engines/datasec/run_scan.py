@@ -271,9 +271,13 @@ def main():
         except Exception as e:
             logger.error(f"Error saving DataSec report to output dir: {e}")
 
-        # 4e. Cross-engine enrichment: discovery metadata → data catalog
+        # 4e. Cross-engine enrichment: discovery/DI metadata → data catalog
         try:
-            from data_security_engine.input.discovery_db_reader import DataStoreDiscoveryReader
+            import os as _os
+            if _os.getenv("DI_ENGINE_ENABLED", "false").lower() == "true":
+                from data_security_engine.input.di_reader import DataStoreDIReader as DataStoreDiscoveryReader
+            else:
+                from data_security_engine.input.discovery_db_reader import DataStoreDiscoveryReader
             from data_security_engine.storage.datasec_db_writer import save_data_catalog
 
             ds_reader = DataStoreDiscoveryReader()

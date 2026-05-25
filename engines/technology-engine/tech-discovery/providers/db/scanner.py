@@ -17,9 +17,9 @@ from executor.yaml_executor import TechYAMLExecutor
 from providers.db.connectors.db_connector import get_db_connector, BaseDBConnector
 
 try:
-    from engine_common.arn import host_to_resource_uid
+    from engine_common.resource_id import host_to_resource_uid
 except ImportError:
-    from shared.common.arn import host_to_resource_uid
+    from shared.common.resource_id import host_to_resource_uid
 
 logger = logging.getLogger(__name__)
 

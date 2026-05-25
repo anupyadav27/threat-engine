@@ -7,7 +7,7 @@ metadata:
     app: engine-threat-v1
     tier: engine
 spec:
-  replicas: 1
+  replicas: 0  # DEPRECATED 2026-05-21: T1/T2/T3 pattern classification moved to attack_vector.py in engine-attack-path
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -144,6 +144,22 @@ spec:
               name: otel-config
               key: OTEL_PROPAGATORS
               optional: true
+        # ── DI engine feature flag + DB credentials ────────────
+        - name: DI_ENGINE_ENABLED
+          value: "true"
+        - name: DI_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: DI_DB_PORT
+          value: "5432"
+        - name: DI_DB_NAME
+          value: "threat_engine_di"
+        - name: DI_DB_USER
+          value: "postgres"
+        - name: DI_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: DI_DB_PASSWORD
         resources:
           requests:
             cpu: "200m"

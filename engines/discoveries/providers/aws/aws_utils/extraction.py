@@ -17,6 +17,24 @@ from typing import Any, Dict, Optional
 
 logger = logging.getLogger('compliance-boto3')
 
+try:
+    from engine_common.resource_id import normalize_resource_uid as _normalize_uid
+except ImportError:
+    try:
+        from common.resource_id import normalize_resource_uid as _normalize_uid
+    except ImportError:
+        _normalize_uid = None
+
+
+class ResourceIdMissingError(ValueError):
+    """Raised when no canonical resource_uid can be built for a discovered resource.
+
+    Catching sites should log this at ERROR and skip the row — do NOT write
+    a synthetic fallback UID to discovery_findings.  The error message contains
+    the service name, discovery_id, and available item keys so the missing
+    ARN-extraction logic can be identified and added.
+    """
+
 
 # ═══════════════════════════════════════════════════════════════════
 # extract_value — navigate nested API response structures
@@ -137,9 +155,11 @@ def auto_emit_arn_and_name(item: Dict[str, Any], service: str = None,
             if 'resource_arn' not in auto_fields:
                 auto_fields['resource_arn'] = value
         elif key_lower.endswith('arn') and value.startswith('arn:') and 'resource_arn' not in auto_fields:
-            # Only use if the ARN service matches our service (avoid nested ARNs)
-            arn_parts = value.split(':')
-            if len(arn_parts) >= 3 and (not service or arn_parts[2] == service or service in arn_parts[2]):
+            # Accept the ARN unless it's clearly a cross-resource reference
+            # (avoids rejecting ClusterArn when service='emr' but ARN says 'elasticmapreduce')
+            _cross_ref_prefixes = ('source', 'target', 'destination', 'role', 'assume',
+                                   'delegat', 'attach', 'execut', 'notif', 'trigger')
+            if not any(key_lower.startswith(p) for p in _cross_ref_prefixes):
                 auto_fields['resource_arn'] = value
 
         # Extract Name field
@@ -208,13 +228,33 @@ def extract_resource_identifier(item: Dict[str, Any], service: str,
                 resource_id = val
                 break
 
-    # Build resource_uid: prefer ARN, fallback to composite key
+    # Build resource_uid: must be a canonical ARN — no synthetic fallbacks.
+    # If we cannot produce one, raise ResourceIdMissingError so the caller
+    # can log and skip the row rather than writing a bad UID to the DB.
     if resource_arn and resource_arn.startswith('arn:'):
         resource_uid = resource_arn
     elif resource_id:
-        resource_uid = f"{service}:{region or 'global'}:{account_id or 'unknown'}:{resource_id}"
+        short_form = f"{service}:{region or 'global'}:{account_id or 'unknown'}:{resource_id}"
+        normalized = _normalize_uid(short_form, resource_type=resource_type or '') if _normalize_uid else short_form
+        if not normalized.startswith('arn:'):
+            item_keys = [k for k in item.keys() if not k.startswith('_')][:15]
+            raise ResourceIdMissingError(
+                f"service={service!r} discovery_id={discovery_id!r} "
+                f"resource_id={resource_id!r} region={region!r} account={account_id!r} — "
+                f"normalization did not produce an ARN (got {normalized!r}). "
+                f"Add ARN-extraction logic in extract_resource_identifier() for this service. "
+                f"Item keys: {item_keys}"
+            )
+        resource_uid = normalized
     else:
-        resource_uid = f"{service}:{region or 'global'}:{discovery_id or 'unknown'}"
+        item_keys = [k for k in item.keys() if not k.startswith('_')][:15]
+        raise ResourceIdMissingError(
+            f"service={service!r} discovery_id={discovery_id!r} "
+            f"region={region!r} account={account_id!r} — "
+            f"no resource_id field found in item. "
+            f"Add an identifier extractor in extract_resource_identifier() for this service. "
+            f"Item keys: {item_keys}"
+        )
 
     return {
         'resource_id': resource_id,

@@ -25,6 +25,9 @@ from ._shared import ENGINE_URLS, fetch_many, safe_get
 
 logger = logging.getLogger("api-gateway.bff.scan_timing")
 
+# TODO(DI-cutover): scan_timing still uses legacy discoveries engine because the DI engine
+# does not expose a /timing equivalent endpoint. Wire to DI engine once
+# DI adds GET /api/v1/di/timing/{scan_run_id}.
 DISCOVERIES_URL = ENGINE_URLS["discoveries"]
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])

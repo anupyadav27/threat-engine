@@ -20,7 +20,7 @@ logger = logging.getLogger("api-gateway.bff")
 ENGINE_URLS: Dict[str, str] = {
     "discoveries":   os.getenv("DISCOVERIES_ENGINE_URL",    "http://engine-discoveries"),
     "inventory":     os.getenv("INVENTORY_ENGINE_URL",      "http://engine-inventory:8022"),
-    "threat":        os.getenv("THREAT_ENGINE_URL",         "http://engine-threat:8020"),
+    "threat":        os.getenv("THREAT_ENGINE_URL",         "http://engine-attack-path"),
     "check":         os.getenv("CHECK_ENGINE_URL",          "http://engine-check:8002"),
     "compliance":    os.getenv("COMPLIANCE_ENGINE_URL",     "http://engine-compliance:8010"),
     "iam":           os.getenv("IAM_ENGINE_URL",            "http://engine-iam:8003"),
@@ -42,8 +42,9 @@ ENGINE_URLS: Dict[str, str] = {
     "dbsec":         os.getenv("DBSEC_ENGINE_URL",          "http://engine-dbsec"),
     "billing":        os.getenv("BILLING_ENGINE_URL",         "http://engine-billing:8040"),
     "platform_admin": os.getenv("PLATFORM_ADMIN_ENGINE_URL",  "http://engine-platform-admin:8041"),
-    "threat_v1":      os.getenv("THREAT_V1_ENGINE_URL",       "http://engine-threat-v1:8021"),
     "chat":           os.getenv("CHAT_ENGINE_URL",            "http://engine-chat"),
+    "attack_path":    os.getenv("ATTACK_PATH_ENGINE_URL",    "http://engine-attack-path"),
+    "di":             os.getenv("DI_ENGINE_URL",             "http://engine-di"),
 }
 
 # Convenience constants for backward compat
@@ -79,7 +80,6 @@ ENGINE_TIMEOUTS: Dict[str, float] = {
     "billing": 10.0,
     "platform_admin": 15.0,
     "vulnerability": 30.0,   # severity stats scans 5k+ rows joined with scans table
-    "threat_v1": 15.0,        # incident list joins threat_scenario_patterns
 }
 
 DEFAULT_TIMEOUT = float(os.getenv("BFF_ENGINE_TIMEOUT", "8"))

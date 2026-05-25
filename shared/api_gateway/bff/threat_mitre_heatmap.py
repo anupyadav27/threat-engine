@@ -189,7 +189,7 @@ async def get_threat_mitre_heatmap(
         params["region"] = region
 
     (raw,) = await fetch_many(
-        [("threat", "/api/v1/threat/ui-data", params)],
+        [("attack_path", "/api/v1/threat/ui-data", params)],
         auth_headers={"X-Auth-Context": auth_header} if auth_header else None,
     )
 

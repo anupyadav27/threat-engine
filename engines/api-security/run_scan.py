@@ -3,13 +3,18 @@ import logging
 import signal
 import sys
 
+import os
+
 from engine_common.db_connections import (
     get_api_security_conn,
     get_check_conn,
     get_cdr_conn,
+    get_di_conn,
     get_discoveries_conn,
     get_inventory_conn,
 )
+
+_DI_ENGINE_ENABLED = os.getenv("DI_ENGINE_ENABLED", "false").lower() == "true"
 from api_security_engine.providers import get_provider
 from api_security_engine.storage.db_writer import APISecWriter
 from api_security_engine.storage.posture_signals import write_api_posture_signals
@@ -158,6 +163,7 @@ def run(
          get_check_conn() as check_conn, \
          get_inventory_conn() as inv_conn:
 
+        # scan_orchestration lives in the discoveries DB — always use disc_conn here
         _validate_scan_ownership(disc_conn, scan_run_id, tenant_id)
         _pre_create_report(apisec_conn, scan_run_id, tenant_id, provider, account_id)
 
@@ -166,13 +172,28 @@ def run(
             sys.exit(1)
 
         prov = get_provider(provider)
-        findings = prov.analyze(
-            scan_run_id=scan_run_id,
-            tenant_id=tenant_id,
-            account_id=account_id,
-            discoveries_conn=disc_conn,
-            check_conn=check_conn,
-        )
+
+        # When DI is enabled, open a DI conn for asset reads and pass it as discoveries_conn
+        if _DI_ENGINE_ENABLED:
+            _di_conn = get_di_conn()
+            try:
+                findings = prov.analyze(
+                    scan_run_id=scan_run_id,
+                    tenant_id=tenant_id,
+                    account_id=account_id,
+                    discoveries_conn=_di_conn,
+                    check_conn=check_conn,
+                )
+            finally:
+                _di_conn.close()
+        else:
+            findings = prov.analyze(
+                scan_run_id=scan_run_id,
+                tenant_id=tenant_id,
+                account_id=account_id,
+                discoveries_conn=disc_conn,
+                check_conn=check_conn,
+            )
 
         # CDR enrichment — adds behavioral findings (BOLA, auth-failure, throttle)
         cdr_raw = cdr_conn_ctx.__enter__() if cdr_conn_ctx else None

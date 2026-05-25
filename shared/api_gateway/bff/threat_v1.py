@@ -1,19 +1,15 @@
 """
 BFF view: /threat_v1 page.
 
-Threat Engine v1 — 3-tier pattern-based threat detection.
-Provides incident list, summary KPIs, and scan status for the Threat Center UI.
+Reads from engine-attack-path (replaced engine-threat-v1 — all threat detection
+patterns and crown jewel classification live in the attack-path engine now).
 
 Data shape:
   kpiGroups: [{id: 'threats', title: 'Threat Summary', kpis: [...]}]
   incidents: {items: [...], total: N, page: N, page_size: N}
   scan_status: last build + execution status
-  top_patterns: top 5 fired patterns (by incident count)
   severity_distribution: {critical, high, medium, low}
-
-Authentication: all calls forwarded with X-Auth-Context header (tenant isolation).
-CDR evidence fields stripped at this layer — detail view goes directly to
-engine-threat-v1 via gateway.
+  confidence_distribution: {confirmed, likely, speculative}
 """
 from __future__ import annotations
 
@@ -43,20 +39,15 @@ async def view_threat_v1(
     status: Optional[str] = Query(default="open"),
     scan_run_id: Optional[str] = Query(default=None),
 ) -> Dict[str, Any]:
-    """BFF aggregation for Threat Center v1 UI page."""
+    """BFF aggregation for Threat Center v1 UI page — backed by engine-attack-path."""
     tenant_id = resolve_tenant_id(request)
     auth_header = request.headers.get("X-Auth-Context") or getattr(
         request.state, "auth_header", None
     )
-    # Patch engine_tenant_id into the forwarded header so the engine dev-mode
-    # fallback receives the correct tenant even when the session has no active
-    # tenant selection (platform_admin scenario).
     fwd_headers: Dict[str, str] = {}
     if auth_header:
         try:
             ctx_dict = json.loads(auth_header)
-            # Always overwrite engine_tenant_id — even with None — so the stale
-            # login-time default in scope_cache doesn't leak to the engine.
             ctx_dict["engine_tenant_id"] = tenant_id
             auth_header = json.dumps(ctx_dict)
         except Exception:
@@ -72,98 +63,128 @@ async def view_threat_v1(
     if cached:
         return cached
 
-    # Build query params for incidents
-    inc_params: Dict[str, Any] = {"page": page, "page_size": page_size}
+    # Map incident_class filter → confidence_level for attack-path
+    confidence_filter: Optional[str] = None
+    if incident_class == "active":
+        confidence_filter = "confirmed"
+    elif incident_class == "suspicious":
+        confidence_filter = "likely"
+
+    inc_params: Dict[str, Any] = {
+        "page": page,
+        "page_size": page_size,
+        "representative_only": False,
+    }
     if severity:
         inc_params["severity"] = severity
-    if incident_class:
-        inc_params["incident_class"] = incident_class
-    if tier is not None:
-        inc_params["tier"] = tier
-    if status:
-        inc_params["status"] = status
+    if confidence_filter:
+        inc_params["confidence_level"] = confidence_filter
 
-    # Build scan status params
-    scan_params: Dict[str, Any] = {}
-    scan_path = f"/api/v1/scan/status/{scan_run_id}" if scan_run_id else None
+    kpi_params: Dict[str, Any] = {"page": 1, "page_size": 200, "representative_only": False}
 
-    # KPI aggregate fetch — unfiltered (all statuses = open) to get accurate
-    # global counts that don't change with the user's filter selection.
-    kpi_params: Dict[str, Any] = {"page": 1, "page_size": 200, "status": status or "open"}
-
-    # Fetch in parallel: [incidents_page, kpi_all, optional_scan_status]
     requests_list = [
-        ("threat_v1", "/api/v1/incidents", inc_params),
-        ("threat_v1", "/api/v1/incidents", kpi_params),
+        ("attack_path", "/api/v1/attack-paths", inc_params),
+        ("attack_path", "/api/v1/attack-paths", kpi_params),
     ]
-    if scan_path:
-        requests_list.append(("threat_v1", scan_path, scan_params))
 
     results = await fetch_many(requests_list, auth_headers=fwd_headers)
 
-    incidents_data = results[0] or {"items": [], "total": 0, "page": page, "page_size": page_size}
-    kpi_data = results[1] or incidents_data  # fallback to paginated data if aggregate fails
-    scan_status = results[2] if scan_path and len(results) > 2 else {}
-    scan_status = scan_status or {}
+    raw_page = results[0] or {"items": [], "total": 0}
+    raw_kpi = results[1] or raw_page
 
-    kpi_groups = _build_kpi_groups(kpi_data, scan_status)
-    severity_dist = _severity_distribution(kpi_data)
-    tier_dist = _tier_distribution(kpi_data)
-    top_patterns = _top_patterns(kpi_data)
+    # Reshape attack-path items to incident-like objects for UI compatibility
+    incidents_items = [_path_to_incident(p) for p in raw_page.get("items", [])]
+    incidents_data = {
+        "items": incidents_items,
+        "total": raw_page.get("total", len(incidents_items)),
+        "page": page,
+        "page_size": page_size,
+    }
+
+    kpi_items = [_path_to_incident(p) for p in raw_kpi.get("items", [])]
+    kpi_data = {"items": kpi_items, "total": raw_kpi.get("total", len(kpi_items))}
 
     result = {
-        "kpiGroups": kpi_groups,
+        "kpiGroups": _build_kpi_groups(kpi_data),
         "incidents": incidents_data,
-        "scan_status": scan_status,
-        "severity_distribution": severity_dist,
-        "tier_distribution": tier_dist,
-        "top_patterns": top_patterns,
+        "scan_status": {},
+        "severity_distribution": _severity_distribution(kpi_data),
+        "confidence_distribution": _confidence_distribution(kpi_data),
+        "top_entry_points": _top_entry_points(kpi_data),
     }
 
     cached_view(ck, result, ttl=TTL_CIEM)
     return result
 
 
-def _build_kpi_groups(
-    incidents_data: Dict[str, Any],
-    scan_status: Dict[str, Any],
-) -> list:
-    items = incidents_data.get("items", [])
-    total = incidents_data.get("total", 0)
+def _path_to_incident(path: Dict[str, Any]) -> Dict[str, Any]:
+    """Map an attack-path object to an incident-compatible dict for UI."""
+    confidence = path.get("confidence_level", "speculative")
+    has_cdr = path.get("has_active_cdr_actor", False)
+    depth = path.get("depth", 1)
+
+    # incident_class: confirmed CDR-backed paths = active, rest = suspicious
+    incident_class = "active" if (has_cdr or confidence == "confirmed") else "suspicious"
+
+    # tier: depth 1 = T1, depth 2 = T2, depth 3+ = T3
+    tier = min(depth, 3) if depth >= 1 else 1
+
+    return {
+        "incident_id": path.get("path_id"),
+        "pattern_id": path.get("entry_point_type", ""),
+        "incident_class": incident_class,
+        "severity": path.get("severity", "low"),
+        "tier": tier,
+        "confidence_level": confidence,
+        "resource_uid": path.get("crown_jewel_uid"),
+        "entry_point_uid": path.get("entry_point_uid"),
+        "depth": depth,
+        "misconfig_count": path.get("misconfig_count", 0),
+        "threat_count": path.get("threat_count", 0),
+        "has_active_cdr_actor": has_cdr,
+        "path_score": path.get("path_score"),
+        "created_at": path.get("first_seen_at"),
+    }
+
+
+def _build_kpi_groups(kpi_data: Dict[str, Any]) -> list:
+    items = kpi_data.get("items", [])
+    total = kpi_data.get("total", len(items))
 
     active_count = sum(1 for i in items if i.get("incident_class") == "active")
     suspicious_count = sum(1 for i in items if i.get("incident_class") == "suspicious")
     critical_count = sum(1 for i in items if i.get("severity") == "critical")
-    tier3_count = sum(1 for i in items if i.get("tier") == 3)
+    deep_chains = sum(1 for i in items if i.get("tier", 0) >= 3)
+    cdr_confirmed = sum(1 for i in items if i.get("has_active_cdr_actor"))
 
     return [
         {
             "id": "threats",
             "title": "Threat Summary",
             "kpis": [
-                {"id": "total_incidents", "label": "Total Incidents", "value": total, "trend": None},
+                {"id": "total_paths", "label": "Total Attack Paths", "value": total},
                 {"id": "active_incidents", "label": "Active (CDR Confirmed)", "value": active_count, "severity": "critical"},
                 {"id": "suspicious_incidents", "label": "Suspicious", "value": suspicious_count, "severity": "high"},
                 {"id": "critical_severity", "label": "Critical Severity", "value": critical_count, "severity": "critical"},
-                {"id": "full_path_chains", "label": "Full Attack Chains (Tier 3)", "value": tier3_count, "severity": "high"},
-                {"id": "crown_jewels_at_risk", "label": "Crown Jewels at Risk", "value": scan_status.get("crown_jewel_count", 0)},
+                {"id": "deep_chains", "label": "Deep Attack Chains (3+ hops)", "value": deep_chains, "severity": "high"},
+                {"id": "cdr_confirmed", "label": "CDR Confirmed", "value": cdr_confirmed},
             ],
         }
     ]
 
 
-def _tier_distribution(incidents_data: Dict[str, Any]) -> Dict[int, int]:
-    items = incidents_data.get("items", [])
-    dist: Dict[int, int] = {1: 0, 2: 0, 3: 0}
+def _confidence_distribution(data: Dict[str, Any]) -> Dict[str, int]:
+    items = data.get("items", [])
+    dist = {"confirmed": 0, "likely": 0, "speculative": 0}
     for item in items:
-        t = item.get("tier")
-        if t in dist:
-            dist[t] += 1
+        c = item.get("confidence_level", "speculative")
+        if c in dist:
+            dist[c] += 1
     return dist
 
 
-def _severity_distribution(incidents_data: Dict[str, Any]) -> Dict[str, int]:
-    items = incidents_data.get("items", [])
+def _severity_distribution(data: Dict[str, Any]) -> Dict[str, int]:
+    items = data.get("items", [])
     dist = {"critical": 0, "high": 0, "medium": 0, "low": 0}
     for item in items:
         sev = item.get("severity", "low")
@@ -172,11 +193,11 @@ def _severity_distribution(incidents_data: Dict[str, Any]) -> Dict[str, int]:
     return dist
 
 
-def _top_patterns(incidents_data: Dict[str, Any]) -> list:
+def _top_entry_points(data: Dict[str, Any]) -> list:
     from collections import Counter
-    items = incidents_data.get("items", [])
+    items = data.get("items", [])
     counts = Counter(i.get("pattern_id", "") for i in items if i.get("pattern_id"))
     return [
-        {"pattern_id": pid, "incident_count": count}
-        for pid, count in counts.most_common(5)
+        {"entry_point_type": ep, "path_count": count}
+        for ep, count in counts.most_common(5)
     ]

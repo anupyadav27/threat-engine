@@ -152,10 +152,15 @@ def upsert_posture_signals(
         set_clauses.append("resource_name = EXCLUDED.resource_name")
     set_clauses.append("updated_at = NOW()")
 
+    # ON CONFLICT targets (resource_uid, tenant_id) — the real unique constraint
+    # (uq_rsp_resource_tenant). scan_run_id is updated on every conflict so the
+    # row always reflects the latest scan.
+    set_clauses.insert(0, "scan_run_id = EXCLUDED.scan_run_id")
+
     sql = f"""
         INSERT INTO resource_security_posture ({col_list})
         VALUES ({placeholder_list})
-        ON CONFLICT (resource_uid, scan_run_id, tenant_id)
+        ON CONFLICT (resource_uid, tenant_id)
         DO UPDATE SET {", ".join(set_clauses)}
         RETURNING *
     """

@@ -2499,7 +2499,7 @@ async def get_compliance_findings_for_resource(
             _shared = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", "..", "..", "..", "shared")
             if _shared not in sys.path:
                 sys.path.insert(0, _shared)
-            from common.arn import parse_arn
+            from common.resource_id import parse_arn
             parsed = parse_arn(resource_uid)
             arn_account_id = parsed.account_id if (parsed and parsed.account_id) else None
         except Exception:

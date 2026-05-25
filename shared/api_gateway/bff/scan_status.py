@@ -62,6 +62,35 @@ def _parse_discovery_info(disc_resp: Optional[dict]) -> dict:
     }
 
 
+def _parse_di_status_info(di_resp: Optional[dict]) -> dict:
+    """Map DI engine GET /api/v1/di/status/{id} response to discovery_info shape.
+
+    DI status rows have: scan_run_id, tenant_id, status, phase, assets_written,
+    relationships_written, errors_count, started_at, completed_at.
+    """
+    if not di_resp:
+        return {"status": None, "findings_count": 0, "has_timing": False, "timing_summary": None}
+    started_at = di_resp.get("started_at")
+    completed_at = di_resp.get("completed_at")
+    return {
+        "status": di_resp.get("status"),
+        "findings_count": di_resp.get("assets_written", 0),
+        "has_timing": bool(started_at and completed_at),
+        "timing_summary": {
+            "total_s":         None,
+            "phase1_scan_s":   None,
+            "phase2_upload_s": None,
+            "scan_start":      started_at,
+            "scan_end":        completed_at,
+            "totals":          {
+                "assets_written":        di_resp.get("assets_written", 0),
+                "relationships_written": di_resp.get("relationships_written", 0),
+                "errors_count":          di_resp.get("errors_count", 0),
+            },
+        } if started_at else None,
+    }
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("/scan-status/{scan_run_id}")
@@ -78,8 +107,10 @@ async def get_scan_status(request: Request, scan_run_id: str):
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 
     results = await fetch_many([
-        ("onboarding",  f"/api/v1/scan-runs/{scan_run_id}", {}),
-        ("discoveries", f"/api/v1/discovery/{scan_run_id}", {}),
+        ("onboarding", f"/api/v1/scan-runs/{scan_run_id}", {}),
+        # DI engine is the primary source for discovery+inventory status.
+        # Legacy: ("discoveries", f"/api/v1/discovery/{scan_run_id}", {})
+        ("di", f"/api/v1/di/status/{scan_run_id}", {}),
     ], auth_headers=fwd_headers)
 
     scan = results[0]
@@ -96,7 +127,7 @@ async def get_scan_status(request: Request, scan_run_id: str):
         engines_completed = json.loads(engines_completed)
 
     engines_pending = [e for e in engines_requested if e not in engines_completed]
-    discovery_info = _parse_discovery_info(results[1])
+    discovery_info = _parse_di_status_info(results[1])
 
     return {
         "scan_run_id":        scan_run_id,

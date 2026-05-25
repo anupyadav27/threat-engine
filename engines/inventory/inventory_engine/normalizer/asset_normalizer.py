@@ -30,9 +30,9 @@ from .resource_classifier import ResourceClassifier, InventoryDecision
 
 # ARN normalizer — converts short-form UIDs to canonical ARN format
 try:
-    from shared.common.arn import normalize_resource_uid, is_arn
+    from shared.common.resource_id import normalize_resource_uid, is_arn
 except ImportError:
-    from engine_common.arn import normalize_resource_uid, is_arn
+    from engine_common.resource_id import normalize_resource_uid, is_arn
 
 logger = logging.getLogger(__name__)
 

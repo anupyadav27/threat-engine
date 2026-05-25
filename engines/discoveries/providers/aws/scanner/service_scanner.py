@@ -103,6 +103,7 @@ from ..aws_utils.extraction import (
     extract_checked_fields,
     auto_emit_arn_and_name,
     extract_resource_identifier,
+    ResourceIdMissingError,
     _infer_type_from_discovery_id,
 )
 from ..aws_utils.conditions import evaluate_condition, resolve_template
@@ -598,7 +599,11 @@ def run_service(
                                     if key not in item_data:
                                         item_data[key] = value
                                 # Extract resource identifiers (resource_id, resource_type, resource_arn, resource_uid)
-                                resource_info = extract_resource_identifier(item_data, service_name, execution_region, account_id, discovery_id=discovery_id)
+                                try:
+                                    resource_info = extract_resource_identifier(item_data, service_name, execution_region, account_id, discovery_id=discovery_id)
+                                except ResourceIdMissingError as _rid_err:
+                                    logger.error("RESOURCE_ID_MISSING: %s", _rid_err)
+                                    continue
                                 for key in ('resource_id', 'resource_type', 'resource_arn', 'resource_uid'):
                                     if resource_info.get(key) and not item_data.get(key):
                                         item_data[key] = resource_info[key]
@@ -643,7 +648,13 @@ def run_service(
                         if key not in item_data:
                             item_data[key] = value
                     # Extract resource identifiers (resource_id, resource_type, resource_arn, resource_uid)
-                    resource_info = extract_resource_identifier(item_data, service_name, execution_region, account_id, discovery_id=discovery_id)
+                    try:
+                        resource_info = extract_resource_identifier(item_data, service_name, execution_region, account_id, discovery_id=discovery_id)
+                    except ResourceIdMissingError as _rid_err:
+                        logger.error("RESOURCE_ID_MISSING: %s", _rid_err)
+                        with discovery_results_lock:
+                            discovery_results[discovery_id] = []
+                        return
                     for key in ('resource_id', 'resource_type', 'resource_arn', 'resource_uid'):
                         if resource_info.get(key) and not item_data.get(key):
                             item_data[key] = resource_info[key]
@@ -959,7 +970,11 @@ def run_service(
                                 if key not in item_data:
                                     item_data[key] = value
                             # Extract resource identifiers (resource_id, resource_type, resource_arn, resource_uid)
-                            resource_info = extract_resource_identifier(item_data, service_name, execution_region, account_id, discovery_id=discovery_id)
+                            try:
+                                resource_info = extract_resource_identifier(item_data, service_name, execution_region, account_id, discovery_id=discovery_id)
+                            except ResourceIdMissingError as _rid_err:
+                                logger.error("RESOURCE_ID_MISSING: %s", _rid_err)
+                                continue
                             for key in ('resource_id', 'resource_type', 'resource_arn', 'resource_uid'):
                                 if resource_info.get(key) and not item_data.get(key):
                                     item_data[key] = resource_info[key]
@@ -1012,12 +1027,16 @@ def run_service(
                     if key not in item_data:
                         item_data[key] = value
                 # Extract resource identifiers (resource_id, resource_type, resource_arn, resource_uid)
-                resource_info = extract_resource_identifier(item_data, service_name, execution_region, account_id, discovery_id=discovery_id)
-                for key in ('resource_id', 'resource_type', 'resource_arn', 'resource_uid'):
-                    if resource_info.get(key) and not item_data.get(key):
-                        item_data[key] = resource_info[key]
-
-                discovery_results[discovery_id] = [item_data]
+                try:
+                    resource_info = extract_resource_identifier(item_data, service_name, execution_region, account_id, discovery_id=discovery_id)
+                except ResourceIdMissingError as _rid_err:
+                    logger.error("RESOURCE_ID_MISSING: %s", _rid_err)
+                    discovery_results[discovery_id] = []
+                else:
+                    for key in ('resource_id', 'resource_type', 'resource_arn', 'resource_uid'):
+                        if resource_info.get(key) and not item_data.get(key):
+                            item_data[key] = resource_info[key]
+                    discovery_results[discovery_id] = [item_data]
 
             disc_elapsed = time.time() - disc_start
             logger.info(f"Completed discovery {discovery_id}: {disc_elapsed:.2f}s")
@@ -1482,7 +1501,11 @@ async def run_service_async(
                             for k, v in auto_fields.items():
                                 if k not in item_data:
                                     item_data[k] = v
-                            resource_info = extract_resource_identifier(item_data, service_name, execution_region, account_id, discovery_id=discovery_id)
+                            try:
+                                resource_info = extract_resource_identifier(item_data, service_name, execution_region, account_id, discovery_id=discovery_id)
+                            except ResourceIdMissingError as _rid_err:
+                                logger.error("RESOURCE_ID_MISSING: %s", _rid_err)
+                                continue
                             for key in ('resource_id', 'resource_type', 'resource_arn', 'resource_uid'):
                                 if resource_info.get(key) and not item_data.get(key):
                                     item_data[key] = resource_info[key]
@@ -1540,7 +1563,13 @@ async def run_service_async(
                 for k, v in auto_fields.items():
                     if k not in item_data:
                         item_data[k] = v
-                resource_info = extract_resource_identifier(item_data, service_name, execution_region, account_id, discovery_id=discovery_id)
+                try:
+                    resource_info = extract_resource_identifier(item_data, service_name, execution_region, account_id, discovery_id=discovery_id)
+                except ResourceIdMissingError as _rid_err:
+                    logger.error("RESOURCE_ID_MISSING: %s", _rid_err)
+                    async with discovery_results_lock:
+                        discovery_results[discovery_id] = []
+                    return
                 for key in ('resource_id', 'resource_type', 'resource_arn', 'resource_uid'):
                     if resource_info.get(key) and not item_data.get(key):
                         item_data[key] = resource_info[key]
@@ -1773,7 +1802,11 @@ async def run_service_async(
                             for k, v in auto_fields.items():
                                 if k not in item_data:
                                     item_data[k] = v
-                            resource_info = extract_resource_identifier(item_data, service_name, execution_region, account_id, discovery_id=discovery_id)
+                            try:
+                                resource_info = extract_resource_identifier(item_data, service_name, execution_region, account_id, discovery_id=discovery_id)
+                            except ResourceIdMissingError as _rid_err:
+                                logger.error("RESOURCE_ID_MISSING: %s", _rid_err)
+                                continue
                             for key in ('resource_id', 'resource_type', 'resource_arn', 'resource_uid'):
                                 if resource_info.get(key) and not item_data.get(key):
                                     item_data[key] = resource_info[key]
@@ -1823,11 +1856,16 @@ async def run_service_async(
                 for k, v in auto_fields.items():
                     if k not in item_data:
                         item_data[k] = v
-                resource_info = extract_resource_identifier(item_data, service_name, execution_region, account_id, discovery_id=discovery_id)
-                for key in ('resource_id', 'resource_type', 'resource_arn', 'resource_uid'):
-                    if resource_info.get(key) and not item_data.get(key):
-                        item_data[key] = resource_info[key]
-                discovery_results[discovery_id] = [item_data]
+                try:
+                    resource_info = extract_resource_identifier(item_data, service_name, execution_region, account_id, discovery_id=discovery_id)
+                except ResourceIdMissingError as _rid_err:
+                    logger.error("RESOURCE_ID_MISSING: %s", _rid_err)
+                    discovery_results[discovery_id] = []
+                else:
+                    for key in ('resource_id', 'resource_type', 'resource_arn', 'resource_uid'):
+                        if resource_info.get(key) and not item_data.get(key):
+                            item_data[key] = resource_info[key]
+                    discovery_results[discovery_id] = [item_data]
 
             logger.info(f"[ASYNC] Completed dependent discovery {discovery_id}: {time.time() - disc_start:.2f}s")
 

@@ -1,6 +1,6 @@
 """
 Base inventory reader — loads from inventory_findings, optionally joined with
-resource_inventory_identifier for canonical type/ARN patterns.
+di_resource_catalog for canonical type/ARN patterns.
 
 Domain engine readers subclass this and add resource-type-specific filters.
 
@@ -18,7 +18,7 @@ Usage:
 from typing import Any, Dict, List, Optional
 
 from .base_reader import BaseDBReader
-from .db_connections import get_inventory_conn
+from .db_connections import get_inventory_conn, get_di_conn
 
 _INVENTORY_COLS = """
     inv.resource_uid, inv.resource_type, inv.resource_name,
@@ -118,7 +118,7 @@ class BaseInventoryReader(BaseDBReader):
         provider: str,
         resource_type_prefixes: Optional[List[str]] = None,
     ) -> Dict[str, Dict[str, Any]]:
-        """Load resource_inventory_identifier for ARN/ID patterns.
+        """Load di_resource_catalog for ARN/ID patterns.
 
         Returns: {service.canonical_type → {identifier_pattern, primary_param, ...}}
 
@@ -127,7 +127,7 @@ class BaseInventoryReader(BaseDBReader):
         sql = """
             SELECT service, canonical_type, identifier_pattern,
                    primary_param, csp
-            FROM resource_inventory_identifier
+            FROM di_resource_catalog
             WHERE csp = %s
               AND identifier_pattern IS NOT NULL
               AND identifier_pattern != ''
@@ -140,7 +140,19 @@ class BaseInventoryReader(BaseDBReader):
             sql += f" AND ({conditions})"
             params.extend([f"{p}%" for p in resource_type_prefixes])
 
-        rows = self._safe_fetch(sql, params, f"identifier patterns for {provider}")
+        try:
+            conn = get_di_conn()
+            try:
+                from psycopg2.extras import RealDictCursor
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(sql, params)
+                    rows = cur.fetchall()
+            finally:
+                conn.close()
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning("load_identifier_patterns failed: %s", exc)
+            rows = []
         return {
             f"{r['service']}.{r['canonical_type']}": dict(r)
             for r in rows

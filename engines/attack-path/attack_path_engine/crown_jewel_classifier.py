@@ -7,7 +7,8 @@ posture signals from resource_security_posture.
 Classification criteria (architecture doc section 4.3):
   - Storage (s3.bucket, blob.container, gcs.bucket, oci.object_storage):
       ONLY when data_classification IN ('pii', 'financial', 'credentials')
-  - Database (rds.instance, aurora.cluster, cloud_sql.instance, oci.autonomous_db):
+  - Database (rds.instance, aurora.cluster, cloud_sql.instance, dynamodb.table,
+      documentdb.cluster, elasticache.cluster, emr.cluster, neptune.cluster, etc.):
       Always
   - Secrets (secretsmanager.secret, ssm.parameter with SecureString):
       Always
@@ -54,15 +55,48 @@ logger = logging.getLogger("crown_jewel_classifier")
 # Resource types that are ALWAYS crown jewels
 # ---------------------------------------------------------------------------
 _ALWAYS_CROWN_JEWEL: Dict[str, str] = {
-    # Databases
+    # Relational databases
     "rds.instance":              "data",
     "aurora.cluster":            "data",
+    "aurora.serverless":         "data",
     "cloud_sql.instance":        "data",
     "oci.autonomous_db":         "data",
     "oci.mysql":                 "data",
+    "oci.mysql_heatwave":        "data",
     "azure.sql_database":        "data",
     "azure.mysql_flexible":      "data",
     "azure.postgresql_flexible": "data",
+    "azure.sql_managed_instance":"data",
+    # NoSQL / document databases
+    "dynamodb.table":            "data_warehouse",
+    "documentdb.cluster":        "data",
+    "documentdb.instance":       "data",
+    "azure.cosmosdb":            "data_warehouse",
+    "gcp.firestore":             "data_warehouse",
+    "gcp.bigtable":              "data_warehouse",
+    "oci.nosql":                 "data_warehouse",
+    # Cache / in-memory stores (contain sensitive session/app data)
+    "elasticache.cluster":       "data_warehouse",
+    "elasticache.replication_group": "data_warehouse",
+    "azure.redis_cache":         "data_warehouse",
+    "memorydb.cluster":          "data_warehouse",
+    # Data warehouse / analytics
+    "redshift.cluster":          "data_warehouse",
+    "redshift.serverless":       "data_warehouse",
+    "elasticsearch.domain":      "data_warehouse",
+    "opensearch.domain":         "data_warehouse",
+    "bigquery.dataset":          "data_warehouse",
+    "azure.synapse":             "data_warehouse",
+    "azure.databricks":          "data_warehouse",
+    "emr.cluster":               "data_warehouse",
+    "emr.serverless":            "data_warehouse",
+    "glue.database":             "data_warehouse",
+    "glue.crawler":              "data_warehouse",
+    "athena.workgroup":          "data_warehouse",
+    "neptune.cluster":           "data_warehouse",
+    "msk.cluster":               "data_warehouse",
+    "kinesis.stream":            "data_warehouse",
+    "kinesis.firehose":          "data_warehouse",
     # Secrets / parameters
     "secretsmanager.secret":     "secrets",
     "ssm.parameter":             "secrets",
@@ -85,12 +119,6 @@ _ALWAYS_CROWN_JEWEL: Dict[str, str] = {
     "bedrock.model":             "ai_model",
     "vertex_ai.endpoint":        "ai_model",
     "azure.ml_workspace":        "ai_model",
-    # Data warehouse / search
-    "redshift.cluster":          "data_warehouse",
-    "elasticsearch.domain":      "data_warehouse",
-    "opensearch.domain":         "data_warehouse",
-    "bigquery.dataset":          "data_warehouse",
-    "azure.synapse":             "data_warehouse",
     # KMS / key vault
     "kms.key":                   "encryption_control",
     "key_vault.key":             "encryption_control",
@@ -100,17 +128,20 @@ _ALWAYS_CROWN_JEWEL: Dict[str, str] = {
     "k8s.etcd":                  "infra_control",
     # K8s secrets — always classified (conservative; any secret could be sensitive) (AC-11)
     "k8s.secret":                "secrets",
+    # Object storage — always crown jewels (any bucket reachable from internet-exposed
+    # compute is a real exfiltration target; data_classification populates as metadata)
+    "s3.bucket":                 "data",
+    "blob.container":            "data",
+    "gcs.bucket":                "data",
+    "oci.object_storage":        "data",
+    "adls.filesystem":           "data",
+    "azure.storage_blob":        "data",
 }
 
-# Storage types that are crown jewels ONLY with sensitive data classification
-_STORAGE_TYPES: Set[str] = {
-    "s3.bucket",
-    "blob.container",
-    "gcs.bucket",
-    "oci.object_storage",
-    "adls.filesystem",
-    "azure.storage_blob",
-}
+# Storage types that are crown jewels ONLY with sensitive data classification.
+# Kept for GCP/OCI aliased types not yet in _ALWAYS_CROWN_JEWEL, and for
+# any future storage types that need the conditional path.
+_STORAGE_TYPES: Set[str] = {}
 
 # IAM types that depend on posture signals
 _IAM_TYPES: Set[str] = {
@@ -159,6 +190,32 @@ _SENSITIVE_DATA_CLASSES: Set[str] = {"pii", "financial", "credentials"}
 # to the canonical short names used by the classifier sets above.
 # Format: actual Neo4j resource_type → canonical type
 _TYPE_ALIASES: Dict[str, str] = {
+    # AWS — short resource_type values emitted by check/threat/discovery engines
+    "kms":                                  "kms.key",
+    "ecr":                                  "ecr.repository",
+    "rds.db-instance":                      "rds.instance",
+    "rds":                                  "rds.instance",
+    "aurora":                               "aurora.cluster",
+    # elasticache was incorrectly mapping to "data_warehouse" (a value, not a key)
+    "elasticache":                          "elasticache.cluster",
+    "elasticache.replication-group":        "elasticache.replication_group",
+    "dynamodb":                             "dynamodb.table",
+    "dynamo":                               "dynamodb.table",
+    "documentdb":                           "documentdb.cluster",
+    "neptune":                              "neptune.cluster",
+    "emr":                                  "emr.cluster",
+    "msk":                                  "msk.cluster",
+    "kinesis":                              "kinesis.stream",
+    "firehose":                             "kinesis.firehose",
+    "glue":                                 "glue.database",
+    "athena":                               "athena.workgroup",
+    "memorydb":                             "memorydb.cluster",
+    "redshift":                             "redshift.cluster",
+    "redshift-serverless":                  "redshift.serverless",
+    "eks":                                  "eks.cluster",
+    "secretsmanager":                       "secretsmanager.secret",
+    "opensearch":                           "opensearch.domain",
+    "elasticsearch":                        "elasticsearch.domain",
     # K8s — graph-build stores bare names or full k8s.apps/Kind paths
     "secret":                               "k8s.secret",
     "secrets":                              "k8s.secret",
@@ -179,6 +236,9 @@ _TYPE_ALIASES: Dict[str, str] = {
     "gcp.kms_cryptokey":                    "gcp.kms_key",
     "gcp.bigquery":                         "bigquery.dataset",
     "gcp.bigquery_table":                   "bigquery.dataset",
+    "gcp.bigtable_instance":                "gcp.bigtable",
+    "gcp.bigtable_table":                   "gcp.bigtable",
+    "gcp.firestore_database":               "gcp.firestore",
     "gcp.cloud_sql":                        "cloud_sql.instance",
     "gcp.gke_cluster":                      "gke.cluster",
     "gcp.artifact_registry":                "artifact_registry.repo",
@@ -201,6 +261,12 @@ _TYPE_ALIASES: Dict[str, str] = {
     "azure.storage_account":               "blob.container",
     "azure.keyvault_secret":               "azure.key_vault_secret",
     "azure.kubernetes_cluster":            "aks.cluster",
+    "azure.cosmos_db":                     "azure.cosmosdb",
+    "azure.cosmos_db_account":             "azure.cosmosdb",
+    "azure.redis":                         "azure.redis_cache",
+    "azure.synapse_workspace":             "azure.synapse",
+    "azure.databricks_workspace":          "azure.databricks",
+    "azure.sql_mi":                        "azure.sql_managed_instance",
     # AWS — alternate surface names that graph-build may emit
     "aws.secretsmanager_secret":            "secretsmanager.secret",
     "aws.rds_instance":                     "rds.instance",
@@ -415,9 +481,13 @@ class CrownJewelClassifier:
             return
         try:
             with self.neo4j_driver.session(database="neo4j") as session:
+                # Use coalesce so nodes built with only `uid` (no `resource_uid`) are found.
+                # This covers S3, EC2, and other node types written before resource_uid
+                # standardisation (RID-01 story).
                 session.run(
                     """
-                    MATCH (r:Resource {tenant_id: $tid, resource_uid: $uid})
+                    MATCH (r:Resource {tenant_id: $tid})
+                    WHERE coalesce(r.resource_uid, r.uid) = $uid
                     SET r.is_crown_jewel = true,
                         r.crown_jewel_type = $type
                     """,
@@ -457,6 +527,11 @@ class CrownJewelClassifier:
             )
         except Exception as exc:
             logger.warning("posture write failed uid=%s: %s", uid, exc)
+            # Rollback aborted transaction so subsequent writes on the same connection succeed
+            try:
+                self.inventory_conn.rollback()
+            except Exception:
+                pass
 
     def _load_overrides(self) -> Dict[str, Dict[str, Any]]:
         """Load manual crown jewel overrides for this tenant.

@@ -112,7 +112,11 @@ def main():
         start = datetime.now(timezone.utc)
 
         # 1. Load data
-        from container_security_engine.input.discovery_reader import ContainerDiscoveryReader
+        import os as _os
+        if _os.getenv("DI_ENGINE_ENABLED", "false").lower() == "true":
+            from container_security_engine.input.di_reader import ContainerDIReader as ContainerDiscoveryReader
+        else:
+            from container_security_engine.input.discovery_reader import ContainerDiscoveryReader
         from container_security_engine.input.check_reader import ContainerCheckReader
 
         disc_reader = ContainerDiscoveryReader()

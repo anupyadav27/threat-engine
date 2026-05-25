@@ -88,6 +88,12 @@ SERVICE_ROUTES = {
     },
     
     # Core Business Logic Engines (uniform naming: engine-{name})
+    "di": {
+        "url": os.getenv("DI_ENGINE_URL", "http://engine-di"),
+        "prefix": "/api/v1/di",
+        "prefixes": ["/api/v1/di"],
+        "health_endpoint": "/api/v1/health"
+    },
     "discoveries": {
         "url": os.getenv("DISCOVERIES_ENGINE_URL", "http://engine-discoveries:8001"),
         "prefix": "/api/v1/discovery",
@@ -99,12 +105,6 @@ SERVICE_ROUTES = {
         "prefix": "/api/v1/check",
         "prefixes": ["/api/v1/check"],
         "health_endpoint": "/api/v1/health"
-    },
-    "threat": {
-        "url": os.getenv("THREAT_ENGINE_URL", "http://engine-threat:8020"),
-        "prefix": "/api/v1/threat",
-        "prefixes": ["/api/v1/threat", "/api/v1/graph", "/api/v1/intel", "/api/v1/hunt"],
-        "health_endpoint": "/health"
     },
     "inventory": {
         "url": os.getenv("INVENTORY_ENGINE_URL", "http://engine-inventory:8022"),
@@ -231,16 +231,10 @@ SERVICE_ROUTES = {
         "prefixes": ["/api/v1/padmin"],
         "health_endpoint": "/api/v1/health/live"
     },
-    "threat-v1": {
-        "url": os.getenv("THREAT_V1_ENGINE_URL", "http://engine-threat-v1.threat-engine-engines.svc.cluster.local:80"),
-        "prefix": "/api/v1/incidents",
-        "prefixes": ["/api/v1/incidents"],
-        "health_endpoint": "/api/v1/health/live"
-    },
     "attack-path": {
         "url": os.getenv("ATTACK_PATH_ENGINE_URL", "http://engine-attack-path.threat-engine-engines.svc.cluster.local:80"),
         "prefix": "/api/v1/attack-paths",
-        "prefixes": ["/api/v1/attack-paths", "/api/v1/crown-jewels", "/api/v1/choke-points"],
+        "prefixes": ["/api/v1/attack-paths", "/api/v1/crown-jewels", "/api/v1/choke-points", "/api/v1/graph", "/api/v1/threat"],
         "health_endpoint": "/api/v1/health/live"
     },
     "api-security": {

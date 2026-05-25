@@ -1888,17 +1888,13 @@ class OCIDiscoveryScanner(DiscoveryScanner):
         return f"oci.{service}"
 
     async def list_available_regions(self) -> List[str]:
-        """Dynamically list OCI regions; falls back to defaults."""
-        try:
-            import oci
-            identity_client = oci.identity.IdentityClient(
-                self.oci_config, signer=self.signer
-            )
-            regions = identity_client.list_regions().data
-            return [r.name for r in regions]
-        except Exception as e:
-            logger.warning(f"Failed to list OCI regions: {e}; using defaults")
-            return DEFAULT_OCI_REGIONS
+        """Dynamically list OCI regions."""
+        import oci
+        identity_client = oci.identity.IdentityClient(
+            self.oci_config, signer=self.signer
+        )
+        regions = identity_client.list_regions().data
+        return [r.name for r in regions]
 
     def get_account_id(self) -> str:
         """Return OCI tenancy OCID."""

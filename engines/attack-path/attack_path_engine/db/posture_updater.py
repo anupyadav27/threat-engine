@@ -156,6 +156,12 @@ def update_composite_flags(
     try:
         with inventory_conn.cursor() as cur:
             # ── Composite boolean flags (single UPDATE covers all eight) ──────────
+            # Scoped by tenant_id only — NOT scan_run_id.
+            # resource_security_posture has UNIQUE(resource_uid, tenant_id); each
+            # resource has exactly one row. Different engines update it at different
+            # scan times, so scan_run_id varies per row. Filtering by scan_run_id
+            # would skip resources not touched in the current scan and leave their
+            # composite flags stale.
             cur.execute("""
                 UPDATE resource_security_posture SET
                     unencrypted_pii_store = (
@@ -191,23 +197,23 @@ def update_composite_flags(
                         AND (api_auth_type IS NULL OR api_auth_type = 'none')
                     ),
                     updated_at = NOW()
-                WHERE scan_run_id = %s AND tenant_id = %s
-            """, (scan_run_id, tenant_id))
+                WHERE tenant_id = %s
+            """, (tenant_id,))
 
             # ── reachable_pii_store_count: for admin/pii-access resources ────────
             cur.execute("""
                 WITH pii_count AS (
                     SELECT COUNT(*) AS cnt
                     FROM resource_security_posture
-                    WHERE scan_run_id = %s AND tenant_id = %s
+                    WHERE tenant_id = %s
                       AND data_classification IN ('pii', 'phi', 'pci')
                 )
                 UPDATE resource_security_posture SET
                     reachable_pii_store_count = (SELECT cnt FROM pii_count),
                     updated_at = NOW()
-                WHERE scan_run_id = %s AND tenant_id = %s
+                WHERE tenant_id = %s
                   AND (is_admin_role = TRUE OR can_access_pii = TRUE)
-            """, (scan_run_id, tenant_id, scan_run_id, tenant_id))
+            """, (tenant_id, tenant_id))
 
         inventory_conn.commit()
         logger.info(

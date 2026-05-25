@@ -1,10 +1,10 @@
 """
-Threat Narrative Engine API — LLM-powered chain of consequence generator.
+Attack Path Narrative Engine API — LLM-powered narrative generator for attack paths.
 
 Endpoints:
   POST /api/v1/generate/{scan_run_id}  — manual or pipeline-triggered generation
   GET  /api/v1/health/live             — liveness probe (no auth)
-  GET  /api/v1/health/ready            — readiness probe (checks threat DB)
+  GET  /api/v1/health/ready            — readiness probe (checks attack_path DB)
 
 Security:
   - Health endpoints require no authentication.
@@ -61,7 +61,7 @@ async def _lifespan(app: FastAPI):
         llm_status = "NONE — set ANTHROPIC_API_KEY or MISTRAL_API_KEY to enable generation"
 
     logger.info(
-        "Threat Narrative Engine ready",
+        "Attack Path Narrative Engine ready",
         extra={
             "port": 8040,
             "llm_provider": provider or "none",
@@ -77,14 +77,14 @@ async def _lifespan(app: FastAPI):
 
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(
-    title="Threat Narrative Engine API",
+    title="Attack Path Narrative Engine API",
     description=(
-        "LLM-powered chain of consequence generator. "
-        "Reads from threat, risk, datasec, ciem, compliance, and discovery databases. "
-        "Generates and stores executive-level narrative summaries for threat detections. "
-        "Best-effort: missing LLM key returns 200 with all detections skipped."
+        "LLM-powered narrative generator for attack paths. "
+        "Reads from attack_path, check, and discovery databases. "
+        "Generates and stores executive-level narrative summaries for critical/high attack paths. "
+        "Best-effort: missing LLM key returns 200 with all paths skipped."
     ),
-    version="1.0.0",
+    version="2.0.0",
     lifespan=_lifespan,
 )
 
@@ -136,13 +136,13 @@ async def readiness() -> dict:
     if not db_ok:
         raise HTTPException(
             status_code=503,
-            detail="Threat DB unreachable — service not ready",
+            detail="Attack path DB unreachable — service not ready",
         )
     return {
         "status": "ready",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "service": "engine-threat-narrative",
-        "threat_db": "connected",
+        "service": "engine-attack-path-narrative",
+        "attack_path_db": "connected",
     }
 
 
@@ -218,8 +218,8 @@ async def root() -> dict:
     """Service info endpoint."""
     provider = get_llm_provider()
     return {
-        "service": "Threat Narrative Engine",
-        "version": "1.0.0",
+        "service": "Attack Path Narrative Engine",
+        "version": "2.0.0",
         "llm_provider": provider or "none (set ANTHROPIC_API_KEY to enable)",
         "status": "operational",
         "endpoints": {

@@ -86,7 +86,7 @@ async def _preload_arn_patterns():
     """Warm the in-memory ARN identifier cache from resource_inventory_identifier table."""
     try:
         import psycopg2
-        from engine_common.arn import preload_identifier_patterns
+        from engine_common.resource_id import preload_identifier_patterns
 
         db_cfg = get_database_config("inventory")
         conn = psycopg2.connect(

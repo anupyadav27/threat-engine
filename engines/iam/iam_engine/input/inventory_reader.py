@@ -170,7 +170,42 @@ class IAMInventoryReader:
         auth_policies = resources.get("aws.iam.get_account_authorization_details_policies", [])
         if auth_policies:
             return [self._extract_fields(r) for r in auth_policies]
+
+        # Synthesize PolicyVersionList from get_policy_version records
+        version_records = resources.get("aws.iam.get_policy_version", [])
+        if version_records:
+            by_arn: Dict[str, Dict] = {}
+            for r in version_records:
+                rec = self._extract_fields(r)
+                arn = rec.get("PolicyArn") or rec.get("policy_arn") or ""
+                if not arn:
+                    continue
+                doc = rec.get("PolicyDocument") or rec.get("Document")
+                is_default = rec.get("IsDefaultVersion", True)
+                if arn not in by_arn:
+                    by_arn[arn] = {
+                        "Arn": arn,
+                        "PolicyName": rec.get("PolicyName", ""),
+                        "AttachmentCount": 1,
+                        "PolicyVersionList": [],
+                    }
+                by_arn[arn]["PolicyVersionList"].append({
+                    "Document": doc,
+                    "IsDefaultVersion": is_default,
+                    "VersionId": rec.get("VersionId", "v1"),
+                })
+            if by_arn:
+                logger.info("Built managed policy map from get_policy_version: %d policies", len(by_arn))
+                return list(by_arn.values())
+
         return [self._extract_fields(r) for r in resources.get("aws.iam.list_policies", [])]
+
+    def get_role_managed_policy_attachments(
+        self, resources: Dict[str, List[Dict]]
+    ) -> List[Dict]:
+        """Extract role → managed policy attachment records from list_attached_role_policies."""
+        records = resources.get("aws.iam.list_attached_role_policies", [])
+        return [self._extract_fields(r) for r in records]
 
     def get_groups(self, resources: Dict[str, List[Dict]]) -> List[Dict]:
         return [self._extract_fields(r) for r in resources.get("aws.iam.list_groups", [])]

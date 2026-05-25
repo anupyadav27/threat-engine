@@ -43,8 +43,10 @@ const SEV_COLOR  = { critical: '#ef4444', high: '#f97316', medium: '#eab308', lo
 const SEV_BG     = { critical: 'rgba(239,68,68,0.12)', high: 'rgba(249,115,22,0.12)', medium: 'rgba(234,179,8,0.12)', low: 'rgba(107,114,128,0.12)' };
 const SEV_BORDER = { critical: 'rgba(239,68,68,0.35)', high: 'rgba(249,115,22,0.35)', medium: 'rgba(234,179,8,0.35)', low: 'rgba(107,114,128,0.35)' };
 
-const SEVERITIES  = ['all', 'critical', 'high', 'medium', 'low'];
-const ENTRY_TYPES = ['all', 'internet', 'vpn', 'onprem', 'peer_account'];
+const SEVERITIES    = ['all', 'critical', 'high', 'medium', 'low'];
+const ENTRY_TYPES   = ['all', 'internet', 'vpn', 'onprem', 'peer_account'];
+const CONFIDENCES   = ['all', 'confirmed', 'likely', 'speculative'];
+const CONF_COLOR    = { confirmed: '#22c55e', likely: '#3b82f6', speculative: '#8b5cf6' };
 const PAGE_SIZE   = 25;
 const DEBOUNCE_MS = 400;
 const SEV_ORDER   = { critical: 0, high: 1, medium: 2, low: 3 };
@@ -93,18 +95,20 @@ function sortGroupKeys(keys, groupBy) {
 
 // ── KPI Bar ───────────────────────────────────────────────────────────────────
 
-function KpiBar({ kpis, total, onSevFilter }) {
+function KpiBar({ kpis, total, onSevFilter, onConfFilter }) {
   const cells = [
-    { label: 'Total Paths',     value: total,                            color: null,      onClick: null },
-    { label: 'Critical',        value: kpis?.critical ?? 0,              color: '#ef4444', onClick: () => onSevFilter('critical') },
-    { label: 'High',            value: kpis?.high ?? 0,                  color: '#f97316', onClick: () => onSevFilter('high') },
-    { label: 'High Confidence', value: kpis?.confirmed_paths ?? 0,       color: '#22c55e', onClick: null },
-    { label: 'Choke Points',    value: kpis?.choke_points ?? 0,          color: '#a855f7', onClick: null },
-    { label: 'CDR Live',        value: kpis?.paths_with_active_cdr ?? 0, color: '#ef4444', onClick: null },
+    { label: 'Total Paths',   value: total,                            color: null,      onClick: null },
+    { label: 'Critical',      value: kpis?.critical ?? 0,              color: '#ef4444', onClick: () => onSevFilter('critical') },
+    { label: 'High',          value: kpis?.high ?? 0,                  color: '#f97316', onClick: () => onSevFilter('high') },
+    { label: 'Confirmed',     value: kpis?.confirmed_paths ?? 0,       color: '#22c55e', onClick: () => onConfFilter('confirmed') },
+    { label: 'Likely',        value: kpis?.likely_paths ?? 0,          color: '#3b82f6', onClick: () => onConfFilter('likely') },
+    { label: 'Speculative',   value: kpis?.speculative_paths ?? 0,     color: '#8b5cf6', onClick: () => onConfFilter('speculative') },
+    { label: 'Choke Points',  value: kpis?.choke_points ?? 0,          color: '#a855f7', onClick: null },
+    { label: 'CDR Live',      value: kpis?.paths_with_active_cdr ?? 0, color: '#ef4444', onClick: null },
   ];
 
   return (
-    <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+    <div className="grid grid-cols-4 gap-3 sm:grid-cols-8">
       {cells.map(({ label, value, color, onClick }) => (
         <button
           key={label}
@@ -130,8 +134,8 @@ function KpiBar({ kpis, total, onSevFilter }) {
 
 function SkeletonKpi() {
   return (
-    <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
-      {Array.from({ length: 6 }).map((_, i) => (
+    <div className="grid grid-cols-4 gap-3 sm:grid-cols-8">
+      {Array.from({ length: 8 }).map((_, i) => (
         <div key={i} className="h-16 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--bg-card)' }} />
       ))}
     </div>
@@ -143,6 +147,7 @@ function SkeletonKpi() {
 function LeftFilter({
   search, onSearchChange,
   severity, onSev,
+  confidenceLevel, onConf,
   entryType, onEntry,
   groupBy, onGroupBy,
   activeFilterCount, onReset,
@@ -202,6 +207,38 @@ function LeftFilter({
             {s}
           </button>
         ))}
+      </div>
+
+      {/* Confidence pills */}
+      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+        {CONFIDENCES.map(c => {
+          const col = CONF_COLOR[c];
+          const active = confidenceLevel === c;
+          return (
+            <button
+              key={c}
+              onClick={() => onConf(c)}
+              style={{
+                fontSize: 9,
+                padding: '2px 7px',
+                borderRadius: 20,
+                border: `1px solid ${active ? (col ? `${col}60` : 'var(--accent-primary, #3b82f6)') : 'rgba(255,255,255,0.1)'}`,
+                backgroundColor: active
+                  ? col ? `${col}20` : 'rgba(59,130,246,0.2)'
+                  : 'rgba(255,255,255,0.04)',
+                color: active
+                  ? col || '#60a5fa'
+                  : 'rgba(255,255,255,0.4)',
+                fontWeight: 600,
+                cursor: 'pointer',
+                textTransform: 'capitalize',
+                transition: 'all 0.12s',
+              }}
+            >
+              {c}
+            </button>
+          );
+        })}
       </div>
 
       {/* Group-by + reset row */}
@@ -366,13 +403,14 @@ export default function AttackPathsPage() {
   const [data, setData]       = useState(null);
 
   // ── Filter state ────────────────────────────────────────────────────────────
-  const [severity, setSeverity]       = useState('all');
-  const [entryType, setEntryType]     = useState('all');
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch]           = useState('');
-  const [page, setPage]               = useState(1);
-  const [groupBy, setGroupBy]         = useState('severity');
-  const [activeChoke, setActiveChoke] = useState(null);
+  const [severity, setSeverity]               = useState('all');
+  const [confidenceLevel, setConfidenceLevel] = useState('all');
+  const [entryType, setEntryType]             = useState('all');
+  const [searchInput, setSearchInput]         = useState('');
+  const [search, setSearch]                   = useState('');
+  const [page, setPage]                       = useState(1);
+  const [groupBy, setGroupBy]                 = useState('severity');
+  const [activeChoke, setActiveChoke]         = useState(null);
 
   // ── Canvas / panel state ────────────────────────────────────────────────────
   const [selectedPathId, setSelectedPathId]   = useState(null);
@@ -394,9 +432,10 @@ export default function AttackPathsPage() {
     setError(null);
 
     const params = { page, page_size: PAGE_SIZE };
-    if (severity !== 'all')  params.severity         = severity;
-    if (entryType !== 'all') params.entry_point_type = entryType;
-    if (search)              params.search           = search;
+    if (severity !== 'all')        params.severity         = severity;
+    if (confidenceLevel !== 'all') params.confidence_level = confidenceLevel;
+    if (entryType !== 'all')       params.entry_point_type = entryType;
+    if (search)                    params.search           = search;
 
     fetchView('attack-paths', params).then(result => {
       if (cancelled) return;
@@ -410,7 +449,7 @@ export default function AttackPathsPage() {
     });
 
     return () => { cancelled = true; };
-  }, [account, severity, entryType, search, page]);
+  }, [account, severity, confidenceLevel, entryType, search, page]);
 
   // ── Fetch selected path detail ──────────────────────────────────────────────
   useEffect(() => {
@@ -448,7 +487,7 @@ export default function AttackPathsPage() {
   const sortedKeys    = useMemo(() => sortGroupKeys(Object.keys(grouped), groupBy), [grouped, groupBy]);
   const total         = data?.total ?? 0;
   const totalPages    = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const activeFilters = [severity !== 'all', entryType !== 'all', search !== ''].filter(Boolean).length;
+  const activeFilters = [severity !== 'all', confidenceLevel !== 'all', entryType !== 'all', search !== ''].filter(Boolean).length;
 
   // Selected path metadata (for canvas header)
   const selectedPath = useMemo(
@@ -467,8 +506,14 @@ export default function AttackPathsPage() {
     setPage(1);
   }, []);
 
+  const handleConfFilter = useCallback((c) => {
+    setConfidenceLevel(prev => prev === c ? 'all' : c);
+    setPage(1);
+  }, []);
+
   const handleReset = useCallback(() => {
     setSeverity('all');
+    setConfidenceLevel('all');
     setEntryType('all');
     setSearchInput('');
     setSearch('');
@@ -514,7 +559,7 @@ export default function AttackPathsPage() {
       {!loading && !error && (
         <>
           {/* KPI bar */}
-          <KpiBar kpis={data?.kpis} total={total} onSevFilter={handleSevFilter} />
+          <KpiBar kpis={data?.kpis} total={total} onSevFilter={handleSevFilter} onConfFilter={handleConfFilter} />
 
           {/* ChokeBar */}
           <ChokeBar
@@ -560,6 +605,8 @@ export default function AttackPathsPage() {
                 onSearchChange={v => setSearchInput(v)}
                 severity={severity}
                 onSev={handleSevFilter}
+                confidenceLevel={confidenceLevel}
+                onConf={handleConfFilter}
                 entryType={entryType}
                 onEntry={v => { setEntryType(v); setPage(1); }}
                 groupBy={groupBy}

@@ -41,18 +41,13 @@ logger = logging.getLogger("attack-path.scorer")
 # Entry point base probabilities (architecture doc section 5.2)
 # ---------------------------------------------------------------------------
 _ENTRY_BASE_P: Dict[str, float] = {
-    "internet":      0.90,
-    "Internet":      0.90,
-    "onprem":        0.70,
-    "OnPrem":        0.70,
-    "DataCenter":    0.70,
-    "vpn":           0.60,
-    "vendor":        0.50,
-    "Vendor":        0.50,
-    "k8s_external":  0.50,
-    "K8sExternal":   0.50,
-    "peer_account":  0.40,
-    "PeerAccount":   0.40,
+    "internet":     0.90,
+    "onprem":       0.70,
+    "datacenter":   0.70,
+    "vpn":          0.60,
+    "vendor":       0.50,
+    "k8s_external": 0.50,
+    "peer_account": 0.40,
 }
 _DEFAULT_BASE_P = 0.50
 
@@ -140,7 +135,7 @@ def probability_score(
     entry_type = (entry_posture.entry_point_type if entry_posture else "") or ""
     if not entry_type and path.node_types:
         entry_type = path.node_types[0]
-    p = _ENTRY_BASE_P.get(entry_type, _DEFAULT_BASE_P)
+    p = _ENTRY_BASE_P.get(entry_type.lower(), _DEFAULT_BASE_P)
 
     # Step 2+3: Per-hop loop — posture signals + CDR/MITRE signals
     for uid in path.node_uids:
@@ -261,7 +256,7 @@ def _chain_type(path: RawPath, posture_lookup: Dict[str, PostureRow]) -> str:
     entry_uid = path.entry_point_uid or ""
     ep = posture_lookup.get(entry_uid)
     if ep and ep.entry_point_type:
-        entry_label = ep.entry_point_type.capitalize()
+        entry_label = ep.entry_point_type.lower().capitalize()
     elif path.hop_categories:
         entry_label = path.hop_categories[0].capitalize()
     else:

@@ -937,29 +937,31 @@ class AzureDiscoveryScanner(DiscoveryScanner):
     # ── Optional overrides ──────────────────────────────────────────────────
 
     async def list_available_regions(self) -> List[str]:
-        """Return list of Azure locations from SubscriptionClient.
+        """Return list of Azure locations that contain actual resource groups.
 
-        Returns empty list on error — DiscoveryEngine uses DB-configured regions.
+        Uses ResourceManagementClient.resource_groups.list() — permissions already
+        required for discovery — to derive regions from existing resources rather
+        than calling SubscriptionClient.list_locations (which often lacks permission).
+
+        Returns [] when the subscription has no resource groups (empty subscription).
+        Raises on auth/API failure so the scan fails visibly rather than producing
+        silent 0-resource results.
         """
         if self._factory is None:
-            return []
-        try:
-            loop = asyncio.get_event_loop()
-            # SubscriptionClient (azure.mgmt.subscription) has .subscriptions.list_locations
-            # ResourceManagementClient does NOT have .subscriptions — wrong client
-            sub_client = self._factory.get_client("subscription")
+            raise DiscoveryError("authenticate() must be called before list_available_regions()")
+        loop = asyncio.get_event_loop()
+        rg_client = self._factory.get_client("resource")
 
-            locations = await loop.run_in_executor(
-                _AZURE_EXECUTOR,
-                lambda: azure_list_all(
-                    sub_client.subscriptions.list_locations,
-                    subscription_id=self.subscription_id,
-                ),
-            )
-            return sorted({loc.get("name", "") for loc in locations if loc.get("name")})
-        except Exception as exc:
-            logger.warning("Could not list Azure regions: %s — using defaults", exc)
-            return []
+        rgs = await loop.run_in_executor(
+            _AZURE_EXECUTOR,
+            lambda: azure_list_all(rg_client.resource_groups.list),
+        )
+        regions = sorted({rg.get("location", "") for rg in rgs if rg.get("location")})
+        logger.info(
+            "Azure regions from resource groups: %d regions for subscription=%s",
+            len(regions), self.subscription_id,
+        )
+        return regions
 
     def get_account_id(self) -> str:
         """Return Azure subscription ID."""

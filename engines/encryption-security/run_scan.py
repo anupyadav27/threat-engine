@@ -186,7 +186,11 @@ def main():
         start = datetime.now(timezone.utc)
 
         # 3. Load data from source databases
-        from encryption_security_engine.input.discovery_reader import DiscoveryReader
+        import os as _os
+        if _os.getenv("DI_ENGINE_ENABLED", "false").lower() == "true":
+            from encryption_security_engine.input.di_reader import EncryptionDIReader as DiscoveryReader
+        else:
+            from encryption_security_engine.input.discovery_reader import DiscoveryReader
         from encryption_security_engine.input.check_reader import CheckReader
         from encryption_security_engine.input.datasec_reader import DataSecReader
         from encryption_security_engine.input.inventory_reader import InventoryReader

@@ -83,7 +83,7 @@ def _preload_arn_patterns(db_url: str):
     """Pre-load identifier patterns (same as api_server startup hook)."""
     try:
         import psycopg2
-        from engine_common.arn import preload_identifier_patterns
+        from engine_common.resource_id import preload_identifier_patterns
 
         conn = psycopg2.connect(db_url, connect_timeout=5)
         try:

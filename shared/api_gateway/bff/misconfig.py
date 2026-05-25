@@ -70,13 +70,13 @@ async def view_misconfig(
         return cached
 
     results = await fetch_many([
-        ("threat", "/api/v1/threat/ui-data", {
+        ("attack_path", "/api/v1/threat/ui-data", {
             "tenant_id": tenant_id, "scan_run_id": scan_run_id, "limit": "500",
         }),
     ], auth_headers=fwd_headers)
 
     data = results[0]
-    meta.record_engine("threat", "/api/v1/threat/ui-data", data)
+    meta.record_engine("attack_path", "/api/v1/threat/ui-data", data)
     if data is None:
         meta.warn("Threat engine returned no data — misconfig findings will be empty")
     data = data or {}

@@ -170,6 +170,10 @@ def _write_dbsec_report(
     try:
         with dbsec_conn.cursor() as cur:
             cur.execute(
+                "INSERT INTO tenants (tenant_id, tenant_name) VALUES (%s, %s) ON CONFLICT (tenant_id) DO NOTHING",
+                (tenant_id, tenant_id),
+            )
+            cur.execute(
                 """
                 INSERT INTO dbsec_report (
                     scan_run_id, tenant_id, account_id, provider, status,

@@ -1,5 +1,5 @@
 """
-CIEM Scanner — Job entry point.
+CDR Scanner — Job entry point.
 
 Runs as a K8s Job on on-demand nodes. Called by the API pod via:
     python -m run_scan --scan-run-id X
@@ -97,7 +97,7 @@ logger = setup_logger(__name__, engine_name="cdr-scanner")
 
 
 def _load_identifier_index(csp: str = "aws") -> dict:
-    """Load identifier patterns from resource_inventory_identifier table.
+    """Load identifier patterns from di_resource_catalog table.
 
     Returns: {service.canonical_type → {identifier_pattern, primary_param, canonical_type}}
     """
@@ -105,16 +105,16 @@ def _load_identifier_index(csp: str = "aws") -> dict:
     from psycopg2.extras import RealDictCursor
     try:
         conn = psycopg2.connect(
-            host=os.getenv("INVENTORY_DB_HOST", os.getenv("DB_HOST", "localhost")),
-            port=int(os.getenv("INVENTORY_DB_PORT", os.getenv("DB_PORT", "5432"))),
-            database=os.getenv("INVENTORY_DB_NAME", "threat_engine_inventory"),
-            user=os.getenv("INVENTORY_DB_USER", os.getenv("DB_USER", "postgres")),
-            password=os.getenv("INVENTORY_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
+            host=os.getenv("DI_DB_HOST", os.getenv("DB_HOST", "localhost")),
+            port=int(os.getenv("DI_DB_PORT", os.getenv("DB_PORT", "5432"))),
+            database=os.getenv("DI_DB_NAME", "threat_engine_di"),
+            user=os.getenv("DI_DB_USER", os.getenv("DB_USER", "postgres")),
+            password=os.getenv("DI_DB_PASSWORD") or os.getenv("DB_PASSWORD") or os.getenv("DISCOVERIES_DB_PASSWORD", ""),
         )
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("""
             SELECT service, canonical_type, identifier_pattern, primary_param
-            FROM resource_inventory_identifier
+            FROM di_resource_catalog
             WHERE csp = %s AND identifier_pattern IS NOT NULL AND identifier_pattern != ''
             AND identifier_pattern LIKE 'arn:%%'
         """, (csp,))
@@ -230,12 +230,12 @@ def _serialize_actor_stats(actor_raw: dict) -> dict:
 
 
 def main():
-    parser_arg = argparse.ArgumentParser(description="CIEM Scanner")
+    parser_arg = argparse.ArgumentParser(description="CDR Scanner")
     parser_arg.add_argument("--scan-run-id", required=True)
     args = parser_arg.parse_args()
 
     scan_run_id = args.scan_run_id
-    logger.info(f"CIEM scan starting scan_run_id={scan_run_id}")
+    logger.info(f"CDR scan starting scan_run_id={scan_run_id}")
 
     start = datetime.now(timezone.utc)
     # Initialize so _write_failed_report can reference them even if exception fires early
@@ -469,7 +469,7 @@ def main():
         )
         duration = (datetime.now(timezone.utc) - start).total_seconds()
         logger.info(
-            f"CIEM scan completed: {scan_run_id} — "
+            f"CDR scan completed: {scan_run_id} — "
             f"{total_findings} findings "
             f"(L1={eval_stats.get('total_findings', 0)}, "
             f"L2={l2_stats.get('total_findings', 0)}, "
@@ -560,17 +560,19 @@ def main():
                         "status": "open",
                         "first_seen_at": r.get("first_seen_at"),
                     })
-            if rows:
-                written = upsert_findings(
-                    conn=inv_conn,
-                    findings=rows,
-                    source_engine="cdr",
-                    tenant_id=tenant_id,
-                    scan_run_id=scan_run_id,
-                )
-                logger.info("security_findings: wrote %d CDR rows", written)
-            inv_conn.close()
-            cdr_conn.close()
+            try:
+                if rows:
+                    written = upsert_findings(
+                        conn=inv_conn,
+                        findings=rows,
+                        source_engine="cdr",
+                        tenant_id=tenant_id,
+                        scan_run_id=scan_run_id,
+                    )
+                    logger.info("security_findings: wrote %d CDR rows", written)
+            finally:
+                inv_conn.close()
+                cdr_conn.close()
         except Exception as _sf_err:
             logger.warning("CDR security_findings write skipped: %s", _sf_err)
 

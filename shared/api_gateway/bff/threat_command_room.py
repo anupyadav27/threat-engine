@@ -205,11 +205,11 @@ async def view_threat_command_room(
     if cached is not None:
         return cached
 
-    # Fan-out: threat engine ui-data (primary) + scan orchestration meta
+    # Fan-out: attack-path engine ui-data (primary) + scan orchestration meta
     (threat_data,) = await fetch_many(
         [
             (
-                "threat",
+                "attack_path",
                 "/api/v1/threat/ui-data",
                 {
                     "tenant_id": tenant_id,
@@ -222,7 +222,7 @@ async def view_threat_command_room(
         auth_headers=fwd_headers,
     )
 
-    meta.record_engine("threat", "/api/v1/threat/ui-data", threat_data)
+    meta.record_engine("attack_path", "/api/v1/threat/ui-data", threat_data)
     if threat_data is None:
         meta.warn("Threat engine returned no data — scenarios will be empty")
     if not isinstance(threat_data, dict):

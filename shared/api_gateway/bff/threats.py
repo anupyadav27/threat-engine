@@ -59,7 +59,7 @@ async def view_threats(
         return cached
 
     results = await fetch_many([
-        ("threat", "/api/v1/threat/ui-data", {
+        ("attack_path", "/api/v1/threat/ui-data", {
             "tenant_id": tenant_id,
             "scan_run_id": scan_run_id,
             "limit": "2000",

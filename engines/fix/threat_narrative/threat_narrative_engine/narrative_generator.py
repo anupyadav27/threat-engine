@@ -1,12 +1,12 @@
 """
-Core orchestration for the Threat Narrative Engine.
+Core orchestration for the Attack Path Narrative Engine.
 
-For each threat detection, this module:
-  1. Reads context from all source tables via db_reader
+For each attack path, this module:
+  1. Reads context from attack_paths + enrichment tables via db_reader
   2. Builds prompts via prompt_templates
   3. Calls the LLM API (Anthropic Claude or Mistral fallback)
   4. Validates and truncates outputs
-  5. Writes results to threat_detections via db_writer
+  5. Writes results to attack_paths.attack_story via db_writer
 
 LLM failure modes are handled gracefully — never raises to the caller.
 """
@@ -276,16 +276,16 @@ async def generate_for_detection(
 
     # ── Read context ──────────────────────────────────────────────────────────
     # DB errors from db_reader propagate (infrastructure failures)
-    ctx = db_reader.read_detection_context(scan_run_id, detection_id)
+    ctx = db_reader.read_path_context(scan_run_id, detection_id)
 
     # ── Sufficiency check ─────────────────────────────────────────────────────
-    if not ctx.get("resource_uid") or not ctx.get("attack_chain"):
+    if not ctx.get("entry_point_uid") or not ctx.get("chain_type"):
         logger.info(
             "Skipping generation — insufficient context",
             extra={
-                "detection_id": detection_id,
-                "has_resource_uid": bool(ctx.get("resource_uid")),
-                "has_attack_chain": bool(ctx.get("attack_chain")),
+                "path_id": detection_id,
+                "has_entry_point_uid": bool(ctx.get("entry_point_uid")),
+                "has_chain_type": bool(ctx.get("chain_type")),
             },
         )
         return NarrativeResult(detection_id=detection_id, skipped=True)
@@ -391,15 +391,15 @@ async def generate_for_scan(scan_run_id: str) -> dict[str, int]:
             extra={"scan_run_id": scan_run_id},
         )
 
-    detection_ids = db_reader.list_detection_ids(scan_run_id)
+    detection_ids = db_reader.list_path_ids(scan_run_id)
     total = len(detection_ids)
     processed = skipped = failed = 0
 
     logger.info(
-        "Starting narrative generation",
+        "Starting attack path narrative generation",
         extra={
             "scan_run_id": scan_run_id,
-            "total_detections": total,
+            "total_paths": total,
             "provider": provider or "none",
         },
     )
@@ -419,7 +419,7 @@ async def generate_for_scan(scan_run_id: str) -> dict[str, int]:
             await asyncio.sleep(BETWEEN_DETECTION_SLEEP)
 
     logger.info(
-        "Narrative generation complete",
+        "Attack path narrative generation complete",
         extra={
             "scan_run_id": scan_run_id,
             "processed": processed,

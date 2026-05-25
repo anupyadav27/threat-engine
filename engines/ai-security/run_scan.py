@@ -154,7 +154,11 @@ def main():
         # ── Phase 1: Load input data from 6 engines ─────────────────────
         logger.info("[Phase 1] Loading input data from engine databases...")
 
-        from ai_security_engine.input.discovery_reader import AIDiscoveryReader
+        import os as _os
+        if _os.getenv("DI_ENGINE_ENABLED", "false").lower() == "true":
+            from ai_security_engine.input.di_reader import AIDIReader as AIDiscoveryReader
+        else:
+            from ai_security_engine.input.discovery_reader import AIDiscoveryReader
         from ai_security_engine.input.check_reader import AICheckReader
 
         disc_reader = AIDiscoveryReader()

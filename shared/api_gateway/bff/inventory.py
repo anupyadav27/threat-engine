@@ -173,9 +173,13 @@ async def view_inventory(
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 
     # ── 4 parallel calls: inventory + threat detections + threat summary + onboarding
+    # TODO(DI-cutover): replace ("inventory", "/api/v1/inventory/ui-data", ...) with a DI
+    # engine equivalent once DI exposes a /api/v1/di/ui-data summary endpoint that returns
+    # the same shape (summary + assets list). Until then, ui-data still comes from legacy
+    # inventory engine which reads from inventory_findings.
     results = await fetch_many([
         ("inventory",  "/api/v1/inventory/ui-data",  {"tenant_id": tenant_id, "scan_run_id": scan_run_id, "limit": str(min(limit, 2000)), "offset": str(offset)}),
-        ("threat",     "/api/v1/threat/ui-data",     {"tenant_id": tenant_id, "scan_run_id": "latest", "limit": str(limit)}),
+        ("attack_path", "/api/v1/threat/ui-data",     {"tenant_id": tenant_id, "scan_run_id": "latest", "limit": str(limit)}),
         ("onboarding", "/api/v1/cloud-accounts", {"tenant_id": tenant_id}),
     ], auth_headers=fwd_headers)
 
@@ -751,17 +755,21 @@ async def view_asset_detail(
     enc_uid = _quote(resource_uid, safe="")
 
     # ── 5 parallel calls (asset + relationships fetched separately) ────
+    # DI engine is the primary source for single-asset detail and relationships.
+    # Legacy inventory paths kept as comments for rollback reference:
+    #   ("inventory", f"/api/v1/inventory/assets/{enc_uid}", {"tenant_id": ..., "scan_run_id": ...})
+    #   ("inventory", f"/api/v1/inventory/assets/{enc_uid}/relationships", {"tenant_id": ..., ...})
     results = await fetch_many([
-        ("inventory",  f"/api/v1/inventory/assets/{enc_uid}",
-         {"tenant_id": tenant_id, "scan_run_id": scan_run_id}),
+        ("di",         f"/api/v1/di/assets/{enc_uid}",
+         {"scan_run_id": scan_run_id} if scan_run_id and scan_run_id != "latest" else {}),
         ("check",      f"/api/v1/check/findings/resource/{enc_uid}",
          {"tenant_id": tenant_id}),
-        ("threat",     f"/api/v1/threat/findings/resource/{enc_uid}",
+        ("attack_path", f"/api/v1/threat/findings/resource/{enc_uid}",
          {"tenant_id": tenant_id}),
         ("compliance", f"/api/v1/compliance/findings/resource/{enc_uid}",
          {"tenant_id": tenant_id, "scan_run_id": scan_run_id}),
-        ("inventory",  f"/api/v1/inventory/assets/{enc_uid}/relationships",
-         {"tenant_id": tenant_id, "scan_run_id": scan_run_id, "depth": "2"}),
+        ("di",         "/api/v1/di/relationships",
+         {"source_uid": enc_uid, **({"scan_run_id": scan_run_id} if scan_run_id and scan_run_id != "latest" else {})}),
     ], auth_headers=fwd_headers)
 
     inventory_data, check_data, threat_data, compliance_data, rels_data = results
@@ -843,8 +851,8 @@ async def _fetch_posture_for_nodes(
 
         for uid in node_uids:
             for engine, path_tpl in [
-                ("check",  "/api/v1/check/findings/resource/{}"),
-                ("threat", "/api/v1/threat/findings/resource/{}"),
+                ("check",       "/api/v1/check/findings/resource/{}"),
+                ("attack_path", "/api/v1/threat/findings/resource/{}"),
             ]:
                 base = ENGINE_URLS.get(engine, "")
                 url = f"{base}{path_tpl.format(uid)}"
@@ -953,9 +961,10 @@ async def view_asset_cdr(request: Request, resource_uid: str) -> Dict[str, Any]:
     from urllib.parse import quote as _quote
     enc_uid = _quote(resource_uid, safe="")
 
-    # Step 1 — sequential: verify asset belongs to this tenant
+    # Step 1 — sequential: verify asset belongs to this tenant.
+    # DI engine is the primary source; tenant scoping is enforced via AuthContext.
     inv_resp = await fetch_many(
-        [("inventory", f"/api/v1/inventory/assets/{enc_uid}", {"tenant_id": tenant_id})],
+        [("di", f"/api/v1/di/assets/{enc_uid}", {})],
         auth_headers=fwd_headers,
     )
     inv_asset = inv_resp[0] if inv_resp else None
@@ -1107,8 +1116,8 @@ async def view_blast_radius(
         "max_depth": depth,
     }
 
-    # ── Call Neo4j blast radius via threat engine ───────────────────────────
-    threat_base = ENGINE_URLS.get("threat", "")
+    # ── Call Neo4j blast radius via attack-path engine ─────────────────────────
+    threat_base = ENGINE_URLS.get("attack_path", "")
     safe_uid = quote(resource_uid, safe="/:@!$&'()*+,;=")
     neo4j_url = f"{threat_base}/api/v1/graph/blast-radius/{safe_uid}"
     neo4j_params = {"tenant_id": tenant_id, "max_hops": str(depth)}
@@ -1120,7 +1129,7 @@ async def view_blast_radius(
             _resp = await _client.get(
                 neo4j_url, params=neo4j_params,
                 headers=_blast_headers,
-                timeout=ENGINE_TIMEOUTS.get("threat", DEFAULT_TIMEOUT)
+                timeout=ENGINE_TIMEOUTS.get("attack_path", DEFAULT_TIMEOUT)
             )
             if _resp.status_code != 200:
                 logger.warning("Neo4j blast radius %s -> %s", neo4j_url, _resp.status_code)
@@ -1292,9 +1301,9 @@ async def _batch_posture_for_nodes(
 
     payload = {"resource_uids": resource_uids, "tenant_id": tenant_id}
     check_base = ENGINE_URLS.get("check", "")
-    threat_base = ENGINE_URLS.get("threat", "")
+    attack_path_base = ENGINE_URLS.get("attack_path", "")
     check_timeout = ENGINE_TIMEOUTS.get("check", DEFAULT_TIMEOUT)
-    threat_timeout = ENGINE_TIMEOUTS.get("threat", DEFAULT_TIMEOUT)
+    attack_path_timeout = ENGINE_TIMEOUTS.get("attack_path", DEFAULT_TIMEOUT)
 
     check_map: Dict[str, Dict[str, int]] = {}
     threat_map: Dict[str, Dict[str, int]] = {}
@@ -1307,9 +1316,9 @@ async def _batch_posture_for_nodes(
                 timeout=check_timeout,
             ),
             client.post(
-                f"{threat_base}/api/v1/threat/findings/batch-severity",
+                f"{attack_path_base}/api/v1/threat/findings/batch-severity",
                 json=payload,
-                timeout=threat_timeout,
+                timeout=attack_path_timeout,
             ),
             return_exceptions=True,
         )
@@ -1380,6 +1389,8 @@ async def view_inventory_taxonomy(
     if category:
         params["category"] = category
 
+    # TODO(DI-cutover): taxonomy endpoint has no DI equivalent yet.
+    # Wire to DI once DI exposes GET /api/v1/di/taxonomy.
     results = await fetch_many([
         ("inventory", "/api/v1/inventory/taxonomy", params),
     ], auth_headers=fwd_headers)
@@ -1416,6 +1427,8 @@ async def view_inventory_architecture(
     if csp:
         params["csp"] = csp
 
+    # TODO(DI-cutover): architecture endpoint has no DI equivalent yet.
+    # Wire to DI once DI exposes GET /api/v1/di/architecture.
     results = await fetch_many([
         ("inventory", "/api/v1/inventory/architecture", params),
     ], auth_headers=fwd_headers)
@@ -1547,6 +1560,8 @@ async def view_inventory_graph(
     if service:
         params["service"] = service
 
+    # TODO(DI-cutover): graph endpoint has no DI equivalent yet.
+    # Wire to DI once DI exposes GET /api/v1/di/graph.
     graph_results = await fetch_many([
         ("inventory", "/api/v1/inventory/runs/latest/graph", params),
     ], auth_headers=fwd_headers)

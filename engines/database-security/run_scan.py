@@ -113,7 +113,11 @@ def main():
         start = datetime.now(timezone.utc)
 
         # 2. Load data from source databases
-        from database_security_engine.input.discovery_reader import DiscoveryReader as DBDiscoveryReader
+        import os as _os
+        if _os.getenv("DI_ENGINE_ENABLED", "false").lower() == "true":
+            from database_security_engine.input.di_reader import DBSecDIReader as DBDiscoveryReader
+        else:
+            from database_security_engine.input.discovery_reader import DiscoveryReader as DBDiscoveryReader
         from database_security_engine.input.check_reader import CheckReader as DBCheckReader
         from database_security_engine.input.datasec_reader import DataSecReader as DBDataSecReader
 

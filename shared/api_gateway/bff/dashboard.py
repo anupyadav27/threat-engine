@@ -124,8 +124,10 @@ async def view_dashboard(
     iam_params: Dict[str, str] = {"tenant_id": tenant_id, "csp": provider.lower() if provider else "aws", "scan_id": "latest"}
 
     results = await fetch_many([
-        ("threat",     "/api/v1/threat/ui-data",        {"tenant_id": tenant_id, "scan_run_id": scan_run_id, "limit": "50", "days": "30"}),
+        ("attack_path", "/api/v1/threat/ui-data",        {"tenant_id": tenant_id, "scan_run_id": scan_run_id, "limit": "50", "days": "30"}),
         ("compliance", "/api/v1/compliance/ui-data",    {"tenant_id": tenant_id, "scan_id": "latest"}),
+        # TODO(DI-cutover): replace with ("di", "/api/v1/di/assets/count", {...}) once DI
+        # exposes a summary endpoint matching the inventory ui-data shape.
         ("inventory",  "/api/v1/inventory/ui-data",     {"tenant_id": tenant_id, "scan_run_id": "latest"}),
         ("iam",        "/api/v1/iam-security/ui-data",  iam_params),
         ("datasec",    "/api/v1/data-security/ui-data", {"tenant_id": tenant_id, "scan_id": "latest"}),
@@ -137,7 +139,7 @@ async def view_dashboard(
         threat_data, compliance_data, inventory_data,
         iam_data, datasec_data, risk_data, onboarding_data,
     ) = results
-    meta.record_engine("threat",     "/api/v1/threat/ui-data",        threat_data)
+    meta.record_engine("attack_path", "/api/v1/threat/ui-data",        threat_data)
     meta.record_engine("compliance", "/api/v1/compliance/ui-data",    compliance_data)
     meta.record_engine("inventory",  "/api/v1/inventory/ui-data",     inventory_data)
     meta.record_engine("iam",        "/api/v1/iam-security/ui-data",  iam_data)

@@ -637,15 +637,15 @@ class SecurityGraphBuilder:
         )
 
     def _load_attack_path_categories_for_graph(self, tenant_id: str) -> Optional[Dict[str, Optional[str]]]:
-        """Load attack_path_category from resource_security_relationship_rules for Neo4j edge tagging."""
+        """Load attack_path_category from di_relationship_rules for Neo4j edge tagging."""
         from psycopg2.extras import RealDictCursor
         try:
-            conn = self._pg_conn("threat_engine_inventory")
+            conn = self._pg_conn("threat_engine_di")
             try:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
                     cur.execute("""
                         SELECT DISTINCT relation_type, attack_path_category
-                        FROM resource_security_relationship_rules
+                        FROM di_relationship_rules
                         WHERE is_active = TRUE
                     """)
                     cats = {}

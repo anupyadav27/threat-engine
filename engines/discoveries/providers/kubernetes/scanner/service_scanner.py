@@ -163,6 +163,11 @@ def _enrich_k8s_item(item: Dict) -> Dict:
 
     K8s uses namespace/kind/name as logical identifier and uid as unique ID.
 
+    resource_uid follows the platform canonical format:
+        k8s/{cluster_id}/{namespace}/{kind}/{name}
+    This is stable (does not change on pod/secret recreate like metadata.uid),
+    parseable, and human-readable. Matches resource_id.py make_resource_id(csp='k8s').
+
     DCAT-02-E: also renders the catalog `emit.item` template (Jinja) and
     stores the flat result on `item['emitted_fields']`. Discovery engine
     pipes this into `discovery_findings.emitted_fields` JSONB so the column
@@ -175,10 +180,22 @@ def _enrich_k8s_item(item: Dict) -> Dict:
     kind = item.get('kind', item.get('resource_type', 'Unknown')).lower()
 
     resource_path = f"{namespace}/{kind}/{name}"
+    cluster_id = item.get('_cluster_name') or item.get('_account_id') or 'unknown-cluster'
+
+    if not name:
+        discovery_id = item.get('_discovery_id', 'unknown')
+        item_keys = [k for k in item.keys() if not k.startswith('_')][:10]
+        logger.error("K8S_RESOURCE_ID_MISSING: discovery_id=%r namespace=%r kind=%r item keys=%s",
+                     discovery_id, namespace, kind, item_keys)
+        return None
+
+    # Canonical resource_uid: k8s/{cluster}/{namespace}/{kind}/{name}
+    # Stable across recreates; parseable; no opaque UUID dependency.
+    canonical_uid = f"k8s/{cluster_id}/{namespace}/{kind}/{name}"
 
     item['resource_arn'] = resource_path
-    item['resource_id'] = uid
-    item['resource_uid'] = uid
+    item['resource_id'] = uid          # retain K8s UUID as secondary reference only
+    item['resource_uid'] = canonical_uid
 
     # Build _raw_response (everything except internal/metadata fields)
     item['_raw_response'] = {k: v for k, v in item.items()
@@ -234,7 +251,7 @@ def _scan_namespaces(core_v1, apps_v1, cluster_name: str, region: str, config: D
             item['kind'] = 'Namespace'
             item['resource_type'] = 'k8s.core/Namespace'
             item['_discovery_id'] = 'k8s.cluster.list_namespace'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s list_namespace failed: {e}")
     logger.info(f"  namespace: {len(resources)} namespaces found")
@@ -275,7 +292,7 @@ def _scan_deployments(core_v1, apps_v1, cluster_name: str, region: str, config: 
             item['kind'] = 'Deployment'
             item['resource_type'] = 'k8s.apps/Deployment'
             item['_discovery_id'] = 'k8s.deployments.list'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s list_deployment_for_all_namespaces failed: {e}")
     logger.info(f"  deployment: {len(resources)} deployments found")
@@ -293,7 +310,7 @@ def _scan_services(core_v1, apps_v1, cluster_name: str, region: str, config: Dic
             item['kind'] = 'Service'
             item['resource_type'] = 'k8s.core/Service'
             item['_discovery_id'] = 'k8s.network.list_service_for_all_namespaces'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s list_service_for_all_namespaces failed: {e}")
     logger.info(f"  service: {len(resources)} services found")
@@ -311,7 +328,7 @@ def _scan_configmaps(core_v1, apps_v1, cluster_name: str, region: str, config: D
             item['kind'] = 'ConfigMap'
             item['resource_type'] = 'k8s.core/ConfigMap'
             item['_discovery_id'] = 'k8s.monitoring.list_config_map_for_all_namespaces'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s list_config_map_for_all_namespaces failed: {e}")
     logger.info(f"  configmap: {len(resources)} configmaps found")
@@ -329,7 +346,7 @@ def _scan_daemonsets(core_v1, apps_v1, cluster_name: str, region: str, config: D
             item['kind'] = 'DaemonSet'
             item['resource_type'] = 'k8s.apps/DaemonSet'
             item['_discovery_id'] = 'k8s.daemonset.list'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s list_daemon_set_for_all_namespaces failed: {e}")
     logger.info(f"  daemonset: {len(resources)} daemonsets found")
@@ -349,7 +366,7 @@ def _scan_ingresses(core_v1, apps_v1, cluster_name: str, region: str, config: Di
             item['kind'] = 'Ingress'
             item['resource_type'] = 'k8s.networking/Ingress'
             item['_discovery_id'] = 'k8s.ingress.list_ingresses'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s list_ingress_for_all_namespaces failed: {e}")
     logger.info(f"  ingress: {len(resources)} ingresses found")
@@ -395,7 +412,7 @@ def _scan_pvcs(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -
             item['kind'] = 'PersistentVolumeClaim'
             item['resource_type'] = 'k8s.core/PersistentVolumeClaim'
             item['_discovery_id'] = 'k8s.persistentvolumeclaim.list'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s list_persistent_volume_claim_for_all_namespaces failed: {e}")
     logger.info(f"  persistentvolumeclaim: {len(resources)} pvcs found")
@@ -415,7 +432,7 @@ def _scan_roles(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) 
             item['kind'] = 'Role'
             item['resource_type'] = 'k8s.rbac/Role'
             item['_discovery_id'] = 'k8s.rbac.list_role_for_all_namespaces'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s list_role_for_all_namespaces failed: {e}")
     logger.info(f"  role: {len(resources)} roles found")
@@ -435,7 +452,7 @@ def _scan_clusterroles(core_v1, apps_v1, cluster_name: str, region: str, config:
             item['kind'] = 'ClusterRole'
             item['resource_type'] = 'k8s.rbac/ClusterRole'
             item['_discovery_id'] = 'k8s.rbac.list_cluster_role'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s list_cluster_role failed: {e}")
     logger.info(f"  clusterrole: {len(resources)} clusterroles found")
@@ -455,7 +472,7 @@ def _scan_clusterrolebindings(core_v1, apps_v1, cluster_name: str, region: str, 
             item['kind'] = 'ClusterRoleBinding'
             item['resource_type'] = 'k8s.rbac/ClusterRoleBinding'
             item['_discovery_id'] = 'k8s.rbac.list_cluster_role_binding'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s list_cluster_role_binding failed: {e}")
     logger.info(f"  clusterrolebinding: {len(resources)} clusterrolebindings found")
@@ -475,7 +492,7 @@ def _scan_rolebindings(core_v1, apps_v1, cluster_name: str, region: str, config:
             item['kind'] = 'RoleBinding'
             item['resource_type'] = 'k8s.rbac/RoleBinding'
             item['_discovery_id'] = 'k8s.rolebinding.list'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s list_role_binding_for_all_namespaces failed: {e}")
     logger.info(f"  rolebinding: {len(resources)} rolebindings found")
@@ -519,7 +536,7 @@ def _scan_serviceaccounts(core_v1, apps_v1, cluster_name: str, region: str, conf
             item['kind'] = 'ServiceAccount'
             item['resource_type'] = 'k8s.core/ServiceAccount'
             item['_discovery_id'] = 'k8s.serviceaccount.list'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s list_service_account_for_all_namespaces failed: {e}")
     logger.info(f"  serviceaccount: {len(resources)} serviceaccounts found")
@@ -537,7 +554,7 @@ def _scan_statefulsets(core_v1, apps_v1, cluster_name: str, region: str, config:
             item['kind'] = 'StatefulSet'
             item['resource_type'] = 'k8s.apps/StatefulSet'
             item['_discovery_id'] = 'k8s.statefulset.list'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s list_stateful_set_for_all_namespaces failed: {e}")
     logger.info(f"  statefulset: {len(resources)} statefulsets found")
@@ -579,7 +596,7 @@ def _scan_persistent_volumes(core_v1, apps_v1, cluster_name: str, region: str, c
             item['kind'] = 'PersistentVolume'
             item['resource_type'] = 'k8s.core/PersistentVolume'
             item['_discovery_id'] = 'k8s.persistentvolume.list'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s list_persistent_volume failed: {e}")
     logger.info(f"  persistentvolume: {len(resources)} pvs found")
@@ -599,7 +616,7 @@ def _scan_jobs(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -
             item['kind'] = 'Job'
             item['resource_type'] = 'k8s.batch/Job'
             item['_discovery_id'] = 'k8s.job.list'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s list_job_for_all_namespaces failed: {e}")
     logger.info(f"  job: {len(resources)} jobs found")
@@ -619,7 +636,7 @@ def _scan_cronjobs(core_v1, apps_v1, cluster_name: str, region: str, config: Dic
             item['kind'] = 'CronJob'
             item['resource_type'] = 'k8s.batch/CronJob'
             item['_discovery_id'] = 'k8s.cronjob.list'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s list_cron_job_for_all_namespaces failed: {e}")
     logger.info(f"  cronjob: {len(resources)} cronjobs found")
@@ -640,7 +657,7 @@ def _scan_hpas(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -
             item['kind'] = 'HorizontalPodAutoscaler'
             item['resource_type'] = 'k8s.autoscaling/HorizontalPodAutoscaler'
             item['_discovery_id'] = 'k8s.hpa.list'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s list_horizontal_pod_autoscaler_for_all_namespaces failed: {e}")
     logger.info(f"  horizontalpodautoscaler: {len(resources)} hpas found")
@@ -660,7 +677,7 @@ def _scan_storageclasses(core_v1, apps_v1, cluster_name: str, region: str, confi
             item['kind'] = 'StorageClass'
             item['resource_type'] = 'k8s.storage/StorageClass'
             item['_discovery_id'] = 'k8s.storageclass.list'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s list_storage_class failed: {e}")
     logger.info(f"  storageclass: {len(resources)} storageclasses found")
@@ -678,7 +695,7 @@ def _scan_replicasets(core_v1, apps_v1, cluster_name: str, region: str, config: 
             item['kind'] = 'ReplicaSet'
             item['resource_type'] = 'k8s.apps/ReplicaSet'
             item['_discovery_id'] = 'k8s.replicaset.list'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s list_replica_set_for_all_namespaces failed: {e}")
     logger.info(f"  replicaset: {len(resources)} replicasets found")
@@ -696,7 +713,7 @@ def _scan_resourcequotas(core_v1, apps_v1, cluster_name: str, region: str, confi
             item['kind'] = 'ResourceQuota'
             item['resource_type'] = 'k8s.core/ResourceQuota'
             item['_discovery_id'] = 'k8s.resourcequota.list'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s list_resource_quota_for_all_namespaces failed: {e}")
     logger.info(f"  resourcequota: {len(resources)} resourcequotas found")
@@ -716,7 +733,7 @@ def _scan_events(core_v1, apps_v1, cluster_name: str, region: str, config: Dict)
             item['kind'] = 'Event'
             item['resource_type'] = 'k8s.core/Event'
             item['_discovery_id'] = 'k8s.audit.list_event_for_all_namespaces'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s list_event_for_all_namespaces failed: {e}")
     logger.info(f"  event: {len(resources)} warning events found")
@@ -737,7 +754,7 @@ def _scan_admission_webhooks(core_v1, apps_v1, cluster_name: str, region: str, c
             item['kind'] = 'ValidatingWebhookConfiguration'
             item['resource_type'] = 'k8s.admissionregistration/ValidatingWebhookConfiguration'
             item['_discovery_id'] = 'k8s.admission.list_validating_webhook_configuration'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s list_validating_webhook_configuration failed: {e}")
     # MutatingWebhookConfigurations (2 rules)
@@ -748,7 +765,7 @@ def _scan_admission_webhooks(core_v1, apps_v1, cluster_name: str, region: str, c
             item['kind'] = 'MutatingWebhookConfiguration'
             item['resource_type'] = 'k8s.admissionregistration/MutatingWebhookConfiguration'
             item['_discovery_id'] = 'k8s.admission.list_mutating_webhook_configuration'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s list_mutating_webhook_configuration failed: {e}")
     logger.info(f"  admission: {len(resources)} webhook configs found")
@@ -884,7 +901,7 @@ def _scan_apiserver(core_v1, apps_v1, cluster_name: str, region: str, config: Di
             item['kind'] = 'APIServer'
             item['resource_type'] = 'k8s.controlplane/APIServer'
             item['_discovery_id'] = 'k8s.apiserver.list_component_status'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s apiserver scan failed: {e}")
     logger.info(f"  apiserver: {len(resources)} pod(s) found")
@@ -914,7 +931,7 @@ def _scan_etcd(core_v1, apps_v1, cluster_name: str, region: str, config: Dict) -
             item['kind'] = 'Etcd'
             item['resource_type'] = 'k8s.controlplane/Etcd'
             item['_discovery_id'] = 'k8s.etcd.list_component_status'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s etcd scan failed: {e}")
     logger.info(f"  etcd: {len(resources)} pod(s) found")
@@ -941,7 +958,7 @@ def _scan_scheduler(core_v1, apps_v1, cluster_name: str, region: str, config: Di
             item['kind'] = 'Scheduler'
             item['resource_type'] = 'k8s.controlplane/Scheduler'
             item['_discovery_id'] = 'k8s.scheduler.list_component_status'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s scheduler scan failed: {e}")
     logger.info(f"  scheduler: {len(resources)} pod(s) found")
@@ -973,7 +990,7 @@ def _scan_controller_manager(core_v1, apps_v1, cluster_name: str, region: str, c
             item['kind'] = 'ControllerManager'
             item['resource_type'] = 'k8s.controlplane/ControllerManager'
             item['_discovery_id'] = 'k8s.controlplane.list_component_status'
-            resources.append(_enrich_k8s_item(item))
+            if (r := _enrich_k8s_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"K8s controller-manager scan failed: {e}")
     logger.info(f"  controlplane: {len(resources)} pod(s) found")
@@ -1022,6 +1039,12 @@ class K8sDiscoveryScanner(DiscoveryScanner):
 
             if cred_type in ('in_cluster', 'k8s_in_cluster'):
                 k8s_config.load_incluster_config()
+                # kubernetes>=29.0.0 changed the auth key from 'authorization' to 'BearerToken'.
+                # load_incluster_config() still sets 'authorization', so migrate it here.
+                _conf = client.Configuration.get_default_copy()
+                if 'authorization' in _conf.api_key and 'BearerToken' not in _conf.api_key:
+                    _conf.api_key['BearerToken'] = _conf.api_key.pop('authorization')
+                    client.Configuration.set_default(_conf)
                 logger.info("K8s authentication successful (in-cluster)")
 
             elif cred_type in ('kubeconfig', 'k8s_kubeconfig'):
@@ -1036,6 +1059,10 @@ class K8sDiscoveryScanner(DiscoveryScanner):
                 # Default: try in-cluster first, fall back to kubeconfig
                 try:
                     k8s_config.load_incluster_config()
+                    _conf = client.Configuration.get_default_copy()
+                    if 'authorization' in _conf.api_key and 'BearerToken' not in _conf.api_key:
+                        _conf.api_key['BearerToken'] = _conf.api_key.pop('authorization')
+                        client.Configuration.set_default(_conf)
                     logger.info("K8s authentication successful (auto: in-cluster)")
                 except k8s_config.ConfigException:
                     k8s_config.load_kube_config()
@@ -1107,12 +1134,15 @@ class K8sDiscoveryScanner(DiscoveryScanner):
         name = metadata.get('name', '')
         namespace = metadata.get('namespace', 'cluster')
         kind = item.get('kind', service).lower()
+        cluster_id = item.get('_cluster_name') or account_id or 'unknown-cluster'
+
+        canonical_uid = f"k8s/{cluster_id}/{namespace}/{kind}/{name}"
 
         return {
             'resource_arn': f"{namespace}/{kind}/{name}",
             'resource_id': uid,
             'resource_name': name,
-            'resource_uid': uid,
+            'resource_uid': canonical_uid,
             'resource_type': resource_type or item.get('resource_type', f'k8s/{kind}'),
         }
 

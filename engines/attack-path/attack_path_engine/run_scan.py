@@ -3,15 +3,25 @@ Attack Path Engine — Scan Orchestrator.
 
 Pipeline stage 6.5 — runs AFTER graph-build, BEFORE risk.
 
-Orchestration order (architecture doc section 2):
-  1. CrownJewelClassifier.classify()
-  2. Neo4jClient.reverse_bfs()
-  3. Fetch posture_lookup from resource_security_posture
-  4. scorer.score_paths() (probability_score + impact_score per path)
-  5. deduplicator.deduplicate()
-  6. choke_point_detector.detect_choke_points()
-  7. writer.write_paths() + write_path_nodes() + write_history()
-  8. posture_updater.update_attack_path_signals()
+Orchestration order:
+  1.   CrownJewelClassifier.classify()
+  2a-pre. _mark_internet_exposed_from_discoveries() — write is_internet_exposed to posture
+  2a.  Fetch internet-exposed UIDs from resource_security_posture
+  2b.  PostgreSQL BFS (pg_graph) — primary path computation, no Neo4j required
+  2c.  Neo4j BFS (fallback) — runs if pg_graph returns 0 paths and Neo4j available
+  3.   Fetch posture_lookup from resource_security_posture
+  3b.  Fetch security_findings_lookup
+  4.   scorer.score_paths() (probability_score + impact_score per path)
+  4b.  attack_vector.classify_attack_vector() — MITRE ATT&CK T1/T2/T3 + confidence per path
+  4c.  path_explainer.explain_path() — Orca-style narrative for top-50 paths
+  5.   deduplicator.deduplicate()
+  6.   choke_point_detector.detect_choke_points()
+  7.   writer.write_paths() + write_path_nodes() + write_history()
+  8.   posture_updater.update_attack_path_signals()
+  8b.  Cross-engine composite flags
+  9.   Threat pattern enrichment (optional — skipped if threat_scenario_incidents missing)
+
+Neo4j role: visualization/UI graph rendering only — no longer needed for path computation.
 
 Security notes:
   - No DEV_BYPASS_AUTH anywhere in this file.
@@ -42,18 +52,132 @@ def _jlog(event: str, **kwargs: Any) -> None:
     logger.info("{%s}", ", ".join(parts))
 
 
+def _mark_internet_exposed_from_discoveries(
+    inventory_conn: Any,
+    tenant_id: str,
+    scan_run_id: str,  # noqa: ARG001 — reserved for future audit trail
+) -> int:
+    """Read discovery or DI asset data for public indicators, upsert is_internet_exposed=true.
+
+    Checks emitted_fields for:
+      - PublicIpAddress IS NOT NULL       → EC2 instances, ENIs
+      - PubliclyAccessible = 'true'       → RDS, ElastiCache, Redshift
+      - Scheme = 'internet-facing'        → ALB, NLB, Classic ELB
+      - FunctionUrl IS NOT NULL           → Lambda with public URL
+      - resource_type in API gateway types → always internet-facing
+
+    Writes to resource_security_posture via UPSERT. Only asserts true — never sets false.
+
+    Returns count of resources marked.
+    """
+    import os as _os
+    _di_enabled = _os.getenv("DI_ENGINE_ENABLED", "false").lower() == "true"
+
+    try:
+        # Ensure clean transaction state — inventory_conn is shared across scan stages
+        try:
+            inventory_conn.rollback()
+        except Exception:
+            pass
+
+        if _di_enabled:
+            from engine_common.db_connections import get_di_conn
+            src_conn = get_di_conn()
+            table = "asset_inventory"
+        else:
+            from engine_common.db_connections import get_discoveries_conn
+            src_conn = get_discoveries_conn()
+            table = "discovery_findings"
+
+        disc_conn = src_conn
+        try:
+            with disc_conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    SELECT DISTINCT resource_uid
+                    FROM {table}
+                    WHERE tenant_id = %s
+                      AND resource_uid IS NOT NULL
+                      AND resource_uid != ''
+                      AND (
+                        (emitted_fields->>'PublicIpAddress') IS NOT NULL
+                        OR (emitted_fields->>'PubliclyAccessible') = 'true'
+                        OR (emitted_fields->>'Scheme') = 'internet-facing'
+                        OR (emitted_fields->>'FunctionUrl') IS NOT NULL
+                        OR resource_type IN (
+                          'apigateway.restapi',
+                          'apigateway.httpapi',
+                          'apigateway.v2api',
+                          'apigatewayv2.api'
+                        )
+                      )
+                    """,
+                    (tenant_id,),
+                )
+                exposed_uids = [row[0] for row in cur.fetchall()]
+        finally:
+            disc_conn.close()
+
+        if not exposed_uids:
+            logger.info(
+                "No internet-exposed resources in %s tenant=%s", table, tenant_id
+            )
+            return 0
+
+        # UPDATE only — never INSERT. New posture rows require account_id/provider/resource_type
+        # which we don't have here. Resources without a posture row yet will get one on the
+        # next inventory engine run; we only flag exposure on existing rows.
+        with inventory_conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE resource_security_posture
+                SET is_internet_exposed = true,
+                    updated_at          = NOW()
+                WHERE tenant_id  = %s
+                  AND resource_uid = ANY(%s)
+                """,
+                (tenant_id, exposed_uids),
+            )
+            updated = cur.rowcount
+        # Commit immediately — this UPDATE must persist even when BFS finds 0 paths.
+        # Without commit(), the marks are rolled back when inventory_conn is closed
+        # and the next scan sees no entry points → perpetual 0-path result.
+        inventory_conn.commit()
+        logger.info(
+            "Marked %d resources is_internet_exposed=true (from %d discovered) tenant=%s",
+            updated,
+            len(exposed_uids),
+            tenant_id,
+        )
+        return updated
+
+    except Exception as exc:
+        logger.warning("Could not mark internet_exposed from discoveries (non-fatal): %s", exc)
+        try:
+            inventory_conn.rollback()
+        except Exception:
+            pass
+        return 0
+
+
 def _fetch_internet_exposed_uids(
     inventory_conn: Any,
     tenant_id: str,
 ) -> list:
-    """Return resource_uids where is_internet_exposed=true in resource_security_posture.
+    """Return resource_uids that are internet-exposed.
 
-    Not filtered by scan_run_id — posture is accumulated across scans so even
-    resources scanned in a previous run are valid entry point candidates.
-    Replaces the :Internet Neo4j node dependency — posture is the authoritative signal.
+    Merges two sources:
+      1. resource_security_posture WHERE is_internet_exposed=true  (network/check engine signal)
+      2. inventory_relationships WHERE relation_type='internet_connected' (FROM side = exposed resource)
+
+    Source 2 is critical when posture rows don't yet exist for newly discovered resources.
+    The FROM side of an internet_connected edge is always the cloud resource (e.g. EC2 instance);
+    the TO side is always the synthetic 'internet:0.0.0.0/0' sentinel node.
     """
+    uids: set = set()
     try:
         with inventory_conn.cursor() as cur:
+            # Source 1: posture table
             cur.execute(
                 """
                 SELECT DISTINCT resource_uid
@@ -63,10 +187,173 @@ def _fetch_internet_exposed_uids(
                 """,
                 (tenant_id,),
             )
-            return [row[0] for row in cur.fetchall()]
+            for row in cur.fetchall():
+                uids.add(row[0])
+
+            # Source 2: inventory_relationships internet_connected edges
+            cur.execute(
+                """
+                SELECT DISTINCT COALESCE(from_uid, source_resource_uid) AS uid
+                FROM inventory_relationships
+                WHERE tenant_id = %s
+                  AND COALESCE(relation_type, relationship_type) = 'internet_connected'
+                  AND COALESCE(from_uid, source_resource_uid) IS NOT NULL
+                  AND COALESCE(from_uid, source_resource_uid) NOT LIKE 'internet:%%'
+                """,
+                (tenant_id,),
+            )
+            rel_uids = [row[0] for row in cur.fetchall()]
+            uids.update(rel_uids)
+            if rel_uids:
+                logger.info(
+                    "Added %d internet-exposed UIDs from inventory_relationships tenant=%s",
+                    len(rel_uids), tenant_id,
+                )
     except Exception as exc:
         logger.warning("Could not fetch internet-exposed UIDs: %s", exc)
-        return []
+        try:
+            inventory_conn.rollback()
+        except Exception:
+            pass
+    return list(uids)
+
+
+def _build_iam_permission_edges(
+    tenant_id: str,
+    posture_lookup: Dict[str, Any],
+    scan_run_id: str = "",
+) -> Dict[str, list]:
+    """Build synthetic IAM role → crown jewel edges from iam_policy_statements.
+
+    These edges supplement inventory_relationships for cases where the IAM engine
+    has written policy statement data but the inventory engine has not yet linked
+    role ARNs to the resources they can access.
+
+    For non-AWS tenants the iam_policy_statements table is empty (IAM engine only
+    processes AWS IAM), so the function returns {} naturally with no code changes
+    needed.
+
+    Attack chain enabled:
+      Internet → EC2 → (assumes) → IAM role → (grants_access_to) → Crown Jewel
+
+    Returns:
+        Dict[role_arn → List[(crown_jewel_uid, 'grants_access_to', 'iam.role', crown_jewel_type)]]
+    """
+    # Map IAM service prefix → resource_type substrings that classify as that service
+    SERVICE_TO_TYPE_HINTS: Dict[str, list] = {
+        "s3":              ["s3.bucket", "s3."],
+        "dynamodb":        ["dynamodb.table", "dynamodb."],
+        "secretsmanager":  ["secretsmanager.secret", "secretsmanager."],
+        "kms":             ["kms.key", "kms."],
+        "rds":             ["rds.db-instance", "rds.cluster", "rds."],
+        "elasticache":     ["elasticache.cluster", "elasticache."],
+        "kinesis":         ["kinesis.stream", "kinesis."],
+        "eks":             ["eks.cluster", "eks."],
+        "ecr":             ["ecr.repository", "ecr."],
+        "glue":            ["glue.database", "glue.table", "glue."],
+        "athena":          ["athena.workgroup", "athena."],
+        "emr":             ["emr.cluster", "emr."],
+        "sagemaker":       ["sagemaker.", "sagemaker.model"],
+        "ecs":             ["ecs.cluster", "ecs."],
+        "lambda":          ["lambda.function", "lambda."],
+        "redshift":        ["redshift.cluster", "redshift."],
+        "es":              ["opensearch.", "elasticsearch."],
+        "opensearch":      ["opensearch.", "opensearch.domain"],
+        "backup":          ["backup.backup-vault", "backup."],
+        "efs":             ["elasticfilesystem.", "efs."],
+    }
+
+    # Pre-build crown jewels grouped by service prefix
+    cj_by_service: Dict[str, list] = {}
+    for uid, row in posture_lookup.items():
+        if not getattr(row, "is_crown_jewel", False):
+            continue
+        rtype = getattr(row, "resource_type", "") or ""
+        for svc, hints in SERVICE_TO_TYPE_HINTS.items():
+            if any(rtype.startswith(h) or h in rtype for h in hints):
+                cj_by_service.setdefault(svc, []).append((uid, rtype))
+
+    if not cj_by_service:
+        logger.info("No crown jewels found in posture — skipping IAM edge build")
+        return {}
+
+    extra_edges: Dict[str, list] = {}
+
+    try:
+        from engine_common.db_connections import get_iam_conn
+        iam_conn = get_iam_conn()
+    except Exception as exc:
+        logger.warning("IAM DB unavailable — skipping IAM permission edges: %s", exc)
+        return {}
+
+    try:
+        with iam_conn.cursor() as cur:
+            params = [tenant_id]
+            scan_filter = ""
+            if scan_run_id:
+                scan_filter = "AND scan_run_id = %s"
+                params.append(scan_run_id)
+            cur.execute(
+                f"""
+                SELECT DISTINCT attached_to_arn, actions, effect, attached_to_type
+                FROM iam_policy_statements
+                WHERE tenant_id = %s
+                  {scan_filter}
+                  AND effect = 'Allow'
+                  AND attached_to_arn IS NOT NULL
+                  AND actions IS NOT NULL
+                  AND NOT COALESCE(not_action_mode, FALSE)
+                """,
+                params,
+            )
+            rows = cur.fetchall()
+
+        # Build role → services_it_can_access
+        from collections import defaultdict
+        role_services: Dict[str, set] = defaultdict(set)
+        for role_arn, actions, _effect, attached_type in rows:
+            if not role_arn or not isinstance(actions, list):
+                continue
+            for action in actions:
+                if not isinstance(action, str):
+                    continue
+                action_lower = action.lower().strip()
+                if action_lower in ("*", "*:*"):
+                    # Wildcard — can access everything
+                    role_services[role_arn].update(SERVICE_TO_TYPE_HINTS.keys())
+                elif ":" in action_lower:
+                    svc = action_lower.split(":")[0]
+                    if svc in SERVICE_TO_TYPE_HINTS:
+                        role_services[role_arn].add(svc)
+
+        # Build extra_edges: role → [(crown_uid, 'grants_access_to', 'iam.role', rtype)]
+        for role_arn, services in role_services.items():
+            edges = []
+            for svc in services:
+                for (cj_uid, cj_rtype) in cj_by_service.get(svc, []):
+                    edges.append((cj_uid, "grants_access_to", "iam.role", cj_rtype))
+            if edges:
+                extra_edges[role_arn] = edges
+
+        logger.info(
+            "IAM permission edges: %d roles → %d synthetic edges (tenant=%s)",
+            len(extra_edges),
+            sum(len(v) for v in extra_edges.values()),
+            tenant_id,
+        )
+    except Exception as exc:
+        logger.warning("IAM permission edge build failed (non-fatal): %s", exc)
+        try:
+            iam_conn.rollback()
+        except Exception:
+            pass
+    finally:
+        try:
+            iam_conn.close()
+        except Exception:
+            pass
+
+    return extra_edges
 
 
 def run_attack_path_scan(
@@ -163,35 +450,63 @@ def run_attack_path_scan(
         metrics["crown_jewel_count"] = cj_count
         _jlog("crown_jewels_classified", count=cj_count, scan_run_id=scan_run_id)
 
+        # ── Stage 2a-pre: Write is_internet_exposed from discovery data ─────────
+        # Reads discovery_findings.emitted_fields for public indicators
+        # (PublicIpAddress, PubliclyAccessible, Scheme=internet-facing, FunctionUrl)
+        # and upserts is_internet_exposed=true into resource_security_posture.
+        # This runs BEFORE the BFS lookup so the BFS immediately sees real entry points
+        # without requiring the network engine to have written to posture first.
+        _jlog("stage", name="internet_exposed_mark", scan_run_id=scan_run_id)
+        marked_count = _mark_internet_exposed_from_discoveries(inventory_conn, tenant_id, scan_run_id)
+        _jlog("internet_exposed_marked", count=marked_count, scan_run_id=scan_run_id)
+
         # ── Stage 2a: Fetch internet-exposed UIDs from resource_security_posture ─
-        # Reads is_internet_exposed=true from posture BEFORE BFS so the BFS can
-        # treat those resources as internet entry points. This removes the
-        # dependency on graph-build creating an :Internet node — the posture table
-        # (populated by network/check engines) is the authoritative signal.
         _jlog("stage", name="internet_exposed_lookup", scan_run_id=scan_run_id)
         internet_exposed_uids = _fetch_internet_exposed_uids(inventory_conn, tenant_id)
         _jlog("internet_exposed_uids", count=len(internet_exposed_uids), scan_run_id=scan_run_id)
 
-        # ── Stage 2b: Reverse BFS ─────────────────────────────────────────────
-        _jlog("stage", name="bfs", scan_run_id=scan_run_id)
-        from .graph.neo4j_client import Neo4jClient
-        neo4j_client = Neo4jClient()
-        raw_paths = neo4j_client.reverse_bfs(
+        # ── Stage 3: Fetch posture_lookup ────────────────────────────────────
+        # Loaded BEFORE BFS so pg_graph can use is_crown_jewel from posture.
+        _jlog("stage", name="posture_lookup", scan_run_id=scan_run_id)
+        posture_lookup = _build_posture_lookup(inventory_conn, scan_run_id, tenant_id)
+        _jlog("posture_lookup_built", entries=len(posture_lookup), scan_run_id=scan_run_id)
+
+        # ── Stage 2b-pre: IAM permission edges (synthetic graph enrichment) ────
+        # Reads iam_policy_statements to build IAM role → crown jewel edges.
+        # Attack path enabled: Internet → EC2 → (assumes) → IAM role → (grants_access_to) → Crown Jewel
+        _jlog("stage", name="iam_permission_edges", scan_run_id=scan_run_id)
+        iam_extra_edges = _build_iam_permission_edges(tenant_id, posture_lookup, scan_run_id)
+        _jlog("iam_permission_edges_built", synthetic_edges=sum(len(v) for v in iam_extra_edges.values()),
+              roles_with_access=len(iam_extra_edges), scan_run_id=scan_run_id)
+
+        # ── Stage 2b: PostgreSQL BFS (primary) ───────────────────────────────
+        # Reads inventory_relationships directly — no Neo4j dependency.
+        _jlog("stage", name="pg_bfs", scan_run_id=scan_run_id)
+        from .graph.pg_graph import run_pg_bfs
+        raw_paths = run_pg_bfs(
+            inventory_conn=inventory_conn,
             tenant_id=tenant_id,
             scan_run_id=scan_run_id,
             internet_exposed_uids=internet_exposed_uids,
+            posture_lookup=posture_lookup,
+            extra_edges=iam_extra_edges if iam_extra_edges else None,
         )
+        _jlog("pg_bfs_complete", raw_paths=len(raw_paths), scan_run_id=scan_run_id)
+
+        # Neo4j BFS fallback intentionally removed — pg_graph is the sole path
+        # computation engine. If pg_graph returns 0 paths (no internet-exposed
+        # resources reachable to crown jewels via inventory_relationships),
+        # we report 0 paths. A fake fallback from VirtualNodes is worse than no paths.
+        if not raw_paths:
+            _jlog("pg_bfs_no_paths", scan_run_id=scan_run_id,
+                  exposed=len(internet_exposed_uids),
+                  crown_jewels=sum(1 for r in posture_lookup.values() if getattr(r, "is_crown_jewel", False)))
+
         metrics["raw_paths_before_dedup"] = len(raw_paths)
-        _jlog("bfs_complete", raw_paths=len(raw_paths), scan_run_id=scan_run_id)
 
         if not raw_paths:
             _jlog("scan_complete_no_paths", scan_run_id=scan_run_id)
             return metrics
-
-        # ── Stage 3: Fetch posture_lookup ────────────────────────────────────
-        _jlog("stage", name="posture_lookup", scan_run_id=scan_run_id)
-        posture_lookup = _build_posture_lookup(inventory_conn, scan_run_id, tenant_id)
-        _jlog("posture_lookup_built", entries=len(posture_lookup), scan_run_id=scan_run_id)
 
         # ── Stage 3b: Fetch security_findings_lookup ─────────────────────────
         # Loads cross-engine security_findings rows keyed by resource_uid.
@@ -208,6 +523,78 @@ def run_attack_path_scan(
         from .core.scorer import score_paths
         scored_paths = score_paths(raw_paths, posture_lookup, findings_lookup)
         _jlog("paths_scored", count=len(scored_paths), scan_run_id=scan_run_id)
+
+        # ── Stage 4b: MITRE ATT&CK attack vector classification ──────────────
+        # Labels each path with T1/T2/T3 pattern, confidence level, and
+        # per-hop MITRE technique IDs. The AttackVector result is cached in
+        # av_cache (keyed by object id) so Stage 4c can reuse it without
+        # calling classify_attack_vector a second time for the top-50 paths.
+        _jlog("stage", name="attack_vector_classify", scan_run_id=scan_run_id)
+        av_cache: Dict[int, Any] = {}  # id(sp) → AttackVector
+        try:
+            from .core.attack_vector import classify_attack_vector
+            confirmed_count = 0
+            likely_count = 0
+            for sp in scored_paths:
+                av = classify_attack_vector(
+                    path_node_uids=sp.node_uids,
+                    edge_types=sp.edge_types,
+                    depth=sp.depth,
+                    posture_lookup=posture_lookup,
+                    findings_lookup=findings_lookup,
+                )
+                av_cache[id(sp)] = av
+                sp.attack_vector_type = av.vector_type
+                sp.confidence_level = av.confidence
+                sp.mitre_techniques = av.technique_ids()
+                sp.tactic_sequence = av.tactic_sequence
+                if av.confidence == "confirmed":
+                    confirmed_count += 1
+                elif av.confidence == "likely":
+                    likely_count += 1
+            _jlog(
+                "attack_vector_complete",
+                scan_run_id=scan_run_id,
+                confirmed=confirmed_count,
+                likely=likely_count,
+                speculative=len(scored_paths) - confirmed_count - likely_count,
+            )
+        except Exception as _av_err:
+            logger.warning("Attack vector classification failed (non-fatal): %s", _av_err)
+
+        # ── Stage 4c: Orca-style path explanation (top 50 paths) ─────────────
+        # Generates step-by-step narrative for the highest-scoring paths.
+        # Uses av_cache to avoid recomputing classify_attack_vector for top-50.
+        _jlog("stage", name="path_explain", scan_run_id=scan_run_id)
+        try:
+            from .core.attack_vector import classify_attack_vector
+            from .core.path_explainer import explain_path
+            top_paths = sorted(scored_paths, key=lambda p: p.path_score, reverse=True)[:50]
+            for sp in top_paths:
+                try:
+                    av = av_cache.get(id(sp)) or classify_attack_vector(
+                        path_node_uids=sp.node_uids,
+                        edge_types=sp.edge_types,
+                        depth=sp.depth,
+                        posture_lookup=posture_lookup,
+                        findings_lookup=findings_lookup,
+                    )
+                    sp.explanation = explain_path(
+                        node_uids=sp.node_uids,
+                        node_types=sp.node_types,
+                        edge_types=sp.edge_types,
+                        hop_categories=sp.hop_categories,
+                        severity=sp.severity,
+                        path_score=sp.path_score,
+                        attack_vector=av,
+                        posture_lookup=posture_lookup,
+                        findings_lookup=findings_lookup,
+                    )
+                except Exception as _exp_err:
+                    logger.debug("Path explain failed for one path (non-fatal): %s", _exp_err)
+            _jlog("path_explain_complete", count=len(top_paths), scan_run_id=scan_run_id)
+        except Exception as _pe_err:
+            logger.warning("Path explanation stage failed (non-fatal): %s", _pe_err)
 
         # ── Stage 5: Deduplicate ──────────────────────────────────────────────
         _jlog("stage", name="dedup", scan_run_id=scan_run_id)
@@ -363,7 +750,7 @@ def _build_findings_lookup(
                 FROM security_findings
                 WHERE tenant_id = %s
                   AND resource_uid = ANY(%s::varchar[])
-                  AND status = 'open'
+                  AND LOWER(status) = 'open'
                 ORDER BY resource_uid, severity DESC
                 LIMIT 5000
                 """,
@@ -418,6 +805,7 @@ def _build_posture_lookup(
                 """
                 SELECT
                     resource_uid,
+                    COALESCE(resource_type, '')              AS resource_type,
                     COALESCE(is_internet_exposed, false)     AS is_internet_exposed,
                     epss_max                                 AS max_epss,
                     COALESCE(has_waf, false)                 AS waf_protected,

@@ -181,8 +181,15 @@ class RelationshipBuilder:
         # Architecture containment: Azure resource group, K8s namespace
         relationships.extend(self._build_architecture_containment(assets, assets_by_uid))
 
-        # Special case: internet exposure (public IPs / public buckets)
+        # Special case: internet exposure (public IPs / public buckets / ALB / API GW)
         relationships.extend(self._build_internet_exposure(assets_by_type))
+
+        # Attack-path: EKS worker node membership via EC2 tags (AWS only)
+        if self.csp_id == "aws":
+            relationships.extend(self._build_eks_worker_node_from_tags(assets_by_type))
+
+        # Attack-path: private-network reachability (compute → data store in same VPC/VNet)
+        relationships.extend(self._build_vpc_proximity_edges(assets))
 
         return relationships
 
@@ -720,6 +727,183 @@ class RelationshipBuilder:
         return props
 
     # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Attack-path: EKS worker node — EC2 Tags → EKS cluster (AWS)
+    # ------------------------------------------------------------------
+
+    # EKS writes these tags onto every node-group EC2 instance
+    _EKS_CLUSTER_TAG  = "eks:cluster-name"
+    _EKS_CLUSTER_TAGS = {"eks:cluster-name", "kubernetes.io/cluster"}  # alt forms
+
+    def _build_eks_worker_node_from_tags(
+        self, assets_by_type: Dict[str, List[Asset]]
+    ) -> List[Relationship]:
+        """
+        EC2 instances that belong to an EKS node group carry the tag
+        ``eks:cluster-name=<cluster-name>``.  Use that to emit a
+        WORKER_NODE_OF edge pointing at the EKS cluster ARN.
+
+        Attack path enabled: Internet → EC2 (worker node) → WORKER_NODE_OF → EKS cluster (crown jewel)
+        """
+        relationships: List[Relationship] = []
+        ec2_assets = assets_by_type.get("ec2.instance", [])
+
+        for asset in ec2_assets:
+            meta = asset.metadata or {}
+            emitted = meta.get("emitted_fields", meta)
+            tags = emitted.get("Tags") or meta.get("Tags") or []
+
+            if not isinstance(tags, list):
+                continue
+
+            cluster_name: Optional[str] = None
+            for tag in tags:
+                if not isinstance(tag, dict):
+                    continue
+                key = tag.get("Key", "")
+                if key == self._EKS_CLUSTER_TAG or key.startswith("kubernetes.io/cluster/"):
+                    cluster_name = tag.get("Value")
+                    if key.startswith("kubernetes.io/cluster/"):
+                        # key itself encodes cluster name: kubernetes.io/cluster/<name>
+                        cluster_name = key.split("/")[-1]
+                    break
+
+            if not cluster_name or cluster_name in ("", "owned", "shared"):
+                continue
+
+            region    = asset.region or ""
+            account   = asset.account_id or ""
+            cluster_uid = f"arn:aws:eks:{region}:{account}:cluster/{cluster_name}"
+
+            relationships.append(Relationship(
+                tenant_id=self.tenant_id,
+                scan_run_id=self.scan_run_id,
+                provider=asset.provider.value,
+                account_id=account,
+                region=region,
+                relation_type=RelationType.WORKER_NODE_OF,
+                from_uid=asset.resource_uid,
+                to_uid=cluster_uid,
+                from_resource_type="ec2.instance",
+                to_resource_type="eks.cluster",
+                properties={"cluster_name": cluster_name, "source": "ec2_tags"},
+            ))
+
+        return relationships
+
+    # ------------------------------------------------------------------
+    # Attack-path: VPC proximity — compute → data store (all CSPs)
+    # ------------------------------------------------------------------
+
+    # Compute resource types per CSP that can be entry points
+    _COMPUTE_TYPES: Dict[str, set] = {
+        "aws":      {"ec2.instance", "lambda.function", "ecs.service", "eks.cluster",
+                     "fargate.cluster", "elasticbeanstalk.environment", "codebuild.project"},
+        "azure":    {"compute.VirtualMachine", "azure.virtual_machine",
+                     "azure.app_service", "azure.container_instance"},
+        "gcp":      {"gcp.compute_instance", "gcp.gke_node", "gcp.cloud_function"},
+        "oci":      {"compute.oci.core/Instance", "core.instance"},
+        "alicloud": {"ecs.instance", "fc.service"},
+        "k8s":      {"core.pod", "apps.deployment", "apps.statefulset"},
+        "ibm":      {"vpc.instance"},
+    }
+
+    # Data-store resource types that are crown-jewel candidates
+    _DATASTORE_TYPES: Dict[str, set] = {
+        "aws":      {"rds.db-instance", "rds.cluster", "dynamodb.table",
+                     "elasticache.cluster", "elasticache.replication-group",
+                     "redshift.cluster", "opensearch.domain_statu",
+                     "docdb.db-instance", "dax.resource",
+                     "secretsmanager.secret", "s3.bucket",
+                     "memorydb.resource", "timestream.resource"},
+        "azure":    {"azure.sql_database", "azure.cosmosdb", "azure.redis_cache",
+                     "azure.storage_account", "azure.key_vault"},
+        "gcp":      {"gcp.cloud_sql", "gcp.bigtable", "gcp.spanner",
+                     "gcp.cloud_storage_bucket", "gcp.firestore"},
+        "oci":      {"database.oci.core/AutonomousDatabase", "objectstorage.oci.core/Bucket"},
+        "alicloud": {"rds.dbinstance", "oss.bucket", "polardb.dbcluster"},
+        "k8s":      {"core.secret", "core.configmap", "core.persistentvolumeclaim"},
+        "ibm":      {},
+    }
+
+    # Field name that carries the VPC / VNet / network ID per CSP
+    _VPC_FIELDS: Dict[str, List[str]] = {
+        "aws":      ["VpcId", "vpcId", "vpc_id",
+                     "VpcConfig.VpcId", "DBSubnetGroup.VpcId",
+                     "resourcesVpcConfig.vpcId"],
+        "azure":    ["virtualNetworkSubnetId", "subnetId",
+                     "properties.virtualNetwork.id"],
+        "gcp":      ["networkInterfaces.0.network", "network", "subnetwork"],
+        "oci":      ["vcnId", "VcnId"],
+        "alicloud": ["VpcId", "vpc_id", "vpcConfig.vpcId"],
+        "k8s":      [],   # K8s uses namespace containment instead
+        "ibm":      ["vpc.id"],
+    }
+
+    def _get_vpc_id(self, asset: Asset) -> Optional[str]:
+        """Extract VPC/VNet/network identifier from asset metadata."""
+        csp = self.csp_id.lower()
+        fields = self._VPC_FIELDS.get(csp, [])
+        meta = asset.metadata or {}
+        emitted = meta.get("emitted_fields", meta)
+
+        for field in fields:
+            values = self._extract_field_values({"emitted_fields": emitted}, field)
+            if values and values[0]:
+                return str(values[0])
+        return None
+
+    def _build_vpc_proximity_edges(self, assets: List[Asset]) -> List[Relationship]:
+        """
+        Connect compute assets to data-store assets in the same private network
+        (VPC / VNet / VCN) using NETWORK_REACHABLE edges.
+
+        Attack path enabled: Internet → EC2 → NETWORK_REACHABLE → RDS/ElastiCache/Secrets (crown jewel)
+        """
+        relationships: List[Relationship] = []
+        csp = self.csp_id.lower()
+
+        compute_types  = self._COMPUTE_TYPES.get(csp, set())
+        datastore_types = self._DATASTORE_TYPES.get(csp, set())
+
+        if not compute_types or not datastore_types:
+            return relationships
+
+        # Group assets by VPC ID
+        compute_by_vpc:   Dict[str, List[Asset]] = {}
+        datastore_by_vpc: Dict[str, List[Asset]] = {}
+
+        for asset in assets:
+            vpc_id = self._get_vpc_id(asset)
+            if not vpc_id:
+                continue
+            if asset.resource_type in compute_types:
+                compute_by_vpc.setdefault(vpc_id, []).append(asset)
+            elif asset.resource_type in datastore_types:
+                datastore_by_vpc.setdefault(vpc_id, []).append(asset)
+
+        # Emit NETWORK_REACHABLE for every (compute, datastore) pair in same VPC
+        for vpc_id, computes in compute_by_vpc.items():
+            datastores = datastore_by_vpc.get(vpc_id, [])
+            for compute in computes:
+                for store in datastores:
+                    relationships.append(Relationship(
+                        tenant_id=self.tenant_id,
+                        scan_run_id=self.scan_run_id,
+                        provider=compute.provider.value,
+                        account_id=compute.account_id,
+                        region=compute.region,
+                        relation_type=RelationType.NETWORK_REACHABLE,
+                        from_uid=compute.resource_uid,
+                        to_uid=store.resource_uid,
+                        from_resource_type=compute.resource_type,
+                        to_resource_type=store.resource_type,
+                        properties={"vpc_id": vpc_id, "source": "vpc_proximity"},
+                    ))
+
+        return relationships
+
+    # ------------------------------------------------------------------
     # Internet exposure — field-based, works for all CSPs
     # ------------------------------------------------------------------
 
@@ -750,6 +934,12 @@ class RelationshipBuilder:
         # Generic
         "isPublic", "is_public", "PublicAccess",
     )
+
+    # ALB/NLB scheme values that mean internet-facing
+    _INTERNET_FACING_SCHEME = {"internet-facing", "Internet", "External", "external", "Public"}
+
+    # Fields that carry the load-balancer / API scheme
+    _SCHEME_FIELDS = ("Scheme", "scheme", "load_balancer_type")
 
     def _build_internet_exposure(
         self, assets_by_type: Dict[str, List[Asset]]
@@ -793,6 +983,57 @@ class RelationshipBuilder:
                             props["public_access"] = True
                             exposed = True
                             break
+
+                # --- ALB/NLB/API GW scheme check ---
+                if not exposed:
+                    for field in self._SCHEME_FIELDS:
+                        val = all_fields.get(field)
+                        if val and str(val) in self._INTERNET_FACING_SCHEME:
+                            props["scheme"] = str(val)
+                            exposed = True
+                            break
+
+                # --- ALB/NLB: DNSName fallback (Resource Explorer omits Scheme) ---
+                # If Scheme is absent but DNSName is set, use DNS prefix to infer exposure.
+                # Internal LBs always have a DNS name starting with "internal-".
+                if not exposed:
+                    dns_name = (
+                        all_fields.get("DNSName") or
+                        all_fields.get("dns_name") or
+                        all_fields.get("DnsName") or ""
+                    )
+                    if dns_name and isinstance(dns_name, str) and dns_name.strip():
+                        rtype_lower = asset.resource_type.lower()
+                        is_lb_type = (
+                            "load-balancer" in rtype_lower or
+                            "loadbalancer" in rtype_lower or
+                            rtype_lower in ("elbv2.load-balancer", "elasticloadbalancing.loadbalancer")
+                        )
+                        if is_lb_type and not dns_name.lower().startswith("internal-"):
+                            props["dns_name"] = dns_name
+                            exposed = True
+
+                # --- AWS API Gateway REST APIs are always internet-facing ---
+                if not exposed and asset.resource_type in (
+                    "apigateway.rest-api", "apigatewayv2.api",
+                    "apigateway.item_stage", "apigatewayv2.item_stage",
+                ):
+                    props["always_public"] = True
+                    exposed = True
+
+                # --- Lambda Function URL (direct HTTPS invoke) ---
+                if not exposed:
+                    fn_url = all_fields.get("FunctionUrl") or all_fields.get("function_url")
+                    if fn_url and isinstance(fn_url, str) and fn_url.startswith("https://"):
+                        props["function_url"] = fn_url
+                        exposed = True
+
+                # --- Azure: publicNetworkAccess = Enabled ---
+                if not exposed:
+                    pna = all_fields.get("publicNetworkAccess") or all_fields.get("PublicNetworkAccess")
+                    if pna in ("Enabled", "enabled", True):
+                        props["public_network_access"] = True
+                        exposed = True
 
                 if exposed:
                     relationships.append(Relationship(

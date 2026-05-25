@@ -550,7 +550,6 @@ spec:
             "discovery":         "http://engine-discoveries/api/v1/discovery",
             "check":             "http://engine-check/api/v1/scan",
             "inventory":         "http://engine-inventory/api/v1/inventory/scan/discovery",
-            "threat":            "http://engine-threat/api/v1/internal/scan",
             "compliance":        "http://engine-compliance/api/v1/scan",
             "iam":               "http://engine-iam/api/v1/scan",
             "datasec":           "http://engine-datasec/api/v1/scan",
@@ -562,8 +561,8 @@ spec:
             "network-security":  "http://engine-network/api/v1/network-security/scan",
             "risk":              "http://engine-risk:8009/api/v1/scan",
             "secops":            "http://engine-secops/api/v1/scan",
-            "threat-narrative":  "http://engine-threat-narrative/api/v1/generate",
-            "graph-build":       "http://engine-threat/api/v1/graph/build",
+            "attack-path-narrative":  "http://engine-attack-path-narrative/api/v1/generate",
+            "graph-build":       "http://engine-attack-path.threat-engine-engines.svc.cluster.local:80/api/v1/graph/build",
             "api-security":      "http://engine-api-security/api/v1/apisec/scan",
             "attack-path":       "http://engine-attack-path:80/api/v1/internal/scan",
             "vulnerability":     "http://engine-vulnerability/api/v1/scan",
@@ -654,8 +653,8 @@ spec:
         import subprocess; subprocess.run(["pip", "install", "-q", "requests"], check=True)
         import requests, time, sys, json, os
 
-        TRIGGER_URL = "http://engine-threat/api/v1/graph/build"
-        POLL_BASE   = "http://engine-threat/api/v1/graph/build/status"
+        TRIGGER_URL = "http://engine-attack-path.threat-engine-engines.svc.cluster.local:80/api/v1/graph/build"
+        POLL_BASE   = "http://engine-attack-path.threat-engine-engines.svc.cluster.local:80/api/v1/graph/build/status"
         SCAN_RUN_ID = "{{inputs.parameters.scan-run-id}}"
         TENANT_ID   = "{{inputs.parameters.tenant-id}}"
         TIMEOUT     = 540
@@ -668,7 +667,7 @@ spec:
         auth_ctx = json.dumps({
             "user_id": "argo-pipeline", "email": "pipeline@internal.cluster",
             "role": "platform_admin", "level": 1, "scope_level": "platform",
-            "permissions": ["threat:read", "threat:write"],
+            "permissions": ["attack_path:read", "attack_path:write"],
             "org_ids": None, "tenant_ids": None, "account_ids": None,
             "engine_tenant_id": TENANT_ID
         })
@@ -954,3 +953,41 @@ spec:
         except Exception as exc:
             print(f"[mitre-enrich] Non-fatal error: {exc}")
             sys.exit(0)  # always exit 0 — never block graph-build
+
+  # ── CDR nudge ──────────────────────────────────────────────────────────────
+  # Fire-and-forget POST to CDR engine. Always exits 0 — CDR downtime must
+  # never block the main pipeline from completing.
+  - name: cdr-nudge
+    inputs:
+      parameters:
+      - name: scan-run-id
+      - name: tenant-id
+      - name: account-id
+      - name: provider
+      - name: credential-ref
+      - name: credential-type
+    script:
+      image: python:3.11-slim
+      command: [python3, -u]
+      source: |
+        import urllib.request, json, sys
+        payload = json.dumps({
+          "scan_run_id":     "{{inputs.parameters.scan-run-id}}",
+          "tenant_id":       "{{inputs.parameters.tenant-id}}",
+          "account_id":      "{{inputs.parameters.account-id}}",
+          "provider":        "{{inputs.parameters.provider}}",
+          "credential_ref":  "{{inputs.parameters.credential-ref}}",
+          "credential_type": "{{inputs.parameters.credential-type}}"
+        }).encode()
+        try:
+            req = urllib.request.Request(
+                "http://engine-cdr/api/v1/scan",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=10) as r:
+                print(f"[cdr-nudge] CDR triggered: HTTP {r.status}")
+        except Exception as e:
+            print(f"[cdr-nudge] CDR unavailable (non-fatal): {e}")
+        sys.exit(0)

@@ -19,7 +19,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import {
   Globe, Database, Server, Key, Lock, Shield,
-  Network, Box, Cpu, HardDrive, Cloud, Activity,
+  Network, Box, Cpu, HardDrive, Cloud, Activity, Wifi,
 } from 'lucide-react';
 
 // ── Type → icon + color ───────────────────────────────────────────────────────
@@ -259,7 +259,140 @@ function AttackNode({ data }) {
   );
 }
 
-const nodeTypes = { attackNode: AttackNode };
+// ── Source Node (Internet / VPN / Peer Account) ───────────────────────────────
+
+const SOURCE_CONFIGS = {
+  internet:     { Icon: Globe,    color: '#ef4444', label: 'Internet',     subtitle: 'External Threat Source' },
+  vpn:          { Icon: Network,  color: '#f97316', label: 'VPN',          subtitle: 'VPN Connection' },
+  onprem:       { Icon: Server,   color: '#f97316', label: 'On-Premises',  subtitle: 'On-Premises Network' },
+  peer_account: { Icon: Cloud,    color: '#a855f7', label: 'Peer Account', subtitle: 'Cross-Account Access' },
+};
+
+function SourceNode({ data }) {
+  const entryType = (data.node_type || 'internet').toLowerCase();
+  const cfg = SOURCE_CONFIGS[entryType] || SOURCE_CONFIGS.internet;
+
+  return (
+    <>
+      <style>{`
+        @keyframes src-pulse {
+          0%   { transform: scale(1);   opacity: 0.6; }
+          50%  { transform: scale(1.08); opacity: 0.25; }
+          100% { transform: scale(1);   opacity: 0.6; }
+        }
+        @keyframes src-pulse2 {
+          0%   { transform: scale(1);   opacity: 0.35; }
+          50%  { transform: scale(1.15); opacity: 0.1; }
+          100% { transform: scale(1);   opacity: 0.35; }
+        }
+      `}</style>
+
+      <div
+        style={{
+          width: 108,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 8,
+          position: 'relative',
+        }}
+      >
+        {/* Outer pulse ring 2 */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 108,
+            height: 108,
+            borderRadius: '50%',
+            border: `1px dashed ${cfg.color}`,
+            animation: 'src-pulse2 3s ease-in-out infinite',
+            marginTop: -14,
+            pointerEvents: 'none',
+          }}
+        />
+        {/* Outer pulse ring 1 */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 92,
+            height: 92,
+            borderRadius: '50%',
+            border: `1.5px dashed ${cfg.color}60`,
+            animation: 'src-pulse 2.4s ease-in-out infinite',
+            marginTop: -14,
+            pointerEvents: 'none',
+          }}
+        />
+
+        {/* Core oval */}
+        <div
+          style={{
+            width: 78,
+            height: 78,
+            borderRadius: '50%',
+            border: `2px dashed ${cfg.color}`,
+            backgroundColor: `${cfg.color}12`,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 5,
+            boxShadow: `0 0 24px ${cfg.color}30, inset 0 0 20px ${cfg.color}08`,
+            position: 'relative',
+            zIndex: 1,
+          }}
+        >
+          <cfg.Icon style={{ width: 26, height: 26, color: cfg.color }} />
+          <span
+            style={{
+              fontSize: 8,
+              fontWeight: 800,
+              color: cfg.color,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+            }}
+          >
+            {cfg.label}
+          </span>
+        </div>
+
+        {/* Subtitle */}
+        <span
+          style={{
+            fontSize: 9,
+            color: 'rgba(255,255,255,0.45)',
+            textAlign: 'center',
+            lineHeight: 1.3,
+            maxWidth: 100,
+            position: 'relative',
+            zIndex: 1,
+          }}
+        >
+          {cfg.subtitle}
+        </span>
+
+        {/* Source handle — right side, vertically centered on the oval */}
+        <Handle
+          type="source"
+          position={Position.Right}
+          style={{
+            ...HANDLE_STYLE,
+            right: -4,
+            top: 39,
+          }}
+        />
+      </div>
+    </>
+  );
+}
+
+const nodeTypes = { attackNode: AttackNode, sourceNode: SourceNode };
 
 // ── Steps → RF nodes + edges ──────────────────────────────────────────────────
 
@@ -267,12 +400,16 @@ const NODE_WIDTH = 110;
 const NODE_GAP   = 130;
 
 function stepsToGraph(steps, selectedNodeUid) {
+  // Filter topology scaffolding nodes — these are not real cloud resources
+  const visibleSteps = steps.filter(s => s.node_type !== 'VirtualNode');
+  steps = visibleSteps;
   const nodes = steps.map((step, i) => {
     const id = step.node_uid || `node-${i}`;
+    const isSource = id.startsWith('__source__');
     return {
       id,
-      type: 'attackNode',
-      position: { x: i * (NODE_WIDTH + NODE_GAP), y: 20 },
+      type: isSource ? 'sourceNode' : 'attackNode',
+      position: { x: i * (NODE_WIDTH + NODE_GAP), y: isSource ? 10 : 20 },
       data: {
         ...step,
         isFirst:    i === 0,
@@ -284,9 +421,14 @@ function stepsToGraph(steps, selectedNodeUid) {
   });
 
   const edges = steps.slice(0, -1).map((step, i) => {
-    const color  = resolveEdgeColor(step.edge_to_next);
-    const srcId  = step.node_uid || `node-${i}`;
-    const tgtId  = steps[i + 1].node_uid || `node-${i + 1}`;
+    const color   = resolveEdgeColor(step.edge_to_next);
+    const srcId   = step.node_uid || `node-${i}`;
+    const tgtId   = steps[i + 1].node_uid || `node-${i + 1}`;
+    const rawEdge = (step.edge_to_next || '').replace(/_/g, ' ');
+    const edgeLabel = rawEdge.length > 0
+      ? rawEdge.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
+      : null;
+
     return {
       id: `e-${i}`,
       source: srcId,
@@ -294,6 +436,22 @@ function stepsToGraph(steps, selectedNodeUid) {
       animated: !!step.cdr_actor_active,
       style: { stroke: color, strokeWidth: 2 },
       markerEnd: { type: MarkerType.ArrowClosed, color, width: 18, height: 18 },
+      label: edgeLabel,
+      labelStyle: {
+        fill: color,
+        fontSize: 8,
+        fontWeight: 700,
+        letterSpacing: '0.04em',
+        textTransform: 'uppercase',
+      },
+      labelBgStyle: {
+        fill: '#0c111d',
+        fillOpacity: 0.85,
+        stroke: `${color}40`,
+        strokeWidth: 1,
+        rx: 4,
+      },
+      labelBgPadding: [4, 6],
     };
   });
 
@@ -402,7 +560,13 @@ function CanvasInner({ detail, loading, selectedNodeUid, onNodeClick }) {
         }}
       />
       <MiniMap
-        nodeColor={node => resolveType(node.data?.node_type).color}
+        nodeColor={node => {
+          const uid = node.data?.node_uid || '';
+          if (uid.startsWith('__source__')) {
+            return (SOURCE_CONFIGS[node.data?.node_type] || SOURCE_CONFIGS.internet).color;
+          }
+          return resolveType(node.data?.node_type).color;
+        }}
         style={{
           backgroundColor: '#0c111d',
           border: '1px solid rgba(255,255,255,0.1)',

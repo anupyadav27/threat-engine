@@ -45,21 +45,22 @@ WHERE crown.tenant_id = $tid
   AND crown.is_crown_jewel = true
   AND (
         origin:Internet
-     OR origin:VirtualNode
      OR (
           origin:Resource AND origin.tenant_id = $tid
+          AND NOT 'VirtualNode' IN labels(origin)
           AND (
                origin.entry_point_type IN ['internet', 'Internet']
             OR origin.node_type IN ['Internet', 'OnPrem', 'DataCenter', 'Vendor', 'K8sExternal']
             OR origin.entry_point_type IN ['onprem', 'vpn', 'peer_account', 'vendor', 'k8s_external']
             OR origin.node_type IN ['PeerAccount', 'peer_account']
             OR origin.resource_uid IN $exposed_uids
+            OR origin.internet_exposed = true
+            OR origin.is_internet_exposed = true
           )
        )
   )
   AND ALL(n IN nodes(path) WHERE (
         'Internet' IN labels(n)
-     OR 'VirtualNode' IN labels(n)
      OR n.tenant_id = $tid
   ))
 

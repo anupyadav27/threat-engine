@@ -1,10 +1,10 @@
 """
 Attack Path Engine — Pydantic models.
 
-RawPath: output of Neo4j reverse BFS (one row per path found).
+RawPath:    output of Neo4j or PostgreSQL BFS (one row per path found).
 PostureRow: subset of resource_security_posture used by scorer and deduplicator.
-ScoredPath: RawPath + scoring results.
-Path: ScoredPath + deduplication / grouping metadata.
+ScoredPath: RawPath + scoring results + MITRE ATT&CK classification.
+Path:       ScoredPath + deduplication / grouping metadata.
 ChokePoint: result of choke-point detection.
 """
 
@@ -45,6 +45,7 @@ class PostureRow(BaseModel):
     """
 
     resource_uid: str = ""
+    resource_type: str = ""          # e.g. "s3.bucket", "eks.cluster", "ec2.instance"
     entry_point_type: str = ""       # internet | vpn | onprem | peer_account | vendor | k8s_external
     is_internet_exposed: bool = False
     max_epss: Optional[float] = None
@@ -65,7 +66,7 @@ class PostureRow(BaseModel):
 
 
 class ScoredPath(RawPath):
-    """RawPath with scoring results appended by scorer.py."""
+    """RawPath with scoring results and MITRE ATT&CK classification appended by scorer.py."""
 
     probability_score: float = 0.0
     impact_score: float = 0.0
@@ -76,6 +77,15 @@ class ScoredPath(RawPath):
     crown_jewel_type: str = ""              # data | secrets | identity | infra_control | ai_model | code | data_warehouse | encryption_control
     data_classification: Optional[str] = None
     has_active_cdr_actor: bool = False      # lifted from posture signals
+
+    # MITRE ATT&CK classification (populated by attack_vector.py)
+    attack_vector_type: str = ""            # T1 | T2 | T3
+    confidence_level: str = "speculative"  # confirmed | likely | speculative
+    mitre_techniques: List[str] = Field(default_factory=list)    # ["T1190", "T1078", ...]
+    tactic_sequence: List[str] = Field(default_factory=list)     # ["initial-access", "lateral-movement", ...]
+
+    # Orca-style explanation (populated by path_explainer.py for top-N paths)
+    explanation: Optional[Dict[str, Any]] = None
 
 
 class Path(ScoredPath):

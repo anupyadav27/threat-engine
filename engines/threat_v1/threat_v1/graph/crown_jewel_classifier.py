@@ -9,7 +9,7 @@ Pass 1 — Cypher heuristic seed (primary, fast):
   Runs regardless of inventory DB state.
 
 Pass 2 — Inventory score-based (enrichment):
-  Reads inventory_findings JOIN resource_inventory_identifier.
+  Reads inventory_findings, enriched via di_resource_catalog (DI DB).
   Uses 6 scoring criteria from REQUIREMENTS §6.3.
   The JOIN uses SPLIT_PART to strip the 'service.' prefix from
   inventory_findings.resource_type (e.g. 's3.bucket' → 'bucket').
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 _SENSITIVE_TAG_KEYWORDS = frozenset({"sensitive", "pii", "phi", "pci", "confidential", "secret"})
 _HIGH_CRITICALITY_VALUES = frozenset({"high", "critical", "very_high"})
 
-# Expanded to match actual values in resource_inventory_identifier
+# Expanded to match actual values in di_resource_catalog
 _CROWN_JEWEL_CATEGORIES = frozenset({
     "data_store",
     "data",
@@ -191,32 +191,57 @@ class CrownJewelClassifier:
 
         return score >= 2
 
+    def _load_di_catalog_index(self) -> Dict[Any, Dict[str, str]]:
+        """Load asset_category + access_pattern from di_resource_catalog.
+
+        Returns {(csp, service, resource_type): {asset_category, access_pattern}}.
+        di_resource_catalog is in threat_engine_di — opened separately from inventory.
+        """
+        try:
+            from engine_common.db_connections import get_di_conn
+            conn = get_di_conn()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT csp, service, resource_type, asset_category, access_pattern"
+                        " FROM di_resource_catalog"
+                        " WHERE asset_category IS NOT NULL OR access_pattern IS NOT NULL"
+                    )
+                    index = {}
+                    for csp, svc, rt, cat, ap in cur.fetchall():
+                        index[(csp, svc, rt)] = {"asset_category": cat, "access_pattern": ap}
+                    return index
+            finally:
+                conn.close()
+        except Exception as exc:
+            logger.warning("Could not load di_resource_catalog index: %s", exc)
+            return {}
+
     def _fetch_inventory(
         self,
         tenant_id: str,
         account_id: str,
     ) -> List[Dict[str, Any]]:
-        """Query inventory_findings JOIN resource_inventory_identifier.
+        """Query inventory_findings, enrich with di_resource_catalog classifications.
 
-        Uses SPLIT_PART to normalise inventory_findings.resource_type from
-        'service.type' format (e.g. 's3.bucket') to bare type ('bucket')
-        before joining against resource_inventory_identifier.resource_type.
+        di_resource_catalog lives in threat_engine_di (different DB from inventory).
+        The join is done in Python: resource_type 'ec2.instance' splits to
+        service='ec2', resource_type='instance' for the catalog lookup.
         """
+        catalog_index = self._load_di_catalog_index()
+
         cur = self._inventory_conn.cursor()
         cur.execute(
             """
             SELECT
                 f.resource_uid,
-                rii.asset_category,
-                rii.access_pattern,
+                f.resource_type,
+                f.provider,
                 f.criticality,
                 f.environment,
                 f.risk_score,
                 f.tags
             FROM inventory_findings f
-            LEFT JOIN resource_inventory_identifier rii
-                ON rii.resource_type = SPLIT_PART(f.resource_type, '.', 2)
-               AND rii.csp           = f.provider
             WHERE f.tenant_id  = %s
               AND f.account_id = %s
             """,
@@ -224,7 +249,22 @@ class CrownJewelClassifier:
         )
         rows = cur.fetchall()
         cur.close()
-        return list(rows)
+
+        result = []
+        for row in rows:
+            rt_full = (row.get("resource_type") or "") if isinstance(row, dict) else ""
+            if not isinstance(row, dict):
+                row = dict(row)
+                rt_full = row.get("resource_type") or ""
+            parts = rt_full.split(".", 1)
+            svc = parts[0] if len(parts) >= 1 else ""
+            rt_bare = parts[1] if len(parts) >= 2 else ""
+            csp = row.get("provider") or ""
+            catalog = catalog_index.get((csp, svc, rt_bare), {})
+            row["asset_category"] = catalog.get("asset_category")
+            row["access_pattern"] = catalog.get("access_pattern")
+            result.append(row)
+        return result
 
     def _fetch_manual_overrides(self, tenant_id: str) -> List[str]:
         """Return resource_uids explicitly marked as crown jewels by the tenant."""

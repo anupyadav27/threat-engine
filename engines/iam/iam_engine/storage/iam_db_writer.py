@@ -202,9 +202,11 @@ def save_policy_statements(
                     is_aws_managed BOOLEAN DEFAULT FALSE,
                     attached_to_arn TEXT,
                     attached_to_type VARCHAR(20),
+                    resource_uid TEXT,
                     sid VARCHAR(255),
                     effect VARCHAR(10) NOT NULL,
                     actions TEXT[] NOT NULL,
+                    not_action_mode BOOLEAN DEFAULT FALSE,
                     resources TEXT[] NOT NULL,
                     conditions JSONB,
                     principals TEXT[],
@@ -223,14 +225,14 @@ def save_policy_statements(
                     INSERT INTO iam_policy_statements (
                         statement_id, scan_run_id, tenant_id, account_id,
                         policy_arn, policy_name, policy_type, is_aws_managed,
-                        attached_to_arn, attached_to_type,
-                        sid, effect, actions, resources,
+                        attached_to_arn, attached_to_type, resource_uid,
+                        sid, effect, actions, not_action_mode, resources,
                         conditions, principals,
                         is_admin, is_wildcard_principal, has_external_id, is_cross_account
                     )
                     VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s, %s, %s::jsonb, %s,
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s::jsonb, %s,
                         %s, %s, %s, %s
                     )
                     ON CONFLICT (statement_id) DO NOTHING
@@ -245,9 +247,11 @@ def save_policy_statements(
                     stmt.get("is_aws_managed", False),
                     stmt.get("attached_to_arn"),
                     stmt.get("attached_to_type"),
+                    stmt.get("resource_uid"),
                     stmt.get("sid"),
                     stmt["effect"],
                     stmt.get("actions", []),
+                    stmt.get("not_action_mode", False),
                     stmt.get("resources", []),
                     json.dumps(stmt["conditions"]) if stmt.get("conditions") else None,
                     stmt.get("principals"),

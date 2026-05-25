@@ -15,10 +15,8 @@
 #   ┌──────────────────────┬───────────────────────────────────────────────┐
 #   │ Engine               │ Supported providers                           │
 #   ├──────────────────────┼───────────────────────────────────────────────┤
-#   │ discovery            │ all (aws, azure, gcp, k8s, alicloud, oci, ibm)│
-#   │ inventory            │ all                                           │
+#   │ di (discovery+inv)   │ all (aws, azure, gcp, k8s, alicloud, oci, ibm)│
 #   │ check                │ all                                           │
-#   │ threat               │ all                                           │
 #   │ compliance           │ all                                           │
 #   │ iam                  │ all (AWS-specific policy parsing skipped)     │
 #   │ datasec              │ aws, azure, gcp                               │
@@ -110,6 +108,9 @@ spec:
     - name: region
       value: ""
       description: "Single region override for engines that accept a region param (empty = all)"
+    - name: di-image-tag
+      value: "v-di-s5-3"
+      description: "engine-di Docker image tag for scan Jobs. Update when pushing a new DI image."
 
   podGC:
     strategy: OnPodCompletion
@@ -128,65 +129,14 @@ spec:
           name: cspm-templates-primitives
           template: create-orch-record
 
-      # Step 2a: discovery — runs for all CSPs
-      - name: discovery
+      # Step 2: di — unified discovery+inventory as K8s Job on spot nodes.
+      - name: di
         depends: "create-orchestration-record"
-        templateRef:
-          name: cspm-templates-primitives
-          template: trigger-and-poll
-        arguments:
-          parameters:
-          - name: engine
-            value: discovery
-          - name: trigger-url
-            value: "http://engine-discoveries/api/v1/discovery"
-          - name: payload
-            value: |
-              {
-                "scan_run_id": "{{workflow.parameters.scan-run-id}}",
-                "tenant_id": "{{workflow.parameters.tenant-id}}",
-                "account_id": "{{workflow.parameters.account-id}}",
-                "provider": "{{workflow.parameters.provider}}",
-                "credential_type": "{{workflow.parameters.credential-type}}",
-                "credential_ref": "{{workflow.parameters.credential-ref}}",
-                "include_services": "{{workflow.parameters.include-services}}",
-                "include_regions": "{{workflow.parameters.include-regions}}"
-              }
-          - name: poll-url
-            value: "http://engine-discoveries/api/v1/discovery/{{workflow.parameters.scan-run-id}}"
-          - name: timeout
-            value: "7200"
+        template: di-k8s-job
 
-      # Step 3: inventory — normalises discovery resources for all CSPs
-      - name: inventory
-        depends: "discovery"
-        templateRef:
-          name: cspm-templates-primitives
-          template: trigger-and-poll
-        arguments:
-          parameters:
-          - name: engine
-            value: inventory
-          - name: trigger-url
-            value: "http://engine-inventory/api/v1/inventory/scan/discovery"
-          - name: poll-url
-            value: "http://engine-inventory/api/v1/inventory/scan/{{workflow.parameters.scan-run-id}}/status"
-          - name: payload
-            value: |
-              {
-                "scan_run_id": "{{workflow.parameters.scan-run-id}}",
-                "tenant_id": "{{workflow.parameters.tenant-id}}",
-                "account_id": "{{workflow.parameters.account-id}}",
-                "provider": "{{workflow.parameters.provider}}",
-                "credential_type": "{{workflow.parameters.credential-type}}",
-                "credential_ref": "{{workflow.parameters.credential-ref}}"
-              }
-          - name: timeout
-            value: "14400"
-
-      # Step 4: check — evaluates compliance rules for all CSPs
+      # Step 3: check — evaluates compliance rules for all CSPs
       - name: check
-        depends: "inventory"
+        depends: "di.Succeeded || di.Skipped"
         templateRef:
           name: cspm-templates-primitives
           template: trigger-and-poll
@@ -211,39 +161,7 @@ spec:
           - name: timeout
             value: "3600"
 
-      # Step 5: threat — MITRE mapping for all CSPs
-      - name: threat
-        depends: "check"
-        templateRef:
-          name: cspm-templates-primitives
-          template: trigger-and-poll
-        arguments:
-          parameters:
-          - name: engine
-            value: threat
-          - name: trigger-url
-            value: "http://engine-threat/api/v1/scan"
-          - name: payload
-            value: |
-              {
-                "scan_run_id": "{{workflow.parameters.scan-run-id}}",
-                "tenant_id": "{{workflow.parameters.tenant-id}}",
-                "account_id": "{{workflow.parameters.account-id}}",
-                "provider": "{{workflow.parameters.provider}}",
-                "credential_type": "{{workflow.parameters.credential-type}}",
-                "credential_ref": "{{workflow.parameters.credential-ref}}",
-                "cloud": "{{workflow.parameters.provider}}",
-                "trigger_type": "api",
-                "accounts": [],
-                "regions": [],
-                "services": []
-              }
-          - name: poll-url
-            value: "http://engine-threat/api/v1/threat/{{workflow.parameters.scan-run-id}}/status"
-          - name: timeout
-            value: "14400"
-
-      # ── Domain engines (run in parallel after threat) ──────────────────────
+      # ── Domain engines (run in parallel after check) ──────────────────────
       # Each has a `when:` condition for CSP gating.
       # Skipped tasks (when=false) are treated as Succeeded by downstream depends.
       # To expand a `when:` condition: add the new provider with || operator.
@@ -527,7 +445,6 @@ spec:
       # AP-ENHANCE-01
       - name: mitre-enrich
         depends: >-
-          (threat.Succeeded || threat.Failed || threat.Errored || threat.Skipped) &&
           (compliance.Succeeded || compliance.Failed || compliance.Errored || compliance.Skipped) &&
           (iam.Succeeded || iam.Failed || iam.Errored || iam.Skipped) &&
           (datasec.Succeeded || datasec.Failed || datasec.Errored || datasec.Skipped) &&
@@ -668,11 +585,11 @@ spec:
         arguments:
           parameters:
           - name: engine
-            value: threat-narrative
+            value: attack-path-narrative
           - name: trigger-url
-            value: "http://engine-threat-narrative/api/v1/generate/{{workflow.parameters.scan-run-id}}"
+            value: "http://engine-attack-path-narrative/api/v1/generate/{{workflow.parameters.scan-run-id}}"
           - name: poll-url
-            value: "http://engine-threat-narrative/api/v1/health/ready"
+            value: "http://engine-attack-path-narrative/api/v1/health/ready"
           - name: payload
             value: |
               {
@@ -695,52 +612,157 @@ spec:
           - name: status
             value: "completed"
 
-  # ── Discovery-only DAG ────────────────────────────────────────────────────
-  # Run just discovery for a single CSP. Use this to validate discovery engine
-  # output per provider before running the full pipeline.
-  #
-  # Submit:
-  #   argo submit --from workflowtemplate/cspm-scan-pipeline \
-  #     --entrypoint discovery-only \
-  #     -p scan-run-id=<uuid> -p provider=aws|azure|gcp|alicloud|oci \
-  #     -p tenant-id=<tid> -p account-id=<aid> \
-  #     -p credential-type=access_key -p credential-ref=<ref> \
-  #     -p include-services=ec2,s3,iam   # optional
-  - name: discovery-only
-    dag:
-      tasks:
-      - name: create-orchestration-record
+      # Step 9: cdr-nudge — fire-and-forget CDR trigger after pipeline completes.
+      # CDR runs independently on its own cron but nudging it immediately after a
+      # completed posture scan aligns behavioral detection with each scan.
+      # Always exits 0 — CDR outage must never fail the main pipeline.
+      - name: cdr-nudge
+        depends: "mark-complete.Succeeded || mark-complete.Failed || mark-complete.Errored"
         templateRef:
           name: cspm-templates-primitives
-          template: create-orch-record
-
-      - name: discovery
-        depends: "create-orchestration-record"
-        templateRef:
-          name: cspm-templates-primitives
-          template: trigger-and-poll
+          template: cdr-nudge
         arguments:
           parameters:
-          - name: engine
-            value: discovery
-          - name: trigger-url
-            value: "http://engine-discoveries/api/v1/discovery"
-          - name: payload
-            value: |
-              {
-                "scan_run_id": "{{workflow.parameters.scan-run-id}}",
-                "tenant_id": "{{workflow.parameters.tenant-id}}",
-                "account_id": "{{workflow.parameters.account-id}}",
-                "provider": "{{workflow.parameters.provider}}",
-                "credential_type": "{{workflow.parameters.credential-type}}",
-                "credential_ref": "{{workflow.parameters.credential-ref}}",
-                "include_services": "{{workflow.parameters.include-services}}",
-                "include_regions": "{{workflow.parameters.include-regions}}"
-              }
-          - name: poll-url
-            value: "http://engine-discoveries/api/v1/discovery/{{workflow.parameters.scan-run-id}}"
-          - name: timeout
-            value: "7200"
+          - name: scan-run-id
+            value: "{{workflow.parameters.scan-run-id}}"
+          - name: tenant-id
+            value: "{{workflow.parameters.tenant-id}}"
+          - name: account-id
+            value: "{{workflow.parameters.account-id}}"
+          - name: provider
+            value: "{{workflow.parameters.provider}}"
+          - name: credential-ref
+            value: "{{workflow.parameters.credential-ref}}"
+          - name: credential-type
+            value: "{{workflow.parameters.credential-type}}"
+
+  # ── DI K8s Job template ───────────────────────────────────────────────────
+  # Creates a K8s Job on the di-scan-spot spot node group.
+  # Argo watches Job status: succeeded==1 → step passes, failed>=1 → step fails.
+  # backoffLimit:1 → one automatic retry on spot interruption.
+  # ttlSecondsAfterFinished:3600 → auto-cleans Job after 1 hour.
+  # Workers tuned for m5.2xlarge (8 vCPU, 32 GB): MAX_GLOBAL_WORKERS=20, MAX_REGIONAL_WORKERS=60.
+  - name: di-k8s-job
+    resource:
+      action: create
+      successCondition: status.succeeded == 1
+      failureCondition: status.failed > 0
+      manifest: |
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: di-scan-{{workflow.parameters.scan-run-id}}
+          namespace: threat-engine-engines
+          labels:
+            app: di-scan
+            scan-run-id: "{{workflow.parameters.scan-run-id}}"
+            tier: scan-job
+        spec:
+          ttlSecondsAfterFinished: 3600
+          backoffLimit: 0
+          template:
+            spec:
+              restartPolicy: Never
+              serviceAccountName: engine-sa
+              nodeSelector:
+                workload-type: di-scan
+                lifecycle: spot
+              tolerations:
+                - key: workload-type
+                  operator: Equal
+                  value: di-scan
+                  effect: NoSchedule
+                - key: aws.amazon.com/spot
+                  operator: Exists
+                  effect: NoSchedule
+              containers:
+                - name: di-scan
+                  image: yadavanup84/engine-di:{{workflow.parameters.di-image-tag}}
+                  command: ["python3", "/app/run_scan.py", "--scan-run-id", "{{workflow.parameters.scan-run-id}}"]
+                  resources:
+                    requests:
+                      cpu: "2000m"
+                      memory: "4Gi"
+                    limits:
+                      cpu: "4000m"
+                      memory: "8Gi"
+                  envFrom:
+                    - configMapRef:
+                        name: threat-engine-db-config
+                    - secretRef:
+                        name: threat-engine-db-passwords
+                  env:
+                    - name: PYTHONPATH
+                      value: /app
+                    - name: LOG_LEVEL
+                      value: "INFO"
+                    - name: ENGINE_NAME
+                      value: "di"
+                    - name: MAX_GLOBAL_WORKERS
+                      value: "20"
+                    - name: MAX_REGIONAL_WORKERS
+                      value: "60"
+                    - name: AWS_RETRY_MODE
+                      value: "adaptive"
+                    - name: AWS_MAX_ATTEMPTS
+                      value: "10"
+                    - name: DI_DB_HOST
+                      value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+                    - name: DI_DB_PORT
+                      value: "5432"
+                    - name: DI_DB_NAME
+                      value: "threat_engine_di"
+                    - name: DI_DB_USER
+                      value: "postgres"
+                    - name: DI_DB_PASSWORD
+                      valueFrom:
+                        secretKeyRef:
+                          name: threat-engine-db-passwords
+                          key: DI_DB_PASSWORD
+                    - name: INVENTORY_DB_HOST
+                      value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+                    - name: INVENTORY_DB_PORT
+                      value: "5432"
+                    - name: INVENTORY_DB_NAME
+                      value: "threat_engine_inventory"
+                    - name: INVENTORY_DB_USER
+                      value: "postgres"
+                    - name: INVENTORY_DB_PASSWORD
+                      valueFrom:
+                        secretKeyRef:
+                          name: threat-engine-db-passwords
+                          key: INVENTORY_DB_PASSWORD
+                    - name: ONBOARDING_DB_HOST
+                      value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+                    - name: ONBOARDING_DB_PORT
+                      value: "5432"
+                    - name: ONBOARDING_DB_NAME
+                      value: "threat_engine_onboarding"
+                    - name: ONBOARDING_DB_USER
+                      value: "postgres"
+                    - name: ONBOARDING_DB_PASSWORD
+                      valueFrom:
+                        secretKeyRef:
+                          name: threat-engine-db-passwords
+                          key: ONBOARDING_DB_PASSWORD
+                    - name: CHECK_DB_HOST
+                      value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+                    - name: CHECK_DB_PORT
+                      value: "5432"
+                    - name: CHECK_DB_NAME
+                      value: "threat_engine_check"
+                    - name: CHECK_DB_USER
+                      value: "postgres"
+                    - name: CHECK_DB_PASSWORD
+                      valueFrom:
+                        secretKeyRef:
+                          name: threat-engine-db-passwords
+                          key: CHECK_DB_PASSWORD
+                    - name: AWS_REGION
+                      valueFrom:
+                        configMapKeyRef:
+                          name: s3-mount-config
+                          key: s3-region
 
   # ── Exit handler ───────────────────────────────────────────────────────────
   # Must be a local template (onExit cannot use templateRef directly).

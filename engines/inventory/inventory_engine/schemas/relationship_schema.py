@@ -51,6 +51,8 @@ class RelationType(str, Enum):
     PROTECTED_BY = "protected_by"
     SCANNED_BY = "scanned_by"
     COMPLIES_WITH = "complies_with"
+    WORKER_NODE_OF = "worker_node_of"   # EC2/VM is a worker node of an EKS/AKS/GKE cluster
+    NETWORK_REACHABLE = "network_reachable"  # compute can reach data store via private network (same VPC/VNet)
 
 
 class Relationship(BaseModel):

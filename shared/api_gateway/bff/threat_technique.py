@@ -77,6 +77,7 @@ async def view_technique_detail(
     if not _TECHNIQUE_ID_RE.match(technique_id):
         return JSONResponse(status_code=200, content={**_EMPTY_RESPONSE, "reason": "invalid_technique_id"})
 
+    # TODO: decommission after engine-threat teardown — no attack-path equivalent.
     threat_base = ENGINE_URLS.get("threat", "")
     url = f"{threat_base}/api/v1/techniques/{technique_id}"
 

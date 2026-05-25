@@ -151,12 +151,58 @@ class IAMDiscoveryReader:
         return [self._extract_fields(r) for r in resources.get("aws.iam.list_users", [])]
 
     def get_policies(self, resources: Dict[str, List[Dict]]) -> List[Dict]:
-        """Extract managed policy records with policy documents."""
-        # Prefer auth_details_policies (has PolicyVersionList with Documents)
+        """Extract managed policy records with policy documents.
+
+        Prefers get_account_authorization_details_policies (has PolicyVersionList).
+        Falls back to synthesizing PolicyVersionList from get_policy_version records.
+        """
         auth_policies = resources.get("aws.iam.get_account_authorization_details_policies", [])
         if auth_policies:
             return [self._extract_fields(r) for r in auth_policies]
+
+        # Build PolicyVersionList from get_policy_version records (fallback path)
+        # get_policy_version has PolicyArn + PolicyDocument + IsDefaultVersion
+        version_records = resources.get("aws.iam.get_policy_version", [])
+        if version_records:
+            by_arn: Dict[str, Dict] = {}
+            for r in version_records:
+                rec = self._extract_fields(r)
+                arn = rec.get("PolicyArn") or rec.get("policy_arn") or ""
+                if not arn:
+                    continue
+                # Build a synthetic PolicyVersionList entry matching extract_managed_policies format
+                doc = rec.get("PolicyDocument") or rec.get("Document")
+                is_default = rec.get("IsDefaultVersion", True)
+                if arn not in by_arn:
+                    by_arn[arn] = {
+                        "Arn": arn,
+                        "PolicyName": rec.get("PolicyName", ""),
+                        "AttachmentCount": 1,
+                        "PolicyVersionList": [],
+                    }
+                by_arn[arn]["PolicyVersionList"].append({
+                    "Document": doc,
+                    "IsDefaultVersion": is_default,
+                    "VersionId": rec.get("VersionId", "v1"),
+                })
+            if by_arn:
+                logger.info(
+                    "Built managed policy map from get_policy_version: %d policies", len(by_arn)
+                )
+                return list(by_arn.values())
+
         return [self._extract_fields(r) for r in resources.get("aws.iam.list_policies", [])]
+
+    def get_role_managed_policy_attachments(
+        self, resources: Dict[str, List[Dict]]
+    ) -> List[Dict]:
+        """Extract role → managed policy attachment records.
+
+        Returns list of records with RoleArn, RoleName, PolicyArn, PolicyName.
+        Populated by aws.iam.list_attached_role_policies discovery operation.
+        """
+        records = resources.get("aws.iam.list_attached_role_policies", [])
+        return [self._extract_fields(r) for r in records]
 
     def get_groups(self, resources: Dict[str, List[Dict]]) -> List[Dict]:
         """Extract group records."""

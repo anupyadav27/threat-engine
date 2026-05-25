@@ -56,7 +56,11 @@ class AWSNetworkProvider(BaseNetworkProvider):
     ) -> Dict[str, Any]:
         """Run AWS-specific 7-layer network analysis and return normalized result."""
         # Lazy imports — keep provider loading fast for non-AWS scans
-        from network_security_engine.input.discovery_db_reader import NetworkDiscoveryReader
+        import os as _os
+        if _os.getenv("DI_ENGINE_ENABLED", "false").lower() == "true":
+            from network_security_engine.input.di_reader import NetworkDIReader as NetworkDiscoveryReader
+        else:
+            from network_security_engine.input.discovery_db_reader import NetworkDiscoveryReader
         from network_security_engine.input.inventory_reader import NetworkInventoryReader
         from network_security_engine.analyzers.network_topology_analyzer import (
             build_topology,

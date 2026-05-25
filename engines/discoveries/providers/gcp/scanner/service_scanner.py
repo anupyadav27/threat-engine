@@ -133,7 +133,31 @@ def _enrich_gcp_item(item: Dict) -> Dict:
     """
     self_link = item.get('selfLink', '')
     resource_id = item.get('id', '')
-    uid = self_link or str(resource_id)
+    # Convert GCP selfLink to canonical GCP resource name (starts with //)
+    # https://www.googleapis.com/compute/v1/projects/... → //compute.googleapis.com/projects/...
+    if self_link.startswith('https://www.googleapis.com/'):
+        remainder = self_link[len('https://www.googleapis.com/'):]
+        parts = remainder.split('/', 2)
+        if len(parts) >= 3:
+            api_name, _version, path = parts
+            uid = f"//{api_name}.googleapis.com/{path}"
+        elif len(parts) == 2:
+            api_name, rest = parts
+            uid = f"//{api_name}.googleapis.com/{rest}"
+        else:
+            uid = self_link
+    elif self_link:
+        uid = self_link
+    elif resource_id:
+        logger.warning("GCP item has no selfLink; falling back to resource_id=%r discovery_id=%s",
+                       resource_id, item.get('_discovery_id'))
+        uid = str(resource_id)
+    else:
+        discovery_id = item.get('_discovery_id', 'unknown')
+        item_keys = [k for k in item.keys() if not k.startswith('_')][:10]
+        logger.error("GCP_RESOURCE_ID_MISSING: discovery_id=%r item keys=%s",
+                     discovery_id, item_keys)
+        return None
 
     item['resource_arn'] = uid
     item['resource_id'] = str(resource_id) if resource_id else uid
@@ -239,7 +263,7 @@ def _scan_iam(credential, project_id: str, region: str, config: Dict) -> List[Di
             item['bindings'] = []
             item['auditConfigs'] = []
 
-        resources.append(_enrich_gcp_item(item))
+        if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
 
         # ── Emit keys as separate findings ──
         try:
@@ -264,7 +288,7 @@ def _scan_iam(credential, project_id: str, region: str, config: Dict) -> List[Di
                     'resource_type': 'iam.googleapis.com/ServiceAccountKey',
                     '_discovery_id': 'gcp.iam.service_account_keys.list',
                 }
-                key_resources.append(_enrich_gcp_item(key_item))
+                if (r := _enrich_gcp_item(key_item)) is not None: key_resources.append(r)
         except Exception as exc:
             logger.debug("list_service_account_keys(%s) failed: %s", sa.name, exc)
 
@@ -374,7 +398,7 @@ def _scan_compute(credential, project_id: str, region: str, config: Dict) -> Lis
                 'resource_type': 'compute.googleapis.com/Instance',
                 '_discovery_id': 'gcp.compute.list_instances',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     logger.info(f"  compute/{region}: {len(resources)} instances found")
     return resources
 
@@ -432,7 +456,7 @@ def _scan_firewalls(credential, project_id: str, region: str, config: Dict) -> L
                 'resource_type': 'compute.googleapis.com/Firewall',
                 '_discovery_id': 'gcp.compute.firewalls.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"  firewall/{project_id}: scan failed: {e}")
     logger.info(f"  firewall/{project_id}: {len(resources)} firewall rules found")
@@ -474,7 +498,7 @@ def _scan_vpc_networks(credential, project_id: str, region: str, config: Dict) -
                 'resource_type': 'compute.googleapis.com/Network',
                 '_discovery_id': 'gcp.compute.networks.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"  vpc_network/{project_id}: scan failed: {e}")
     logger.info(f"  vpc_network/{project_id}: {len(resources)} VPC networks found")
@@ -515,7 +539,7 @@ def _scan_subnetworks(credential, project_id: str, region: str, config: Dict) ->
                     'resource_type': 'compute.googleapis.com/Subnetwork',
                     '_discovery_id': 'gcp.compute.subnetworks.aggregatedList',
                 }
-                resources.append(_enrich_gcp_item(item))
+                if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"  subnetwork/{project_id}: scan failed: {e}")
     logger.info(f"  subnetwork/{project_id}: {len(resources)} subnets found")
@@ -547,7 +571,7 @@ def _scan_forwarding_rules(credential, project_id: str, region: str, config: Dic
                 'resource_type': 'compute.googleapis.com/ForwardingRule',
                 '_discovery_id': 'gcp.compute.forwarding_rules.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"  forwarding_rule/global/{project_id}: scan failed: {e}")
     logger.info(f"  forwarding_rule/{project_id}: {len(resources)} global forwarding rules found")
@@ -579,7 +603,7 @@ def _scan_routes(credential, project_id: str, region: str, config: Dict) -> List
                 'resource_type': 'compute.googleapis.com/Route',
                 '_discovery_id': 'gcp.compute.routes.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"  route/{project_id}: scan failed: {e}")
     logger.info(f"  route/{project_id}: {len(resources)} routes found")
@@ -618,7 +642,7 @@ def _scan_security_policies(credential, project_id: str, region: str, config: Di
                 'resource_type': 'compute.googleapis.com/SecurityPolicy',
                 '_discovery_id': 'gcp.compute.securityPolicies.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"  security_policy/{project_id}: scan failed: {e}")
     logger.info(f"  security_policy/{project_id}: {len(resources)} Cloud Armor policies found")
@@ -649,7 +673,7 @@ def _scan_bigquery(credential, project_id: str, region: str, config: Dict) -> Li
                 'resource_type': 'bigquery.googleapis.com/Dataset',
                 '_discovery_id': 'gcp.bigquery.datasets.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
         except Exception as e:
             logger.warning(f"Failed to get BigQuery dataset {dataset_ref.dataset_id}: {e}")
     logger.info(f"  bigquery: {len(resources)} datasets found")
@@ -713,7 +737,7 @@ def _scan_storage(credential, project_id: str, region: str, config: Dict) -> Lis
             'resource_type': 'storage.googleapis.com/Bucket',
             '_discovery_id': 'gcp.storage.buckets.list',
         }
-        resources.append(_enrich_gcp_item(item))
+        if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     logger.info(f"  storage: {len(resources)} buckets found")
     return resources
 
@@ -735,7 +759,7 @@ def _scan_pubsub(credential, project_id: str, region: str, config: Dict) -> List
                 'resource_type': 'pubsub.googleapis.com/Topic',
                 '_discovery_id': 'gcp.pubsub.topics.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP pubsub list_topics failed: {e}")
     logger.info(f"  pubsub: {len(resources)} topics found")
@@ -761,7 +785,7 @@ def _scan_cloudfunctions(credential, project_id: str, region: str, config: Dict)
                 'resource_type': 'cloudfunctions.googleapis.com/CloudFunction',
                 '_discovery_id': 'gcp.cloudfunctions.functions.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP cloudfunctions list ({region}) failed: {e}")
     logger.info(f"  cloudfunctions/{region}: {len(resources)} functions found")
@@ -785,7 +809,7 @@ def _scan_cloudrun(credential, project_id: str, region: str, config: Dict) -> Li
                 'resource_type': 'run.googleapis.com/Service',
                 '_discovery_id': 'gcp.cloudrun.services.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP cloudrun list ({region}) failed: {e}")
     logger.info(f"  cloudrun/{region}: {len(resources)} services found")
@@ -812,7 +836,7 @@ def _scan_gke(credential, project_id: str, region: str, config: Dict) -> List[Di
                 'resource_type': 'container.googleapis.com/Cluster',
                 '_discovery_id': 'gcp.gke.clusters.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP GKE list clusters ({region}) failed: {e}")
     logger.info(f"  gke/{region}: {len(resources)} clusters found")
@@ -841,7 +865,7 @@ def _scan_sql(credential, project_id: str, region: str, config: Dict) -> List[Di
                 'resource_type': 'sqladmin.googleapis.com/Instance',
                 '_discovery_id': 'gcp.sql.instances.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP Cloud SQL list ({region}) failed: {e}")
     logger.info(f"  sql/{region}: {len(resources)} instances found")
@@ -866,7 +890,7 @@ def _scan_dns(credential, project_id: str, region: str, config: Dict) -> List[Di
                 'resource_type': 'dns.googleapis.com/ManagedZone',
                 '_discovery_id': 'gcp.dns.zones.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP Cloud DNS list_zones failed: {e}")
     logger.info(f"  dns: {len(resources)} zones found")
@@ -890,7 +914,7 @@ def _scan_secretmanager(credential, project_id: str, region: str, config: Dict) 
                 'resource_type': 'secretmanager.googleapis.com/Secret',
                 '_discovery_id': 'gcp.secretmanager.secrets.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP Secret Manager list_secrets failed: {e}")
     logger.info(f"  secretmanager: {len(resources)} secrets found")
@@ -916,7 +940,7 @@ def _scan_logging(credential, project_id: str, region: str, config: Dict) -> Lis
                 'resource_type': 'logging.googleapis.com/LogSink',
                 '_discovery_id': 'gcp.logging.sinks.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP Logging list_sinks failed: {e}")
     try:
@@ -934,7 +958,7 @@ def _scan_logging(credential, project_id: str, region: str, config: Dict) -> Lis
                 'resource_type': 'logging.googleapis.com/LogMetric',
                 '_discovery_id': 'gcp.logging.metrics.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP Logging list_log_metrics failed: {e}")
     logger.info(f"  logging: {len(resources)} sinks+metrics found")
@@ -959,7 +983,7 @@ def _scan_monitoring(credential, project_id: str, region: str, config: Dict) -> 
                 'resource_type': 'monitoring.googleapis.com/AlertPolicy',
                 '_discovery_id': 'gcp.monitoring.alert_policies.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP Monitoring list_alert_policies failed: {e}")
     logger.info(f"  monitoring: {len(resources)} alert policies found")
@@ -983,7 +1007,7 @@ def _scan_cloudkms(credential, project_id: str, region: str, config: Dict) -> Li
                 'resource_type': 'cloudkms.googleapis.com/KeyRing',
                 '_discovery_id': 'gcp.cloudkms.key_rings.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP KMS list_key_rings ({region}) failed: {e}")
     logger.info(f"  cloudkms/{region}: {len(resources)} key rings found")
@@ -1011,7 +1035,7 @@ def _scan_spanner(credential, project_id: str, region: str, config: Dict) -> Lis
                 'resource_type': 'spanner.googleapis.com/Instance',
                 '_discovery_id': 'gcp.spanner.instances.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP Spanner list_instances failed: {e}")
     logger.info(f"  spanner: {len(resources)} instances found")
@@ -1036,7 +1060,7 @@ def _scan_firestore(credential, project_id: str, region: str, config: Dict) -> L
                 'resource_type': 'firestore.googleapis.com/Database',
                 '_discovery_id': 'gcp.firestore.databases.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP Firestore list_databases failed: {e}")
     logger.info(f"  firestore: {len(resources)} databases found")
@@ -1062,7 +1086,7 @@ def _scan_artifactregistry(credential, project_id: str, region: str, config: Dic
                 'resource_type': 'artifactregistry.googleapis.com/Repository',
                 '_discovery_id': 'gcp.artifactregistry.repositories.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP ArtifactRegistry list_repositories ({region}) failed: {e}")
     logger.info(f"  artifactregistry/{region}: {len(resources)} repositories found")
@@ -1087,7 +1111,7 @@ def _scan_workflows(credential, project_id: str, region: str, config: Dict) -> L
                 'resource_type': 'workflows.googleapis.com/Workflow',
                 '_discovery_id': 'gcp.workflows.workflows.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP Workflows list_workflows ({region}) failed: {e}")
     logger.info(f"  workflows/{region}: {len(resources)} workflows found")
@@ -1112,7 +1136,7 @@ def _scan_dlp(credential, project_id: str, region: str, config: Dict) -> List[Di
                 'resource_type': 'dlp.googleapis.com/InspectTemplate',
                 '_discovery_id': 'gcp.dlp.inspect_templates.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP DLP list_inspect_templates failed: {e}")
     logger.info(f"  dlp: {len(resources)} inspect templates found")
@@ -1138,7 +1162,7 @@ def _scan_filestore(credential, project_id: str, region: str, config: Dict) -> L
                 'resource_type': 'file.googleapis.com/Instance',
                 '_discovery_id': 'gcp.filestore.instances.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP Filestore list_instances ({region}) failed: {e}")
     logger.info(f"  filestore/{region}: {len(resources)} instances found")
@@ -1163,7 +1187,7 @@ def _scan_dataflow(credential, project_id: str, region: str, config: Dict) -> Li
                 'resource_type': 'dataflow.googleapis.com/Job',
                 '_discovery_id': 'gcp.dataflow.jobs.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP Dataflow list_jobs ({region}) failed: {e}")
     logger.info(f"  dataflow/{region}: {len(resources)} jobs found")
@@ -1188,7 +1212,7 @@ def _scan_apikeys(credential, project_id: str, region: str, config: Dict) -> Lis
                 'resource_type': 'apikeys.googleapis.com/Key',
                 '_discovery_id': 'gcp.apikeys.keys.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP API Keys list_keys failed: {e}")
     logger.info(f"  apikeys: {len(resources)} keys found")
@@ -1230,7 +1254,7 @@ def _scan_iam_roles(credential, project_id: str, region: str, config: Dict) -> L
                     'resource_type': 'iam.googleapis.com/Role',
                     '_discovery_id': 'gcp.iam.roles.list',
                 }
-                resources.append(_enrich_gcp_item(item))
+                if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
             page_token = resp.get('nextPageToken')
             if not page_token:
                 break
@@ -1258,7 +1282,7 @@ def _scan_notebooks(credential, project_id: str, region: str, config: Dict) -> L
                 'resource_type': 'notebooks.googleapis.com/Instance',
                 '_discovery_id': 'gcp.notebooks.instances.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP Notebooks list_instances ({region}) failed: {e}")
     logger.info(f"  notebooks/{region}: {len(resources)} instances found")
@@ -1284,7 +1308,7 @@ def _scan_bigtable(credential, project_id: str, region: str, config: Dict) -> Li
                 'resource_type': 'bigtableadmin.googleapis.com/Instance',
                 '_discovery_id': 'gcp.bigtable.instances.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP Bigtable list_instances failed: {e}")
     logger.info(f"  bigtable: {len(resources)} instances found")
@@ -1309,7 +1333,7 @@ def _scan_resourcemanager(credential, project_id: str, region: str, config: Dict
                 'resource_type': 'cloudresourcemanager.googleapis.com/Project',
                 '_discovery_id': 'gcp.resourcemanager.projects.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP Resource Manager list_projects failed: {e}")
     logger.info(f"  resourcemanager: {len(resources)} projects found")
@@ -1337,7 +1361,7 @@ def _scan_cloudsql(credential, project_id: str, region: str, config: Dict) -> Li
                 'resource_type': 'sqladmin.googleapis.com/Instance',
                 '_discovery_id': 'gcp.cloudsql.instances.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP Cloud SQL (cloudsql) list failed: {e}")
     logger.info(f"  cloudsql: {len(resources)} instances found")
@@ -1360,7 +1384,7 @@ def _scan_aiplatform(credential, project_id: str, region: str, config: Dict) -> 
                 'resource_type': 'aiplatform.googleapis.com/Dataset',
                 '_discovery_id': 'gcp.aiplatform.datasets.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
         model_client = aiplatform_v1.ModelServiceClient(credentials=credential)
         for model in model_client.list_models(parent=parent):
             item = {
@@ -1370,7 +1394,7 @@ def _scan_aiplatform(credential, project_id: str, region: str, config: Dict) -> 
                 'resource_type': 'aiplatform.googleapis.com/Model',
                 '_discovery_id': 'gcp.aiplatform.models.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP AI Platform list ({region}) failed: {e}")
     logger.info(f"  aiplatform/{region}: {len(resources)} resources found")
@@ -1392,7 +1416,7 @@ def _scan_backupdr(credential, project_id: str, region: str, config: Dict) -> Li
                 'resource_type': 'backupdr.googleapis.com/BackupVault',
                 '_discovery_id': 'gcp.backupdr.backup_vaults.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP Backup DR list ({region}) failed: {e}")
     logger.info(f"  backupdr/{region}: {len(resources)} vaults found")
@@ -1416,7 +1440,7 @@ def _scan_billing(credential, project_id: str, region: str, config: Dict) -> Lis
                 'resource_type': 'billing.googleapis.com/BillingAccount',
                 '_discovery_id': 'gcp.billing.billing_accounts.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP Billing list failed: {e}")
     logger.info(f"  billing: {len(resources)} accounts found")
@@ -1438,7 +1462,7 @@ def _scan_osconfig(credential, project_id: str, region: str, config: Dict) -> Li
                 'resource_type': 'osconfig.googleapis.com/PatchDeployment',
                 '_discovery_id': 'gcp.osconfig.patch_deployments.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP OS Config list failed: {e}")
     logger.info(f"  osconfig: {len(resources)} patch deployments found")
@@ -1462,7 +1486,7 @@ def _scan_asset(credential, project_id: str, region: str, config: Dict) -> List[
                 'resource_type': 'cloudasset.googleapis.com/Feed',
                 '_discovery_id': 'gcp.asset.feeds.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP Asset feeds list failed: {e}")
     logger.info(f"  asset: {len(resources)} feeds found")
@@ -1488,7 +1512,7 @@ def _scan_endpoints(credential, project_id: str, region: str, config: Dict) -> L
                 'resource_type': 'servicemanagement.googleapis.com/Service',
                 '_discovery_id': 'gcp.endpoints.services.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP Endpoints list failed: {e}")
     logger.info(f"  endpoints: {len(resources)} services found")
@@ -1513,7 +1537,7 @@ def _scan_trace(credential, project_id: str, region: str, config: Dict) -> List[
                 'resource_type': 'cloudtrace.googleapis.com/Trace',
                 '_discovery_id': 'gcp.trace.traces.list',
             }
-            resources.append(_enrich_gcp_item(item))
+            if (r := _enrich_gcp_item(item)) is not None: resources.append(r)
     except Exception as e:
         logger.warning(f"GCP Trace list failed: {e}")
     logger.info(f"  trace: {len(resources)} traces found")
@@ -1728,11 +1752,25 @@ class GCPDiscoveryScanner(DiscoveryScanner):
         if not resource_type:
             resource_type = item.get('resource_type', '')
 
+        # Canonical GCP resource name (// prefix)
+        if self_link.startswith('https://www.googleapis.com/'):
+            remainder = self_link[len('https://www.googleapis.com/'):]
+            parts = remainder.split('/', 2)
+            if len(parts) >= 3:
+                api_name, _version, path = parts
+                canonical_uid = f"//{api_name}.googleapis.com/{path}"
+            else:
+                canonical_uid = self_link
+        elif self_link:
+            canonical_uid = self_link
+        else:
+            canonical_uid = str(resource_id)
+
         return {
-            'resource_arn': self_link or str(resource_id),
+            'resource_arn': canonical_uid,
             'resource_id': str(resource_id) if resource_id else self_link,
             'resource_name': resource_name,
-            'resource_uid': self_link or str(resource_id),
+            'resource_uid': canonical_uid,
             'resource_type': resource_type,
         }
 
@@ -1748,18 +1786,14 @@ class GCPDiscoveryScanner(DiscoveryScanner):
 
     async def list_available_regions(self) -> List[str]:
         """List available GCP regions for the project."""
-        try:
-            from google.cloud import compute_v1
-            client = compute_v1.RegionsClient(credentials=self.credential)
-            regions = []
-            for region in client.list(project=self.project_id):
-                if region.status == 'UP':
-                    regions.append(region.name)
-            logger.info(f"GCP: {len(regions)} regions available")
-            return sorted(regions)
-        except Exception as e:
-            logger.warning(f"Failed to list GCP regions, using defaults: {e}")
-            return DEFAULT_GCP_REGIONS
+        from google.cloud import compute_v1
+        client = compute_v1.RegionsClient(credentials=self.credential)
+        regions = []
+        for region in client.list(project=self.project_id):
+            if region.status == 'UP':
+                regions.append(region.name)
+        logger.info(f"GCP: {len(regions)} regions available")
+        return sorted(regions)
 
     def get_account_id(self) -> str:
         """Return project ID as account identifier."""

@@ -111,3 +111,7 @@ def get_attack_path_conn() -> psycopg2.extensions.connection:
 
 def get_api_security_conn() -> psycopg2.extensions.connection:
     return _make_conn("API_SECURITY", "threat_engine_api_security")
+
+
+def get_di_conn() -> psycopg2.extensions.connection:
+    return _make_conn("DI", "threat_engine_di")

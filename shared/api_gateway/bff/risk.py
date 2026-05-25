@@ -38,7 +38,7 @@ async def view_risk(
         ("risk", "/api/v1/risk/ui-data", {
             "tenant_id": tenant_id,
         }),
-        ("threat", "/api/v1/threat/ui-data", {
+        ("attack_path", "/api/v1/threat/ui-data", {
             "tenant_id": tenant_id,
             "scan_run_id": "latest",
             "limit": "1",
@@ -47,12 +47,12 @@ async def view_risk(
 
     risk_data, threat_data = results
 
-    meta.record_engine("risk",   "/api/v1/risk/ui-data",    risk_data)
-    meta.record_engine("threat", "/api/v1/threat/ui-data",  threat_data)
+    meta.record_engine("risk",        "/api/v1/risk/ui-data",    risk_data)
+    meta.record_engine("attack_path", "/api/v1/threat/ui-data",  threat_data)
     if risk_data is None:
         meta.warn("Risk engine returned no data — scores and scenarios will be zero")
     if threat_data is None:
-        meta.warn("Threat engine returned no data — risk score fallback unavailable")
+        meta.warn("Attack-path engine returned no data — risk score fallback unavailable")
 
     # Safely handle None responses
     if not isinstance(risk_data, dict):

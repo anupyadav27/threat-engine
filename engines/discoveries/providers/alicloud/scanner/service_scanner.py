@@ -120,6 +120,12 @@ def _enrich_alicloud_item(item: Dict, account_id: str, region: str) -> Dict:
         or item.get('TrailId')
         or item.get('id', '')
     )
+    if not resource_id:
+        discovery_id = item.get('_discovery_id', 'unknown')
+        item_keys = [k for k in item.keys() if not k.startswith('_')][:10]
+        logger.error("ALICLOUD_RESOURCE_ID_MISSING: discovery_id=%r item keys=%s",
+                     discovery_id, item_keys)
+        return None
     resource_type = item.get('resource_type', 'alicloud/Resource')
     # AliCloud ARN format: acs:<service>:<region>:<account-id>:<resource>
     service_part = resource_type.split('/')[0].lower().replace('alicloud.', '')
@@ -204,7 +210,7 @@ def _scan_ecs(access_key_id: str, access_key_secret: str, account_id: str,
                     'resource_type': 'alicloud.ecs/Instance',
                     '_discovery_id': 'alicloud.ecs.describe_instances',
                 }
-                resources.append(_enrich_alicloud_item(item, account_id, region))
+                if (r := _enrich_alicloud_item(item, account_id, region)) is not None: resources.append(r)
             total = resp.body.total_count or 0
             if page_num * page_size >= total:
                 break
@@ -235,7 +241,7 @@ def _scan_oss(access_key_id: str, access_key_secret: str, account_id: str,
                 'resource_type': 'alicloud.oss/Bucket',
                 '_discovery_id': 'alicloud.oss.list_buckets',
             }
-            resources.append(_enrich_alicloud_item(item, account_id, region))
+            if (r := _enrich_alicloud_item(item, account_id, region)) is not None: resources.append(r)
     except Exception as e:
         logger.warning("AliCloud OSS scan failed [%s]: %s", region, e)
         resources = []
@@ -281,7 +287,7 @@ def _scan_rds(access_key_id: str, access_key_secret: str, account_id: str,
                     'resource_type': 'alicloud.rds/DBInstance',
                     '_discovery_id': 'alicloud.rds.describe_db_instances',
                 }
-                resources.append(_enrich_alicloud_item(item, account_id, region))
+                if (r := _enrich_alicloud_item(item, account_id, region)) is not None: resources.append(r)
             total = resp.body.total_record_count or 0
             if page_num * page_size >= total:
                 break
@@ -329,7 +335,7 @@ def _scan_vpc(access_key_id: str, access_key_secret: str, account_id: str,
                     'resource_type': 'alicloud.vpc/Vpc',
                     '_discovery_id': 'alicloud.vpc.describe_vpcs',
                 }
-                resources.append(_enrich_alicloud_item(item, account_id, region))
+                if (r := _enrich_alicloud_item(item, account_id, region)) is not None: resources.append(r)
             total = resp.body.total_count or 0
             if page_num * page_size >= total:
                 break
@@ -381,7 +387,7 @@ def _scan_vpc_route_tables(access_key_id: str, access_key_secret: str, account_i
                     'resource_type': 'alicloud.vpc/RouteTable',
                     '_discovery_id': 'alicloud.vpc.describe_route_tables',
                 }
-                resources.append(_enrich_alicloud_item(item, account_id, region))
+                if (r := _enrich_alicloud_item(item, account_id, region)) is not None: resources.append(r)
             total = getattr(resp.body, 'total_count', 0) or 0
             if page_num * page_size >= total:
                 break
@@ -427,7 +433,7 @@ def _scan_ram(access_key_id: str, access_key_secret: str, account_id: str,
                     'resource_type': 'alicloud.ram/User',
                     '_discovery_id': 'alicloud.ram.list_users',
                 }
-                resources.append(_enrich_alicloud_item(item, account_id, region))
+                if (r := _enrich_alicloud_item(item, account_id, region)) is not None: resources.append(r)
             if not resp.body.is_truncated:
                 break
             marker = resp.body.marker
@@ -450,7 +456,7 @@ def _scan_ram(access_key_id: str, access_key_secret: str, account_id: str,
                     'resource_type': 'alicloud.ram/Role',
                     '_discovery_id': 'alicloud.ram.list_roles',
                 }
-                resources.append(_enrich_alicloud_item(item, account_id, region))
+                if (r := _enrich_alicloud_item(item, account_id, region)) is not None: resources.append(r)
             if not resp.body.is_truncated:
                 break
             marker = resp.body.marker
@@ -499,7 +505,7 @@ def _scan_slb(access_key_id: str, access_key_secret: str, account_id: str,
                     'resource_type': 'alicloud.slb/LoadBalancer',
                     '_discovery_id': 'alicloud.slb.describe_load_balancers',
                 }
-                resources.append(_enrich_alicloud_item(item, account_id, region))
+                if (r := _enrich_alicloud_item(item, account_id, region)) is not None: resources.append(r)
             total = resp.body.total_count or 0
             if page_num * page_size >= total:
                 break
@@ -542,7 +548,7 @@ def _scan_kms(access_key_id: str, access_key_secret: str, account_id: str,
                     'resource_type': 'alicloud.kms/Key',
                     '_discovery_id': 'alicloud.kms.list_keys',
                 }
-                resources.append(_enrich_alicloud_item(item, account_id, region))
+                if (r := _enrich_alicloud_item(item, account_id, region)) is not None: resources.append(r)
             total = resp.body.total_count or 0
             if page_num * page_size >= total:
                 break
@@ -585,7 +591,7 @@ def _scan_actiontrail(access_key_id: str, access_key_secret: str, account_id: st
                 'resource_type': 'alicloud.actiontrail/Trail',
                 '_discovery_id': 'alicloud.actiontrail.describe_trails',
             }
-            resources.append(_enrich_alicloud_item(item, account_id, region))
+            if (r := _enrich_alicloud_item(item, account_id, region)) is not None: resources.append(r)
     except Exception as e:
         logger.warning("AliCloud ActionTrail scan failed [%s]: %s", region, e)
         resources = []
@@ -623,7 +629,7 @@ def _scan_ack(access_key_id: str, access_key_secret: str, account_id: str,
                 'resource_type': 'alicloud.cs/Cluster',
                 '_discovery_id': 'alicloud.ack.describe_clusters',
             }
-            resources.append(_enrich_alicloud_item(item, account_id, region))
+            if (r := _enrich_alicloud_item(item, account_id, region)) is not None: resources.append(r)
     except Exception as e:
         logger.warning("AliCloud ACK scan failed [%s]: %s", region, e)
         resources = []
@@ -655,7 +661,7 @@ def _scan_security_center(access_key_id: str, access_key_secret: str, account_id
             'resource_type': 'alicloud.sas/Config',
             '_discovery_id': 'alicloud.security_center.get_config',
         }
-        resources.append(_enrich_alicloud_item(item, account_id, region))
+        if (r := _enrich_alicloud_item(item, account_id, region)) is not None: resources.append(r)
     except Exception as e:
         logger.warning("AliCloud SecurityCenter scan failed [%s]: %s", region, e)
         resources = []
@@ -741,7 +747,7 @@ def _scan_ecs_security_groups(access_key_id: str, access_key_secret: str, accoun
                 'resource_type': 'alicloud.ecs/SecurityGroup',
                 '_discovery_id': 'alicloud.ecs.describe_security_groups',
             }
-            resources.append(_enrich_alicloud_item(item, account_id, region))
+            if (r := _enrich_alicloud_item(item, account_id, region)) is not None: resources.append(r)
 
     except Exception as e:
         logger.warning("AliCloud ECS SecurityGroups scan failed [%s]: %s", region, e)
@@ -822,9 +828,10 @@ def _scan_alb(access_key_id: str, access_key_secret: str, account_id: str,
                     item['Listeners'] = []
 
                 resource_id = lb_id or f"alicloud.alb.{region}.{account_id}"
-                item['resource_arn'] = resource_id
+                canonical_uid = f"acs:alb:{region}:{account_id}:{resource_id}"
+                item['resource_arn'] = canonical_uid
                 item['resource_id'] = resource_id
-                item['resource_uid'] = resource_id
+                item['resource_uid'] = canonical_uid
                 item['_raw_response'] = {k: v for k, v in item.items()
                                          if not k.startswith('_') and k not in
                                          ('resource_arn', 'resource_uid', 'resource_id',
@@ -848,9 +855,9 @@ def _scan_alb(access_key_id: str, access_key_secret: str, account_id: str,
                     'account_id': account_id,
                     'resource_type': 'alicloud.alb/Zone',
                     '_discovery_id': 'alicloud.alb.DescribeZones',
-                    'resource_arn': zone_id,
+                    'resource_arn': f"acs:alb:{region}:{account_id}:zone/{zone_id}",
                     'resource_id': zone_id,
-                    'resource_uid': zone_id,
+                    'resource_uid': f"acs:alb:{region}:{account_id}:zone/{zone_id}",
                 }
                 zone_item['_raw_response'] = {k: v for k, v in zone_item.items()
                                               if not k.startswith('_') and k not in
@@ -1002,22 +1009,18 @@ class AliCloudDiscoveryScanner(DiscoveryScanner):
 
     async def list_available_regions(self) -> List[str]:
         """Dynamically list AliCloud regions via ECS describe_regions."""
-        try:
-            from alibabacloud_ecs20140526.client import Client
-            from alibabacloud_ecs20140526 import models as ecs_models
-            from alibabacloud_tea_openapi import models as open_api_models
+        from alibabacloud_ecs20140526.client import Client
+        from alibabacloud_ecs20140526 import models as ecs_models
+        from alibabacloud_tea_openapi import models as open_api_models
 
-            cfg = open_api_models.Config(
-                access_key_id=self._access_key_id,
-                access_key_secret=self._access_key_secret,
-                region_id='cn-hangzhou',
-            )
-            client = Client(cfg)
-            resp = client.describe_regions(ecs_models.DescribeRegionsRequest())
-            return [r.region_id for r in (resp.body.regions.region or [])]
-        except Exception as e:
-            logger.warning("Failed to list AliCloud regions: %s; using defaults", e)
-            return DEFAULT_ALICLOUD_REGIONS
+        cfg = open_api_models.Config(
+            access_key_id=self._access_key_id,
+            access_key_secret=self._access_key_secret,
+            region_id='cn-hangzhou',
+        )
+        client = Client(cfg)
+        resp = client.describe_regions(ecs_models.DescribeRegionsRequest())
+        return [r.region_id for r in (resp.body.regions.region or [])]
 
     def get_account_id(self) -> str:
         return self._account_uid or ''

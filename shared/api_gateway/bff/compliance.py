@@ -46,7 +46,7 @@ async def view_compliance(
         ("compliance", "/api/v1/compliance/ui-data", {"tenant_id": tenant_id, "scan_id": "latest"}),
         ("compliance", "/api/v1/compliance/frameworks/summary", {"tenant_id": tenant_id}),
         ("onboarding", "/api/v1/cloud-accounts", {"tenant_id": tenant_id}),
-        ("threat",     "/api/v1/threat/ui-data",     {"tenant_id": tenant_id, "scan_run_id": "latest", "limit": "1"}),
+        ("attack_path", "/api/v1/threat/ui-data",     {"tenant_id": tenant_id, "scan_run_id": "latest", "limit": "1"}),
     ], auth_headers=fwd_headers)
 
     compliance_data, all_frameworks_data, onboarding_data, threat_data = results

@@ -399,6 +399,7 @@ async def view_threat_detail(
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 
+    # TODO: decommission after engine-threat teardown — no attack-path equivalents.
     results = await fetch_many([
         ("threat", f"/api/v1/threat/threats/{threat_id}", {"tenant_id": tenant_id}),
         ("threat", f"/api/v1/threat/analysis/{threat_id}", {"tenant_id": tenant_id}),
