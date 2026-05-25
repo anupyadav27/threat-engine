@@ -1,0 +1,158 @@
+# engine-di Scan Job — Spot Instance Template
+#
+# PURPOSE:
+#   Reference manifest for a DI scan Job. In production this is created
+#   inline by the Argo pipeline `resource` step — Argo substitutes
+#   SCAN_RUN_ID and IMAGE_TAG at submit time.
+#
+# MANUAL RUN (one-off scan without Argo):
+#   export SCAN_RUN_ID=<uuid from scan_runs table>
+#   export IMAGE_TAG=v-di-s5-1
+#   envsubst < deployment/aws/eks/jobs/engine-di-scan-job.yaml | kubectl apply -f -
+#
+# SPOT NODE GROUP:
+#   nodeSelector + tolerations target the di-scan-spot node group.
+#   See deployment/aws/eks/spot-nodegroup/di-scan-spot-nodegroup.yaml.
+#
+# PARALLEL WORKERS (tuned for m5.2xlarge — 8 vCPU, 32 GB):
+#   MAX_GLOBAL_WORKERS=20    concurrent global-service scans (IAM, S3, etc.)
+#   MAX_REGIONAL_WORKERS=60  concurrent regional scans per service
+#   Scans are I/O-bound; high concurrency is safe. AWS adaptive retry handles throttling.
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: di-scan-${SCAN_RUN_ID}
+  namespace: threat-engine-engines
+  labels:
+    app: di-scan
+    scan-run-id: "${SCAN_RUN_ID}"
+    tier: scan-job
+spec:
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: engine-sa
+
+      # ── Spot node targeting ─────────────────────────────────────────────────
+      nodeSelector:
+        workload-type: di-scan
+        lifecycle: spot
+      tolerations:
+        - key: workload-type
+          operator: Equal
+          value: di-scan
+          effect: NoSchedule
+        # AWS spot interruption toleration (node-termination-handler label)
+        - key: aws.amazon.com/spot
+          operator: Exists
+          effect: NoSchedule
+
+      containers:
+        - name: di-scan
+          image: yadavanup84/engine-di:${IMAGE_TAG}
+          command: ["python3", "/app/run_scan.py", "--scan-run-id", "${SCAN_RUN_ID}"]
+
+          resources:
+            requests:
+              cpu: "2000m"
+              memory: "4Gi"
+            limits:
+              cpu: "4000m"
+              memory: "8Gi"
+
+          # ── Shared DB config and passwords ─────────────────────────────────
+          envFrom:
+            - configMapRef:
+                name: threat-engine-db-config
+            - secretRef:
+                name: threat-engine-db-passwords
+
+          env:
+            - name: PYTHONPATH
+              value: /app
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: ENGINE_NAME
+              value: "di"
+
+            # ── Parallel worker capacity (tuned for m5.2xlarge) ─────────────
+            - name: MAX_GLOBAL_WORKERS
+              value: "20"
+            - name: MAX_REGIONAL_WORKERS
+              value: "60"
+
+            # ── AWS retry (adaptive backs off on throttle) ──────────────────
+            - name: AWS_RETRY_MODE
+              value: "adaptive"
+            - name: AWS_MAX_ATTEMPTS
+              value: "10"
+
+            # ── DI DB connection ────────────────────────────────────────────
+            - name: DI_DB_HOST
+              value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+            - name: DI_DB_PORT
+              value: "5432"
+            - name: DI_DB_NAME
+              value: "threat_engine_di"
+            - name: DI_DB_USER
+              value: "postgres"
+            - name: DI_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: DI_DB_PASSWORD
+
+            # ── Inventory DB (identifier table reads) ──────────────────────
+            - name: INVENTORY_DB_HOST
+              value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+            - name: INVENTORY_DB_PORT
+              value: "5432"
+            - name: INVENTORY_DB_NAME
+              value: "threat_engine_inventory"
+            - name: INVENTORY_DB_USER
+              value: "postgres"
+            - name: INVENTORY_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: INVENTORY_DB_PASSWORD
+
+            # ── Onboarding DB (orchestration metadata) ─────────────────────
+            - name: ONBOARDING_DB_HOST
+              value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+            - name: ONBOARDING_DB_PORT
+              value: "5432"
+            - name: ONBOARDING_DB_NAME
+              value: "threat_engine_onboarding"
+            - name: ONBOARDING_DB_USER
+              value: "postgres"
+            - name: ONBOARDING_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: ONBOARDING_DB_PASSWORD
+
+            # ── Check DB (rule_discoveries identifier loader) ───────────────
+            - name: CHECK_DB_HOST
+              value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+            - name: CHECK_DB_PORT
+              value: "5432"
+            - name: CHECK_DB_NAME
+              value: "threat_engine_check"
+            - name: CHECK_DB_USER
+              value: "postgres"
+            - name: CHECK_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: CHECK_DB_PASSWORD
+
+            # ── AWS region (for Secrets Manager credential resolution) ──────
+            - name: AWS_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: s3-mount-config
+                  key: s3-region

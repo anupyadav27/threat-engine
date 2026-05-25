@@ -1,0 +1,149 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: engine-di
+  namespace: threat-engine-engines
+  labels:
+    app: engine-di
+    tier: engine
+    version: v-di-1
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: engine-di
+  template:
+    metadata:
+      labels:
+        app: engine-di
+        tier: engine
+        version: v-di-1
+    spec:
+      serviceAccountName: engine-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+      - name: engine-di
+        image: yadavanup84/engine-di:v-di-s3-3
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8025
+          name: http
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health/live
+            port: 8025
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health/ready
+            port: 8025
+          initialDelaySeconds: 15
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
+        envFrom:
+        - configMapRef:
+            name: threat-engine-db-config
+        - secretRef:
+            name: threat-engine-db-passwords
+        env:
+        - name: PYTHONPATH
+          value: /app
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: PORT
+          value: "8025"
+        - name: ENGINE_NAME
+          value: "di"
+        # DI DB connection
+        - name: DI_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: DI_DB_PORT
+          value: "5432"
+        - name: DI_DB_NAME
+          value: "threat_engine_di"
+        - name: DI_DB_USER
+          value: "postgres"
+        - name: DI_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: DI_DB_PASSWORD
+        # Inventory DB (for identifier table reads)
+        - name: INVENTORY_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: INVENTORY_DB_PORT
+          value: "5432"
+        - name: INVENTORY_DB_NAME
+          value: "threat_engine_inventory"
+        - name: INVENTORY_DB_USER
+          value: "postgres"
+        - name: INVENTORY_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: INVENTORY_DB_PASSWORD
+        # Onboarding DB for orchestration metadata
+        - name: ONBOARDING_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: ONBOARDING_DB_PORT
+          value: "5432"
+        - name: ONBOARDING_DB_NAME
+          value: "threat_engine_onboarding"
+        - name: ONBOARDING_DB_USER
+          value: "postgres"
+        - name: ONBOARDING_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: ONBOARDING_DB_PASSWORD
+        # AWS region for Secrets Manager
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: s3-mount-config
+              key: s3-region
+        - name: AWS_RETRY_MODE
+          value: "adaptive"
+        - name: AWS_MAX_ATTEMPTS
+          value: "10"
+        - name: MAX_GLOBAL_WORKERS
+          value: "10"
+        - name: MAX_REGIONAL_WORKERS
+          value: "30"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: engine-di
+  namespace: threat-engine-engines
+  labels:
+    app: engine-di
+spec:
+  selector:
+    app: engine-di
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8025
+    protocol: TCP
+  type: ClusterIP
