@@ -172,13 +172,8 @@ async def view_inventory(
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 
-    # ── 4 parallel calls: inventory + threat detections + threat summary + onboarding
-    # TODO(DI-cutover): replace ("inventory", "/api/v1/inventory/ui-data", ...) with a DI
-    # engine equivalent once DI exposes a /api/v1/di/ui-data summary endpoint that returns
-    # the same shape (summary + assets list). Until then, ui-data still comes from legacy
-    # inventory engine which reads from inventory_findings.
     results = await fetch_many([
-        ("inventory",  "/api/v1/inventory/ui-data",  {"tenant_id": tenant_id, "scan_run_id": scan_run_id, "limit": str(min(limit, 2000)), "offset": str(offset)}),
+        ("di",  "/api/v1/di/ui-data",  {"scan_run_id": scan_run_id, "limit": str(min(limit, 2000)), "offset": str(offset)}),
         ("attack_path", "/api/v1/threat/ui-data",     {"tenant_id": tenant_id, "scan_run_id": "latest", "limit": str(limit)}),
         ("onboarding", "/api/v1/cloud-accounts", {"tenant_id": tenant_id}),
     ], auth_headers=fwd_headers)
@@ -1389,10 +1384,8 @@ async def view_inventory_taxonomy(
     if category:
         params["category"] = category
 
-    # TODO(DI-cutover): taxonomy endpoint has no DI equivalent yet.
-    # Wire to DI once DI exposes GET /api/v1/di/taxonomy.
     results = await fetch_many([
-        ("inventory", "/api/v1/inventory/taxonomy", params),
+        ("di", "/api/v1/di/taxonomy", params),
     ], auth_headers=fwd_headers)
 
     data = results[0]
@@ -1427,10 +1420,8 @@ async def view_inventory_architecture(
     if csp:
         params["csp"] = csp
 
-    # TODO(DI-cutover): architecture endpoint has no DI equivalent yet.
-    # Wire to DI once DI exposes GET /api/v1/di/architecture.
     results = await fetch_many([
-        ("inventory", "/api/v1/inventory/architecture", params),
+        ("di", "/api/v1/di/architecture", params),
     ], auth_headers=fwd_headers)
 
     arch_data = results[0]
@@ -1560,10 +1551,8 @@ async def view_inventory_graph(
     if service:
         params["service"] = service
 
-    # TODO(DI-cutover): graph endpoint has no DI equivalent yet.
-    # Wire to DI once DI exposes GET /api/v1/di/graph.
     graph_results = await fetch_many([
-        ("inventory", "/api/v1/inventory/runs/latest/graph", params),
+        ("di", "/api/v1/di/graph", params),
     ], auth_headers=fwd_headers)
 
     graph_data = graph_results[0]

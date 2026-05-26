@@ -25,17 +25,14 @@ from ._shared import ENGINE_URLS, fetch_many, safe_get
 
 logger = logging.getLogger("api-gateway.bff.scan_timing")
 
-# TODO(DI-cutover): scan_timing still uses legacy discoveries engine because the DI engine
-# does not expose a /timing equivalent endpoint. Wire to DI engine once
-# DI adds GET /api/v1/di/timing/{scan_run_id}.
-DISCOVERIES_URL = ENGINE_URLS["discoveries"]
+DI_URL = ENGINE_URLS["di"]
 
 router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 
 
 async def _get_timing(scan_run_id: str) -> dict:
-    """Fetch timing report from discoveries engine."""
-    url = f"{DISCOVERIES_URL}/api/v1/discovery/{scan_run_id}/timing"
+    """Fetch timing report from DI engine."""
+    url = f"{DI_URL}/api/v1/di/timing/{scan_run_id}"
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(url)
@@ -44,14 +41,14 @@ async def _get_timing(scan_run_id: str) -> dict:
             if resp.status_code != 200:
                 raise HTTPException(
                     status_code=502,
-                    detail=f"Discoveries engine returned HTTP {resp.status_code}",
+                    detail=f"DI engine returned HTTP {resp.status_code}",
                 )
             return resp.json()
     except HTTPException:
         raise
     except Exception as e:
-        logger.warning(f"Could not reach discoveries engine for timing ({e})")
-        raise HTTPException(status_code=503, detail="Discoveries engine unavailable")
+        logger.warning(f"Could not reach DI engine for timing ({e})")
+        raise HTTPException(status_code=503, detail="DI engine unavailable")
 
 
 @router.get("/scan-timing/{scan_run_id}")
@@ -142,7 +139,7 @@ async def list_scan_timings(
         return {"tenant_id": tenant_id, "count": 0, "scans": []}
 
     timing_results = await fetch_many([
-        ("discoveries", f"/api/v1/discovery/{sid}/timing", {})
+        ("di", f"/api/v1/di/timing/{sid}", {})
         for sid in scan_run_ids
     ], auth_headers=fwd_headers)
 
