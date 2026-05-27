@@ -56,18 +56,18 @@ class RiskEvaluator:
     # ------------------------------------------------------------------
 
     def _get_inventory_conn(self) -> Optional[psycopg2.extensions.connection]:
-        """Open a connection to the inventory DB (threat_engine_inventory).
+        """Open a connection to the DI DB (threat_engine_di) for posture signals.
 
         Returns None (non-fatal) if the DB is unreachable.
         """
         try:
             return psycopg2.connect(
-                host=os.getenv("INVENTORY_DB_HOST", os.getenv("DB_HOST", "localhost")),
-                port=int(os.getenv("INVENTORY_DB_PORT", os.getenv("DB_PORT", "5432"))),
-                dbname=os.getenv("INVENTORY_DB_NAME", "threat_engine_inventory"),
-                user=os.getenv("INVENTORY_DB_USER", os.getenv("DB_USER", "postgres")),
+                host=os.getenv("DI_DB_HOST", os.getenv("DB_HOST", "localhost")),
+                port=int(os.getenv("DI_DB_PORT", os.getenv("DB_PORT", "5432"))),
+                dbname=os.getenv("DI_DB_NAME", "threat_engine_di"),
+                user=os.getenv("DI_DB_USER", os.getenv("DB_USER", "postgres")),
                 password=(
-                    os.getenv("INVENTORY_DB_PASSWORD")
+                    os.getenv("DI_DB_PASSWORD")
                     or os.getenv("DB_PASSWORD")
                     or os.getenv("DISCOVERIES_DB_PASSWORD", "")
                 ),
@@ -75,7 +75,7 @@ class RiskEvaluator:
                 connect_timeout=5,
             )
         except Exception as exc:
-            logger.warning("AP signals: cannot connect to inventory DB: %s", exc)
+            logger.warning("AP signals: cannot connect to DI DB: %s", exc)
             return None
 
     def _load_attack_path_signals(

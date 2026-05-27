@@ -64,6 +64,10 @@ class CIEMReader:
         self.account_id = account_id
         self.days = days
 
+    def close(self) -> None:
+        """No-op — CIEMReader opens/closes connections per call."""
+        pass
+
     def _resolve_latest_ciem_scan_run_id(self) -> Optional[str]:
         """Return the scan_run_id of the latest completed CIEM scan for this tenant.
 

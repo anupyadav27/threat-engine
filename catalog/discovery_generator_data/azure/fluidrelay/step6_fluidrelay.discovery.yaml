@@ -1,7 +1,3 @@
-# Discovery YAML — fluidrelay (Azure)
-# Generated: 2026-04-15T10:39:30Z
-# Source: step1b_operation_registry.json (qualified ops + dependency chains)
-# Actions use {category}.{method} format for SDK method resolution
 version: '1.0'
 provider: azure
 service: fluidrelay
@@ -9,99 +5,91 @@ services:
   client: fluidrelay
   module: azure.mgmt.fluidrelay
 discovery:
-  # ── fluidrelay.list [root] ──
-  - discovery_id: azure.fluidrelay.fluidrelay.list
-    calls:
-      - action: fluidrelay.list
-        save_as: response
-        on_error: continue
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        identity: '{{ item.identity }}'
-        type: '{{ item.type }}'
-        properties: '{{ item.properties }}'
-        location: '{{ item.location }}'
-        sku: '{{ item.sku }}'
-        name: '{{ item.name }}'
-        provisioning_state: '{{ item.provisioning_state }}'
-        zones: '{{ item.zones }}'
-        kind: '{{ item.kind }}'
-        id: '{{ item.id }}'
-        tags: '{{ item.tags }}'
-  # ── fluidrelayservers.list_by_subscription [root] ──
-  - discovery_id: azure.fluidrelay.fluidrelayservers.list_by_subscription
-    calls:
-      - action: fluidrelayservers.list_by_subscription
-        save_as: response
-        on_error: continue
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        identity: '{{ item.identity }}'
-        type: '{{ item.type }}'
-        properties: '{{ item.properties }}'
-        location: '{{ item.location }}'
-        sku: '{{ item.sku }}'
-        name: '{{ item.name }}'
-        provisioning_state: '{{ item.provisioning_state }}'
-        zones: '{{ item.zones }}'
-        kind: '{{ item.kind }}'
-        id: '{{ item.id }}'
-        tags: '{{ item.tags }}'
-  # ════════════════════════════════════════
-  # Dependent operations (for_each + params)
-  # ════════════════════════════════════════
-  # ── fluidrelaycontainers.list_by_fluid_relay_servers [dependent] ──
-  - discovery_id: azure.fluidrelay.fluidrelaycontainers.list_by_fluid_relay_servers
-    for_each: azure.fluidrelay.fluidrelayservers.list_by_subscription
-    calls:
-      - action: fluidrelaycontainers.list_by_fluid_relay_servers
-        save_as: response
-        on_error: continue
-        params:
-          fluid_relay_server_name: '{{ item.name }}'
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        identity: '{{ item.identity }}'
-        type: '{{ item.type }}'
-        properties: '{{ item.properties }}'
-        location: '{{ item.location }}'
-        sku: '{{ item.sku }}'
-        name: '{{ item.name }}'
-        provisioning_state: '{{ item.provisioning_state }}'
-        zones: '{{ item.zones }}'
-        kind: '{{ item.kind }}'
-        id: '{{ item.id }}'
-        tags: '{{ item.tags }}'
-  # ── fluidrelayservers.list_keys [dependent] ──
-  - discovery_id: azure.fluidrelay.fluidrelayservers.list_keys
-    for_each: azure.fluidrelay.fluidrelayservers.list_by_subscription
-    calls:
-      - action: fluidrelayservers.list_keys
-        save_as: response
-        on_error: continue
-        params:
-          fluid_relay_server_name: '{{ item.name }}'
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        identity: '{{ item.identity }}'
-        type: '{{ item.type }}'
-        properties: '{{ item.properties }}'
-        location: '{{ item.location }}'
-        sku: '{{ item.sku }}'
-        name: '{{ item.name }}'
-        provisioning_state: '{{ item.provisioning_state }}'
-        zones: '{{ item.zones }}'
-        kind: '{{ item.kind }}'
-        id: '{{ item.id }}'
-        tags: '{{ item.tags }}'
-
-  # ── Unwired dependent ops (no root producer found) ──
-  # SKIP: azure.fluidrelay.fluidrelayservers.list_by_resource_group — required_params: ['resource_group']
+- discovery_id: azure.fluidrelay.fluidrelay.list
+  calls:
+  - action: fluidrelay.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+  uid_template: '{item.id}'
+- discovery_id: azure.fluidrelay.fluidrelayservers.list_by_subscription
+  calls:
+  - action: fluidrelayservers.list_by_subscription
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+  uid_template: '{item.id}'
+- discovery_id: azure.fluidrelay.fluidrelaycontainers.list_by_fluid_relay_servers
+  for_each: azure.fluidrelay.fluidrelayservers.list_by_subscription
+  calls:
+  - action: fluidrelaycontainers.list_by_fluid_relay_servers
+    save_as: response
+    on_error: continue
+    params:
+      fluid_relay_server_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.fluidrelay.fluidrelayservers.list_keys
+  for_each: azure.fluidrelay.fluidrelayservers.list_by_subscription
+  calls:
+  - action: fluidrelayservers.list_keys
+    save_as: response
+    on_error: continue
+    params:
+      fluid_relay_server_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'

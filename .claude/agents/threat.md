@@ -1,12 +1,19 @@
 ---
 name: threat-engine
-description: Full-context agent for the Threat engine — MITRE ATT&CK detection, attack paths, toxic combinations, Neo4j graph, blast radius. Covers DB schema, all API endpoints, BFF views, K8s service, and gotchas.
+description: "RETIRED 2026-05-27 — engine-threat + engine-threat-v1 K8s deployments deleted; threat_engine_threat DB dropped. Attack path logic consolidated into engine-attack-path. Threat findings now in threat_engine_di.security_findings. Use threat-engine agent for attack-path questions."
 autoApprove:
   - Bash
   - Read
   - Glob
   - Grep
 ---
+
+> **RETIRED 2026-05-27**: `engine-threat` and `engine-threat-v1` K8s deployments deleted. `threat_engine_threat` DB dropped.
+> Crown jewel + attack path logic consolidated into `engine-attack-path`.
+> Threat findings now live in `threat_engine_di.security_findings` (via `security_findings_writer.py`).
+> Compat views `threat_findings` + `threat_detections` exist in `threat_engine_di` for downstream engines.
+> **Use the `threat` agent (attack-path engine) for any threat/attack-path work.**
+
 ## Self-Update Protocol (Always Run First)
 
 **Before answering any question**, re-read the actual engine code to verify your knowledge is current. The static documentation in this file may lag behind the live codebase.

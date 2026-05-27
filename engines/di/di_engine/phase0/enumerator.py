@@ -67,6 +67,11 @@ async def run_phase0(
     account_id: str,
     provider: str,
     credentials: Dict[str, Any],
+    include_regions: Optional[List[str]] = None,
+    exclude_regions: Optional[List[str]] = None,
+    include_services: Optional[List[str]] = None,
+    exclude_services: Optional[List[str]] = None,
+    # legacy param kept for callers that haven't migrated yet
     regions: Optional[List[str]] = None,
     services: Optional[List[str]] = None,
 ) -> Phase0Result:
@@ -78,13 +83,20 @@ async def run_phase0(
         account_id: Cloud account/subscription/project ID.
         provider: Cloud provider name (aws, azure, gcp, oci, ibm, alicloud, k8s).
         credentials: Resolved credential dict (from SecretsManagerStorage).
-        regions: Optional explicit region list; scanner lists regions if None.
-        services: Optional service filter (e.g. ["ec2", "s3", "iam"]) for quick validation.
-                  Omit or pass None for a full scan.
+        include_regions: Explicit allowlist of regions; discovers all if None.
+        exclude_regions: Regions to skip even when included/discovered.
+        include_services: Service allowlist; scans all if None.
+        exclude_services: Services to skip even when in the allowlist.
+        regions, services: Legacy aliases for include_regions / include_services.
 
     Returns:
         Phase0Result with rows (ready for Phase 1/2) and errors.
     """
+    # Resolve legacy aliases so existing callers still work
+    if include_regions is None and regions is not None:
+        include_regions = regions
+    if include_services is None and services is not None:
+        include_services = services
     result = Phase0Result()
 
     logger.info(
@@ -113,38 +125,44 @@ async def run_phase0(
     )
 
     # ── Discover regions ──────────────────────────────────────────────────────
-    if regions is None:
+    if include_regions is None:
         if hasattr(scanner, "list_available_regions"):
-            regions = await scanner.list_available_regions()
+            include_regions = await scanner.list_available_regions()
         else:
-            regions = []
+            include_regions = []
+
+    # Apply region exclusion
+    exclude_regions_set = set(exclude_regions) if exclude_regions else set()
+    effective_regions = [r for r in include_regions if r not in exclude_regions_set]
 
     logger.info(
-        "Phase 0 scanning %d regions for provider=%s", len(regions), provider
+        "Phase 0 scanning %d regions for provider=%s (include=%d exclude=%d)",
+        len(effective_regions), provider,
+        len(include_regions), len(exclude_regions_set),
     )
 
     # ── Enumerate services × regions (parallel) ──────────────────────────────
-    # Separate pools: global (account-level, run once) vs regional (per-region).
-    # Global tasks don't benefit from high concurrency; regional is the throughput target.
     global_workers   = int(os.getenv("MAX_GLOBAL_WORKERS",   "10"))
     regional_workers = int(os.getenv("MAX_REGIONAL_WORKERS", "30"))
     global_sem   = asyncio.Semaphore(global_workers)
     regional_sem = asyncio.Semaphore(regional_workers)
 
-    # Per-service semaphores for services with explicit DB caps (e.g. cloudformation=3)
     service_sems: Dict[str, asyncio.Semaphore] = {}
-
     services_seen: Dict[str, bool] = {}
 
     # Build task list (deduplicated by discovery_id:region)
-    services_set = set(services) if services else None
+    include_services_set = set(include_services) if include_services else None
+    exclude_services_set = set(exclude_services) if exclude_services else set()
     scan_tasks = []
     for identifier in identifiers.values():
         if not identifier.get("root_op"):
             continue
-        if services_set and identifier.get("service") not in services_set:
+        svc = identifier.get("service", "")
+        if include_services_set and svc not in include_services_set:
             continue
-        scan_regions = _get_scan_regions(provider, identifier["service"], regions)
+        if svc in exclude_services_set:
+            continue
+        scan_regions = _get_scan_regions(provider, svc, effective_regions)
         for region in scan_regions:
             key = f"{identifier['discovery_id']}:{region}"
             if key in services_seen:
@@ -327,12 +345,17 @@ def _get_scan_regions(provider: str, service: str, regions: List[str]) -> List[s
     K8s is always 'global'.
     """
     _GLOBAL_SERVICES = {
+        # Only services where boto3 resolves to a single global endpoint regardless of region_name.
+        # S3/route53/wafv2/shield/sts are NOT here — passing region="global" to boto3 for these
+        # causes EndpointConnectionError (e.g. sts.global.amazonaws.com) during cred resolution.
+        # Those services scan per-region; S3 list_buckets returns all buckets in every region,
+        # so ON CONFLICT (resource_uid, discovery_id, scan_run_id, tenant_id, provider) deduplicates.
         "aws": {"iam", "organizations", "cloudfront", "globalaccelerator"},
         "gcp": set(),
         "azure": {"activedirectory"},
         "oci": set(),
         "ibm": set(),
-        "alicloud": {"ram"},  # RAM is account-global (users/roles/policies shared across regions)
+        "alicloud": {"ram"},
         "k8s": {"*"},
     }
 

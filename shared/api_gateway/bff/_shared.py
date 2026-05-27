@@ -490,7 +490,7 @@ def read_findings(
             "by_engine":   {engine_name: N},
         }
     """
-    from engine_common.db_connections import get_inventory_conn
+    from engine_common.db_connections import get_di_conn
 
     conditions: List[str] = ["tenant_id = %s"]
     params: List[Any] = [tenant_id]
@@ -552,7 +552,7 @@ def read_findings(
     """
 
     try:
-        with get_inventory_conn() as conn:
+        with get_di_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(count_sql, params)
                 total: int = cur.fetchone()[0]
@@ -655,7 +655,7 @@ def read_posture(
             },
         }
     """
-    from engine_common.db_connections import get_inventory_conn
+    from engine_common.db_connections import get_di_conn
 
     conditions: List[str] = ["tenant_id = %s"]
     params: List[Any] = [tenant_id]
@@ -714,7 +714,7 @@ def read_posture(
     count_sql = f"SELECT COUNT(*) FROM resource_security_posture WHERE {where}"
 
     try:
-        with get_inventory_conn() as conn:
+        with get_di_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(count_sql, params)
                 total: int = cur.fetchone()[0]

@@ -44,7 +44,7 @@ const SEV_BG     = { critical: 'rgba(239,68,68,0.12)', high: 'rgba(249,115,22,0.
 const SEV_BORDER = { critical: 'rgba(239,68,68,0.35)', high: 'rgba(249,115,22,0.35)', medium: 'rgba(234,179,8,0.35)', low: 'rgba(107,114,128,0.35)' };
 
 const SEVERITIES    = ['all', 'critical', 'high', 'medium', 'low'];
-const ENTRY_TYPES   = ['all', 'internet', 'vpn', 'onprem', 'peer_account'];
+const ENTRY_TYPES   = ['all', 'internet', 'virtual', 'vpn', 'onprem', 'peer_account'];
 const CONFIDENCES   = ['all', 'confirmed', 'likely', 'speculative'];
 const CONF_COLOR    = { confirmed: '#22c55e', likely: '#3b82f6', speculative: '#8b5cf6' };
 const PAGE_SIZE   = 25;

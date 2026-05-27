@@ -1,7 +1,3 @@
-# Discovery YAML — quantum (Azure)
-# Generated: 2026-04-15T10:39:31Z
-# Source: step1b_operation_registry.json (qualified ops + dependency chains)
-# Actions use {category}.{method} format for SDK method resolution
 version: '1.0'
 provider: azure
 service: quantum
@@ -9,69 +5,62 @@ services:
   client: quantum
   module: azure.mgmt.quantum
 discovery:
-  # ── workspaces.list_by_resource_group [root] ──
-  - discovery_id: azure.quantum.workspaces.list_by_resource_group
-    calls:
-      - action: workspaces.list_by_resource_group
-        save_as: response
-        on_error: continue
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        identity: '{{ item.identity }}'
-        type: '{{ item.type }}'
-        properties: '{{ item.properties }}'
-        location: '{{ item.location }}'
-        name: '{{ item.name }}'
-        id: '{{ item.id }}'
-        tags: '{{ item.tags }}'
-        system_data: '{{ item.system_data }}'
-  # ── workspaces.list_by_subscription [root] ──
-  - discovery_id: azure.quantum.workspaces.list_by_subscription
-    calls:
-      - action: workspaces.list_by_subscription
-        save_as: response
-        on_error: continue
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        identity: '{{ item.identity }}'
-        type: '{{ item.type }}'
-        properties: '{{ item.properties }}'
-        location: '{{ item.location }}'
-        name: '{{ item.name }}'
-        id: '{{ item.id }}'
-        tags: '{{ item.tags }}'
-        system_data: '{{ item.system_data }}'
-  # ════════════════════════════════════════
-  # Dependent operations (for_each + params)
-  # ════════════════════════════════════════
-  # ── workspace.list_keys [dependent] ──
-  - discovery_id: azure.quantum.workspace.list_keys
-    for_each: azure.quantum.workspaces.list_by_subscription
-    calls:
-      - action: workspace.list_keys
-        save_as: response
-        on_error: continue
-        params:
-          workspace_name: '{{ item.name }}'
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        identity: '{{ item.identity }}'
-        type: '{{ item.type }}'
-        properties: '{{ item.properties }}'
-        location: '{{ item.location }}'
-        sku: '{{ item.sku }}'
-        name: '{{ item.name }}'
-        provisioning_state: '{{ item.provisioning_state }}'
-        zones: '{{ item.zones }}'
-        kind: '{{ item.kind }}'
-        id: '{{ item.id }}'
-        tags: '{{ item.tags }}'
-
-  # ── Unwired dependent ops (no root producer found) ──
-  # SKIP: azure.quantum.offerings.list — required_params: ['location_name']
+- discovery_id: azure.quantum.workspaces.list_by_resource_group
+  calls:
+  - action: workspaces.list_by_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+  uid_template: '{item.id}'
+- discovery_id: azure.quantum.workspaces.list_by_subscription
+  calls:
+  - action: workspaces.list_by_subscription
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      system_data: '{{ item.system_data }}'
+  uid_template: '{item.id}'
+- discovery_id: azure.quantum.workspace.list_keys
+  for_each: azure.quantum.workspaces.list_by_subscription
+  calls:
+  - action: workspace.list_keys
+    save_as: response
+    on_error: continue
+    params:
+      workspace_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'

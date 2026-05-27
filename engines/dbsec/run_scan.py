@@ -66,7 +66,7 @@ def _emit_dbsec_findings(scan_run_id: str, tenant_id: str) -> None:
         tenant_id: Tenant scope — ensures multi-tenant isolation.
     """
     from engine_common.security_findings_writer import upsert_findings
-    from engine_common.db_connections import get_dbsec_conn, get_inventory_conn
+    from engine_common.db_connections import get_dbsec_conn, get_di_conn
 
     with get_dbsec_conn() as conn:
         with conn.cursor() as cur:
@@ -122,7 +122,7 @@ def _emit_dbsec_findings(scan_run_id: str, tenant_id: str) -> None:
             "first_seen_at":     d.get("first_seen_at"),
         })
 
-    with get_inventory_conn() as iconn:
+    with get_di_conn() as iconn:
         written = upsert_findings(
             conn=iconn,
             findings=findings,
@@ -137,7 +137,7 @@ def main() -> None:
     """Run DBSec 5-pillar scan for a given scan_run_id."""
     parser = argparse.ArgumentParser(description="DBSec Engine Scanner")
     parser.add_argument("--scan-run-id", required=True, help="Pipeline scan run ID")
-    args = parser.parse_args()
+    args, _unknown = parser.parse_known_args()
     scan_run_id = args.scan_run_id
 
     logger.info("DBSec scanner starting scan_run_id=%s", scan_run_id)
@@ -161,11 +161,17 @@ def main() -> None:
             tenant_id, account_id, provider,
         )
 
-        from engine_common.db_connections import get_dbsec_conn, get_discoveries_conn, get_check_conn
+        from engine_common.db_connections import get_dbsec_conn, get_check_conn
         from dbsec_engine.providers import get_provider
         from dbsec_engine.storage.dbsec_db_writer import save_findings_to_db
 
-        discoveries_conn = get_discoveries_conn()
+        _di_enabled = os.getenv("DI_ENGINE_ENABLED", "false").lower() == "true"
+        if _di_enabled:
+            from engine_common.db_connections import get_di_conn
+            discoveries_conn = get_di_conn()
+        else:
+            from engine_common.db_connections import get_discoveries_conn
+            discoveries_conn = get_discoveries_conn()
         check_conn = get_check_conn()
         dbsec_conn = get_dbsec_conn()
 
@@ -202,7 +208,7 @@ def main() -> None:
 
         # Write DBSec posture signals to resource_security_posture (inventory DB)
         try:
-            from engine_common.db_connections import get_inventory_conn as _get_inv_conn
+            from engine_common.db_connections import get_di_conn as _get_inv_conn
 
             _rsp_by_uid: dict = {}
             for _f in (findings or []):

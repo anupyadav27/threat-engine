@@ -84,6 +84,85 @@ def _create_report_row(scan_run_id: str, tenant_id: str, provider: str,
         logger.warning(f"Failed to pre-create report row: {e}")
 
 
+def _write_compliance_posture(scan_run_id: str, tenant_id: str) -> None:
+    """Write per-resource compliance data to resource_security_posture and security_findings in DI DB."""
+    import psycopg2
+
+    di_conn = psycopg2.connect(
+        host=os.environ["DI_DB_HOST"],
+        port=int(os.environ.get("DI_DB_PORT", 5432)),
+        dbname=os.environ["DI_DB_NAME"],
+        user=os.environ["DI_DB_USER"],
+        password=os.environ["DI_DB_PASSWORD"],
+        connect_timeout=10,
+    )
+    comp_conn = get_compliance_conn()
+    try:
+        with comp_conn.cursor() as cur:
+            # Per resource: aggregate violated frameworks and failure count
+            cur.execute("""
+                SELECT
+                    cf.resource_uid,
+                    array_agg(DISTINCT rcm.framework_id) FILTER (WHERE rcm.framework_id IS NOT NULL) AS frameworks,
+                    COUNT(*) AS violations
+                FROM compliance_findings cf
+                JOIN rule_control_mapping rcm ON rcm.rule_id = cf.rule_id AND rcm.is_active = true
+                WHERE cf.scan_run_id = %s AND cf.tenant_id = %s
+                  AND cf.resource_uid IS NOT NULL AND cf.resource_uid <> ''
+                GROUP BY cf.resource_uid
+            """, (scan_run_id, tenant_id))
+            resource_rows = cur.fetchall()
+
+            # Framework associations per rule_id (for security_findings update)
+            cur.execute("""
+                SELECT rule_id, array_agg(DISTINCT framework_id) AS frameworks
+                FROM rule_control_mapping WHERE is_active = true
+                GROUP BY rule_id
+            """)
+            rule_frameworks: dict = {r[0]: r[1] for r in cur.fetchall()}
+
+        if not resource_rows:
+            logger.info("Compliance posture write-back: no resource_uid rows found")
+            return
+
+        with di_conn.cursor() as di:
+            # Upsert compliance posture columns into resource_security_posture
+            for resource_uid, frameworks, violations in resource_rows:
+                di.execute("""
+                    UPDATE resource_security_posture
+                    SET compliance_controls_failed    = %s,
+                        compliance_frameworks_violated = %s,
+                        compliance_score              = CASE
+                            WHEN (compliance_controls_failed + %s) > 0
+                            THEN ROUND(100.0 * (compliance_controls_failed + %s - %s)::numeric
+                                       / (compliance_controls_failed + %s), 2)
+                            ELSE 0 END
+                    WHERE resource_uid = %s AND tenant_id = %s
+                """, (violations, frameworks or [], violations, violations, violations, violations, resource_uid, tenant_id))
+
+            # Update security_findings.compliance_frameworks for check findings
+            for rule_id, fw_list in rule_frameworks.items():
+                if not fw_list:
+                    continue
+                di.execute("""
+                    UPDATE security_findings
+                    SET compliance_frameworks = %s
+                    WHERE source_engine = 'check'
+                      AND tenant_id = %s
+                      AND finding_data->>'rule_id' = %s
+                      AND array_length(compliance_frameworks, 1) IS NULL
+                """, (fw_list, tenant_id, rule_id))
+
+        di_conn.commit()
+        logger.info(
+            f"Compliance posture write-back: updated {len(resource_rows)} resources, "
+            f"{len(rule_frameworks)} rule→framework mappings"
+        )
+    finally:
+        comp_conn.close()
+        di_conn.close()
+
+
 def main():
     parser = argparse.ArgumentParser(description="Compliance Engine Scanner")
     parser.add_argument("--scan-run-id", required=True, help="Pipeline scan run ID")
@@ -263,19 +342,27 @@ def main():
             total_controls = assessment.get("total_controls", 0)
             controls_passed = summary.get("PASS", 0)
             controls_failed = summary.get("FAIL", 0) + summary.get("PARTIAL", 0)
+            assessed = controls_passed + controls_failed
+            overall_score = round(100.0 * controls_passed / assessed, 2) if assessed > 0 else 0.0
             conn = get_compliance_conn()
             with conn.cursor() as cur:
                 cur.execute(
-                    "UPDATE compliance_report SET total_controls=%s, controls_passed=%s, controls_failed=%s WHERE scan_run_id=%s",
-                    (total_controls, controls_passed, controls_failed, scan_run_id),
+                    "UPDATE compliance_report SET total_controls=%s, controls_passed=%s, controls_failed=%s, overall_score=%s WHERE scan_run_id=%s",
+                    (total_controls, controls_passed, controls_failed, overall_score, scan_run_id),
                 )
             conn.commit()
             conn.close()
             logger.info(
-                f"Control assessment complete: total={total_controls} passed={controls_passed} failed={controls_failed}"
+                f"Control assessment complete: total={total_controls} passed={controls_passed} failed={controls_failed} score={overall_score}"
             )
         except Exception as e:
             logger.warning(f"Control assessment failed (non-fatal): {e}")
+
+        # Write per-resource compliance posture and framework associations to DI DB
+        try:
+            _write_compliance_posture(scan_run_id, tenant_id)
+        except Exception as e:
+            logger.warning(f"Compliance posture write-back failed (non-fatal): {e}")
 
         # 4c. CIEM audit evidence (logging completeness from log_events)
         try:

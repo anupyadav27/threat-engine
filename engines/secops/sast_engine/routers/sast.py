@@ -351,7 +351,7 @@ def _emit_secops_findings(secops_scan_id: str, tenant_id: str, scan_run_id: str)
     try:
         from database.db_config import get_connection as get_secops_conn
         from engine_common.security_findings_writer import upsert_findings
-        from engine_common.db_connections import get_inventory_conn
+        from engine_common.db_connections import get_di_conn
     except ImportError as e:
         logger.warning("_emit_secops_findings: missing deps (%s) — skipping", e)
         return
@@ -400,7 +400,7 @@ def _emit_secops_findings(secops_scan_id: str, tenant_id: str, scan_run_id: str)
             "status":            "open",
         })
 
-    with get_inventory_conn() as iconn:
+    with get_di_conn() as iconn:
         written = upsert_findings(
             conn=iconn,
             findings=findings,

@@ -61,8 +61,11 @@ spec:
         provider    = '{{workflow.parameters.provider}}'
         cred_type   = '{{workflow.parameters.credential-type}}'
         cred_ref    = '{{workflow.parameters.credential-ref}}'
-        svc_param   = '{{workflow.parameters.include-services}}'.strip()
-        include_services = json.dumps([s.strip() for s in svc_param.split(',') if s.strip()]) if svc_param else None
+        def _parse_list(raw): return json.dumps([s.strip() for s in raw.strip().split(',') if s.strip()]) if raw.strip() else None
+        include_services = _parse_list('{{workflow.parameters.include-services}}')
+        exclude_services = _parse_list('{{workflow.parameters.exclude-services}}')
+        include_regions  = _parse_list('{{workflow.parameters.include-regions}}')
+        exclude_regions  = _parse_list('{{workflow.parameters.exclude-regions}}')
 
         engines = json.dumps([
             'discovery','check','inventory','threat',
@@ -97,11 +100,16 @@ spec:
             INSERT INTO scan_runs
                 (scan_run_id, tenant_id, scan_type, trigger_type, engines_requested,
                  engines_completed, overall_status, started_at, provider, account_id,
-                 credential_type, credential_ref, include_services, created_at)
+                 credential_type, credential_ref,
+                 include_services, exclude_services, include_regions, exclude_regions,
+                 created_at)
             VALUES (%s, %s, 'full', 'argo', %s::jsonb,
-                '[]'::jsonb, 'running', NOW(), %s, %s, %s, %s, %s::jsonb, NOW())
+                '[]'::jsonb, 'running', NOW(), %s, %s, %s, %s,
+                %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb,
+                NOW())
             ON CONFLICT (scan_run_id) DO UPDATE SET overall_status='running', started_at=NOW()
-        """, (scan_run_id, tenant_id, engines, provider, account_id, cred_type, cred_ref, include_services))
+        """, (scan_run_id, tenant_id, engines, provider, account_id, cred_type, cred_ref,
+              include_services, exclude_services, include_regions, exclude_regions))
 
         conn.commit()
         conn.close()
@@ -854,16 +862,16 @@ spec:
       image: python:3.11-slim
       command: [python3, -u]
       env:
-      - name: INVENTORY_DB_HOST
+      - name: DI_DB_HOST
         valueFrom:
           configMapKeyRef:
             name: threat-engine-db-config
-            key: INVENTORY_DB_HOST
-      - name: INVENTORY_DB_PASSWORD
+            key: DI_DB_HOST
+      - name: DI_DB_PASSWORD
         valueFrom:
           secretKeyRef:
             name: threat-engine-db-passwords
-            key: INVENTORY_DB_PASSWORD
+            key: DI_DB_PASSWORD
       - name: CHECK_DB_HOST
         valueFrom:
           configMapKeyRef:
@@ -893,7 +901,7 @@ spec:
             )
 
         try:
-            inv_conn  = conn("INVENTORY_DB_HOST", "threat_engine_inventory", "INVENTORY_DB_PASSWORD")
+            inv_conn  = conn("DI_DB_HOST", "threat_engine_di", "DI_DB_PASSWORD")
             chk_conn  = conn("CHECK_DB_HOST",     "threat_engine_check",     "CHECK_DB_PASSWORD")
 
             # Fetch all rule_ids in security_findings with NULL mitre_technique_id for this scan

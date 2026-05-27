@@ -109,7 +109,7 @@ spec:
       value: ""
       description: "Single region override for engines that accept a region param (empty = all)"
     - name: di-image-tag
-      value: "v-di-s5-3"
+      value: "v-di-filter1"
       description: "engine-di Docker image tag for scan Jobs. Update when pushing a new DI image."
 
   podGC:
@@ -463,28 +463,6 @@ spec:
           - name: tenant-id
             value: "{{workflow.parameters.tenant-id}}"
 
-      # Step 5b: graph-build — builds the Neo4j security graph AFTER domain engines
-      # complete so that CVE nodes (vulnerability engine) and network EXPOSES edges
-      # (network-security engine) are present in the graph.
-      #
-      # GRAPH-S1-04: POST /api/v1/graph/build now returns 202 + job_id immediately.
-      # This inline script captures the job_id from the trigger response and polls
-      # GET /api/v1/graph/build/status/{job_id} until status=completed|failed.
-      # Failure is non-blocking for risk (see risk.depends below) so a Neo4j outage
-      # does not halt the rest of the pipeline.
-      - name: graph-build
-        depends: >-
-          (mitre-enrich.Succeeded || mitre-enrich.Failed || mitre-enrich.Errored || mitre-enrich.Skipped)
-        templateRef:
-          name: cspm-templates-primitives
-          template: graph-build
-        arguments:
-          parameters:
-          - name: scan-run-id
-            value: "{{workflow.parameters.scan-run-id}}"
-          - name: tenant-id
-            value: "{{workflow.parameters.tenant-id}}"
-
       # Step 5: api-security — API gateway OWASP analysis (parallel with IAM, DataSec, Network)
       - name: api-security
         depends: "check"
@@ -515,11 +493,12 @@ spec:
             value: "{{workflow.parameters.region}}"
 
       # Step 6.5: attack-path-scan — reverse BFS from crown jewels to entry points.
-      # Depends on graph-build (so CVE nodes + EXPOSES edges are present in Neo4j).
+      # Depends on mitre-enrich (so security_findings have MITRE data before BFS scoring).
+      # The attack-path engine builds its own Neo4j graph internally via EdgeBuilder.
       # retry: 0 — Argo does NOT retry on failure (PRD section 5.2).
       - name: attack-path-scan
         depends: >-
-          (graph-build.Succeeded || graph-build.Failed || graph-build.Errored || graph-build.Skipped)
+          (mitre-enrich.Succeeded || mitre-enrich.Failed || mitre-enrich.Errored || mitre-enrich.Skipped)
         templateRef:
           name: cspm-templates-primitives
           template: attack-path-scan

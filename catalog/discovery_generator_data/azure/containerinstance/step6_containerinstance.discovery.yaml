@@ -1,7 +1,3 @@
-# Discovery YAML — containerinstance (Azure)
-# Generated: 2026-04-15T10:39:29Z
-# Source: step1b_operation_registry.json (qualified ops + dependency chains)
-# Actions use {category}.{method} format for SDK method resolution
 version: '1.0'
 provider: azure
 service: containerinstance
@@ -9,163 +5,155 @@ services:
   client: containerinstance
   module: azure.mgmt.containerinstance
 discovery:
-  # ── containergroups.list [root] ──
-  - discovery_id: azure.containerinstance.containergroups.list
-    calls:
-      - action: containergroups.list
-        save_as: response
-        on_error: continue
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        type: '{{ item.type }}'
-        properties: '{{ item.properties }}'
-        name: '{{ item.name }}'
-        id: '{{ item.id }}'
-        display: '{{ item.display }}'
-        origin: '{{ item.origin }}'
-  # ── containergroups.list_by_resource_group [root] ──
-  - discovery_id: azure.containerinstance.containergroups.list_by_resource_group
-    calls:
-      - action: containergroups.list_by_resource_group
-        save_as: response
-        on_error: continue
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        identity: '{{ item.identity }}'
-        type: '{{ item.type }}'
-        location: '{{ item.location }}'
-        sku: '{{ item.sku }}'
-        name: '{{ item.name }}'
-        provisioning_state: '{{ item.provisioning_state }}'
-        zones: '{{ item.zones }}'
-        id: '{{ item.id }}'
-        tags: '{{ item.tags }}'
-        confidential_compute_properties: '{{ item.confidential_compute_properties }}'
-        containers: '{{ item.containers }}'
-        diagnostics: '{{ item.diagnostics }}'
-        dns_config: '{{ item.dns_config }}'
-        encryption_properties: '{{ item.encryption_properties }}'
-        extensions: '{{ item.extensions }}'
-        image_registry_credentials: '{{ item.image_registry_credentials }}'
-        init_containers: '{{ item.init_containers }}'
-        instance_view: '{{ item.instance_view }}'
-        ip_address: '{{ item.ip_address }}'
-        os_type: '{{ item.os_type }}'
-        priority: '{{ item.priority }}'
-        restart_policy: '{{ item.restart_policy }}'
-        subnet_ids: '{{ item.subnet_ids }}'
-        volumes: '{{ item.volumes }}'
-  # ════════════════════════════════════════
-  # Dependent operations (for_each + params)
-  # ════════════════════════════════════════
-  # ── containergroups.get_outbound_network_dependencies_endpoints [dependent] ──
-  - discovery_id: azure.containerinstance.containergroups.get_outbound_network_dependencies_endpoints
-    for_each: azure.containerinstance.containergroups.list
-    calls:
-      - action: containergroups.get_outbound_network_dependencies_endpoints
-        save_as: response
-        on_error: continue
-        params:
-          container_group_name: '{{ item.name }}'
-    emit:
-      as: item
-      item:
-        identity: '{{ response.identity }}'
-        type: '{{ response.type }}'
-        properties: '{{ response.properties }}'
-        location: '{{ response.location }}'
-        sku: '{{ response.sku }}'
-        name: '{{ response.name }}'
-        provisioning_state: '{{ response.provisioning_state }}'
-        zones: '{{ response.zones }}'
-        kind: '{{ response.kind }}'
-        id: '{{ response.id }}'
-        tags: '{{ response.tags }}'
-  # ── containers.list_logs [dependent] ──
-  - discovery_id: azure.containerinstance.containers.list_logs
-    for_each: azure.containerinstance.containergroups.list
-    calls:
-      - action: containers.list_logs
-        save_as: response
-        on_error: continue
-        params:
-          container_group_name: '{{ item.name }}'
-          container_name: '{{ item.name }}'
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        identity: '{{ item.identity }}'
-        type: '{{ item.type }}'
-        properties: '{{ item.properties }}'
-        location: '{{ item.location }}'
-        sku: '{{ item.sku }}'
-        name: '{{ item.name }}'
-        provisioning_state: '{{ item.provisioning_state }}'
-        zones: '{{ item.zones }}'
-        kind: '{{ item.kind }}'
-        id: '{{ item.id }}'
-        tags: '{{ item.tags }}'
-  # ── location.list_cached_images [dependent] ──
-  - discovery_id: azure.containerinstance.location.list_cached_images
-    for_each: azure.containerinstance.containergroups.list
-    calls:
-      - action: location.list_cached_images
-        save_as: response
-        on_error: continue
-        params:
-          location: '{{ item.location }}'
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        type: '{{ item.type }}'
-        name: '{{ item.name }}'
-        id: '{{ item.id }}'
-        image: '{{ item.image }}'
-        os_type: '{{ item.os_type }}'
-  # ── location.list_capabilities [dependent] ──
-  - discovery_id: azure.containerinstance.location.list_capabilities
-    for_each: azure.containerinstance.containergroups.list
-    calls:
-      - action: location.list_capabilities
-        save_as: response
-        on_error: continue
-        params:
-          location: '{{ item.location }}'
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        type: '{{ item.type }}'
-        location: '{{ item.location }}'
-        name: '{{ item.name }}'
-        id: '{{ item.id }}'
-        capabilities: '{{ item.capabilities }}'
-        gpu: '{{ item.gpu }}'
-        ip_address_type: '{{ item.ip_address_type }}'
-        os_type: '{{ item.os_type }}'
-        resource_type: '{{ item.resource_type }}'
-  # ── location.list_usage [dependent] ──
-  - discovery_id: azure.containerinstance.location.list_usage
-    for_each: azure.containerinstance.containergroups.list
-    calls:
-      - action: location.list_usage
-        save_as: response
-        on_error: continue
-        params:
-          location: '{{ item.location }}'
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        type: '{{ item.type }}'
-        name: '{{ item.name }}'
-        id: '{{ item.id }}'
-        current_value: '{{ item.current_value }}'
-        limit: '{{ item.limit }}'
-        unit: '{{ item.unit }}'
+- discovery_id: azure.containerinstance.containergroups.list
+  calls:
+  - action: containergroups.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      display: '{{ item.display }}'
+      origin: '{{ item.origin }}'
+  uid_template: '{item.id}'
+- discovery_id: azure.containerinstance.containergroups.list_by_resource_group
+  calls:
+  - action: containergroups.list_by_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      confidential_compute_properties: '{{ item.confidential_compute_properties }}'
+      containers: '{{ item.containers }}'
+      diagnostics: '{{ item.diagnostics }}'
+      dns_config: '{{ item.dns_config }}'
+      encryption_properties: '{{ item.encryption_properties }}'
+      extensions: '{{ item.extensions }}'
+      image_registry_credentials: '{{ item.image_registry_credentials }}'
+      init_containers: '{{ item.init_containers }}'
+      instance_view: '{{ item.instance_view }}'
+      ip_address: '{{ item.ip_address }}'
+      os_type: '{{ item.os_type }}'
+      priority: '{{ item.priority }}'
+      restart_policy: '{{ item.restart_policy }}'
+      subnet_ids: '{{ item.subnet_ids }}'
+      volumes: '{{ item.volumes }}'
+  uid_template: '{item.id}'
+- discovery_id: azure.containerinstance.containergroups.get_outbound_network_dependencies_endpoints
+  for_each: azure.containerinstance.containergroups.list
+  calls:
+  - action: containergroups.get_outbound_network_dependencies_endpoints
+    save_as: response
+    on_error: continue
+    params:
+      container_group_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.containerinstance.containers.list_logs
+  for_each: azure.containerinstance.containergroups.list
+  calls:
+  - action: containers.list_logs
+    save_as: response
+    on_error: continue
+    params:
+      container_group_name: '{{ item.name }}'
+      container_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      sku: '{{ item.sku }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      zones: '{{ item.zones }}'
+      kind: '{{ item.kind }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+- discovery_id: azure.containerinstance.location.list_cached_images
+  for_each: azure.containerinstance.containergroups.list
+  calls:
+  - action: location.list_cached_images
+    save_as: response
+    on_error: continue
+    params:
+      location: '{{ item.location }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      image: '{{ item.image }}'
+      os_type: '{{ item.os_type }}'
+- discovery_id: azure.containerinstance.location.list_capabilities
+  for_each: azure.containerinstance.containergroups.list
+  calls:
+  - action: location.list_capabilities
+    save_as: response
+    on_error: continue
+    params:
+      location: '{{ item.location }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      capabilities: '{{ item.capabilities }}'
+      gpu: '{{ item.gpu }}'
+      ip_address_type: '{{ item.ip_address_type }}'
+      os_type: '{{ item.os_type }}'
+      resource_type: '{{ item.resource_type }}'
+- discovery_id: azure.containerinstance.location.list_usage
+  for_each: azure.containerinstance.containergroups.list
+  calls:
+  - action: location.list_usage
+    save_as: response
+    on_error: continue
+    params:
+      location: '{{ item.location }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      current_value: '{{ item.current_value }}'
+      limit: '{{ item.limit }}'
+      unit: '{{ item.unit }}'

@@ -23,7 +23,7 @@ from typing import Any, Optional
 
 import psycopg2.extras
 
-from engine_common.db_connections import get_inventory_conn, get_onboarding_conn
+from engine_common.db_connections import get_di_conn, get_onboarding_conn
 from engine_common.posture_writer import upsert_posture_signals
 
 logger = logging.getLogger(__name__)
@@ -58,7 +58,7 @@ def write_cdr_posture_signals(
             logger.info("CDR posture signals: no actor observations for scan %s", cdr_scan_run_id)
             return 0
 
-        inv_conn = get_inventory_conn()
+        inv_conn = get_di_conn()
         try:
             written = _batch_upsert(
                 inv_conn, signals_by_uid,
@@ -114,7 +114,7 @@ def _aggregate_cdr_signals(cdr_scan_run_id: str, tenant_id: str) -> dict[str, di
     except Exception:
         # Fallback: use inventory conn which may have cross-schema access
         logger.debug("get_cdr_conn not available, using inventory conn fallback")
-        cdr_conn = get_inventory_conn()
+        cdr_conn = get_di_conn()
 
     signals: dict[str, dict[str, Any]] = {}
 
@@ -189,7 +189,7 @@ def write_cdr_iam_cross_signal(
             return 0
 
         # Check whether IAM posture rows exist for this scan — skip if main scan hasn't run
-        inv_conn = get_inventory_conn()
+        inv_conn = get_di_conn()
         try:
             with inv_conn.cursor() as cur:
                 cur.execute(
@@ -250,7 +250,7 @@ def _collect_actor_ttps(cdr_scan_run_id: str, tenant_id: str) -> dict[str, set[s
         from engine_common.db_connections import get_cdr_conn
         cdr_conn = get_cdr_conn()
     except Exception:
-        cdr_conn = get_inventory_conn()
+        cdr_conn = get_di_conn()
 
     actor_ttps: dict[str, set[str]] = {}
 

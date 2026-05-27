@@ -11,7 +11,6 @@ from engine_common.db_connections import (
     get_cdr_conn,
     get_di_conn,
     get_discoveries_conn,
-    get_inventory_conn,
 )
 
 _DI_ENGINE_ENABLED = os.getenv("DI_ENGINE_ENABLED", "false").lower() == "true"
@@ -161,7 +160,7 @@ def run(
     with get_discoveries_conn() as disc_conn, \
          get_api_security_conn() as apisec_conn, \
          get_check_conn() as check_conn, \
-         get_inventory_conn() as inv_conn:
+         get_di_conn() as inv_conn:
 
         # scan_orchestration lives in the discoveries DB — always use disc_conn here
         _validate_scan_ownership(disc_conn, scan_run_id, tenant_id)

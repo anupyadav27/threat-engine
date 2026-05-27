@@ -43,240 +43,60 @@ Security notes:
 from __future__ import annotations
 
 import logging
-import os
-import sys
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
 import psycopg2.extras
 
 logger = logging.getLogger("crown_jewel_classifier")
 
 # ---------------------------------------------------------------------------
-# Resource types that are ALWAYS crown jewels
+# Category-based crown jewel rules (single source of truth = di_resource_catalog)
+#
+# These dicts define WHICH categories are crown jewels and what type they map to.
+# The actual resource_type → crown_jewel_type mapping is loaded at runtime by
+# _load_from_di_catalog() which queries di_resource_catalog in threat_engine_di.
+# No individual resource types are hardcoded here — new services added to the
+# catalog are automatically classified without any code changes.
 # ---------------------------------------------------------------------------
-_ALWAYS_CROWN_JEWEL: Dict[str, str] = {
-    # Relational databases
-    "rds.instance":              "data",
-    "aurora.cluster":            "data",
-    "aurora.serverless":         "data",
-    "cloud_sql.instance":        "data",
-    "oci.autonomous_db":         "data",
-    "oci.mysql":                 "data",
-    "oci.mysql_heatwave":        "data",
-    "azure.sql_database":        "data",
-    "azure.mysql_flexible":      "data",
-    "azure.postgresql_flexible": "data",
-    "azure.sql_managed_instance":"data",
-    # NoSQL / document databases
-    "dynamodb.table":            "data_warehouse",
-    "documentdb.cluster":        "data",
-    "documentdb.instance":       "data",
-    "azure.cosmosdb":            "data_warehouse",
-    "gcp.firestore":             "data_warehouse",
-    "gcp.bigtable":              "data_warehouse",
-    "oci.nosql":                 "data_warehouse",
-    # Cache / in-memory stores (contain sensitive session/app data)
-    "elasticache.cluster":       "data_warehouse",
-    "elasticache.replication_group": "data_warehouse",
-    "azure.redis_cache":         "data_warehouse",
-    "memorydb.cluster":          "data_warehouse",
-    # Data warehouse / analytics
-    "redshift.cluster":          "data_warehouse",
-    "redshift.serverless":       "data_warehouse",
-    "elasticsearch.domain":      "data_warehouse",
-    "opensearch.domain":         "data_warehouse",
-    "bigquery.dataset":          "data_warehouse",
-    "azure.synapse":             "data_warehouse",
-    "azure.databricks":          "data_warehouse",
-    "emr.cluster":               "data_warehouse",
-    "emr.serverless":            "data_warehouse",
-    "glue.database":             "data_warehouse",
-    "glue.crawler":              "data_warehouse",
-    "athena.workgroup":          "data_warehouse",
-    "neptune.cluster":           "data_warehouse",
-    "msk.cluster":               "data_warehouse",
-    "kinesis.stream":            "data_warehouse",
-    "kinesis.firehose":          "data_warehouse",
-    # Secrets / parameters
-    "secretsmanager.secret":     "secrets",
-    "ssm.parameter":             "secrets",
-    "azure.key_vault_secret":    "secrets",
-    "gcp.secret_manager":        "secrets",
-    # K8s clusters
-    "eks.cluster":               "infra_control",
-    "aks.cluster":               "infra_control",
-    "gke.cluster":               "infra_control",
-    "k8s.cluster":               "infra_control",
-    "oci.oke_cluster":           "infra_control",
-    # Container registries
-    "ecr.repository":            "code",
-    "acr.registry":              "code",
-    "gcr.repository":            "code",
-    "artifact_registry.repo":    "code",
-    # AI/ML
-    "sagemaker.endpoint":        "ai_model",
-    "sagemaker.model":           "ai_model",
-    "bedrock.model":             "ai_model",
-    "vertex_ai.endpoint":        "ai_model",
-    "azure.ml_workspace":        "ai_model",
-    # KMS / key vault
-    "kms.key":                   "encryption_control",
-    "key_vault.key":             "encryption_control",
-    "gcp.kms_key":               "encryption_control",
-    "oci.vault_key":             "encryption_control",
-    # K8s control plane (AC-11)
-    "k8s.etcd":                  "infra_control",
-    # K8s secrets — always classified (conservative; any secret could be sensitive) (AC-11)
-    "k8s.secret":                "secrets",
-    # Object storage — always crown jewels (any bucket reachable from internet-exposed
-    # compute is a real exfiltration target; data_classification populates as metadata)
-    "s3.bucket":                 "data",
-    "blob.container":            "data",
-    "gcs.bucket":                "data",
-    "oci.object_storage":        "data",
-    "adls.filesystem":           "data",
-    "azure.storage_blob":        "data",
+_CROWN_JEWEL_CATEGORIES: Dict[str, str] = {
+    "database":   "data",               # RDS, DynamoDB, Aurora, CosmosDB, Firestore, OCI MySQL...
+    "storage":    "data",               # S3, EBS, EFS, GCS, Azure Blob, AliCloud OSS, OCI Object...
+    "analytics":  "data_warehouse",     # Redshift, BigQuery, Athena, Synapse, EMR, Glue...
+    "encryption": "encryption_control", # KMS, Key Vault, GCP KMS, OCI Vault, Secrets Manager...
+    "ai_ml":      "ai_model",           # SageMaker, Bedrock, Vertex AI, Azure ML...
+    "messaging":  "data_warehouse",     # Kinesis, MSK, EventHub, SQS, Kafka...
 }
 
-# Storage types that are crown jewels ONLY with sensitive data classification.
-# Kept for GCP/OCI aliased types not yet in _ALWAYS_CROWN_JEWEL, and for
-# any future storage types that need the conditional path.
-_STORAGE_TYPES: Set[str] = {}
-
-# IAM types that depend on posture signals
-_IAM_TYPES: Set[str] = {
-    "iam.role",
-    "iam.user",
-    "azure.service_principal",
-    "gcp.service_account",
-    "oci.iam_user",
+# Container subcategories — split because registry ≠ orchestration
+_CROWN_JEWEL_CONTAINER_SUBCATEGORY: Dict[str, str] = {
+    "orchestration_k8s":     "infra_control",   # EKS, AKS, GKE, OKE
+    "orchestration_managed": "infra_control",   # ECS, GKE Autopilot, AKS managed
+    "registry":              "code",             # ECR, ACR, GCR, AliCloud Container Registry
 }
 
-# K8s workload types classified when privileged (AC-11)
-_K8S_PRIVILEGED_TYPES: Set[str] = {
-    "k8s.daemonset",
-    "k8s.deployment",
-    "k8s.statefulset",
-}
-
-# K8s ServiceAccount classified when RBAC over-permissive (AC-11)
-_K8S_SA_TYPES: Set[str] = {
-    "k8s.serviceaccount",
-}
-
-# K8s ConfigMap classified when it contains sensitive key names (AC-11)
-_K8S_CONFIGMAP_TYPES: Set[str] = {
-    "k8s.configmap",
-}
-
+# Word patterns that indicate a K8s ConfigMap holds sensitive data.
+# These are semantic content rules — they cannot be expressed as resource type metadata.
 _SENSITIVE_CM_PATTERNS = ("password", "secret", "token", "key", "credential", "cert")
 
-# AI endpoint types that are crown jewels when publicly accessible OR training data has PII
-_AI_ENDPOINT_TYPES: Set[str] = {
-    "sagemaker_endpoint",
-    "sagemaker.endpoint",
-    "bedrock_model",
-    "bedrock.model",
-    "sagemaker_notebook",
-    "sagemaker.notebook",
-    "vertex_ai.endpoint",
-    "azure.ml_workspace",
-}
-
-# Sensitive data classifications for storage crown jewels
-_SENSITIVE_DATA_CLASSES: Set[str] = {"pii", "financial", "credentials"}
-
-# Aliases from full-namespace resource types (as stored in Neo4j by graph-build)
-# to the canonical short names used by the classifier sets above.
-# Format: actual Neo4j resource_type → canonical type
-_TYPE_ALIASES: Dict[str, str] = {
-    # AWS — short resource_type values emitted by check/threat/discovery engines
-    "kms":                                  "kms.key",
-    "ecr":                                  "ecr.repository",
-    "rds.db-instance":                      "rds.instance",
-    "rds":                                  "rds.instance",
-    "aurora":                               "aurora.cluster",
-    # elasticache was incorrectly mapping to "data_warehouse" (a value, not a key)
-    "elasticache":                          "elasticache.cluster",
-    "elasticache.replication-group":        "elasticache.replication_group",
-    "dynamodb":                             "dynamodb.table",
-    "dynamo":                               "dynamodb.table",
-    "documentdb":                           "documentdb.cluster",
-    "neptune":                              "neptune.cluster",
-    "emr":                                  "emr.cluster",
-    "msk":                                  "msk.cluster",
-    "kinesis":                              "kinesis.stream",
-    "firehose":                             "kinesis.firehose",
-    "glue":                                 "glue.database",
-    "athena":                               "athena.workgroup",
-    "memorydb":                             "memorydb.cluster",
-    "redshift":                             "redshift.cluster",
-    "redshift-serverless":                  "redshift.serverless",
-    "eks":                                  "eks.cluster",
-    "secretsmanager":                       "secretsmanager.secret",
-    "opensearch":                           "opensearch.domain",
-    "elasticsearch":                        "elasticsearch.domain",
-    # K8s — graph-build stores bare names or full k8s.apps/Kind paths
-    "secret":                               "k8s.secret",
-    "secrets":                              "k8s.secret",
-    "k8s.apps/replicaset":                  "k8s.deployment",
-    "replicaset":                           "k8s.daemonset",
-    "replicaset.k8s.apps/replicaset":       "k8s.deployment",
-    "deployments":                          "k8s.deployment",
-    "daemonset":                            "k8s.daemonset",
-    "daemonsets":                           "k8s.daemonset",
-    "statefulsets":                         "k8s.statefulset",
-    "serviceaccount":                       "k8s.serviceaccount",
-    "serviceaccounts":                      "k8s.serviceaccount",
-    "configmap":                            "k8s.configmap",
-    # GCP — graph-build may add gcp. prefix or use different surface name
-    "gcp.gcs_bucket":                       "gcs.bucket",
-    "gcp.iam_service_account":              "gcp.service_account",
-    "gcp.secret_manager_secret":            "gcp.secret_manager",
-    "gcp.kms_cryptokey":                    "gcp.kms_key",
-    "gcp.bigquery":                         "bigquery.dataset",
-    "gcp.bigquery_table":                   "bigquery.dataset",
-    "gcp.bigtable_instance":                "gcp.bigtable",
-    "gcp.bigtable_table":                   "gcp.bigtable",
-    "gcp.firestore_database":               "gcp.firestore",
-    "gcp.cloud_sql":                        "cloud_sql.instance",
-    "gcp.gke_cluster":                      "gke.cluster",
-    "gcp.artifact_registry":                "artifact_registry.repo",
-    # OCI — graph-build stores full objectstorage path
-    "object_storage.oci.objectstorage/bucket": "oci.object_storage",
-    "oci.objectstorage_bucket":             "oci.object_storage",
-    "oci.object_storage_bucket":            "oci.object_storage",
-    "database.oci.database/autonomousdatabase": "oci.autonomous_db",
-    "oci.autonomous_database":              "oci.autonomous_db",
-    "containerengine.oci.containerengine/cluster": "oci.oke_cluster",
-    "oci.oke":                              "oci.oke_cluster",
-    "vault.oci.keymanagement/key":          "oci.vault_key",
-    "oci.vault":                            "oci.vault_key",
-    # AliCloud RAM — graph-build stores full ram.alicloud.ram/Kind paths
-    "ram.alicloud.ram/role":                "iam.role",
-    "ram.alicloud.ram/user":                "iam.user",
-    "oss.alicloud.oss/bucket":              "s3.bucket",
-    "rds.alicloud.rds/dbinstance":          "rds.instance",
-    # Azure — alternate surface names
-    "azure.storage_account":               "blob.container",
-    "azure.keyvault_secret":               "azure.key_vault_secret",
-    "azure.kubernetes_cluster":            "aks.cluster",
-    "azure.cosmos_db":                     "azure.cosmosdb",
-    "azure.cosmos_db_account":             "azure.cosmosdb",
-    "azure.redis":                         "azure.redis_cache",
-    "azure.synapse_workspace":             "azure.synapse",
-    "azure.databricks_workspace":          "azure.databricks",
-    "azure.sql_mi":                        "azure.sql_managed_instance",
-    # AWS — alternate surface names that graph-build may emit
-    "aws.secretsmanager_secret":            "secretsmanager.secret",
-    "aws.rds_instance":                     "rds.instance",
-    "aws.s3_bucket":                        "s3.bucket",
-    "aws.kms_key":                          "kms.key",
-    "aws.eks_cluster":                      "eks.cluster",
-    "aws.ecr_repository":                   "ecr.repository",
-    "aws.redshift_cluster":                 "redshift.cluster",
-    "aws.opensearch_domain":                "opensearch.domain",
-    "aws.elasticsearch_domain":             "elasticsearch.domain",
+# ---------------------------------------------------------------------------
+# Conditional classification rules — driven by di_resource_catalog subcategory.
+#
+# Maps di_resource_catalog.subcategory → condition key used by _auto_classify().
+# The condition key tells the classifier WHICH posture signal to check.
+# Resource types themselves are NOT listed here — they come from the catalog query.
+# ---------------------------------------------------------------------------
+_CONDITIONAL_SUBCATEGORIES: Dict[str, str] = {
+    # identity subcategories → check is_admin_role or has_wildcard_policy
+    "iam_role":        "iam",
+    "iam_user":        "iam",
+    "service_account": "iam",
+    "federation":      "iam",
+    # container workload subcategories → check has_privileged_container
+    "workload":        "k8s_privileged",
+    # container serviceaccount subcategory → check k8s_rbac_overpermissive
+    "serviceaccount":  "k8s_sa",
+    # container config subcategory → check name for sensitive patterns
+    "config":          "k8s_configmap",
 }
 
 
@@ -324,6 +144,10 @@ class CrownJewelClassifier:
         Returns:
             Number of resources classified as crown jewels.
         """
+        # Populate _catalog_types, _conditional_types, _type_aliases from di_resource_catalog.
+        # Must run before _auto_classify() — all three dicts are read there.
+        self._load_from_di_catalog()
+
         self._clear_neo4j_crown_jewels()
         overrides = self._load_overrides()
         posture_rows = self._load_posture_signals()
@@ -335,31 +159,20 @@ class CrownJewelClassifier:
             if not uid:
                 continue
 
-            # Manual override takes precedence (AC-14)
+            # Priority 1: Manual override (AC-14) — analyst decision always wins.
             if uid in overrides:
                 override = overrides[uid]
                 if not override.get("is_crown_jewel", True):
-                    # Analyst explicitly marked this as non-crown-jewel
                     continue
-                # Analyst tagged as crown jewel — use their type
                 cj_type = override.get("crown_jewel_type", "data") or "data"
                 self._mark_neo4j(uid, cj_type)
                 self._mark_posture(uid, cj_type, res)
                 classified_count += 1
                 continue
 
-            # Posture override (AP-ENHANCE-02): threat-v1 wrote is_crown_jewel=true
-            # for T2/T3 incident targets — trust that signal and skip heuristics.
+            # Priority 2: di_resource_catalog category-based + conditional posture rules.
             posture = posture_rows.get(uid, {})
-            if posture.get("is_crown_jewel"):
-                cj_type = posture.get("crown_jewel_type") or "data"
-                self._mark_neo4j(uid, cj_type)
-                self._mark_posture(uid, cj_type, res)
-                classified_count += 1
-                continue
-
-            # Auto-classification
-            cj_type = self._auto_classify(uid, res, posture)
+            cj_type = self._auto_classify(res, posture)
             if cj_type:
                 self._mark_neo4j(uid, cj_type)
                 self._mark_posture(uid, cj_type, res)
@@ -380,7 +193,6 @@ class CrownJewelClassifier:
 
     def _auto_classify(
         self,
-        uid: str,
         resource: Dict[str, Any],
         posture: Dict[str, Any],
     ) -> Optional[str]:
@@ -392,54 +204,33 @@ class CrownJewelClassifier:
             posture:   Matching posture row dict (may be empty if not yet stored).
         """
         rtype = (resource.get("resource_type") or "").lower()
-        # Normalize to canonical short name (handles full-path types from graph-build)
-        rtype = _TYPE_ALIASES.get(rtype, rtype)
+        # Normalize using aliases loaded from di_resource_catalog.canonical_type
+        rtype = self._type_aliases.get(rtype, rtype)
 
-        # Storage: only sensitive data (AC-2)
-        if rtype in _STORAGE_TYPES:
-            dc = (posture.get("data_classification") or resource.get("data_classification") or "").lower()
-            if dc in _SENSITIVE_DATA_CLASSES:
-                return "data"
-            return None
-
-        # IAM: only admin role or wildcard policy (AC-5)
-        if rtype in _IAM_TYPES:
+        # Conditional rules — which resource types undergo these checks is driven
+        # by di_resource_catalog.subcategory via _CONDITIONAL_SUBCATEGORIES.
+        condition = self._conditional_types.get(rtype)
+        if condition == "iam":
             is_admin = posture.get("is_admin_role") or resource.get("is_admin_role") or False
             has_wildcard = posture.get("has_wildcard_policy") or resource.get("has_wildcard_policy") or False
-            if is_admin or has_wildcard:
-                return "identity"
-            return None
+            return "identity" if (is_admin or has_wildcard) else None
 
-        # AI endpoints: crown jewel when publicly accessible OR training data has PII (PC-P2-04)
-        if rtype in _AI_ENDPOINT_TYPES:
-            publicly_accessible = posture.get("ai_model_publicly_accessible") or False
-            training_pii = posture.get("ai_training_data_has_pii") or False
-            if publicly_accessible or training_pii:
-                return "ai_endpoint"
-            # Fall through to _ALWAYS_CROWN_JEWEL check below for always-crown-jewel AI types
+        if condition == "k8s_privileged":
+            privileged = posture.get("has_privileged_container") or resource.get("has_privileged_container")
+            return "k8s_privileged_workload" if privileged else None
 
-        # K8s privileged workloads (AC-11)
-        if rtype in _K8S_PRIVILEGED_TYPES:
-            if posture.get("has_privileged_container") or resource.get("has_privileged_container"):
-                return "k8s_privileged_workload"
-            return None
+        if condition == "k8s_sa":
+            overpermissive = posture.get("k8s_rbac_overpermissive") or resource.get("k8s_rbac_overpermissive")
+            return "k8s_cluster_admin" if overpermissive else None
 
-        # K8s ServiceAccount over-permissive RBAC (AC-11)
-        if rtype in _K8S_SA_TYPES:
-            if posture.get("k8s_rbac_overpermissive") or resource.get("k8s_rbac_overpermissive"):
-                return "k8s_cluster_admin"
-            return None
-
-        # K8s ConfigMap with sensitive key names (AC-11)
-        if rtype in _K8S_CONFIGMAP_TYPES:
+        if condition == "k8s_configmap":
             name = (resource.get("name") or resource.get("resource_uid") or "").lower()
-            if any(p in name for p in _SENSITIVE_CM_PATTERNS):
-                return "k8s_secrets"
-            return None
+            return "k8s_secrets" if any(p in name for p in _SENSITIVE_CM_PATTERNS) else None
 
-        # Always-crown-jewel resource types (AC-3, AC-4, AC-6, AC-7, AC-8, AC-9, AC-10, AC-11)
-        cj_type = _ALWAYS_CROWN_JEWEL.get(rtype)
-        return cj_type
+        # Always-CJ lookup — fully driven by di_resource_catalog.category.
+        # Covers all CSPs for: database, storage, analytics, encryption, ai_ml,
+        # messaging, container registries + orchestration.
+        return self._catalog_types.get(rtype)
 
     def _clear_neo4j_crown_jewels(self) -> None:
         """Clear all crown jewel flags for this tenant before re-classifying.
@@ -533,6 +324,98 @@ class CrownJewelClassifier:
             except Exception:
                 pass
 
+    def _load_from_di_catalog(self) -> None:
+        """Populate three runtime lookups from di_resource_catalog in threat_engine_di.
+
+        Sets on self:
+          _catalog_types:     resource_type → crown_jewel_type  (always crown jewels)
+          _conditional_types: resource_type → condition_key     (needs posture check)
+          _type_aliases:      raw_type      → canonical_type    (normalization)
+
+        All three default to empty dicts — classification degrades gracefully if the
+        DI DB is unreachable or di_resource_catalog has no rows yet.
+        """
+        self._catalog_types: Dict[str, str] = {}
+        self._conditional_types: Dict[str, str] = {}
+        self._type_aliases: Dict[str, str] = {}
+
+        try:
+            from engine_common.db_connections import get_di_conn
+            di_conn = get_di_conn()
+            try:
+                all_categories = (
+                    list(_CROWN_JEWEL_CATEGORIES.keys())
+                    + ["container", "identity"]
+                )
+                with di_conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT service, resource_type, category, subcategory, canonical_type
+                        FROM di_resource_catalog
+                        WHERE category = ANY(%s)
+                          AND resource_type IS NOT NULL
+                        """,
+                        (all_categories,),
+                    )
+                    for service, resource_type, category, subcategory, canonical_type in cur.fetchall():
+                        sub = subcategory or ""
+                        svc = (service or "").lower()
+                        rtype = (resource_type or "").lower()
+
+                        # Build all key variants so we match Neo4j's "service.resource-type"
+                        # format as well as plain short names stored in older catalog rows.
+                        keys = [rtype]
+                        if svc:
+                            keys.append(f"{svc}.{rtype}")
+                            keys.append(f"{svc}.{rtype.replace('_', '-')}")
+
+                        # --- Type alias (raw Neo4j form → catalog canonical form) ---
+                        if canonical_type and canonical_type != resource_type:
+                            for k in keys:
+                                self._type_aliases[k] = canonical_type
+
+                        # --- Always-CJ categories ---
+                        if category in _CROWN_JEWEL_CATEGORIES:
+                            for k in keys:
+                                self._catalog_types[k] = _CROWN_JEWEL_CATEGORIES[category]
+
+                        # --- Container: registry/orchestration = always CJ;
+                        #     workload/serviceaccount/config = conditional ---
+                        elif category == "container":
+                            cj_type = _CROWN_JEWEL_CONTAINER_SUBCATEGORY.get(sub)
+                            if cj_type:
+                                for k in keys:
+                                    self._catalog_types[k] = cj_type
+                            elif sub in _CONDITIONAL_SUBCATEGORIES:
+                                for k in keys:
+                                    self._conditional_types[k] = (
+                                        _CONDITIONAL_SUBCATEGORIES[sub]
+                                    )
+
+                        # --- Identity: always conditional (needs posture check) ---
+                        elif category == "identity":
+                            condition = _CONDITIONAL_SUBCATEGORIES.get(sub)
+                            if condition:
+                                for k in keys:
+                                    self._conditional_types[k] = condition
+
+                logger.info(
+                    '{"engine":"attack-path","stage":"di_catalog_load","tenant_id":"%s",'
+                    '"always_cj":%d,"conditional":%d,"aliases":%d}',
+                    self.tenant_id,
+                    len(self._catalog_types),
+                    len(self._conditional_types),
+                    len(self._type_aliases),
+                )
+            finally:
+                di_conn.close()
+        except Exception as exc:
+            logger.warning(
+                "di_resource_catalog lookup failed — classification uses empty catalog "
+                "(only conditional posture rules will run): %s",
+                exc,
+            )
+
     def _load_overrides(self) -> Dict[str, Dict[str, Any]]:
         """Load manual crown jewel overrides for this tenant.
 
@@ -568,26 +451,30 @@ class CrownJewelClassifier:
         return overrides
 
     def _load_posture_signals(self) -> Dict[str, Dict[str, Any]]:
-        """Load posture signals for this tenant from resource_security_posture.
+        """Load posture signals needed for conditional classification rules.
 
         Returns dict: resource_uid → posture row dict.
         JSONB fields auto-deserialized by psycopg2 — no json.loads() (AC-17).
 
-        Not filtered by scan_run_id — posture has UNIQUE on (resource_uid, tenant_id).
-        Filtering by scan_run_id would miss is_crown_jewel signals written by
-        threat_v1 or earlier pipeline runs.
+        Columns loaded:
+          - has_privileged_container  → K8s privileged workload check
+          - k8s_rbac_overpermissive   → K8s ServiceAccount check
+          - is_admin_role             → IAM admin role check (fallback; primary from Neo4j props)
+          - has_wildcard_policy       → IAM wildcard policy check (fallback; primary from Neo4j props)
 
-        Only selects columns that exist in the posture schema. IAM signals
-        (is_admin_role, has_wildcard_policy) are read from Neo4j node props
-        in _auto_classify instead.
+        is_crown_jewel is intentionally NOT loaded — threat-v1 engine is being removed
+        and is no longer a trusted signal source. Crown jewel state is owned entirely
+        by this classifier going forward.
         """
         posture: Dict[str, Dict[str, Any]] = {}
         try:
             with self.inventory_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(
                     """
-                    SELECT resource_uid, data_classification,
-                           crown_jewel_type, is_crown_jewel
+                    SELECT resource_uid,
+                           has_privileged_container,
+                           k8s_rbac_overpermissive,
+                           is_admin_role
                     FROM resource_security_posture
                     WHERE tenant_id = %s
                     """,
@@ -597,7 +484,6 @@ class CrownJewelClassifier:
                     posture[row["resource_uid"]] = dict(row)
         except Exception as exc:
             logger.warning("Failed to load posture signals: %s", exc)
-            # Rollback so the connection is usable for subsequent operations
             try:
                 self.inventory_conn.rollback()
             except Exception:

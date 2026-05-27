@@ -115,3 +115,8 @@ def get_api_security_conn() -> psycopg2.extensions.connection:
 
 def get_di_conn() -> psycopg2.extensions.connection:
     return _make_conn("DI", "threat_engine_di")
+
+
+# Alias used by all engines writing/reading security_findings and
+# resource_security_posture — both tables live in the DI DB.
+get_posture_conn = get_di_conn

@@ -35,7 +35,15 @@ CANONICAL_PREFIXES = {
 }
 
 _ARN_CANDIDATES = (
-    "Arn", "ARN", "resource_arn", "ResourceArn", "GraphqlApiArn",
+    # First priority: use the pre-built canonical UID set by the service_scanner.
+    # This covers services like S3 where list_buckets returns no ARN field but
+    # resource_id.py's _AWSBuilder.build() constructs the correct ARN.
+    "resource_uid",
+    "Arn", "ARN", "ResourceArn", "GraphqlApiArn",
+    # Mapping-level ARNs ranked before source/target ARNs so the mapping
+    # itself is the canonical UID (not the SQS/Kinesis/DynamoDB source).
+    "EventSourceMappingArn",
+    "resource_arn",
     "FunctionArn", "RoleArn", "PolicyArn", "TopicArn", "QueueArn",
     "StreamArn", "ClusterArn", "BucketArn", "CertificateArn",
     "DomainArn", "LayerArn", "TableArn", "NamespaceArn",

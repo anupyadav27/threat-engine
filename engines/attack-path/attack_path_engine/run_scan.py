@@ -385,9 +385,12 @@ def run_attack_path_scan(
     }
 
     # ── DB connections ────────────────────────────────────────────────────────
-    from engine_common.db_connections import get_attack_path_conn, get_inventory_conn
+    from engine_common.db_connections import get_attack_path_conn, get_di_conn, get_inventory_conn
 
     attack_path_conn = get_attack_path_conn()
+    # DI conn: reads/writes resource_security_posture and security_findings (now in DI DB)
+    di_conn = get_di_conn()
+    # inventory_conn: only for inventory_relationships graph topology (pg_graph)
     inventory_conn = get_inventory_conn()
 
     # Threat DB connection — for reading threat_scenario_incidents.
@@ -440,7 +443,7 @@ def run_attack_path_scan(
         from .crown_jewel_classifier import CrownJewelClassifier
         classifier = CrownJewelClassifier(
             neo4j_driver=neo4j_driver,
-            inventory_conn=inventory_conn,
+            inventory_conn=di_conn,
             scan_run_id=scan_run_id,
             tenant_id=tenant_id,
             account_id=account_id,
@@ -453,22 +456,22 @@ def run_attack_path_scan(
         # ── Stage 2a-pre: Write is_internet_exposed from discovery data ─────────
         # Reads discovery_findings.emitted_fields for public indicators
         # (PublicIpAddress, PubliclyAccessible, Scheme=internet-facing, FunctionUrl)
-        # and upserts is_internet_exposed=true into resource_security_posture.
+        # and upserts is_internet_exposed=true into resource_security_posture (DI DB).
         # This runs BEFORE the BFS lookup so the BFS immediately sees real entry points
         # without requiring the network engine to have written to posture first.
         _jlog("stage", name="internet_exposed_mark", scan_run_id=scan_run_id)
-        marked_count = _mark_internet_exposed_from_discoveries(inventory_conn, tenant_id, scan_run_id)
+        marked_count = _mark_internet_exposed_from_discoveries(di_conn, tenant_id, scan_run_id)
         _jlog("internet_exposed_marked", count=marked_count, scan_run_id=scan_run_id)
 
         # ── Stage 2a: Fetch internet-exposed UIDs from resource_security_posture ─
         _jlog("stage", name="internet_exposed_lookup", scan_run_id=scan_run_id)
-        internet_exposed_uids = _fetch_internet_exposed_uids(inventory_conn, tenant_id)
+        internet_exposed_uids = _fetch_internet_exposed_uids(di_conn, tenant_id)
         _jlog("internet_exposed_uids", count=len(internet_exposed_uids), scan_run_id=scan_run_id)
 
         # ── Stage 3: Fetch posture_lookup ────────────────────────────────────
         # Loaded BEFORE BFS so pg_graph can use is_crown_jewel from posture.
         _jlog("stage", name="posture_lookup", scan_run_id=scan_run_id)
-        posture_lookup = _build_posture_lookup(inventory_conn, scan_run_id, tenant_id)
+        posture_lookup = _build_posture_lookup(di_conn, scan_run_id, tenant_id)
         _jlog("posture_lookup_built", entries=len(posture_lookup), scan_run_id=scan_run_id)
 
         # ── Stage 2b-pre: IAM permission edges (synthetic graph enrichment) ────
@@ -513,7 +516,7 @@ def run_attack_path_scan(
         # Used by write_path_nodes to populate per-hop misconfigs/cves/detections.
         _jlog("stage", name="findings_lookup", scan_run_id=scan_run_id)
         all_uids = {uid for p in raw_paths for uid in p.node_uids}
-        findings_lookup = _build_findings_lookup(inventory_conn, tenant_id, all_uids)
+        findings_lookup = _build_findings_lookup(di_conn, tenant_id, all_uids)
         _jlog("findings_lookup_built", entries=len(findings_lookup), scan_run_id=scan_run_id)
 
         # ── Stage 4: Score paths ──────────────────────────────────────────────
@@ -629,7 +632,7 @@ def run_attack_path_scan(
         _jlog("stage", name="posture_update", scan_run_id=scan_run_id)
         from .db.posture_updater import update_attack_path_signals
         update_attack_path_signals(
-            inventory_conn,
+            di_conn,
             final_paths,
             choke_points,
             tenant_id,
@@ -643,7 +646,7 @@ def run_attack_path_scan(
         _jlog("stage", name="composite_flags", scan_run_id=scan_run_id)
         try:
             from .db.posture_updater import update_composite_flags
-            update_composite_flags(inventory_conn, tenant_id, scan_run_id)
+            update_composite_flags(di_conn, tenant_id, scan_run_id)
         except Exception as _cf_err:
             logger.warning("Composite flag update failed (non-fatal): %s", _cf_err)
         _jlog("composite_flags_complete", scan_run_id=scan_run_id)
@@ -687,6 +690,10 @@ def run_attack_path_scan(
     finally:
         try:
             attack_path_conn.close()
+        except Exception:
+            pass
+        try:
+            di_conn.close()
         except Exception:
             pass
         try:

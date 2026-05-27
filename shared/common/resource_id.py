@@ -176,6 +176,7 @@ class _AWSBuilder:
             for prefix in sorted(_EC2_PREFIX_MAP, key=len, reverse=True):
                 if resource_id.startswith(prefix):
                     return _EC2_PREFIX_MAP[prefix]
+            return None  # unknown EC2 resource — skip rather than guess
         if hint and "." in hint:
             return hint.split(".", 1)[1].replace("_", "-")
         if service == "iam":
@@ -184,6 +185,10 @@ class _AWSBuilder:
                     if t in hint.lower():
                         return t
             return "resource"
+        # For all other services (s3, route53, wafv2, cloudfront, etc.):
+        # use hint directly — build() has service-specific ARN logic.
+        if hint:
+            return hint.replace("_", "-")
         return None
 
 

@@ -1,8 +1,3 @@
-# ============================================================
-# Discovery YAML — resource_search (OCI)
-# Generated: 2026-04-16T10:18:53Z
-# Actions use OCI Python SDK method names (snake_case)
-# ============================================================
 version: '1.0'
 provider: oci
 service: resource_search
@@ -10,39 +5,38 @@ services:
   client: resource_search
   module: oci.resource_search
 discovery:
-  # ── list_resource_types [independent] ──
-  - discovery_id: oci.resource_search.list_resource_types
-    calls:
-      - action: list_resource_types
-        save_as: response
-        on_error: continue
-    emit:
-      as: item
-      items_for: '{{ response.data }}'
-      item:
-        ocid: '{{ item.ocid }}'
-        compartment_id: '{{ item.compartment_id }}'
-        name: '{{ item.name }}'
-        status: '{{ item.status }}'
-        time_created: '{{ item.time_created }}'
-        freeform_tags: '{{ item.freeform_tags }}'
-        defined_tags: '{{ item.defined_tags }}'
-  # ── get_resource_type [dependent → list_resource_types] ──
-  - discovery_id: oci.resource_search.get_resource_type
-    for_each: oci.resource_search.list_resource_types
-    calls:
-      - action: get_resource_type
-        params:
-          resource_type_id: '{{ item.ocid }}'
-        save_as: response
-        on_error: continue
-    emit:
-      as: item
-      item:
-        ocid: '{{ response.data.ocid }}'
-        compartment_id: '{{ response.data.compartment_id }}'
-        name: '{{ response.data.name }}'
-        status: '{{ response.data.status }}'
-        time_created: '{{ response.data.time_created }}'
-        freeform_tags: '{{ response.data.freeform_tags }}'
-        defined_tags: '{{ response.data.defined_tags }}'
+- discovery_id: oci.resource_search.list_resource_types
+  calls:
+  - action: list_resource_types
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.data }}'
+    item:
+      ocid: '{{ item.ocid }}'
+      compartment_id: '{{ item.compartment_id }}'
+      name: '{{ item.name }}'
+      status: '{{ item.status }}'
+      time_created: '{{ item.time_created }}'
+      freeform_tags: '{{ item.freeform_tags }}'
+      defined_tags: '{{ item.defined_tags }}'
+  uid_template: '{item.ocid}'
+- discovery_id: oci.resource_search.get_resource_type
+  for_each: oci.resource_search.list_resource_types
+  calls:
+  - action: get_resource_type
+    params:
+      resource_type_id: '{{ item.ocid }}'
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    item:
+      ocid: '{{ response.data.ocid }}'
+      compartment_id: '{{ response.data.compartment_id }}'
+      name: '{{ response.data.name }}'
+      status: '{{ response.data.status }}'
+      time_created: '{{ response.data.time_created }}'
+      freeform_tags: '{{ response.data.freeform_tags }}'
+      defined_tags: '{{ response.data.defined_tags }}'

@@ -110,19 +110,22 @@ async def run_scan(scan_run_id: str, services: list[str] | None = None) -> None:
     provider = (meta.get("provider") or "aws").lower()
     credential_ref = meta.get("credential_ref", "")
     credential_type = meta.get("credential_type", "")
-    regions = meta.get("regions")  # None = scanner discovers
+    include_regions  = meta.get("include_regions") or None   # None = scan all
+    exclude_regions  = meta.get("exclude_regions") or None   # None = skip none
+    exclude_services = meta.get("exclude_services") or None  # None = skip none
 
-    # CLI --services takes priority; fall back to include_services stored in DB
-    # (set by Argo create-orch-record step from the workflow parameter).
+    # CLI --services takes priority; fall back to include_services from DB
     if services is None:
         meta_services = meta.get("include_services")
         if isinstance(meta_services, list) and meta_services:
             services = meta_services
-            logger.info("Using include_services from orchestration metadata: %s", services)
 
     logger.info(
-        "Scan metadata: tenant=%s account=%s provider=%s services=%s",
-        tenant_id, account_id, provider, services or "all",
+        "Scan metadata: tenant=%s account=%s provider=%s "
+        "include_regions=%s exclude_regions=%s include_services=%s exclude_services=%s",
+        tenant_id, account_id, provider,
+        include_regions or "all", exclude_regions or "none",
+        services or "all", exclude_services or "none",
     )
 
     update_scan_status(
@@ -143,8 +146,10 @@ async def run_scan(scan_run_id: str, services: list[str] | None = None) -> None:
         account_id=account_id,
         provider=provider,
         credentials=credentials,
-        regions=regions,
-        services=services,
+        include_regions=include_regions,
+        exclude_regions=exclude_regions,
+        include_services=services,
+        exclude_services=exclude_services,
     )
 
     # Enumeration + enrichment are now a single pass (scanner runs root_op + enrich_ops

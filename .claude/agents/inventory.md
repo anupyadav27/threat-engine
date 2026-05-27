@@ -1,6 +1,6 @@
 ---
 name: inventory-engine
-description: Full-context agent for the Inventory engine — asset normalization, relationships, drift detection. Covers DB schema, all API endpoints, BFF views, UI pages, K8s service, and gotchas.
+description: "RETIRED 2026-05-27 — engine-inventory K8s deployment deleted; threat_engine_inventory DB dropped. Replaced by engine-di (DI engine). Use di-engine agent instead. Relationships now in threat_engine_di.asset_relationships; posture in resource_security_posture."
 autoApprove:
   - Bash
   - Read

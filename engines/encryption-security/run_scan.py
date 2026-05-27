@@ -37,7 +37,7 @@ def _emit_encryption_findings(scan_run_id: str, tenant_id: str) -> None:
         tenant_id: Tenant scope — ensures multi-tenant isolation.
     """
     from engine_common.security_findings_writer import upsert_findings
-    from engine_common.db_connections import get_encryption_conn, get_inventory_conn
+    from engine_common.db_connections import get_encryption_conn, get_di_conn
 
     with get_encryption_conn() as conn:
         with conn.cursor() as cur:
@@ -90,7 +90,7 @@ def _emit_encryption_findings(scan_run_id: str, tenant_id: str) -> None:
             "status":            (d.get("status") or "open").lower(),
         })
 
-    with get_inventory_conn() as iconn:
+    with get_di_conn() as iconn:
         written = upsert_findings(
             conn=iconn,
             findings=findings,
@@ -672,9 +672,9 @@ def main():
         save_cert_inventory(scan_run_id, tenant_id, cert_inventory)
         save_secrets_inventory(scan_run_id, tenant_id, secrets_inventory)
 
-        # 6b. Write encryption posture signals to resource_security_posture (inventory DB)
+        # 6b. Write encryption posture signals to resource_security_posture (DI DB)
         try:
-            from engine_common.db_connections import get_inventory_conn as _get_inv_conn
+            from engine_common.db_connections import get_di_conn as _get_inv_conn
 
             # Build cert lookup: uid -> (days_until_expiry, is_valid)
             _cert_by_uid = {}

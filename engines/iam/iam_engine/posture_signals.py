@@ -18,7 +18,7 @@ from typing import Any
 
 import psycopg2.extras
 
-from engine_common.db_connections import get_iam_conn, get_inventory_conn
+from engine_common.db_connections import get_iam_conn, get_di_conn
 from engine_common.posture_writer import upsert_posture_signals
 
 logger = logging.getLogger(__name__)
@@ -42,7 +42,7 @@ def write_iam_posture_signals(
             logger.info("IAM posture signals: no IAM findings for scan %s", scan_run_id)
             return 0
 
-        inv_conn = get_inventory_conn()
+        inv_conn = get_di_conn()
         try:
             written = _batch_upsert(
                 inv_conn, signals_by_uid,

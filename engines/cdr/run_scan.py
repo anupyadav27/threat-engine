@@ -513,10 +513,10 @@ def main():
             import hashlib
             import psycopg2.extras
             from engine_common.security_findings_writer import upsert_findings
-            from engine_common.db_connections import get_inventory_conn, get_cdr_conn
+            from engine_common.db_connections import get_di_conn, get_cdr_conn
 
             cdr_conn = get_cdr_conn()
-            inv_conn = get_inventory_conn()
+            inv_conn = get_di_conn()
             rows: list = []
             with cdr_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(

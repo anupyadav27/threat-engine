@@ -359,8 +359,8 @@ def main():
         # Write IAM violations to security_findings (non-fatal)
         try:
             from engine_common.security_findings_writer import upsert_findings
-            from engine_common.db_connections import get_inventory_conn
-            _inv_conn = get_inventory_conn()
+            from engine_common.db_connections import get_di_conn
+            _inv_conn = get_di_conn()
             try:
                 # Batch-lookup MITRE data from rule_metadata (fallback for non-CIEM findings)
                 _mitre_by_rule: dict = {}

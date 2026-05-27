@@ -39,7 +39,7 @@ def _emit_ai_security_findings(scan_run_id: str, tenant_id: str) -> None:
         tenant_id: Tenant scope — ensures multi-tenant isolation.
     """
     from engine_common.security_findings_writer import upsert_findings
-    from engine_common.db_connections import get_ai_security_conn, get_inventory_conn
+    from engine_common.db_connections import get_ai_security_conn, get_di_conn
 
     with get_ai_security_conn() as conn:
         with conn.cursor() as cur:
@@ -94,7 +94,7 @@ def _emit_ai_security_findings(scan_run_id: str, tenant_id: str) -> None:
             "first_seen_at":     d.get("first_seen_at"),
         })
 
-    with get_inventory_conn() as iconn:
+    with get_di_conn() as iconn:
         written = upsert_findings(
             conn=iconn,
             findings=findings,

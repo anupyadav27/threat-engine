@@ -58,6 +58,12 @@ for _logical, _reals in _SERVICE_ALIAS.items():
     for _r in _reals:
         _ALIAS_REVERSE[_r] = _logical
 
+# Discovery IDs that return account/IAM metadata rather than real inventoriable
+# resources — their emitted ARNs belong to a different service than the scanner.
+_SKIP_DISCOVERY_IDS: Set[str] = {
+    "aws.ec2.describe_principal_id_format",  # returns IAM principal ARNs, not EC2 resources
+}
+
 
 def _get_check_conn() -> psycopg2.extensions.connection:
     return psycopg2.connect(
@@ -199,6 +205,9 @@ def load_identifiers(csp: str) -> Dict[str, Any]:
             for root_op in root_ops:
                 did = root_op.get("discovery_id")
                 if not did:
+                    continue
+                if did in _SKIP_DISCOVERY_IDS:
+                    logger.debug("Skipping metadata-only discovery_id=%s", did)
                     continue
 
                 uid_template = row_uid_template_col or root_op.get("uid_template")

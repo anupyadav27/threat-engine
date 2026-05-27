@@ -253,7 +253,7 @@ def _run_scan_sync(
 
         # Write posture signals to resource_security_posture (non-fatal)
         try:
-            from engine_common.db_connections import get_inventory_conn as _get_inv_conn
+            from engine_common.db_connections import get_di_conn as _get_inv_conn
             _rsp_by_uid: dict = {}
             for _f in findings:
                 _uid = _f.get("resource_uid", "")

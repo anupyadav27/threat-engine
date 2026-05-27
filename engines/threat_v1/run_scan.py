@@ -34,6 +34,7 @@ import sys
 from datetime import datetime, timezone
 from typing import Dict, Optional
 
+from engine_common.db_connections import get_di_conn
 from threat_v1.database import (
     get_cdr_conn,
     get_check_conn,
@@ -343,7 +344,8 @@ def build_graph(
         check_conn = get_check_conn()
         vuln_conn = get_vuln_conn()
         cdr_conn = get_cdr_conn()
-        inventory_conn = get_inventory_conn()
+        inventory_conn = get_inventory_conn()  # reads inventory_relationships (graph topology only)
+        di_conn = get_di_conn()               # reads/writes resource_security_posture + security_findings
         neo4j_driver = get_neo4j_driver()
 
         # ── Step 2: Resolve best scan_run_id per engine ───────────────────────
@@ -411,7 +413,7 @@ def build_graph(
         # ── Step 7: Crown jewel classification ────────────────────────────────
         logger.info("Step 7: classifying crown jewels")
         cj_result = CrownJewelClassifier(
-            inventory_conn, threat_conn, neo4j_driver,
+            di_conn, threat_conn, neo4j_driver,
         ).classify(tenant_id, account_id)
         stats["crown_jewel_count"] = cj_result["crown_jewel_count"]
         logger.info("Step 7: %s", cj_result)
@@ -421,7 +423,7 @@ def build_graph(
         # onto graph nodes so PatternExecutor sees posture-backed signals.
         logger.info("Step 7a: enriching Neo4j nodes from posture")
         try:
-            enrich_result = _enrich_neo4j_from_posture(inventory_conn, neo4j_driver, tenant_id)
+            enrich_result = _enrich_neo4j_from_posture(di_conn, neo4j_driver, tenant_id)
             stats["posture_enriched"] = enrich_result["enriched_count"]
             logger.info("Step 7a: %s", enrich_result)
         except Exception as exc:  # noqa: BLE001
@@ -446,7 +448,7 @@ def build_graph(
         logger.info("Step 7c: writing T2/T3 crown jewels to resource_security_posture")
         try:
             cj_posture_result = _write_t23_crown_jewels_to_posture(
-                threat_conn, inventory_conn, tenant_id, scan_run_id,
+                threat_conn, di_conn, tenant_id, scan_run_id,
             )
             stats["t23_crown_jewels_written"] = cj_posture_result["crown_jewels_written"]
             logger.info("Step 7c: %s", cj_posture_result)
@@ -486,6 +488,10 @@ def build_graph(
             logger.info("Step 9: releasing advisory lock")
             _release_advisory_lock(threat_conn, lock_key)
         threat_conn.close()
+        try:
+            di_conn.close()
+        except Exception:  # noqa: BLE001
+            pass
 
 
 if __name__ == "__main__":

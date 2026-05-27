@@ -53,9 +53,9 @@ def write_ai_posture_signals(
     """
     written = 0
     try:
-        from engine_common.db_connections import get_ai_security_conn, get_inventory_conn
+        from engine_common.db_connections import get_ai_security_conn, get_di_conn
         ai_conn = get_ai_security_conn()
-        inv_conn = get_inventory_conn()
+        inv_conn = get_di_conn()
         try:
             written += _write_public_access_signals(ai_conn, inv_conn, scan_run_id, tenant_id, account_id, provider)
             written += _write_shadow_ai_signals(ai_conn, inv_conn, scan_run_id, tenant_id, account_id, provider)

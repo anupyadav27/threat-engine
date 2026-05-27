@@ -407,9 +407,9 @@ def main():
         try:
             import hashlib
             from engine_common.security_findings_writer import upsert_findings
-            from engine_common.db_connections import get_inventory_conn
+            from engine_common.db_connections import get_di_conn
 
-            inv_conn = get_inventory_conn()
+            inv_conn = get_di_conn()
             datasec_conn = get_datasec_conn()
             rows: list = []
             raw_rows = []

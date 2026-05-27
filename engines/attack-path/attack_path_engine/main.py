@@ -21,6 +21,15 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+# Configure root logger so background scan tasks produce visible output.
+# uvicorn configures its own logger but leaves the root logger unconfigured,
+# which silently drops INFO-level messages from application loggers.
+logging.basicConfig(
+    level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO),
+    format="%(levelname)s %(name)s: %(message)s",
+    stream=sys.stdout,
+)
+
 # Shared utilities live at /app/engine_common in Docker; use fallback for local runs.
 _common = os.path.join(os.path.dirname(__file__), "..", "..", "..", "shared", "common")
 if os.path.isdir(_common):

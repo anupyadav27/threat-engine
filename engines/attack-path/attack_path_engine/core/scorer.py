@@ -300,6 +300,15 @@ def score_paths(
         ep_type = (ep_posture.entry_point_type if ep_posture else "") or (
             raw.hop_categories[0] if raw.hop_categories else ""
         )
+        # Promote 'virtual' to 'internet' when the entry resource or its first real
+        # hop is internet-exposed (handles Neo4j VirtualNode account/region origins).
+        if not ep_type or ep_type == "virtual":
+            if ep_posture and ep_posture.is_internet_exposed:
+                ep_type = "internet"
+            elif len(raw.node_uids) > 1:
+                first_real = posture_lookup.get(raw.node_uids[1])
+                if first_real and first_real.is_internet_exposed:
+                    ep_type = "internet"
 
         # Derive crown_jewel_type from posture lookup
         cp2 = posture_lookup.get(raw.crown_jewel_uid or "")

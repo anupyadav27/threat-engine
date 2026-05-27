@@ -426,10 +426,10 @@ def main():
             import hashlib
             import psycopg2.extras as _extras
             from engine_common.security_findings_writer import upsert_findings
-            from engine_common.db_connections import get_inventory_conn, get_container_sec_conn
+            from engine_common.db_connections import get_di_conn, get_container_sec_conn
 
             container_conn = get_container_sec_conn()
-            inv_conn = get_inventory_conn()
+            inv_conn = get_di_conn()
             rows: list = []
 
             # Derive cluster_provider from provider string
@@ -518,7 +518,7 @@ def main():
 
         # Write container posture signals to resource_security_posture (PC-P1-03, non-fatal)
         try:
-            from engine_common.db_connections import get_inventory_conn as _get_inv_conn, get_container_sec_conn as _get_csec_conn
+            from engine_common.db_connections import get_di_conn as _get_inv_conn, get_container_sec_conn as _get_csec_conn
             import psycopg2.extras as _pextras
 
             _csec_conn = _get_csec_conn()

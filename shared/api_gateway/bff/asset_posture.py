@@ -1,7 +1,7 @@
 """
 BFF view handler: /api/v1/views/inventory/asset/{uid}/posture (AP-P4-04)
 
-Reads resource_security_posture from the inventory DB (threat_engine_inventory)
+Reads resource_security_posture from the DI DB (threat_engine_di)
 and returns posture data grouped by security dimension:
   network, iam, encryption, data, database, attack_path
 
@@ -46,17 +46,17 @@ except ImportError:
         return _ok
 
 
-# ── Inventory DB connection ───────────────────────────────────────────────────
+# ── DI DB connection (posture data lives here after di_008 migration) ─────────
 
 def _get_inventory_conn() -> psycopg2.extensions.connection:
-    """Open a direct psycopg2 connection to the inventory DB."""
+    """Open a direct psycopg2 connection to the DI DB for posture reads."""
     return psycopg2.connect(
-        host=os.getenv("INVENTORY_DB_HOST", os.getenv("DB_HOST", "localhost")),
-        port=int(os.getenv("INVENTORY_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        dbname=os.getenv("INVENTORY_DB_NAME", "threat_engine_inventory"),
-        user=os.getenv("INVENTORY_DB_USER", os.getenv("DB_USER", "postgres")),
+        host=os.getenv("DI_DB_HOST", os.getenv("DB_HOST", "localhost")),
+        port=int(os.getenv("DI_DB_PORT", os.getenv("DB_PORT", "5432"))),
+        dbname=os.getenv("DI_DB_NAME", "threat_engine_di"),
+        user=os.getenv("DI_DB_USER", os.getenv("DB_USER", "postgres")),
         password=(
-            os.getenv("INVENTORY_DB_PASSWORD")
+            os.getenv("DI_DB_PASSWORD")
             or os.getenv("DB_PASSWORD")
             or os.getenv("DISCOVERIES_DB_PASSWORD", "")
         ),

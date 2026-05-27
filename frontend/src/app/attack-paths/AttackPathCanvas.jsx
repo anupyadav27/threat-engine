@@ -266,6 +266,7 @@ const SOURCE_CONFIGS = {
   vpn:          { Icon: Network,  color: '#f97316', label: 'VPN',          subtitle: 'VPN Connection' },
   onprem:       { Icon: Server,   color: '#f97316', label: 'On-Premises',  subtitle: 'On-Premises Network' },
   peer_account: { Icon: Cloud,    color: '#a855f7', label: 'Peer Account', subtitle: 'Cross-Account Access' },
+  virtual:      { Icon: Cloud,    color: '#6b7280', label: 'Account',      subtitle: 'Cloud Account Entry' },
 };
 
 function SourceNode({ data }) {

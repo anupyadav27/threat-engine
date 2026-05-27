@@ -161,6 +161,7 @@ class RiskDBWriter:
                 %(fair_lef)s, %(fair_lm)s, %(fair_risk_score)s
             )
             ON CONFLICT (finding_id) DO UPDATE SET
+                risk_scan_id = EXCLUDED.risk_scan_id,
                 blast_radius_score = EXCLUDED.blast_radius_score,
                 blast_radius_sample = EXCLUDED.blast_radius_sample,
                 regulatory_multiplier = EXCLUDED.regulatory_multiplier,
@@ -173,7 +174,8 @@ class RiskDBWriter:
                 total_exposure_likely = EXCLUDED.total_exposure_likely,
                 risk_tier = EXCLUDED.risk_tier,
                 calculation_model = EXCLUDED.calculation_model,
-                scan_run_id = EXCLUDED.scan_run_id
+                scan_run_id = EXCLUDED.scan_run_id,
+                tenant_id = EXCLUDED.tenant_id
         """
 
         count = 0

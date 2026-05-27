@@ -1,12 +1,18 @@
 ---
 name: discoveries-engine
-description: Full-context agent for the Discovery engine — cloud resource enumeration across 7 CSPs. Covers DB schema, all API endpoints, BFF views, UI pages, K8s service, and engine-specific gotchas.
+description: "RETIRED 2026-05-27 — engine-discoveries K8s deployment deleted; threat_engine_discoveries DB dropped. Replaced by engine-di (DI engine). Use di-engine agent instead. Discovery data now in threat_engine_di.asset_inventory_* tables."
 autoApprove:
   - Bash
   - Read
   - Glob
   - Grep
 ---
+
+> **RETIRED 2026-05-27**: `engine-discoveries` K8s deployment deleted. `threat_engine_discoveries` DB dropped.
+> Discovery data now lives in `threat_engine_di` — tables `asset_inventory_aws`, `asset_inventory_azure`, etc.
+> A `discovery_findings` compatibility VIEW exists in `threat_engine_di` for backward-compat SQL.
+> **Use the `di-engine` agent instead of this agent.**
+
 ## Self-Update Protocol (Always Run First)
 
 **Before answering any question**, re-read the actual engine code to verify your knowledge is current. The static documentation in this file may lag behind the live codebase.
