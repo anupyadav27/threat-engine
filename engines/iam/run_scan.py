@@ -356,6 +356,22 @@ def main():
         except Exception as _ps_err:
             logger.warning("IAM posture signal write skipped: %s", _ps_err)
 
+        # Write IAM identity edges to asset_relationships in DI DB (non-fatal)
+        try:
+            from iam_engine.storage.iam_relationship_writer import write_iam_relationships
+            write_iam_relationships(
+                scan_run_id=scan_run_id,
+                tenant_id=tenant_id,
+                account_id=account_id or "",
+                provider=provider,
+                trust_relationships=trust_relationships,
+                managed_policies=managed_policies,
+                groups=discovery_groups,
+                instance_profiles=discovery_instance_profiles,
+            )
+        except Exception as _rel_err:
+            logger.warning("IAM relationship write skipped: %s", _rel_err)
+
         # Write IAM violations to security_findings (non-fatal)
         try:
             from engine_common.security_findings_writer import upsert_findings

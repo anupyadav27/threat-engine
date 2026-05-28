@@ -40,7 +40,8 @@ from engine_onboarding.storage.secrets_manager_storage import SecretsManagerStor
 
 from di_engine.phase0.enumerator import run_phase0
 from di_engine.phase2.writer import write_assets, write_errors, update_scan_status
-from di_engine.phase2.relationship_writer import derive_and_write_relationships
+# relationship_writer removed — per-engine writers (network, IAM, encryption) write
+# directly to asset_relationships in DI DB via engine_common.relationship_writer.
 
 
 def _resolve_credentials(account_id: str, credential_ref: str, credential_type: str, provider: str) -> dict:
@@ -171,12 +172,9 @@ async def run_scan(scan_run_id: str, services: list[str] | None = None) -> None:
     logger.info("Starting Phase 2: write (%d rows)", len(enriched_rows))
     written = write_assets(enriched_rows)
 
-    # Write relationships from the enriched rows
-    rels_written = derive_and_write_relationships(
-        rows=enriched_rows,
-        scan_run_id=scan_run_id,
-        tenant_id=tenant_id,
-    )
+    # Relationship edges are written by per-engine writers (network, IAM, encryption)
+    # directly to asset_relationships — DI no longer writes this table.
+    rels_written = 0
 
     # Write all enumeration errors
     errors_written = write_errors(all_errors)

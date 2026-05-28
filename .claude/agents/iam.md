@@ -48,7 +48,8 @@ Read `.claude/documentation/CSPM_CONSTITUTION.md` before acting.
 **Position:** Stage 5 (parallel) — runs after threat, in parallel with compliance/datasec/network.
 **Reads:** `check_findings` from `threat_engine_check` DB + `threat_findings` from `threat_engine_threat` DB (for cross-engine enrichment)
 **Writes:** `iam_findings`, `iam_report`, `iam_policy_statements` in `threat_engine_iam`
-**Feeds downstream:** BFF iam view, risk engine (identity-related scenarios), dashboard IAM KPI
+**Also writes:** `asset_relationships` in `threat_engine_di` (identity edges: ASSUMES, HAS_POLICY, MEMBER_OF, LINKED_TO) via `iam_engine.storage.iam_relationship_writer.write_iam_relationships()` — runs non-fatally after posture signals, before findings write.
+**Feeds downstream:** BFF iam view, risk engine (identity-related scenarios), dashboard IAM KPI, attack-path engine (reads ASSUMES/HAS_POLICY edges from asset_relationships for graph build)
 **Credentials:** NONE — reads from DB only, no cloud API calls
 **Execution:** K8s Job
 **Timeout:** 1800s (30 minutes)

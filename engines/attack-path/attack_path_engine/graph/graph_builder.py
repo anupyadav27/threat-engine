@@ -412,6 +412,33 @@ _RELATION_TYPE_MAP: Dict[str, str] = {
     "monitored_by":       "MONITORED_BY",
 }
 
+# ── Per-engine asset_relationships → Neo4j bridge ────────────────────────────
+# Relations written to asset_relationships that are posture-only facts.
+# These are consumed by DataSec/DBSec/Risk directly from the DB — NOT loaded
+# into Neo4j (not traversal edges in the attack graph).
+_POSTURE_ONLY_RELATIONS: frozenset = frozenset([
+    "INTERNET_ACCESSIBLE",  # ExposureLoader handles (Step 4j)
+    "ENCRYPTED_BY",         # posture signal → DataSec/DBSec consume directly
+    "PROTECTED_BY",         # SG attachment — posture
+    "GOVERNED_BY",          # NACL — posture
+    "ROUTES_VIA",           # route table — posture
+])
+
+# Whitelist of relation_type values allowed into Neo4j from asset_relationships.
+# SECURITY: relation_type is interpolated into Cypher — this whitelist prevents
+# injection. Any value not in this set is silently skipped.
+_GRAPH_RELATION_WHITELIST: frozenset = frozenset([
+    # IAM identity edges (IAM engine relationship writer)
+    "ASSUMES", "HAS_POLICY", "MEMBER_OF", "LINKED_TO",
+    "CAN_ACCESS", "GRANTS_ACCESS_TO",
+    # Encryption data-plane edges (encryption engine relationship writer)
+    "GRANTS_DECRYPT_TO",
+    # Network topology edges (network engine relationship writer)
+    "ROUTES_TO", "CONNECTED_VIA", "PEERED_WITH", "PEERED_WITH_EXTERNAL", "HAS_ENDPOINT",
+    # Infrastructure attachment (future category-1 rules)
+    "ATTACHED_TO", "MOUNTED_BY",
+])
+
 # Edges that define the attacker's traversal route
 _PATH_REL_TYPES: frozenset = frozenset({
     "ASSUMES", "CAN_ACCESS", "ACCESSES", "STORES", "CONNECTS_TO",
@@ -1996,6 +2023,147 @@ class SecurityGraphBuilder:
         )
         return count
 
+    # ── Step 4l helpers — generic asset_relationships → Neo4j loader ──────────
+
+    def _load_security_edges_from_di(
+        self, tenant_id: str, scan_run_id: str
+    ) -> List[Dict[str, Any]]:
+        """Load per-engine security edges from asset_relationships in threat_engine_di.
+
+        Skips posture-only relations (ENCRYPTED_BY, PROTECTED_BY, etc.) and
+        INTERNET_ACCESSIBLE (handled by ExposureLoader in Step 4j).
+        Row cap: 200,000 — prevents memory explosion on large tenants.
+        """
+        from psycopg2.extras import RealDictCursor
+
+        skip_list = list(_POSTURE_ONLY_RELATIONS)
+        placeholders = ",".join(["%s"] * len(skip_list))
+        conn = self._pg_conn("threat_engine_di")
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    f"""
+                    SELECT source_uid, source_type, target_uid, target_type,
+                           relation_type, relation_metadata
+                    FROM   asset_relationships
+                    WHERE  tenant_id   = %s
+                      AND  scan_run_id = %s
+                      AND  relation_type NOT IN ({placeholders})
+                    LIMIT  200000
+                    """,
+                    (tenant_id, scan_run_id, *skip_list),
+                )
+                rows = [dict(r) for r in cur.fetchall()]
+                logger.info(
+                    "  loaded %d security edges from asset_relationships (tenant=%s scan=%s)",
+                    len(rows), tenant_id, scan_run_id,
+                )
+                return rows
+        except Exception as exc:
+            logger.warning("_load_security_edges_from_di failed: %s", exc, exc_info=True)
+            return []
+        finally:
+            conn.close()
+
+    def _create_security_relationship_edges(
+        self,
+        session: Any,
+        edges: List[Dict[str, Any]],
+        tenant_id: str,
+    ) -> int:
+        """Write per-engine security edges from asset_relationships into Neo4j.
+
+        Groups edges by relation_type and runs one Cypher batch per type.
+        Uses MERGE (not MATCH) for both nodes so external accounts and
+        cross-account principals are created even if absent from asset_inventory.
+
+        SECURITY: relation_type is validated against _GRAPH_RELATION_WHITELIST
+        before Cypher interpolation — raw DB strings are NEVER interpolated without
+        passing the whitelist gate.
+        """
+        if not edges:
+            return 0
+
+        # Group by relation_type (whitelist-validated)
+        edges_by_type: Dict[str, List[Dict[str, Any]]] = {}
+        for edge in edges:
+            rt = (edge.get("relation_type") or "").upper()
+            if rt not in _GRAPH_RELATION_WHITELIST:
+                continue
+            edges_by_type.setdefault(rt, []).append(edge)
+
+        total = 0
+        batch_size = 500
+
+        for rel_type, type_edges in edges_by_type.items():
+            # rel_type passed whitelist above — safe to interpolate into Cypher.
+            cypher = f"""
+                UNWIND $rows AS row
+                MERGE (s:Resource {{uid: row.src_uid, tenant_id: $tid}})
+                  ON CREATE SET s.resource_type = row.src_type
+                MERGE (t:Resource {{uid: row.tgt_uid, tenant_id: $tid}})
+                  ON CREATE SET t.resource_type = row.tgt_type
+                MERGE (s)-[r:{rel_type}]->(t)
+                  ON CREATE SET r.attack_path_category = row.category,
+                                r.metadata             = row.meta,
+                                r.source               = 'asset_relationships'
+                  ON MATCH  SET r.attack_path_category = row.category,
+                                r.metadata             = row.meta
+                RETURN count(r) AS cnt
+            """
+            for i in range(0, len(type_edges), batch_size):
+                chunk = type_edges[i : i + batch_size]
+                params = []
+                for e in chunk:
+                    meta = e.get("relation_metadata") or {}
+                    params.append({
+                        "src_uid":  e["source_uid"],
+                        "src_type": e.get("source_type") or "resource",
+                        "tgt_uid":  e["target_uid"],
+                        "tgt_type": e.get("target_type") or "resource",
+                        "category": meta.get("attack_path_category") or "",
+                        "meta": {k: v for k, v in meta.items()
+                                 if k != "attack_path_category"},
+                    })
+                try:
+                    rec = session.run(cypher, rows=params, tid=tenant_id).single()
+                    total += rec["cnt"] if rec else 0
+                except Exception as exc:
+                    logger.debug(
+                        "security edge batch failed (rel_type=%s len=%d): %s",
+                        rel_type, len(chunk), exc,
+                    )
+
+        # Tag GRANTS_DECRYPT_TO targets as ExternalAccount for BFS scoring
+        if "GRANTS_DECRYPT_TO" in edges_by_type:
+            ext_uids = [
+                e["target_uid"] for e in edges_by_type["GRANTS_DECRYPT_TO"]
+                if e.get("target_type") in ("aws_account", "iam_principal", "azure_tenant",
+                                             "gcp_project", "oci_tenancy")
+            ]
+            if ext_uids:
+                try:
+                    session.run(
+                        """
+                        UNWIND $uids AS uid
+                        MATCH (r:Resource {uid: uid})
+                        SET r:ExternalAccount
+                        """,
+                        uids=ext_uids,
+                    )
+                    logger.debug(
+                        "Tagged %d GRANTS_DECRYPT_TO targets as :ExternalAccount", len(ext_uids)
+                    )
+                except Exception as exc:
+                    logger.debug("ExternalAccount label set failed: %s", exc)
+
+        logger.info(
+            "Security relationship edges (asset_relationships→Neo4j): %d written "
+            "across %d relation types",
+            total, len(edges_by_type),
+        )
+        return total
+
     def build_graph(
         self, tenant_id: str, scan_run_id: Optional[str] = None
     ) -> Dict[str, Any]:
@@ -2167,6 +2335,20 @@ class SecurityGraphBuilder:
             stats["iam_permission_edges"] = self._create_iam_permission_edges(session, iam_stmts, tenant_id)
             logger.info(f"  → {stats['iam_permission_edges']} IAM permission edges")
 
+            # 4l. Per-engine security edges from asset_relationships in threat_engine_di.
+            # Loads all whitelisted relation types written by engine-specific writers:
+            #   IAM engine:        ASSUMES, HAS_POLICY, MEMBER_OF, LINKED_TO
+            #   Encryption engine: GRANTS_DECRYPT_TO (data_exfil attack path)
+            #   Network engine:    ROUTES_TO, CONNECTED_VIA, PEERED_WITH, HAS_ENDPOINT
+            #   Future (DI cat-1): ATTACHED_TO, MOUNTED_BY
+            # INTERNET_ACCESSIBLE skipped here — ExposureLoader handled it in 4j.
+            # ENCRYPTED_BY skipped — posture fact consumed by DataSec/DBSec directly.
+            _sec_edges = self._load_security_edges_from_di(tenant_id, scan_run_id or "")
+            stats["security_relationship_edges"] = self._create_security_relationship_edges(
+                session, _sec_edges, tenant_id
+            )
+            logger.info(f"  → {stats['security_relationship_edges']} security relationship edges")
+
         # Summary
         total_nodes = (
             stats.get("virtual_nodes", 0)
@@ -2182,8 +2364,9 @@ class SecurityGraphBuilder:
             + stats.get("exposure_edges", 0)
             + stats.get("internet_edges", 0)
             + stats.get("iam_permission_edges", 0)
-            + stats.get("has_cve_edges", 0)  # GRAPH-S2-03
-            + stats.get("inferred_edges", 0)    # GRAPH-S2-04
+            + stats.get("has_cve_edges", 0)           # GRAPH-S2-03
+            + stats.get("inferred_edges", 0)           # GRAPH-S2-04
+            + stats.get("security_relationship_edges", 0)  # Step 4l — per-engine writers
         )
 
         stats["total_nodes"] = total_nodes

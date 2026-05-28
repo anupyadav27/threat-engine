@@ -48,7 +48,8 @@ Read `.claude/documentation/CSPM_CONSTITUTION.md` before acting.
 **Position:** Stage 5 (parallel) — runs after threat.
 **Reads:** `check_findings` from `threat_engine_check` + `discovery_findings` from `threat_engine_discoveries` + `datasec_findings` from `threat_engine_datasec` + `inventory_findings` from `threat_engine_inventory`
 **Writes:** `encryption_report`, `encryption_findings`, `key_inventory`, `cert_inventory`, `secrets_inventory` in `threat_engine_encryption`
-**Feeds downstream:** CNAPP aggregation, BFF encryption views
+**Also writes:** `asset_relationships` in `threat_engine_di` (data-plane edges: ENCRYPTED_BY, GRANTS_DECRYPT_TO) via `encryption_security_engine.storage.encryption_relationship_writer.write_encryption_relationships()` — runs non-fatally before retention call.
+**Feeds downstream:** CNAPP aggregation, BFF encryption views, attack-path engine (reads ENCRYPTED_BY/GRANTS_DECRYPT_TO edges for data_exfil path detection)
 **Credentials:** NONE — reads from DB
 **Execution:** K8s Job
 

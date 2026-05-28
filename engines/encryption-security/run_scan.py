@@ -756,6 +756,23 @@ def main():
         except Exception as _sf_err:
             logger.warning("Encryption security_findings write skipped: %s", _sf_err)
 
+        # Write encryption data-plane edges to asset_relationships in DI DB (non-fatal)
+        try:
+            from encryption_security_engine.storage.encryption_relationship_writer import (
+                write_encryption_relationships,
+            )
+            write_encryption_relationships(
+                scan_run_id=scan_run_id,
+                tenant_id=tenant_id,
+                account_id=account_id or "",
+                provider=provider,
+                dep_graph=dep_graph if dep_graph is not None else None,
+                kms_relationships=kms_relationships,
+                cross_account_findings=cross_account_findings,
+            )
+        except Exception as _rel_err:
+            logger.warning("Encryption relationship write skipped: %s", _rel_err)
+
         # Retention: archive old scans to S3, keep last 5 in DB
         try:
             from engine_common.retention import run_retention
