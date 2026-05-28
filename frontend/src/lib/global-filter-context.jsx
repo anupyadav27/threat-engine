@@ -3,13 +3,12 @@
 /**
  * GlobalFilterContext — cross-page multi-CSP scope selector.
  *
- * Hierarchy: Provider → Account → Region (cascade resets on parent change)
- * timeRange is independent (no cascade).
- *
- * Fetches real cloud accounts from the onboarding API on mount.
+ * Scope hierarchy: Client (org) → Tenant → Account (cloud account)
+ * Provider/Region are legacy filters kept for backwards compat but no longer
+ * shown in the main scope bar.
  *
  * Usage:
- *   const { provider, account, region, timeRange, setFilter, clearAll } = useGlobalFilter();
+ *   const { selectedClients, selectedTenants, selectedAccounts, setFilter } = useGlobalFilter();
  */
 
 import { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
@@ -17,8 +16,6 @@ import { fetchView } from './api';
 import { useAuth } from './auth-context';
 import { CLOUD_PROVIDERS } from './constants';
 
-// Static fallback used when the onboarding engine is unreachable (local dev, CI).
-// Ordered: most common clouds first.
 const STATIC_PROVIDER_OPTIONS = ['aws', 'gcp', 'azure', 'oci', 'alicloud', 'ibm'].map(p => ({
   value: p.toUpperCase(),
   label: CLOUD_PROVIDERS[p]?.name || p.toUpperCase(),
@@ -34,31 +31,53 @@ export const TIME_RANGE_OPTIONS = [
 ];
 
 export function GlobalFilterProvider({ children }) {
-  const { selectedTenant } = useAuth();
+  const { selectedTenant, level, user } = useAuth();
 
+  // Legacy provider/account/region filters (kept for BFF backwards compat)
   const [provider,  setProvider]  = useState('');
   const [account,   setAccount]   = useState('');
   const [region,    setRegion]    = useState('');
   const [timeRange, setTimeRange] = useState('7d');
 
+  // Scope bar multi-select arrays
+  const [selectedClients,  setSelectedClients]  = useState([]);  // [] = All Clients (platform_admin only)
+  const [selectedTenants,  setSelectedTenants]  = useState([]);  // [] = All Tenants
+  const [selectedAccounts, setSelectedAccounts] = useState([]);  // [] = All Accounts
+
   // Real accounts fetched from onboarding API
   const [accounts, setAccounts] = useState([]);
 
+  // Client list — populated for platform_admin from a future orgs BFF endpoint.
+  // For all other roles the list stays empty (client is displayed as a static label).
+  const [clients, setClients] = useState([]);
+
+  useEffect(() => {
+    if (level !== 1) return;  // Only platform_admin needs the client list
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetchView('platform/clients', {});
+        if (cancelled) return;
+        const list = res?.clients || (Array.isArray(res) ? res : []);
+        setClients(list.map(c => ({
+          value: c.customer_id || c.id,
+          label: c.name || c.customer_id || c.id,
+        })));
+      } catch {
+        // Endpoint not yet deployed — client dropdown stays empty
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [level]);
+
   // Fetch cloud accounts scoped to the active tenant.
-  // selectedTenant = null means "All Tenants" (platform_admin) — no filter sent,
-  // engine returns all accounts the user is permitted to see.
-  // Re-fetches whenever the tenant selection changes.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        // JNY-17.1: migrated to BFF view (was direct /onboarding/api/v1/cloud-accounts).
-        // BFF resolves tenant_id from session — no client-side tenant filter needed.
         const res = await fetchView('onboarding/cloud_accounts', {});
         if (cancelled) return;
         const list = res?.accounts || (Array.isArray(res) ? res : []);
-        // Normalize to { provider, account, display, regions }.
-        // BFF returns camelCase; tolerate snake_case during transition.
         const normalized = list.map((a) => ({
           provider: (a.provider || a.csp || 'AWS').toUpperCase(),
           account:  a.accountId || a.account_id || a.accountName || a.account_name || a.name || '',
@@ -66,29 +85,23 @@ export function GlobalFilterProvider({ children }) {
           regions:  a.regions || (a.region ? [a.region] : []),
         }));
         setAccounts(normalized);
-        // Reset cascade selections when tenant changes so stale values don't persist
         setProvider('');
         setAccount('');
         setRegion('');
       } catch (err) {
         console.warn('GlobalFilter: failed to fetch cloud accounts', err);
-        // No fallback — dropdowns stay empty until API responds
       }
     })();
     return () => { cancelled = true; };
   }, [selectedTenant]);
 
-  // Cascade-aware setter
   const setFilter = useCallback((key, value) => {
     switch (key) {
       case 'provider':
-        setProvider(value);
-        setAccount('');
-        setRegion('');
+        setProvider(value); setAccount(''); setRegion('');
         break;
       case 'account':
-        setAccount(value);
-        setRegion('');
+        setAccount(value); setRegion('');
         break;
       case 'region':
         setRegion(value);
@@ -96,21 +109,46 @@ export function GlobalFilterProvider({ children }) {
       case 'timeRange':
         setTimeRange(value);
         break;
+      case 'toggleClient':
+        setSelectedClients(prev =>
+          prev.includes(value) ? prev.filter(id => id !== value) : [...prev, value]
+        );
+        break;
+      case 'clearClients':
+        setSelectedClients([]);
+        break;
+      case 'toggleTenant':
+        setSelectedTenants(prev =>
+          prev.includes(value) ? prev.filter(id => id !== value) : [...prev, value]
+        );
+        break;
+      case 'clearTenants':
+        setSelectedTenants([]);
+        break;
+      case 'toggleAccount':
+        setSelectedAccounts(prev =>
+          prev.includes(value) ? prev.filter(id => id !== value) : [...prev, value]
+        );
+        break;
+      case 'clearAccounts':
+        setSelectedAccounts([]);
+        break;
     }
   }, []);
 
   const clearAll = useCallback(() => {
-    setProvider('');
-    setAccount('');
-    setRegion('');
+    setProvider(''); setAccount(''); setRegion('');
     setTimeRange('7d');
+    setSelectedClients([]);
+    setSelectedTenants([]);
+    setSelectedAccounts([]);
   }, []);
 
-  const hasActiveFilters = !!(provider || account || region || timeRange !== '7d');
+  const hasActiveFilters = !!(
+    provider || account || region || timeRange !== '7d'
+    || selectedClients.length || selectedTenants.length || selectedAccounts.length
+  );
 
-  // Derived dropdown options (memoised from real accounts).
-  // Falls back to the static provider list when the onboarding engine is unreachable
-  // so the compliance / inventory provider filter still works in local dev.
   const providerOptions = useMemo(() => {
     if (accounts.length === 0) return STATIC_PROVIDER_OPTIONS;
     return [...new Set(accounts.map(a => a.provider))].map(p => ({ value: p, label: p }));
@@ -130,27 +168,23 @@ export function GlobalFilterProvider({ children }) {
     return [...new Set(accts.flatMap(a => a.regions))].map(r => ({ value: r, label: r }));
   }, [provider, account, accounts]);
 
-  // Human-readable summary for display (e.g. "AWS › prod-account › us-east-1")
   const filterSummary = useMemo(() => {
     const parts = [];
-    if (provider)   parts.push(provider);
+    if (provider) parts.push(provider);
     if (account) {
       const acctLabel = accounts.find(a => a.account === account)?.display || account;
       parts.push(acctLabel);
     }
-    if (region)     parts.push(region);
+    if (region) parts.push(region);
     return parts.length ? parts.join(' › ') : null;
   }, [provider, account, region, accounts]);
 
   const value = {
-    // Selected values
     provider, account, region, timeRange,
-    // Actions
+    selectedClients, selectedTenants, selectedAccounts,
+    clients,
     setFilter, clearAll,
-    // Flags
-    hasActiveFilters,
-    filterSummary,
-    // Dropdown option lists
+    hasActiveFilters, filterSummary,
     providerOptions, accountOptions, regionOptions,
   };
 

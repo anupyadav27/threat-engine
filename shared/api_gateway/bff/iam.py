@@ -30,6 +30,8 @@ async def view_iam(
     request: Request,
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
+    tenant_ids: Optional[str] = Query(None),
+    account_ids: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
     csp: str = Query("aws"),
     scan_id: str = Query("latest"),

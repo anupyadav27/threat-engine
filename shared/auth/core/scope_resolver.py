@@ -99,10 +99,33 @@ def resolve_scope(user) -> dict:
     if not tenant_ids:
         tenant_ids = []
 
+    # Also check UserAccountAccess (canonical per-account grant model in tenant_management).
+    # Union with any scope_type='account' entries from UserAdminScope (legacy path).
+    try:
+        from tenant_management.models import UserAccountAccess
+        ua_grants = list(
+            UserAccountAccess.objects.filter(user=user)
+            .values_list("account_id", flat=True)
+        )
+        account_ids = list(set(account_ids + ua_grants))
+    except (ImportError, Exception):
+        pass
+
+    # For platform/org roles: unrestricted across all accounts.
+    # For tenant roles: if the user has explicit account-scope entries, restrict to those;
+    #   otherwise None (unrestricted within their tenants).
+    # For account roles: always restrict to the scoped account list.
+    if role.scope_level in ("platform", "organization"):
+        resolved_account_ids = None
+    elif role.scope_level == "tenant":
+        resolved_account_ids = account_ids if account_ids else None
+    else:
+        resolved_account_ids = account_ids or []
+
     return {
         "org_ids": org_ids,
         "tenant_ids": tenant_ids,
-        "account_ids": None if role.scope_level in ("platform", "organization", "tenant") else (account_ids or []),
+        "account_ids": resolved_account_ids,
     }
 
 

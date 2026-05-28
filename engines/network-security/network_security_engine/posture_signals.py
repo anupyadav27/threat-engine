@@ -40,14 +40,22 @@ def write_network_posture_signals(
     account_id: str,
     provider: str,
 ) -> int:
-    """Aggregate network signals from network_findings and upsert to posture table.
+    """Aggregate network signals from network_findings + IEDS findings and upsert to posture.
+
+    Reads:
+      - network_findings: for has_waf, has_load_balancer, network_exposure_score, network_detail
+      - network_exposure_findings: for is_internet_exposed (overrides pattern-based heuristic)
 
     Returns number of posture rows written.
     """
     try:
         signals_by_uid = _aggregate_network_signals(scan_run_id, tenant_id)
+
+        # Augment is_internet_exposed from IEDS network_exposure_findings
+        _augment_from_ieds(signals_by_uid, scan_run_id, tenant_id)
+
         if not signals_by_uid:
-            logger.info("Network posture signals: no network findings for scan %s", scan_run_id)
+            logger.info("Network posture signals: no signals for scan %s", scan_run_id)
             return 0
 
         inv_conn = get_di_conn()
@@ -64,6 +72,64 @@ def write_network_posture_signals(
     except Exception as exc:
         logger.warning("Network posture signal write failed (non-fatal): %s", exc, exc_info=True)
         return 0
+
+
+def _augment_from_ieds(
+    signals_by_uid: dict[str, dict[str, Any]],
+    scan_run_id: str,
+    tenant_id: str,
+) -> None:
+    """
+    Read network_exposure_findings for this scan and set is_internet_exposed=True on
+    any resource that IEDS Phase L0 flagged — overriding the pattern-based heuristic.
+
+    Also ensures resources with IEDS findings have a signals entry even if they had
+    no entries in network_findings (e.g. CloudFront distributions not in check rules).
+    """
+    try:
+        net_conn = get_network_conn()
+        try:
+            with net_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT DISTINCT resource_uid, resource_type, severity, origin_type
+                    FROM   network_exposure_findings
+                    WHERE  scan_run_id = %s
+                      AND  tenant_id   = %s
+                      AND  status      = 'OPEN'
+                      AND  origin_type = 'internet'
+                """, (scan_run_id, tenant_id))
+                rows = cur.fetchall()
+        finally:
+            net_conn.close()
+
+        for row in rows:
+            uid = row["resource_uid"]
+            if uid not in signals_by_uid:
+                signals_by_uid[uid] = {
+                    "resource_type": row.get("resource_type", ""),
+                    "is_internet_exposed": True,
+                    "is_in_private_subnet": False,
+                    "has_waf": False,
+                    "has_load_balancer": False,
+                    "network_exposure_score": 0,
+                    "_fail_count": 0,
+                    "_total_count": 0,
+                    "_open_ports": set(),
+                    "_vpc_ids": set(),
+                    "_sg_violations": [],
+                    "_nacl_violations": [],
+                }
+            else:
+                signals_by_uid[uid]["is_internet_exposed"] = True
+                signals_by_uid[uid]["is_in_private_subnet"] = False
+
+        if rows:
+            logger.info(
+                "IEDS augment: set is_internet_exposed=True on %d resources for scan %s",
+                len(rows), scan_run_id,
+            )
+    except Exception as exc:
+        logger.debug("IEDS augment failed (non-fatal): %s", exc)
 
 
 def _aggregate_network_signals(scan_run_id: str, tenant_id: str) -> dict[str, dict[str, Any]]:

@@ -50,7 +50,15 @@ def sync_tenant_to_onboarding(self, tenant_id: str, customer_id: str) -> None:
     """
     url = f"{_ONBOARDING_ENGINE_URL}/internal/tenants/sync"
     secret = os.getenv("X_INTERNAL_SECRET", "")
-    payload = {"tenant_id": tenant_id, "customer_id": customer_id}
+    # Include tenant_name so onboarding DB stays in sync with Django's canonical name.
+    # Fall back to a generic name if the tenant row is missing (e.g., called before commit).
+    from tenant_management.models import Tenants
+    _t = Tenants.objects.filter(id=tenant_id).values("name").first()
+    payload = {
+        "tenant_id": tenant_id,
+        "customer_id": customer_id,
+        "tenant_name": _t["name"] if _t else f"org-{customer_id[:8]}",
+    }
 
     try:
         resp = http_requests.post(

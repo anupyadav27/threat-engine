@@ -347,4 +347,7 @@ class AWSNetworkProvider(BaseNetworkProvider):
             "topology_snapshots": snapshots,
             "report_metrics": report_metrics,
             "scan_duration_ms": elapsed_ms,
+            # Passed through to run_scan.py for relationship writing — not persisted directly.
+            "_topology": topology,
+            "_sg_attachments": sg_attachments,
         }

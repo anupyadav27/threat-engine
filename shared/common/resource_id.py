@@ -468,6 +468,28 @@ def normalize_resource_uid(
     )
 
 
+def normalize_agent_resource_uid(resource_uid: str) -> str:
+    """Strip legacy agent-emitted prefixes so the stored UID matches DI engine format.
+
+    Handles legacy vul_agent versions that shipped before the format was fixed:
+      - AWS  ``ec2:region:account:id`` → ARN  (via _AWSBuilder.normalize)
+      - OCI  ``oci:ocid1.…``           → raw OCID (strip ``oci:`` prefix)
+      All other formats are returned unchanged (Azure ARM IDs, GCP URLs,
+      AliCloud ACS ARNs, IBM CRNs, on-prem hostnames are already canonical).
+    """
+    if not resource_uid:
+        return resource_uid
+    # OCI legacy: strip "oci:" prefix
+    if resource_uid.startswith("oci:ocid1."):
+        return resource_uid[4:]
+    # AWS legacy short form: ec2:region:account:id
+    if not resource_uid.startswith("arn:") and resource_uid.count(":") == 3:
+        parts = resource_uid.split(":")
+        if parts[0] in {"ec2", "rds", "s3", "iam", "lambda", "elb", "elbv2", "eks"}:
+            return _aws_builder.normalize(resource_uid=resource_uid)
+    return resource_uid
+
+
 def host_to_resource_uid(
     host: str,
     provider: str = "",

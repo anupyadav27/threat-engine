@@ -25,6 +25,58 @@ logger = logging.getLogger("di.phase2.writer")
 
 _BATCH_SIZE = 500
 
+# AWS/cloud-managed resources that AWS creates automatically in every account/region.
+# These are not customer-managed assets and add noise to the inventory.
+# Key: discovery_id  Value: set of resource_name values to exclude.
+_MANAGED_EXCLUSIONS: dict = {
+    "aws.sagemaker.list_resource_catalogs": {"DefaultFeatureGroupCatalog"},
+    "aws.sagemaker.list_hubs": {"SageMakerPublicHub"},
+    "aws.bedrock.list_inference_profiles": None,  # None = exclude ALL items from this discovery
+    "aws.bedrock.list_prompt_routers": None,       # AWS-managed Bedrock routers
+    "aws.ecs.describe_capacity_providers": {"FARGATE", "FARGATE_SPOT"},
+    "aws.cloudtrail.list_channels": None,          # AWS-managed service channels
+    # Amazon Connect Customer Profiles — default objects pre-created in every region
+    "aws.customer-profiles.list_object_type_names": {
+        "Campaign", "Servicenow", "Salesforce", "CTR", "Shopify", "Zendesk",
+        "Marketo", "S3", "Segment", "SNOWFLAKE",
+    },
+    # Route53 Resolver — system-managed rule association in every region
+    "aws.route53resolver.list_resolver_rule_associations": {"System Rule Association"},
+}
+
+
+# resource_type-level exclusions for cases where discovery_id may be NULL.
+# None = exclude all resources of this type.
+_MANAGED_RESOURCE_TYPES: dict = {
+    "bedrock_inference_profile": None,  # all AWS-managed Bedrock profiles
+    "bedrock_prompt_router": None,      # all AWS-managed Bedrock routers
+    "sagemaker_resource_catalog": {"DefaultFeatureGroupCatalog"},
+    "sagemaker_hub": {"SageMakerPublicHub"},
+    "ecs_capacity_provider": {"FARGATE", "FARGATE_SPOT"},
+    "cloudtrail_channel": None,
+}
+
+
+def _is_managed_exclusion(row: Dict[str, Any]) -> bool:
+    """Return True if this asset is an AWS-managed resource that should be excluded."""
+    did = row.get("discovery_id") or ""
+    if did in _MANAGED_EXCLUSIONS:
+        names = _MANAGED_EXCLUSIONS[did]
+        if names is None:
+            return True
+        if (row.get("resource_name") or "") in names:
+            return True
+
+    rt = row.get("resource_type") or ""
+    if rt in _MANAGED_RESOURCE_TYPES:
+        names = _MANAGED_RESOURCE_TYPES[rt]
+        if names is None:
+            return True
+        if (row.get("resource_name") or "") in names:
+            return True
+
+    return False
+
 
 def _json_default(obj: Any) -> Any:
     if isinstance(obj, (datetime, date)):
@@ -71,6 +123,15 @@ def write_assets(rows: List[Dict[str, Any]]) -> int:
     Returns:
         Number of rows written (inserts + updates).
     """
+    if not rows:
+        return 0
+
+    before = len(rows)
+    rows = [r for r in rows if not _is_managed_exclusion(r)]
+    skipped = before - len(rows)
+    if skipped:
+        logger.info("Excluded %d AWS-managed resources from inventory write", skipped)
+
     if not rows:
         return 0
 

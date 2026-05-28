@@ -34,6 +34,8 @@ async def view_cdr(
     scan_run_id: Optional[str] = Query(None),
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
+    tenant_ids: Optional[str] = Query(None),
+    account_ids: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
 ):
     tenant_id = resolve_tenant_id(request)

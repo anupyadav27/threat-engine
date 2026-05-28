@@ -4,12 +4,15 @@ engine-di FastAPI server
 Endpoints:
   GET  /api/v1/health/live
   GET  /api/v1/health/ready
-  GET  /api/v1/di/assets         — paginated asset list (discoveries:read)
-  GET  /api/v1/di/assets/{uid}   — single asset detail (discoveries:read)
-  GET  /api/v1/di/assets/count   — count per provider (discoveries:read)
-  GET  /api/v1/di/relationships  — paginated relationships (discoveries:read)
-  GET  /api/v1/di/errors         — di_scan_errors for a scan_run_id (discoveries:read)
-  GET  /api/v1/di/status/{id}    — scan status (discoveries:read)
+  GET  /api/v1/di/assets                        — paginated asset list (discoveries:read)
+  GET  /api/v1/di/assets/count                  — count per provider (discoveries:read)
+  GET  /api/v1/di/assets/{uid}/posture          — RSP row for one asset (discoveries:read)
+  GET  /api/v1/di/assets/{uid}/findings         — paginated security_findings (discoveries:read)
+  GET  /api/v1/di/assets/{uid}                  — single asset detail (discoveries:read)
+  POST /api/v1/di/batch-posture                 — bulk RSP lookup by resource_uid list
+  GET  /api/v1/di/relationships                 — paginated relationships (discoveries:read)
+  GET  /api/v1/di/errors                        — di_scan_errors for a scan_run_id (discoveries:read)
+  GET  /api/v1/di/status/{id}                   — scan status (discoveries:read)
 
 All data endpoints:
   - Require X-Auth-Context (require_permission("discoveries:read"))
@@ -53,7 +56,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
@@ -93,6 +96,10 @@ class ScanRequest(BaseModel):
     credential_type: str = "access_key"
     credential_ref: str = ""
     include_regions: str = ""
+
+
+class BatchPostureRequest(BaseModel):
+    resource_uids: List[str]
 
 
 # ── Scan trigger ───────────────────────────────────────────────────────────────
@@ -142,6 +149,56 @@ async def _run_scan_background(scan_run_id: str) -> None:
             )
     except Exception as e:
         logger.error("Background scan failed: scan_run_id=%s: %s", scan_run_id, e)
+
+
+# ── Batch posture lookup ───────────────────────────────────────────────────────
+@app.post("/api/v1/di/batch-posture")
+async def batch_posture(
+    body: BatchPostureRequest,
+    auth: Any = _auth_dep(),
+) -> Dict[str, Any]:
+    """Batch-fetch RSP signals for up to 500 resource_uids."""
+    tenant_id = _get_tenant_id(auth)
+    if not body.resource_uids:
+        return {"posture": {}}
+
+    uids = body.resource_uids[:500]
+    conn = _get_di_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT
+                    resource_uid,
+                    overall_posture_score, posture_vector,
+                    is_internet_exposed, is_on_attack_path, is_crown_jewel, is_choke_point,
+                    attack_path_count, highest_path_severity,
+                    blast_radius_count, reachable_pii_store_count,
+                    is_in_private_subnet, network_exposure_score,
+                    can_access_pii,
+                    is_admin_role, role_has_wildcard_policy, mfa_enforced,
+                    is_encrypted_at_rest, has_kms_managed_key,
+                    data_classification, has_exfil_path,
+                    has_active_cdr_actor, cdr_actor_count,
+                    vuln_critical_count, vuln_high_count, has_known_exploit,
+                    unencrypted_pii_store, internet_exposed_with_pii,
+                    admin_role_without_mfa, exploitable_exposed_resource,
+                    has_priv_escalation_path,
+                    api_publicly_accessible, api_public_no_waf, api_public_no_auth
+                FROM resource_security_posture
+                WHERE tenant_id = %s AND resource_uid = ANY(%s)
+                """,
+                (tenant_id, uids),
+            )
+            rows = cur.fetchall()
+    finally:
+        conn.close()
+
+    posture_map = {
+        r["resource_uid"]: {k: v for k, v in dict(r).items() if k != "resource_uid"}
+        for r in rows
+    }
+    return {"posture": posture_map}
 
 
 # ── Health ─────────────────────────────────────────────────────────────────────
@@ -267,6 +324,110 @@ async def count_assets(
         conn.close()
 
     return {"data": [dict(r) for r in rows]}
+
+
+@app.get("/api/v1/di/assets/{resource_uid:path}/posture")
+async def get_asset_posture(
+    resource_uid: str,
+    auth: Any = _auth_dep(),
+) -> Dict[str, Any]:
+    """Full RSP row for a single asset (all 6 dimensions + attack-path signals)."""
+    tenant_id = _get_tenant_id(auth)
+
+    conn = _get_di_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT *
+                FROM resource_security_posture
+                WHERE tenant_id = %s AND resource_uid = %s
+                """,
+                (tenant_id, resource_uid),
+            )
+            row = cur.fetchone()
+    finally:
+        conn.close()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Posture data not found for asset")
+    return dict(row)
+
+
+@app.get("/api/v1/di/assets/{resource_uid:path}/findings")
+async def get_asset_findings(
+    resource_uid: str,
+    status: Optional[str] = Query("open"),
+    finding_type: Optional[str] = Query(None),
+    source_engine: Optional[str] = Query(None),
+    severity: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    auth: Any = _auth_dep(),
+) -> Dict[str, Any]:
+    """Paginated security_findings for a single asset (default: open findings only)."""
+    tenant_id = _get_tenant_id(auth)
+    offset = (page - 1) * page_size
+
+    conditions = ["tenant_id = %s", "resource_uid = %s"]
+    params: List[Any] = [tenant_id, resource_uid]
+
+    if status:
+        conditions.append("status = %s")
+        params.append(status.lower())
+    if finding_type:
+        conditions.append("finding_type = %s")
+        params.append(finding_type)
+    if source_engine:
+        conditions.append("source_engine = %s")
+        params.append(source_engine)
+    if severity:
+        conditions.append("severity = %s")
+        params.append(severity.lower())
+
+    where = " AND ".join(conditions)
+
+    conn = _get_di_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                f"""
+                SELECT
+                    finding_id, source_engine, source_finding_id, finding_type,
+                    severity, status, rule_id, title, description,
+                    mitre_technique_id, mitre_tactic, epss_score, cvss_score, in_kev,
+                    first_seen_at, last_seen_at
+                FROM security_findings
+                WHERE {where}
+                ORDER BY
+                    CASE severity
+                        WHEN 'critical' THEN 1
+                        WHEN 'high'     THEN 2
+                        WHEN 'medium'   THEN 3
+                        WHEN 'low'      THEN 4
+                        ELSE 5
+                    END,
+                    last_seen_at DESC
+                LIMIT %s OFFSET %s
+                """,
+                params + [page_size, offset],
+            )
+            rows = cur.fetchall()
+
+            cur.execute(
+                f"SELECT COUNT(*) FROM security_findings WHERE {where}", params
+            )
+            total = cur.fetchone()["count"]
+    finally:
+        conn.close()
+
+    return {
+        "data": [dict(r) for r in rows],
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "resource_uid": resource_uid,
+    }
 
 
 @app.get("/api/v1/di/assets/{resource_uid:path}")
@@ -450,6 +611,35 @@ def _resolve_scan_run_id(cur: Any, tenant_id: str, scan_run_id: Optional[str]) -
     return scan_run_id
 
 
+def _extract_tags(emitted_fields: Any) -> Dict[str, str]:
+    """Normalize tags from emitted_fields JSONB into a flat {key: value} dict.
+
+    Handles three common formats:
+      - AWS list: [{"Key": "env", "Value": "prod"}, ...]
+      - GCP/Azure dict: {"env": "prod", ...}
+      - Nested under "tags" or "Labels" key
+    """
+    if not emitted_fields:
+        return {}
+    ef = emitted_fields if isinstance(emitted_fields, dict) else {}
+    # Try common nesting keys only — never fall back to raw emitted_fields
+    raw = ef.get("Tags") or ef.get("tags") or ef.get("Labels") or ef.get("labels")
+    if raw is None:
+        return {}
+    if isinstance(raw, list):
+        result = {}
+        for item in raw:
+            if isinstance(item, dict):
+                k = item.get("Key") or item.get("key") or item.get("Name") or item.get("name")
+                v = item.get("Value") or item.get("value") or ""
+                if k:
+                    result[str(k)] = str(v)
+        return result
+    if isinstance(raw, dict):
+        return {str(k): str(v) for k, v in raw.items() if k and v is not None}
+    return {}
+
+
 @app.get("/api/v1/di/ui-data")
 async def di_ui_data(
     scan_run_id: Optional[str] = Query(None),
@@ -500,7 +690,8 @@ async def di_ui_data(
             cur.execute(
                 f"""
                 SELECT resource_uid, resource_type, resource_name, provider,
-                       account_id, region, service, first_seen_at, last_seen_at
+                       account_id, region, service, status, severity,
+                       drift_detected, emitted_fields, first_seen_at, last_seen_at
                 FROM asset_inventory
                 WHERE {base_cond}
                 ORDER BY last_seen_at DESC
@@ -518,8 +709,11 @@ async def di_ui_data(
                     "provider": r["provider"],
                     "account_id": r["account_id"],
                     "region": r["region"],
-                    "tags": {},
-                    "config": {},
+                    "service": r["service"],
+                    "status": r["status"],
+                    "severity": r["severity"],
+                    "drift_detected": r["drift_detected"],
+                    "tags": _extract_tags(r["emitted_fields"]),
                     "created_at": r["first_seen_at"].isoformat() if r["first_seen_at"] else None,
                     "last_scanned": r["last_seen_at"].isoformat() if r["last_seen_at"] else None,
                 })
@@ -617,110 +811,6 @@ async def di_taxonomy(
         "filters_applied": {"csp": csp, "category": category, "min_priority": min_priority},
     }
 
-
-@app.get("/api/v1/di/architecture")
-async def di_architecture(
-    scan_run_id: Optional[str] = Query("latest"),
-    max_priority: int = Query(3, ge=1, le=5),
-    csp: Optional[str] = Query(None),
-    include_relationships: bool = Query(True),
-    auth: Any = _auth_dep(),
-) -> Dict[str, Any]:
-    """Account→region→service hierarchy — inventory /architecture compat."""
-    tenant_id = _get_tenant_id(auth)
-
-    conn = _get_di_conn()
-    try:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            sid = _resolve_scan_run_id(cur, tenant_id, scan_run_id)
-
-            conds = ["tenant_id = %s"]
-            params: List[Any] = [tenant_id]
-            if sid:
-                conds.append("scan_run_id = %s")
-                params.append(sid)
-            if csp:
-                conds.append("provider = %s")
-                params.append(csp)
-            where = " AND ".join(conds)
-
-            cur.execute(
-                f"""
-                SELECT account_id, provider, region, service, resource_type,
-                       resource_uid, resource_name
-                FROM asset_inventory
-                WHERE {where}
-                ORDER BY account_id, region, service
-                LIMIT 5000
-                """,
-                params,
-            )
-            rows = cur.fetchall()
-
-            rels: List[Dict[str, Any]] = []
-            if include_relationships and sid:
-                cur.execute(
-                    "SELECT source_uid, target_uid, source_type, target_type, relation_type "
-                    "FROM asset_relationships WHERE tenant_id = %s AND scan_run_id = %s LIMIT 5000",
-                    (tenant_id, sid),
-                )
-                rels = [
-                    {
-                        "from_uid": r["source_uid"],
-                        "to_uid": r["target_uid"],
-                        "relation_type": r["relation_type"],
-                        "from_resource_type": r["source_type"] or "",
-                        "to_resource_type": r["target_type"] or "",
-                        "relationship_strength": 1,
-                        "bidirectional": False,
-                    }
-                    for r in cur.fetchall()
-                ]
-    finally:
-        conn.close()
-
-    # Build account→region→service grouping (DI has no VPC placement data)
-    acct_map: Dict[str, Any] = {}
-    for r in rows:
-        acct = r["account_id"]
-        reg = r["region"]
-        svc = r["service"]
-        if acct not in acct_map:
-            acct_map[acct] = {"account_id": acct, "provider": r["provider"], "regions": {}}
-        if reg not in acct_map[acct]["regions"]:
-            acct_map[acct]["regions"][reg] = {"region": reg, "vpcs": {}}
-        if svc not in acct_map[acct]["regions"][reg]["vpcs"]:
-            acct_map[acct]["regions"][reg]["vpcs"][svc] = {
-                "vpc_id": f"svc:{svc}", "name": svc, "subnets": [{"subnet_id": "default", "name": "default", "resources": []}]
-            }
-        acct_map[acct]["regions"][reg]["vpcs"][svc]["subnets"][0]["resources"].append({
-            "asset_id": r["resource_uid"],
-            "resource_uid": r["resource_uid"],
-            "name": r["resource_name"] or r["resource_uid"],
-            "type": r["resource_type"],
-            "category": svc,
-            "tags": {},
-            "risk_score": None,
-            "criticality": "medium",
-        })
-
-    accounts = []
-    for acct_data in acct_map.values():
-        regions = []
-        for reg_data in acct_data["regions"].values():
-            regions.append({
-                "region": reg_data["region"],
-                "vpcs": list(reg_data["vpcs"].values()),
-            })
-        accounts.append({"account_id": acct_data["account_id"], "provider": acct_data["provider"], "regions": regions})
-
-    return {
-        "accounts": accounts,
-        "relationships": rels,
-        "scan_run_id": str(sid) if sid else None,
-        "filters": {"max_priority": max_priority, "include_relationships": include_relationships, "csp": csp},
-        "stats": {"total_assets": len(rows), "total_relationships": len(rels), "taxonomy_entries": 0},
-    }
 
 
 @app.get("/api/v1/di/graph")

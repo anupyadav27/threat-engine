@@ -22,13 +22,13 @@ Priority: user-configured (cloud_accounts.log_sources) → discovery data.
 
 import json
 import logging
-import os
 from typing import Dict, List, Optional
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
 from ..reader.base_reader import LogSource
+from engine_common.db_connections import get_di_conn
 
 logger = logging.getLogger(__name__)
 
@@ -49,32 +49,22 @@ class LogSourceFinder:
         self.account_id = account_id
         self.provider = provider.lower()
 
+    def _get_di_conn(self):
+        """Return a connection to threat_engine_di (compat views: discovery_findings, inventory_findings)."""
+        return get_di_conn()
+
+    # Both _get_inventory_conn and _get_discovery_conn now route to the DI DB
+    # via its compat views (inventory_findings, discovery_findings).
+    # Kept as thin aliases so call-sites don't need changing.
     def _get_inventory_conn(self):
-        return psycopg2.connect(
-            host=os.getenv("INVENTORY_DB_HOST", os.getenv("DB_HOST", "localhost")),
-            port=int(os.getenv("INVENTORY_DB_PORT", os.getenv("DB_PORT", "5432"))),
-            database=os.getenv("INVENTORY_DB_NAME", "threat_engine_inventory"),
-            user=os.getenv("INVENTORY_DB_USER", os.getenv("DB_USER", "postgres")),
-            password=os.getenv("INVENTORY_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        )
+        return self._get_di_conn()
 
     def _get_discovery_conn(self):
-        return psycopg2.connect(
-            host=os.getenv("DISCOVERIES_DB_HOST", os.getenv("DB_HOST", "localhost")),
-            port=int(os.getenv("DISCOVERIES_DB_PORT", os.getenv("DB_PORT", "5432"))),
-            database=os.getenv("DISCOVERIES_DB_NAME", "threat_engine_discoveries"),
-            user=os.getenv("DISCOVERIES_DB_USER", os.getenv("DB_USER", "postgres")),
-            password=os.getenv("DISCOVERIES_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        )
+        return self._get_di_conn()
 
     def _get_onboarding_conn(self):
-        return psycopg2.connect(
-            host=os.getenv("ONBOARDING_DB_HOST", os.getenv("DB_HOST", "localhost")),
-            port=int(os.getenv("ONBOARDING_DB_PORT", os.getenv("DB_PORT", "5432"))),
-            database=os.getenv("ONBOARDING_DB_NAME", "threat_engine_onboarding"),
-            user=os.getenv("ONBOARDING_DB_USER", os.getenv("DB_USER", "postgres")),
-            password=os.getenv("ONBOARDING_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        )
+        from engine_common.db_connections import get_onboarding_conn
+        return get_onboarding_conn()
 
     def _load_user_configured_sources(self) -> Dict[str, List[LogSource]]:
         """Load user-configured log sources from cloud_accounts.log_sources.

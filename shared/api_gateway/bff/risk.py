@@ -25,6 +25,8 @@ async def view_risk(
     request: Request,
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
+    tenant_ids: Optional[str] = Query(None),
+    account_ids: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
 ):
     """Single endpoint returning everything the risk page needs."""

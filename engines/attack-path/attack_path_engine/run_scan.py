@@ -55,78 +55,104 @@ def _jlog(event: str, **kwargs: Any) -> None:
 def _mark_internet_exposed_from_discoveries(
     inventory_conn: Any,
     tenant_id: str,
-    scan_run_id: str,  # noqa: ARG001 — reserved for future audit trail
+    scan_run_id: str,
 ) -> int:
-    """Read discovery or DI asset data for public indicators, upsert is_internet_exposed=true.
+    """Mark is_internet_exposed=true in resource_security_posture.
 
-    Checks emitted_fields for:
-      - PublicIpAddress IS NOT NULL       → EC2 instances, ENIs
-      - PubliclyAccessible = 'true'       → RDS, ElastiCache, Redshift
-      - Scheme = 'internet-facing'        → ALB, NLB, Classic ELB
-      - FunctionUrl IS NOT NULL           → Lambda with public URL
-      - resource_type in API gateway types → always internet-facing
+    Primary path: reads resource_uids from network_exposure_findings (written by IEDS
+    Phase L0 in the network engine — covers all CSPs, all exposure tiers via YAML rules).
 
-    Writes to resource_security_posture via UPSERT. Only asserts true — never sets false.
+    Fallback path: if IEDS wrote 0 rows (network engine not yet run or failed), falls
+    back to raw emitted_fields pattern-matching on asset_inventory / discovery_findings.
 
-    Returns count of resources marked.
+    Only asserts true — never sets false. Returns count of resources marked.
     """
     import os as _os
-    _di_enabled = _os.getenv("DI_ENGINE_ENABLED", "false").lower() == "true"
 
     try:
-        # Ensure clean transaction state — inventory_conn is shared across scan stages
-        try:
-            inventory_conn.rollback()
-        except Exception:
-            pass
+        inventory_conn.rollback()
+    except Exception:
+        pass
 
-        if _di_enabled:
-            from engine_common.db_connections import get_di_conn
-            src_conn = get_di_conn()
-            table = "asset_inventory"
-        else:
-            from engine_common.db_connections import get_discoveries_conn
-            src_conn = get_discoveries_conn()
-            table = "discovery_findings"
+    total_marked = 0
 
-        disc_conn = src_conn
+    # --- Primary path: read from IEDS network_exposure_findings ---
+    ieds_uids: list = []
+    try:
+        from engine_common.db_connections import get_network_conn
+        net_conn = get_network_conn()
         try:
-            with disc_conn.cursor() as cur:
-                cur.execute(
-                    f"""
+            with net_conn.cursor() as cur:
+                cur.execute("""
                     SELECT DISTINCT resource_uid
-                    FROM {table}
-                    WHERE tenant_id = %s
-                      AND resource_uid IS NOT NULL
-                      AND resource_uid != ''
-                      AND (
-                        (emitted_fields->>'PublicIpAddress') IS NOT NULL
-                        OR (emitted_fields->>'PubliclyAccessible') = 'true'
-                        OR (emitted_fields->>'Scheme') = 'internet-facing'
-                        OR (emitted_fields->>'FunctionUrl') IS NOT NULL
-                        OR resource_type IN (
-                          'apigateway.restapi',
-                          'apigateway.httpapi',
-                          'apigateway.v2api',
-                          'apigatewayv2.api'
-                        )
-                      )
-                    """,
-                    (tenant_id,),
-                )
-                exposed_uids = [row[0] for row in cur.fetchall()]
+                    FROM   network_exposure_findings
+                    WHERE  tenant_id   = %s
+                      AND  scan_run_id = %s
+                      AND  status      = 'OPEN'
+                      AND  origin_type = 'internet'
+                      AND  resource_uid IS NOT NULL
+                """, (tenant_id, scan_run_id))
+                ieds_uids = [row[0] for row in cur.fetchall()]
         finally:
-            disc_conn.close()
+            net_conn.close()
+        logger.info(
+            "IEDS primary: %d internet-exposed UIDs from network_exposure_findings (scan=%s)",
+            len(ieds_uids), scan_run_id,
+        )
+    except Exception as _ieds_err:
+        logger.debug("IEDS primary path unavailable: %s", _ieds_err)
 
-        if not exposed_uids:
-            logger.info(
-                "No internet-exposed resources in %s tenant=%s", table, tenant_id
-            )
-            return 0
+    exposed_uids = list(ieds_uids)
 
-        # UPDATE only — never INSERT. New posture rows require account_id/provider/resource_type
-        # which we don't have here. Resources without a posture row yet will get one on the
-        # next inventory engine run; we only flag exposure on existing rows.
+    # --- Fallback: emitted_fields pattern scan (kept when IEDS wrote 0 rows) ---
+    if not exposed_uids:
+        logger.info("IEDS fallback: reading emitted_fields patterns (scan=%s)", scan_run_id)
+        _di_enabled = _os.getenv("DI_ENGINE_ENABLED", "false").lower() == "true"
+        try:
+            if _di_enabled:
+                from engine_common.db_connections import get_di_conn
+                src_conn = get_di_conn()
+                table = "asset_inventory"
+            else:
+                from engine_common.db_connections import get_discoveries_conn
+                src_conn = get_discoveries_conn()
+                table = "discovery_findings"
+
+            try:
+                with src_conn.cursor() as cur:
+                    cur.execute(
+                        f"""
+                        SELECT DISTINCT resource_uid
+                        FROM {table}
+                        WHERE tenant_id    = %s
+                          AND resource_uid IS NOT NULL
+                          AND resource_uid != ''
+                          AND (
+                            (emitted_fields->>'PublicIpAddress') IS NOT NULL
+                            OR (emitted_fields->>'PubliclyAccessible') = 'true'
+                            OR (emitted_fields->>'Scheme') = 'internet-facing'
+                            OR (emitted_fields->>'FunctionUrl') IS NOT NULL
+                            OR resource_type IN (
+                              'apigateway.restapi',
+                              'apigateway.httpapi',
+                              'apigateway.v2api',
+                              'apigatewayv2.api'
+                            )
+                          )
+                        """,
+                        (tenant_id,),
+                    )
+                    exposed_uids = [row[0] for row in cur.fetchall()]
+            finally:
+                src_conn.close()
+        except Exception as _fb_err:
+            logger.warning("Fallback emitted_fields scan failed: %s", _fb_err)
+
+    if not exposed_uids:
+        logger.info("No internet-exposed resources for tenant=%s scan=%s", tenant_id, scan_run_id)
+        return 0
+
+    try:
         with inventory_conn.cursor() as cur:
             cur.execute(
                 """
@@ -138,21 +164,17 @@ def _mark_internet_exposed_from_discoveries(
                 """,
                 (tenant_id, exposed_uids),
             )
-            updated = cur.rowcount
+            total_marked = cur.rowcount
         # Commit immediately — this UPDATE must persist even when BFS finds 0 paths.
-        # Without commit(), the marks are rolled back when inventory_conn is closed
-        # and the next scan sees no entry points → perpetual 0-path result.
         inventory_conn.commit()
         logger.info(
-            "Marked %d resources is_internet_exposed=true (from %d discovered) tenant=%s",
-            updated,
-            len(exposed_uids),
-            tenant_id,
+            "Marked %d resources is_internet_exposed=true (from %d candidates) tenant=%s",
+            total_marked, len(exposed_uids), tenant_id,
         )
-        return updated
+        return total_marked
 
     except Exception as exc:
-        logger.warning("Could not mark internet_exposed from discoveries (non-fatal): %s", exc)
+        logger.warning("Could not mark internet_exposed (non-fatal): %s", exc)
         try:
             inventory_conn.rollback()
         except Exception:

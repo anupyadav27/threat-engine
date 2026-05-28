@@ -125,6 +125,39 @@ def run_network_scan(scan_run_id: str) -> Dict[str, Any]:
     topology_snapshots: List[Dict[str, Any]] = []
     report_metrics: Dict[str, Any] = {}
 
+    # ── Phase L0: IEDS Tier 1 + Tier 2 (ALL CSPs) ─────────────────────────
+    # Evaluates YAML-loaded exposure rules against asset_inventory emitted_fields.
+    # Writes: network_exposure_findings, resource_security_posture (is_internet_exposed),
+    #         asset_relationships (INTERNET_ACCESSIBLE edges), security_findings.
+    try:
+        from network_security_engine.phase_l0.exposure_evaluator import run_phase_l0
+        l0_result = run_phase_l0(
+            scan_run_id=scan_run_id,
+            tenant_id=tenant_id,
+            account_id=account_id or "",
+            provider=provider,
+            credential_ref=credential_ref,
+            credential_type=credential_type,
+        )
+        logger.info("IEDS Phase L0: %s", l0_result)
+    except Exception as _l0_err:
+        logger.warning("IEDS Phase L0 failed (non-fatal): %s", _l0_err, exc_info=True)
+
+    # ── Phase L0: IEDS Tier 3 graph traversal (ALL CSPs) ──────────────────
+    try:
+        from network_security_engine.phase_l0.tier3_evaluator import run_tier3
+        l0_t3_result = run_tier3(
+            scan_run_id=scan_run_id,
+            tenant_id=tenant_id,
+            account_id=account_id or "",
+            provider=provider,
+            credential_ref=credential_ref,
+            credential_type=credential_type,
+        )
+        logger.info("IEDS Tier 3: %s", l0_t3_result)
+    except Exception as _l0_t3_err:
+        logger.warning("IEDS Tier 3 failed (non-fatal): %s", _l0_t3_err, exc_info=True)
+
     # ── 3. Layer 1: DB-driven check findings (ALL CSPs) ────────────────────
     # Uses rule_metadata.network_security = {"applicable": true}
     # No hardcoding — rules are in the DB, evaluated by the check engine.
@@ -157,6 +190,9 @@ def run_network_scan(scan_run_id: str) -> Dict[str, Any]:
         "k8s":      "network_security_engine.providers.k8s.K8sNetworkProvider",
     }
 
+    _topology_obj = None
+    _sg_attachments_obj: dict = {}
+
     provider_cls_path = _PROVIDER_MAP.get(provider)
     if provider_cls_path:
         try:
@@ -175,6 +211,9 @@ def run_network_scan(scan_run_id: str) -> Dict[str, Any]:
                 topo_findings = result.get("findings", [])
                 topology_snapshots = result.get("topology_snapshots", [])
                 report_metrics = result.get("report_metrics", {})
+                # Topology object passed through for relationship writing (AWS only)
+                _topology_obj = result.get("_topology")
+                _sg_attachments_obj = result.get("_sg_attachments") or {}
                 logger.info(
                     "Layer 2 (%s topology): %d additional findings",
                     provider, len(topo_findings),
@@ -360,6 +399,23 @@ def run_network_scan(scan_run_id: str) -> Dict[str, Any]:
         inv_conn.close()
     except Exception as _sf_err:
         logger.warning("Network security_findings write skipped: %s", _sf_err)
+
+    # Write network topology edges to asset_relationships in DI DB (non-fatal)
+    if _topology_obj is not None:
+        try:
+            from network_security_engine.storage.network_relationship_writer import (
+                write_network_relationships,
+            )
+            write_network_relationships(
+                scan_run_id=scan_run_id,
+                tenant_id=tenant_id,
+                account_id=account_id or "",
+                provider=provider,
+                topology=_topology_obj,
+                sg_attachments=_sg_attachments_obj,
+            )
+        except Exception as _rel_err:
+            logger.warning("Network relationship write skipped: %s", _rel_err)
 
     return {
         "status": "completed",

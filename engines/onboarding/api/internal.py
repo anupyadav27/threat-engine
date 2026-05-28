@@ -8,6 +8,8 @@ to push tenant data to the onboarding engine after provisioning.
 import os
 import sys
 
+from typing import Optional
+
 from fastapi import APIRouter, Header, HTTPException, status
 from pydantic import BaseModel, Field
 
@@ -55,6 +57,7 @@ class TenantSyncRequest(BaseModel):
 
     tenant_id: str = Field(..., description="UUID of the tenant from Django platform DB")
     customer_id: str = Field(..., description="Customer-level identifier (cust_<12hex>)")
+    tenant_name: Optional[str] = Field(None, description="Django-canonical display name for this tenant")
 
 
 @router.post(
@@ -91,11 +94,18 @@ async def sync_tenant(
 
     tenant_id = body.tenant_id
     customer_id = body.customer_id
+    # Use the Django-canonical name when provided; fall back to a generic slug.
+    tenant_name = body.tenant_name or f"org-{customer_id[:8]}"
 
-    # Check if tenant already exists — idempotent path
+    # Check if tenant already exists — update name if it changed, then return.
     existing = get_tenant(tenant_id)
     if existing:
-        logger.info("internal.tenant_sync_idempotent tenant_id=%s", tenant_id)
+        if body.tenant_name and existing.get("tenant_name") != body.tenant_name:
+            from engine_onboarding.database.tenant_operations import update_tenant
+            update_tenant(tenant_id, {"tenant_name": body.tenant_name})
+            logger.info("internal.tenant_name_updated tenant_id=%s name=%r", tenant_id, body.tenant_name)
+        else:
+            logger.info("internal.tenant_sync_idempotent tenant_id=%s", tenant_id)
         return {"tenant_id": tenant_id, "customer_id": customer_id, "already_exists": True}
 
     try:
@@ -103,7 +113,7 @@ async def sync_tenant(
             {
                 "tenant_id": tenant_id,
                 "customer_id": customer_id,
-                "tenant_name": f"org-{customer_id}",
+                "tenant_name": tenant_name,
                 "tenant_description": "Auto-provisioned via Django platform",
             }
         )
