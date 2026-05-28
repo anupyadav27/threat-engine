@@ -1,0 +1,88 @@
+# =============================================================================
+# IEDS Tier 2 — Azure Virtual Machines, Load Balancers, AKS, SQL
+# resource_type uses short catalog names matching di_resource_catalog.resource_type
+# =============================================================================
+
+rules:
+
+  - rule_id: IEDS-T2-AZR-001
+    tier: 2
+    csp: azure
+    resource_type: virtualmachines
+    origin_type: internet
+    title: "Azure VM has a public network access enabled"
+    description: >
+      Azure VMs with public_network_access enabled or with a public IP attached to
+      a NIC are directly reachable from the internet if NSG rules permit inbound traffic.
+      NOTE: virtualmachines step6 YAML does not yet emit public_ip_address directly.
+      This field is emitted by the compute step6. Gap: IEDS-GAP-AZR-001.
+      Using 'id' as placeholder until public_ip is emitted in virtualmachines step6.
+    severity: high
+    required_emitted_fields:
+      - id
+    exposure_conditions:
+      - field: id
+        operator: not_null
+
+  - rule_id: IEDS-T2-AZR-002
+    tier: 2
+    csp: azure
+    resource_type: loadbalancers
+    origin_type: internet
+    title: "Azure Load Balancer has a public frontend IP"
+    description: >
+      Azure Load Balancers with a Public IP in their frontendIPConfigurations
+      are internet-facing. Resources behind such LBs inherit internet exposure.
+    severity: high
+    required_emitted_fields:
+      - frontend_ip_configurations
+    exposure_conditions:
+      - field: frontend_ip_configurations
+        operator: any_has_field
+        value: publicIPAddress
+
+  - rule_id: IEDS-T2-AZR-003
+    tier: 2
+    csp: azure
+    resource_type: applicationgateways
+    origin_type: internet
+    title: "Azure Application Gateway is internet-facing"
+    severity: high
+    required_emitted_fields:
+      - frontend_ip_configurations
+    exposure_conditions:
+      - field: frontend_ip_configurations
+        operator: any_has_field
+        value: publicIPAddress
+
+  - rule_id: IEDS-T2-AZR-004
+    tier: 2
+    csp: azure
+    resource_type: sqlservers
+    origin_type: internet
+    title: "Azure SQL Server has public network access enabled"
+    description: >
+      Azure SQL Servers with public_network_access=Enabled are accessible from the
+      internet. SQL Server discovery YAML does not yet emit this field.
+      Gap tracked: IEDS-GAP-AZR-002 — add public_network_access to sql step6.
+      Using 'id' as placeholder.
+    severity: critical
+    required_emitted_fields:
+      - id
+    exposure_conditions:
+      - field: id
+        operator: not_null
+
+  - rule_id: IEDS-T2-AZR-005
+    tier: 2
+    csp: azure
+    resource_type: managedclusters
+    origin_type: internet
+    title: "Azure AKS cluster API server is publicly accessible"
+    severity: critical
+    required_emitted_fields:
+      - api_server_access_profile
+    exposure_conditions:
+      - field: api_server_access_profile.enablePrivateCluster
+        operator: eq
+        value: false

@@ -1,0 +1,54 @@
+# =============================================================================
+# IEDS Tier 2 — OCI Compute and Load Balancer
+# =============================================================================
+
+rules:
+
+  - rule_id: IEDS-T2-OCI-001
+    tier: 2
+    csp: oci
+    resource_type: core.instance
+    origin_type: internet
+    title: "OCI compute instance has a public IP"
+    description: >
+      OCI compute instances with a public IP are directly reachable from the internet
+      if the associated VCN security list allows inbound traffic.
+      NOTE: discovery YAML does not yet emit public_ip — tracked as IEDS-GAP-OCI-001.
+      Required field uses 'ocid' as placeholder until the gap is resolved.
+    severity: high
+    required_emitted_fields:
+      - ocid
+    exposure_conditions:
+      - field: ocid
+        operator: not_null
+
+  - rule_id: IEDS-T2-OCI-002
+    tier: 2
+    csp: oci
+    resource_type: loadbalancer.loadbalancer
+    origin_type: internet
+    title: "OCI Load Balancer is internet-facing (public)"
+    severity: high
+    required_emitted_fields:
+      - is_private
+    exposure_conditions:
+      - field: is_private
+        operator: eq
+        value: false
+
+  - rule_id: IEDS-T2-OCI-003
+    tier: 2
+    csp: oci
+    resource_type: mysql.dbsystem
+    origin_type: internet
+    title: "OCI MySQL DB System is internet-accessible"
+    description: >
+      OCI MySQL DB Systems do not emit subnet_id in current discovery YAMLs.
+      This rule uses is_highly_available as a proxy flag until subnet_id is added.
+      GAP: add subnet_id to step6_mysql.discovery.yaml emit block (IEDS-GAP-OCI-002).
+    severity: critical
+    required_emitted_fields:
+      - is_highly_available
+    exposure_conditions:
+      - field: is_highly_available
+        operator: not_null

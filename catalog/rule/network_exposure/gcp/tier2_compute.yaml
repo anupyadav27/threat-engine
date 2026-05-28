@@ -1,0 +1,61 @@
+# =============================================================================
+# IEDS Tier 2 — GCP Compute Engine (public IP / external LB)
+# =============================================================================
+
+rules:
+
+  - rule_id: IEDS-T2-GCP-001
+    tier: 2
+    csp: gcp
+    resource_type: compute.instance
+    origin_type: internet
+    title: "GCP Compute Engine instance has an external IP"
+    severity: high
+    required_emitted_fields:
+      - network_interfaces
+    exposure_conditions:
+      - field: network_interfaces
+        operator: any_has_field
+        value: accessConfigs
+
+  - rule_id: IEDS-T2-GCP-002
+    tier: 2
+    csp: gcp
+    resource_type: compute.forwardingrule
+    origin_type: internet
+    title: "GCP External Load Balancing forwarding rule is internet-facing"
+    severity: high
+    required_emitted_fields:
+      - load_balancing_scheme
+    exposure_conditions:
+      - field: load_balancing_scheme
+        operator: eq
+        value: EXTERNAL
+
+  - rule_id: IEDS-T2-GCP-003
+    tier: 2
+    csp: gcp
+    resource_type: sql.instance
+    origin_type: internet
+    title: "GCP Cloud SQL instance has a public IP"
+    severity: critical
+    required_emitted_fields:
+      - ip_addresses
+    exposure_conditions:
+      - field: ip_addresses
+        operator: any_type_eq
+        value: PRIMARY
+
+  - rule_id: IEDS-T2-GCP-004
+    tier: 2
+    csp: gcp
+    resource_type: container.cluster
+    origin_type: internet
+    title: "GCP GKE cluster API endpoint is publicly accessible"
+    severity: critical
+    required_emitted_fields:
+      - private_cluster_config
+    exposure_conditions:
+      - field: private_cluster_config.enablePrivateEndpoint
+        operator: eq
+        value: false
