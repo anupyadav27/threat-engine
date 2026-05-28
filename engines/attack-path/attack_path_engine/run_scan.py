@@ -190,15 +190,20 @@ def _fetch_internet_exposed_uids(
             for row in cur.fetchall():
                 uids.add(row[0])
 
-            # Source 2: inventory_relationships internet_connected edges
+            # Source 2: inventory_relationships internet exposure edges
+            # Covers both the old 'internet_connected' label and the current
+            # 'INTERNET_ACCESSIBLE' label written by the inventory engine.
             cur.execute(
                 """
                 SELECT DISTINCT COALESCE(from_uid, source_resource_uid) AS uid
                 FROM inventory_relationships
                 WHERE tenant_id = %s
-                  AND COALESCE(relation_type, relationship_type) = 'internet_connected'
+                  AND LOWER(COALESCE(relation_type, relationship_type)) IN (
+                        'internet_connected', 'internet_accessible'
+                  )
                   AND COALESCE(from_uid, source_resource_uid) IS NOT NULL
                   AND COALESCE(from_uid, source_resource_uid) NOT LIKE 'internet:%%'
+                  AND COALESCE(from_uid, source_resource_uid) NOT LIKE 'pseudo:%%'
                 """,
                 (tenant_id,),
             )
@@ -239,28 +244,30 @@ def _build_iam_permission_edges(
     Returns:
         Dict[role_arn → List[(crown_jewel_uid, 'grants_access_to', 'iam.role', crown_jewel_type)]]
     """
-    # Map IAM service prefix → resource_type substrings that classify as that service
+    # Map IAM service prefix → resource_type substrings that classify as that service.
+    # Each hint list includes the plain service name to catch resource_type='ecr'/'kms'
+    # (exact-name types) as well as compound types like 'ecr.repository'/'kms.key'.
     SERVICE_TO_TYPE_HINTS: Dict[str, list] = {
-        "s3":              ["s3.bucket", "s3."],
-        "dynamodb":        ["dynamodb.table", "dynamodb."],
+        "s3":              ["s3.bucket", "s3.", "s3"],
+        "dynamodb":        ["dynamodb.table", "dynamodb.", "dynamodb"],
         "secretsmanager":  ["secretsmanager.secret", "secretsmanager."],
-        "kms":             ["kms.key", "kms."],
+        "kms":             ["kms.key", "kms.", "kms"],
         "rds":             ["rds.db-instance", "rds.cluster", "rds."],
         "elasticache":     ["elasticache.cluster", "elasticache."],
-        "kinesis":         ["kinesis.stream", "kinesis."],
-        "eks":             ["eks.cluster", "eks."],
-        "ecr":             ["ecr.repository", "ecr."],
-        "glue":            ["glue.database", "glue.table", "glue."],
-        "athena":          ["athena.workgroup", "athena."],
-        "emr":             ["emr.cluster", "emr."],
-        "sagemaker":       ["sagemaker.", "sagemaker.model"],
-        "ecs":             ["ecs.cluster", "ecs."],
-        "lambda":          ["lambda.function", "lambda."],
-        "redshift":        ["redshift.cluster", "redshift."],
+        "kinesis":         ["kinesis.stream", "kinesis.", "kinesis"],
+        "eks":             ["eks.cluster", "eks.", "eks"],
+        "ecr":             ["ecr.repository", "ecr.", "ecr"],
+        "glue":            ["glue.database", "glue.table", "glue.", "glue"],
+        "athena":          ["athena.workgroup", "athena.", "athena"],
+        "emr":             ["emr.cluster", "emr.", "emr"],
+        "sagemaker":       ["sagemaker.", "sagemaker.model", "sagemaker"],
+        "ecs":             ["ecs.cluster", "ecs.", "ecs"],
+        "lambda":          ["lambda.function", "lambda.", "lambda"],
+        "redshift":        ["redshift.cluster", "redshift.", "redshift"],
         "es":              ["opensearch.", "elasticsearch."],
-        "opensearch":      ["opensearch.", "opensearch.domain"],
-        "backup":          ["backup.backup-vault", "backup."],
-        "efs":             ["elasticfilesystem.", "efs."],
+        "opensearch":      ["opensearch.", "opensearch.domain", "opensearch"],
+        "backup":          ["backup.backup-vault", "backup.", "backup"],
+        "efs":             ["elasticfilesystem.", "efs.", "efs"],
     }
 
     # Pre-build crown jewels grouped by service prefix
@@ -288,23 +295,20 @@ def _build_iam_permission_edges(
 
     try:
         with iam_conn.cursor() as cur:
-            params = [tenant_id]
-            scan_filter = ""
-            if scan_run_id:
-                scan_filter = "AND scan_run_id = %s"
-                params.append(scan_run_id)
+            # Do NOT filter by scan_run_id — IAM engine runs independently and its
+            # policy statements accumulate under different scan_run_ids than the
+            # main pipeline. Filtering would always return 0 rows.
             cur.execute(
-                f"""
+                """
                 SELECT DISTINCT attached_to_arn, actions, effect, attached_to_type
                 FROM iam_policy_statements
                 WHERE tenant_id = %s
-                  {scan_filter}
                   AND effect = 'Allow'
                   AND attached_to_arn IS NOT NULL
                   AND actions IS NOT NULL
                   AND NOT COALESCE(not_action_mode, FALSE)
                 """,
-                params,
+                (tenant_id,),
             )
             rows = cur.fetchall()
 
@@ -354,6 +358,86 @@ def _build_iam_permission_edges(
             pass
 
     return extra_edges
+
+
+def _build_eks_worker_node_edges(
+    di_conn: Any,
+    tenant_id: str,
+    internet_exposed_uids: list,
+    posture_lookup: Optional[Dict[str, Any]] = None,
+) -> Dict[str, list]:
+    """Build synthetic EC2 → EKS cluster edges for EKS worker nodes.
+
+    EKS cluster ARNs are NOT in asset_inventory (only workloads like daemonsets/deployments
+    are stored there). We find the cluster via posture_lookup (resource_security_posture),
+    which stores the cluster with resource_type='eks.cluster'.
+
+    Strategy:
+      1. Scan posture_lookup for UIDs matching the EKS cluster ARN pattern:
+         arn:aws:eks:REGION:ACCOUNT:cluster/NAME  (6 colon-parts, last = 'cluster/X')
+      2. Build account+region → [cluster_arn] lookup.
+      3. Query asset_inventory for EC2 instances with EKS nodegroup instance profiles.
+      4. Match EC2 to cluster by account+region → emit worker_node_of edges.
+
+    Returns:
+        Dict[ec2_uid → [(eks_cluster_uid, 'worker_node_of', 'ec2.instance', 'eks.cluster')]]
+    """
+    edges: Dict[str, list] = {}
+    try:
+        from collections import defaultdict
+
+        # Step 1: Find EKS cluster UIDs from posture_lookup
+        # EKS cluster is NOT in asset_inventory — use posture_lookup (resource_security_posture)
+        eks_by_account_region: Dict[str, list] = defaultdict(list)
+        if posture_lookup:
+            for uid in posture_lookup:
+                if not uid.startswith("arn:aws:eks:"):
+                    continue
+                parts = uid.split(":")
+                # Cluster ARN has exactly 6 colon-parts; last part = 'cluster/NAME' with no extra '/'
+                if len(parts) == 6 and parts[5].startswith("cluster/") and "/" not in parts[5][8:]:
+                    region = parts[3]
+                    account = parts[4]
+                    eks_by_account_region[f"{account}:{region}"].append(uid)
+
+        if not eks_by_account_region:
+            logger.info("EKS worker node edges: no cluster UIDs found in posture_lookup (tenant=%s)", tenant_id)
+            return {}
+
+        # Step 2: Find EC2 instances with EKS nodegroup instance profiles
+        with di_conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT DISTINCT resource_uid, region, account_id
+                FROM asset_inventory
+                WHERE tenant_id = %s
+                  AND resource_type LIKE 'ec2%%'
+                  AND resource_uid LIKE 'arn:aws:ec2:%%:instance/%%'
+                  AND (emitted_fields->'IamInstanceProfile'->>'Arn') LIKE '%%instance-profile/eks-%%'
+                """,
+                (tenant_id,),
+            )
+            ec2_rows = cur.fetchall()
+
+        for (ec2_uid, region, account_id) in ec2_rows:
+            key = f"{account_id}:{region}"
+            target_clusters = eks_by_account_region.get(key, [])
+            if target_clusters:
+                edges[ec2_uid] = [
+                    (cls_arn, "worker_node_of", "ec2.instance", "eks.cluster")
+                    for cls_arn in target_clusters
+                ]
+
+        if edges:
+            logger.info(
+                "EKS worker node edges: %d EC2 → %d cluster edges (tenant=%s)",
+                len(edges),
+                sum(len(v) for v in edges.values()),
+                tenant_id,
+            )
+    except Exception as exc:
+        logger.warning("EKS worker node edge build failed (non-fatal): %s", exc)
+    return edges
 
 
 def run_attack_path_scan(
@@ -476,11 +560,21 @@ def run_attack_path_scan(
 
         # ── Stage 2b-pre: IAM permission edges (synthetic graph enrichment) ────
         # Reads iam_policy_statements to build IAM role → crown jewel edges.
-        # Attack path enabled: Internet → EC2 → (assumes) → IAM role → (grants_access_to) → Crown Jewel
+        # Attack path enabled: Internet → EC2 → (has_role) → IAM role → (grants_access_to) → Crown Jewel
         _jlog("stage", name="iam_permission_edges", scan_run_id=scan_run_id)
         iam_extra_edges = _build_iam_permission_edges(tenant_id, posture_lookup, scan_run_id)
         _jlog("iam_permission_edges_built", synthetic_edges=sum(len(v) for v in iam_extra_edges.values()),
               roles_with_access=len(iam_extra_edges), scan_run_id=scan_run_id)
+
+        # ── Stage 2b-pre3: EKS worker node edges (topology bridge) ──────────────
+        # Reconstructs EC2 → EKS cluster worker_node_of edges that the inventory
+        # engine does not write. Without these, internet-exposed EKS worker nodes
+        # have no path to the EKS crown jewel in the pg BFS graph.
+        _jlog("stage", name="eks_worker_edges", scan_run_id=scan_run_id)
+        eks_worker_edges = _build_eks_worker_node_edges(di_conn, tenant_id, internet_exposed_uids, posture_lookup=posture_lookup)
+        for ec2_uid, worker_edges in eks_worker_edges.items():
+            iam_extra_edges.setdefault(ec2_uid, []).extend(worker_edges)
+        _jlog("eks_worker_edges_merged", ec2_worker_nodes=len(eks_worker_edges), scan_run_id=scan_run_id)
 
         # ── Stage 2b: PostgreSQL BFS (primary) ───────────────────────────────
         # Reads inventory_relationships directly — no Neo4j dependency.
