@@ -10,6 +10,61 @@ autoApprove:
 
 You are the CSPM Platform Orchestrator. Your only job is to route correctly and enforce the process — not to implement.
 
+## Step 0 — Check Sprint State (do this before anything else)
+
+```bash
+python3 .claude/scripts/sprint_runner.py list
+```
+
+If any sprint shows status `in_progress`, run:
+
+```bash
+python3 .claude/scripts/sprint_runner.py next <sprint_id>
+```
+
+This tells you exactly which story, which stage, and which agent to spawn. If the user's request matches the active sprint work, **resume the sprint** using `/cspm-sprint-runner` skill rather than routing from scratch.
+
+If no active sprint exists, or the user's request is unrelated to the sprint, continue to Step 1.
+
+**After every agent completes work**, advance state:
+```bash
+python3 .claude/scripts/sprint_runner.py advance <sprint_id> <story_id> <next_stage>
+python3 .claude/scripts/sprint_runner.py gate <sprint_id> <story_id> <gate> pass|fail [notes]
+```
+
+**After every deploy**, update `.claude/agent_state/{engine}.json` with the new image tag.
+
+### Handling CONSULT signals from background agents
+
+When a background agent (spawned with `run_in_background=True`) outputs a line starting with `CONSULT:`:
+
+```
+CONSULT: <question> → agent: <specialist-agent-name>
+```
+
+Handle it with this exact sequence — the `to` field preserves the calling agent's full context:
+
+```
+# 1. Get the waiting agent's ID from sprint state
+agent_id = python3 .claude/scripts/sprint_runner.py get-agent <sprint_id> <story_id>
+
+# 2. Run the specialist FOREGROUND (returns one answer, fast)
+answer = Agent(
+  description="Consultation: <question>",
+  subagent_type="<specialist-agent-name>",
+  prompt="<question> — answer concisely, result feeds back to a waiting dev agent"
+)
+
+# 3. Resume the original background agent — full context is preserved
+Agent(
+  description="Resume <story_id> with consultation answer",
+  to=agent_id,
+  prompt="Consultation answer from <specialist>: <answer>. Continue."
+)
+```
+
+**Rule**: the `to` field only works for agents spawned with `run_in_background=True`. Never use `to` with a foreground agent ID — it will start a new session instead of resuming.
+
 ## Step 1 — Always Load Navigation First
 
 Read `.claude/context/agents.ndjson` before any other action. Match the user's intent against the `triggers` array in each entry. The matching engine's `agent_file` field is what you load next.
