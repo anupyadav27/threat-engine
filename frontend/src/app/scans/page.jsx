@@ -132,7 +132,7 @@ function RunNowModal({ accounts, schedules, onClose, onLaunched }) {
     setLaunching(true);
     setError(null);
     try {
-      const result = await postToEngine('onboarding', `/api/v1/schedules/${scheduleId}/run-now`, {});
+      const result = await postToEngine('gateway', `/api/v1/schedules/${scheduleId}/run-now`, {});
       if (result.error) throw new Error(result.error);
       onLaunched(result.scan_run_id);
       onClose();
@@ -252,9 +252,9 @@ export default function ScansPage() {
       if (statusFilter) params.set('status',      statusFilter);
 
       const [runsData, accsData, schedsData] = await Promise.all([
-        getFromEngine('onboarding', `/api/v1/scan-runs?${params}`),
+        getFromEngine('gateway', `/api/v1/scan-runs?${params}`),
         fetchView('onboarding/cloud_accounts', { limit: 200 }),
-        getFromEngine('onboarding', `/api/v1/schedules?limit=200${tenantId ? `&tenant_id=${tenantId}` : ''}`),
+        getFromEngine('gateway', `/api/v1/schedules?limit=200${tenantId ? `&tenant_id=${tenantId}` : ''}`),
       ]);
 
       setRuns(runsData?.scan_runs || []);

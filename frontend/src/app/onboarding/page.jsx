@@ -130,7 +130,7 @@ function CreateWorkspaceModal({ customerId, onClose, onCreated }) {
     if (!form.tenant_name.trim()) return;
     setSaving(true);
     setError(null);
-    const res = await postToEngine('onboarding', '/api/v1/tenants', {
+    const res = await postToEngine('gateway', '/api/v1/tenants', {
       customer_id:        customerId,
       tenant_name:        form.tenant_name.trim(),
       tenant_description: form.tenant_description.trim() || undefined,
@@ -218,7 +218,7 @@ function DeleteAccountModal({ account, onClose, onDeleted }) {
   async function handleDelete() {
     setBusy(true);
     setError(null);
-    const res = await deleteFromEngine('onboarding', `/api/v1/cloud-accounts/${account.accountId}`);
+    const res = await deleteFromEngine('gateway', `/api/v1/cloud-accounts/${account.accountId}`);
     setBusy(false);
     if (res?.error) { setError(res.error); return; }
     onDeleted(account.accountId);
@@ -289,7 +289,7 @@ function BulkDeleteModal({ count, onClose, onConfirm, busy }) {
 // ── Main page ──────────────────────────────────────────────────────────────────
 export default function WorkspaceOnboardingPage() {
   const { customerId, activeTenant } = useTenant();
-  const { role } = useAuth();
+  const { role, tenants: authTenants } = useAuth();
   const toast = useToast();
 
   const [loading, setLoading]               = useState(true);
@@ -321,7 +321,7 @@ export default function WorkspaceOnboardingPage() {
       const [accountsData, schedsData, tenantsData] = await Promise.all([
         fetchView('onboarding/cloud_accounts', {}),
         fetchView('onboarding/schedules', schedParams),
-        customerId ? getFromEngine('onboarding', '/api/v1/tenants', { customer_id: customerId }) : Promise.resolve({}),
+        Promise.resolve({ tenants: authTenants || [] }),
       ]);
 
       const raw = accountsData?.accounts || (Array.isArray(accountsData) ? accountsData : []);
@@ -432,7 +432,7 @@ export default function WorkspaceOnboardingPage() {
     let ok = 0;
     await Promise.all([...selected].map(async id => {
       try {
-        const r = await deleteFromEngine('onboarding', `/api/v1/cloud-accounts/${id}`);
+        const r = await deleteFromEngine('gateway', `/api/v1/cloud-accounts/${id}`);
         if (!r?.error) ok++;
       } catch { /* continue */ }
     }));
@@ -449,7 +449,7 @@ export default function WorkspaceOnboardingPage() {
     try {
       const acct = accounts.find(a => a.id === accountId);
       const newStatus = acct?.accountStatus === 'inactive' ? 'active' : 'inactive';
-      const result = await patchToEngine('onboarding', `/api/v1/cloud-accounts/${accountId}`, { account_status: newStatus });
+      const result = await patchToEngine('gateway', `/api/v1/cloud-accounts/${accountId}`, { account_status: newStatus });
       if (result.error) { toast.error(`Failed: ${result.error}`); return; }
       setAccounts(prev => prev.map(a => a.id === accountId ? { ...a, accountStatus: newStatus } : a));
       toast.success(newStatus === 'inactive' ? 'Account paused' : 'Account resumed');

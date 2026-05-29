@@ -154,7 +154,7 @@ function TabSchedule({ account }) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const d = await getFromEngine('onboarding', `/api/v1/schedules?account_id=${account.account_id}`);
+    const d = await getFromEngine('gateway', `/api/v1/schedules?account_id=${account.account_id}`);
     setSchedules(d?.schedules || []);
     setLoading(false);
   }, [account.account_id]);
@@ -163,14 +163,14 @@ function TabSchedule({ account }) {
 
   async function handleToggle(sched) {
     const endpoint = sched.enabled ? 'disable' : 'enable';
-    await postToEngine('onboarding', `/api/v1/schedules/${sched.schedule_id}/${endpoint}`, {});
+    await postToEngine('gateway', `/api/v1/schedules/${sched.schedule_id}/${endpoint}`, {});
     load();
   }
 
   async function handleRunNow(sched) {
     setRunningId(sched.schedule_id);
     try {
-      const r = await postToEngine('onboarding', `/api/v1/schedules/${sched.schedule_id}/run-now`, {});
+      const r = await postToEngine('gateway', `/api/v1/schedules/${sched.schedule_id}/run-now`, {});
       if (r.scan_run_id) setSelectedRunId(r.scan_run_id);
     } finally {
       setRunningId(null);
@@ -181,7 +181,7 @@ function TabSchedule({ account }) {
     setSaving(true);
     try {
       const cron = CRON_PRESETS.find(p => p.key === editing._preset)?.cron || editing.cron_expression;
-      await postToEngine('onboarding', `/api/v1/schedules/${editing.schedule_id}`, {
+      await postToEngine('gateway', `/api/v1/schedules/${editing.schedule_id}`, {
         ...editing, cron_expression: cron,
       }, 'PATCH');
       setEditing(null);
@@ -359,7 +359,7 @@ function TabScanHistory({ account }) {
   const [rerunning, setRerunning] = useState({});  // scan_run_id → true
 
   const loadRuns = useCallback(async () => {
-    const d = await getFromEngine('onboarding', `/api/v1/scan-runs?account_id=${account.account_id}&limit=20`);
+    const d = await getFromEngine('gateway', `/api/v1/scan-runs?account_id=${account.account_id}&limit=20`);
     setRuns(d?.scan_runs || []);
     setLoading(false);
   }, [account.account_id]);
@@ -479,7 +479,7 @@ function TabCredentials({ account, onRefresh }) {
     setValidating(true);
     setResult(null);
     try {
-      const r = await postToEngine('onboarding', `/api/v1/cloud-accounts/${account.account_id}/validate-credentials`, {});
+      const r = await postToEngine('gateway', `/api/v1/cloud-accounts/${account.account_id}/validate-credentials`, {});
       setResult(r);
       onRefresh();
     } finally {
@@ -576,7 +576,7 @@ function TabLogSources({ account, onRefresh }) {
   async function handleSave() {
     setSaving(true);
     try {
-      await postToEngine('onboarding', `/api/v1/cloud-accounts/${account.account_id}/log-sources`, sources, 'PUT');
+      await postToEngine('gateway', `/api/v1/cloud-accounts/${account.account_id}/log-sources`, sources, 'PUT');
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
       onRefresh();
@@ -661,7 +661,7 @@ export default function AccountDetailPage() {
 
   const loadAccount = useCallback(async () => {
     try {
-      const data = await getFromEngine('onboarding', `/api/v1/cloud-accounts/${accountId}`);
+      const data = await getFromEngine('gateway', `/api/v1/cloud-accounts/${accountId}`);
       setAccount(data);
     } catch (e) {
       console.error(e);

@@ -114,7 +114,7 @@ export default function ScanRunDetailModal({ scanRunId, onClose }) {
     if (!scanRunId) return;
     if (!silent) setLoading(true);
     try {
-      const data = await getFromEngine('onboarding', `/api/v1/scan-runs/${scanRunId}`);
+      const data = await getFromEngine('gateway', `/api/v1/scan-runs/${scanRunId}`);
       setRun(data);
     } catch (e) {
       console.error('scan run fetch error:', e);

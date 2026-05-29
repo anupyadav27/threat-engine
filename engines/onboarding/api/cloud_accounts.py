@@ -92,6 +92,7 @@ class CloudAccountUpdate(BaseModel):
     """
     account_name:   Optional[str] = Field(None, min_length=1, max_length=255)
     account_status: Optional[str] = Field(None, pattern="^(active|inactive|pending)$")
+    provider:       Optional[str] = Field(None, pattern=_ALL_PROVIDERS_RE)
     log_sources:    Optional[Dict[str, Any]] = None
     account_type:   Optional[str] = Field(None, description="cloud_csp|vulnerability|secops|database|middleware")
     auth_config:    Optional[Dict[str, Any]] = None
@@ -828,7 +829,7 @@ async def issue_agent_token(
         "download_url": download_url,
         "platform": agent_platform,
         "install_command": install_cmd,
-        "token_expires_in": 1800,
+        "token_expires_in": _BOOTSTRAP_TOKEN_TTL_MINUTES * 60,
         "account_id": account_id,
     }
 

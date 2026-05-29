@@ -76,6 +76,7 @@ class CloudAccountItem(BaseModel):
     lastScanAt: Optional[str] = None
     createdAt: Optional[str] = None
     updatedAt: Optional[str] = None
+    schedule: Optional[Dict[str, Any]] = Field(None, description="Latest active schedule (schedule_id, cron_expression, enabled)")
 
 
 class CloudAccountsListResponse(BaseModel):
@@ -110,6 +111,12 @@ def _to_camel(row: dict) -> dict:
         "credentialValidatedAt":      row.get("credential_validated_at"),
         "scheduleEnabled":            row.get("schedule_enabled"),
         "scheduleNextRunAt":          row.get("schedule_next_run_at"),
+        "schedule": {
+            "schedule_id":      row.get("schedule_id"),
+            "cron_expression":  row.get("schedule_cron_expression"),
+            "enabled":          row.get("schedule_enabled"),
+            "next_run_at":      str(row["schedule_next_run_at"]) if row.get("schedule_next_run_at") else None,
+        } if row.get("schedule_id") else None,
         "lastScanAt":                 row.get("last_scan_at"),
         "createdAt":                  row.get("created_at"),
         "updatedAt":                  row.get("updated_at"),

@@ -22,7 +22,7 @@ const DORMANT_META = {
 
 function isDormantAccount(account) {
   if (account.account_type === 'cloud_csp') return false;
-  const cvs = account.credential_validation_status;
+  const cvs = account.credentialValidationStatus || account.credential_validation_status;
   return !cvs || cvs === 'pending' || cvs === 'not_configured';
 }
 
@@ -52,7 +52,7 @@ function DormantCard({ account, onConfigure }) {
           </div>
           <div className="min-w-0">
             <div className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
-              {account.account_name || meta.label}
+              {account.accountName || account.account_name || meta.label}
             </div>
             <div className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>
               {meta.label}
@@ -106,14 +106,18 @@ export default function AccountCard({ account, onRefresh, onConfigure }) {
   }
 
   const providerColor = PROVIDER_COLORS[account.provider] || '#6366f1';
-  const statusStyle = STATUS_STYLES[account.account_status] || STATUS_STYLES.pending;
+  const accountStatus = account.accountStatus || account.account_status;
+  const statusStyle = STATUS_STYLES[accountStatus] || STATUS_STYLES.pending;
   const StatusIcon = statusStyle.icon;
+  const accountId   = account.accountId   || account.account_id;
+  const accountName = account.accountName || account.account_name;
+  const lastScanAt  = account.lastScanAt  || account.last_scan_at;
 
   const handleRunNow = async () => {
     setRunningNow(true);
     setRunMsg('');
     try {
-      const resp = await fetch(`/gateway/api/v1/cloud-accounts/${account.account_id}/scan`, {
+      const resp = await fetch(`/gateway/api/v1/cloud-accounts/${accountId}/scan`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -146,10 +150,10 @@ export default function AccountCard({ account, onRefresh, onConfigure }) {
           </div>
           <div className="min-w-0">
             <div className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
-              {account.account_name || account.account_id}
+              {accountName || accountId}
             </div>
             <div className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>
-              {account.account_id}
+              {accountId}
             </div>
           </div>
         </div>
@@ -158,7 +162,7 @@ export default function AccountCard({ account, onRefresh, onConfigure }) {
           <StatusIcon
             size={14}
             style={{ color: statusStyle.color }}
-            className={account.account_status === 'validating' ? 'animate-spin' : ''}
+            className={accountStatus === 'validating' ? 'animate-spin' : ''}
           />
           <span className="text-[11px] font-medium" style={{ color: statusStyle.color }}>
             {statusStyle.label}
@@ -180,9 +184,9 @@ export default function AccountCard({ account, onRefresh, onConfigure }) {
         >
           {account.account_type}
         </span>
-        {account.last_scan_at && (
+        {lastScanAt && (
           <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-            Last scan: {new Date(account.last_scan_at).toLocaleDateString()}
+            Last scan: {new Date(lastScanAt).toLocaleDateString()}
           </span>
         )}
       </div>
@@ -207,7 +211,7 @@ export default function AccountCard({ account, onRefresh, onConfigure }) {
       <div className="flex items-center gap-1.5 pt-1 border-t" style={{ borderColor: 'var(--border-primary)' }}>
         <button
           onClick={handleRunNow}
-          disabled={runningNow || account.account_status === 'validating'}
+          disabled={runningNow || accountStatus === 'validating'}
           className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg font-medium disabled:opacity-40 hover:opacity-80 transition-opacity"
           style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: 'var(--accent-primary)' }}
         >

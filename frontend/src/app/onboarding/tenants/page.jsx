@@ -21,7 +21,7 @@ function CreateTenantModal({ onClose, onCreated }) {
     setError(null);
 
     // AC3 — tenant_type included in POST body
-    const res = await postToEngine('onboarding', '/api/v1/tenants', {
+    const res = await postToEngine('gateway', '/api/v1/tenants', {
       customer_id: customerId,
       tenant_name: form.tenant_name.trim(),
       tenant_description: form.tenant_description.trim() || undefined,
@@ -130,7 +130,7 @@ export default function TenantsPage() {
     if (!customerId) return;
     setLoading(true);
     setError(null);
-    const res = await getFromEngine('onboarding', '/api/v1/tenants', { customer_id: customerId });
+    const res = await getFromEngine('gateway', '/api/v1/tenants', { customer_id: customerId });
     setLoading(false);
     if (res.error) {
       setError(res.error);

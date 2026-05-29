@@ -149,7 +149,7 @@ export default function AccountsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {accounts.map(account => (
             <AccountCard
-              key={account.account_id}
+              key={account.accountId || account.account_id}
               account={account}
               onRefresh={fetchAccounts}
               onConfigure={handleConfigure}
@@ -162,10 +162,10 @@ export default function AccountsPage() {
       {configuringAccount && (
         <OnboardingWizard
           initialConfig={{
-            accountId:   configuringAccount.account_id,
+            accountId:   configuringAccount.accountId,
             accountType: configuringAccount.account_type,
-            accountName: configuringAccount.account_name,
-            tenantId:    configuringAccount.tenant_id,
+            accountName: configuringAccount.accountName,
+            tenantId:    configuringAccount.tenantId,
           }}
           onComplete={handleConfigureComplete}
           onCancel={() => setConfiguringAccount(null)}

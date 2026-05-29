@@ -234,7 +234,7 @@ export default function UserOnboardingPage() {
     try {
       const [usersRes, tenantsRes] = await Promise.all([
         fetchFromCspm(`/api/auth/users/${tenantParam}`),
-        customerId ? getFromEngine('onboarding', '/api/v1/tenants', { customer_id: customerId }) : Promise.resolve({}),
+        customerId ? getFromEngine('gateway', '/api/v1/tenants', { customer_id: customerId }) : Promise.resolve({}),
       ]);
       setUsers(Array.isArray(usersRes) ? usersRes : (usersRes?.users || []));
       setTenants(tenantsRes?.tenants || []);

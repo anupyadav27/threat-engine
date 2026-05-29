@@ -228,7 +228,7 @@ export default function ScheduleModal({
 
       const body = {
         ...form,
-        account_id: account?.account_id || account?.id,
+        account_id: account?.accountId || account?.account_id || account?.id,
         // tenant_id inferred by gateway from auth cookie — never from user input
       };
 

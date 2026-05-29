@@ -18,7 +18,7 @@ import {
   Calendar, Clock, Globe, Layers, Bell, ChevronRight, Copy, Check,
   Plus, ArrowLeft,
 } from 'lucide-react';
-import { postToEngine, getFromEngine } from '@/lib/api';
+import { postToEngine, getFromEngine, patchToEngine } from '@/lib/api';
 import { useTenant } from '@/lib/tenant-context';
 import { TenantTypeSelector } from '@/components/onboarding/TenantTypeSelector';
 
@@ -597,7 +597,7 @@ function AgentSetupStep({ form, customerId, accountId, setAccountId, agentToken,
 
         if (!aid) {
           // Normal flow: create account record
-          const created = await postToEngine('onboarding', '/api/v1/cloud-accounts', {
+          const created = await postToEngine('gateway', '/api/v1/cloud-accounts', {
             customer_id:  customerId,
             tenant_id:    form.tenantId,
             account_name: form.accountName,
@@ -620,7 +620,7 @@ function AgentSetupStep({ form, customerId, accountId, setAccountId, agentToken,
         if (cancelled) return;
 
         // Issue agent bootstrap token
-        const tokenResp = await postToEngine('onboarding', `/api/v1/cloud-accounts/${aid}/agent-token`, {
+        const tokenResp = await postToEngine('gateway', `/api/v1/cloud-accounts/${aid}/agent-token`, {
           account_id:  aid,
           customer_id: customerId,
           tenant_id:   form.tenantId,
@@ -1047,24 +1047,26 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
   const [showCreateWS, setShowCreateWS]         = useState(false);
   const [createdWorkspace, setCreatedWorkspace] = useState(null);
 
-  // ── Reference data loaded from onboarding engine ──────────────────────────
-  const [apiProviders, setApiProviders]       = useState(null); // null = loading
+  // ── Reference data loaded via gateway (gateway adds X-Auth-Context → engine accepts) ──
+  const [apiProviders, setApiProviders]       = useState(null);
   const [apiAccountTypes, setApiAccountTypes] = useState(null);
 
   // Derived maps — fall back to static constants while loading or on error
-  const PROVIDERS       = apiProviders     ? buildProvidersMap(apiProviders)         : PROVIDERS_FALLBACK;
+  const PROVIDERS       = apiProviders     ? buildProvidersMap(apiProviders)          : PROVIDERS_FALLBACK;
   const acctTypeOptions = apiAccountTypes  ? buildAccountTypeOptions(apiAccountTypes) : ACCOUNT_TYPE_OPTIONS;
 
-  // Load tenants + reference data on mount
+  // Load tenants + reference data via the API gateway (not direct engine calls).
+  // Gateway path /gateway/api/v1/... validates the session cookie and injects
+  // X-Auth-Context before forwarding to the engine — so the engine accepts it.
   useEffect(() => {
     if (!customerId) return;
-    getFromEngine('onboarding', '/api/v1/tenants', { customer_id: customerId })
+    getFromEngine('gateway', '/api/v1/tenants', { customer_id: customerId })
       .then(d => setLocalTenants(d?.tenants || []))
       .catch(() => {});
-    getFromEngine('onboarding', '/api/v1/onboarding/providers')
+    getFromEngine('gateway', '/api/v1/onboarding/providers')
       .then(d => { if (Array.isArray(d)) setApiProviders(d); })
       .catch(() => {});
-    getFromEngine('onboarding', '/api/v1/onboarding/account-types')
+    getFromEngine('gateway', '/api/v1/onboarding/account-types')
       .then(d => { if (Array.isArray(d)) setApiAccountTypes(d); })
       .catch(() => {});
   }, [customerId]);
@@ -1074,7 +1076,7 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
   }
 
   async function handleCreateWorkspace(wsForm) {
-    const res = await postToEngine('onboarding', '/api/v1/tenants', {
+    const res = await postToEngine('gateway', '/api/v1/tenants', {
       customer_id:        customerId,
       tenant_name:        wsForm.tenant_name.trim(),
       tenant_description: wsForm.tenant_description?.trim() || undefined,
@@ -1107,7 +1109,7 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
     cron_expression:   '0 2 * * 0',
     timezone:          'UTC',
     enabled:           true,
-    engines_requested: [...ALL_ENGINES],
+    engines_requested: [...(defaultEngines[initialConfig?.accountType] || ALL_ENGINES)],
     notify_on_failure: true,
     notify_on_success: false,
   });
@@ -1148,6 +1150,11 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
       // In activate mode accountId is already set — skip account creation
       let aid = accountId;
 
+      // Activate mode: patch provider onto the dormant account before storing credentials
+      if (aid && form.provider) {
+        await patchToEngine('gateway', `/api/v1/cloud-accounts/${aid}`, { provider: form.provider });
+      }
+
       if (!aid) {
         // Normal flow: create the account record first
         const accountPayload = isVcs
@@ -1173,7 +1180,7 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
               provider:     form.provider,
             };
 
-        const created = await postToEngine('onboarding', '/api/v1/cloud-accounts', accountPayload);
+        const created = await postToEngine('gateway', '/api/v1/cloud-accounts', accountPayload);
 
         if (created.error || !created.account_id) {
           updateVStep(0, { status: 'error', detail: created.error || 'No account_id returned' });
@@ -1188,7 +1195,7 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
       updateVStep(0, { status: 'done', detail: `ID: ${aid.slice(0, 8)}…` });
       updateVStep(1, { status: 'running' });
 
-      const credResult = await postToEngine('onboarding', `/api/v1/cloud-accounts/${aid}/credentials`, {
+      const credResult = await postToEngine('gateway', `/api/v1/cloud-accounts/${aid}/credentials`, {
         credential_type: form.authMethod,
         credentials:     form.credentials,
       });
@@ -1227,18 +1234,18 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
         }),
       };
 
-      const sched = await postToEngine('onboarding', '/api/v1/schedules', schedPayload);
+      const sched = await postToEngine('gateway', '/api/v1/schedules', schedPayload);
 
       if (sched.error) throw new Error(sched.error);
 
       // Auto-provision dormant capability accounts — only for new cloud_csp accounts, not activate mode.
       if (!initialConfig) Promise.allSettled([
         { type: 'vulnerability', provider: 'agent',    label: 'Vulnerability Scanner' },
-        { type: 'database',      provider: 'postgres',  label: 'Database Security' },
-        { type: 'code_security', provider: 'github',    label: 'Code Security' },
-        { type: 'middleware',    provider: 'agent',     label: 'Middleware Monitor' },
+        { type: 'database',      provider: 'postgres', label: 'Database Security' },
+        { type: 'code_security', provider: 'github',   label: 'Code Security' },
+        { type: 'middleware',    provider: 'agent',    label: 'Middleware Monitor' },
       ].map(cap =>
-        postToEngine('onboarding', '/api/v1/cloud-accounts', {
+        postToEngine('gateway', '/api/v1/cloud-accounts', {
           customer_id:   customerId,
           tenant_id:     form.tenantId,
           account_name:  `${form.accountName} — ${cap.label}`,
