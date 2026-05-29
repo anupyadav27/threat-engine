@@ -190,7 +190,7 @@ def _fetch_internet_exposed_uids(
 
     Merges two sources:
       1. resource_security_posture WHERE is_internet_exposed=true  (network/check engine signal)
-      2. inventory_relationships WHERE relation_type='internet_connected' (FROM side = exposed resource)
+      2. asset_relationships WHERE relation_type='internet_connected' (FROM side = exposed resource)
 
     Source 2 is critical when posture rows don't yet exist for newly discovered resources.
     The FROM side of an internet_connected edge is always the cloud resource (e.g. EC2 instance);
@@ -212,20 +212,17 @@ def _fetch_internet_exposed_uids(
             for row in cur.fetchall():
                 uids.add(row[0])
 
-            # Source 2: inventory_relationships internet exposure edges
-            # Covers both the old 'internet_connected' label and the current
-            # 'INTERNET_ACCESSIBLE' label written by the inventory engine.
+            # Source 2: asset_relationships internet exposure edges
+            # Covers INTERNET_CONNECTED and INTERNET_ACCESSIBLE edge types.
             cur.execute(
                 """
-                SELECT DISTINCT COALESCE(from_uid, source_resource_uid) AS uid
-                FROM inventory_relationships
+                SELECT DISTINCT source_uid AS uid
+                FROM asset_relationships
                 WHERE tenant_id = %s
-                  AND LOWER(COALESCE(relation_type, relationship_type)) IN (
-                        'internet_connected', 'internet_accessible'
-                  )
-                  AND COALESCE(from_uid, source_resource_uid) IS NOT NULL
-                  AND COALESCE(from_uid, source_resource_uid) NOT LIKE 'internet:%%'
-                  AND COALESCE(from_uid, source_resource_uid) NOT LIKE 'pseudo:%%'
+                  AND LOWER(relation_type) IN ('internet_connected', 'internet_accessible')
+                  AND source_uid IS NOT NULL
+                  AND source_uid NOT LIKE 'internet:%%'
+                  AND source_uid NOT LIKE 'pseudo:%%'
                 """,
                 (tenant_id,),
             )
@@ -233,7 +230,7 @@ def _fetch_internet_exposed_uids(
             uids.update(rel_uids)
             if rel_uids:
                 logger.info(
-                    "Added %d internet-exposed UIDs from inventory_relationships tenant=%s",
+                    "Added %d internet-exposed UIDs from asset_relationships tenant=%s",
                     len(rel_uids), tenant_id,
                 )
     except Exception as exc:
@@ -508,20 +505,6 @@ def run_attack_path_scan(
     except Exception as _tc_err:
         logger.warning("Could not connect to threat DB — enrichment will be skipped: %s", _tc_err)
 
-    # ── Neo4j driver ──────────────────────────────────────────────────────────
-    neo4j_driver = None
-    try:
-        from neo4j import GraphDatabase
-        neo4j_driver = GraphDatabase.driver(
-            os.getenv("NEO4J_URI", "bolt://localhost:7687"),
-            auth=(
-                os.getenv("NEO4J_USER", "neo4j"),
-                os.getenv("NEO4J_PASSWORD", ""),
-            ),
-        )
-    except Exception as exc:
-        logger.warning("Neo4j driver unavailable — crown jewel classification and BFS will be skipped: %s", exc)
-
     # ── Determine provider from scan_runs ─────────────────────────────────────
     provider = "aws"
     try:
@@ -546,9 +529,8 @@ def run_attack_path_scan(
     try:
         # ── Stage 1: Crown Jewel Classification ───────────────────────────────
         _jlog("stage", name="crown_jewel_classify", scan_run_id=scan_run_id)
-        from .crown_jewel_classifier import CrownJewelClassifier
+        from .core.crown_jewel_classifier import CrownJewelClassifier
         classifier = CrownJewelClassifier(
-            neo4j_driver=neo4j_driver,
             inventory_conn=di_conn,
             scan_run_id=scan_run_id,
             tenant_id=tenant_id,
@@ -821,11 +803,6 @@ def run_attack_path_scan(
                 threat_conn.close()
             except Exception:
                 pass
-        if neo4j_driver:
-            try:
-                neo4j_driver.close()
-            except Exception:
-                pass
 
     elapsed = round(time.time() - start_time, 1)
     metrics["scan_duration_seconds"] = elapsed
@@ -938,10 +915,13 @@ def _build_posture_lookup(
                     COALESCE(crown_jewel_type, '')           AS crown_jewel_type,
                     data_classification,
                     COALESCE(blast_radius_count, 0)          AS blast_radius_count,
+                    COALESCE(is_encrypted_at_rest, true)     AS is_encrypted_at_rest,
                     COALESCE(is_crown_jewel, false)          AS is_crown_jewel,
                     COALESCE(is_on_attack_path, false)       AS is_on_attack_path,
                     COALESCE(attack_path_count, 0)           AS attack_path_count,
-                    COALESCE(is_choke_point, false)          AS is_choke_point
+                    COALESCE(is_choke_point, false)          AS is_choke_point,
+                    COALESCE(check_critical, 0)              AS critical_misconfig_count,
+                    COALESCE(check_high, 0)                  AS high_misconfig_count
                 FROM resource_security_posture
                 WHERE tenant_id = %s
                 """,

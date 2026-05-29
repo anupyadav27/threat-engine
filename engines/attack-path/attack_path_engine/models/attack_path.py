@@ -59,6 +59,7 @@ class PostureRow(BaseModel):
     data_classification: Optional[str] = None   # pii | financial | credentials | internal | public
     blast_radius_count: int = 0
     encryption_type: Optional[str] = None       # aes256 | kms | none | null
+    is_encrypted_at_rest: bool = True            # False = known unencrypted storage
     is_crown_jewel: bool = False
     is_on_attack_path: bool = False
     attack_path_count: int = 0

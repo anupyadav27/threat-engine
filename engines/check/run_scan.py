@@ -161,13 +161,14 @@ def main():
         _update_report_status(db_manager, scan_run_id, "completed")
         logger.info(f"Check scan completed: {scan_run_id} — {results.get('total_checks', 0)} checks in {duration:.1f}s")
 
-        # Write FAIL findings to security_findings (non-fatal)
+        # Write FAIL findings to security_findings + upsert severity counts into posture (non-fatal)
         try:
             from engine_common.security_findings_writer import upsert_findings
             from engine_common.db_connections import get_di_conn, get_check_conn
             _inv_conn = get_di_conn()
             try:
                 _sf_rows = []
+                _severity_map: dict = {}  # resource_uid → {critical,high,medium,low}
                 _chk_conn = get_check_conn()
                 try:
                     with _chk_conn.cursor() as _cur:
@@ -182,47 +183,115 @@ def main():
                             """,
                             (scan_run_id, tenant_id),
                         )
-                        for _row in _cur.fetchall():
-                            _fid, _ruid, _rule_id, _sev, _acct, _prov, _rtype, _region, _first_seen, _fdata = _row
-                            _title = (_rule_id or _ruid or "")
-                            if isinstance(_fdata, dict):
-                                _title = _fdata.get("title") or _fdata.get("check_title") or _title
-                                _desc = _fdata.get("description", "")
-                                _remediation = _fdata.get("remediation", "")
-                            else:
-                                _desc = ""
-                                _remediation = ""
-                            _sf_rows.append({
-                                "source_finding_id": _fid or _ruid or "",
-                                "resource_uid": _ruid or "",
-                                "finding_type": "misconfig",
-                                "severity": (_sev or "medium").lower(),
-                                "title": _title,
-                                "account_id": _acct,
-                                "provider": _prov,
+                        _all_rows = _cur.fetchall()
+
+                    # Build ARN lookup: short_id → canonical ARN from DI inventory
+                    _short_ids = set()
+                    for _row in _all_rows:
+                        _ruid = _row[1] or ""
+                        if _ruid and not _ruid.startswith("arn:"):
+                            _short_ids.add(_ruid.rsplit("/", 1)[-1])
+
+                    _arn_lookup: dict = {}
+                    if _short_ids:
+                        with _inv_conn.cursor() as _icur:
+                            _icur.execute(
+                                """
+                                SELECT resource_uid, resource_name
+                                FROM asset_inventory_aws
+                                WHERE tenant_id = %s
+                                  AND resource_name = ANY(%s)
+                                LIMIT 5000
+                                """,
+                                (tenant_id, list(_short_ids)),
+                            )
+                            for _inv_row in _icur.fetchall():
+                                _arn_lookup[_inv_row[1]] = _inv_row[0]
+
+                    for _row in _all_rows:
+                        _fid, _ruid, _rule_id, _sev, _acct, _prov, _rtype, _region, _first_seen, _fdata = _row
+                        _sev_lower = (_sev or "medium").lower()
+
+                        # Resolve to canonical ARN if possible
+                        if _ruid and not _ruid.startswith("arn:"):
+                            _short = _ruid.rsplit("/", 1)[-1]
+                            _ruid = _arn_lookup.get(_short) or _arn_lookup.get(_ruid) or _ruid
+
+                        # Accumulate severity counts per resource
+                        if _ruid:
+                            _counts = _severity_map.setdefault(_ruid, {"critical": 0, "high": 0, "medium": 0, "low": 0})
+                            if _sev_lower in _counts:
+                                _counts[_sev_lower] += 1
+
+                        _title = (_rule_id or _ruid or "")
+                        if isinstance(_fdata, dict):
+                            _title = _fdata.get("title") or _fdata.get("check_title") or _title
+                            _desc = _fdata.get("description", "")
+                            _remediation = _fdata.get("remediation", "")
+                        else:
+                            _desc = ""
+                            _remediation = ""
+                        _src_id = str(_fid or _ruid or "")[:128]
+                        _sf_rows.append({
+                            "source_finding_id": _src_id,
+                            "resource_uid": (_ruid or "")[:512],
+                            "finding_type": "misconfig",
+                            "severity": _sev_lower,
+                            "title": _title,
+                            "account_id": _acct,
+                            "provider": _prov,
+                            "resource_type": (_rtype or "")[:128],
+                            "rule_id": (_rule_id or "")[:128],
+                            "description": _desc,
+                            "detail": {
                                 "resource_type": _rtype,
-                                "rule_id": _rule_id,
-                                "description": _desc,
-                                "detail": {
-                                    "resource_type": _rtype,
-                                    "region": _region,
-                                    "remediation": _remediation,
-                                },
-                                "in_kev": False,
-                                "first_seen_at": _first_seen,
-                            })
+                                "region": _region,
+                                "remediation": _remediation,
+                            },
+                            "in_kev": False,
+                            "first_seen_at": _first_seen,
+                        })
                 finally:
                     _chk_conn.close()
+
                 if _sf_rows:
                     upsert_findings(
                         _inv_conn, _sf_rows, source_engine="check",
                         tenant_id=tenant_id, scan_run_id=scan_run_id,
                     )
                     logger.info("security_findings (check): wrote %d FAIL findings", len(_sf_rows))
+
+                # Upsert per-resource severity counts into resource_security_posture
+                if _severity_map:
+                    with _inv_conn.cursor() as _pcur:
+                        for _ruid, _counts in _severity_map.items():
+                            _pcur.execute(
+                                """
+                                INSERT INTO resource_security_posture
+                                    (tenant_id, scan_run_id, account_id, provider,
+                                     resource_uid, resource_type,
+                                     check_critical, check_high, check_medium, check_low)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                ON CONFLICT (resource_uid, tenant_id) DO UPDATE SET
+                                    check_critical = EXCLUDED.check_critical,
+                                    check_high     = EXCLUDED.check_high,
+                                    check_medium   = EXCLUDED.check_medium,
+                                    check_low      = EXCLUDED.check_low,
+                                    updated_at     = NOW()
+                                """,
+                                (
+                                    tenant_id, scan_run_id, account_id, provider_key,
+                                    _ruid, "unknown",
+                                    _counts["critical"], _counts["high"],
+                                    _counts["medium"], _counts["low"],
+                                ),
+                            )
+                    _inv_conn.commit()
+                    logger.info("resource_security_posture (check counts): upserted %d rows", len(_severity_map))
             finally:
                 _inv_conn.close()
         except Exception as _sf_err:
-            logger.warning("security_findings write (check) skipped: %s", _sf_err)
+            logger.warning("security_findings/posture write (check) skipped: %s", _sf_err)
 
         # Retention: archive old scans to S3, keep last 5 in DB
         try:

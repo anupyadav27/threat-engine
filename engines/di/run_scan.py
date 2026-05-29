@@ -35,12 +35,54 @@ logging.basicConfig(
 )
 logger = logging.getLogger("di.run_scan")
 
+import datetime
+import json
+
 from engine_common.orchestration import get_orchestration_metadata
 from engine_onboarding.storage.secrets_manager_storage import SecretsManagerStorage
 
+
+def _record_di_engine_status(scan_run_id: str, status: str, started_at: str | None = None) -> None:
+    """Write DI engine timeline into scan_runs.engine_statuses in the onboarding DB."""
+    try:
+        import psycopg2
+        host = os.getenv("ONBOARDING_DB_HOST", os.getenv("DB_HOST", "localhost"))
+        port = int(os.getenv("ONBOARDING_DB_PORT", os.getenv("DB_PORT", "5432")))
+        db   = os.getenv("ONBOARDING_DB_NAME", "threat_engine_onboarding")
+        user = os.getenv("ONBOARDING_DB_USER", os.getenv("DB_USER", "postgres"))
+        pw   = os.getenv("ONBOARDING_DB_PASSWORD", os.getenv("DB_PASSWORD", ""))
+        now_iso = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        patch: dict = {"status": status}
+        if started_at:
+            patch["started_at"] = started_at
+        if status in ("completed", "failed"):
+            patch["completed_at"] = now_iso
+        conn = psycopg2.connect(host=host, port=port, database=db, user=user, password=pw, connect_timeout=5)
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE scan_runs
+            SET engine_statuses = jsonb_set(
+                COALESCE(engine_statuses, '{}'::jsonb),
+                ARRAY['di'], %s::jsonb, true
+            )
+            WHERE scan_run_id = %s
+            """,
+            (json.dumps(patch), scan_run_id),
+        )
+        conn.commit()
+        conn.close()
+        logger.debug("DI engine_statuses updated: %s", status)
+    except Exception as exc:
+        logger.warning("Could not update engine_statuses: %s", exc)
+
 from di_engine.phase0.enumerator import run_phase0
 from di_engine.phase2.writer import write_assets, write_errors, update_scan_status
-from di_engine.phase2.relationship_writer import derive_and_write_relationships
+from di_engine.phase2.catalog_relationship_writer import write_catalog_relationships
+# DI monolithic relationship_writer removed — per-engine writers (network, IAM, encryption)
+# write security edges.  catalog_relationship_writer handles infrastructure attachment edges
+# derived from the resource_relationship_catalog table (seeded by
+# catalog/relationships/upload_relationship_catalog.py).
 
 
 def _resolve_credentials(account_id: str, credential_ref: str, credential_type: str, provider: str) -> dict:
@@ -57,7 +99,7 @@ def _resolve_credentials(account_id: str, credential_ref: str, credential_type: 
         return {"credential_type": "in_cluster", "account_id": account_id, "cluster_name": account_id}
 
     storage = SecretsManagerStorage()
-    secret_data = storage.retrieve(account_id=account_id)
+    secret_data = storage.retrieve(account_id=account_id, credential_ref=credential_ref or None)
 
     if not isinstance(secret_data, dict) or not secret_data:
         raise ValueError(f"Empty/invalid credentials for account {account_id}")
@@ -99,6 +141,8 @@ def _resolve_credentials(account_id: str, credential_ref: str, credential_type: 
 async def run_scan(scan_run_id: str, services: list[str] | None = None) -> None:
     """Run the full 3-phase DI scan for all accounts in the scan orchestration."""
     logger.info("DI scan starting: scan_run_id=%s services=%s", scan_run_id, services or "all")
+    _di_started_at = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    _record_di_engine_status(scan_run_id, "running", started_at=_di_started_at)
 
     # ── Load orchestration metadata ────────────────────────────────────────────
     meta = get_orchestration_metadata(scan_run_id)
@@ -171,11 +215,14 @@ async def run_scan(scan_run_id: str, services: list[str] | None = None) -> None:
     logger.info("Starting Phase 2: write (%d rows)", len(enriched_rows))
     written = write_assets(enriched_rows)
 
-    # Write relationships from the enriched rows
-    rels_written = derive_and_write_relationships(
-        rows=enriched_rows,
+    # Infrastructure attachment edges (EC2→EBS, ALB→EC2, etc.) derived from catalog rules.
+    # Security edges (ASSUMES, HAS_POLICY, INTERNET_ACCESSIBLE, ENCRYPTED_BY) are written
+    # by their owning engines (IAM, network, encryption) at Stage 5.
+    rels_written = write_catalog_relationships(
         scan_run_id=scan_run_id,
         tenant_id=tenant_id,
+        account_id=account_id,
+        provider=provider,
     )
 
     # Write all enumeration errors
@@ -193,6 +240,7 @@ async def run_scan(scan_run_id: str, services: list[str] | None = None) -> None:
         error_count=errors_written,
     )
 
+    _record_di_engine_status(scan_run_id, "completed", started_at=_di_started_at)
     logger.info(
         "DI scan COMPLETE: scan_run_id=%s written=%d relationships=%d errors=%d",
         scan_run_id, written, rels_written, errors_written,
@@ -212,8 +260,11 @@ def main() -> None:
     scan_run_id = args.scan_run_id
     services = [s.strip() for s in args.services.split(",")] if args.services else None
 
+    _started_at = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
     def _handle_sigterm(signum, frame):
         logger.warning("SIGTERM received — marking scan as failed")
+        _record_di_engine_status(scan_run_id, "failed", started_at=_started_at)
         try:
             from di_engine.phase2.writer import update_scan_status as _upd
             _upd(scan_run_id=scan_run_id, tenant_id="", status="failed", phase=-1)
@@ -227,6 +278,7 @@ def main() -> None:
         asyncio.run(run_scan(scan_run_id, services=services))
     except Exception as e:
         logger.error("DI scan FAILED: %s", e, exc_info=True)
+        _record_di_engine_status(scan_run_id, "failed", started_at=_started_at)
         try:
             from di_engine.phase2.writer import update_scan_status as _upd
             _upd(scan_run_id=scan_run_id, tenant_id="", status="failed", phase=-1)

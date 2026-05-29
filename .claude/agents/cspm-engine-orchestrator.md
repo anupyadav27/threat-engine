@@ -47,6 +47,10 @@ Stage 5: PARALLEL (all depend on threat.Succeeded):
          └─ network-security (when: aws||azure||gcp||k8s||oci||alicloud — 14400s)
 Stage 6: graph-build       (POST /api/v1/graph/build → 202+job_id; Argo polls status until done;
                             runs AFTER stage-5 so CVE nodes + EXPOSES edges are present — 1800s)
+                            NOTE: Stage-5 engines (network, IAM, encryption) write relationship
+                            edges to asset_relationships in threat_engine_di BEFORE graph-build.
+                            graph-build reads these via ExposureLoader (INTERNET_ACCESSIBLE →
+                            Neo4j EXPOSES) and _build_iam_permission_edges() (ASSUMES/HAS_POLICY).
 Stage 7: risk              (waits for ALL stage-5+6 with OR logic — continues if any fail)
 Stage 8: threat-narrative  (best-effort, depends on risk.Succeeded only — 3600s)
 Stage 9: mark-complete     (depends on risk success/failure/error)

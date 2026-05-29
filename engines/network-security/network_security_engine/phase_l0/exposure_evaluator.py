@@ -137,6 +137,16 @@ def _eval_condition(emitted: dict, cond: dict) -> bool:
             return False
         return any(isinstance(item, dict) and value in item for item in fv)
 
+    if operator == "any_has_non_empty":
+        # fv is a list; any item (dict) has a non-empty value for key `value`
+        # Empty list/None/"" all count as empty — used for IBM floating_ips detection
+        if not isinstance(fv, list):
+            return False
+        return any(
+            isinstance(item, dict) and bool(item.get(value))
+            for item in fv
+        )
+
     if operator == "any_type_eq":
         # fv is a list; any item has key "type" == value
         if not isinstance(fv, list):
@@ -183,6 +193,15 @@ def _load_rules(net_conn: Any, provider: str) -> List[Dict[str, Any]]:
         return [dict(r) for r in cur.fetchall()]
 
 
+def _norm_rtype(rtype: str) -> str:
+    """Normalize resource_type for format-agnostic matching.
+
+    Converts dots and hyphens to underscores, lowercases.
+    ec2.instance → ec2_instance, kms.key → kms_key, etc.
+    """
+    return rtype.lower().replace(".", "_").replace("-", "_")
+
+
 def _load_assets(
     di_conn: Any,
     scan_run_id: str,
@@ -190,19 +209,25 @@ def _load_assets(
     account_id: Optional[str],
     resource_types: List[str],
 ) -> List[Dict[str, Any]]:
-    """Load asset_inventory rows that match resource_types for this scan."""
+    """Load asset_inventory rows that match resource_types for this scan.
+
+    Matching is format-agnostic: dots and hyphens are treated as underscores
+    so that rule resource_types like 'ec2.instance' match DI-written types
+    like 'ec2_instance' and vice versa.
+    """
     if not resource_types:
         return []
+    normalized = [_norm_rtype(rt) for rt in resource_types]
     with di_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
         query = """
             SELECT resource_uid, resource_type, region, account_id, provider,
                    emitted_fields, resource_name
             FROM   asset_inventory
-            WHERE  scan_run_id   = %s
-              AND  tenant_id     = %s
-              AND  resource_type = ANY(%s)
+            WHERE  scan_run_id = %s
+              AND  tenant_id   = %s
+              AND  LOWER(REPLACE(REPLACE(resource_type, '.', '_'), '-', '_')) = ANY(%s)
         """
-        params: list = [scan_run_id, tenant_id, resource_types]
+        params: list = [scan_run_id, tenant_id, normalized]
         if account_id:
             query += " AND account_id = %s"
             params.append(account_id)
@@ -301,6 +326,8 @@ def _write_internet_edges(
     exposed_assets: List[Dict[str, Any]],
     scan_run_id: str,
     tenant_id: str,
+    account_id: str = "",
+    provider: str = "aws",
 ) -> int:
     """Write INTERNET_ACCESSIBLE edges to asset_relationships for attack-path BFS."""
     if not exposed_assets:
@@ -319,7 +346,7 @@ def _write_internet_edges(
                 "target_uid": _INTERNET_UID,
                 "target_type": _INTERNET_TYPE,
                 "relation_type": "INTERNET_ACCESSIBLE",
-                "metadata": {
+                "relation_metadata": {
                     "origin": "ieds_phase_l0",
                     "origin_type": asset.get("origin_type", "internet"),
                     "tier": asset.get("tier", 1),
@@ -335,6 +362,8 @@ def _write_internet_edges(
             di_conn, edges,
             scan_run_id=scan_run_id,
             tenant_id=tenant_id,
+            account_id=account_id,
+            provider=provider,
         )
     except Exception as exc:
         logger.warning("IEDS: asset_relationships write failed (non-fatal): %s", exc)
@@ -447,17 +476,20 @@ def run_phase_l0(
             logger.info("IEDS Phase L0: no matching assets for scan %s", scan_run_id)
             return {"status": "no_assets", "findings": 0}
 
-        # 4. Build resource_type → assets index for O(1) lookup
-        assets_by_rtype: Dict[str, List[Dict]] = {}
+        # 4. Build normalized resource_type → assets index for O(1) lookup.
+        # Keyed by normalized form so rule rtypes (ec2.instance) resolve to
+        # DI-stored rtypes (ec2_instance) transparently.
+        assets_by_norm: Dict[str, List[Dict]] = {}
         for asset in assets:
-            assets_by_rtype.setdefault(asset.get("resource_type", ""), []).append(asset)
+            norm = _norm_rtype(asset.get("resource_type") or "")
+            assets_by_norm.setdefault(norm, []).append(asset)
 
         # 5. Evaluate rules against assets
         findings: List[Dict[str, Any]] = []
         exposed_for_posture: List[Dict[str, Any]] = []  # carries rule_id/tier for edges
 
         for rtype, rtype_rules in rules_by_rtype.items():
-            rtype_assets = assets_by_rtype.get(rtype, [])
+            rtype_assets = assets_by_norm.get(_norm_rtype(rtype), [])
             for asset in rtype_assets:
                 emitted = asset.get("emitted_fields") or {}
                 for rule in rtype_rules:
@@ -530,7 +562,8 @@ def run_phase_l0(
 
         # 8. Write INTERNET_ACCESSIBLE edges to asset_relationships
         edges_written = _write_internet_edges(
-            di_conn, internet_assets, scan_run_id, tenant_id
+            di_conn, internet_assets, scan_run_id, tenant_id,
+            account_id=account_id, provider=provider,
         )
         logger.info("IEDS Phase L0: wrote %d INTERNET_ACCESSIBLE edges", edges_written)
 

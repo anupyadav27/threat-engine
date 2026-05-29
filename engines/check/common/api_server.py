@@ -19,7 +19,7 @@ import os
 import sys
 from typing import Any, Dict, List, Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -952,7 +952,8 @@ async def list_findings(
 @app.get("/api/v1/check/findings/resource/{resource_uid:path}")
 async def get_findings_for_resource(
     resource_uid: str,
-    tenant_id: str = Query(...),
+    request: Request,
+    tenant_id: Optional[str] = Query(None),
     limit: int = Query(200, ge=1, le=1000),
 ):
     """
@@ -962,6 +963,13 @@ async def get_findings_for_resource(
     compliance posture (severity counts + detailed finding list).
     Matches on resource_uid to handle format differences.
     """
+    # Fallback: read tenant_id from auth context when not supplied as query param
+    if not tenant_id:
+        _ctx = getattr(request.state, "auth_context", None)
+        if _ctx is not None:
+            tenant_id = getattr(_ctx, "engine_tenant_id", None)
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="tenant_id required")
     from psycopg2.extras import RealDictCursor
 
     try:
@@ -1102,7 +1110,9 @@ async def get_findings_for_resource(
                     cf.resource_type,
                     cf.first_seen_at,
                     rm.domain,
-                    COALESCE(rm.posture_category, 'configuration') AS posture_category
+                    COALESCE(rm.posture_category, 'configuration') AS posture_category,
+                    rm.description,
+                    rm.remediation
                 FROM check_findings cf
                 LEFT JOIN rule_metadata rm ON rm.rule_id = cf.rule_id
                 WHERE {uid_match}
@@ -1131,6 +1141,8 @@ async def get_findings_for_resource(
                 "resource_type": r.get("resource_type") or "",
                 "domain": r.get("domain") or "",
                 "posture_category": r.get("posture_category") or "configuration",
+                "description": r.get("description") or "",
+                "recommendation": r.get("remediation") or "",
                 "first_seen_at": created.isoformat() if created else None,
             })
 

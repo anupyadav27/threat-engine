@@ -51,7 +51,8 @@ Read `.claude/documentation/CSPM_CONSTITUTION.md` before acting.
 - `discovery_findings` from `threat_engine_discoveries` DB (Layer 2 — topology data)
 - `inventory_findings` from `threat_engine_inventory` DB (enrichment)
 **Writes:** `network_findings`, `network_report`, `network_topology_snapshot`, `network_sg_analysis`, `network_exposure_paths`, `network_anomalies` in `threat_engine_network`
-**Feeds downstream:** risk engine, BFF network views, threat engine (exposure paths for attack chain building)
+**Also writes:** `asset_relationships` in `threat_engine_di` (topology edges: GOVERNED_BY, ROUTES_VIA, PEERED_WITH, PEERED_WITH_EXTERNAL, CONNECTED_VIA, HAS_ENDPOINT, ROUTES_TO, PROTECTED_BY, INTERNET_ACCESSIBLE) via `network_security_engine.storage.network_relationship_writer.write_network_relationships()` — called after security_findings write.
+**Feeds downstream:** risk engine, BFF network views, attack-path engine (ExposureLoader reads INTERNET_ACCESSIBLE from asset_relationships to build Neo4j EXPOSES edges)
 **Credentials:** NONE — reads from DB only, no cloud API calls.
 **Execution:** K8s Job
 **Timeout:** 1800s (30 minutes)

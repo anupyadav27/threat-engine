@@ -39,6 +39,13 @@ logger = logging.getLogger("attack-path.pg_graph")
 MAX_PATHS = 500
 MAX_HOPS = 7
 
+# Posture-only relations written to asset_relationships but NOT traversal edges.
+# ExposureLoader handles INTERNET_ACCESSIBLE separately; DataSec/DBSec consume
+# ENCRYPTED_BY/PROTECTED_BY/GOVERNED_BY/ROUTES_VIA directly from the DB.
+_POSTURE_ONLY_RELS: frozenset = frozenset({
+    "INTERNET_ACCESSIBLE", "ENCRYPTED_BY", "PROTECTED_BY", "GOVERNED_BY", "ROUTES_VIA",
+})
+
 # Relation types that represent attack-path-relevant edges.
 # Covers AWS, Azure, GCP, OCI, AliCloud, IBM Cloud, and K8s edge types.
 _ATTACK_RELEVANT_TYPES: Set[str] = {
@@ -81,6 +88,16 @@ _ATTACK_RELEVANT_TYPES: Set[str] = {
     "invokes",              # API Gateway → Lambda / Cloud Function
     "controlled_by",        # Resource controlled by management plane (K8s, OCI)
     "runs_on",              # Container → node, Lambda → compute fleet
+    # Per-engine security edges (written to asset_relationships, new in catalog sprint)
+    "linked_to",            # IAM identity chain (LINKED_TO edges from iam_relationship_writer)
+    "grants_decrypt_to",    # KMS key grants decrypt to external principal (data_exfil)
+    "has_endpoint",         # NLB/ALB exposes a service endpoint (network engine)
+    "peered_with",          # VPC peering (same account)
+    "peered_with_external", # VPC peering (cross-account — lateral movement)
+    "mounted_by",           # EFS/block volume mounted by workload
+    "connected_via",        # Transit gateway / direct connect
+    "worker_node_of",       # EC2 is a worker node of an EKS cluster
+    "can_access",           # Explicit IAM allow (already in set, kept for clarity)
 }
 
 
@@ -89,58 +106,58 @@ def build_pg_graph(
     tenant_id: str,
     scan_run_id: Optional[str] = None,
 ) -> Dict[str, List[Tuple[str, str, str, str]]]:
-    """Load inventory_relationships and return an adjacency list.
+    """Load asset_relationships and return an adjacency list.
+
+    Reads ALL rows for the tenant (no scan_run_id filter) so the graph
+    reflects accumulated topology across scans. Only edge types in
+    _ATTACK_RELEVANT_TYPES are included to keep the graph focused.
 
     Args:
-        inventory_conn: psycopg2 connection to the inventory DB.
-        tenant_id:      Tenant filter — every row must belong to this tenant.
-        scan_run_id:    If set, prefer relationships from this scan; also includes
-                        all other rows for the same tenant (topology accumulates).
+        inventory_conn: psycopg2 connection to threat_engine_di.
+        tenant_id:      Tenant filter.
+        scan_run_id:    Unused — kept for call-site compatibility.
 
     Returns:
-        Dict[from_uid → List[(to_uid, relation_type, from_resource_type, to_resource_type)]].
-        Only edges whose relation_type is in _ATTACK_RELEVANT_TYPES are included
-        to keep the in-memory graph small and focused on attack-relevant paths.
+        Dict[from_uid → List[(to_uid, relation_type, from_type, to_type)]].
     """
     adj: Dict[str, List[Tuple[str, str, str, str]]] = defaultdict(list)
 
+    attack_rel_list = [r.upper() for r in _ATTACK_RELEVANT_TYPES]
+    placeholders = ",".join(["%s"] * len(attack_rel_list))
+    total = 0
     try:
         with inventory_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
-                """
+                f"""
                 SELECT DISTINCT
-                    COALESCE(from_uid, source_resource_uid)  AS from_uid,
-                    COALESCE(to_uid,   target_resource_uid)  AS to_uid,
-                    COALESCE(relation_type, relationship_type) AS rel_type,
-                    COALESCE(from_resource_type, '')         AS from_type,
-                    COALESCE(to_resource_type, '')           AS to_type
-                FROM inventory_relationships
+                    source_uid                    AS from_uid,
+                    target_uid                    AS to_uid,
+                    LOWER(relation_type)          AS rel_type,
+                    COALESCE(source_type, '')     AS from_type,
+                    COALESCE(target_type, '')     AS to_type
+                FROM asset_relationships
                 WHERE tenant_id = %s
-                  AND COALESCE(from_uid, source_resource_uid) IS NOT NULL
-                  AND COALESCE(to_uid, target_resource_uid)   IS NOT NULL
+                  AND UPPER(relation_type) IN ({placeholders})
+                  AND source_uid IS NOT NULL
+                  AND target_uid IS NOT NULL
                 """,
-                (tenant_id,),
+                (tenant_id, *attack_rel_list),
             )
-            total = 0
             for row in cur.fetchall():
-                from_uid = row["from_uid"]
-                to_uid = row["to_uid"]
-                rel_type = (row["rel_type"] or "").lower()
-                from_type = row["from_type"] or ""
-                to_type = row["to_type"] or ""
-
-                # Include all edges — filter is done at BFS time for flexibility
-                adj[from_uid].append((to_uid, rel_type, from_type, to_type))
+                adj[row["from_uid"]].append((
+                    row["to_uid"],
+                    row["rel_type"] or "",
+                    row["from_type"] or "",
+                    row["to_type"] or "",
+                ))
                 total += 1
 
         logger.info(
-            "pg_graph built: tenant=%s edges=%d unique_sources=%d",
-            tenant_id,
-            total,
-            len(adj),
+            "pg_graph asset_relationships: tenant=%s edges=%d unique_sources=%d",
+            tenant_id, total, len(adj),
         )
     except Exception as exc:
-        logger.warning("pg_graph build failed (non-fatal): %s", exc)
+        logger.warning("pg_graph: asset_relationships read failed (non-fatal): %s", exc)
         try:
             inventory_conn.rollback()
         except Exception:

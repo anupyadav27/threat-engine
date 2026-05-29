@@ -1,0 +1,81 @@
+---
+# OCI infrastructure attachment relationships
+# Loaded by: catalog/relationships/upload_relationship_catalog.py
+# Destination: resource_relationship_catalog in threat_engine_di
+# category: infrastructure
+
+csp: oci
+category: infrastructure
+rules:
+
+  # ── Compute Instance → VNIC ──────────────────────────────────────────────────
+  - source_resource_type: compute.instance
+    target_resource_type: core.vnic
+    relation_type: ATTACHED_TO
+    field_path: "vnicAttachments[*].vnicId"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    description: OCI compute instance attached to VNICs
+
+  # ── Compute Instance → Boot Volume ────────────────────────────────────────────
+  - source_resource_type: compute.instance
+    target_resource_type: blockstorage.boot_volume
+    relation_type: ATTACHED_TO
+    field_path: "bootVolumeAttachments[*].bootVolumeId"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    description: OCI compute instance attached to boot volume
+
+  # ── Compute Instance → Block Volume ───────────────────────────────────────────
+  - source_resource_type: compute.instance
+    target_resource_type: blockstorage.volume
+    relation_type: ATTACHED_TO
+    field_path: "volumeAttachments[*].volumeId"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    description: OCI compute instance attached to block volumes
+
+  # ── VNIC → Subnet ─────────────────────────────────────────────────────────────
+  - source_resource_type: core.vnic
+    target_resource_type: core.subnet
+    relation_type: PLACED_IN
+    field_path: "subnetId"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    description: OCI VNIC placed in subnet
+
+  # ── VNIC → NSG (Network Security Group) ──────────────────────────────────────
+  - source_resource_type: core.vnic
+    target_resource_type: core.network_security_group
+    relation_type: GOVERNED_BY
+    field_path: "nsgIds[*]"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    description: OCI VNIC governed by network security groups
+
+  # ── OKE Cluster → Node Pool ───────────────────────────────────────────────────
+  - source_resource_type: containerengine.cluster
+    target_resource_type: containerengine.node_pool
+    relation_type: CONTAINS
+    field_path: "nodePools[*].id"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    description: OKE cluster contains node pools
+
+  # ── Load Balancer → Backend Set ───────────────────────────────────────────────
+  - source_resource_type: loadbalancer.load_balancer
+    target_resource_type: loadbalancer.backend_set
+    relation_type: ROUTES_TO
+    field_path: "backendSets"
+    field_path_type: field_ref
+    attack_path_category: internet_exposure
+    description: OCI load balancer routes to backend sets
+
+  # ── Autonomous DB → VCN ────────────────────────────────────────────────────────
+  - source_resource_type: database.autonomous_database
+    target_resource_type: core.vcn
+    relation_type: PLACED_IN
+    field_path: "subnetId"
+    field_path_type: field_ref
+    attack_path_category: data_access
+    description: OCI Autonomous Database in VCN

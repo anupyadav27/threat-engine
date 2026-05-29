@@ -1,0 +1,63 @@
+---
+# IBM Cloud infrastructure attachment relationships
+# Loaded by: catalog/relationships/upload_relationship_catalog.py
+# Destination: resource_relationship_catalog in threat_engine_di
+# category: infrastructure
+
+csp: ibm
+category: infrastructure
+rules:
+
+  # ── VSI → Security Group ──────────────────────────────────────────────────────
+  - source_resource_type: is.instance
+    target_resource_type: is.security_group
+    relation_type: GOVERNED_BY
+    field_path: "network_interfaces[*].security_groups[*].id"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    description: IBM VPC VSI governed by security groups
+
+  # ── VSI → Subnet ──────────────────────────────────────────────────────────────
+  - source_resource_type: is.instance
+    target_resource_type: is.subnet
+    relation_type: PLACED_IN
+    field_path: "primary_network_interface.subnet.id"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    description: IBM VSI placed in subnet
+
+  # ── VSI → Volume ──────────────────────────────────────────────────────────────
+  - source_resource_type: is.instance
+    target_resource_type: is.volume
+    relation_type: ATTACHED_TO
+    field_path: "volume_attachments[*].volume.id"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    description: IBM VSI attached to volumes
+
+  # ── IKS/ROKS Cluster → Worker Pool ────────────────────────────────────────────
+  - source_resource_type: containers.kubernetes
+    target_resource_type: containers.kubernetes_worker_pool
+    relation_type: CONTAINS
+    field_path: "workerPools[*].id"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    description: IBM Kubernetes Service cluster contains worker pools
+
+  # ── Load Balancer → Pool ──────────────────────────────────────────────────────
+  - source_resource_type: is.load_balancer
+    target_resource_type: is.load_balancer_pool
+    relation_type: ROUTES_TO
+    field_path: "pools[*].id"
+    field_path_type: array_field_ref
+    attack_path_category: internet_exposure
+    description: IBM VPC Load Balancer routes to backend pools
+
+  # ── Cloud Function (Code Engine) → Service Account ────────────────────────────
+  - source_resource_type: codeengine.app
+    target_resource_type: iam.service_id
+    relation_type: USES_IDENTITY
+    field_path: "run_service_account"
+    field_path_type: field_ref
+    attack_path_category: privilege_escalation
+    description: IBM Code Engine app uses service account

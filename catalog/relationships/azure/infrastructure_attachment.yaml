@@ -1,0 +1,99 @@
+---
+# Azure infrastructure attachment relationships
+# Loaded by: catalog/relationships/upload_relationship_catalog.py
+# Destination: resource_relationship_catalog in threat_engine_di
+# category: infrastructure
+
+csp: azure
+category: infrastructure
+rules:
+
+  # ── VM → NIC ────────────────────────────────────────────────────────────────
+  - source_resource_type: compute.virtual_machine
+    target_resource_type: network.network_interface
+    relation_type: ATTACHED_TO
+    field_path: "networkProfile.networkInterfaces[*].id"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    description: Azure VM attached to network interfaces
+
+  # ── VM → NSG (via NIC) ──────────────────────────────────────────────────────
+  - source_resource_type: network.network_interface
+    target_resource_type: network.network_security_group
+    relation_type: GOVERNED_BY
+    field_path: "networkSecurityGroup.id"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    description: Azure NIC governed by NSG
+
+  # ── VM → Managed Disk ───────────────────────────────────────────────────────
+  - source_resource_type: compute.virtual_machine
+    target_resource_type: compute.disk
+    relation_type: ATTACHED_TO
+    field_path: "storageProfile.dataDisks[*].managedDisk.id"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    description: Azure VM attached to managed data disks
+
+  # ── VM → OS Disk ─────────────────────────────────────────────────────────────
+  - source_resource_type: compute.virtual_machine
+    target_resource_type: compute.disk
+    relation_type: ATTACHED_TO
+    field_path: "storageProfile.osDisk.managedDisk.id"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    description: Azure VM attached to OS managed disk
+
+  # ── VM → Subnet ──────────────────────────────────────────────────────────────
+  - source_resource_type: network.network_interface
+    target_resource_type: network.subnet
+    relation_type: PLACED_IN
+    field_path: "ipConfigurations[*].subnet.id"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    description: Azure NIC placed in subnet
+
+  # ── AKS Cluster → Node Pool ──────────────────────────────────────────────────
+  - source_resource_type: containerservice.managed_cluster
+    target_resource_type: containerservice.agent_pool
+    relation_type: CONTAINS
+    field_path: "agentPoolProfiles[*].name"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    description: AKS cluster contains agent pool profiles
+
+  # ── SQL Server → Database ────────────────────────────────────────────────────
+  - source_resource_type: sql.server
+    target_resource_type: sql.database
+    relation_type: CONTAINS
+    field_path: "Databases[*].name"
+    field_path_type: array_field_ref
+    attack_path_category: data_access
+    description: Azure SQL server contains databases
+
+  # ── App Service → Storage Account ────────────────────────────────────────────
+  - source_resource_type: web.site
+    target_resource_type: storage.storage_account
+    relation_type: USES
+    field_path: "siteConfig.appSettings[*].value"
+    field_path_type: array_field_ref
+    attack_path_category: data_access
+    description: App Service connected to storage accounts (via app settings)
+
+  # ── Key Vault → Disk (CMK) ────────────────────────────────────────────────────
+  - source_resource_type: compute.disk
+    target_resource_type: keyvault.vault
+    relation_type: ENCRYPTED_BY
+    field_path: "encryption.diskEncryptionSetId"
+    field_path_type: field_ref
+    attack_path_category: data_access
+    description: Azure managed disk encrypted by disk encryption set (Key Vault)
+
+  # ── Load Balancer → Backend Pool VMs ────────────────────────────────────────
+  - source_resource_type: network.load_balancer
+    target_resource_type: compute.virtual_machine
+    relation_type: ROUTES_TO
+    field_path: "backendAddressPools[*].backendIPConfigurations[*].id"
+    field_path_type: array_field_ref
+    attack_path_category: internet_exposure
+    description: Azure Load Balancer routes to backend VMs

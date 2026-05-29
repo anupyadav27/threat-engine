@@ -5,21 +5,14 @@ WORKDIR /app
 # System deps
 RUN apt-get update && apt-get install -y gcc && rm -rf /var/lib/apt/lists/*
 
-# Use discoveries requirements.txt — it's a superset covering all CSPs
-# (AWS/Azure/GCP/OCI/IBM/AliCloud/K8s + fastapi/uvicorn/psycopg2/pydantic already included)
-COPY engines/discoveries/requirements.txt ./requirements.txt
+# CSP scanner requirements (all providers: AWS/Azure/GCP/OCI/IBM/AliCloud/K8s)
+COPY engines/di/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# ── Reuse existing CSP scanner classes (key design constraint) ────────────────
-# Copies the same scanner classes that engine-discoveries uses.
-# This ensures DI engine has identical API call, auth, pagination, retry logic.
-COPY engines/discoveries/providers/ ./providers/
-
-# Copy common layer from discoveries (orchestration, models, DB manager)
-COPY engines/discoveries/common/ ./common/
-
-# Copy discovery utils (config_loader, filter_engine, pagination_engine)
-COPY engines/discoveries/utils/ ./utils/
+# ── CSP scanner classes (moved from engine-discoveries 2026-05-28) ────────────
+COPY engines/di/providers/ ./providers/
+COPY engines/di/common/ ./common/
+COPY engines/di/utils/ ./utils/
 
 # ── engine-di source ──────────────────────────────────────────────────────────
 COPY engines/di/di_engine/ ./di_engine/

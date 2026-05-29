@@ -217,12 +217,12 @@ def _run_scan_sync(
     credential_type: str,
 ) -> int:
     """Synchronous scan execution (runs in executor thread)."""
-    from engine_common.db_connections import get_dbsec_conn, get_discoveries_conn, get_check_conn
+    from engine_common.db_connections import get_dbsec_conn, get_di_conn, get_check_conn
     from dbsec_engine.providers import get_provider
     from dbsec_engine.storage.dbsec_db_writer import save_findings_to_db
 
     started_at = datetime.now(timezone.utc)
-    discoveries_conn = get_discoveries_conn()
+    discoveries_conn = get_di_conn()
     check_conn = get_check_conn()
     dbsec_conn = get_dbsec_conn()
 
