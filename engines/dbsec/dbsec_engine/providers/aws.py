@@ -10,16 +10,42 @@ from dbsec_engine.providers.base import BaseDBSecProvider
 
 logger = logging.getLogger(__name__)
 
-# discovery_findings resource_type values for AWS DB services (lowercase as stored)
+# discovery_findings resource_type values (DI_ENGINE_ENABLED=false, legacy format)
+# asset_inventory resource_type values (DI_ENGINE_ENABLED=true, dot-notation format)
 AWS_DB_RESOURCE_TYPES = [
-    "db_instance",        # RDS instances (postgres, mysql, oracle, neptune, etc.)
-    "db_cluster",         # Aurora clusters
-    "cluster",            # Redshift / MSK / ElastiCache clusters
-    "table",              # DynamoDB tables
-    "database",           # Glue / SSM-SAP databases
-    "keyspace",           # Amazon Keyspaces (Cassandra)
-    "global_table",       # DynamoDB global tables
+    # Legacy discovery_findings format
+    "db_instance",
+    "db_cluster",
+    "cluster",
+    "table",
+    "database",
+    "keyspace",
+    "global_table",
+    # asset_inventory format (DI engine)
+    "rds.db-instance",
+    "rds.resource",
+    "neptune-db.resource",
+    "neptunedata.resource",
+    "redshift.resource",
+    "redshift-serverless.resource",
+    "dynamodb.table",
+    "dynamodb.resource",
+    "dynamodb.global_table_description_global_table",
 ]
+
+# Maps asset_inventory resource_type names → canonical names used by pillar checks.
+# Only needed when DI_ENGINE_ENABLED=true; legacy names pass through unchanged.
+_DI_TYPE_MAP: Dict[str, str] = {
+    "rds.db-instance": "db_instance",
+    "rds.resource": "db_instance",
+    "neptune-db.resource": "db_instance",
+    "neptunedata.resource": "db_instance",
+    "redshift.resource": "cluster",
+    "redshift-serverless.resource": "cluster",
+    "dynamodb.table": "table",
+    "dynamodb.resource": "table",
+    "dynamodb.global_table_description_global_table": "global_table",
+}
 
 # Cluster types that are known DB clusters vs general compute clusters
 _REDSHIFT_HINTS = {"NodeType", "NumberOfNodes", "AutomatedSnapshotRetentionPeriod", "MasterUsername"}
@@ -71,7 +97,7 @@ class AWSDBSecProvider(BaseDBSecProvider):
         """Check for publicly accessible databases."""
         findings = []
         ef = resource["emitted_fields"]
-        rtype = resource["resource_type"]
+        rtype = _DI_TYPE_MAP.get(resource["resource_type"], resource["resource_type"])
         slug = self._slug(rtype)
         rule_id = f"aws.dbsec.{PILLAR_NETWORK}.{slug}"
 
@@ -172,7 +198,7 @@ class AWSDBSecProvider(BaseDBSecProvider):
         """Check encryption at-rest and in-transit."""
         findings = []
         ef = resource["emitted_fields"]
-        rtype = resource["resource_type"]
+        rtype = _DI_TYPE_MAP.get(resource["resource_type"], resource["resource_type"])
         slug = self._slug(rtype)
         rule_id = f"aws.dbsec.{PILLAR_ENCRYPT}.{slug}"
 
@@ -295,7 +321,7 @@ class AWSDBSecProvider(BaseDBSecProvider):
         """Check IAM auth, password policies, default admin users."""
         findings = []
         ef = resource["emitted_fields"]
-        rtype = resource["resource_type"]
+        rtype = _DI_TYPE_MAP.get(resource["resource_type"], resource["resource_type"])
         slug = self._slug(rtype)
         rule_id = f"aws.dbsec.{PILLAR_AUTH}.{slug}"
 
@@ -388,7 +414,7 @@ class AWSDBSecProvider(BaseDBSecProvider):
         """Check CloudWatch logging and performance insights."""
         findings = []
         ef = resource["emitted_fields"]
-        rtype = resource["resource_type"]
+        rtype = _DI_TYPE_MAP.get(resource["resource_type"], resource["resource_type"])
         slug = self._slug(rtype)
         rule_id = f"aws.dbsec.{PILLAR_AUDIT}.{slug}"
 
@@ -491,7 +517,7 @@ class AWSDBSecProvider(BaseDBSecProvider):
         """Check backup retention, deletion protection, multi-AZ."""
         findings = []
         ef = resource["emitted_fields"]
-        rtype = resource["resource_type"]
+        rtype = _DI_TYPE_MAP.get(resource["resource_type"], resource["resource_type"])
         slug = self._slug(rtype)
         base_rule = f"aws.dbsec.{PILLAR_COMPLIANCE}.{slug}"
 

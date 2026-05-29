@@ -235,10 +235,6 @@ def main() -> None:
                 _inv_conn = _get_inv_conn()
                 try:
                     with _inv_conn.cursor() as _cur:
-                        _cur.execute(
-                            "INSERT INTO tenants (tenant_id, tenant_name) VALUES (%s, %s) ON CONFLICT DO NOTHING",
-                            (tenant_id, tenant_id),
-                        )
                         _rows = [
                             (
                                 tenant_id, scan_run_id, _m["account_id"],
