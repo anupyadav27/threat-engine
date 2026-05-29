@@ -1,5 +1,7 @@
 """
-Chat engine tool executors.
+Legacy tools module — replaced by the multi-agent orchestrator.
+The orchestrator in orchestrator.py manages all tool routing.
+Individual specialist tools live in specialists/*.py.
 
 Each function maps to a Bedrock tool definition. All queries are:
   - Scoped to tenant_id (mandatory, injected server-side)

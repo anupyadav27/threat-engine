@@ -29,7 +29,7 @@ from pydantic import BaseModel
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
-from engine_common.db_connections import get_inventory_conn
+from engine_common.db_connections import get_di_conn
 
 try:
     from engine_auth.fastapi.middleware import AuthMiddleware
@@ -130,7 +130,7 @@ async def create_session(
     user_id   = _resolve_user(request)
     session_id = str(uuid4())
 
-    conn = get_inventory_conn()
+    conn = get_di_conn()
     try:
         with conn.cursor() as cur:
             cur.execute(
@@ -156,7 +156,7 @@ async def list_sessions(
     tenant_id = _resolve_tenant(request)
     user_id   = _resolve_user(request)
 
-    conn = get_inventory_conn()
+    conn = get_di_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
@@ -197,7 +197,7 @@ async def get_messages(
 ):
     tenant_id = _resolve_tenant(request)
 
-    conn = get_inventory_conn()
+    conn = get_di_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             # Verify session belongs to tenant
@@ -248,7 +248,7 @@ async def send_message(
     role        = _resolve_role(request)
     account_ids = _resolve_accounts(request)
 
-    conn = get_inventory_conn()
+    conn = get_di_conn()
 
     # Verify session ownership
     with conn.cursor() as cur:
@@ -269,7 +269,7 @@ async def send_message(
                 role=role,
                 account_ids=account_ids,
                 session_id=session_id,
-                inv_conn=conn,
+                di_conn=conn,
             ):
                 yield chunk
         finally:
@@ -291,7 +291,7 @@ async def get_quick_questions(
     category: Optional[str] = Query(default=None),
     _: Any = Depends(require_permission("discoveries:read")) if _AUTH else Depends(lambda: None),
 ):
-    conn = get_inventory_conn()
+    conn = get_di_conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             if category:
@@ -342,7 +342,7 @@ async def health_live():
 @app.get("/api/v1/health/ready")
 async def health_ready():
     try:
-        conn = get_inventory_conn()
+        conn = get_di_conn()
         conn.close()
         return {"status": "ok"}
     except Exception as exc:

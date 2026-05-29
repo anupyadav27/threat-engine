@@ -249,6 +249,8 @@ def _get_framework_summaries(
             fw.version          AS framework_version,
             fw.authority        AS framework_authority,
             fw.category         AS framework_category,
+            fw.base_url         AS framework_base_url,
+            fw.vendor_name      AS framework_vendor,
             fk.failed_controls,
             fk.unique_failed,
             COALESCE(fcc.total_controls, 0) AS total_controls,
@@ -289,6 +291,8 @@ def _get_framework_summaries(
                     "framework_version":   row.get("framework_version"),
                     "framework_authority": row.get("framework_authority"),
                     "framework_category":  row.get("framework_category"),
+                    "base_url":            row.get("framework_base_url"),
+                    "vendor_name":         row.get("framework_vendor"),
                     "score":               score,
                     "passed_controls":     passed,
                     "failed_controls":     failed,
@@ -1036,10 +1040,11 @@ async def get_control_detail(
         conn = _get_compliance_db_connection()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute("""
-            SELECT control_id, framework_id, control_name, control_description,
-                   control_family, severity, assessment_type, profile_level,
-                   implementation_guidance, testing_procedures, rationale,
-                   remediation, default_value, impact
+            SELECT control_id, framework_id, control_number, control_name,
+                   control_description, control_family, severity,
+                   assessment_type, profile_level, implementation_guidance,
+                   testing_procedures, rationale, remediation,
+                   default_value, impact, reference_url
             FROM compliance_controls
             WHERE control_id = %s
         """, (control_id,))
@@ -1101,11 +1106,12 @@ async def get_framework_assessment(
         for k in ("created_at", "updated_at", "framework_data"):
             fw_meta.pop(k, None)
 
-        # Get controls — lightweight fields only (no large text blobs)
+        # Get controls — reference_url pre-computed and stored in the table
         cur.execute("""
-            SELECT control_id, control_name,
+            SELECT control_id, control_number, control_name,
                    LEFT(control_description, 200) AS control_description,
-                   control_family, severity, assessment_type, profile_level, provider
+                   control_family, severity, assessment_type,
+                   profile_level, provider, reference_url
             FROM compliance_controls
             WHERE framework_id = %s AND is_active = true
             ORDER BY control_family, control_id
@@ -1323,14 +1329,14 @@ async def get_framework_report(
         fw_name = fw_row["framework_name"] if fw_row else framework_id
         fw_version = fw_row.get("version") if fw_row else None
 
-        # Get ALL control fields (full data for report)
+        # Get ALL control fields (reference_url pre-computed in table)
         cur.execute("""
-            SELECT control_id, control_name, control_description, control_family,
-                   severity, assessment_type, profile_level, provider,
+            SELECT control_id, control_number, control_name, control_description,
+                   control_family, severity, assessment_type, profile_level, provider,
                    section_id, section_name, subsection_id, sort_order,
                    testing_procedures, implementation_guidance, rationale,
                    audit_console, audit_cli, remediation_console, remediation_cli,
-                   default_value, impact
+                   default_value, impact, reference_url
             FROM compliance_controls
             WHERE framework_id = %s AND is_active = true
             ORDER BY sort_order NULLS LAST, control_id

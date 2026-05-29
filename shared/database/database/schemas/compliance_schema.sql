@@ -85,6 +85,9 @@ CREATE TABLE IF NOT EXISTS compliance_frameworks (
     category VARCHAR(100),
     is_active BOOLEAN DEFAULT TRUE,
     framework_data JSONB NOT NULL,
+    base_url VARCHAR(512),
+    control_url_pattern VARCHAR(512),
+    vendor_name VARCHAR(255),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -100,6 +103,7 @@ CREATE TABLE IF NOT EXISTS compliance_controls (
     control_family VARCHAR(100),
     implementation_guidance TEXT,
     testing_procedures TEXT,
+    reference_url TEXT,
     is_active BOOLEAN DEFAULT TRUE,
     control_data JSONB DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

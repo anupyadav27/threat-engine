@@ -78,6 +78,16 @@ _CROWN_JEWEL_CONTAINER_SUBCATEGORY: Dict[str, str] = {
 # These are semantic content rules — they cannot be expressed as resource type metadata.
 _SENSITIVE_CM_PATTERNS = ("password", "secret", "token", "key", "credential", "cert")
 
+# Generic type names that appear across dozens of services in di_resource_catalog.
+# Adding these as bare keys to _catalog_types would classify every record of that
+# type (e.g. all 3 k+ "resource"-type rows in asset_inventory) as a crown jewel,
+# regardless of which service they belong to. Only service-qualified forms like
+# "rds.resource" or "sagemaker.action" should match for these names.
+_BARE_KEY_BLOCKLIST: frozenset = frozenset({
+    "resource", "action", "config", "image", "lambda", "recipe",
+    "indexe", "kms",
+})
+
 # ---------------------------------------------------------------------------
 # Conditional classification rules — driven by di_resource_catalog subcategory.
 #
@@ -182,10 +192,13 @@ class CrownJewelClassifier:
         rtype = (resource.get("resource_type") or "").lower()
         # Normalize using aliases loaded from di_resource_catalog.canonical_type
         rtype = self._type_aliases.get(rtype, rtype)
+        # Dot-normalized form: asset_inventory uses both s3_bucket (underscore) and
+        # dynamodb.table (dot); catalog keys include both forms after _load_from_di_catalog.
+        rtype_dot = rtype.replace("_", ".")
 
         # Conditional rules — which resource types undergo these checks is driven
         # by di_resource_catalog.subcategory via _CONDITIONAL_SUBCATEGORIES.
-        condition = self._conditional_types.get(rtype)
+        condition = self._conditional_types.get(rtype) or self._conditional_types.get(rtype_dot)
         if condition == "iam":
             is_admin = posture.get("is_admin_role") or resource.get("is_admin_role") or False
             has_wildcard = posture.get("has_wildcard_policy") or resource.get("has_wildcard_policy") or False
@@ -206,7 +219,8 @@ class CrownJewelClassifier:
         # Always-CJ lookup — fully driven by di_resource_catalog.category.
         # Covers all CSPs for: database, storage, analytics, encryption, ai_ml,
         # messaging, container registries + orchestration.
-        return self._catalog_types.get(rtype)
+        # Try plain type first, then dot-normalized (handles s3_bucket → s3.bucket).
+        return self._catalog_types.get(rtype) or self._catalog_types.get(rtype_dot)
 
     def _load_resources_from_inventory(self) -> List[Dict[str, Any]]:
         """Load all resources for this tenant from asset_inventory (threat_engine_di).
@@ -318,11 +332,16 @@ class CrownJewelClassifier:
                         svc = (service or "").lower()
                         rtype = (resource_type or "").lower()
 
-                        # Build all key variants so we match Neo4j's "service.resource-type"
-                        # format as well as plain short names stored in older catalog rows.
-                        keys = [rtype]
+                        # Build all key variants to match both naming conventions:
+                        #   - "service.resource-type" (dot notation, DI engine format)
+                        #   - "service_resource_type" (underscore, CloudQuery/boto3 format)
+                        # Generic types (resource, action, config, image, etc.) must NOT
+                        # be added as bare keys — they match too broadly across services.
+                        keys = [] if rtype in _BARE_KEY_BLOCKLIST else [rtype]
                         if svc:
-                            keys.append(f"{svc}.{rtype}")
+                            dot_key = f"{svc}.{rtype}"
+                            keys.append(dot_key)
+                            keys.append(dot_key.replace(".", "_"))    # s3.bucket → s3_bucket
                             keys.append(f"{svc}.{rtype.replace('_', '-')}")
 
                         # --- Type alias (raw Neo4j form → catalog canonical form) ---

@@ -528,7 +528,27 @@ def run_attack_path_scan(
 
     try:
         # ── Stage 1: Crown Jewel Classification ───────────────────────────────
+        # Reset stale crown jewel marks from previous scans so the classifier
+        # starts with a clean slate. Without this, old is_crown_jewel=true rows
+        # accumulate across scans and inflate the BFS crown jewel set.
         _jlog("stage", name="crown_jewel_classify", scan_run_id=scan_run_id)
+        try:
+            with di_conn.cursor() as _cj_cur:
+                _cj_cur.execute(
+                    "UPDATE resource_security_posture"
+                    " SET is_crown_jewel = false, crown_jewel_type = NULL"
+                    " WHERE tenant_id = %s",
+                    (tenant_id,),
+                )
+            di_conn.commit()
+            _jlog("crown_jewel_reset", tenant_id=tenant_id, scan_run_id=scan_run_id)
+        except Exception as _cj_rst_err:
+            logger.warning("crown_jewel reset failed (non-fatal): %s", _cj_rst_err)
+            try:
+                di_conn.rollback()
+            except Exception:
+                pass
+
         from .core.crown_jewel_classifier import CrownJewelClassifier
         classifier = CrownJewelClassifier(
             inventory_conn=di_conn,
