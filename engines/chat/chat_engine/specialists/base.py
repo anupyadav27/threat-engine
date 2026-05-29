@@ -146,6 +146,26 @@ class SpecialistAgent:
         self.di_conn = di_conn
         self._collected_data: Dict[str, Any] = {}
 
+    def _engine_headers(self) -> Dict[str, str]:
+        """Build X-Auth-Context header for service-to-service engine API calls."""
+        ctx = {
+            "user_id": "chat-engine",
+            "email": "chat-engine@internal",
+            "role": self.role or "platform_admin",
+            "level": 1,
+            "scope_level": "platform",
+            "engine_tenant_id": self.tenant_id,
+            "tenant_ids": [self.tenant_id],
+            "account_ids": self.account_ids,
+            "permissions": [
+                "compliance:read", "discoveries:read", "risks:read",
+                "threats:read", "network:read", "iam:read",
+                "attack_path:read", "vulnerabilities:read", "cdr:read",
+                "inventory:read", "cloud_accounts:read",
+            ],
+        }
+        return {"X-Auth-Context": json.dumps(ctx)}
+
     # ── Public entry point ────────────────────────────────────────────────────
 
     def run(self, question: str) -> Dict[str, Any]:

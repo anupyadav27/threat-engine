@@ -98,6 +98,7 @@ When answering:
             resp = httpx.get(
                 f"{RISK_URL}/api/v1/risk/summary",
                 params={"tenant_id": self.tenant_id},
+                headers=self._engine_headers(),
                 timeout=8.0,
             )
             if resp.status_code == 200:

@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     role             VARCHAR(20)  NOT NULL CHECK (role IN ('user', 'assistant')),
     content          TEXT         NOT NULL,
     generated_query  TEXT,
-    query_type       VARCHAR(20)  CHECK (query_type IN ('sql', 'cypher', 'api', 'none')),
+    query_type       VARCHAR(20)  CHECK (query_type IN ('sql', 'cypher', 'api', 'multi_agent', 'none')),
     latency_ms       INTEGER,
     token_count      INTEGER,
     created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW()

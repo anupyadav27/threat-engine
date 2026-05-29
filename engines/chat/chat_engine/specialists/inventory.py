@@ -121,6 +121,7 @@ When answering:
             resp = httpx.get(
                 f"{ONBOARDING_URL}/api/v1/cloud-accounts",
                 params={"tenant_id": self.tenant_id},
+                headers=self._engine_headers(),
                 timeout=8.0,
             )
             resp.raise_for_status()

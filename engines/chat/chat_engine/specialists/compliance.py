@@ -57,8 +57,9 @@ When answering:
             qs["account_id"] = params["account_id"]
         try:
             resp = httpx.get(
-                f"{COMPLIANCE_URL}/api/v1/compliance/summary",
+                f"{COMPLIANCE_URL}/api/v1/compliance/frameworks/summary",
                 params=qs,
+                headers=self._engine_headers(),
                 timeout=10.0,
             )
             resp.raise_for_status()
@@ -69,7 +70,6 @@ When answering:
         frameworks = data.get("frameworks", data if isinstance(data, list) else [])
         if params.get("framework"):
             kw = params["framework"].lower()
-            frameworks = [f for f in frameworks if kw in (f.get("name") or f.get("framework_name") or "").lower()]
+            frameworks = [f for f in frameworks if kw in (f.get("name") or "").lower()]
 
-        # Each framework now includes base_url and vendor_name from the engine
         return {"frameworks": frameworks, "total": len(frameworks)}

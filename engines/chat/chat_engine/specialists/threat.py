@@ -126,6 +126,7 @@ When answering:
             resp = httpx.get(
                 f"{ATTACK_PATH_URL}/api/v1/attack-paths",
                 params={"tenant_id": self.tenant_id, "limit": limit},
+                headers=self._engine_headers(),
                 timeout=10.0,
             )
             resp.raise_for_status()
