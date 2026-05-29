@@ -70,8 +70,8 @@ When answering:
                 FROM resource_security_posture
                 WHERE {where}
                   AND resource_type ILIKE ANY(ARRAY[
-                    '%eks%','%ecs%','%container%','%k8s%','%pod%',
-                    '%ecr%','%fargate%','%task%','%service%mesh%'
+                    '%%eks%%','%%ecs%%','%%container%%','%%k8s%%','%%pod%%',
+                    '%%ecr%%','%%fargate%%','%%task%%','%%service%%mesh%%'
                   ])
                 """,
                 args,

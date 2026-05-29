@@ -73,7 +73,7 @@ When answering:
                     COUNT(*) FILTER (WHERE active_cdr_actor_on_admin_role = TRUE) AS active_threat_on_admin_count
                 FROM resource_security_posture
                 WHERE {where}
-                  AND resource_type ILIKE ANY(ARRAY['%iam%','%user%','%role%','%identity%','%principal%'])
+                  AND resource_type ILIKE ANY(ARRAY['%%iam%%','%%user%%','%%role%%','%%identity%%','%%principal%%'])
                 """,
                 args,
             )

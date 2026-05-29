@@ -69,8 +69,8 @@ When answering:
                 FROM resource_security_posture
                 WHERE {where}
                   AND resource_type ILIKE ANY(ARRAY[
-                    '%rds%','%aurora%','%dynamodb%','%elasticache%',
-                    '%redshift%','%neptune%','%docdb%','%database%','%db%'
+                    '%%rds%%','%%aurora%%','%%dynamodb%%','%%elasticache%%',
+                    '%%redshift%%','%%neptune%%','%%docdb%%','%%database%%','%%db%%'
                   ])
                 """,
                 args,

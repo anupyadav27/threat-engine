@@ -269,8 +269,8 @@ class SpecialistAgent:
             conds.append("severity = %s")
             args.append(severity)
         if days:
-            conds.append("first_seen_at >= NOW() - INTERVAL '%s days'")
-            args.append(days)
+            conds.append("first_seen_at >= NOW() - (%s || ' days')::INTERVAL")
+            args.append(str(int(days)))
         if resource_type:
             conds.append("resource_type ILIKE %s")
             args.append(f"%{resource_type}%")
